@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppearance } from "@/hooks/useAppearance";
 import { useAuth } from "@/hooks/useAuth";
@@ -73,6 +74,11 @@ type StyleRow = {
   canonical_customer_name?: string | null;
   factory_id?: string | null;
   plm_item_id?: string | null;
+  rfq_groups?: Array<{
+    id: number;
+    name: string;
+    linked_at: string | null;
+  }> | null;
 };
 
 type SheetColumn = {
@@ -239,7 +245,6 @@ const licensedColumns: SheetColumn[] = [
   { letter: "AG", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
   { letter: "AH", header: "Professional Photos", width: 180, legacyKey: "professional_photos" },
   { letter: "AI", header: "Test report", width: 150, legacyKey: "test_report" },
-  { letter: "AJ", header: "Catalog Image", width: 150, legacyKey: "catalog_image" },
   { letter: "AK", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
   { letter: "AL", header: "Customer Exclusive", width: 180, legacyKey: "customer_exclusive" },
   { letter: "AM", header: "Annual Samples to Need Order", width: 220, legacyKey: "annual_samples_need_order" },
@@ -272,7 +277,6 @@ const genericColumns: SheetColumn[] = [
   { letter: "AB", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
   { letter: "AC", header: "Professional Photos", width: 180, legacyKey: "professional_photos" },
   { letter: "AD", header: "Test report", width: 150, legacyKey: "test_report" },
-  { letter: "AE", header: "Catalog Image", width: 150, legacyKey: "catalog_image" },
   { letter: "AF", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
 ];
 
@@ -1024,6 +1028,44 @@ function RowNumberHeader(params: CustomHeaderProps<StyleRow>) {
   );
 }
 
+function RfqGroupCell(params: CustomCellRendererProps<StyleRow>) {
+  const groups = params.data?.rfq_groups ?? [];
+  if (groups.length === 0) return null;
+
+  const latest = groups[0];
+  if (groups.length === 1) return <span className="block truncate">{latest.name}</span>;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-full w-full min-w-0 items-center gap-1.5 text-left hover:text-primary"
+          onClick={(event) => event.stopPropagation()}
+          aria-label={`${latest.name}; show ${groups.length - 1} previous RFQ groups`}
+        >
+          <span className="min-w-0 flex-1 truncate">{latest.name}</span>
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">+{groups.length - 1}</span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-2" onClick={(event) => event.stopPropagation()}>
+        <div className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">RFQ group history</div>
+        <div className="max-h-64 overflow-y-auto">
+          {groups.map((group, index) => (
+            <div key={group.id} className={cn("rounded px-2 py-1.5 text-sm", index === 0 && "bg-primary/10")}>
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                {index === 0 && <span className="text-[10px] font-medium uppercase text-primary">Latest</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function StylesPage() {
   const queryClient = useQueryClient();
   const { theme } = useAppearance();
@@ -1426,6 +1468,18 @@ export default function StylesPage() {
             {params.data?.match_status === "matched" ? "Linked" : params.data?.match_status === "partial" ? "Partial" : params.data?.match_status === "needs_review" ? "Review" : "Unlinked"}
           </span>
         ),
+      },
+      {
+        colId: "rfq_group",
+        headerName: "RFQ Group",
+        width: 220,
+        editable: false,
+        filter: true,
+        sortable: true,
+        suppressFillHandle: true,
+        valueGetter: (params) => params.data?.rfq_groups?.[0]?.name ?? null,
+        filterValueGetter: (params) => params.data?.rfq_groups?.map((group) => group.name).join(" | ") ?? "",
+        cellRenderer: RfqGroupCell,
       },
       ...active.columns.map((column): ColDef<StyleRow> => ({
         colId: column.letter,
