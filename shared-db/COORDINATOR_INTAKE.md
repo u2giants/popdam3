@@ -2102,6 +2102,139 @@ alerting itself depends on the link that failed**.
 gap"* — held until `alert-diagnosis` reports, since the two may be the same
 defect.
 
+**RESOLUTION — 2026-08-02 — the cross-check is done and the HOLD IS LIFTED.**
+Authoritative documents; read them rather than the summary here:
+[`docs/coldlion-preview-alert-diagnosis-20260802.md`](docs/coldlion-preview-alert-diagnosis-20260802.md)
+(read-only diagnosis, merged as PR #396) and PR **#406** (merged
+2026-08-02T13:32:08Z as `e890ecd`), which added the missing acknowledgement path.
+
+- ✅ **The tension flagged above is resolved — the five alerts were RESIDUE, proven
+  not assumed.** `related_run_id` **and** `observation_id` are NULL on all five (no
+  `ingest.sync_run` was ever opened), and `payload.detail` reads literally
+  `"supabase db query failed"`. They are the client-side ENOBUFS tooling fault in
+  `runSql`, whose root cause was fixed by **PR #367** (merged 2026-07-31T22:59:04Z).
+  Not a database invariant failure, not production-relevant.
+- ✅ **This block's `ready:true` / "no open critical database alert" is true ONLY of
+  its own timestamp** (health run at 2026-07-31T18:56:08Z) **and was FALSE from
+  19:39Z onward** — the five criticals fired **43 minutes later**. Never quote it as
+  a current readiness statement; live readiness evaluated FALSE while they were open.
+- ❌ **DISPROVEN — "a Supabase/Cloudflare 502 caused the `supabase link` failure."**
+  The failure of run `30639230244` is real and verified; the *attributed cause* is
+  not. No `502`, `Bad Gateway` or Cloudflare string survives in the retained log —
+  only `Try rerunning the command with --debug`. **Stop repeating the 502 as fact.**
+- ❌ **DISPROVEN (restated) — the worktree
+  `C:\repos\shared-db-intake-coldlion-monitor-20260801` does not exist.**
+  Re-confirmed 2026-08-02 against `git worktree list` and the filesystem. The branch
+  and PR are intact; nothing is lost.
+- ✅ **The pre-link alert-delivery gap this block reported is REAL and still open** —
+  independently confirmed by the diagnosis (§6 claim 8, §7 item 7). When
+  `supabase link` fails, no alert row can be written at all.
+- ⚠️ **What this block did NOT identify** — the actual reason the monitor stayed red:
+  `plm.taxonomy_sync_alert.acknowledged_at` existed since `20260726180000` but
+  **nothing anywhere ever set it**. The alert channel was write-only, so the same five
+  rows were re-found every ten minutes forever.
+- ✅ **That underlying defect is now FIXED.** PR #406 added
+  `plm.acknowledge_taxonomy_sync_alert`, and the five alerts were acknowledged on
+  **preview only** at **2026-08-02 13:15:16 UTC** via that RPC — **6 h 24 m before**
+  they would have silently aged out of the dispatcher's 48-hour window at ~19:39 UTC.
+  **The monitor going green is that fix, not the expiry the diagnosis warned about.**
+  (Timing note for whoever reads the checks: at the moment this entry was written,
+  13:33 UTC, no monitor run had yet executed *after* the acknowledgement — the newest
+  run, `30748489435` at 12:45 UTC, predates it.)
+- **Hold lifted.** The REQUEST QUEUE entry *"Close the pre-link alert-delivery gap"*
+  was held pending `alert-diagnosis`; that agent has now reported and the two are
+  **not** the same defect. Release it for normal scheduling. Also still open and
+  **not** addressed by #406: the duplicate-issue storm (25 open issues), the
+  dispatcher-48h-lookback vs readiness-no-lookback mismatch, and the silent-expiry
+  hole — diagnosis §4, §5 and §7 items 4–6.
+- **Disposition of #373 itself is unchanged:** still **not dispatched** as monitoring
+  work. The *"Restart ColdLion Phase 6 preview monitoring"* request stays in the
+  REQUEST QUEUE, now unblocked by the alert entry above it.
+
+**Verification boundary for this resolution.** Written by sub-agent `close-373`,
+2026-08-02, against `origin/main` = `e890ecd`. It made **no database call of any kind**
+— every ✅/❌ above was checked against the merged documents, live GitHub (`gh pr view`
+#354/#367/#373/#395/#396/#406, `gh run list`), `git worktree list` and the filesystem.
+The preview database facts (the five rows' NULL columns, the acknowledgement at
+13:15:16 UTC) are quoted from PR #396 and PR #406, which did the live read-only work.
+
+---
+
+> **Verbatim intake block for PR #373, moved into `TAKEN OVER` on 2026-08-02
+> when that PR was brought up to date with `main`.** It is reproduced below
+> exactly as its author wrote it, unedited — per Part B2.1 and the note at the
+> top of this section (*"move it down here then and delete nothing"*). The
+> ingestion, verification, resolution and disposition of this block are the
+> entry immediately above; where the two disagree, the entry above is the
+> coordinator's ruling and this block is the original, unverified claim.
+
+### INTAKE — ColdLion Licensor/Property preview monitor — 2026-08-01 — automation monitor-coldlion-phase-6-preview
+
+**1. What I was doing and why.**
+I was monitoring the preview-only ColdLion Licensor/Property parallel feed. The goal was to
+preserve every scheduled and manual result, check each complete source cycle against section
+9.4 and the accelerated deterministic gates, and report new blockers without touching
+production or starting Phase 7.
+
+**2. What I have actually DONE.**
+The last completed monitoring pass merged PR **#354** into `main` as merge commit
+`768594e762c09ff2beb19902289608c4842572ff`. It updated only
+`docs/verification/coldlion-licensor-property-phase6-20260726/README.md` and preserved all 24
+scheduled runs from 2026-07-30 through 2026-07-31, including one failed run. Both offline CI
+checks and the consumer-repo sync passed for that merge. No monitoring work for the current
+2026-08-01 heartbeat was started after the new coordinator rule was discovered.
+
+**3. What I applied to PREVIEW (`rjyboqwcdzcocqgmsyel`).**
+No migration, schema change, deletion, or canonical-data update was applied. During the prior
+monitoring pass, I ran the approved readiness evaluator on preview. Its health function appended
+one normal evidence row, health run `75c15b95-2fa2-4b83-b160-f7cae7130c66`, at
+2026-07-31T18:56:08Z. It returned `ready:true`, exact typed mapping 542/542, zero identity
+differences, unchanged protected hashes, breaker enforcement 11/11, a closed breaker, and no
+open critical database alert. Production `qsllyeztdwjgirsysgai` was not accessed.
+
+**4. What is half-finished or abandoned mid-way.**
+The recurring heartbeat remains active, but this session must no longer execute it outside the
+coordinator. New GitHub Actions runs and preview observations after 2026-07-31T18:56:08Z have
+not been inspected or recorded here. The pre-link alert-delivery gap is still open: scheduled
+run `30639230244` failed when Supabase returned a 502 during `supabase link`, and the immediate
+alert also failed because no project link existed. Later green runs proved service recovery but
+did not close that alert gap.
+
+**5. What I own right now.**
+Branch `intake/coldlion-monitor-20260801` in worktree
+`C:\repos\shared-db-intake-coldlion-monitor-20260801`, containing only this intake addition.
+The original `C:\repos\shared-db` checkout is clean on local `main`, but local `main` is 13
+commits behind `origin/main`; it was fetched, not merged, because the new Part A rule forbids
+this non-coordinator session from continuing repo work.
+
+**6. What I was ABOUT to do next.**
+The coordinator should first ingest this block, then dispatch a preview-only monitoring agent in
+an isolated worktree. That agent should read the current priority and ColdLion plans from the
+current `origin/main`, inspect only the named Phase 6 workflow and preview project, collect every
+new run after the evidence cutoff, append evidence only when new facts exist, and leave
+production and Phase 7 untouched. Verification succeeds when every new run and observation is
+accounted for and the alert gap is either fixed and proven on preview or remains plainly listed
+as blocking.
+
+**7. What I am blocked on.**
+Blocked on another workstream and process owner: only the active shared-db coordinator may
+dispatch or continue this monitoring. Step 8 also remains blocked on Albert's separate durable
+production approval. This intake is not that approval.
+
+**8. What I tried that did NOT work, and why. [MANDATORY — do not skip]**
+In the prior pass, a direct Node one-liner intended to read preview health IDs failed before
+opening a database connection because PowerShell stripped quotes around `require("pg")`. I did
+not retry that approach. The approved readiness tool worked instead. Scheduled run
+`30639230244` also failed before preview linking because the Supabase management service returned
+a Cloudflare 502. Its database-backed alert fallback could not run without the link, which is
+the unresolved design gap. No failure was erased or reclassified.
+
+**9. Facts I believe that may already be stale.**
+Everything after 2026-07-31T18:56:08Z may be stale, including workflow runs, preview rows,
+breaker state, open alerts, current readiness, plan status, and whether another coordinator has
+already assigned the alert-gap fix. PR #354 and merge commit `768594e...` were verified when
+merged, but the coordinator must recheck live GitHub and preview state before acting.
+
 ---
 
 > **Verification boundary for all three entries above (stated plainly so nobody
