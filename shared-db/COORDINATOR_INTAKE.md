@@ -1829,6 +1829,171 @@ scoreboard counts merged unverified by PR #337"*.
 
 ---
 
+> **Verbatim intake block for PR #365, moved into `TAKEN OVER` on 2026-08-02
+> when that PR was brought up to date with `main`.** It is reproduced below
+> exactly as its author wrote it, unedited — per Part B2.1 and the note at the
+> top of this section (*"move it down here then and delete nothing"*). The
+> ingestion, verification and disposition of this block are the entry
+> immediately above; where the two disagree, the entry above is the
+> coordinator's ruling and this block is the original, unverified claim.
+
+### INTAKE — ColdLion vs Supabase comparison + vendor raw_record cleanup + scoreboard doc refresh — 2026-07-31 — session: unnamed Claude Code session, machine t16 (`C:\repos\shared-db`)
+
+**1. What I was doing and why.**
+The business owner (Albert) asked me to compare, for every table that is (or is
+planned to be) fed by the ColdLion ERP API, what Supabase currently holds versus
+what ColdLion's live API shows, and report the differences. I was **not started
+as, and did not know I should be, the shared-db coordinator** — I discovered
+this protocol only when Albert told me to stop, at which point I stopped
+immediately. I had no idea a coordinator session might already be active; I now
+know from `git log` that a large, clearly-coordinated body of work (dozens of
+ColdLion/licensor-alias/PopSG migrations, all dated 2026-07-31) landed in
+`origin/main` during or shortly before my session, which is strong evidence a
+real coordinator **was** running concurrently with my uncoordinated work.
+
+Over the course of the conversation this became three sub-actions, described
+in order below.
+
+**2. What I have actually DONE.**
+- **(a) Read-only research**, via two `general-purpose` sub-agents (NOT
+  background task chips — they were run in the foreground/synchronously via the
+  `Agent` tool and I read their full output before proceeding). They ran
+  `mcp__supabase__execute_sql` SELECT-only queries against project ref
+  `qsllyeztdwjgirsysgai`, and live GET calls to the ColdLion API
+  (`http://x5.coldlion.com/EhpApi/customers` and `/vendors`) via the 1Password
+  `op_run` tool. No writes were made by these two agents. Findings (row
+  counts, staleness, etc.) were reported to Albert in chat; nothing was
+  committed from this step.
+- **(b) Docs change, MERGED to `main` directly** (not left open — this is a
+  deviation from what this file asks of me now, done before I knew the
+  protocol existed). Branch `docs/refresh-master-data-scoreboard-20260731`,
+  one commit, PR **#337** ("docs: refresh master-data cutover scoreboard with
+  live counts"), **merged (squash) and branch deleted** by me. This updated
+  `docs/master-data-cutover-scoreboard.md`: corrected stale canonical row
+  counts (`core.customer` 929→862, `core.factory` 529→93), added sync-freshness
+  dates, and added a status note about PR #331 (Step 7A, licensor/property
+  cutover — unmerged as of my read). **This PR did not touch the database**,
+  only a markdown file, and it had no CI checks configured on that branch (I
+  confirmed with `gh pr checks 337 --watch`, which reported "no checks
+  reported"). Local `main` is now at `origin/main` tip as of my last `git pull`
+  (see fact 9 below for how stale that already may be).
+- **(c) A live PRODUCTION database write** — see §3, this is the one that
+  matters most for the coordinator to assess.
+
+**3. What I applied to PREVIEW (`rjyboqwcdzcocqgmsyel`).**
+**Nothing was applied to preview.** But — **I touched PRODUCTION, and I am
+saying so first and loudly, per this template's instruction:**
+
+I dispatched a third sub-agent (background, via the `Agent` tool — again NOT a
+background task chip, but I acknowledge in hindsight that dispatching
+uncoordinated production writes via a sub-agent while unaware of the
+single-coordinator rule is exactly the failure mode this file exists to
+prevent) to clean up `ingest.raw_record` in what I understood to be
+**production** `qsllyeztdwjgirsysgai`. It executed, and reported completing:
+
+```sql
+DELETE FROM ingest.raw_record r
+WHERE r.source_system = 'coldlion' AND r.source_table = 'vendors'
+  AND NOT EXISTS (
+    SELECT 1 FROM plm.erp_vendor v WHERE v.vendor_code = r.source_id
+  );
+```
+
+Reported result: **442 rows deleted** from `ingest.raw_record` (bronze/raw
+landing table only — the sub-agent reported it did NOT touch `plm.erp_vendor`
+or `core.factory`, and reported unchanged counts of 97 and 93 respectively
+before/after). These were rows the sub-agent characterized as orphaned
+leftovers from a pre-2026-07-22 ColdLion `/vendors` feed bug (the endpoint used
+to serve the wrong table). I have **not independently re-verified this delete
+against the live database myself** — I am relying entirely on the sub-agent's
+self-report, which this file explicitly warns not to trust without
+verification (see Part B, "Do not trust the block"). **The coordinator should
+independently confirm**: (i) which project (`qsllyeztdwjgirsysgai` production,
+or something else) that agent's Supabase MCP calls actually reached — I never
+had that agent call `get_project_url` first, which standing fact 6 says is
+required before trusting where an MCP call landed; (ii) that the delete really
+was scoped to only the 442 orphaned rows and not anything a concurrent
+coordinator-dispatched agent may have written to the same table around the
+same time; (iii) that no other session's in-flight work on `ingest.raw_record`
+was clobbered.
+
+**4. What is half-finished or abandoned mid-way.**
+Nothing is mid-write. All three sub-actions above reported completion (the
+docs PR merged; the delete reported done and verified by its own sub-agent).
+I have no pending branch, no open PR of mine other than the one this handover
+itself will create, and no in-progress migration. The risk here is not
+"unfinished" — it is "finished without coordination," which is worse.
+
+**5. What I own right now.**
+- Local checkout `C:\repos\shared-db`, on branch `main`, clean, at commit
+  `134ebf4ef96b5efacbcffcda97f3a3f22deb2f83` as of my last `git pull` (today,
+  before I found this file). I did that pull specifically because my local
+  `main` was ~32 commits behind `origin/main` and I wanted current docs — that
+  pull itself is exactly agenda item 2 / the "Update the stale shared checkout"
+  REQUEST already sitting in the queue above, so it may now be satisfied for
+  this machine specifically (still unverified for other machines).
+  I am about to create one more local branch to file this handover; nothing
+  else is checked out and no worktree is held.
+- No worktrees. No other dirty files.
+
+**6. What I was ABOUT to do next.**
+Before Albert told me to stop, I had offered him two follow-on options and was
+waiting on his answer, not yet started: (a) fix the `"not-a-date"` bug in the
+dflow→Supabase item-sync job that has been failing with HTTP 403 since
+2026-07-26; (b) merge PR #331 (Step 7A, licensor/property recurring production
+feed). **I did not start either.** Given what I now know is in the REQUEST
+QUEUE above (the far more current and detailed B14/Step-8 items about this
+exact ColdLion feed), (b) in particular should almost certainly NOT be picked
+up as I described it — the queue shows the real state is much more involved
+(18-case rehearsal unmet, true migration manifest not 4 but ~18 versions,
+etc.) than what I understood mid-conversation.
+
+**7. What I am blocked on.**
+Blocked on (b) — a decision only the coordinator can make: whether to
+independently re-verify and accept the 442-row production delete described in
+§3, whether it needs any remediation, and whether my merged PR #337's numbers
+are still accurate given how much ColdLion/taxonomy work has evidently landed
+today. Not blocked on Albert directly — Albert's instruction to me was simply
+to stop and hand over, which I am doing.
+
+**8. What I tried that did NOT work, and why. [MANDATORY]**
+Nothing technical failed — every SQL query, API call, and git operation I ran
+completed successfully. **The failure was procedural, not technical, and it is
+the important one:** I was never told, and did not independently discover
+until Albert flagged it, that `u2giants/shared-db` runs under a single-
+coordinator protocol with a request queue for exactly this kind of "small"
+work. I treated a live production DELETE and a merged docs PR as ordinary,
+low-risk actions because in isolation they looked reversible and low-blast-
+radius — a judgment this file explicitly warns against ("every incident here
+started as a small change someone judged too minor to coordinate"). The
+concrete lesson for whoever reads this next: **do not assume a shared-db
+session without an explicit coordinator briefing is safe to let touch the
+database directly, even for what looks like harmless cleanup** — check for
+`COORDINATOR_INTAKE.md` and an active coordinator BEFORE the first database
+write, not after.
+
+**9. Facts I believe that may already be stale.**
+- All row counts I reported to Albert (customers 836/862, vendors 97/93,
+  licensors 44/preview, properties 516/preview, `ingest.raw_record` vendor rows
+  539→97 post-delete) were read **today, 2026-07-31**, but clearly *not* at a
+  quiet moment — the migration list I saw after `git pull` shows a huge amount
+  of ColdLion/licensor-alias/PopSG schema work landing today, so any of these
+  counts could already be wrong by the time this is read.
+- I do not actually know for certain that my Supabase MCP calls (mine or my
+  sub-agents') were pointed at `qsllyeztdwjgirsysgai` production rather than
+  preview `rjyboqwcdzcocqgmsyel` — I inferred production from the project ref
+  quoted in `docs/coldlion-erp-api-reference.md`, but per standing fact 6 the
+  only reliable way to know is `get_project_url`, which none of my agents
+  called. **Treat the project target of my §3 delete as unconfirmed, not
+  confirmed-production**, until independently checked.
+- PR #331's state ("open, CI-green, unmerged") was reported to me by a
+  sub-agent earlier in the session and I never re-verified it myself with
+  `gh pr view 331`.
+- My local `main` pull captured `origin/main` as of commit `134ebf4e`; multiple
+  sessions may have pushed since.
+
+---
+
 ### TAKEN OVER — 2026-08-02 — intake PR #366 — ColdLion MG07 "Style Guide" doc lookup (read-only)
 
 **Ingested by:** sub-agent `intake-ingest`, 2026-08-02. **Verbatim block:** PR
