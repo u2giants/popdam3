@@ -1,18 +1,20 @@
 # Master Data Style Tracker
 
-This is the temporary standalone Master Data app at `https://master.designflow.app/styles`.
-It mirrors the legacy Google Sheet style tracker while PLM is not yet fully hosted in the shared Supabase project.
+This is the Master Data page at `https://dam.designflow.app/styles`. It mirrors
+the legacy Google Sheet style tracker while PLM is not yet fully hosted in the
+shared Supabase project.
 
 ## Current Runtime
 
 - Route: `/styles`
 - Page: `src/pages/StylesPage.tsx`
-- Preview/live host used during this workstream: `master.designflow.app`
-- Preview container: `popdam-master-preview`
-- Local image tag: `popdam-master-preview:local`
+- Production host: `dam.designflow.app`
+- Deployment: the normal PopDAM GHCR/Coolify frontend pipeline
 
-The preview route is a manual/break-glass style deployment on the VPS, not the normal GHCR/Coolify frontend pipeline.
-After editing the page, rebuild `dist/`, rebuild the preview image, recreate the `popdam-master-preview` container on the `coolify` Docker network, and smoke-test `https://master.designflow.app/styles`.
+The old standalone `master.designflow.app` preview was used during the initial
+prototype. It is not the current deployment path. Master Data frontend changes
+ship with the normal PopDAM frontend workflow and are verified at
+`https://dam.designflow.app/styles`.
 
 ## Data Model
 
@@ -65,6 +67,16 @@ part of the imported workbook data, so they are preserved.
 - `Originally Designed For` (Licensed) and `Special Customer` (Generic) are canonical Customer relationships. Their dropdown reads `api.dam_customer_list`, displays `display_name` with `name` as the fallback, and saves `public.style_tracker_rows.customer_id` (`core.customer.id`). Customer names are not copied on selection, so later renames do not break or stale the relationship. Legacy imported customer text remains only on rows that could not be backfilled unambiguously and disappears when a user selects a canonical Customer.
 - `Designer` uses active `core.creative_designer` rows as its picker. Linked rows display and filter by `canonical_designer_name` from `public.style_tracker_rows_with_bridge`; unresolved imported designer text remains visible as a fallback. Saving a picker value keeps the audited sheet text in sync and refreshes `plm.style_tracker_item_bridge`, whose `creative_designer_id` is the canonical foreign key.
 - `Packaging Type` appears in both Licensed and Generic tabs and uses the active `core.packaging_type` list as its cell picker. The selected display name is stored in each row's flexible `row_data.packaging_type` field; this does not duplicate or modify the shared lookup table.
+- `Catalog Image` is intentionally absent from both tabs. Its legacy imported
+  value may remain in `row_data`, but it is not displayed or edited in Master
+  Data.
+- `RFQ Group` is automatic and read-only. The database matches each row's exact,
+  case-insensitive, whitespace-trimmed `row_data.rfq_code` to legacy DesignFlow
+  RFQ items and returns `rfq_groups` from
+  `public.style_tracker_rows_with_bridge`. The newest group name is visible in
+  the cell. If the row has previous groups, the cell shows `+N`; clicking it
+  opens a read-only history popover with the newest group first. Users cannot
+  select or edit a group from this list. Empty matches return `[]`, never null.
 - Double-clicking the `Description` cell opens the SKU-description builder. It still saves one string to `public.style_tracker_rows.description` / column `D`, but users compose that string from four visual sections:
   `Product Type + Material`, `Licensor + Property`, `Art Description`, and `Size`.
 - The controlled description sections are picker/autocomplete driven. `Product Type + Material` reads `core.product_material` with local convention examples as a fallback; `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
@@ -186,6 +198,21 @@ Verified during the 2026-06-26 core.customer cutover repair:
 - `public.search_style_tracker_link_candidates('customer', 'Ross', 5, 'fuzzy')` on preview returned `target_schema = 'core'`, `target_table = 'customer'`, `target_label = 'Ross Stores'`.
 - The stale prod `plm.style_tracker_value_resolution` row was migrated from `target_table = 'company'` to `target_table = 'customer'`.
 - Prod Supabase type generation for `public,core,dam` succeeds and exposes `core.customer`.
+
+Verified during the 2026-08-02 RFQ Group rollout:
+
+- Canonical shared-db migration
+  `20260731230000_style_tracker_rows_rfq_groups.sql` is applied to production.
+- Production `public.style_tracker_rows_with_bridge` has 15,534 rows, 2,015
+  rows linked to at least one RFQ group, and 11 rows linked to multiple groups.
+- Known row `MFZ88KMSC01` / RFQ Code `MFZ88-309` returns `Family Dollar July
+  2023`.
+- The pre-aggregated database view evaluates the full production-scale result
+  in about 118 ms without an extra expression index.
+- PopDAM commit `a77847e` removed Catalog Image and added the read-only RFQ
+  Group history UI. CI, shared-db guards, and the frontend publish/deploy
+  workflow passed; the live site returned HTTP 200 and served bundle
+  `index-DoD6FXvN.js` containing the RFQ history feature.
 
 ## Follow-Ups
 
