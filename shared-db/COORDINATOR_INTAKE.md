@@ -1579,6 +1579,150 @@ Newest first. Copy the template from Part A and fill it in. The block below is
 an empty example showing the required format — **leave it in place, do not
 overwrite it.**
 
+### INTAKE — ColdLion MG07 "Style Guide" doc lookup (read-only) — 2026-07-31 — session: unnamed Claude Code session, machine t16, shared checkout `C:\repos\shared-db`
+
+**1. What I was doing and why.**
+Albert asked me to do two things in sequence. First, "pull the latest repo" for
+`shared-db`. Second, he relayed a claim made by **another AI session** — that
+*"ColdLion has a 'Style Guide' merch group level, type 07. That is directly
+relevant to the character work and nobody has looked at it"* — and asked me
+whether any `.md` file in this repo already documents pulling that into
+Supabase. This was a **documentation-research question only**. No schema change,
+no migration, and no database work of any kind was requested or performed. Like
+the session in the block below, **I was not started as the coordinator and did
+not know this single-coordinator protocol existed** until Albert told me to stop.
+
+**2. What I have actually DONE.**
+- **`git pull --ff-only`** in the shared checkout `C:\repos\shared-db`, on
+  `main`. It fast-forwarded `53f849f` → `75066fe`. This is the only mutating
+  action I took, and it mutated a **local working copy**, not the remote and not
+  any database. Nothing was pushed, merged, or rebased. (Note: this partially
+  overlaps the existing REQUEST QUEUE entry *"Update the stale shared checkout
+  `C:/repos/shared-db`"* — but see §9, it has since moved again and my pull
+  should **not** be treated as closing that request.)
+- **Read-only searches** of tracked `.md` files using `Grep` and `sed`/`grep`
+  via the Bash tool. Files read: `docs/designflow-master-data-migration/README.md`,
+  `docs/coldlion-erp-api-reference.md`, `fix_characters_style_guides.md`,
+  `fix_characters_style_guides_handoff.md`, plus a repo-wide grep for
+  `Style Guide` / `mgTypeCode`. No file was opened for writing.
+- **Answered in chat only.** The finding, recorded here so it is not lost:
+  MG07 **is** already documented and was **deliberately skipped**, not
+  overlooked. `docs/designflow-master-data-migration/README.md` records MG07 as
+  81 rows total but only **2 active**, and those 2 are *Art Type* in division 09
+  (PHOTO `PH`, ARTIST `AR`), not Style Guide; it states Style Guide in divisions
+  01/08 has **"no data yet (future)"** and an active import count of **0**.
+  Separately, `docs/coldlion-erp-api-reference.md` shows `mgTypeCode=07` means
+  Style Guide only in CW001/SP001 — it is *Art Type* in EH001 and **Character**
+  in EP001 — so the relayed claim's "type 07 = Style Guide" is division-
+  dependent and not globally true. And `fix_characters_style_guides.md` sources
+  `core.style_guide` from `dflow.properties_and_characters` (500 style guides +
+  9,622 appearances) plus the licensing sheet, **not** from ColdLion MG07 — so
+  an empty MG07 leaves no gap in the character work.
+- **Committed:** only this block, on branch
+  `intake/coldlion-mg07-styleguide-readonly-20260731`, PR opened and left
+  **OPEN — not merged**. Nothing else was committed by this session at any
+  point.
+
+**3. What I applied to PREVIEW (`rjyboqwcdzcocqgmsyel`).**
+**Nothing.** I am certain: this session made **zero** database calls to any
+project. I never invoked the Supabase MCP, never ran `psql`, never called the
+ColdLion API, and never used `op_run`. No migrations pushed, no data rows
+inserted, updated, or deleted, on preview **or** production
+(`qsllyeztdwjgirsysgai`). The only tools used were `git`, `Grep`, `Read`, and
+`sed`/`grep`.
+
+**4. What is half-finished or abandoned mid-way.**
+**Nothing is half-applied.** There is no partial migration, no partial backfill,
+and no half-edited script anywhere from this session, because no such work was
+ever started. The only thing left incomplete is a *question I raised and did not
+pursue* — see §6. I want to state plainly, because the template asks for it:
+I do **not** have unfinished or half-applied database work, and I am not
+claiming completeness to look tidy — this session genuinely never touched a
+database.
+
+**5. What I own right now.**
+- **Branch `intake/coldlion-mg07-styleguide-readonly-20260731`** — created by me
+  from `origin/main` at `134ebf4`. Contains exactly one commit: this block.
+- **Worktree `C:/Users/ahazan2/AppData/Local/Temp/claude/intake-mg07`** — created
+  by me solely to write this handover **without disturbing the shared checkout**
+  (see §8). **Clean** after the commit. Safe to retire once this PR is merged.
+- **I do NOT own `C:\repos\shared-db`.** I found it on branch
+  `intake/coldlion-comparison-handover-20260731` at `0441286`, belonging to the
+  session whose block appears below this one (PR **#365**, OPEN). I deliberately
+  did **not** switch branches, stash, or commit there. Do not attribute that
+  branch or PR to me.
+- No other files, branches, or worktrees held. Nothing dirty.
+
+**6. What I was ABOUT to do next.**
+I had offered Albert — and he had **not** accepted — to write up the one genuine
+gap I found: **there is no document describing what happens if ColdLion ever
+starts populating MG07 Style Guide rows in divisions 01/08.** Those rows would
+need reconciling against the 335 style guides already established in
+`core.style_guide` from the dflow spine, and no `.md` in this repo covers that
+collision. If the coordinator wants it, the next action is a docs-only PR adding
+that reconciliation note to `fix_characters_style_guides.md` (or a pointer in
+`docs/coldlion-erp-api-reference.md`). **It is a documentation gap, not a schema
+gap** — nothing in the database needs to change today.
+
+**7. What I am blocked on.**
+Nothing technical. I am stopped **by instruction**: Albert told me this repo has
+one coordinator and it is not me. The only open item is type (b), a decision for
+the coordinator or Albert, and it is low-urgency: *should anyone write the MG07-
+becomes-populated reconciliation note described in §6, or is it correctly left
+alone until ColdLion actually puts data there?* My own recommendation is that it
+is worth one short paragraph now, because the "nobody has looked at it" claim
+that started this will otherwise resurface in a future session.
+
+**8. What I tried that did NOT work, and why. [MANDATORY]**
+- **The relayed claim itself was the main dead end, and it is the one worth
+  recording.** Another session asserted MG07/Style Guide was unexamined and
+  "directly relevant to the character work". Both halves are misleading. It *is*
+  examined — the migration README explicitly decided to skip it — and it is
+  **not** the source for the character work, which comes from
+  `dflow.properties_and_characters`. **A future session that hears "nobody has
+  looked at MG07" should read `docs/designflow-master-data-migration/README.md`
+  §3.5 before treating it as new work.** Following that claim into an actual
+  ColdLion MG07 ingestion effort would be hours spent importing an empty slot.
+- **Assuming `mgTypeCode` has a fixed meaning — nearly repeated the repo's
+  best-documented trap.** My first instinct on reading "type 07" was to treat 07
+  as globally meaning Style Guide. It does not: Art Type in EH001, Character in
+  EP001. The repo warns about this in at least four places and I still had to
+  catch it against the division matrix rather than from memory.
+- **Grepping `.md` for `'07'` / `type 07` was near-useless** — it returned a
+  35KB wall of unrelated hits that had to be dumped to a file. What actually
+  worked was grepping the phrase **`Style Guide`** and the token `mgTypeCode`
+  and then reading the division matrix table directly. Do that instead.
+- **I did NOT verify any of this against the live ColdLion API.** Everything in
+  §2 is what the *documents* say, and those numbers were captured **2026-07-23**.
+  I did not re-pull `/merchGroupDetails?mgTypeCode=07` to confirm MG07 is still
+  empty today. Treat "MG07 is empty" as **documented, not verified**.
+- **The shared checkout was NOT safe to work in, which I discovered only by
+  checking.** See §9 — this cost a detour and is the reason I built a worktree.
+
+**9. Facts I believe that may already be stale.**
+- **My `git pull` is already superseded — do not trust it.** I pulled `main` to
+  `75066fe`. When I returned to the same directory minutes later it was on
+  **another session's branch** (`intake/coldlion-comparison-handover-20260731`,
+  `0441286`) and `origin/main` had advanced to at least `134ebf4`, having taken
+  on PRs **#359, #360, #362, #363** — none of which existed at my pull. The
+  shared checkout is therefore **still not in a known-good state for anyone
+  else**, and the REQUEST QUEUE entry about it should stay open.
+- **All MG07 facts in §2 are second-hand from documents**, principally counts
+  dated **2026-07-23** in `docs/coldlion-erp-api-reference.md` and the migration
+  README. ColdLion is a live third-party ERP; it could have been populated since.
+- **`origin/main` at `134ebf4` was my reading at roughly 22:0x local on
+  2026-07-31.** Given ~29 worktrees and multiple live branches in this repo, it
+  is likely stale by the time this is read. Re-check with `git fetch` rather
+  than inheriting my SHA.
+- **PR #365's state (OPEN) is as I observed it via `gh pr list`** at the same
+  moment; that session may have progressed it since.
+- I have **not** verified whether the other session's claim about MG07 came from
+  a live API call or from the same documents I read. If it came from a live call
+  showing **non-empty** MG07, that would contradict §2 and would be the more
+  recent fact — worth asking that session before acting on my version.
+
+---
+
 ### INTAKE — EXAMPLE TEMPLATE BLOCK (not real work — do not action, do not delete) — YYYY-MM-DD — <session identifier>
 
 **1. What I was doing and why.**
