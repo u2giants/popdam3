@@ -2826,24 +2826,24 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       }
 
       return {
-      crawl_run_id: runId,
-      root_label: f.root_label as string,
-      relative_path: f.relative_path as string,
-      directory_path: f.directory_path as string,
-      filename: f.filename as string,
-      basename_no_ext: f.basename_no_ext as string,
-      file_extension: (f.file_extension as string) || null,
-      property_folder: (f.property_folder as string) || null,
-      style_guide_folder: (f.style_guide_folder as string) || null,
-      normalized_name: f.normalized_name as string,
-      normalized_style_guide_folder: (f.normalized_style_guide_folder as string) || null,
-      size_bytes: (f.size_bytes as number) || null,
-      modified_at: modifiedAt,
-      last_seen_at: new Date().toISOString(),
-      is_active: true,
-      // thumbnail_url and thumbnail_error are intentionally omitted — the crawl agent
-      // has no knowledge of render state. Including them would overwrite rendered
-      // thumbnails with null on every crawl.
+        crawl_run_id: runId,
+        root_label: f.root_label as string,
+        relative_path: f.relative_path as string,
+        directory_path: f.directory_path as string,
+        filename: f.filename as string,
+        basename_no_ext: f.basename_no_ext as string,
+        file_extension: (f.file_extension as string) || null,
+        property_folder: (f.property_folder as string) || null,
+        style_guide_folder: (f.style_guide_folder as string) || null,
+        normalized_name: f.normalized_name as string,
+        normalized_style_guide_folder: (f.normalized_style_guide_folder as string) || null,
+        size_bytes: (f.size_bytes as number) || null,
+        modified_at: modifiedAt,
+        last_seen_at: new Date().toISOString(),
+        is_active: true,
+        // thumbnail_url and thumbnail_error are intentionally omitted — the crawl agent
+        // has no knowledge of render state. Including them would overwrite rendered
+        // thumbnails with null on every crawl.
       };
     });
 
