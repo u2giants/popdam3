@@ -532,6 +532,121 @@ after it is filed. Only the coordinator moves a block out of here.
 
 ---
 
+> **Added 2026-08-02 by sub-agent `intake-ingest`.** The four entries immediately
+> below fall out of ingesting intake PRs **#365, #366 and #373**. They are
+> deliberately SHORT — the authoritative detail is the matching entry in
+> `## TAKEN OVER` at the bottom of this file, and the PR it points at. Do not act
+> on these summaries alone. Also note, from that ingestion: the *"⚠️ FIRST ACTION:
+> un-park the shared checkout"* entry further down is **already satisfied** —
+> `C:/repos/shared-db` is on `main` at `4444d72` — and the coordinator can retire
+> it.
+
+---
+
+### REQUEST — Re-verify the master-data scoreboard counts merged unverified by PR #337 — 2026-08-02 — session: sub-agent `intake-ingest`
+
+**1. What outcome is needed, and why.** PR #337 merged live row counts into
+`docs/master-data-cutover-scoreboard.md` from an uncoordinated session that never
+confirmed which Supabase project it read. Either re-verify them read-only or mark
+them unverified in the doc — a scoreboard nobody can trust is worse than none.
+
+**2. Which application(s) depend on this.** None at runtime; it is the document
+sessions use to decide what is cut over to ColdLion.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. LOW.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Nothing verified — this
+agent made **no database call**. Detail: `## TAKEN OVER` → intake PR #365.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No branch beyond this
+file's own, no migration, no preview or production push, no `supabase` CLI, no
+Supabase MCP call, no psql, no chip, no database call of any kind.
+
+---
+
+### REQUEST — Document the MG07-becomes-populated reconciliation case (docs only) — 2026-08-02 — session: sub-agent `intake-ingest`
+
+**1. What outcome is needed, and why.** ColdLion MG07 "Style Guide" (divisions
+01/08) is empty and deliberately skipped, but **no document says what to do if it
+is ever populated** — those rows would have to reconcile against the style guides
+already in `core.style_guide`. One short section closes it, and stops the "nobody
+has looked at MG07" claim resurfacing a third time.
+
+**2. Which application(s) depend on this.** PopDAM and DesignFlow (the character /
+style-guide taxonomy).
+
+**3. Is it blocking anything, and how urgently?** Not blocking. LOW. ⚠️ Agent
+`characters-phase1` currently owns `docs/characters-*` — coordinate before writing
+near `fix_characters_style_guides.md`.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** No schema change involved.
+MG07 being empty is **documented (2026-07-23), not verified live**. Detail:
+`## TAKEN OVER` → intake PR #366, and
+`docs/designflow-master-data-migration/README.md` §3.5.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No document written, no
+branch beyond this file's own, no migration, no database call of any kind.
+
+---
+
+### REQUEST — Close the pre-link ColdLion alert-delivery gap (HOLD — may be the same defect `alert-diagnosis` is on) — 2026-08-02 — session: sub-agent `intake-ingest`
+
+**1. What outcome is needed, and why.** When `supabase link` fails, the alert that
+should announce the failure **cannot fire, because alerting depends on the link
+that just failed** — a silent-failure path. Proven by run `30639230244`
+(2026-07-31T14:35Z, `failure`).
+
+**2. Which application(s) depend on this.** The ColdLion ingestion lane's own
+alerting (preview today, production after Step 8).
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **HOLD — do not
+dispatch yet.** Agent `alert-diagnosis` is live on the red hourly preview alert
+monitor and this may be the same defect. Wait for its report, then decide.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Nothing verified — no
+database call was made. The block's preview health claims (`ready:true`, 542/542,
+"no open critical database alert") are **UNVERIFIED and in tension with the live
+red monitor**. Detail: `## TAKEN OVER` → intake PR #373.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Not diagnosed, not
+dispatched, not acknowledged, no breaker touched. No branch beyond this file's
+own, no migration, no database call of any kind.
+
+---
+
+### REQUEST — Restart ColdLion Phase 6 preview monitoring under the coordinator — 2026-08-02 — session: sub-agent `intake-ingest`
+
+**1. What outcome is needed, and why.** The recurring preview-only monitor stopped
+on 2026-08-01 when its session discovered the coordinator rule. Evidence has not
+been recorded since **2026-07-31T18:56:08Z**. Someone must resume collecting it —
+preview only, production untouched, Phase 7 untouched.
+
+**2. Which application(s) depend on this.** The ColdLion licensor/property feed;
+its evidence trail feeds the Step 8 approval package.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but the evidence
+gap widens hourly. MEDIUM. Sequence it **after** the alert entry above so two
+agents are not on the same lane.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** The 8 most recent Phase 6
+preview runs (to 2026-08-02T11:32Z) all concluded `success` — verified via
+`gh run list`. All preview *database* state claims are **UNVERIFIED**. Detail:
+`## TAKEN OVER` → intake PR #373.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No monitoring run, no
+workflow dispatched, no evidence file written. No branch beyond this file's own,
+no migration, no database call of any kind.
+
+---
+
 ### REQUEST — Establish what the 3 UNATTRIBUTED worktrees are before anyone sweeps — 2026-07-31 — session: outgoing coordinator (t16)
 
 **1. What outcome is needed, and why.** `git worktree list` returns 34 entries. 31
@@ -1503,7 +1618,193 @@ what was done with them. **Never deleted** — pruned to
 10-block / 30-day threshold. The "what did NOT work" section of each block is
 the reason the archive exists.
 
-_(none yet)_
+> **How the three 2026-08-02 entries below work.** The verbatim handover blocks
+> for intake PRs **#365, #366 and #373** live on those PRs' branches, **not** in
+> `main` — they were never merged, so they cannot be physically "moved" into this
+> section without merging them. Each entry below therefore records the ingestion
+> (verification, disposition, what happened to the work) and **points at the PR,
+> which holds the block verbatim and preserves its section 8**. Nothing was
+> deleted or rewritten. If the coordinator later merges any of these PRs, the
+> block will land in the `## INTAKE QUEUE` above already ingested — move it down
+> here then and delete nothing.
+
+### TAKEN OVER — 2026-08-02 — intake PR #365 — ColdLion vs Supabase comparison + vendor `raw_record` cleanup + scoreboard doc refresh
+
+**Ingested by:** sub-agent `intake-ingest`, dispatched by the coordinator,
+2026-08-02. **Verbatim block:** PR
+[#365](https://github.com/u2giants/shared-db/pull/365), branch
+`intake/coldlion-comparison-handover-20260731` (head `0441286`), still OPEN —
+**do not merge it unverified; see disposition.**
+
+**What the block reported.** An uncoordinated session (t16, shared checkout) that
+(a) ran read-only ColdLion-vs-Supabase comparisons, (b) authored and
+**self-merged** docs PR #337 refreshing `docs/master-data-cutover-scoreboard.md`,
+and (c) dispatched a sub-agent that executed a **442-row `DELETE` against
+`ingest.raw_record` on what it believed was production** — a delete it never
+independently re-verified, and whose target project it admitted it could not
+confirm because `get_project_url` was never called.
+
+**Verified against ground truth (2026-08-02):**
+
+- ✅ **PR #337 is MERGED** — squash-merged `5a54abb` at 2026-07-31T13:49:11Z,
+  exactly as claimed. The block's honesty about self-merging it is accurate.
+- ✅ **The 442-row production delete is REAL and has already been ruled on.**
+  `AGENTS.md` §6.3 records Albert Hazan's 2026-07-31 owner ruling naming exactly
+  442 deleted rows on `qsllyeztdwjgirsysgai` and stating it was **intended and
+  correct**. That section is explicit: *"This is not an incident. Do not propose
+  a restore, a PITR, or a corrective migration for it."*
+- ✅ **Claim (5) — "the shared checkout is parked on this intake branch" — is now
+  STALE.** `C:/repos/shared-db` is on `main` at `4444d72` (= `origin/main` tip).
+  The REQUEST QUEUE entry *"⚠️ FIRST ACTION: un-park the shared checkout"* is
+  therefore **already satisfied** and can be retired by the coordinator.
+- ❌ **Claim about PR #331 ("open, CI-green, unmerged") is WRONG** — #331 was
+  **MERGED** at 2026-07-31T13:59:05Z, ~9 minutes after #337. The block itself
+  flagged this as second-hand and unverified; it was right to.
+- ⚠️ **UNVERIFIED — the row counts.** `core.customer` 862 / `core.factory` 93 /
+  `ingest.raw_record` 539→97, and the scoreboard numbers merged by #337, were
+  **not** checked. This agent deliberately made **no database call of any kind**
+  (see the note at the end of this section). Treat every count in the block, and
+  in `docs/master-data-cutover-scoreboard.md`, as claimed-not-proven.
+
+**Disposition of the work in this block.**
+
+- (a) read-only comparison — **superseded.** Its findings are older and thinner
+  than `docs/coldlion-production-migration-manifest-20260731.md` and the Step 8
+  material already in the queue.
+- (b) docs PR #337 — **already done** (merged), but its numbers are unverified;
+  folded into the request below rather than re-done.
+- (c) the 442-row delete — **closed by owner ruling**, `AGENTS.md` §6.3. No
+  remediation, no restore, no corrective migration. Do not reopen it.
+- The two follow-ons the session was "about to do" — **dropped as described.**
+  Merging #331 is moot (merged). The dflow→Supabase item-sync `"not-a-date"` /
+  HTTP 403 failure is a **different repo's** problem and was never verified here;
+  it is carried into the REQUEST QUEUE as an unverified report, not as a task.
+
+**Still needed → REQUEST QUEUE:** one entry, *"Re-verify the master-data
+scoreboard counts merged unverified by PR #337"*.
+
+---
+
+### TAKEN OVER — 2026-08-02 — intake PR #366 — ColdLion MG07 "Style Guide" doc lookup (read-only)
+
+**Ingested by:** sub-agent `intake-ingest`, 2026-08-02. **Verbatim block:** PR
+[#366](https://github.com/u2giants/shared-db/pull/366), branch
+`intake/coldlion-mg07-styleguide-readonly-20260731` (head `c011c48`), still OPEN.
+
+**What the block reported.** A read-only session asked to check whether the
+relayed claim *"ColdLion has a Style Guide merch-group level, type 07, and nobody
+has looked at it"* was true. It concluded the claim is **misleading on both
+halves**: MG07 is already documented and deliberately skipped, and it is not the
+source for the character work. It made **zero database calls**.
+
+**Verified against ground truth (2026-08-02):**
+
+- ✅ **The central finding is CORRECT and reproducible.**
+  `docs/designflow-master-data-migration/README.md` states it in at least eight
+  places: MG07 is 81 rows / **2 active**, those 2 are **Art Type in division 09**,
+  and **Style Guide in divisions 01/08 has no data — "Skip — future"** (lines
+  116, 127, 138, 231, 356–360, 633, 694, 713). So MG07 was examined and skipped
+  on purpose, not overlooked. The division-dependence of `mgTypeCode` matches
+  `AGENTS.md` §6.1 rule 1.
+- ✅ **Its self-description of ownership is accurate.** Worktree
+  `C:/Users/ahazan2/AppData/Local/Temp/claude/intake-mg07` still exists, checked
+  out on its own branch at `c011c48`, and it correctly disclaimed ownership of
+  `C:/repos/shared-db`.
+- ⚠️ **UNVERIFIED — "MG07 is still empty in ColdLion today."** The block says so
+  itself: the counts are documented (dated 2026-07-23), **not** re-pulled from
+  the live ColdLion API. No live API call was made by this ingestion either.
+  Treat "MG07 is empty" as **documented, not verified**.
+
+**Disposition.** The research answer is **valuable and is preserved here so the
+claim does not resurface**: *before treating MG07 as new work, read
+`docs/designflow-master-data-migration/README.md` §3.5.* The one genuine gap the
+block identified — no document covers what happens if ColdLion **starts**
+populating MG07 in divisions 01/08, and how those rows would reconcile against
+the style guides already in `core.style_guide` — is **still needed** and is a
+docs-only, no-schema task.
+
+⚠️ **Collision note for whoever takes that up:** agent `characters-phase1` is
+live right now and owns `docs/characters-*`. `fix_characters_style_guides.md` is
+adjacent to its work — coordinate before writing there.
+
+**Still needed → REQUEST QUEUE:** one entry, *"Document the MG07-becomes-
+populated reconciliation case (docs only)"*.
+
+---
+
+### TAKEN OVER — 2026-08-02 — intake PR #373 — ColdLion Licensor/Property preview monitor
+
+**Ingested by:** sub-agent `intake-ingest`, 2026-08-02. **Verbatim block:** PR
+[#373](https://github.com/u2giants/shared-db/pull/373), branch
+`intake/coldlion-monitor-20260801` (head `7f072e5`), still OPEN. Filed
+2026-08-01 00:55 UTC — **later than the 2026-07-31 coordinator handover, which
+therefore does not mention it.**
+
+**What the block reported.** The recurring preview-only ColdLion monitoring
+automation stopping on discovery of the coordinator rule. It reports its last
+completed pass (PR #354), a preview health run, and an **open alert-delivery
+gap**: scheduled run `30639230244` failed when Supabase returned a 502 during
+`supabase link`, and the alert that should have fired could not, **because
+alerting itself depends on the link that failed**.
+
+**Verified against ground truth (2026-08-02):**
+
+- ✅ **PR #354 is MERGED** exactly as claimed — merge commit
+  `768594e762c09ff2beb19902289608c4842572ff`, 2026-07-31T18:58:28Z, touching only
+  `docs/verification/coldlion-licensor-property-phase6-20260726/README.md`.
+- ✅ **Run `30639230244` exists and FAILED** — workflow *ColdLion
+  Licensor/Property Phase 6 Parallel Run (preview)*, created 2026-07-31T14:35:16Z,
+  conclusion `failure`. The pre-link alert gap it describes is anchored in a real
+  run.
+- ✅ **The Phase 6 preview lane has since recovered** — the 8 most recent runs of
+  that workflow (through 2026-08-02T11:32Z) all concluded `success`. The block's
+  "later green runs proved service recovery but did not close the alert gap"
+  holds: the gap is a **design** gap, not an outage.
+- ❌ **Claim (5) is WRONG NOW: the worktree it says it owns does not exist.**
+  `C:\repos\shared-db-intake-coldlion-monitor-20260801` is absent from both
+  `git worktree list` and the filesystem. Its **branch survives on the remote**
+  (`7f072e5`) and the PR is intact, so nothing is lost — but do not go looking
+  for that worktree, and do not treat it as a live agent's workspace during a
+  sweep.
+- ❌ **Claim (5) is also stale on "`C:\repos\shared-db` local `main` is 13 commits
+  behind"** — that checkout is now on `main` at `4444d72` = `origin/main` tip.
+- ⚠️ **UNVERIFIED — everything about preview database state:** health run
+  `75c15b95-2fa2-4b83-b160-f7cae7130c66`, `ready:true`, the 542/542 typed
+  mapping, unchanged protected hashes, breaker enforcement 11/11, closed breaker,
+  "no open critical database alert". **No database call was made by this
+  ingestion.** Note the last item is in direct tension with the live red hourly
+  alert (below) — the coordinator must cross-check it, not inherit it.
+
+**Disposition — NOT DISPATCHED, deliberately.**
+
+- The monitoring-restart the block asks for, and its alert-gap finding, both
+  concern the **red hourly preview ColdLion alert monitor that agent
+  `alert-diagnosis` is diagnosing RIGHT NOW.** Dispatching it would put two
+  agents on the same alarm — exactly the collision pattern this repo has already
+  been damaged by. It is recorded here and handed to the coordinator instead.
+- 🔬 **Cross-check these two against `alert-diagnosis`'s findings before
+  believing either:** (i) this block's "no open critical database alert" as of
+  2026-07-31T18:56Z versus the monitor that has been red every hour since 20:02
+  UTC that same day; (ii) whether the pre-link alert-delivery gap is a *cause* of
+  the current red state or an unrelated second defect. **This ingestion did not
+  diagnose it and deliberately did not look.**
+
+**Still needed → REQUEST QUEUE:** one entry, *"Close the pre-link alert-delivery
+gap"* — held until `alert-diagnosis` reports, since the two may be the same
+defect.
+
+---
+
+> **Verification boundary for all three entries above (stated plainly so nobody
+> inherits a false confidence).** The ingesting agent made **NO database call of
+> any kind** — no Supabase MCP call, no `get_project_url`, no `psql`, no CLI, no
+> ColdLion API call, no 1Password read. Every claim above marked ✅ was verified
+> against the **live repo, live GitHub, and the filesystem only** (`git fetch`,
+> `gh pr view`, `gh run view/list`, `git worktree list`, file contents). Every
+> claim about **database or ColdLion-API state is marked ⚠️ UNVERIFIED and must
+> be re-checked live before anyone acts on it.** Repo ground truth at the moment
+> of ingestion, 2026-08-02: `origin/main` = `4444d72`, **386** migration files,
+> max version **20260731230000**, **0** duplicate 14-digit versions.
 
 ---
 
