@@ -985,3 +985,24 @@ an admin"*.
 also be correct, but production would then never pass a multi-row array to the policy
 function and that regression test would guard a dead path. Deleting the duplicate row is not
 the fix either — the schema permits it.
+
+---
+
+## 71. Future NAS Dates Must Be Quarantined, Not Sorted as Newest (fixed 2026-08-02)
+
+**Looks like:** two PopSG style guides are dated 22 years in the future.
+
+**Actually:** 136 source files in two Trolls folders all had the same corrupt NAS mtime,
+`2048-12-31 23:00:00 -0500`. The grouped PopSG view showed two cards because it displays
+the newest member-file date. The file contents were intact and all 136 files contained valid
+embedded Adobe/PDF modification dates, which were used to restore the authoritative files on
+`edgesynology1`; ShareSync then carried the corrections to `edgesynology2`.
+
+**Why:** the style-guide crawler previously copied `lstat().mtime` directly into
+`style_guide_files.modified_at`, and `agent-api` accepted it without a plausibility check.
+
+**Do not change because:** both layers now quarantine dates more than 24 hours ahead of the
+current clock. The bridge sends `modified_at: null` and logs an error; `agent-api` repeats the
+check before every upsert so an old or faulty agent cannot reintroduce the bad sort date. The
+24-hour allowance protects against ordinary clock drift. Do not clamp a corrupt date to
+`now()`, because that would still make the file look newly modified and hide the fault.

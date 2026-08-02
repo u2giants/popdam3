@@ -17,6 +17,7 @@ const TIFF_REINSPECT_MAX_BATCH = 200;
 const TIFF_REINSPECT_DEFAULT_BATCH = 50;
 const LOG_TAIL_LINES = 50;
 const PDF_TEXT_SAMPLE_PROGRESS_LIMIT = 25;
+const MAX_FUTURE_FILE_DATE_MS = 24 * 60 * 60 * 1000;
 
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
@@ -2810,7 +2811,21 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
 
   // Upsert files in batch
   if (files.length > 0) {
-    const rows = files.map((f) => ({
+    const rows = files.map((f) => {
+      const reportedModifiedAt = typeof f.modified_at === "string" ? f.modified_at : null;
+      const parsedModifiedAt = reportedModifiedAt ? Date.parse(reportedModifiedAt) : Number.NaN;
+      const modifiedAt = reportedModifiedAt && Number.isFinite(parsedModifiedAt) &&
+          parsedModifiedAt <= Date.now() + MAX_FUTURE_FILE_DATE_MS
+        ? reportedModifiedAt
+        : null;
+      if (reportedModifiedAt && !modifiedAt) {
+        console.error("[complete-style-guide-crawl] Quarantined invalid future file date", {
+          relative_path: f.relative_path,
+          reported_modified_at: reportedModifiedAt,
+        });
+      }
+
+      return {
       crawl_run_id: runId,
       root_label: f.root_label as string,
       relative_path: f.relative_path as string,
@@ -2823,13 +2838,14 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       normalized_name: f.normalized_name as string,
       normalized_style_guide_folder: (f.normalized_style_guide_folder as string) || null,
       size_bytes: (f.size_bytes as number) || null,
-      modified_at: (f.modified_at as string) || null,
+      modified_at: modifiedAt,
       last_seen_at: new Date().toISOString(),
       is_active: true,
       // thumbnail_url and thumbnail_error are intentionally omitted — the crawl agent
       // has no knowledge of render state. Including them would overwrite rendered
       // thumbnails with null on every crawl.
-    }));
+      };
+    });
 
     const { data: upsertedRows, error: upsertErr } = await db
       .from("style_guide_files")

@@ -13,6 +13,7 @@ import { readdir, lstat } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
+import { safeFilesystemModifiedAt } from "./file-date-validation.js";
 
 // ── Normalization ────────────────────────────────────────────────
 
@@ -136,6 +137,14 @@ async function* walkDirectory(
       const basenameNoExt = basename(entry.name, ext);
       const fileExtension = ext ? ext.slice(1).toLowerCase() : null;
 
+      const safeModifiedAt = safeFilesystemModifiedAt(stats.mtime);
+      if (!safeModifiedAt) {
+        logger.error("Style guide crawl: quarantined invalid future file date", {
+          file: fullPath,
+          reportedModifiedAt: stats.mtime.toISOString(),
+        });
+      }
+
       yield {
         root_label: rootLabel,
         relative_path: relPath,
@@ -148,7 +157,7 @@ async function* walkDirectory(
         normalized_name: normalizeName(basenameNoExt),
         normalized_style_guide_folder: styleGuideFolder ? normalizeName(styleGuideFolder) : null,
         size_bytes: stats.size,
-        modified_at: stats.mtime.toISOString(),
+        modified_at: safeModifiedAt,
         thumbnail_url: null,
         thumbnail_error: null,
       };
