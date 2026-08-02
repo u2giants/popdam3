@@ -400,7 +400,15 @@ export type Database = {
           id?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "app_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       asset_characters: {
         Row: {
@@ -2829,7 +2837,15 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
     }
     Views: {
@@ -2977,6 +2993,7 @@ export type Database = {
           pre_production_status: string | null
           production_status: string | null
           public_licensor_id: string | null
+          rfq_groups: Json | null
           row_data: Json | null
           royalty: string | null
           sku: string | null
