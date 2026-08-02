@@ -303,6 +303,74 @@ own schema: `crm.customer_ext`, `dam.customer_ext`, `pim.factory_ext`, etc.
 Full implementation guide (DDL template, per-app sections, rollout order):
 [`docs/per-app-extension-tables-plan.md`](docs/per-app-extension-tables-plan.md).
 
+## 4.2 OWNER RULING — prove which database you are connected to before any destructive statement (Albert Hazan, 2026-08-02)
+
+> "agents should be required to prove which database they're connected to before any delete or update"
+> — Albert Hazan, 2026-08-02
+
+This is a standing rule, ruled by the owner. **It is settled — do not re-ask it, do not
+treat it as an AI's preference, and do not weaken it.** (It was raised once before and the
+owner did not answer; that non-answer was correctly recorded as *not* approval. He has now
+ruled.)
+
+**Why it exists.** It was proposed after a 442-row `DELETE FROM ingest.raw_record` ran
+against **production** `qsllyeztdwjgirsysgai` on 2026-07-31 while the session believed it
+was on preview. The owner has separately ruled that **that delete was intended and correct
+and is NOT an incident** (§6.3) — no restore, no PITR, no corrective migration. The rule
+exists because, to everyone watching, a correct delete on production was *indistinguishable
+from an accidental one*: nothing in the record proved which database the statement hit. The
+rule closes that evidence gap, not a mistake.
+
+**The rule.**
+
+1. **Before every `DELETE`, `UPDATE`, `DROP`, `TRUNCATE`, `ALTER`, or any other statement
+   that writes, changes, or removes data, schema, or privileges (including `INSERT`, `GRANT`
+   and `CREATE`), or any action that sets such a change in motion indirectly — calling a
+   mutating function or RPC, a REST request, a script, a CI workflow, or asking another
+   person, including the owner, to run it — in ANY environment, preview and production
+   alike, the agent must prove which database the statement is about to run against. One
+   proof covers everything submitted in the same tool call as the check or in the
+   immediately following tool call (a batch, a migration file, a `db push`); it never
+   carries further.** Preview being "the safe one" is not an exemption: the proof
+   requirement is unconditional.
+2. **"Prove" means an explicit check of the live connection target, executed immediately
+   before the statement.** It is not an assumption, not a memory, not a check made earlier in
+   the session, not a `.sql` filename, not a branch name, not a doc, not a plan that said
+   "preview". Any tool call, environment change, reconnect, or turn boundary between the
+   check and the statement invalidates the check — redo it.
+3. **The proof must be stated in the agent's report** — the message it gives the owner (or
+   the coordinator) at the end of the turn — quoting the value it actually
+   observed (the project ref or URL) and the statement it authorised. A report of a
+   destructive statement without a quoted, immediately-preceding target proof is an
+   incomplete report.
+
+**The concrete mechanisms this repo has — use these, not a substitute:**
+
+- **Supabase MCP:** call `get_project_url` **FIRST**, in the same turn, immediately before
+  the statement. Note the trap: `get_project_url` takes **no project parameter** — it
+  reports whatever project the MCP server is bound to, and in this repo that binding **may
+  be PRODUCTION**. Passing a project ref to `execute_sql`/`apply_migration` does not make
+  those tools target it; the server binding wins. This is exactly why the check must be a
+  call, not an inference.
+- **CLI / `psql` / Node `pg` work:** read `cat supabase/.temp/project-ref` and verify it
+  **before EVERY push or connection**, not once per session. `supabase link` can be re-run
+  by any other step, worktree, or concurrent session, so a ref read ten minutes ago proves
+  nothing about the connection you are about to use.
+
+**The two refs, in full — compare against these characters, not against "looks like preview":**
+
+```text
+Production: qsllyeztdwjgirsysgai
+Preview:    rjyboqwcdzcocqgmsyel   (Supabase branch "shared-db-schema-rehearsal")
+```
+
+**Trap that has misled sessions:** preview is a Supabase **branch**, not a standalone
+project, so `rjyboqwcdzcocqgmsyel` **does not appear in `supabase projects list`**. Its
+absence from that listing is evidence of nothing — it is not proof that you are on
+production, and it is not proof that preview is gone. Use `supabase branches list` /
+`list_branches` if you need to see it, and use the checks above to establish where you
+actually are.
+
 ## 5. The `shared-db` merge protocol (the checklist the AI runs)
 
 Merge a `shared-db` PR **only when every item is true**:
