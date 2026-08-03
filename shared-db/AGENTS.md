@@ -642,6 +642,92 @@ following the ERP. It does **not** relax the append-only rule for **evidence and
 `plm.taxonomy_parallel_observation`, `plm.taxonomy_circuit_breaker_event`,
 `app.db_data_admin_audit_event`) — those stay append-only and must not be deleted.
 
+### 6.4 OWNER RULING — the Master Data import is TRANSITIONAL, and curated data outranks it (Albert Hazan, 2026-08-03)
+
+> "importing Master Data info from Google Sheets is a temporary thing until all the employees
+> are ready to do all work in our Master Data and then Google Sheets version gets deprecated
+> and never touched again. so any improvements we've made should no longer be overwritten by
+> the imports from Google Sheets. those imports should only be data that gets us up to date
+> until we're ready to cut-over (hopefully soon)."
+> — Albert Hazan, 2026-08-03
+
+This is a standing rule, ruled by the owner. **It is settled — do not re-ask it, do not treat it
+as an AI's preference, and do not weaken it.**
+
+**The rule, in three parts.**
+
+1. **The import is transitional, not an integration.** It exists only to carry us to cut-over,
+   after which the spreadsheet-era source is **deprecated and never touched again**. Do not
+   build durable architecture on it, do not extend it, and do not design any long-lived feature
+   that assumes it keeps running. When a choice is between hardening the import and shortening
+   the road to cut-over, choose cut-over.
+2. **Curated beats imported — our Master Data is the winner.** An import may **never** overwrite
+   an improvement made in our Master Data. It is a **catch-up feed**: it may fill a gap and
+   bring in a record we do not have, and it may create a new row. It may **not** revert, reset,
+   re-parent, rename, or re-status anything a human has deliberately set here.
+3. **Direction of authority is per FIELD, not per row.** Decide field by field. **On a MATCHED
+   row**, the question for each field is only "has a human deliberately set this here?" — if
+   yes, the import loses that field, even while it wins the neighbouring fields on the same
+   row. A **matched** row is never wholly imported or wholly curated. (A genuinely new row is
+   the separate case governed by the row-level rule below.)
+
+**The two loopholes to close, not to use.**
+
+**Field level — "it was missing, so I filled it."** An importer must not be free to *decide* that
+a field was merely absent. **Absence is not a licence.** A field counts as deliberately set — and
+is therefore off-limits to the import — whenever a human touched it, including when the human's
+decision was to set it to `NULL`, to `inactive`, or to blank. That means the "deliberately set"
+state must be **recorded**, not inferred from the current value: a value that happens to equal
+the default is not evidence that nobody chose it. An importer that cannot tell curated from empty
+must abstain, not guess.
+
+**Row level — "we don't have this record, so I created it."** The same dodge works one level up:
+fail to match an existing curated row, declare it absent, and INSERT a fresh, fully-imported
+duplicate. That defeats curation just as completely — the curated original is orphaned while a
+new `active` row supersedes it — and it is **not** what "bring in a record we do not have"
+licenses. **An importer must justify "we do not have it" as rigorously as "this field was
+unset."** If the matching keys disagree — if one lookup key finds a row that another key would
+not — that is a **possible match, not an absence**: quarantine it as evidence for a human, and
+never resolve it by inserting.
+
+**What this means in practice TODAY.** No per-field curation record exists in this database, and
+no importer can currently tell curated from untouched. So the operative rule right now is not
+advisory: **an import writes a curated field only on INSERT of a genuinely new row, and writes no
+curated field at all on a matched row.** Gap-filling a matched row becomes permissible only once
+"deliberately set" is recorded per field and the importer actually consults that record.
+
+**This ruling is currently VIOLATED in production — read before running any import.**
+`plm.import_master_data(jsonb, jsonb)` on production (`qsllyeztdwjgirsysgai`) force-sets
+`core.property.licensor_id`, `core.licensor.status = 'active'` and `core.property.status =
+'active'` on every matched row of every re-pull. The corrective migration
+`20260802170000_plm_import_preserve_curated_licensor_property_status.sql` is merged to `main`
+but is **NOT applied to production**. Until it is, a single re-run silently reverts every
+curated ruling, **including the 2026-08-02 FRIENDS TV / FRIDA KAHLO decision (§6.3 neighbours)**.
+The daily `systemd/plm-sync.timer` lane still exists; it has simply not succeeded since
+2026-07-08. **Do not run, re-enable, or repair that lane before the fix is applied.**
+Full evidence, every overwrite path, and the scoped proposal (not an implementation):
+[`docs/google-sheets-import-authority-20260803.md`](docs/google-sheets-import-authority-20260803.md).
+
+**The compliant reference already exists — copy it, do not reinvent it.** `plm.sync_coldlion_vendors`
+refreshes non-status fields only and states in-line that status/name are app-owned;
+`tools/promote-coldlion-source-owned.mjs` documents an explicit can/cannot list and refuses
+`core.property.licensor_id`, lifecycle status and canonical codes outright. That shape is what
+honouring this ruling looks like.
+
+**Scope note.** Albert names "Google Sheets". No importer in this repository carries that name;
+the live mechanism that carries this Master Data content is the DesignFlow PLM master-data pull
+(`getLicensorsWithProperties` / `getCustomers` → `plm.import_master_data`). This ruling is
+recorded as governing **any catch-up import into Master Data**, which is the behaviour he
+described. Whether he also intends a separate spreadsheet-era feed outside this repo is the one
+open scoping question and is flagged in the linked document — it does not soften the rule for
+the importer we do have.
+
+**Relationship to §6.3 (ColdLion ERP data is canonical).** These do not conflict; they cover
+different sources. ColdLion is a **system of record** we follow, so a ColdLion inactivation is
+authoritative. The Master Data import is a **transitional catch-up feed** with no such standing,
+so it never outranks curation. If a future source claims both roles, that is an owner question,
+not an agent's judgement call.
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
