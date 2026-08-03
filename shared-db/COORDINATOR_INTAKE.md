@@ -543,6 +543,72 @@ after it is filed. Only the coordinator moves a block out of here.
 
 ---
 
+### REQUEST — Let DesignFlow show an item's UPCs on the item detail page — 2026-08-03 — requester: Albert Hazan (via Claude session on t16, `C:/repos/dflow`)
+
+**1. What outcome is needed, and why.** Albert wants the UPC(s) for an item
+visible on the DesignFlow item detail page (Second tab). Today the UPC data we
+already pull from ColdLion is stored but unreachable: nothing in the app can
+connect a UPC record to the item a user is looking at, so no screen can display
+it and the data has never been seen by a user. The outcome needed is simply
+"open an item, see its UPCs". A style has several UPCs — one per colour/size
+SKU — so all of them need to be reachable, not just one. I am deliberately not
+prescribing the design; the missing piece is that our stored ColdLion item-detail
+records carry no way to identify which item they belong to.
+
+**2. Which application(s) depend on this.** DesignFlow (dflow) only — frontend,
+BFF, item-master and data-syncing services. I did not find another application
+reading `dflow."itemDetail"`; nothing at all currently reads it, which is part of
+the problem. Treat my "no other consumer" claim as unverified across the other
+apps — I only checked the six DesignFlow repos.
+
+**3. Is it blocking anything, and how urgently?** Blocking, but only this one
+feature and only Albert's request from today. Nobody is sitting idle; no
+production behaviour is affected. LOW-to-MEDIUM. All the app-side work in the
+DesignFlow repos is stopped until the shape of the fix is decided here, because
+the query the app would run depends entirely on that decision.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** All of the following I read
+live today (2026-08-03) against project `qsllyeztdwjgirsysgai` with read-only
+`select` statements through the Supabase MCP, not from any document:
+
+- `dflow."itemDetail"` holds 21,841 rows, 10,774 of which have a non-empty
+  `"UPC"`. It also has `"EAN"`, `"GTIN"`, `color_code_fk` and `size_code_fk`,
+  all populated.
+- Its only key is `item_pk`, which is ColdLion's own `itemPkey`. It has **no
+  item-number column and no foreign key to `dflow."itemHeader"`** — I searched
+  `information_schema.columns` across the whole `dflow` schema for any bridge
+  between `item_pk` and an item number and found none. That is the gap.
+- `dflow."itemHeader"` carries the item number as `item_num_id`.
+- Separately, and read live from the ColdLion API itself
+  (`GET http://x5.coldlion.com/EhpApi/itemDetails?itemNo=…`): ColdLion's
+  item-detail payload **does** include `itemNo` alongside `itemPkey`, plus
+  `companyCode`, `divisionCode`, `colorCode` and `sizeCode`. Our sync in
+  `designflow-data-syncing/helpers/utility.js` (`remapItemDetail`) simply never
+  mapped `itemNo`. So the identifying value exists upstream and is being
+  discarded on the way in; it is not lost.
+- One thing the coordinator should know before choosing a design: that sync
+  writes with `bulkCreate(..., { ignoreDuplicates: true })`, so existing rows are
+  never updated — a UPC that changes in ColdLion never reaches us. Whatever is
+  done about identification, backfilling the 21,841 existing rows will not happen
+  by itself. The sync route (`GET /getItemDetailFromCL/`) also appears to be
+  manually triggered; I found it on no scheduler.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No branch created, no
+migration file written, no DDL of any kind, no push to preview or production, no
+`supabase` CLI command, no psql, no background task chip, and no app-repo code
+changes in the DesignFlow repos.
+
+I must disclose one thing rather than claim a clean "no Supabase MCP call": I
+**did** make Supabase MCP calls, all of them **read-only `execute_sql` `select`
+statements** (the row counts, the sample rows, and the `information_schema`
+search quoted in point 5). I made them while establishing what the data looked
+like, before I had read this file. No `apply_migration`, no DDL, and nothing
+written. Flagging it so the coordinator can judge it rather than discover it.
+
+---
+
 ### REQUEST — Re-verify the master-data scoreboard counts merged unverified by PR #337 — 2026-08-02 — session: sub-agent `intake-ingest`
 
 **1. What outcome is needed, and why.** PR #337 merged live row counts into
