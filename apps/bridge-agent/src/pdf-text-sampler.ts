@@ -68,6 +68,8 @@ interface FileProgressEntry {
 
 // ── AI vision call (provider-agnostic, resolved from model catalog) ──────────
 
+const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
+
 async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
   const modelId = aiConfig.pdf_extraction?.ai_vision_model_id;
   if (!modelId) return "";
@@ -99,7 +101,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
           role: "user",
           parts: [
             { inlineData: { mimeType: "image/png", data: base64 } },
-            { text: "Extract all text from this document page. Return only the raw extracted text with no commentary." },
+            { text: PDF_EXTRACTION_PROMPT },
           ],
         }],
       }),
@@ -125,7 +127,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
-          { type: "text", text: "Extract all text from this document page. Return only the raw extracted text with no commentary." },
+          { type: "text", text: PDF_EXTRACTION_PROMPT },
         ],
       }],
     });

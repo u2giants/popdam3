@@ -37,6 +37,7 @@ This document covers two distinct things: (1) which AI models are used inside th
 - Uses a cascade: mupdf text extraction → OCR (tesseract.js) → AI vision fallback.
 - The AI vision fallback calls Google's `generativelanguage.googleapis.com` **directly** (not through OpenRouter) using `GOOGLE_AI_API_KEY`, which the agents read via `agent-api`'s config passthrough. This is the only live consumer of `GOOGLE_AI_API_KEY` — keep it configured. See `docs/KNOWN_QUIRKS.md` #63.
 - The AI vision fallback is configurable separately from production image tagging. See `admin_config.AI_TASK_MODELS.pdf_extraction` and the bridge/windows sampler code before changing it.
+- The AI prompt requires literal transcription of visually legible text in reading order. It forbids inferring, completing, correcting, or inventing unclear text, omits unreadable text, and requests only the transcription. Keep this contract aligned in the bridge sample, bridge backfill, and Windows sample paths.
 - **Hard limit**: files larger than 100 MB are skipped (logged as warnings, surfaced in the PDF text sample progress UI).
 
 ### Rich PDF Extraction (`rich-pdf-extract` op, Railway worker)

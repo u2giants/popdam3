@@ -26,6 +26,7 @@ import { isAiWithoutPdfCompat } from "./thumbnailer.js";
 
 const PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
 const THUMBNAIL_WIDTH = 800;
+const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
 
 // ── AI vision (mirrors pdf-text-sampler.ts) ───────────────────────────────────
 
@@ -48,7 +49,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
       body: JSON.stringify({
         contents: [{ role: "user", parts: [
           { inlineData: { mimeType: "image/png", data: base64 } },
-          { text: "Extract all text from this document page. Return only the raw extracted text with no commentary." },
+          { text: PDF_EXTRACTION_PROMPT },
         ]}],
       }),
     });
@@ -66,7 +67,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
       max_tokens: 2048,
       messages: [{ role: "user", content: [
         { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
-        { type: "text", text: "Extract all text from this document page. Return only the raw extracted text with no commentary." },
+        { type: "text", text: PDF_EXTRACTION_PROMPT },
       ]}],
     });
     const first = aiResponse.content[0];

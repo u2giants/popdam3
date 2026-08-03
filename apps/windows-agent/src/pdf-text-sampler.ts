@@ -77,7 +77,7 @@ interface FileProgressEntry {
 
 // ── AI vision call ────────────────────────────────────────────────────────────
 
-const PDF_EXTRACTION_PROMPT = "Extract all text from this document page. Return only the raw extracted text with no commentary.";
+const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
 
 export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
   const base64 = pngBuffer.toString("base64");
