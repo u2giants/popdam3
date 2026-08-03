@@ -314,44 +314,42 @@ Risks / watchouts:
 ### 5.11 Master Data style tracker / Google Sheet replica
 
 Status:
-**partial / live preview**. `https://master.designflow.app/styles` is running as a temporary standalone single-page Master Data app, but it is not yet the final PLM-backed implementation.
+**live in the main PopDAM app** at `https://dam.designflow.app/styles`. The old
+`master.designflow.app` preview is retired. Catalog Image is hidden, RFQ Group
+history is live and read-only, and per-user saved views are complete.
 
 Read first:
 - `docs/MASTER_DATA.md` for the detailed app/data-flow notes.
 - `shared-db/docs/app-migration-notes/master-data-style-tracker-20260624.md` for shared-Supabase/backend implications.
 
 Done:
-- Imported the legacy Google Sheet into Supabase-backed Master Data tables and cleaned formula/default-only tail rows. Verified populated counts: `License.Style` 12,317 rows; `Generic.Style` 3,027 rows.
+- Imported the legacy Google Sheet into Supabase-backed Master Data tables and cleaned formula/default-only tail rows. Current live counts are 12,401 Licensed rows and 3,134 Generic rows.
 - Built `/styles` as an AG Grid table with Licensed/Generic tabs, newest-first loading, default latest-2,500 browser load for speed, `Show All`, `+1/+5/+10/+25` row creation through the DB RPC, and admin-only matching UI.
 - Added AG Grid Enterprise without a license key, matching the PLM-style trial setup. **Important:** all AG Grid packages must stay on the same exact version. A previous version mismatch caused a blank page before React mounted.
 - Added/used temporary backend objects: `public.style_tracker_rows`, `public.style_tracker_rows_with_bridge`, `plm.style_tracker_item_bridge`, `plm.style_tracker_value_resolution`, `public.add_style_tracker_rows`, `public.refresh_style_tracker_item_bridge`, `public.search_style_tracker_link_candidates`, `public.upsert_style_tracker_value_resolution`, and `public.style_tracker_user_views`.
 - Matching UI now treats **Dismiss: Keep In Master Data** as **Master Data only** and removes approved/dismissed values from the review dropdown.
 - Created 1Password item `DesignFlow PLM Canonical Master Data API` in `vibe_coding`; it stores the read-only PLM API key and endpoint notes without documenting the secret value.
 - PLM-backed candidate matching is now live through `public.search_style_tracker_link_candidates(...)`: customer candidates come from `core.customer` joined through `core.company_source_ref` with `source_system='designflow_plm'`, and licensor/property candidates come through `core.taxonomy_source_ref`. The `core.company` → `core.customer` rename leftovers were repaired in shared-db PR #14 / migration `20260626170000_fix_core_customer_leftovers.sql`; preview and prod were both applied.
+- Per-user saved views are implemented and durable in canonical shared-db migration `20260710135600_reconcile_style_tracker_tables.sql`.
+- PopDAM commit `a77847e` removed Catalog Image and added automatic RFQ Group history. Shared-db migration `20260731230000_style_tracker_rows_rfq_groups.sql` provides the history.
+- Shared-db PR #418 fixed the live RFQ-history statement timeout with migrations `20260802194000` and `20260802194100`. Production now serves the first 1,000 Licensed rows in about 0.75 seconds under the authenticated role; the database execution itself is about 47 ms on preview. The full live Licensed grid visually loaded all 12,401 rows after the fix.
 - Documented details in `docs/MASTER_DATA.md`.
 
 Current source/runtime state:
 - Source files that matter: `src/App.tsx`, `src/pages/StylesPage.tsx`, `package.json`, `package-lock.json`, `docs/MASTER_DATA.md`, and the style-tracker SQL migration files listed in the shared-db note.
 - `src/App.tsx` must import `StylesPage` and route `/styles` inside the protected `AppLayout`; if the route is missing, `/styles#` mounts the React app but shows the 404 page.
-- `src/pages/StylesPage.tsx` was reconstructed during the session after transient local source loss. It currently preserves the core experience but is simplified versus an earlier iteration: the `public.style_tracker_user_views` table exists, but the current page does **not** yet expose a finished **Save View** button. It exposes AG Grid's Columns panel only. If per-user saved default views matter next, implement that deliberately from `docs/MASTER_DATA.md` rather than assuming it is complete.
+- `src/pages/StylesPage.tsx` includes the finished Views menu for saving, updating, renaming, deleting, resetting, and restoring per-user views.
 - AG Grid packages are pinned to exact `35.3.1` versions. Do not use caret ranges or mix `ag-grid-community`, `ag-grid-react`, and `ag-grid-enterprise` versions.
-- The live preview bundle after the last deploy in this session was `index-BpPmUcrb.js`; newer work should verify the live bundle rather than relying on this value.
+- The RFQ rollout live bundle is `index-DoD6FXvN.js`; verify the current live bundle rather than relying on this value for later changes.
 
 Recommended continuation sequence:
 1. Re-run `public.refresh_style_tracker_item_bridge()` and test known cases:
    - `Customer: Ross` should prefer the PLM Ross customer and should not offer `Rossy` if PLM does not list it as a canonical customer.
    - customer values with trailing SKU text such as `Burlington - BG139DYLS01` should preserve the raw sheet value but match the canonical customer.
-2. Restore/finish per-user saved grid views if needed; the database table exists but the current page only exposes the AG Grid Columns panel.
-3. Move the temporary Master Data tables/RPCs into a cleaner PLM bridge namespace or replace them when PLM lands in the shared Supabase project.
+2. Move the temporary Master Data tables/RPCs into a cleaner PLM bridge namespace or replace them when PLM lands in the shared Supabase project. This is future architecture work, not a live-page blocker.
 
-Operational commands used for preview deploy:
-```bash
-npm run build
-docker build -f Dockerfile.ci -t popdam-master-preview:local .
-docker rm -f popdam-master-preview || true
-docker run -d --name popdam-master-preview --network coolify --restart unless-stopped popdam-master-preview:local
-curl -sS -I https://master.designflow.app/styles
-```
+Master Data frontend changes use the normal PopDAM main → GHCR → Coolify
+pipeline. Do not restore the old manually managed preview container.
 
 Database verification snippets:
 ```sql

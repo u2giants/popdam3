@@ -207,15 +207,22 @@ Verified during the 2026-08-02 RFQ Group rollout:
   rows linked to at least one RFQ group, and 11 rows linked to multiple groups.
 - Known row `MFZ88KMSC01` / RFQ Code `MFZ88-309` returns `Family Dollar July
   2023`.
-- The pre-aggregated database view evaluates the full production-scale result
-  in about 118 ms without an extra expression index.
+- The original pre-aggregated RFQ join looked fast as the database owner but
+  caused the authenticated browser's first 1,000-row request to exceed its
+  8-second limit on 2026-08-02. Shared-db PR #418 replaced it with an indexed
+  per-row lookup in migrations `20260802194000` and `20260802194100`. The exact
+  browser-shaped query measured 46.7 ms on preview and about 0.75 seconds on
+  production after the fix.
 - PopDAM commit `a77847e` removed Catalog Image and added the read-only RFQ
   Group history UI. CI, shared-db guards, and the frontend publish/deploy
   workflow passed; the live site returned HTTP 200 and served bundle
   `index-DoD6FXvN.js` containing the RFQ history feature.
+- Authenticated visual verification after PR #418 showed the live Licensed grid
+  loading all 12,401 rows instead of remaining stuck at `Loading...`.
 
 ## Follow-Ups
 
 - Keep candidate matching constrained to PLM-backed source refs through `public.search_style_tracker_link_candidates(...)`.
-- ✅ Per-user saved grid views are now implemented (see "View Customization" above); they persist to `public.style_tracker_user_views`. Formalize that table in `shared-db` before treating it as durable shared-schema infrastructure.
+- ✅ Per-user saved grid views are implemented and durable in canonical
+  shared-db migration `20260710135600_reconcile_style_tracker_tables.sql`.
 - Move the temporary Master Data tables/RPCs into a cleaner PLM bridge namespace or replace them when PLM lands in the shared Supabase project.
