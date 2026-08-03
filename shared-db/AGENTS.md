@@ -728,6 +728,271 @@ authoritative. The Master Data import is a **transitional catch-up feed** with n
 so it never outranks curation. If a future source claims both roles, that is an owner question,
 not an agent's judgement call.
 
+#### 6.4-C CORRECTION — the "Google Sheets import" is an AI SESSION, not a pipeline (Albert Hazan, 2026-08-03)
+
+**This subsection corrects the SCOPE of §6.4 above. Everything above stands; this widens what it
+binds. The "Scope note" above — which flagged that no importer in this repository carries the name
+"Google Sheets" and left that as the one open scoping question — is now ANSWERED. Do not re-open it.**
+
+> "Google Sheets imports are just done when i open an ai session and tell it to take the data from
+> Google Sheets and dump it into our Master Data"
+> — Albert Hazan, 2026-08-03
+
+**What this changes.** The thing §6.4 governs is not a coded pipeline with a schedule, a repo file,
+a workflow, or a code path anyone can review. It is **an AI session performing ad-hoc writes on
+instruction**. The search for "the Google Sheets importer" was therefore looking for an artefact
+that does not exist and never will.
+
+**The corrected rule.**
+
+1. **§6.4 binds AI SESSIONS DOING AD-HOC DATA LOADS, not only automated importers.** An agent told
+   to "take this spreadsheet and dump it into Master Data" is squarely inside §6.4 and is the
+   *primary* addressee of it. Read every occurrence of "the import" and "an importer" in §6.4 as
+   including **you, right now, typing the statement**. There is no "I am not an importer" exemption.
+
+   **The trigger is the SOURCE, not the verb, and it is not yours to adjudicate.** §6.4 binds you
+   whenever the content you are about to write into Master Data (`core.licensor`, `core.property`,
+   `core.character`, `core.customer`, `core.factory` and their `*_ext` tables) **originated outside
+   this database** — a spreadsheet, a CSV, an export, a pasted block of rows, a screenshot, a chat
+   message, an API pull. It is irrelevant whether you call it a load, a dump, an import, a sync, a
+   backfill, a correction, a cleanup, a one-off, or "just applying what Albert sent me". It is
+   irrelevant whether you write one row or ten thousand, and irrelevant whether you use INSERT,
+   UPDATE, MERGE, an RPC, or a migration. **None of these labels create an exemption; only §6.4's
+   own INSERT-a-genuinely-new-row allowance does.** If you find yourself reasoning about whether
+   your activity counts as an "import", the answer is yes.
+
+   **"The spreadsheet IS the curation" is not an exit either.** A human saying "the team curated
+   this sheet, put it in" does not convert outside content into curated data. Curation, for the
+   purposes of §6.4, is a decision recorded **in this database**. A claim about a spreadsheet's
+   provenance is exactly the kind of unverifiable assertion §6.4 exists to stop you from acting on.
+   The only thing that changes this is an owner ruling naming the specific rows, recorded here or
+   in `core.taxonomy_owner_ruling`.
+2. **The operative rule of §6.4 applies to you unchanged:** on a **matched** row you write **no
+   curated field at all**; you may INSERT a genuinely new row; and you must justify "we do not have
+   this record" as rigorously as "this field was unset". If your lookup keys disagree about whether
+   a row exists, that is a **possible match — quarantine it as evidence for a human, never resolve
+   it by inserting**. Since no per-field curation record exists in this database, an ad-hoc session
+   has **no way to tell curated from untouched** and must therefore abstain on every matched row.
+
+   **Two clarifications, because the wording above has been read loosely.**
+   - **"No curated field at all" means, TODAY, no field at all.** The abstention sentence is the
+     operative one, not a summary of the first. Because nothing in this database records which
+     fields a human set, you cannot identify a non-curated field, so **on a matched row an ad-hoc
+     session writes NOTHING**. "I did not believe that field was curated" is not compliance — the
+     rule already tells you that you cannot form that belief.
+   - **You do not get to pick a weak matching key.** "If your lookup keys disagree" is not
+     permission to use one key and never see a disagreement. Before you may claim a row is absent
+     you must probe **every identifying key the entity has** — canonical code, name (normalised:
+     case, whitespace, punctuation), any alias table (`core.licensor_alias`), and
+     `core.taxonomy_source_ref` — and get a miss on **all** of them. A hit on any one is a match. A
+     disagreement between any two is a quarantine. Anything less is not "we do not have this
+     record", it is an unexamined guess, and the resulting INSERT duplicates a curated row and
+     silently supersedes it downstream — the row-level loophole §6.4 already names.
+3. **The control cannot be code review — there is no code.** It is (a) this rule, which the agent
+   reads and follows, and (b) wherever it can be built, **database-side protection that does not
+   care who is writing** — a constraint, trigger, or `SECURITY DEFINER` write function that refuses
+   the curated columns regardless of caller. Prefer (b) over (a) whenever (b) is available:
+   a rule an agent can forget is weaker than a database that says no. Building (b) is in-scope
+   work for a future session; until it exists, (a) is all that stands between a spreadsheet dump
+   and every curated ruling in Master Data.
+4. **§4.2 interacts directly with this and is not optional here.** An ad-hoc spreadsheet dump is
+   precisely the shape of operation §4.2 exists for: bulk writes, typed by hand, in a session that
+   believes it knows which database it is on. **Prove the connection target immediately before every
+   statement §4.2 covers** — that is §4.2's own scope, unchanged and not widened here: every write,
+   change, or removal of data, schema, or privileges, including `INSERT`. §4.2's batching allowance
+   applies as written (one proof covers what is submitted in the same tool call as the check or the
+   immediately following one), so a single dump does not need a proof per row — it needs a proof per
+   submission, and any tool call, reconnect, or turn boundary in between invalidates it. Quote that
+   proof in your report. A spreadsheet dump aimed at preview that lands on production
+   `qsllyeztdwjgirsysgai` is unrecoverable in exactly the way §4.2 describes.
+
+**What has NOT changed.** §6.4's three parts, its two loopholes, the production violation warning
+(`plm.import_master_data` still force-sets curated status on production; `20260802170000` is merged
+but **not applied there**), and the compliant reference implementations all stand exactly as written
+above. This subsection adds addressees; it removes nothing.
+
+### 6.5 OWNER RULING — PR #408 is HELD and ships as one production change with the FR removal work (Albert Hazan, 2026-08-03)
+
+> "hold it and ship it together with the removal work"
+> — Albert Hazan, 2026-08-03, answering whether to promote the two merged migrations
+> `20260802170000` (durable curated licensor/property status) and `20260802171000`
+> (the FRIENDS TV / FRIDA KAHLO ruling) to production now, or hold them and combine them
+> with the `FR` removal work as ONE production change.
+
+This is a standing decision, ruled by the owner. **It is settled — do not re-ask it, do not treat
+it as an AI's preference.**
+
+**What is forbidden, stated so it cannot be read narrowly:** **neither `20260802170000` nor
+`20260802171000` may reach production by ANY route until the FR removal work is ready to go with
+them.** Not alone, not as a pair, not as part of a wider backlog sweep, not via `--include-all`, not
+re-issued under a fresh timestamp as a "bounded forward" copy (§5.1 already forbids that habit
+separately). The permitted event is exactly one: a single bounded production apply that carries
+`20260802170000`, `20260802171000` **and** the removal migrations together, in dependency order.
+
+**Why this is the right answer, so a future session does not "helpfully" unblock it.**
+
+- Albert's ruling on `FR` "FRIENDS TV" is that it **was never a real licensor and must be REMOVED**
+  — not kept, not merely flagged. FRIENDS has always been a *property* under `WB` WARNER BROS, so
+  genuine FRIENDS items already have a correct home.
+- Migration `20260802171000` sets `core.licensor` `FR` to **`status = 'inactive'`**. That is a
+  *different remedy*, written before the removal ruling existed, and the removal ruling
+  **supersedes** it.
+- So promoting #408 alone would change production master data **twice**: once into `inactive` — a
+  state the owner has said he does not want — and again later into removed. Every production change
+  here is **forward-only with no undo**; buying an extra irreversible step to reach a state nobody
+  asked for is strictly worse than waiting.
+- Combining them means production moves once, from today's state to the intended end state.
+
+**How `20260802171000` reaches production without leaving `FR` inactive — read this before you
+conclude the ruling is impossible.** `20260802171000` is applied on preview, so §4 rule 4 freezes
+its text: it cannot be edited to drop the `inactive` statement, and it must not be skipped in the
+ledger. It therefore **does** apply to production as written, inside the combined push. What the
+ruling forbids is not the statement executing — it is production **coming to rest** in a state the
+owner rejected. Inside one bounded `db push`, `FR` passes from `active` to `inactive` to removed
+without ever being an observable steady state, and no application, sync, or human sees `FR` as an
+inactive licensor. That is the "moves once" the ruling means: one promotion event, one end state.
+An agent that promotes `20260802171000` on its own produces the forbidden thing — a production that
+sits at `inactive`, indefinitely, until a second irreversible change.
+
+**The consequence you must NOT report as a bug.** Until the combined change ships, **production and
+preview DISAGREE about `FR`**: production has `FR` **active**, preview has `FR` **inactive**. This
+divergence is **KNOWN, EXPECTED and ACCEPTED** — it is the direct result of this ruling. Do not
+"fix" it, do not promote #408 to close it, and do not re-report it as drift, as a failed promotion,
+or as an incident. It resolves when the removal work ships, and only then.
+
+**What "the removal work" is.** A single ordered change in which nothing is orphaned at any step:
+bring the real FRIDA KAHLO licensor in from ColdLion with proper `core.taxonomy_source_ref`
+provenance; re-point property `FK` FRIDA KAHLO onto it; re-home **every remaining row that still
+references `FR`** to its correct home — in practice the FRIENDS property under `WB`, which is where
+anything genuinely about the TV series belongs (as measured on 2026-08-02, `FK` was the *only*
+property under `FR`, with zero characters, so this step is expected to move nothing; **prove that
+again at the time rather than assuming it**) — and **remove `FR` LAST, only after proving zero
+dependents**. There is no judgement call hidden in the word "genuinely": `FR` was never a real
+licensor, so **nothing** may remain pointed at it. The
+curated-status durability of `20260802170000` must be in the same production change, or the data
+corrections revert on the next PLM sync.
+
+### 6.6 OWNER RULING — DB Data Admin is the home for licensor→property parentage (Albert Hazan, 2026-08-03) — this REVERSES the previous stance
+
+> "DB Data Admin screen should be where we monitor and establish the licensor→property parent-child
+> relationship. It sits in designflow now but we all agreed it should not be only in 1 particular
+> application."
+> — Albert Hazan, 2026-08-03
+
+This is a standing rule, ruled by the owner. **It is settled — do not re-ask it, do not treat it as
+an AI's preference, and do not weaken it.**
+
+**This is a REVERSAL. The repository currently says the opposite in two places, and both are now
+superseded by this section:**
+
+| Where it still says the opposite | Exact text | Status |
+| --- | --- | --- |
+| `supabase/migrations/20260722170000_db_data_admin_single_record_updates.sql`, lines 36–38 | `-- Refused here: name/code (source vocabulary), is_potential (trigger-owned), PLM status (…), aliases, source refs, related Customer, Licensor/Property, merge, bulk, deletion.` | **Applied migration — DO NOT EDIT IT.** |
+| `apps/db-data-admin/src/LicensorTree.tsx`, line 152 (orphan panel copy) | "The relationship is DesignFlow-owned; do not repair it here." | Superseded; correct by a FORWARD change when the curation path is built. |
+
+Both were verified verbatim against the tree on 2026-08-03. Near-identical "the edge is
+DesignFlow-owned" wording also appears in `20260722203000_db_data_admin_licensor_property_tree.sql`
+(lines 11 and 382), in `20260727154500_db_data_admin_bounded_production_forward.sql` (line 1601),
+and in `apps/db-data-admin/tests/browser/grid.spec.ts` (line 17). All of it is superseded as
+**policy**; the migrations remain accurate as **history**.
+
+**The never-edit-an-applied-migration rule still wins.** `20260722170000` is applied. An applied
+migration never re-runs, so editing its text changes **nothing** in the database and desynchronises
+the file from the ledger (§4 rule 4). **Leave it alone.** `AGENTS.md` — this section — is the
+governing statement of policy. The application copy in `LicensorTree.tsx` and the behaviour it
+describes are corrected by a **forward** change, authored when the curation path is actually built,
+never by rewriting history.
+
+**The rule.**
+
+1. **DB Data Admin (`apps/db-data-admin/`, `https://data.designflow.app`) is the home for both
+   MONITORING and ESTABLISHING the licensor→property parent-child relationship.** "Refused here" no
+   longer describes the intended product; it describes the state of the code before this ruling.
+   **"The home" means the cross-application curation surface, NOT an exclusive owner.** Albert's
+   objection is to the capability living inside one *line-of-business application* (DesignFlow);
+   DB Data Admin is the shared administrative surface over `core.*` that every app's data flows
+   through, which is why it is the answer rather than a second lock-in. The authority that matters
+   is the **curated data in `core.*`**, which any app may read; DB Data Admin is where a human
+   establishes it. Do not read this section as a licence to forbid some future second curation
+   surface, and do not read it as permission to leave the capability in DesignFlow.
+2. **The relationship is no longer DesignFlow-owned.** Any doc, comment, UI string, or agent
+   assumption that says "DesignFlow is the single writer of `core.property.licensor_id`, repair it
+   there" is stale from 2026-08-03 onward.
+   **This deposes DesignFlow as the OWNER, not as today's mechanism.** Until the DB Data Admin
+   curation path actually ships, DesignFlow PLM remains the **interim writer of record** and a
+   parentage repair made there is legitimate. Do not disable, block, or "clean up" the DesignFlow
+   path on the strength of this ruling — that would leave no repair path at all (see rule 4).
+3. **This does not by itself authorise a write path.** It sets the destination. The actual editing
+   capability is new work: it needs a bounded write contract in the shape of §6.1/§4.2 (whitelisted
+   typed parameters, optimistic concurrency, audit rows, the existing
+   `app.db_data_admin_feature_gate`), plus durability so the PLM importer cannot revert it — see the
+   related rulings below. **Do not ship a raw editable `licensor_id` column in the grid.**
+   **The refusal in `20260722170000` is executable, not merely documentary.** That migration's
+   comment records a refusal the shipped write contract actually enforces, so DB Data Admin will
+   *reject* a parentage write today no matter what this section says. That is correct and expected
+   — policy moved first, capability follows. **A rejection from that contract is NOT a bug to route
+   around**, and it must never be routed around with direct SQL, a service-role write, or an ad-hoc
+   session (§6.4-C forbids that last one outright). It is removed only by the forward migration that
+   builds the new bounded contract.
+4. **Until that path ships, here is the ONLY compliant way to repair a wrong parent** — stated
+   explicitly because three rules read together otherwise appear to forbid every route. In order of
+   preference: **(a)** fix it in DesignFlow PLM, still the interim writer per rule 2, and let it
+   flow through; **(b)** if it cannot be fixed upstream, author it as a **shared-db migration** in
+   this repo — branch, PR, preview first, §5 checklist — recording the human decision, and where the
+   decision is the owner's, record it in `core.taxonomy_owner_ruling` too. A migration that encodes a
+   named human's decision **is** hand curation, and is exactly what §6.5's removal work does for
+   property `FK`; it is not the "inferred from product data" thing that is banned. What is never
+   permitted is **(c)** an ad-hoc session typing the fix straight into Master Data. Note the
+   durability caveat in rule 5 applies to (a) and (b) alike on production.
+5. **Durability is not yet in force on production, and §6.5 deliberately holds the fix.**
+   `20260802170000` — the migration that stops `plm.import_master_data` force-setting
+   `core.property.licensor_id` — is merged but **held from production by §6.5** until the FR removal
+   work ships. So on production today, any parentage set by any route is still reverted on the next
+   successful PLM master-data sync. Two consequences: **do not treat "we have a durability
+   migration" as "curated parentage is durable"** when scoping the DB Data Admin write path — the
+   write path must not be enabled on production before `20260802170000` is applied there; and do not
+   try to unblock it by promoting `20260802170000` early, which §6.5 forbids. (The lane has not
+   succeeded since 2026-07-08 — see §6.4 — which is currently masking the problem, not fixing it.)
+
+**How this sits with the related standing rulings.**
+
+- **Parentage is HAND-CURATED, never inferred.** Albert ruled on 2026-08-03 that the
+  property→licensor parent link must live in a curated Supabase table — which today **is
+  `core.property.licensor_id`**, the existing canonical column; the ruling requires that it be set
+  by hand, not that a new table be invented, and no session should design one on the strength of
+  this wording — and must **never** be derived
+  from product data. Item/style co-occurrence is an **audit tool only** — it may flag a suspicious
+  parent for a human to look at; it may never set one. A curation *screen* is exactly what a
+  hand-curated link requires, so the hand-curation ruling and this section point the same way.
+  (Recorded in the
+  coordinator intake as ruling 4.)
+- **`dflow.*` is being retired; `core.*` becomes the source of truth for all applications**, fed
+  from ColdLion as the ultimate upstream. (Recorded in the coordinator intake as ruling 6.)
+  **§6.6 is the direct consequence of this.** If `core.*` serves every app, the surface on which
+  humans curate `core.*` must not be locked inside one application — which is precisely Albert's
+  "it should not be only in 1 particular application". Building further curation into DesignFlow
+  would deepen a dependency the plan of record removes.
+- **§6.4 protects the result.** Curated parentage set in DB Data Admin is exactly the kind of
+  deliberate human decision an import may never revert or re-parent. Note that
+  `plm.import_master_data` on production **still force-sets `core.property.licensor_id` on every
+  matched row** (§6.4), so until `20260802170000` is applied to production, parentage curated
+  anywhere — DB Data Admin included — is not durable there.
+
+**The one question this section MUST answer: ColdLion says one parent, a human curated another —
+who wins?** §6.3 makes ColdLion ERP data canonical; §6.4 makes curated data outrank imported data.
+For **licensor→property parentage specifically, the curated value wins**, and this is not an agent's
+judgement call — it follows from §6.1's rule 2, verified against the source: **ColdLion has no
+licensor→property relationship at all.** It cannot state a parent, so there is nothing for §6.3 to
+make canonical. Any parent that appears to come "from ColdLion" is in fact something a POP system
+inferred — from `mgTypeCode`, `mg_code`, co-occurrence, or a prior guess — and inference is exactly
+what the hand-curation ruling bans.
+
+**This carves out ONLY the parent edge. §6.3 is otherwise untouched and still wins:** when ColdLion
+inactivates or removes a licensor or property, **follow it**. Names, codes, and lifecycle status
+remain ColdLion's. If ColdLion ever begins transmitting a genuine licensor→property relationship,
+this carve-out stops being self-evident and becomes an owner question — escalate it, do not decide
+it.
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
