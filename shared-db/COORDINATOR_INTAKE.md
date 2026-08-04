@@ -134,6 +134,97 @@ so. This file is a log, not a worksheet.
 
 ---
 
+**[moved from `REQUEST QUEUE` 2026-08-04]** **ANSWERED 2026-08-04 12:00 UTC — DONE by Albert Hazan.** Branch protection is now ON for `main`: required check `Promotion contract tests (offline)`, `strict=false`, `enforce_admins=true`, `allow_force_pushes=false`, `allow_deletions=false` — verified live with `gh api repos/u2giants/shared-db/branches/main/protection`. Recorded as a standing ruling in `AGENTS.md` §6.7, including the known limitation that only ONE check is required because three workflows (`backlog-queue-sync`, `pr-object-collision`, `tools-offline-tests`) all expose a check named `verify`; agent `ci-check-names` is making those names unique so they can be added.
+
+### REQUEST — ⛔ ALBERT: turn on branch protection for `main` — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** `main` has **NO branch protection**, so
+every CI guard in this repository is advisory — nothing mechanically stops a
+broken change being merged. This is not theoretical: **on 2026-08-03 the
+coordinator merged PR #431 through a RED `verify` check** (run `30846938009`, job
+`91797438635`). The underlying npm audit failure was later fixed properly by PR
+#436, but the hole that allowed the merge is still open.
+
+**2. Which application(s) depend on this.** All of them, indirectly — this
+protects the shared database from a bad migration reaching `main`.
+
+**3. Is it blocking anything, and how urgently?** Not blocking any specific task.
+It is the **largest structural risk** in the repo and it has already been
+exploited once, by us.
+
+**4. Deadline, if any.** None, but every day without it is a day a red merge can
+happen again.
+
+**5. What I already know about the current schema.** N/A — this is a GitHub
+repository setting, not a schema change. It is a browser-only action; the
+coordinator cannot do it.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No setting changed, no
+branch created, no migration, no preview or production write, no `supabase` CLI,
+no Supabase MCP call, no psql, no background task chip.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-08-04]** **ANSWERED 2026-08-04 12:00 UTC — DECLINED AS ASKED by Albert Hazan; standing DO-NOT.** The six HARD_BLOCKED ColdLion migrations must NOT be unblocked individually. Any unblocking ships bundled with (a) its negative test proving the guard FIRES (backlog B7) and (b) a whole-batch pre-flight proving the entire promotion batch runs end to end — because the production lane ABORTS AT FILE 3 OF 14 (agent `prod-lane-design`, PR #403), so individual unblocking would leave production PARTIALLY PROMOTED. The real count is SIX, not four (agent `hardblock-archaeology`, PR #407). Recorded as `AGENTS.md` §6.8. A future bundled change is a NEW request; do not reopen this block.
+
+### REQUEST — ⛔ ALBERT: unblock the ColdLion HARD_BLOCKED migrations (the count is SIX, not four) — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** A set of ColdLion migrations is marked
+`HARD_BLOCKED` and cannot promote. PR #407 recovered the lost rationale and
+produced an **owner decision brief** so Albert can decide. Unblocking must be
+bundled with **the negative test** and **the Phase 6 + acknowledgement pairing
+rule** — not done alone.
+
+**2. Which application(s) depend on this.** The ColdLion taxonomy sync into the
+shared database.
+
+**3. Is it blocking anything, and how urgently?** Yes — it blocks the ColdLion
+Step 8 production promotion.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** ⚠️ **Count discrepancy — do
+not assume four.** The documentation said **four**; PR #407 found **SIX**
+`HARD_BLOCKED` entries and confirmed the **42P01 (undefined table) chain** behind
+them. **Confirm the real scope before acting** — a promotion list built from the
+old count ships a partial fix. Authoritative detail: PR #407's decision brief.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing unblocked, no
+branch, no migration, no preview or production write, no `supabase` CLI, no
+Supabase MCP call, no psql, no background task chip.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-08-04]** **ANSWERED 2026-08-04 12:00 UTC — DECLINED AS ASKED by Albert Hazan; standing DO-NOT.** The 33 unmatched ColdLion property codes must NOT be admitted until the status-blind resolver is fixed FIRST — "fix the attachment logic first, then admit the codes" — in that order, in ONE reviewed change, never the admission alone. When admitted they go in as `potential`, NOT `inactive` (Kimi's recommendation, already accepted). Recorded as `AGENTS.md` §6.9. The combined resolver-fix-plus-admission change is a NEW request; do not reopen this block.
+
+### REQUEST — ⛔ ALBERT: admit the 33 unmatched property codes (only after the resolver is fixed) — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** 33 ColdLion property codes have no match
+in our data and are currently invisible. They should be admitted — **but only
+after the status-blind resolver is fixed**, otherwise they will be admitted
+against the wrong statuses. **Kimi's recommendation: admit them as `potential`,
+NOT as `inactive`.** Marking them inactive would silently hide real properties.
+
+**2. Which application(s) depend on this.** Every app that reads the property
+list; royalty and filtering behaviour downstream.
+
+**3. Is it blocking anything, and how urgently?** Blocking a clean licensor/
+property migration — you cannot move a table with 33 known-unresolved codes in it.
+
+**4. Deadline, if any.** None, but it sits on the critical path for Albert's
+stated top priority.
+
+**5. What I already know about the current schema.** The figure was **66** at the
+2026-07-31 handover and is now recorded as **33**; **that reduction has not been
+re-verified by this session.** Related: PR #369 grouped the unmatched codes by
+licensor. Authoritative detail: `HANDOFF.md`, and the 2026-07-31 handover.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No code admitted, no
+branch, no migration, no preview or production write, no `supabase` CLI, no
+Supabase MCP call, no psql, no background task chip.
+
+---
+
 ## Message Albert can send to any session that NEEDS database work (copy-paste, verbatim)
 
 > I need something done to our shared database, but I do not want you to start
@@ -1467,35 +1558,6 @@ process killed; no database contact.
 
 ---
 
-### REQUEST — ⛔ ALBERT: turn on branch protection for `main` — 2026-08-03 — session: outgoing coordinator (t16)
-
-**1. What outcome is needed, and why.** `main` has **NO branch protection**, so
-every CI guard in this repository is advisory — nothing mechanically stops a
-broken change being merged. This is not theoretical: **on 2026-08-03 the
-coordinator merged PR #431 through a RED `verify` check** (run `30846938009`, job
-`91797438635`). The underlying npm audit failure was later fixed properly by PR
-#436, but the hole that allowed the merge is still open.
-
-**2. Which application(s) depend on this.** All of them, indirectly — this
-protects the shared database from a bad migration reaching `main`.
-
-**3. Is it blocking anything, and how urgently?** Not blocking any specific task.
-It is the **largest structural risk** in the repo and it has already been
-exploited once, by us.
-
-**4. Deadline, if any.** None, but every day without it is a day a red merge can
-happen again.
-
-**5. What I already know about the current schema.** N/A — this is a GitHub
-repository setting, not a schema change. It is a browser-only action; the
-coordinator cannot do it.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** No setting changed, no
-branch created, no migration, no preview or production write, no `supabase` CLI,
-no Supabase MCP call, no psql, no background task chip.
-
----
-
 ### REQUEST — ⛔ ALBERT: stop the ColdLion alert monitor, then build dedupe, then close 25 duplicate issues — 2026-08-03 — session: outgoing coordinator (t16)
 
 **1. What outcome is needed, and why.** The hourly ColdLion alert monitor creates
@@ -1522,62 +1584,6 @@ live by this session — check the workflow before acting.
 **6. Confirmation of what I have NOT done. [MANDATORY]** No variable changed, no
 issue closed, no branch, no migration, no preview or production write, no
 `supabase` CLI, no Supabase MCP call, no psql, no background task chip.
-
----
-
-### REQUEST — ⛔ ALBERT: admit the 33 unmatched property codes (only after the resolver is fixed) — 2026-08-03 — session: outgoing coordinator (t16)
-
-**1. What outcome is needed, and why.** 33 ColdLion property codes have no match
-in our data and are currently invisible. They should be admitted — **but only
-after the status-blind resolver is fixed**, otherwise they will be admitted
-against the wrong statuses. **Kimi's recommendation: admit them as `potential`,
-NOT as `inactive`.** Marking them inactive would silently hide real properties.
-
-**2. Which application(s) depend on this.** Every app that reads the property
-list; royalty and filtering behaviour downstream.
-
-**3. Is it blocking anything, and how urgently?** Blocking a clean licensor/
-property migration — you cannot move a table with 33 known-unresolved codes in it.
-
-**4. Deadline, if any.** None, but it sits on the critical path for Albert's
-stated top priority.
-
-**5. What I already know about the current schema.** The figure was **66** at the
-2026-07-31 handover and is now recorded as **33**; **that reduction has not been
-re-verified by this session.** Related: PR #369 grouped the unmatched codes by
-licensor. Authoritative detail: `HANDOFF.md`, and the 2026-07-31 handover.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** No code admitted, no
-branch, no migration, no preview or production write, no `supabase` CLI, no
-Supabase MCP call, no psql, no background task chip.
-
----
-
-### REQUEST — ⛔ ALBERT: unblock the ColdLion HARD_BLOCKED migrations (the count is SIX, not four) — 2026-08-03 — session: outgoing coordinator (t16)
-
-**1. What outcome is needed, and why.** A set of ColdLion migrations is marked
-`HARD_BLOCKED` and cannot promote. PR #407 recovered the lost rationale and
-produced an **owner decision brief** so Albert can decide. Unblocking must be
-bundled with **the negative test** and **the Phase 6 + acknowledgement pairing
-rule** — not done alone.
-
-**2. Which application(s) depend on this.** The ColdLion taxonomy sync into the
-shared database.
-
-**3. Is it blocking anything, and how urgently?** Yes — it blocks the ColdLion
-Step 8 production promotion.
-
-**4. Deadline, if any.** None.
-
-**5. What I already know about the current schema.** ⚠️ **Count discrepancy — do
-not assume four.** The documentation said **four**; PR #407 found **SIX**
-`HARD_BLOCKED` entries and confirmed the **42P01 (undefined table) chain** behind
-them. **Confirm the real scope before acting** — a promotion list built from the
-old count ships a partial fix. Authoritative detail: PR #407's decision brief.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing unblocked, no
-branch, no migration, no preview or production write, no `supabase` CLI, no
-Supabase MCP call, no psql, no background task chip.
 
 ---
 

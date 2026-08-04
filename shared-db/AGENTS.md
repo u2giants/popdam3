@@ -993,6 +993,118 @@ remain ColdLion's. If ColdLion ever begins transmitting a genuine licensor→pro
 this carve-out stops being self-evident and becomes an owner question — escalate it, do not decide
 it.
 
+### 6.7 OWNER RULING — branch protection on `main` is ON, and CI guards are no longer advisory (Albert Hazan, 2026-08-04)
+
+Albert turned branch protection **ON** for `main` on 2026-08-04. This is a standing decision, ruled
+by the owner. **It is settled — do not re-ask it, do not treat it as an AI's preference, and do not
+weaken it.**
+
+**The verified fact, not a claim.** Read back live at 2026-08-04 12:00 UTC with
+`gh api repos/u2giants/shared-db/branches/main/protection`, after PR #442 (agent `ci-check-names`)
+gave every job a unique `name:` and the coordinator added the newly-disambiguated contexts:
+
+| Setting | Value |
+| --- | --- |
+| `required_status_checks.contexts` | `["Promotion contract tests (offline)", "Backlog / queue sync", "Cross-PR object collision", "Tools offline tests"]` |
+| `required_status_checks.strict` | `false` |
+| `enforce_admins.enabled` | **`true`** |
+| `allow_force_pushes.enabled` | `false` |
+| `allow_deletions.enabled` | `false` |
+
+**The rule.**
+
+1. **CI guards on this repository are no longer advisory.** Merging through a red *required* check
+   is now **mechanically impossible**, including for admins — `enforce_admins` is `true`, so there
+   is no "coordinator override". The event that motivated this ruling was real: on 2026-08-03 PR
+   #431 was merged through a **red** `verify` check (run `30846938009`, job `91797438635`). That
+   route is closed.
+2. **`main` cannot be force-pushed or deleted.** Any recovery plan that assumes a rewrite of `main`
+   is invalid. Fix forward.
+3. **Branch protection must not be removed or weakened without an explicit, per-change owner
+   instruction naming the setting.** "Unblock the merge", "CI is stuck", "fix the pipeline", or a
+   deadline is **not** approval. If a required check is wrong, fix the check — never the protection.
+   This mirrors the standing production-infrastructure rule: an AI session does not relax a control
+   in order to get past it.
+4. **Every PR to `main` — including a docs-only PR — must now pass all FOUR required contexts
+   before it is mergeable:** `Promotion contract tests (offline)`, `Backlog / queue sync`,
+   `Cross-PR object collision`, `Tools offline tests`. Confirm with `gh pr checks` before reporting
+   a PR as ready, and check the run's `head_sha` — a green tick can be a **stale verdict from an
+   older commit**. A green PR page is not the same as a satisfied required context.
+
+**KNOWN LIMITATION — state this honestly, do not claim protection is complete. The gap is the
+migrations lane itself.** The two workflows that actually **touch the database** —
+`.github/workflows/shared-supabase-migrations.yml` and `.github/workflows/db-data-admin.yml` — are
+**`paths:`-filtered**, and a path-filtered workflow reports **NO check at all** on a PR that misses
+its paths. GitHub treats a required context that never reports as *pending forever*, so making
+either one required would **deadlock every unrelated PR** in the repository. Neither can therefore
+join the required list as things stand.
+
+Say the consequence plainly, because it is the opposite of reassuring: **the riskiest path in this
+repository — migrations — is currently the one guard that CANNOT block a merge.** The four required
+contexts above are the cheap, always-run guards; the expensive, genuinely dangerous one is advisory.
+This is **backlog item B2** ("repo-wide checkers gated behind narrow `paths:` filters") and it is
+**UNFIXED**. Until it is fixed, do not describe branch protection on this repository as complete,
+and do not let "protection is on" stand in for "a bad migration cannot be merged" — it can.
+
+### 6.8 OWNER RULING — the six HARD_BLOCKED ColdLion migrations are NOT unblocked individually (Albert Hazan, 2026-08-04)
+
+This is a standing **DO-NOT**, ruled by the owner. **It is settled — do not re-ask it, do not treat
+it as an AI's preference, and do not read it narrowly.**
+
+**What is forbidden.** Unblocking any `HARD_BLOCKED` ColdLion migration **on its own** — one at a
+time, a few at a time, or "just the safe ones". There is no size of subset that makes it allowed.
+
+**What is permitted — one event, carrying all three parts together.** Any unblocking ships bundled
+with:
+
+1. **its negative test that proves the guard actually FIRES** (the backlog **B7** standard — an
+   assertion that the guard *rejects* the bad input, not merely that the happy path passes); **and**
+2. **a whole-batch pre-flight check that proves the ENTIRE promotion batch can run end to end** —
+   not that the individual migration applies.
+
+**Why, so a future session does not "helpfully" unblock one.** The production promotion lane
+currently **ABORTS AT FILE 3 OF 14** — found by agent `prod-lane-design`, PR #403. A migration
+unblocked on its own would therefore be handed to a lane that stops a third of the way through, and
+production would be left **PARTIALLY PROMOTED**: some ColdLion migrations applied, the rest not,
+with no undo (production changes here are forward-only). A half-applied taxonomy batch is worse than
+an un-promoted one, because it looks finished. The pre-flight requirement exists precisely to catch
+that before the first irreversible write, not after it.
+
+**The count is SIX, not four — correct any document that says four.** Agent `hardblock-archaeology`
+(PR #407) found **six** `HARD_BLOCKED` entries and confirmed the **42P01 (undefined table)** chain
+behind them. Older docs say four. **A promotion list built from the old count ships a partial fix**
+— which is the exact failure this ruling exists to prevent. Confirm the real scope live before
+acting; do not inherit either number on trust.
+
+### 6.9 OWNER RULING — the 33 unmatched ColdLion property codes are NOT admitted before the resolver is fixed (Albert Hazan, 2026-08-04)
+
+> "Fix the attachment logic first, then admit the codes."
+> — Albert Hazan, 2026-08-04
+
+This is a standing **DO-NOT**, ruled by the owner. **It is settled — do not re-ask it, do not treat
+it as an AI's preference, and do not reorder it.**
+
+**The rule.**
+
+1. **The 33 unmatched ColdLion property codes must NOT be admitted until the status-blind resolver
+   is fixed first.** The order is not negotiable and is not a preference about sequencing
+   convenience: the resolver is what decides which status each admitted code lands on, so admitting
+   first means admitting **against the wrong statuses**, and every one of those rows then has to be
+   found and corrected by hand.
+2. **In that order, in ONE reviewed change — never the admission alone.** A PR that only admits the
+   codes is out of compliance with this ruling even if the resolver fix is "planned next". The fix
+   and the admission are reviewed together so the reviewer can see the codes land against a resolver
+   that is already correct.
+3. **When they are admitted, they go in as `potential`, NOT `inactive`.** This is Kimi's
+   recommendation and it is **already accepted** — it is not open for re-litigation. Marking an
+   unmatched code `inactive` silently hides what may be a real, live property; `potential` says
+   truthfully that it exists and has not yet been reconciled.
+
+**A count caveat, stated so nobody launders it into a fact.** The figure was **66** at the
+2026-07-31 handover and is recorded as **33** now. That reduction has **not** been independently
+re-verified. Re-derive the real count at the time of the work; do not build the admission list from
+this section's number.
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
