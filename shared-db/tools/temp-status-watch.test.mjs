@@ -80,16 +80,39 @@ test("the migration version is unique across the whole migrations directory", ()
   assert.deepEqual([...new Set(dupes)], [], "duplicate 14-digit versions SILENTLY skip a migration");
 });
 
+// The highest migration version that existed when this pair was authored (2026-08-03).
+// It is a FIXED historical fact, not "the newest file in the directory": migrations added
+// after this pair are expected and must not fail these assertions. An earlier version of
+// this test asserted the pair sorted after EVERY file in the directory, which turned every
+// future migration into a permanent CI failure.
+const PREDECESSOR_MAX = "20260803150000";
+
 test("the migration sorts strictly after every other migration present when it was authored", () => {
   const versions = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).map((f) => f.slice(0, 14));
-  // Both files of this artefact must sort after everything that existed before them.
   const mine = ["20260803200000", "20260803201000"];
-  const others = versions.filter((v) => !mine.includes(v));
+
+  // The pre-existing migration set is pinned by history, so this stays meaningful as the
+  // repository grows. Guard that it is non-empty and still contains its known maximum, or a
+  // rename could quietly reduce the assertion below to nothing.
+  const predecessors = versions.filter((v) => v <= PREDECESSOR_MAX);
+  assert.ok(predecessors.includes(PREDECESSOR_MAX), `the ${PREDECESSOR_MAX} migration must still exist`);
+
   assert.ok(
-    others.every((v) => v < mine[0]),
+    predecessors.every((v) => v < mine[0]),
     "a migration that sorts before the remote max forces --include-all at promotion time",
   );
   assert.ok(mine[0] < mine[1], "the hardening must sort after the file it hardens");
+
+  // Nothing may be interleaved between the two files of this artefact: the hardening must
+  // apply immediately after the file it hardens.
+  assert.deepEqual(
+    versions.filter((v) => v > mine[0] && v < mine[1]),
+    [],
+    "no migration may sort between the migration and its hardening",
+  );
+
+  // Both files must actually be present under the versions asserted about.
+  for (const v of mine) assert.ok(versions.includes(v), `${v} must be present in ${migrationsDir}`);
 });
 
 // ---------------------------------------------------------------------------------------
