@@ -532,6 +532,38 @@ after it is filed. Only the coordinator moves a block out of here.
 
 ---
 
+> ## ⚠️ REFRESHED 2026-08-03 23:59 UTC by sub-agent `handover-writer`
+>
+> **Authoritative detail for everything below is
+> `HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md`,
+> then `HANDOFF.md`.** Read the handover before acting on any summary here.
+>
+> **ALBERT'S NEW TOP PRIORITY, 2026-08-03:** *"I REALLY want to move Licensors and
+> Properties over. the current setup has so many problems and bandaids all over
+> it."* See the new entry **"Move Licensors and Properties off Cloud SQL"** below,
+> and §9.1 of the handover for the honest list of nine blockers that must be
+> closed first. **It is the HARDEST table set to move, not the easiest.**
+>
+> **What changed in this refresh:**
+> - **12 NEW entries appended at the very end of this section** (search for
+>   `Added 2026-08-03 23:59 UTC`). They cover everything outstanding from the
+>   2026-08-02/03 coordinator session, including every item waiting on Albert.
+> - **Nine existing entries were annotated in place**, each with a bracketed
+>   status line immediately ABOVE its heading, saying SATISFIED / STILL OPEN /
+>   PARTIALLY DONE with the PR number.
+> - **Nothing was deleted, and no block was physically moved to `## COMPLETED`.**
+>   That was a DELIBERATE DECISION, not an oversight: this refresh was written by
+>   a sub-agent with no authority to restructure a 2,900-line shared file, and
+>   silently relocating large blocks is how this file has drifted before. **The
+>   incoming coordinator should perform the Part B2.1 lifecycle moves** for every
+>   entry annotated `SATISFIED` — except the `B<n>` backlog entries, which the
+>   `Backlog / Queue Sync` CI guard requires to stay referenced.
+> - **Verified at refresh time:** `origin/main` = `9265986782a83f041bab933b4e121a00264bcd0f`;
+>   397 migrations; max version `20260803201000`; 0 duplicate versions; **ZERO open
+>   PRs**; 51 worktrees (52 including the handover agent's own).
+
+---
+
 > **Added 2026-08-02 by sub-agent `intake-ingest`.** The four entries immediately
 > below fall out of ingesting intake PRs **#365, #366 and #373**. They are
 > deliberately SHORT — the authoritative detail is the matching entry in
@@ -542,6 +574,8 @@ after it is filed. Only the coordinator moves a block out of here.
 > it.
 
 ---
+
+**[2026-08-03 — DATABASE HALF DONE, PR #430 merged, migration `20260803150000`. STILL OPEN for the DesignFlow app-side half, which belongs in `C:/repos/dflow` on branch `sandbox-albert`, NOT here. A separate idle Claude session on t16 is waiting for it. Note the finding: "one row per colour/size SKU" is impossible — all stored rows are NC/NS — and the data is a 2023 snapshot. Detail: `HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md` agent block `upc-storage`.]**
 
 ### REQUEST — Let DesignFlow show an item's UPCs on the item detail page — 2026-08-03 — requester: Albert Hazan (via Claude session on t16, `C:/repos/dflow`)
 
@@ -744,6 +778,8 @@ no Supabase MCP call, no psql, no chip, no database call of any kind.
 
 ---
 
+**[SATISFIED — re-verified 2026-08-03 23:57 UTC. `C:\repos\shared-db` is on `main` at `9265986`, clean except the UNOWNED untracked directory `.ai/deepseek-sessions/` (predates this session, never touched, DO NOT DELETE). The incoming coordinator may retire this block.]**
+
 ### REQUEST — ⚠️ FIRST ACTION: un-park the shared checkout `C:\repos\shared-db` from an intake branch — 2026-07-31 — session: outgoing coordinator (t16)
 
 **1. What outcome is needed, and why.** The shared checkout is sitting on branch
@@ -770,6 +806,8 @@ worktree). No branch deleted, no migration, no preview or production push, no
 `supabase` CLI, no Supabase MCP call, no psql, no chip.
 
 ---
+
+**[STILL OPEN — 2026-08-03. PR #403 delivered the bounded lane DESIGN ONLY (§5.3); nothing was implemented. It also found a NEW defect: the promotion batch ABORTS AT FILE 3 OF 14, which would leave production PARTIALLY PROMOTED. Nothing can be promoted to production until this is fixed. Detail: `HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md` §3.4 and agent block `prod-lane-design`.]**
 
 ### REQUEST — Make the production migration lane able to produce a plan again (NEW Step 8 blocker) — 2026-07-31 — session: outgoing coordinator (t16)
 
@@ -800,6 +838,8 @@ run by this session, no Supabase MCP call, no psql, no chip.
 
 ---
 
+**[SATISFIED — 2026-08-02, PR #395 merged (`13702f7`). Intake PRs #365 (`ce3eda8`), #366 (`df039f9`) and #373 (`8595a4a`) were all ingested with per-claim verification and merged; their blocks are in `## TAKEN OVER` at the bottom of this file. Four follow-on REQUEST entries came out of it and are still open above. The incoming coordinator may retire this block.]**
+
 ### REQUEST — Ingest the two un-ingested intake PRs #365 and #366 — 2026-07-31 — session: outgoing coordinator (t16)
 
 **1. What outcome is needed, and why.** Both PRs are intake handovers from
@@ -824,6 +864,8 @@ Detail: handover §3.5.
 not ingested, not verified. No branch, no migration, no database call of any kind.
 
 ---
+
+**[SATISFIED — 2026-08-02, PR #396 merged (`549bc16`). PROVEN read-only that the 5 stuck alerts were RESIDUE of the ENOBUFS fault already fixed by PR #367. DO NOT RE-DIAGNOSE THEM. The same work found the real defect — nothing could ever set `acknowledged_at`, so the alert channel was write-only — which PR #406 then fixed. The incoming coordinator may retire this block. What is STILL open is separate: stopping the monitor, building dedupe, and closing the 25 duplicate issues — see the new entry below.]**
 
 ### REQUEST — Diagnose the hourly preview ColdLion alert-monitor failure (READ-ONLY FIRST) — 2026-07-31 — session: outgoing coordinator (t16)
 
@@ -883,6 +925,8 @@ no Supabase MCP call, no psql, no chip.
 
 ---
 
+**[SATISFIED — Albert ANSWERED on 2026-08-02: *"agents should be required to prove which database they're connected to before any delete or update"*. Recorded as `AGENTS.md` §4.2 by PR #400 (`4447b48`). A Kimi review closed two loopholes: indirect destruction, and the human-relay path. NOTE: §4.2 is currently ADVISORY — there is no CI enforcement of it. The incoming coordinator may retire this block.]**
+
 ### REQUEST — Re-offer the "prove which database you are connected to" rule — Albert DECLINED TO ANSWER — 2026-07-31 — session: outgoing coordinator (t16)
 
 **1. What outcome is needed, and why.** A proposed `AGENTS.md` rule requiring an
@@ -907,6 +951,8 @@ added to `AGENTS.md` — deliberately, because it was not approved. No branch, n
 migration, no database call of any kind.
 
 ---
+
+**[SATISFIED — 2026-08-02, PR #402 merged (`1d7d0d8`). Phase 1 re-verified against production. Two findings that create NEW open questions: the property code `JL` is LAURA's question, not Albert's (so do not put it to Albert); and the property `Coco` sits under a licensor named "NO LICENSE" — an unanswered owner question, see the new entry below. The incoming coordinator may retire this block; Phase 2 is not yet scoped.]**
 
 ### REQUEST — Characters / style-guides Phase 1 (read-only, dispatchable NOW) — 2026-07-31 — session: outgoing coordinator (t16)
 
@@ -1252,6 +1298,8 @@ database contact.
 
 ---
 
+**[SATISFIED — 2026-08-02, PR #397 merged (`c16331a`), shipped as `.github/workflows/pr-object-collision.yml`. DO NOT DELETE THIS BLOCK: the `Backlog / Queue Sync` CI guard requires every `B<n>` in `HANDOFF.md`'s BACKLOG to remain referenced from a queue section. CAVEAT: the guard is ADVISORY only, because `main` has NO branch protection.]**
+
 ### REQUEST — Backlog B6 — cross-PR object collision guard — 2026-07-31 — session: queue-seeding agent
 
 **1. What outcome is needed, and why.** CI cannot see a sibling **open** PR, so
@@ -1276,6 +1324,8 @@ coordinated PR and a token that can read the repo's PRs.
 **6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
 
 ---
+
+**[SATISFIED for the B6 guard — 2026-08-02, PR #397. The guard was PROVEN by making GitHub actually reject real colliding PRs: drill PRs #398, #399, #401, #404, #405, all since closed and their branches deleted. The B7 STANDARD remains standing policy for every future guard — it is not "done", it is now how guards are built. DO NOT DELETE THIS BLOCK: the `Backlog / Queue Sync` CI guard requires it.]**
 
 ### REQUEST — Backlog B7 — mandatory negative-path assertions (prove the guard FIRES) — 2026-07-31 — session: queue-seeding agent
 
@@ -1401,6 +1451,408 @@ backlog **B12** and §U1.75.
 
 **6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
 process killed; no database contact.
+
+---
+
+> # Added 2026-08-03 23:59 UTC by sub-agent `handover-writer`
+>
+> The twelve entries below are everything outstanding from the 2026-08-02/03
+> coordinator session. They are **deliberately SHORT and are NOT the
+> authoritative detail** — for every one of them the authority is
+> `HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md`,
+> and then `HANDOFF.md`. **Do not act on the summaries here.**
+>
+> Entries 1–6 are **BLOCKED ON ALBERT** — a coordinator cannot dispatch them,
+> only ask. Entries 7–12 are **dispatchable now**.
+
+---
+
+### REQUEST — ⛔ ALBERT: turn on branch protection for `main` — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** `main` has **NO branch protection**, so
+every CI guard in this repository is advisory — nothing mechanically stops a
+broken change being merged. This is not theoretical: **on 2026-08-03 the
+coordinator merged PR #431 through a RED `verify` check** (run `30846938009`, job
+`91797438635`). The underlying npm audit failure was later fixed properly by PR
+#436, but the hole that allowed the merge is still open.
+
+**2. Which application(s) depend on this.** All of them, indirectly — this
+protects the shared database from a bad migration reaching `main`.
+
+**3. Is it blocking anything, and how urgently?** Not blocking any specific task.
+It is the **largest structural risk** in the repo and it has already been
+exploited once, by us.
+
+**4. Deadline, if any.** None, but every day without it is a day a red merge can
+happen again.
+
+**5. What I already know about the current schema.** N/A — this is a GitHub
+repository setting, not a schema change. It is a browser-only action; the
+coordinator cannot do it.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No setting changed, no
+branch created, no migration, no preview or production write, no `supabase` CLI,
+no Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — ⛔ ALBERT: stop the ColdLion alert monitor, then build dedupe, then close 25 duplicate issues — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** The hourly ColdLion alert monitor creates
+a GitHub issue **unconditionally** — **there is NO duplicate detection at all** —
+which is how issues **#361 through #394** (25 duplicates) were created. The order
+matters and must not be varied: **(1)** set the repository variable
+`COLDLION_ALERT_MONITOR_ENABLED` to off; **(2)** build the deduplication;
+**(3)** close the 25 duplicate issues. Closing them first just lets the monitor
+recreate them.
+
+**2. Which application(s) depend on this.** The ColdLion taxonomy sync lane and
+anyone reading this repo's issue list.
+
+**3. Is it blocking anything, and how urgently?** Not blocking work, but it is
+actively generating noise every hour and burying real issues.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** `COLDLION_ALERT_MONITOR_ENABLED`
+is a **GitHub repository variable**, read by
+`.github/workflows/coldlion-licensor-property-alert-monitor.yml`. Not verified
+live by this session — check the workflow before acting.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No variable changed, no
+issue closed, no branch, no migration, no preview or production write, no
+`supabase` CLI, no Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — ⛔ ALBERT: admit the 33 unmatched property codes (only after the resolver is fixed) — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** 33 ColdLion property codes have no match
+in our data and are currently invisible. They should be admitted — **but only
+after the status-blind resolver is fixed**, otherwise they will be admitted
+against the wrong statuses. **Kimi's recommendation: admit them as `potential`,
+NOT as `inactive`.** Marking them inactive would silently hide real properties.
+
+**2. Which application(s) depend on this.** Every app that reads the property
+list; royalty and filtering behaviour downstream.
+
+**3. Is it blocking anything, and how urgently?** Blocking a clean licensor/
+property migration — you cannot move a table with 33 known-unresolved codes in it.
+
+**4. Deadline, if any.** None, but it sits on the critical path for Albert's
+stated top priority.
+
+**5. What I already know about the current schema.** The figure was **66** at the
+2026-07-31 handover and is now recorded as **33**; **that reduction has not been
+re-verified by this session.** Related: PR #369 grouped the unmatched codes by
+licensor. Authoritative detail: `HANDOFF.md`, and the 2026-07-31 handover.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No code admitted, no
+branch, no migration, no preview or production write, no `supabase` CLI, no
+Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — ⛔ ALBERT: unblock the ColdLion HARD_BLOCKED migrations (the count is SIX, not four) — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** A set of ColdLion migrations is marked
+`HARD_BLOCKED` and cannot promote. PR #407 recovered the lost rationale and
+produced an **owner decision brief** so Albert can decide. Unblocking must be
+bundled with **the negative test** and **the Phase 6 + acknowledgement pairing
+rule** — not done alone.
+
+**2. Which application(s) depend on this.** The ColdLion taxonomy sync into the
+shared database.
+
+**3. Is it blocking anything, and how urgently?** Yes — it blocks the ColdLion
+Step 8 production promotion.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** ⚠️ **Count discrepancy — do
+not assume four.** The documentation said **four**; PR #407 found **SIX**
+`HARD_BLOCKED` entries and confirmed the **42P01 (undefined table) chain** behind
+them. **Confirm the real scope before acting** — a promotion list built from the
+old count ships a partial fix. Authoritative detail: PR #407's decision brief.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing unblocked, no
+branch, no migration, no preview or production write, no `supabase` CLI, no
+Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — ⛔ ALBERT: is the property `Coco` correctly filed under a licensor named "NO LICENSE"? — 2026-08-03 — session: sub-agent `characters-phase1`
+
+**1. What outcome is needed, and why.** The property `Coco` currently sits under
+a licensor literally named **"NO LICENSE"**. Either that is a deliberate holding
+place and should stay, or `Coco` needs re-homing under its real licensor. Nobody
+can decide this except Albert, and guessing would corrupt curated data — which
+`AGENTS.md` §6.4 forbids.
+
+**2. Which application(s) depend on this.** Every app reading the licensor →
+property hierarchy; royalty reporting most of all.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but it is one of
+the data-quality items that should be resolved before the licensor/property move.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Found live by PR #402
+(Phase 1 re-verification against production). Not independently re-verified since.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing re-homed, no
+branch, no migration, no preview or production write, no `supabase` CLI, no
+Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — ⛔ ALBERT: the 5 remaining ColdLion property-code contract questions (READY TO ASK) — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** Five questions about the ColdLion
+property-code contract are drafted and ready; they just need putting to Albert.
+**Carried forward unchanged** — see the separate 2026-07-31 entry of the same name
+earlier in this queue for the questions themselves. Re-listed here only so it is
+not lost among the newer items.
+
+**2. Which application(s) depend on this.** The ColdLion sync lane.
+
+**3. Is it blocking anything, and how urgently?** Blocking the contract work; not
+urgent.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** ⚠️ **Related correction from
+PR #402: the property code `JL` is LAURA's question, not Albert's.** Do not put
+`JL` to Albert. Authoritative detail: `HANDOFF.md` and the earlier queue entry.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing asked, no branch,
+no migration, no preview or production write, no `supabase` CLI, no Supabase MCP
+call, no psql, no background task chip.
+
+---
+
+### REQUEST — Move Licensors and Properties off Cloud SQL — ALBERT'S STATED TOP PRIORITY — 2026-08-03 — requester: Albert Hazan
+
+**1. What outcome is needed, and why.** Albert, 2026-08-03: *"I REALLY want to
+move Licensors and Properties over. the current setup has so many problems and
+bandaids all over it."* The outcome is that licensor and property data lives in
+the shared Supabase database rather than DesignFlow's Cloud SQL production
+instance, with one curated source of truth instead of the current patchwork.
+
+**2. Which application(s) depend on this.** PopDAM, poppim-web, popcrm-web and
+DesignFlow — this is the **hub** table set for three live applications at once.
+
+**3. Is it blocking anything, and how urgently?** It is the owner's stated
+priority. **But be honest with him: it is the HARDEST candidate to move, not the
+easiest.** Nine blockers must be closed first — the dead PLM sync (silent since
+2026-07-08), 111 unparented properties (51 active), no curation path anywhere,
+`plm.import_master_data()` still overwriting `licensor_id` in production, three
+further overwrite paths, 9 properties under the wrong licensor, an unvalidated
+DesignFlow write endpoint open to 5 roles, and a promotion lane that aborts at
+file 3 of 14. **The recommendation to put back to Albert: keep `age_group`
+(PR #435) as the first move — it is the two-row, zero-risk REHEARSAL that proves
+the promotion mechanism — then move licensor/property with a proven lane.**
+`age_group` is not a detour from his priority; it is the safety rehearsal for it.
+
+**4. Deadline, if any.** None stated.
+
+**5. What I already know about the current schema.** Measured live by PR #433:
+**614 properties, 519 active, 111 unparented (18%), 51 of those ACTIVE and
+unparented**. **DesignFlow is Cloud SQL in PRODUCTION ONLY** — dev, staging and
+sandbox already run on Supabase (PR #435), so a table move can be rehearsed in
+three real environments first.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing moved, no branch,
+no migration, no preview or production write, no `supabase` CLI, no Supabase MCP
+call, no psql, no background task chip.
+
+---
+
+### REQUEST — ColdLion API data sync: the health-lane re-pin — 2026-08-03 — session: outgoing coordinator (t16), from intake #426
+
+**1. What outcome is needed, and why.** The ColdLion sync health lane reports
+against a stale pinned hash, so it cannot tell a real drift from an expected one.
+The full sequence, in order: re-pin `licensor_status_hash` in **BOTH**
+`check_taxonomy_sync_health()` **AND** `record_taxonomy_parallel_observation()`;
+add a live-hash guard; **re-assert grants after every `create or replace`** (they
+are dropped otherwise); produce a fresh passing observation; do a **scoped**
+acknowledgement of the alerts; obtain an **authorised** breaker reset; and re-pin
+to **production LAST**.
+
+**2. Which application(s) depend on this.** The ColdLion taxonomy sync lane and
+every app downstream of it.
+
+**3. Is it blocking anything, and how urgently?** Yes — the circuit breaker is
+currently TRIPPED on preview and the lane cannot report cleanly.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** From intake #426, triaged and
+**all five claims verified** by PR #428 against live preview and production.
+Preview `rjyboqwcdzcocqgmsyel` is **NOT clean** — rehearsal residue, ~15
+unacknowledged alerts, a tripped breaker. **Verify preview's state before
+trusting any rehearsal run against it.**
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing re-pinned, no
+breaker reset, no branch, no migration, no preview or production write, no
+`supabase` CLI, no Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — licensor-property mappings and values: the 7-step import/removal sequence — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** Execute, **in this exact order**: import
+`FK`, `NA` and `ZG`; re-point property `FK`; re-home anything currently under
+`FR`; reconcile `X-NASA` → `NA`; **remove `FR` LAST**; make parentage durable per
+the hand-curation ruling; and record the rulings in `core.taxonomy_owner_ruling`.
+Separately, fix the **9 wrong parents** — **34 Harry Potter products and 38 NASA
+products are filed under DISNEY**.
+
+**2. Which application(s) depend on this.** Every app reading the licensor →
+property hierarchy.
+
+**3. Is it blocking anything, and how urgently?** It is on the critical path for
+Albert's licensor/property migration priority.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** ⚠️ **Albert's rulings are
+FINAL as of 2026-08-03 after two reversals — do not re-litigate: REMOVE `FR`
+entirely (not merely mark it inactive); FRIDA KAHLO STAYS as a real licensor;
+X-NASA goes.** Migration `20260802171000` only marks `FR` inactive and is
+therefore **SUPERSEDED** — and it is **NOT in production** (verified by PR #428).
+**PR #408 is merged to `main` but is HELD from production** and must ship as one
+change with this removal work — `AGENTS.md` §6.5. ⚠️ **Division attribution in
+ColdLion is UNRELIABLE and must not be used as evidence.** Parent-child links are
+**hand-curated, never inferred** from product co-occurrence.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing imported,
+re-pointed, re-homed or removed; no branch, no migration, no preview or production
+write, no `supabase` CLI, no Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — Build the DB Data Admin licensor→property curation screen — 2026-08-03 — requester: Albert Hazan
+
+**1. What outcome is needed, and why.** Albert, 2026-08-03: *"DB Data Admin screen
+should be where we monitor and establish the licensor→property parent-child
+relationship. It sits in designflow now but we all agreed it should not be only in
+1 particular application."* Recorded as `AGENTS.md` **§6.6**, which **REVERSES**
+the previous stance. Today **curation happens nowhere** — there is no screen for
+it — and the Kimi review of PR #434 found there is **NO compliant way to fix a
+wrong licensor→property link anywhere**. That is the gap this closes.
+
+**2. Which application(s) depend on this.** PopDAM (hosts DB Data Admin) as the
+new owner; DesignFlow loses ownership of the write path.
+
+**3. Is it blocking anything, and how urgently?** Yes — it blocks the
+licensor/property migration, because you cannot move a hierarchy nobody can
+correct.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** The parent-child structure
+**already exists and is live** (PR #427) — the gap is the human path, not schema.
+DesignFlow **does** write the parent today, via an **unvalidated endpoint open to
+5 roles** (`designflow-item-master\services\item_library.service.js:71-138`,
+PR #433). ⚠️ **The orphan panel design must handle a real non-zero orphan set:
+111 properties are unparented, 51 of them active.** ⚠️ **PopDAM Master Data open
+writes are INTENTIONAL — never restrict them** (`AGENTS.md` §0.4). Design work so
+far: PRs #427 (design only, no migration) and #433.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing built, no branch,
+no migration, no preview or production write, no `supabase` CLI, no Supabase MCP
+call, no psql, no background task chip.
+
+---
+
+### REQUEST — Stop the three overwrite paths that violate `AGENTS.md` §6.4 in production — 2026-08-03 — session: sub-agent `import-policy`
+
+**1. What outcome is needed, and why.** `AGENTS.md` §6.4 says curated Master Data
+outranks any import. **The code still violates that ruling in production.**
+`plm.import_master_data()` **overwrites `licensor_id` and forces
+`status='active'`** (PR #427), and PR #431 found **THREE further overwrite paths
+beyond the two already known**. Recording the rule did not change the behaviour;
+this entry is the behaviour change.
+
+**2. Which application(s) depend on this.** Every app whose curated licensor →
+property data is silently being overwritten.
+
+**3. Is it blocking anything, and how urgently?** Yes — curation is pointless
+while an import can erase it, so this blocks both the DB Data Admin screen and the
+licensor/property migration.
+
+**4. Deadline, if any.** None, but curated data is being lost in the meantime.
+
+**5. What I already know about the current schema.** ⚠️ **`AGENTS.md` §6.4-C: the
+"Google Sheets import" is an AI SESSION, not a pipeline** — Albert opens a session
+and tells it to dump Sheets data into Master Data. There is no scheduled job to
+disable, and §6.4-C **forbids that operation outright** as currently practised.
+Full path inventory: `docs/google-sheets-import-authority-20260803.md` (PR #431).
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No path changed, no
+branch, no migration, no preview or production write, no `supabase` CLI, no
+Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — Correct the disproved lines in `docs/merch-group-taxonomy-architecture.md` — 2026-08-03 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** That document contains statements this
+session **disproved**, and a future session reading it will act on them. Correct
+them forward with a supersession note pointing at the evidence.
+
+**2. Which application(s) depend on this.** None directly — but every future AI
+session reads this document, which is exactly how wrong facts propagate here.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. Low effort, high
+value against repeat mistakes.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** **DISPROVED — must be
+corrected: lines 164, 166-170, and 161-162.** **CORRECT — leave alone: lines
+180-184, 206, and 219.** Line numbers were recorded during this session and
+**should be re-checked before editing**, since the file may have moved.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing edited, no
+branch, no migration, no preview or production write, no `supabase` CLI, no
+Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — Establish what the 3 UNATTRIBUTED worktrees are, and do NOT sweep until then — 2026-08-03 — session: sub-agent `handover-writer`
+
+**1. What outcome is needed, and why.** `git worktree list` now returns **52**
+entries (34 at the 2026-07-31 handover). Three have been unattributed since
+2026-07-31 and nobody knows whether they hold live work:
+`.claude/worktrees/agent-a8fd75e9b517885c6` (`nbc-alias-work`),
+`.claude/worktrees/agent-a9b9b048681d1744f`
+(`worktree-agent-a9b9b048681d1744f`), and
+`.claude/worktrees/elastic-babbage-df8f2e` (detached HEAD `3222667`). **Until
+that is answered, treat all three as LIVE.**
+
+**2. Which application(s) depend on this.** None — repository hygiene.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but it blocks any
+safe worktree sweep, and 52 worktrees is unmanageable.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. ⚠️ **Backlog B11: a
+sweep once deleted a LIVE agent's workspace** — a paused agent is
+indistinguishable from a finished one, and a worktree's uncommitted work is the
+**only copy**. **Not sweeping was a deliberate DECISION of the 2026-08-03 session,
+not an oversight.** Use the `cleanup-worktree` skill; never improvise
+`git worktree remove --force` or `git branch -D`. Two worktrees live OUTSIDE the
+repo tree and are easy to miss: `C:/tmp/shared-db-rfq-groups` and
+`C:/Users/ahazan2/AppData/Local/Temp/claude/intake-mg07`. Full inventory: §10 of
+`HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** **No worktree and no
+branch was deleted, retired, or modified.** No branch created beyond this agent's
+own, no migration, no preview or production write, no `supabase` CLI, no Supabase
+MCP call, no psql, no background task chip.
 
 ---
 
