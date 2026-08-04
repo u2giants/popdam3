@@ -6,8 +6,11 @@ The additive style-axis schema exists and is empty on **preview only**
 `core.style_guide_character` do not exist there and migration `20260727230000` is not in its
 ledger. **No row has been written to any database by this plan.**
 
-> **A fresh session starts here:** wait for licensing round 2 (166 rows, sent 2026-07-31) and the
-> owner's ruling on the missing property codes `EX` / `LB` / `JL` (§8a). Do **not** start the
+> **A fresh session starts here:** round 2 returned 157/166 on 2026-08-04 and **round 3 is 8 rows**
+> (built 2026-08-04, see "Licensing round 3"). Wait for those 8 answers and the
+> owner's ruling on the missing property codes `EX` / `LB` / `JL` (§8a). The third open owner
+> decision — whether multi-character rows get split — was **answered on 2026-08-04: they do
+> not** (§8a point 2). Do **not** start the
 > Phase 3 backfill before both land — it writes to three shared tables and must be scheduled by
 > whoever owns collision control.
 
@@ -418,6 +421,44 @@ first sheet states plainly that the mix-up was our sheet's fault.
 **Still open and still blocking the backfill:** the 166 round-2 rows, plus the missing property
 codes `EX`, `LB` and `JL` (§8a) which are an owner policy decision, not a licensing one.
 
+> **Superseded 2026-08-04.** Round 2 has since returned 157/166. What is still open is 8 rows
+> (round 3) plus the same `EX`/`LB`/`JL` policy decision. See the two sections below.
+
+### Licensing round 2 — RETURNED (2026-08-04)
+
+**157 of 166 answered. The format failure is fully fixed:** zero wrong-question answers, zero
+invented codes, zero double answers. The locked dropdowns worked and that design is kept.
+Breakdown of the 154 combination rows: **126 `REAL CHARACTERS`, 20 `DROP`, 8 blank.**
+
+**Nine rows came back blank. Only eight are re-asked.**
+
+| Ref | Why it was blank | Disposition |
+|---|---|---|
+| `B038` (`Yosemite Sam & Harley Davidson`) | Dropdown blank, but the note reads *"This is a collab they did. Not an actual character"* | **Recorded as DROP. Not re-asked** — the note is unambiguous. |
+| `B007` (`Cars - King, Mario and Ferrari car only`) | Picked `REAL CHARACTERS`, left the names cell empty | **Not re-asked.** Under the 2026-08-04 ruling the row stays whole and the resolver never consumed a name list, so nothing is missing. |
+| `B039`–`B042` (Ant-Man & Wasp Logo ×3, Moon Girl & Devil Dinosaur - Gen) | Answered a different question in NOTES (*"No property code"*) — the wording mentioned codes | Re-asked, codes removed from the wording entirely. |
+| `B043`–`B045` (Mickey & Donald Show, Mickey & Pluto, Morty & Ferdy) | Same failure | Re-asked as characters-or-label only. |
+| `A005` (Coco) | Dropdown blank, but the note reads *"CC is the code used for products made by POP in the past. (MBZ80DYCC01)"* | Re-asked as a one-line confirmation tick. The licensor conflict behind it is ours to fix (§8a) and is not put to the reviewer. |
+
+### Licensing round 3 — BUILT (2026-08-04)
+
+**8 rows: `A005`, `B039`–`B045`.** Same two-sheet structure and locked-dropdown mechanism as round
+2, because that mechanism is the reason round 2 succeeded. Three changes, all aimed at the one
+failure mode round 2 still had — a blank cell whenever the reviewer had something the dropdown did
+not allow:
+
+- every answer cell is **required** (`allow_blank` false, stop-style error) — no cell can be left
+  empty;
+- every dropdown carries a **`NONE OF THESE FIT - SEE MY NOTES`** option plus a free NOTES column;
+- the re-worded questions **never mention property codes**, and the instructions sheet states that
+  the round-2 blanks were our sheet's fault.
+
+**No character names are requested** — the 2026-08-04 ruling removed the need.
+
+> The workbook contains a third party's name and free-text notes and is **deliberately not
+> committed to this repository.** It is delivered out of band. Round 1 and round 2 artifacts that
+> are already committed stay as they are.
+
 ### 8a. Missing canonical property codes — OWNER DECISION, NOT A LICENSING ONE
 
 **Verified 2026-07-31 on preview:** ColdLion type-`06` exposes **322 distinct property codes**;
@@ -440,8 +481,23 @@ Three things the owner must decide before the backfill runs:
    Begins 2005*) and `Batman (non-talent likeness)` (*Dark Knight Rises 2012*), both Batman under
    the owner's own likeness rule. Movies and actor renditions do not split the character and do not
    get their own MG06 code. **This plan's "15 bridge rows" exit check is superseded by 17.**
-2. **STILL OPEN — the 154 combination rows:** exclude them (recommended, invents nothing), split
-   them, or decide the 30 style guides individually.
+2. ~~**STILL OPEN — the 154 combination rows:** exclude them (recommended, invents nothing), split
+   them, or decide the 30 style guides individually.~~ **ANSWERED 2026-08-04 — rows stay whole.**
+   The owner ruled: *"When a style guide row lists several characters together, leave it as one
+   row."* A combination row is therefore **never split into its component characters**. The only
+   decision any such row still needs is the binary one round 2 asked for: it is either a real
+   character row (kept as one row, named by its own label) or not a character at all (dropped).
+   **What follows from this:**
+   - **The free-text names column is dead.** `tools/resolve-character-identity.mjs` never consumed
+     it — it classifies only — so the rows where the reviewer echoed the row label back into that
+     column need **no further work and must not be re-asked**. (Measured on the returned round-2
+     workbook: of 126 `REAL CHARACTERS` rows, 13 echo the row label exactly and 109 echo it under a
+     loose match. A "92 echoed rows" figure quoted in session notes does not reproduce from that
+     file under either definition; the count is moot now, since none of them are re-asked.)
+   - `MULTI_CHARACTER_UNRESOLVED` / `COMBINATION_UNCOVERED` stop being identity failures. A row the
+     reviewer confirms is real resolves to exactly **one** character; splitting logic must not run
+     against it. `COMBINATION_COVERED` exclusion is unaffected.
+   - **Round 3 is 8 rows, not 154.** See "Licensing round 3" below.
 Two of this phase's own exit checks were unachievable as originally written and are corrected
 above:
 
@@ -589,3 +645,4 @@ model doc §6.
 | 2026-07-28 | Phase 2 completed. Migration `20260727230000_core_style_guide_axis.sql` created `core.style_guide` and `core.style_guide_character`, applied to preview only and verified empty; production untouched. Recorded three drift findings, chiefly that ColdLion is actively mid-flight on the same preview database and that Phase 3 (not just Phase 5) now carries a `core.property` identity exposure. |
 | 2026-07-28 | Withdrew that Phase 3 exposure as overstated: ColdLion's `link_approved` provably never creates, deletes, or re-keys canonical rows and is guarded by a row-count immutability check, `promote_approved` is not implemented, and preview shows `core.property` at 256 rows with ColdLion's 542 source refs already written. Added a measured Phase 3 readiness table and flagged that the two file-row counts quoted earlier were production figures. |
 | 2026-07-31 | Licensing round 1 returned 194/195 answered but only **29 usable**. All 154 combination rows came back as MG06 property codes because the sheet asked for names in a code-shaped answer column — our defect, not the reviewer's. `LB`/`EX` confirmed correct and reclassified as our missing-property problem (§8a). Round 2 built with **166 locked dropdowns** and sent. Recorded the 66 missing ColdLion property codes as an owner policy decision, not a bug. |
+| 2026-08-04 | **Owner ruling: multi-character style-guide rows are NOT split — they stay as one row.** Closes §8a point 2, the last of the three pre-backfill owner decisions. Combination rows need only the binary real-or-drop classification; the free-text names column is dead and the echoed-name rows need no further work. Round 2 returned 157/166 with zero format failures. Round 3 built as **8 rows** (`A005`, `B039`–`B045`): `B038` recorded as DROP from its own note and `B007` closed by the ruling, so neither is re-asked. Round 3 keeps the locked dropdowns and adds required answers plus a `NONE OF THESE FIT` escape. |
