@@ -1862,6 +1862,327 @@ MCP call, no psql, no background task chip.
 
 ---
 
+### REQUEST — close the two remaining branch-protection gaps on `main` — 2026-08-05 — session: outgoing coordinator (hetz)
+
+**1. What outcome is needed, and why.** Branch protection on `main` is **already
+ON** (`AGENTS.md` §6.7, done by Albert 2026-08-04 12:00 UTC) with six required
+checks, `enforce_admins: true`, force-pushes and deletions off. **Two gaps
+remain.** First, `required_status_checks.strict` is **false**, which lets a pull
+request merge while its base is out of date with `main`. That is a real hazard
+here because migrations use `CREATE OR REPLACE`, which is last-writer-wins: two
+changes to the same function, each merged from a stale base, silently lose one
+of the two with no error anywhere. Second, `required_pull_request_reviews` is
+absent. **Recommendation: turn `strict` on; leave required reviews off** — with
+agents doing most of the work, a forced reviewer adds a blocking human step
+without adding real safety. Full measured configuration and reasoning:
+`HANDOFF.d/2026-08-05T1827Z-hetz-coordinator-handover-20260805.md` §3.4 and
+§9.1 decision 1.
+
+**2. Which application(s) depend on this.** All of them, indirectly. This
+protects the shared migration lane that popdam3, popcrm-web, poppim-web,
+DesignFlow (dflow), the monitor and DB Data Admin all read from.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. It is a
+correctness guard against a silent failure mode, so it should be done before the
+next batch of concurrent migration work, not after.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — no schema is
+involved. The protection configuration was read live from
+`repos/u2giants/shared-db/branches/main/protection` on 2026-08-05 at 18:18 UTC
+and is recorded in the handover above. ⚠️ The first read of that endpoint came
+back reformatted by a display layer and looked like drift; it was **not**. Any
+follow-up must re-query narrowly (`--jq`) before recording a discrepancy.
+⚠️ Note also that the B6 queue block still carries an obsolete caveat saying the
+collision guard is "ADVISORY only, because `main` has NO branch protection" —
+that sentence is now false. **Do not edit or delete the B6 block** to fix it.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No change was made to
+branch protection. No branch created beyond this session's own
+`docs/coordinator-handover-20260805`, no migration file written, no push to
+preview or production, no `supabase` CLI command, no Supabase MCP call, no psql,
+no background task chip.
+
+---
+
+### REQUEST — fix the backlog/queue CI guard, which currently reports false passes — 2026-08-05 — session: outgoing coordinator (hetz)
+
+**1. What outcome is needed, and why.** The required status check **"Backlog /
+queue sync"** (`scripts/check-backlog-queue-sync.mjs`) reports green on
+conditions that are false. It searches a whole section's body for the bare
+pattern `\bB(\d{1,3})\b`, so **any passing mention of a backlog number in prose
+satisfies the requirement for that item.** Right now it prints "OK B8 — found in
+`## REQUEST QUEUE`" for B8, B13 and B14, all three of which have **no entry in
+that section at all**; their real entries live in `## COMPLETED`. It is matching
+a parenthetical in the section preamble. The outcome needed: the guard must
+require the real heading form it already prescribes in its own error message
+(`### REQUEST — Backlog B<n>`), so a genuinely missing entry can no longer be
+masked by an unrelated sentence. Detail and the exact offending lines:
+`HANDOFF.d/2026-08-05T1827Z-hetz-coordinator-handover-20260805.md` §5.1.
+
+**2. Which application(s) depend on this.** None directly. This is repository
+process safety for `shared-db` itself, but it is a **required** check, so it
+currently carries authority it has not earned across every pull request.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. It is a
+false-confidence defect: nothing is stopped, but a real gap can slip through
+unnoticed at any time.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — no schema is
+involved. The defect was proven by **running** the script, not by reading it:
+`node scripts/check-backlog-queue-sync.mjs` at 2026-08-05 18:20 UTC printed the
+three false OK lines quoted above. ⚠️ When fixing it, keep the existing
+`no-queue-entry-needed:` opt-out marker working, and afterwards confirm B8, B13
+and B14 are reported against `## COMPLETED`. ⚠️ **Coverage itself is already
+complete — do not seed any `B<n>` entry.** Eleven live entries (B1–B7, B9–B12)
+sit in `## REQUEST QUEUE`; B8, B13 and B14 are correctly filed in
+`## COMPLETED`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** The script was **run
+read-only** and **not modified**. No branch created beyond this session's own,
+no migration file written, no push to preview or production, no `supabase` CLI
+command, no Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — un-park the shared checkout `/worksp/shared-db` AND find the root cause (this is a RE-BREAK of entry #7) — 2026-08-05 — session: outgoing coordinator (hetz)
+
+**1. What outcome is needed, and why.** The shared checkout at
+`/worksp/shared-db` — not a worktree, the shared directory itself — is parked on
+branch `docs/clickup-handoff` at commit `cac0c3e`, **9 commits behind `main`**.
+This is the **same condition** that was raised as queue entry **#7** and marked
+**SATISFIED on 2026-08-03 at 23:57 UTC**. It has re-broken in roughly 43 hours.
+Because it recurred, **fixing the symptom again is not enough** — the root cause
+was never established the first time. The outcome needed is both: return the
+shared checkout to a clean state on `main`, **and** determine what parks it, so
+the third occurrence does not happen. The leading hypothesis, untested, is a
+session checking out in the shared directory instead of creating a worktree.
+
+**2. Which application(s) depend on this.** None directly. It affects every
+agent session working in `shared-db`: a session that reads the shared checkout
+sees a stale tree and reasons from wrong file counts and wrong file contents.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but actively
+misleading. Any session that reads it without checking gets wrong answers, and
+this has now happened twice.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — no schema is
+involved. The branch, commit and 9-behind count were read live on 2026-08-05 at
+18:18 UTC. ⚠️ **Never work in `/worksp/shared-db` while investigating this** —
+always create a worktree under `/worksp/shared-db/.claude/worktrees/`.
+⚠️ Migration counts must be measured with
+`git ls-tree -r --name-only origin/main supabase/migrations/`, never by listing
+files on disk, precisely because checkouts here go stale like this.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** The shared checkout was
+**read only and left exactly as found** — not re-pointed, not fetched into, not
+cleaned. No worktree, branch, file or queue block was deleted anywhere. No
+branch created beyond this session's own, no migration file written, no push to
+preview or production, no `supabase` CLI command, no Supabase MCP call, no psql,
+no background task chip.
+
+---
+
+### REQUEST — decide the fate of the 2 untracked GLM review files in the one dirty worktree — 2026-08-05 — session: outgoing coordinator (hetz)
+
+**1. What outcome is needed, and why.** Exactly one worktree is dirty:
+`/worksp/shared-db/.claude/worktrees/coordinator-handoff-intake-7e55cb`. It
+holds **two untracked files and nothing else** —
+`.ai/reviews/glm-pr448-coldlion-unblock-guard-20260804T141125Z.md` (5,502 bytes)
+and `.ai/reviews/glm-pr449-phase6-baseline-breaker-20260804T141306Z.md` (7,411
+bytes), both written 2026-08-04. They are GLM code reviews of pull requests #448
+and #449, both since merged, and they sit alongside **15 already-tracked review
+files** from 2026-08-03. Someone needs to decide: **commit them as review
+evidence** (consistent with the 15 tracked neighbours) **or discard them as
+scratch.** Either is defensible; nobody has decided, and until someone does the
+worktree cannot be retired.
+
+**2. Which application(s) depend on this.** None. This is repository hygiene.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. It is the only
+thing keeping one worktree alive.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — no schema is
+involved. File names, sizes and timestamps were read live on 2026-08-05 at
+18:19 UTC. ⚠️ **This worktree must NOT be removed while dirty.** Uncommitted
+work in a worktree is the only copy of that work — there is no backup and no
+reflog entry for an untracked file. ⚠️ Albert's standing instruction stands: **do
+not sweep worktrees or branches** (backlog B11 — a sweep once deleted a live
+agent's workspace). Use the `cleanup-worktree` skill; never improvise
+`git worktree remove --force` or `git branch -D`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** The two files were
+**listed, not opened, not moved, not committed and not deleted**, and the
+worktree was left dirty exactly as found. No worktree or branch was deleted. No
+branch created beyond this session's own, no migration file written, no push to
+preview or production, no `supabase` CLI command, no Supabase MCP call, no psql,
+no background task chip.
+
+---
+
+### REQUEST — read the diffs of the nine pull requests that merged outside coordinator control (#442–#450) — 2026-08-05 — session: outgoing coordinator (hetz)
+
+**1. What outcome is needed, and why.** **Nine pull requests merged on
+2026-08-04 from sessions no coordinator dispatched or reviewed: #441, #442,
+#443, #445, #446, #447, #448, #449, #450.** (There is no #444 — that number was
+consumed by an **issue**, not a pull request; GitHub shares one number space
+between the two. Do not go hunting for it.) The next coordinator must read these
+nine diffs **before re-doing any backlog work**. This is the highest-value first
+action available. The reason this session exists at all is that a 41-hour-old
+briefing nearly caused duplicate work; reading the diffs is how that is avoided.
+Of specific note: **PR #446 must be read before any re-planning of the
+`age_group` migration**; PR #447 carries the style-guide "rows stay whole"
+ruling; PR #448 is the ColdLion guard bundle; PR #449 is the phase 6 baseline
+breaker.
+
+**2. Which application(s) depend on this.** Potentially all of them — nine
+merged changes to the shared migration lane and its guards are not yet reflected
+in anyone's mental model.
+
+**3. Is it blocking anything, and how urgently?** **Blocking in practice.** Any
+backlog work planned without reading these risks re-doing merged work. Do this
+first.
+
+**4. Deadline, if any.** None, but it gates everything else sensibly.
+
+**5. What I already know about the current schema.** `origin/main` is at
+`e5afaf0049413bbf6560a5918a881d1c10d0e882` with **399** migration files, maximum
+version **`20260804120100`**, **zero** duplicate versions — all measured against
+`origin/main` on 2026-08-05 at 18:18 UTC, not from a working tree. ⚠️ Those
+numbers changed three times in 41 hours; **re-measure, do not inherit them.**
+⚠️ Albert's top priority, in his words: *"I REALLY want to move Licensors and
+Properties over. the current setup has so many problems and bandaids all over
+it."* `age_group` is the low-risk rehearsal for that move.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Only PR #448's diff was
+read this session (to verify decision #4); the other eight were **not** read.
+Nothing was merged, reverted or re-opened. No branch created beyond this
+session's own, no migration file written, no push to preview or production, no
+`supabase` CLI command, no Supabase MCP call, no psql, no background task chip.
+
+---
+
+### REQUEST — the "92 rows" style-guide question is ANSWERED; record it and stop carrying it — 2026-08-05 — session: outgoing coordinator (hetz)
+
+**1. What outcome is needed, and why.** Earlier sessions carried an unlocated
+question about "92 echoed rows" in the round-2 style guide workbook. **It has
+been located and it needs no further work.** The answer is in
+`fix_characters_style_guides.md` at line 495: the free-text names column is
+dead, `tools/resolve-character-identity.mjs` never consumed it, and rows where
+the reviewer echoed the row label back **must not be re-asked**. Measured on the
+returned workbook: **126 `REAL CHARACTERS` rows, 13 echoing the label exactly,
+109 echoing it under a loose match.** The file states plainly that a "92 echoed
+rows" figure *"does not reproduce from the file under either definition; the
+count is moot now, since none are re-asked."* The outcome needed is simply that
+the next coordinator **stops carrying this as an open item** and does not spend
+a session re-deriving a number that is not reproducible and does not matter.
+
+**2. Which application(s) depend on this.** The style-guide / character
+identity workstream only. No live application reads the dead column.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. Closing it
+prevents wasted effort, nothing more.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A for this closure. The
+finding was read live from the working tree on 2026-08-05 at 18:22 UTC.
+⚠️ Related and already settled, so do not reopen: on **2026-08-04** Albert ruled
+**rows stay whole** — *"When a style guide row lists characters together, leave
+it as one row"* — a combination row is **never** split, which cut round 3 from
+154 rows to **8**. `NEVER_DESIGNED` rows carry a **null** `property_id` with no
+placeholder property invented (1,302 of 6,538 characters). Batman resolves to
+**17** bridge rows, not 15 (answered 2026-07-29). ⚠️ The earlier grep for this
+missed it only because it was run with `2>/dev/null`; re-running without that
+found it immediately.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing was changed in
+`fix_characters_style_guides.md` or any style-guide artefact; the file was read
+only. No branch created beyond this session's own, no migration file written, no
+push to preview or production, no `supabase` CLI command, no Supabase MCP call,
+no psql, no background task chip.
+
+---
+
+### REQUEST — ⛔ ALBERT'S ASK #3 (NOT STARTED): does 1Password hold read-only Cloud SQL credentials? — 2026-08-05 — session: outgoing coordinator (hetz)
+
+**1. What outcome is needed, and why.** Albert asked whether 1Password holds
+**read-only Cloud SQL credentials**, which the Cloud SQL → Supabase workstream
+needs in order to start. **Nothing has been done on this** — it is not partially
+started, it is untouched. The outcome needed is a plain yes or no, plus the item
+title if yes, so the workstream can either begin or be correctly reported as
+blocked on credentials that do not exist yet.
+
+**2. Which application(s) depend on this.** The Cloud SQL → Supabase migration
+workstream, which in turn feeds the shared database every application reads.
+
+**3. Is it blocking anything, and how urgently?** **Blocking** the Cloud SQL →
+Supabase workstream at its very first step. Nobody is idle on it today because
+nothing else about it is scheduled, but it cannot start without an answer.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — this is about access,
+not schema. ⚠️ **Search vault `vibe_coding` ONLY.** ⚠️ **Serialize all 1Password
+reads — never fan out `op read`, `op run`, or 1Password MCP calls in parallel.**
+Fetch a shared environment once and reuse it. ⚠️ Vault and item IDs can be
+re-keyed mid-session by an MCP reconnect, so look items up by **title plus
+vault**, never by a cached ID. ⚠️ **Never write a credential value into any
+file, document, commit or queue entry** — the answer to record is the item's
+title and whether it exists, nothing more. ⚠️ Never rotate an existing
+credential without approval.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** **No 1Password call of
+any kind was made this session** — no `op read`, no `op run`, no MCP call, no
+vault listing. No credential value was read, written or transcribed anywhere. No
+branch created beyond this session's own, no migration file written, no push to
+preview or production, no `supabase` CLI command, no Supabase MCP call, no psql,
+no background task chip.
+
+---
+
+### REQUEST — fix the `shared-db-orchestrator` skill: its session-start fetch command is invalid and silently no-ops — 2026-08-05 — session: outgoing coordinator (hetz)
+
+**1. What outcome is needed, and why.** The `shared-db-orchestrator` skill
+prescribes **`git fetch --all --prune=false`** as session-start step 1. **This
+version of git rejects `--prune=false`**, so the command fails and the
+session-start fetch **never happens**. The failure is quiet in practice: the
+session then reasons about a stale `origin/main` without being told. That is the
+exact failure mode that made this handover necessary. The fix is to change the
+command to **`git fetch --all`** in the skill file at
+`/home/ai/.claude/skills/shared-db-orchestrator/SKILL.md`.
+
+**2. Which application(s) depend on this.** None directly. It affects every
+future `shared-db` agent session that follows the skill literally.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but it silently
+degrades every session that starts from the skill. It is cheap to fix and should
+be done next time anyone touches the skill.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — no schema is
+involved. The failure was observed live this session on 2026-08-05: the
+prescribed command errored, and plain `git fetch --all` succeeded and was used
+instead. ⚠️ The skill file lives **outside this repository**, under
+`/home/ai/.claude/skills/`, so it is not fixed by a `shared-db` pull request and
+will not show up in any diff here.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** The skill file was
+**not read and not modified** — it is outside the two files this session was
+permitted to write. No branch created beyond this session's own, no migration
+file written, no push to preview or production, no `supabase` CLI command, no
+Supabase MCP call, no psql, no background task chip.
+
+---
+
 
 ## IN PROGRESS
 
