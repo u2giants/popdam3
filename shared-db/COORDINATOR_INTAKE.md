@@ -465,8 +465,10 @@ queue not being empty when there IS work.** Two owners, no gap between them:
 **Short entries, never duplicated detail.** A queue entry is a heading, one or
 two sentences of the outcome needed, and a pointer to the section of
 `HANDOFF.md` that holds the detail. Copying detail here is how the two documents
-drift apart, which has already gone wrong repeatedly. **`HANDOFF.md` is
-authoritative; where it and this file disagree, `HANDOFF.md` wins.**
+drift apart, which has already gone wrong repeatedly. **No document wins by name
+or by date.** Where this file and `HANDOFF.md` (or the newest `HANDOFF.d/` file)
+disagree, **re-derive the fact from `git`/`gh` and believe that** — do not rank
+the documents and pick a winner.
 
 **Why this is written down.** On 2026-07-31 a fresh coordinator read the three
 empty queue sections, reported "there is no pending work", and was wrong by
@@ -605,9 +607,10 @@ after it is filed. Only the coordinator moves a block out of here.
 > **Seeded 2026-07-31 from `HANDOFF.md`.** The entries below are the real
 > outstanding work of this project, transcribed into queue form so it is visible
 > instead of buried in prose. **They are deliberately SHORT and they are NOT the
-> authoritative detail** — for every one of them, `HANDOFF.md` is authoritative
-> and must be read before acting. If an entry here and `HANDOFF.md` disagree,
-> **`HANDOFF.md` wins** and this entry is stale. Do not copy detail back into
+> authoritative detail** — for every one of them, the long-form record
+> (`HANDOFF.md` and the newest `HANDOFF.d/` handover) must be read before acting.
+> If an entry here and that record disagree, **no document wins by name or by
+> date: re-derive the fact from `git`/`gh`.** Do not copy detail back into
 > this file; that is how the two documents drift apart, which has already gone
 > wrong repeatedly in this repo.
 >
