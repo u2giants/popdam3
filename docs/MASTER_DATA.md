@@ -45,11 +45,11 @@ The import script is `scripts/import-style-tracker-xlsx.py`.
 
 The Google Sheet contains formula/default-only tail rows. Those are not real records. A populated row must contain at least one business field such as style/SKU, group, description, customer, designer, commissioned, UPC, licensor, status, vendor, or notes. Formula-only values such as `0`/`false` in trailing status columns must not cause import.
 
-Verified populated counts from the 2026-07-20 authoritative replacement:
+Verified populated counts from the 2026-08-06 go-live replacement:
 
-- `License.Style`: 12,400 rows
-- `Generic.Style`: 3,133 rows
-- Total: 15,533 rows
+- `License.Style`: 12,439 rows
+- `Generic.Style`: 3,174 rows
+- Total: 15,613 rows
 
 The replacement clears prior imported rows, audit history, and manual value
 resolutions for these tabs in one transaction, inserts both tabs, and rebuilds
@@ -88,6 +88,7 @@ part of the imported workbook data, so they are preserved.
 - The controlled description sections are picker/autocomplete driven. `Product Type + Material` reads `core.product_material` with local convention examples as a fallback; `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
 - A nonblank description must have approved values for Product Type + Material, Licensor + Property, and Size before the grid accepts the edit. This is intended to force spellings such as `Spider-Man`, `Coca-Cola`, and `Coir Doormat` through shared picker values instead of personal spelling variants.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
+- Grid pagination defaults to 500 rows per page, with 1,000 and 1,500 row options.
 - AG Grid Enterprise is installed without a license key for now, matching the PLM-style trial setup. Keep AG Grid packages pinned to the same exact version; a previous `35.3.1` Enterprise + `35.1.0` Community/React mismatch caused a blank page before React mounted.
 
 ## View Customization (Saved Views)

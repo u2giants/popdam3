@@ -31,6 +31,7 @@ import {
   type StyleTrackerLinkCandidate,
 } from "@/lib/style-tracker-candidates";
 import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
+import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
 import { cn } from "@/lib/utils";
 
 LicenseManager.setLicenseKey("");
@@ -1890,8 +1891,8 @@ export default function StylesPage() {
             cellSelection={{ handle: { mode: "fill", direction: "xy" } }}
             sideBar={{ toolPanels: [{ id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" }], hiddenByDefault: true }}
             pagination
-            paginationPageSize={100}
-            paginationPageSizeSelector={[50, 100, 250, 500]}
+            paginationPageSize={MASTER_DATA_DEFAULT_PAGE_SIZE}
+            paginationPageSizeSelector={MASTER_DATA_PAGE_SIZE_OPTIONS}
             stopEditingWhenCellsLoseFocus
           />
         </div>

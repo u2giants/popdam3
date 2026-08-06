@@ -1,0 +1,3 @@
+export const MASTER_DATA_DEFAULT_PAGE_SIZE = 500;
+
+export const MASTER_DATA_PAGE_SIZE_OPTIONS = [500, 1000, 1500] as const;
