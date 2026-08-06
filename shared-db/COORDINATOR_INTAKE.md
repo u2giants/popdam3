@@ -672,6 +672,233 @@ after it is filed. Only the coordinator moves a block out of here.
 > Priority order for the top of the session is the opening agenda in
 > `HANDOFF.md` §U4. Items are listed here in roughly that order.
 
+> **Refreshed 2026-08-06 ~03:30 UTC** by the outgoing coordinator on `al8960ofc`.
+> Nothing was deleted. The entries immediately below are the new outstanding items
+> from that session. Its full record is
+> `HANDOFF.d/2026-08-06T0330Z-al8960ofc-coordinator-session-handover.md`.
+> ⚠️ **That session could not reach GitHub. Five branches are unpushed and
+> coordinator marker issue #453 is still OPEN — it is NOT a dead coordinator.**
+
+### REQUEST — ⚠️ FIRST ACTION: push and merge FIVE unpushed local branches, then close coordinator marker issue #453 — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** GitHub was unreachable from `al8960ofc` on
+2026-08-06 (443, ssh 22 and ssh.github.com:443 all timed out; DNS fine, Google and
+npm fine — an egress firewall block). A whole session of planning work therefore
+exists **only on that machine's disk**. It must be pushed, PR'd and merged, and
+then the coordinator marker issue **#453** must be closed — an open marker makes
+the next coordinator stop and ask Albert about a session that actually ended cleanly.
+
+**2. Which application(s) depend on this.** None directly; it is the licensor/property
+Cloud SQL workstream's entire paper trail.
+
+**3. Is it blocking anything, and how urgently?** **Blocking everything downstream.**
+HIGH. Until it lands, `main` shows no sign this session happened.
+
+**4. Deadline, if any.** As soon as GitHub is reachable.
+
+**5. What I already know about the current schema.** Nothing schema-related — all five
+branches are **docs-only**; no migration was authored. Merge order, ancestry proof, and
+the per-branch reasons are in the handover file, §5.1.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Not pushed (could not be). No
+PR opened. No migration, no preview or production write, no `supabase` CLI, no Supabase
+MCP call, no psql, no background task chip. **No worktree removed and no branch deleted**
+— deliberately, because a merge cannot be confirmed without the network.
+
+---
+
+### REQUEST — Collect the `csv-export` agent's output from the Desktop (it was still running at handover) — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** A read-only sub-agent was exporting **6 CSVs
+plus a README** of the licensor/property data mess into
+`C:\Users\ahazan2\Desktop\licensor-property-mess-20260806\`, so Albert can see the
+problem in Excel. It had not reported back when the session ended. Confirm the files
+are there; **re-run it if not — it is read-only and safe to repeat.**
+
+**2. Which application(s) depend on this.** Evidence for the licensor/property cutover.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. MEDIUM.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — the agent touches **no repo
+file** and creates **no worktree**, so nothing in git will show its work.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Read-only production `SELECT`s
+only. No write of any kind, anywhere.
+
+---
+
+### REQUEST — ⛔ ALBERT: how should an ownerless property be stored? — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** Albert has ruled the feed **must not drop
+anything**, but a property with no known licensor cannot currently be stored. Three
+options are written up (nullable foreign key / a holding licensor / a separate
+quarantine table) and **none was chosen deliberately** — the call is his. His ruling
+*"stop the data loss FIRST"* points at shipping quarantine first, but he has not said so.
+
+**2. Which application(s) depend on this.** DB Data Admin, DesignFlow, ColdLion ingest.
+
+**3. Is it blocking anything, and how urgently?** **Blocking.** No migration should be
+authored until he answers. HIGH.
+
+**4. Deadline, if any.** None stated; data is being lost meanwhile.
+
+**5. What I already know about the current schema.** Two obstacles, both verified:
+the `NOT NULL` from `20260724030000_..._phase1_mirror_schema.sql:71-72`, and
+`core.property`'s `unique nulls not distinct (licensor_id, code)` — two orphans sharing
+a code collide. Detail: `docs/licensor-property-triage-page-requirement-20260806.md`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No branch, no migration, no
+preview or production write, no `supabase` CLI, no MCP call, no psql, no task chip.
+
+---
+
+### REQUEST — ⛔ ALBERT: the remaining licensor/property cutover decisions (Coca-Cola, held migrations, windows, Harry Potter & NASA, the drift alarm, the rehearsal) — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** Six separate answers only Albert can give:
+(i) should the **14 Coca-Cola items** move to the `COCA COLA` licensor, and should that
+inactive licensor be reactivated? (ii) **unblock the 4 held migrations, or drop 2 files?**
+(iii) **when** are the four production windows? (iv) where do **Harry Potter** and **NASA**
+belong? (v) what should the **drift alarm** do during the changeover — it will fire
+constantly? (vi) is the **two-row rehearsal** worth doing at all?
+
+**2. Which application(s) depend on this.** DesignFlow, DB Data Admin, ColdLion.
+
+**3. Is it blocking anything, and how urgently?** Blocking the cutover schedule. HIGH.
+
+**4. Deadline, if any.** None stated.
+
+**5. What I already know about the current schema.** Detail sits in
+`docs/licensor-property-cloudsql-cutover-plan-20260806.md` and `HANDOFF.md`. Ask them
+**one at a time**; do not present them as a list.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started. No branch, no
+migration, no database write, no CLI, no MCP call, no psql, no task chip.
+
+---
+
+### REQUEST — ⛔ ALBERT: approve rotating the Cloud SQL read-only password that was emailed in plaintext — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** The `albert_read_only` Cloud SQL password was
+**emailed in plaintext on 2026-08-04**. It should be rotated **after** the migration
+reading work is finished, so the rotation does not break a read in flight. Rotating an
+existing credential needs Albert's approval first.
+
+**2. Which application(s) depend on this.** Any session reading Cloud SQL for the
+licensor/property migration work.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. MEDIUM (security).
+
+**4. Deadline, if any.** After the reading work completes.
+
+**5. What I already know about the current schema.** N/A. Credential is 1Password item
+`tcaf3o3u2cx52g6ivvczxbhola`, vault `vibe_coding`, user `albert_read_only`, instance
+`creatiflow-database`, `SELECT` only, granted by Uma 2026-08-04. **ID only — never the
+value.** A separate service-account key was created this session: item
+`zjrrpl4yyotjbrfu56zayaj63i`, key id `78ced0880f485bb99f7fcb5d5b1abca644710eb8`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing rotated. No IAM change
+made. The local key file was securely overwritten and deleted.
+
+---
+
+### REQUEST — Execute the licensor/property cutover plan — blockers 5 and 6 MUST precede blocker 2 — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** An ordered plan now exists where none did (an
+audit found 2 of 9 blockers designed, 2 scoped, 2 fragments, 1 a stub, 2 empty, and **no
+dependency graph anywhere**). It is a 6-phase sequence, reviewed across a 3-turn debate
+with Grok 4.5. ⚠️ **The order is load-bearing:** the dead PLM sync is currently the
+**only** thing protecting curated data, so doing blocker 2 before 5 and 6 removes the
+protection with nothing in its place.
+
+**2. Which application(s) depend on this.** DesignFlow, DB Data Admin, ColdLion.
+
+**3. Is it blocking anything, and how urgently?** It IS Albert's stated top priority.
+HIGH — but gated on the ownerless-property answer above.
+
+**4. Deadline, if any.** None stated.
+
+**5. What I already know about the current schema.** Detail:
+`docs/licensor-property-cloudsql-cutover-plan-20260806.md` (824 lines). Also note the
+`age_group` rehearsal (PRs #435/#446) is **documentation only** and its own §6.1 argues
+it does **not** de-risk this move — do not cite it as cover.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** **No migration authored.** No
+branch beyond the docs branch, no database write, no CLI, no MCP call, no psql, no chip.
+
+---
+
+### REQUEST — Blocker 8 was mis-stated: the real writer is `PATCH /api/admin/updateMerchGroup`, and its defect is type-blindness — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** The handover documents cite an endpoint for
+blocker 8 that is a **READ** endpoint. The actual writer is
+`PATCH /api/admin/updateMerchGroup` at `designflow-backend/routes/admin.router.js:87`,
+and its real defect is **type-blindness**, not what was recorded. Correct the documents,
+then fix the endpoint (**different repo** — `designflow-backend`).
+
+**2. Which application(s) depend on this.** DesignFlow.
+
+**3. Is it blocking anything, and how urgently?** Part of the cutover. MEDIUM–HIGH.
+
+**4. Deadline, if any.** Before the cutover phase that depends on blocker 8.
+
+**5. What I already know about the current schema.** Verified by reading the router
+source. Detail: the cutover plan document and the handover file §6, agent 5.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No code changed in any repo.
+No branch in `designflow-backend`. No database contact.
+
+---
+
+### REQUEST — Reconcile the 9 documents that Albert's triage ruling now contradicts, starting with `LicensorTree.tsx:152` — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** Ruling 4 (ingest everything + a triage page)
+contradicts **nine** existing documents. The sharpest is
+`apps/db-data-admin/src/LicensorTree.tsx:152`, whose **on-screen text tells users NOT to
+repair this relationship there** — precisely what the triage page will ask them to do.
+Note the DB Data Admin app lives in **this repo**, at `apps/db-data-admin/`, despite
+serving `data-dev.designflow.app`.
+
+**2. Which application(s) depend on this.** DB Data Admin.
+
+**3. Is it blocking anything, and how urgently?** Not blocking; it will mislead users.
+MEDIUM.
+
+**4. Deadline, if any.** Before the triage page ships.
+
+**5. What I already know about the current schema.** Detail:
+`docs/licensor-property-triage-page-requirement-20260806.md`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Docs only this session. No code
+change, no branch in any app repo, no database contact.
+
+---
+
+### REQUEST — Backlog B8 — its `HANDOFF.md` heading still says "NOT implemented", and that is STALE — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.** `HANDOFF.md`'s `### B8` heading reads
+*"HIGH — recorded 2026-07-31, NOT implemented"* and its body says no test file exists.
+**Both are wrong now.** `tools/emit-coldlion-rollback-sql.test.mjs` **does exist** in the
+tree (verified by listing `tools/` on 2026-08-06), and B8's queue block is already in
+`## COMPLETED`, closed by merged PR **#358**. Correct the heading and body so nobody
+re-does the work. (This entry exists so B8 stays visible by B-number, per the seeding rule.)
+
+**2. Which application(s) depend on this.** None — documentation accuracy.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. LOW.
+
+**4. Deadline, if any.** Next time anyone has `HANDOFF.md` open.
+
+**5. What I already know about the current schema.** N/A. Verified by directory listing,
+not from a document.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Heading not edited — three
+sibling branches were touching `HANDOFF.md` this session and the single-writer rule
+forbids a fourth. No database contact.
+
+---
+
 ### ⛔ QUESTION TO RESOLVE — which `CC` property row should the Disney `Coco` style guide point at? — 2026-08-06 — session: sub-agent `stale-sweep`
 
 > **This is a QUESTION, not a defined change. Do NOT queue, plan, or implement it
