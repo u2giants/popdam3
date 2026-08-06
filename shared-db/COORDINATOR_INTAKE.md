@@ -2514,6 +2514,118 @@ Newest first. Copy the template from Part A and fill it in. The block below is
 an empty example showing the required format — **leave it in place, do not
 overwrite it.**
 
+### INTAKE — The worktree sweep is DONE: all 51 removed, all 3 unattributed ones identified — 2026-08-05 — session: unnamed Claude Code session (Opus 5), machine t16, shared checkout `C:\repos\shared-db`
+
+**1. What I was doing and why.** Albert asked directly, in session, how many
+leftover worktrees were on this machine and then told me to clean them up. This
+is the sweep that two REQUEST-QUEUE blocks have been waiting on: *"Establish
+what the 3 UNATTRIBUTED worktrees are before anyone sweeps"* (2026-07-31) and
+*"Sweep the 22 worktrees and ~42 stale local branch labels"* (2026-07-31). The
+worktree half is now finished. **The stale local branch labels are NOT — see §4.**
+I was not started as the coordinator; the owner instructed the work directly.
+
+**2. What I have actually DONE.** All **51 linked worktrees are removed**, plus 2
+empty orphan directories Git had no registration for. `git worktree list` now
+returns exactly one line: `C:/repos/shared-db  [main]`. I then fast-forwarded the
+shared checkout 26 commits to `b4efe39` (the #454 merge); it is clean apart from
+the known unowned `.ai/deepseek-sessions/`. **Nothing committed** other than this
+block. No branch deleted, no `prune` beyond the worktree registrations, no
+migration, no preview or production push, no `supabase` CLI, no Supabase MCP
+call, no psql, no database call of any kind.
+
+The evidence chain, run before anything was deleted:
+
+- All 51 had **zero uncommitted files** — verified by `git status --short` in
+  each. Nothing dirty was removed; the B11 failure mode did not apply.
+- Every branch matched a **MERGED PR** in `gh pr list --state all --limit 300`.
+- 35 were provably identical to `origin/main` by patch-id (`git cherry`).
+- The other 16 are squash-merged, which breaks patch-id matching, so for those I
+  compared **file contents** against `origin/main` blob by blob. Every file
+  either matched exactly, or its exact blob was located in `origin/main`'s
+  history for that path.
+
+**The 3 unattributed worktrees are resolved — this answers that REQUEST:**
+
+| Worktree | Verdict |
+| --- | --- |
+| `nbc-alias-work` | Its content **is on main**. The migration `20260731210000_core_licensor_alias.sql` and its contract test landed via the `feat/core-licensor-alias-20260731` branch (PR #345). The premise that "no PR ever existed" was true of the *branch label*, not of the *work* — the work reached main under a different branch name. |
+| `worktree-agent-a9b9b048681d1744f` | Fully incorporated: **0 unique patches** against `origin/main` by patch-id. |
+| `claude/elastic-babbage-df8f2e` (detached) | Incorporated in **rebased, superset form** as `20260731200000_coldlion_recurring_promotion_fanin_name_tiebreak.sql`. |
+
+**The near-miss worth reading.** Four worktrees each carried a migration numbered
+`20260731170000`, all four `create or replace`-ing the *same* function —
+last-writer-wins, with no textual conflict to warn anyone because each was a NEW
+file. Someone had already caught this and rebased them onto main as
+`20260731180000` / `190000` / `200000` / `210000`, each with a header documenting
+exactly what it carries forward. So the four old copies were **superseded, not
+orphaned**. I confirmed the main-side versions are strict supersets before
+deleting. **This is the single best argument for backlog item B6 (cross-PR
+object collision guard) and it should be cited there.**
+
+**3. What I applied to PREVIEW (`rjyboqwcdzcocqgmsyel`).** **Nothing.** No
+database of any kind was contacted in this session — not preview, not production.
+
+**4. What is half-finished or abandoned mid-way.** **The stale local branch
+labels were NOT swept.** The 2026-07-31 request covers worktrees *and* "~42 stale
+local branch labels"; I did only the worktrees, because Albert asked for the
+worktrees and deleting branch labels is a separate judgement call I had no
+instruction for. Every branch that backed a removed worktree still exists as a
+local label. Per B2.3 the test is: merged into `origin/main` **and** checked out
+in no worktree — the second half is now true for all 51, so they are eligible.
+**Nothing else is half-done.**
+
+**5. What I own right now.** Nothing held. The shared checkout `C:\repos\shared-db`
+is on branch `intake/worktree-sweep-complete-20260805` (this block only, one file
+changed) — **the next session must return it to `main`**, exactly as the
+"un-park the shared checkout" request warns. No worktrees, no other branches, no
+dirty files.
+
+**6. What I was ABOUT to do next.** Nothing — the task Albert set is complete. The
+obvious next action for the coordinator is to sweep the ~42 now-eligible stale
+local branch labels with `git branch -d` (never `-D`), and to retire the two
+REQUEST blocks this closes.
+
+**7. What I am blocked on.** Not blocked.
+
+**8. What I tried that did NOT work, and why. [MANDATORY]**
+
+- **`git cherry` / patch-id matching alone is NOT sufficient proof in this repo,
+  and trusting it would have been a false alarm.** It flagged 16 worktrees as
+  holding "unique unmerged patches". They were merged — squash-merging collapses
+  N commits into one new patch that matches none of the originals. Anyone
+  reading that output as "16 worktrees hold lost work" would be wrong. The
+  earlier coordinator's note that ancestry gives the wrong answer here is
+  correct and I confirmed it independently.
+- **The three-dot diff (`git diff main...HEAD`) is the wrong test and looks
+  alarming.** It reports the branch's own changes whether or not main also has
+  them, so it showed "9 files differ" for worktrees that were fully incorporated.
+  I initially ran it, caught that it proves nothing, and switched to direct
+  blob-hash comparison against `origin/main`. **Do not use three-dot diff to
+  decide whether work is lost.**
+- **Filename matching would have failed on the migrations.** Searching main for
+  `20260731170000_*` returns nothing for three of the four collided migrations —
+  they were renumbered. Concluding "missing from main" on filename alone would
+  have wrongly preserved (or wrongly panicked about) four superseded files. The
+  content had to be read.
+
+**9. Facts I believe that may already be stale.** Everything below was verified
+2026-08-05 ~21:30–21:50 UTC and this repo moves fast:
+
+- `origin/main` tip `b4efe39` and the "no open PRs" state — PR #454 merged
+  *during* this session, so a snapshot taken minutes earlier already said
+  otherwise. Re-run `gh pr list --state open`.
+- The 51-worktree count was true at session start on **this machine only**. Other
+  machines have their own worktrees; I checked nothing outside `C:\repos\shared-db`,
+  `C:\tmp`, and the local temp root.
+- `HANDOFF.d/2026-08-05T1827Z-hetz-coordinator-handover-20260805.md` arrived in
+  the pull — a coordinator was active on `hetz` today. I did not read it in full
+  and it may contradict something here.
+- The root `HANDOFF.md` is still a **legacy full document**, not the
+  `handoff-pointer: v1` stub the current standard expects. I deliberately did not
+  migrate it: it is the coordinator's file and another session is live.
+
+---
+
 ### INTAKE — ColdLion Phase 6 baseline drift diagnosis + one preview ColdLion mirror run — 2026-08-03 — session: unnamed Claude Code session (Opus 5), machine t16, shared checkout `C:\repos\shared-db`
 
 > **READ §3 FIRST. I WROTE TO PREVIEW.** I dispatched the Phase 6 ColdLion mirror
