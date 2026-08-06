@@ -617,35 +617,71 @@ after it is filed. Only the coordinator moves a block out of here.
 > Priority order for the top of the session is the opening agenda in
 > `HANDOFF.md` §U4. Items are listed here in roughly that order.
 
-### REQUEST — ⚠️ FIRST ACTION: establish who deleted 8 worktrees on `al8960ofc` — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+### REQUEST — Finish the sweep PR #455 started: ~42 stale local branch labels — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+> **Supersedes** the "establish who deleted 8 worktrees" entry filed minutes
+> earlier by this same session and **already answered** by intake PR #455
+> (`9a933c8`): an authorised sweep removed all 51 linked worktrees, each proven
+> to hold no unique work (zero uncommitted files, every branch on a merged PR,
+> 35 verified by patch-id and 16 by blob comparison). Nothing was lost.
 
 **1. What outcome is needed, and why.**
-Find out what removed eight registered worktrees from `C:\repos\shared-db` on
-2026-08-05 between roughly 19:00Z and 01:49Z, and confirm no work was lost. A
-coordinator was seated the whole time and did not do it. **Four of the eight were
-detached HEADs** — if any held uncommitted work, nothing points at it now. Until
-this is answered, no worktree or branch inventory in any document can be trusted
-and no cleanup should run. Full before/after listing:
-`HANDOFF.d/2026-08-06T0149Z-al8960ofc-coordinator-skill-repair.md` §4.
+PR #455 completed the **worktree** half of the sweep and explicitly did **not**
+do the **branch label** half. Roughly 42 stale local branch labels remain,
+several with `[origin/…: gone]`. They make every future `git branch -vv`
+inventory noisy, which is how a real orphan gets overlooked. Retire only labels
+that are **fully merged into `origin/main` AND checked out in no worktree** —
+both conditions verified, per `shared-db-handover`. Use the `cleanup-worktree`
+skill; do not improvise `git branch -D`.
 
 **2. Which application(s) depend on this.**
-None directly. It is a coordination-integrity question for `shared-db` itself.
+None. Repository hygiene for `shared-db`.
 
 **3. Is it blocking anything, and how urgently?**
-**Blocking any worktree/branch sweep.** Not blocking dispatch of unrelated work.
+Not blocking.
 
 **4. Deadline, if any.**
-None, but evidence decays — check before anything else touches the checkout.
+None.
 
 **5. What I already know about the current schema.**
-Nothing; no schema involvement. `git worktree list` now returns 1 entry;
-`.git/worktrees` no longer exists; local branch labels survive. Verified live
-01:49Z.
+No schema involvement. `git worktree list` returns 1 entry (the main checkout),
+verified live 01:49Z. Branch labels verified present at the same time.
 
 **6. Confirmation of what I have NOT done. [MANDATORY]**
-No branch created for this item, no migration file, no push to preview or
-production, no `supabase` CLI, no Supabase MCP call, no psql, no task chip. No
-worktree was removed, pruned or force-deleted by this session.
+No branch label deleted, no worktree removed, no prune run, no migration file,
+no push to preview or production, no `supabase` CLI, no Supabase MCP call, no
+psql, no task chip.
+
+### REQUEST — Backlog B6 now has hard evidence: four worktrees carried the SAME migration version — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.**
+The sweep in PR #455 found **four worktrees each carrying a migration numbered
+`20260731170000`, all `CREATE OR REPLACE`-ing the same function**. Because each
+was a *new file*, git produced no textual conflict — the collision was invisible
+to a three-way merge and would have been last-writer-wins. They were rebased to
+`180000`/`190000`/`200000`/`210000`. This is the concrete, dated evidence backlog
+item **B6** (cross-PR object collision guard) was waiting for. Fold it into B6
+and re-assess whether the existing `Cross-PR object collision` required check
+would actually have caught this shape, given `strict: false`.
+
+**2. Which application(s) depend on this.**
+All four — Poppim, PopCRM, PopDAM, DesignFlow — since a silently dropped fix to a
+shared function reaches every one of them.
+
+**3. Is it blocking anything, and how urgently?**
+Not blocking. The four migrations were renumbered before any merge.
+
+**4. Deadline, if any.**
+None.
+
+**5. What I already know about the current schema.**
+Read from PR #455's description, **not verified live**. The migrations named are
+`20260731180000`, `190000`, `200000`, `210000` — all present on `origin/main` as
+of 01:49Z. Whether the CI guard catches the pre-rebase shape is **unverified**.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]**
+No branch, no migration file, no push to preview or production, no `supabase`
+CLI, no Supabase MCP call, no psql, no task chip.
 
 ### REQUEST — Second-model review of the six skill corrections in `ai-devops` `ec137b2` — 2026-08-06 — session: outgoing coordinator (al8960ofc)
 

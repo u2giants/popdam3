@@ -101,9 +101,39 @@ verified byte-identical to the installed copies under
 
 ---
 
-## 4. ⚠️ UNEXPLAINED — 8 worktrees disappeared mid-session
+## 4. ~~⚠️ UNEXPLAINED~~ — RESOLVED at 02:00Z: the worktrees were an authorised sweep
 
-**This is the most important open item in this file.**
+> **RESOLVED, 2026-08-06T0200Z, before this handover was 10 minutes old.**
+> Intake **PR #455** (merged `9a933c8`) explains it: Albert asked another session
+> how many leftover worktrees existed and told it to clean them up. **All 51
+> linked worktrees** were removed, plus 2 empty orphan directories. Nothing was
+> deleted until proven to hold no unique work: all 51 had **zero uncommitted
+> files**, every branch matched a **merged PR**, 35 were verified identical to
+> `origin/main` by patch-id, and the remaining 16 (squash-merged, so patch-id
+> cannot match) by **blob-level comparison**.
+>
+> It also resolved the 3 previously UNATTRIBUTED worktrees, and found **four
+> worktrees each carrying a migration numbered `20260731170000`, all
+> `CREATE OR REPLACE`-ing the same function** — already rebased to
+> `180000`/`190000`/`200000`/`210000`. That is concrete evidence for backlog
+> **B6**.
+>
+> **Still outstanding from that sweep: the ~42 stale local branch labels.**
+> Worktrees are done; branch labels are NOT.
+>
+> **The lesson stands even though the alarm was false.** For six hours a
+> coordinator was seated and had no way to know a sanctioned sweep was running on
+> the repo it was coordinating. The sweep did everything right — verified before
+> deleting, filed a proper intake block. The gap is that the coordinator learned
+> of it only by finding an open PR at wrap-up time. That is precisely what the new
+> **step 2b** (check open PRs) and **step 0** (coordinator marker) exist to close,
+> and it is the strongest argument yet for the marker: had the sweeping session
+> checked for a marker, it would have known to announce itself first.
+
+The original text is kept below because the before/after listing is still the
+only record of what was on this machine at 19:00Z.
+
+**~~This is the most important open item in this file.~~**
 
 At **2026-08-05 ~19:00Z** `git worktree list` in `C:\repos\shared-db` returned
 **8** entries:
@@ -238,8 +268,9 @@ The last recorded claim about it is whatever the 2026-08-05 handover
 
 ## 8. Open items for the next coordinator
 
-1. **§4 — establish who deleted the 8 worktrees.** Highest priority. Do not sweep
-   or clean anything until you know.
+1. ~~**§4 — establish who deleted the 8 worktrees.**~~ **RESOLVED** by intake
+   PR #455 (`9a933c8`) — an authorised, fully verified sweep. See §4.
+   **What remains from it: the ~42 stale local branch labels are NOT swept.**
 2. **The six fixes in `ec137b2` are unreviewed by a second model.** The first patch
    got two independent reviews; its corrections got none.
 3. **Skill file size.** `shared-db-orchestrator/SKILL.md` grew 24,893 → 30,700
