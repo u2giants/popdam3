@@ -373,3 +373,32 @@ export function getMg03Desc(mg01: string | null | undefined, mg02: string | null
   if (!mg01 || !mg02 || !mg03) return null;
   return MG03_DESC[`${mg01}:${mg02}:${mg03}`] ?? null;
 }
+
+export type MgOption = {
+  code: string;
+  name: string;
+};
+
+export function getMg01Options(): MgOption[] {
+  return Object.entries(MG01_DESC)
+    .map(([code, name]) => ({ code, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function getMg02Options(mg01: string | null | undefined): MgOption[] {
+  if (!mg01) return [];
+  const prefix = `${mg01}:`;
+  return Object.entries(MG02_DESC)
+    .filter(([key]) => key.startsWith(prefix))
+    .map(([key, name]) => ({ code: key.slice(prefix.length), name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function getMg03Options(mg01: string | null | undefined, mg02: string | null | undefined): MgOption[] {
+  if (!mg01 || !mg02) return [];
+  const prefix = `${mg01}:${mg02}:`;
+  return Object.entries(MG03_DESC)
+    .filter(([key]) => key.startsWith(prefix))
+    .map(([key, name]) => ({ code: key.slice(prefix.length), name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}

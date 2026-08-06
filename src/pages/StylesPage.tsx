@@ -32,6 +32,7 @@ import {
 } from "@/lib/style-tracker-candidates";
 import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
 import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
+import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
 import { cn } from "@/lib/utils";
 
 LicenseManager.setLicenseKey("");
@@ -110,12 +111,14 @@ type PickerOption = {
   name: string;
 };
 
-type DescriptionSectionKey = "productMaterial" | "licensorProperty" | "artDescription" | "size";
+type DescriptionSectionKey = "mg01" | "mg02" | "mg03" | "licensorProperty" | "artDescription" | "size";
 
 type DescriptionParts = Record<DescriptionSectionKey, string>;
 
 type DescriptionEditorOptions = {
-  productMaterial: string[];
+  mg01: string[];
+  mg02: (mg01: string) => string[];
+  mg03: (mg01: string, mg02: string) => string[];
   licensorProperty: string[];
   size: string[];
 };
@@ -157,20 +160,6 @@ type SavedView = {
 
 const DEFAULT_ROW_LIMIT = 2500;
 const MANUAL_CANDIDATE_LIMIT = 100;
-
-const COMMON_PRODUCT_MATERIAL_OPTIONS = [
-  "2pc Canvas Set",
-  "3pc Canvas Set",
-  "4pc Canvas Set",
-  "Coir Doormat",
-  "Figural Resin Pencil Cup",
-  "PE Rattan 2-Tier Wall Shelf",
-  "Printed Canvas",
-  "Printed Glass Shadowbox",
-  "Printed Wood Wall Decor",
-  "Resin Tabletop Decor",
-  "Wood Wall Shelf",
-];
 
 const APPROVED_LICENSOR_PROPERTY_OPTIONS = [
   "ATLA",
@@ -766,18 +755,6 @@ async function fetchPropertyOptions() {
   );
 }
 
-async function fetchProductMaterialOptions() {
-  const { data, error } = await (supabase as any)
-    .schema("core")
-    .from("product_material")
-    .select("id, name")
-    .eq("status", "active")
-    .order("name", { ascending: true })
-    .limit(1000);
-  if (error) return compactStringOptions(COMMON_PRODUCT_MATERIAL_OPTIONS, 500);
-  return compactPickerOptions(data);
-}
-
 async function fetchSizeOptions() {
   const coreSize = await (supabase as any)
     .schema("core")
@@ -807,7 +784,9 @@ function buildLicensorPropertyOptions(properties: string[]) {
 function parseDescriptionParts(value: unknown, options: DescriptionEditorOptions): DescriptionParts {
   let remaining = String(value ?? "").replace(/\s+/g, " ").trim();
   const parts: DescriptionParts = {
-    productMaterial: "",
+    mg01: "",
+    mg02: "",
+    mg03: "",
     licensorProperty: "",
     artDescription: "",
     size: "",
@@ -819,10 +798,20 @@ function parseDescriptionParts(value: unknown, options: DescriptionEditorOptions
     remaining = remaining.slice(0, sizeMatch.index).trim();
   }
 
-  const productOption = longestPrefixMatch(remaining, options.productMaterial);
-  if (productOption) {
-    parts.productMaterial = productOption;
-    remaining = remaining.slice(productOption.length).trim();
+  const mg01Option = longestPrefixMatch(remaining, options.mg01);
+  if (mg01Option) {
+    parts.mg01 = mg01Option;
+    remaining = remaining.slice(mg01Option.length).trim();
+    const mg02Option = longestPrefixMatch(remaining, options.mg02(mg01Option));
+    if (mg02Option) {
+      parts.mg02 = mg02Option;
+      remaining = remaining.slice(mg02Option.length).trim();
+      const mg03Option = longestPrefixMatch(remaining, options.mg03(mg01Option, mg02Option));
+      if (mg03Option) {
+        parts.mg03 = mg03Option;
+        remaining = remaining.slice(mg03Option.length).trim();
+      }
+    }
   }
 
   const licensorPropertyOption = longestPrefixMatch(remaining, options.licensorProperty);
@@ -847,7 +836,7 @@ function longestPrefixMatch(value: string, options: string[]) {
 }
 
 function assembleDescription(parts: DescriptionParts) {
-  return [parts.productMaterial, parts.licensorProperty, parts.artDescription, parts.size]
+  return [parts.mg01, parts.mg02, parts.mg03, parts.licensorProperty, parts.artDescription, parts.size]
     .map((part) => part.replace(/\s+/g, " ").trim())
     .filter(Boolean)
     .join(" ");
@@ -863,7 +852,9 @@ function validateDescriptionSelection(value: unknown, options: DescriptionEditor
 
   const parts = parseDescriptionParts(text, options);
   const missing: string[] = [];
-  if (!optionSet(options.productMaterial).has(normalized(parts.productMaterial))) missing.push("Product Type + Material");
+  if (!optionSet(options.mg01).has(normalized(parts.mg01))) missing.push("MG01");
+  if (!optionSet(options.mg02(parts.mg01)).has(normalized(parts.mg02))) missing.push("MG02");
+  if (!optionSet(options.mg03(parts.mg01, parts.mg02)).has(normalized(parts.mg03))) missing.push("MG03");
   if (!optionSet(options.licensorProperty).has(normalized(parts.licensorProperty))) missing.push("Licensor + Property");
   if (!optionSet(options.size).has(normalized(parts.size))) missing.push("Size");
   return missing.length ? `Choose approved values for ${missing.join(", ")}.` : null;
@@ -871,33 +862,56 @@ function validateDescriptionSelection(value: unknown, options: DescriptionEditor
 
 function DescriptionBuilderEditor(props: DescriptionEditorProps) {
   const options = props.options ?? {
-    productMaterial: COMMON_PRODUCT_MATERIAL_OPTIONS,
+    mg01: getMg01Options().map((option) => option.name),
+    mg02: (mg01: string) => {
+      const code = getMg01Options().find((option) => option.name === mg01)?.code;
+      return getMg02Options(code).map((option) => option.name);
+    },
+    mg03: (mg01: string, mg02: string) => {
+      const mg01Code = getMg01Options().find((option) => option.name === mg01)?.code;
+      const mg02Code = getMg02Options(mg01Code).find((option) => option.name === mg02)?.code;
+      return getMg03Options(mg01Code, mg02Code).map((option) => option.name);
+    },
     licensorProperty: APPROVED_LICENSOR_PROPERTY_OPTIONS,
     size: COMMON_SIZE_OPTIONS,
   };
   const initialParts = useMemo(() => parseDescriptionParts(props.value ?? "", options), [options, props.value]);
   const [parts, setParts] = useState<DescriptionParts>(initialParts);
-  const [activeSection, setActiveSection] = useState<DescriptionSectionKey>("productMaterial");
+  const [activeSection, setActiveSection] = useState<DescriptionSectionKey>("mg01");
   const inputRefs = useRef<Record<DescriptionSectionKey, HTMLInputElement | null>>({
-    productMaterial: null,
+    mg01: null,
+    mg02: null,
+    mg03: null,
     licensorProperty: null,
     artDescription: null,
     size: null,
   });
 
   useEffect(() => {
-    window.setTimeout(() => inputRefs.current.productMaterial?.focus(), 0);
+    window.setTimeout(() => inputRefs.current.mg01?.focus(), 0);
   }, []);
 
   const updatePart = (section: DescriptionSectionKey, value: string) => {
     setParts((current) => {
       const next = { ...current, [section]: value };
+      if (section === "mg01") {
+        next.mg02 = "";
+        next.mg03 = "";
+      } else if (section === "mg02") {
+        next.mg03 = "";
+      }
       props.onValueChange(assembleDescription(next));
       return next;
     });
   };
 
-  const activeOptions = activeSection === "artDescription" ? [] : options[activeSection];
+  const activeOptions = activeSection === "artDescription"
+    ? []
+    : activeSection === "mg02"
+      ? options.mg02(parts.mg01)
+      : activeSection === "mg03"
+        ? options.mg03(parts.mg01, parts.mg02)
+        : options[activeSection];
   const activeValue = parts[activeSection];
   const filteredOptions = activeOptions
     .filter((option) => normalized(option).includes(normalized(activeValue)))
@@ -920,14 +934,16 @@ function DescriptionBuilderEditor(props: DescriptionEditorProps) {
   };
 
   const sections: { key: DescriptionSectionKey; label: string; placeholder: string; className: string }[] = [
-    { key: "productMaterial", label: "Product Type + Material", placeholder: "Coir Doormat", className: "min-w-[190px] flex-[1.05]" },
+    { key: "mg01", label: "MG01", placeholder: "Product type", className: "min-w-[130px] flex-1" },
+    { key: "mg02", label: "MG02", placeholder: "Construction", className: "min-w-[130px] flex-1" },
+    { key: "mg03", label: "MG03", placeholder: "Feature", className: "min-w-[130px] flex-1" },
     { key: "licensorProperty", label: "Licensor + Property", placeholder: "Marvel Spider-Man", className: "min-w-[190px] flex-[1.05]" },
     { key: "artDescription", label: "Art Description", placeholder: "Building Hopping", className: "min-w-[190px] flex-1" },
     { key: "size", label: "Size", placeholder: "16x20\" x1.2\"", className: "min-w-[140px] flex-[0.75]" },
   ];
 
   return (
-    <div className="w-[min(920px,calc(100vw-2rem))] rounded-md border border-border bg-popover p-2 shadow-lg" onMouseDown={(event) => event.stopPropagation()}>
+    <div className="w-[min(1180px,calc(100vw-2rem))] rounded-md border border-border bg-popover p-2 shadow-lg" onMouseDown={(event) => event.stopPropagation()}>
       <div className="flex min-h-14 overflow-hidden rounded-md border border-input bg-background">
         {sections.map((section, index) => (
           <label key={section.key} className={cn("flex flex-col justify-center gap-0.5 px-2 py-1.5", index > 0 && "border-l border-border/70", section.className)}>
@@ -1098,7 +1114,6 @@ export default function StylesPage() {
     enabled: Boolean(auditCell),
   });
   const customerOptionsQuery = useQuery({ queryKey: ["style-tracker-customer-options"], queryFn: fetchCustomerOptions });
-  const productMaterialOptionsQuery = useQuery({ queryKey: ["style-tracker-product-material-options"], queryFn: fetchProductMaterialOptions });
   const licensorOptionsQuery = useQuery({ queryKey: ["style-tracker-licensor-options"], queryFn: fetchLicensorOptions });
   const propertyOptionsQuery = useQuery({ queryKey: ["style-tracker-property-options"], queryFn: fetchPropertyOptions });
   const sizeOptionsQuery = useQuery({ queryKey: ["style-tracker-size-options"], queryFn: fetchSizeOptions });
@@ -1117,6 +1132,8 @@ export default function StylesPage() {
   const designerOptionKeys = useMemo(() => new Set((designerOptionsQuery.data ?? []).map((name) => normalized(name))), [designerOptionsQuery.data]);
   const packagingTypeOptionKeys = useMemo(() => new Set((packagingTypeOptionsQuery.data ?? []).map((name) => normalized(name))), [packagingTypeOptionsQuery.data]);
   const descriptionOptions = useMemo<DescriptionEditorOptions>(() => {
+    const mg01Options = getMg01Options();
+    const mg01CodeByName = new Map(mg01Options.map((option) => [option.name, option.code]));
     const parsedSizes = rows
       .map((row) => {
         const match = String(row.description ?? "").match(SIZE_AT_END_RE);
@@ -1125,11 +1142,17 @@ export default function StylesPage() {
       .filter((value): value is string => Boolean(value));
 
     return {
-      productMaterial: productMaterialOptionsQuery.data?.length ? productMaterialOptionsQuery.data : compactStringOptions(COMMON_PRODUCT_MATERIAL_OPTIONS, 500),
+      mg01: mg01Options.map((option) => option.name),
+      mg02: (mg01) => getMg02Options(mg01CodeByName.get(mg01)).map((option) => option.name),
+      mg03: (mg01, mg02) => {
+        const mg01Code = mg01CodeByName.get(mg01);
+        const mg02Code = getMg02Options(mg01Code).find((option) => option.name === mg02)?.code;
+        return getMg03Options(mg01Code, mg02Code).map((option) => option.name);
+      },
       licensorProperty: buildLicensorPropertyOptions(propertyOptionsQuery.data ?? []),
       size: compactStringOptions([...(sizeOptionsQuery.data?.length ? sizeOptionsQuery.data : COMMON_SIZE_OPTIONS), ...parsedSizes], 500),
     };
-  }, [productMaterialOptionsQuery.data, propertyOptionsQuery.data, rows, sizeOptionsQuery.data]);
+  }, [propertyOptionsQuery.data, rows, sizeOptionsQuery.data]);
 
   const reviewItems = useMemo(() => {
     const items = new Map<string, ReviewItem>();

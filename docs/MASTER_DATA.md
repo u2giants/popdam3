@@ -83,10 +83,10 @@ part of the imported workbook data, so they are preserved.
   the cell. If the row has previous groups, the cell shows `+N`; clicking it
   opens a read-only history popover with the newest group first. Users cannot
   select or edit a group from this list. Empty matches return `[]`, never null.
-- Double-clicking the `Description` cell opens the SKU-description builder. It still saves one string to `public.style_tracker_rows.description` / column `D`, but users compose that string from four visual sections:
-  `Product Type + Material`, `Licensor + Property`, `Art Description`, and `Size`.
-- The controlled description sections are picker/autocomplete driven. `Product Type + Material` reads `core.product_material` with local convention examples as a fallback; `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
-- A nonblank description must have approved values for Product Type + Material, Licensor + Property, and Size before the grid accepts the edit. This is intended to force spellings such as `Spider-Man`, `Coca-Cola`, and `Coir Doormat` through shared picker values instead of personal spelling variants.
+- Double-clicking the `Description` cell opens the SKU-description builder. It still saves one string to `public.style_tracker_rows.description` / column `D`, but users compose that string from six visual sections:
+  `MG01`, `MG02`, `MG03`, `Licensor + Property`, `Art Description`, and `Size`.
+- The controlled description sections are picker/autocomplete driven. `MG01`, `MG02`, and `MG03` use the MerchGroup schema in `src/lib/mg-lookup.ts`; MG02 is limited by MG01, and MG03 is limited by MG01 + MG02. `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
+- A nonblank description must have approved values for MG01, MG02, MG03, Licensor + Property, and Size before the grid accepts the edit.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
 - Grid pagination defaults to 500 rows per page, with 1,000 and 1,500 row options.
 - AG Grid Enterprise is installed without a license key for now, matching the PLM-style trial setup. Keep AG Grid packages pinned to the same exact version; a previous `35.3.1` Enterprise + `35.1.0` Community/React mismatch caused a blank page before React mounted.
@@ -162,7 +162,7 @@ The manual picker is an admin override for unresolved values. It may list existi
 The description builder follows the convention document:
 
 ```text
-Product Type + Material -> Licensor + Property -> Art Description -> Size
+MG01 -> MG02 -> MG03 -> Licensor + Property -> Art Description -> Size
 ```
 
 Examples:
@@ -173,7 +173,7 @@ Examples:
 
 Picker sources:
 
-- `core.product_material` is the canonical shared table for approved Product Type + Material display phrases such as `Printed Glass Shadowbox`, `Coir Doormat`, and `PE Rattan 2-Tier Wall Shelf`.
+- MG01, MG02, and MG03 use the human-readable MerchGroup values in `src/lib/mg-lookup.ts`, in that order. The saved description contains the labels, not the one-character ERP codes.
 - `core.property` has the property name and `licensor_id`; the UI shows the property picker as `Licensor Property`, so users browse by property but the final description includes the licensor automatically.
 - `core.product_size` is the preferred future size picker. Until it is live everywhere, the UI falls back to DAM style-group `size_name` values and the examples from the convention document.
 
