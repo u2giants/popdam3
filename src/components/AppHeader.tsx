@@ -564,12 +564,12 @@ export default function AppHeader() {
 
         {/* ---- Right: status + tools + user ---- */}
         <div className="flex items-center" style={{ gap: "8px" }}>
-          {/* Build stamp — full text on tall screens, sha only when compact */}
+          {/* Keep the full build stamp visible and selectable so support staff
+              can copy the commit and its exact date/time in every header mode. */}
           <span
             className="hidden lg:inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground select-all"
-            title={`${__APP_COMMIT__} · ${formatDateTime(__APP_DATE__)}`}
           >
-            {compact ? __APP_COMMIT__ : `${__APP_COMMIT__} · ${formatDateTime(__APP_DATE__)}`}
+            {`${__APP_COMMIT__} · ${formatDateTime(__APP_DATE__)}`}
           </span>
 
           {/* Sync status pill */}

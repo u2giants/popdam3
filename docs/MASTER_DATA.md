@@ -10,6 +10,8 @@ shared Supabase project.
 - Page: `src/pages/StylesPage.tsx`
 - Production host: `dam.designflow.app`
 - Deployment: the normal PopDAM GHCR/Coolify frontend pipeline
+- The top bar always shows a selectable build stamp containing both the short
+  commit ID and its commit date/time, including in compact-height mode.
 
 The old standalone `master.designflow.app` preview was used during the initial
 prototype. It is not the current deployment path. Master Data frontend changes
