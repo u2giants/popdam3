@@ -37,7 +37,11 @@ Important RPCs:
 - `public.search_style_tracker_link_candidates(p_field_key, p_query, p_limit, p_match_mode)`
 - `public.upsert_style_tracker_value_resolution(...)`
 
-Rows are loaded newest-first. By default the browser loads only the latest 2,500 rows for speed; the user can choose **Show All**.
+Rows are loaded newest-first, but the browser loads the full active tab so quick
+search, column filters, and saved filters always evaluate the complete list.
+Pagination still defaults to 500 visible rows. **Show All** sits beside the
+bottom pagination controls and expands the current filtered result set; it does
+not change which rows are searched or filtered.
 
 ## Google Sheet Import Rules
 
@@ -192,6 +196,22 @@ PLM source ref. Email-domain noise stays in `crm.ingested_domain` and must never
 create, promote into, source-ref, FK to, or otherwise associate with customers.
 
 ## Verification Notes
+
+Verified during the 2026-08-06 Master Data go-live replacement:
+
+- The production database contains exactly 12,439 `License.Style` rows and
+  3,174 `Generic.Style` rows, with 15,613 matching bridge rows.
+- Commit `6c3b6f1` contains the pagination constants and regression test:
+  `MASTER_DATA_DEFAULT_PAGE_SIZE = 500` and options `500`, `1000`, `1500`.
+- The focused pagination and approval-highlighting tests passed: 2 files and 5
+  tests. `npm run build` passed. `npm run lint` completed with no errors and the
+  repository's existing warnings.
+- The pagination code first shipped in commit `6c3b6f1`. Commits `c13fdf8` and
+  `eb78907` then made search/filtering use the full active tab and moved **Show
+  All** beside the bottom pagination controls. Frontend workflow `31128263974`
+  passed lint, built and pushed the image, and deployed `eb78907` through
+  Coolify. The live `https://dam.designflow.app/` bundle was verified to contain
+  both build ID `eb78907` and the new **Show All** control.
 
 Verified during the 2026-06-24 session:
 
