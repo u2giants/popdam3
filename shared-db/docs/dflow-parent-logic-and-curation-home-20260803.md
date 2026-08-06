@@ -111,7 +111,15 @@ it: DesignFlow application access logs for `PATCH /api/admin/updateMerchGroup`, 
 
 `dflow."merchGroup"` in Supabase is a **frozen snapshot** (max `modTime` = max `createdTime` =
 2026-05-07 14:36:55; no `ingest.sync_run` references it). Everything below is therefore **"as of
-2026-05-07"**, not live DesignFlow. It is still the best measurement anyone has taken, and it closes the
+2026-05-07"**, not live DesignFlow.
+
+> **SUPERSEDED IN PART — 2026-08-06.** The snapshot date above is stale. A read-only measurement
+> against production `qsllyeztdwjgirsysgai` on 2026-08-06 returned **2026-06-26**, not 2026-05-07.
+> **The counts below still reproduce** — only the date moved, so the analysis stands; treat every
+> "as of 2026-05-07" below as "as of 2026-06-26". Re-derive the date live rather than trusting
+> either value. The original text is left in place as history. Separately, `core.property` rows all
+> carry `updated_at` = 2026-07-08 (the day the PLM sync died) while all 15 `sync_run` rows say
+> "succeeded" — see `AGENTS.md` §6.10-A. It is still the best measurement anyone has taken, and it closes the
 open item the 2026-08-02 design flagged as "the single most important open measurement".
 
 Merch-group types are `'05'`/`'06'`, never `'MG05'`/`'MG06'`.

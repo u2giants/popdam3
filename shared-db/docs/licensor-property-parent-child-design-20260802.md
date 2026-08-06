@@ -227,6 +227,17 @@ Both of those, I verified, are **live on production**.
 schema already respects the "codes are unique only within a scope" rule rather than treating a code as
 globally unique.
 
+> **CONFIRMED AS AN OWNER RULING — 2026-08-06.** Albert Hazan ruled that licensor→property is a
+> parent-child relationship and that **property codes are NOT globally unique**; the same code may
+> exist under many licensors. The schema was already right; the *sessions* were not. See `AGENTS.md`
+> §6.10 ruling 3, which also records that `tools/validate-licensing-answers.mjs` (property lookup,
+> ~lines 86–92) still resolves by `code` alone and **must be scoped before the feed is repaired**,
+> or it will bind rows to the wrong licensor silently.
+>
+> Same date, related ruling: **the code alone is meaningless — the DESCRIPTION decides the
+> licensor.** The live `CC` case proves it: one `CC` row named `COCO` sits under licensor `ZZ`
+> (DTR - NO LICENSE) and all 14 items filed there are Coca-Cola merchandise by description.
+
 ### 2.2 `core.licensor`
 
 `20260621150815_app_core.sql` L180-189. Never altered structurally — only data migrations and column

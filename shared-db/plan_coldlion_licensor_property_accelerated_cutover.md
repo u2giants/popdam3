@@ -6,6 +6,30 @@
 **Repository:** `u2giants/shared-db`  
 **Fresh-session starting point (updated 2026-07-29):** **Step 7A** — build and prove the missing recurring production ColdLion feed and monitoring lane on preview. Steps 1–7 proved a safe one-time mirror/link package, but Albert chose a **real recurring ColdLion feed switch** on 2026-07-29 after GLM-5.2 found that the package did not deliver the stated goal. **Do not request Step 8 approval and do not touch production until Step 7A is complete.**
 
+> ### ⚠️ 2026-08-06 — no step was executed, but two owner rulings changed what "done" means
+>
+> The 2026-08-06 session ran **no** step of this plan. Steps 0–7A stay exactly as recorded below and
+> **Step 8 is still the next action.** Two rulings by Albert Hazan the same day change the target,
+> so read them before planning any further step (full text: `AGENTS.md` §6.10):
+>
+> - **"The feed should not drop anything."** The master-data feed currently drops inactive
+>   properties, unparented properties and childless licensors **by design** — that is why Supabase
+>   holds 26/256/256 against DesignFlow's 82/614/503. A cutover that preserves this dropping does not
+>   satisfy the ruling. A **licensor/property triage page in DB Data Admin** is required:
+>   `docs/licensor-property-triage-page-requirement-20260806.md`.
+> - **STOP THE LOSS FIRST.** Asked whether to settle how an ownerless property is stored before
+>   shipping, Albert chose to stop the loss first. Ship quarantine/triage ahead of settling the model.
+>
+> **New blocking prerequisite (same ordering principle as AGENTS §6.9):**
+> `tools/validate-licensing-answers.mjs` resolves properties by `code` alone (no licensor scope,
+> ~lines 86–92). Property codes are **not** globally unique. Fixing that query is a prerequisite to
+> repairing the feed — repair it first and it binds rows to the wrong licensor silently.
+>
+> A **Cloud SQL** variant of this cutover was drafted the same day (6 phases, dependency graph, Grok
+> 4.5 review folded in): `docs/licensor-property-cloudsql-cutover-plan-20260806.md`, on branch
+> `docs/licensor-property-cutover-plan-20260806`. It does not supersede this plan; reconcile the two
+> before Step 8 approval is requested.
+
 ## STATUS
 
 | Step | State | Date | Evidence / next action |

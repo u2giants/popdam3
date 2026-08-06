@@ -1105,6 +1105,85 @@ it as an AI's preference, and do not reorder it.**
 re-verified. Re-derive the real count at the time of the work; do not build the admission list from
 this section's number.
 
+### 6.10 OWNER RULINGS — the licensor/property model, and "the feed should not drop anything" (Albert Hazan, 2026-08-06)
+
+Five rulings, all given the same day, all **settled**. Do not re-ask them, do not treat them as an
+AI's preference, and do not reorder ruling 5.
+
+**1. Coco IS a Disney license.** This closes the long-open question of whether `Coco` sitting under a
+"NO LICENSE" licensor was deliberate. It was not. Detail and the resulting open technical question
+live in [`fix_characters_style_guides.md`](fix_characters_style_guides.md).
+
+**2. The CODE alone is meaningless — the DESCRIPTION decides the licensor.**
+
+> "If the CC is connected to a description that says Coco, it's Disney. If it says Coca Cola, it's
+> under the Coca Cola licensor."
+> — Albert Hazan, 2026-08-06
+
+Never resolve a licensor from a property/item code by itself. Read the description that travels with
+the row.
+
+**3. Licensor → Property is parent-child, and property codes are NOT globally unique.** The same code
+may exist under many licensors. `core.property` is keyed `(licensor_id, code)`
+(`20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql`, and see
+[`docs/licensor-property-parent-child-design-20260802.md`](docs/licensor-property-parent-child-design-20260802.md) §2.1).
+
+> **This corrected a wrong assumption the coordinator held on 2026-08-06, and that assumption is
+> baked into at least one committed tool.** `tools/validate-licensing-answers.mjs` (the property
+> lookup around lines 86–92) resolves a property with `where p.code = any($1)` — no licensor scope.
+> It selects the licensor name and then discards it; only `r.code` is used. It is safe **only**
+> because today's `core.property` copy is crippled (256 rows, one row per code). **Repairing the feed
+> before fixing that query would introduce silent wrong-licensor binding.** Fix the scoping FIRST.
+> This is the same ordering principle as §6.9.
+>
+> Phrases like *"re-parent CC to Disney"* are not meaningful instructions and must not be planned in
+> those words — say which `(licensor_id, code)` row you mean.
+
+**4. "The feed should not drop anything."** The master-data feed must stop silently discarding rows.
+There must be a **licensor/property triage page in DB Data Admin** (the app that serves
+`data-dev.designflow.app`) where Albert fixes the problems the feed finds, instead of the feed
+throwing them away. Requirement:
+`docs/licensor-property-triage-page-requirement-20260806.md` (added 2026-08-06 on branch
+`docs/licensor-property-triage-page-20260806`).
+
+**5. STOP THE DATA LOSS FIRST — ordering ruling.** Asked whether to settle the storage question for
+an ownerless property (nullable FK vs. a holding licensor vs. a quarantine table) before shipping, or
+to stop the loss first, Albert chose **stop the loss first**. Ship quarantine/triage before settling
+the model.
+
+#### 6.10-A What was measured on 2026-08-06 (production `qsllyeztdwjgirsysgai`, read-only)
+
+Recorded so nobody re-measures it, and so nobody quotes the one number that is **not** verified.
+
+| Finding | Value |
+|---|---|
+| Supabase `core.*` vs DesignFlow | 26 licensors / 256 properties / 256 parent edges **vs** 82 / 614 / 503 |
+| Why roughly half the tree never arrives | **By design** — the feed drops inactive properties, unparented properties, and childless licensors. This is the loss ruling 4 forbids |
+| Parent data staleness | Every property row carries the same `updated_at`, **2026-07-08** — the day the PLM sync died. **29 days stale** as of 2026-08-06 |
+| Sync ledger | All 15 sync runs recorded **"succeeded"**. The 502 is invisible in the ledger — never trust `sync_run` status as proof of freshness |
+| Unparented properties in DesignFlow | 111, of which 51 active — VERIFIED live, matches the docs |
+| `core.character` | **EMPTY on production** (0 rows) |
+| `plm.item` | **EMPTY** (0 rows) — the modeled item master was built and never populated |
+| `public.erp_items_current` vs `plm."itemHeader"` | 17,703 vs 19,563 rows; **14 items exist only in `plm."itemHeader"`** |
+| The `CC` case | `core.property` holds one `CC` row named `COCO` under licensor `ZZ` (DTR - NO LICENSE). All **14** items filed there are Coca-Cola merchandise **by description**. Seven items under licensor `DY` (Disney) + property `CC` are genuinely Coco. The real COCA COLA licensor exists but is **INACTIVE with zero items** |
+| Item numbering | `AAA00LLPP00` — chars 6-7 licensor, 8-9 property — holds for **~77%** of items |
+| Parent edges pointing at a non-active licensor | **499 of 503.** Nobody knows what "inactive" means in this data — do not infer it |
+| ⚠️ "241 of 322 property codes (75%) under more than one licensor" | **UNVERIFIED.** This figure has been quoted verbally but is recorded **nowhere** in the repo and was not reproduced on 2026-08-06. **Do not state 75% as fact.** Re-measure before using it |
+
+#### 6.10-B Three corrections to statements already in this repo (2026-08-06)
+
+1. **DB Data Admin lives in THIS repo**, at `apps/db-data-admin/`, despite serving a
+   `designflow.app` hostname. Only the feed **endpoint** change is DesignFlow work. (Verified: the
+   directory exists here.)
+2. **The `NOT NULL` on `core.property.licensor_id` came from
+   `20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql` lines 71–72**, not from the
+   original `20260621150815` migration. (Verified against the file.)
+3. **Blocker 8 was mis-stated across the handover docs.** The endpoint they cite is a **READ**
+   endpoint. The real writer is `PATCH /api/admin/updateMerchGroup`
+   (`designflow-backend/routes/admin.router.js:87`), and its real defect is that it is **type-blind**.
+   Detail: `docs/licensor-property-cloudsql-cutover-plan-20260806.md` (branch
+   `docs/licensor-property-cutover-plan-20260806`).
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
