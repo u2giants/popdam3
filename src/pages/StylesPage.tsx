@@ -32,6 +32,7 @@ import {
 } from "@/lib/style-tracker-candidates";
 import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
 import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
+import { MASTER_DATA_FETCH_BATCH_SIZE, shouldFetchNextMasterDataBatch } from "@/lib/master-data-loading";
 import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
 import { cn } from "@/lib/utils";
 
@@ -158,7 +159,6 @@ type SavedView = {
   updated_at: string;
 };
 
-const DEFAULT_ROW_LIMIT = 2500;
 const MANUAL_CANDIDATE_LIMIT = 100;
 
 const APPROVED_LICENSOR_PROPERTY_OPTIONS = [
@@ -439,11 +439,10 @@ function formatAuditTime(value: string) {
   }).format(new Date(value));
 }
 
-async function fetchRows(sourceSheet: string, showAll: boolean) {
+async function fetchRows(sourceSheet: string) {
   const rows: StyleRow[] = [];
-  const maxRows = showAll ? Number.POSITIVE_INFINITY : DEFAULT_ROW_LIMIT;
-  for (let from = 0; rows.length < maxRows; from += 1000) {
-    const to = Math.min(from + 999, maxRows - 1);
+  for (let from = 0; ; from += MASTER_DATA_FETCH_BATCH_SIZE) {
+    const to = from + MASTER_DATA_FETCH_BATCH_SIZE - 1;
     const { data, error } = await (supabase as any)
       .from("style_tracker_rows_with_bridge")
       .select("*")
@@ -452,7 +451,7 @@ async function fetchRows(sourceSheet: string, showAll: boolean) {
       .range(from, to);
     if (error) throw error;
     rows.push(...((data ?? []) as StyleRow[]));
-    if (!data || data.length < 1000) break;
+    if (!shouldFetchNextMasterDataBatch(data?.length ?? 0)) break;
   }
   return rows;
 }
@@ -1092,7 +1091,6 @@ export default function StylesPage() {
   const gridRef = useRef<AgGridReact<StyleRow>>(null);
   const [activeSheet, setActiveSheet] = useState<(typeof configs)[number]["name"]>("License.Style");
   const [quickFilter, setQuickFilter] = useState("");
-  const [showAllRows, setShowAllRows] = useState(false);
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
   const [auditCell, setAuditCell] = useState<AuditCell | null>(null);
@@ -1106,7 +1104,7 @@ export default function StylesPage() {
   const lastAppliedSheetRef = useRef<string | null>(null);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
-  const rowsQuery = useQuery({ queryKey: ["style-rows", active.name, showAllRows], queryFn: () => fetchRows(active.name, showAllRows) });
+  const rowsQuery = useQuery({ queryKey: ["style-rows", active.name], queryFn: () => fetchRows(active.name) });
   const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
   const cellAuditQuery = useQuery({
     queryKey: ["style-cell-audit", auditCell?.row.id, auditCell?.column.letter],
@@ -1616,7 +1614,6 @@ export default function StylesPage() {
   );
 
   const totalRows = countQuery.data ?? rows.length;
-  const hiddenRows = Math.max(totalRows - rows.length, 0);
   const auditRows = cellAuditQuery.data ?? [];
 
   const contextMenuItems = (params: GetContextMenuItemsParams<StyleRow>): (DefaultMenuItem | MenuItemDef<StyleRow>)[] => {
@@ -1653,7 +1650,6 @@ export default function StylesPage() {
               <h1 className="text-lg font-semibold leading-tight text-foreground">Master Data</h1>
               <p className="text-xs text-muted-foreground">
                 {rows.length.toLocaleString()} loaded rows · {totalRows.toLocaleString()} total rows
-                {hiddenRows > 0 && !showAllRows ? ` · ${hiddenRows.toLocaleString()} older rows hidden` : ""}
               </p>
             </div>
           </div>
@@ -1664,9 +1660,6 @@ export default function StylesPage() {
             </div>
             <Button variant="outline" size="sm" onClick={() => rowsQuery.refetch()} disabled={rowsQuery.isFetching}>
               <RefreshCw className={cn("h-4 w-4", rowsQuery.isFetching && "animate-spin")} />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowAllRows((value) => !value)} disabled={rowsQuery.isFetching}>
-              {showAllRows ? "Latest 2,500" : "Show All"}
             </Button>
             <Button variant="outline" size="sm" onClick={openColumnsPanel}>
               <Columns3 className="h-4 w-4" />
