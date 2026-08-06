@@ -617,6 +617,93 @@ after it is filed. Only the coordinator moves a block out of here.
 > Priority order for the top of the session is the opening agenda in
 > `HANDOFF.md` §U4. Items are listed here in roughly that order.
 
+### REQUEST — ⚠️ FIRST ACTION: establish who deleted 8 worktrees on `al8960ofc` — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.**
+Find out what removed eight registered worktrees from `C:\repos\shared-db` on
+2026-08-05 between roughly 19:00Z and 01:49Z, and confirm no work was lost. A
+coordinator was seated the whole time and did not do it. **Four of the eight were
+detached HEADs** — if any held uncommitted work, nothing points at it now. Until
+this is answered, no worktree or branch inventory in any document can be trusted
+and no cleanup should run. Full before/after listing:
+`HANDOFF.d/2026-08-06T0149Z-al8960ofc-coordinator-skill-repair.md` §4.
+
+**2. Which application(s) depend on this.**
+None directly. It is a coordination-integrity question for `shared-db` itself.
+
+**3. Is it blocking anything, and how urgently?**
+**Blocking any worktree/branch sweep.** Not blocking dispatch of unrelated work.
+
+**4. Deadline, if any.**
+None, but evidence decays — check before anything else touches the checkout.
+
+**5. What I already know about the current schema.**
+Nothing; no schema involvement. `git worktree list` now returns 1 entry;
+`.git/worktrees` no longer exists; local branch labels survive. Verified live
+01:49Z.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]**
+No branch created for this item, no migration file, no push to preview or
+production, no `supabase` CLI, no Supabase MCP call, no psql, no task chip. No
+worktree was removed, pruned or force-deleted by this session.
+
+### REQUEST — Second-model review of the six skill corrections in `ai-devops` `ec137b2` — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.**
+The first skill patch (`11235b9`) was reviewed independently by Kimi K3 and Codex
+GPT-5.6, and both found real defects. The **corrections** to those defects
+(`ec137b2`) shipped with **no second-model review at all**. The corrections
+include the coordinator marker's failure-handling and the amended
+coordinator-permitted-writes list, both of which are new rules rather than
+edits. Get one independent read.
+
+**2. Which application(s) depend on this.**
+None. It governs how every future `shared-db` coordinator session starts.
+
+**3. Is it blocking anything, and how urgently?**
+Not blocking. The rules are live now and are believed correct.
+
+**4. Deadline, if any.**
+None.
+
+**5. What I already know about the current schema.**
+No schema involvement. Files:
+`ai-devops/skills/claude/shared-db-orchestrator/SKILL.md` and
+`.../shared-db-handover/SKILL.md`, both installed and verified byte-identical on
+`al8960ofc`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]**
+No branch, no migration, no preview or production push, no `supabase` CLI, no
+Supabase MCP call, no psql, no task chip.
+
+### REQUEST — ⛔ ALBERT: decide whether to trim the orchestrator skill (context cost vs obeyed rules) — 2026-08-06 — session: outgoing coordinator (al8960ofc)
+
+**1. What outcome is needed, and why.**
+`shared-db-orchestrator/SKILL.md` grew from 24,893 to 30,700 bytes (+23%) against
+a stated ~2 KB budget. It loads into context at the start of every coordinator
+session, so the cost is paid by the session with the least room to spare. Kimi
+identified ~1.2 KB of incident narrative that duplicates ledger §17, and named
+the passages that must **not** be cut. Albert was offered the trim and has not
+decided. Recommendation on record: **do not trim** — agents follow rules that
+carry their reasons, and the reference ledger is optional reading while the skill
+is not.
+
+**2. Which application(s) depend on this.**
+None. Affects coordinator session context only.
+
+**3. Is it blocking anything, and how urgently?**
+Not blocking.
+
+**4. Deadline, if any.**
+None.
+
+**5. What I already know about the current schema.**
+No schema involvement.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]**
+No branch, no migration, no preview or production push, no `supabase` CLI, no
+Supabase MCP call, no psql, no task chip.
+
 > **Refreshed 2026-07-31 23:11 UTC** by the outgoing coordinator. Six blocks were
 > moved to `## COMPLETED` (rehearsal → #362, manifest → #360, EX/LB/JL framing →
 > #369, B8 → #358, B13 → done, B14 → #367). The nine blocks immediately below are
