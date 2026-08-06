@@ -1091,6 +1091,7 @@ export default function StylesPage() {
   const gridRef = useRef<AgGridReact<StyleRow>>(null);
   const [activeSheet, setActiveSheet] = useState<(typeof configs)[number]["name"]>("License.Style");
   const [quickFilter, setQuickFilter] = useState("");
+  const [showAllPageRows, setShowAllPageRows] = useState(false);
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
   const [auditCell, setAuditCell] = useState<AuditCell | null>(null);
@@ -1875,7 +1876,7 @@ export default function StylesPage() {
         )}
       </div>
       <div className="min-h-0 flex-1 p-3">
-        <div className="h-full min-h-0 overflow-hidden rounded-md border border-border bg-card">
+        <div className="relative h-full min-h-0 overflow-hidden rounded-md border border-border bg-card">
           <AgGridReact
             ref={gridRef}
             theme={theme === "dark" ? darkGridTheme : lightGridTheme}
@@ -1884,6 +1885,13 @@ export default function StylesPage() {
             defaultColDef={{ minWidth: 90, suppressHeaderMenuButton: false, wrapHeaderText: true, autoHeaderHeight: true }}
             loading={rowsQuery.isLoading}
             quickFilterText={quickFilter}
+            onFilterChanged={(event) => {
+              if (!showAllPageRows) return;
+              const filteredRowCount = Math.max(event.api.getDisplayedRowCount(), 1);
+              if (event.api.paginationGetPageSize() !== filteredRowCount) {
+                event.api.setGridOption("paginationPageSize", filteredRowCount);
+              }
+            }}
             getRowId={(params) => params.data.id}
             getRowStyle={(params) => {
               const approval = approvalHighlightForRow(params.data);
@@ -1911,6 +1919,26 @@ export default function StylesPage() {
             paginationPageSizeSelector={MASTER_DATA_PAGE_SIZE_OPTIONS}
             stopEditingWhenCellsLoseFocus
           />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute bottom-1 left-2 z-10 h-7 bg-card px-2 text-xs"
+            disabled={rowsQuery.isLoading || rows.length === 0}
+            onClick={() => {
+              const api = gridRef.current?.api;
+              if (!api) return;
+              if (showAllPageRows) {
+                api.setGridOption("paginationPageSize", MASTER_DATA_DEFAULT_PAGE_SIZE);
+                setShowAllPageRows(false);
+                return;
+              }
+              api.setGridOption("paginationPageSize", Math.max(api.getDisplayedRowCount(), 1));
+              setShowAllPageRows(true);
+            }}
+          >
+            {showAllPageRows ? `${MASTER_DATA_DEFAULT_PAGE_SIZE} per page` : "Show All"}
+          </Button>
         </div>
       </div>
       <Dialog open={Boolean(auditCell)} onOpenChange={(open) => !open && setAuditCell(null)}>
