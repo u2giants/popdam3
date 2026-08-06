@@ -295,6 +295,43 @@ Phase 3 is the next executable phase. It is **not** dispatchable today. Its prec
 
 ### Blocked on **Albert** (owner policy) — licensing cannot answer these
 
+> ### ⚠️ UPDATED 2026-08-06 — READ BEFORE THE TABLE. `A2` AND `A3` ARE CLOSED.
+>
+> This section is a **2026-08-02 snapshot**. Two of its three rows have since been
+> answered, and §6 below is written on the assumption that Laura's reply is still
+> outstanding — **it is not.** Round 2 returned 2026-08-04 (157/166) and **round 3
+> returned 2026-08-06 with 8 of 8 answered. The licensing question stream is
+> CLOSED; there is no round 4.** Rows are left in place for history:
+>
+> - **`A1` — STILL OPEN.** The `EX`/`LB`/`JL` + 66-unmatched-codes policy decision
+>   is genuinely still Albert's to make, and it is now the **main** blocker on this
+>   workstream. ⚠️ But see the flag in `fix_characters_style_guides.md` §8a: the
+>   "66 missing / 51 active" figure is a set difference on **bare codes ignoring
+>   the licensor** and may not mean what it says. Re-derive per `(licensor, code)`
+>   before putting a number to Albert. (Filed in `COORDINATOR_INTAKE.md`.)
+> - **`A2` — ✅ DEAD, NOT OPEN. Close it.** It was explicitly *contingent on round 2
+>   being unusable*, and round 2 was usable. Separately, the owner already ruled on
+>   2026-08-04 that combination rows **stay as one row and are never split**
+>   (`fix_characters_style_guides.md` §8a point 2). There is nothing left to ask.
+>   **Do not put `A2` to Albert.**
+> - **`A3` — ✅ ANSWERED as an owner question, 2026-08-06: "Coco IS a Disney
+>   license"** (Albert Hazan). The cross-licensor conflict against `A005` is
+>   **RESOLVED** — Laura's `CC` answer and the Disney `Coco` style guide agree.
+>   ⚠️ **What remains is a technical OPEN QUESTION, not a re-parenting task.**
+>   **Property codes are NOT globally unique** — `core.property` is keyed
+>   `unique (licensor_id, code)`
+>   (`supabase/migrations/20260621150815_app_core.sql:200`), so the same code may
+>   exist under many licensors and a bare `CC` does not identify a row. *"Re-parent
+>   `CC` to Disney"* is therefore **not a meaningful instruction; do not implement
+>   it.** The open question — point at an existing Disney `CC`, create one, or
+>   something else — is filed in `COORDINATOR_INTAKE.md`.
+>
+> **§6 below ("Conclusions that depend on Laura's outstanding reply") is likewise
+> superseded**: her reply is no longer outstanding, and its `A2`/`A3` reasoning is
+> answered by the two bullets above. `I3` in the "not blocked" table has been
+> upgraded — the validator's code-only matching is now recorded as a **defect**
+> with its own queue entry, not merely a coverage gap.
+
 | # | Item | Status |
 |---|---|---|
 | A1 | **Admit the unmatched ColdLion property codes?** Specifically `EX` (THE EXORCIST) and `LB` (THE LOST BOYS) — both real ColdLion codes, both confirmed by Laura, **neither has a `core.property` row**. 66 ColdLion codes are unmatched overall (51 still active), and ColdLion has no expiry flag, so a blanket admission would resurrect lapsed licences. | **Open.** Ready to ask; the table exists in `docs/coldlion-unmatched-properties-by-licensor-20260731.md`. **Do not re-ask Laura — she already answered correctly.** |

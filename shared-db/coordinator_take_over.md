@@ -33,9 +33,9 @@ shared tables, and it is not started. Schedule it; do not let it start opportuni
 
 | # | Workflow | State | Blocked by | Touches shared tables? |
 |---|---|---|---|---|
-| 1 | Characters & style guides — Phase 3 | Rules built and tested, **backfill not started** | Laura's round-2 answers + a scheduling slot | **YES — will write 3 tables** |
+| 1 | Characters & style guides — Phase 3 | Rules built and tested, **backfill not started** | ~~Laura's round-2 answers~~ + a scheduling slot — **UPDATED 2026-08-06: licensing is DONE. Now blocked on ALBERT** (the `EX`/`LB`/`JL` property-code policy decision) and a scheduling slot. | **YES — will write 3 tables** |
 | 2 | ColdLion as source of truth | PR #331 **merged 2026-07-31**; PR #335 (docs) still open | Owner approval for the production window | Yes, later |
-| 3 | Licensing coordination (Laura) | Round 2 **sent 2026-07-31** | Laura's reply | No |
+| 3 | Licensing coordination (Laura) | ~~Round 2 **sent 2026-07-31**~~ **✅ CLOSED 2026-08-06 — round 3 returned 8/8. No round 4.** | ~~Laura's reply~~ **NOTHING. Do not record this as waiting on Laura again.** | No |
 | 4 | Shared-db hygiene / silent failures | Two fixes merged, findings open | Nothing | No |
 
 **If your four workflows are split differently, map by topic, not by number.** The important
@@ -127,7 +127,11 @@ Requirements the plan sets, all of which must be recorded:
 
 ### 2.6 What is still blocking Phase 3
 
-1. Laura's round-2 answers (workflow 3).
+1. ~~Laura's round-2 answers (workflow 3).~~ **✅ NO LONGER BLOCKING — CLOSED 2026-08-06.** Round 2
+   returned 2026-08-04 (157/166) and round 3 returned 2026-08-06 (8 of 8, zero blanks). **The
+   licensing question stream is CLOSED; there is no round 4.** Replaced by: **the `EX`/`LB`/`JL`
+   canonical property-code policy decision — an OWNER decision for Albert**, not a licensing one
+   (§3.3, and `fix_characters_style_guides.md` §8a).
 2. A scheduling slot from you.
 3. **Not** ColdLion — an earlier claim that Phase 3 carried a `core.property` identity exposure
    was withdrawn in PR #297 as overstated.
@@ -267,8 +271,23 @@ Laura is the licensing coordinator. She is **not** technical and does not read o
   `core.property`.
 - `A005` Coco confirmed as `CC` again; `CC` sits under a licensor literally named
   "DTR - NO LICENSE" while the guide is Disney.
+  > **UPDATED 2026-08-06.** Laura re-confirmed `CC` in round 3, and **Albert has ruled: Coco IS a
+  > Disney license.** The licensing side is settled. ⚠️ **This is NOT a "re-parent `CC` to Disney"
+  > job** — property codes are **not globally unique** (`core.property` is keyed
+  > `(licensor_id, code)`), so the same code can exist under many licensors and a bare `CC` does
+  > not identify one row. What remains is an **open question** — which `CC` row the guide should
+  > point at — filed in `COORDINATOR_INTAKE.md`. Do not implement it as a re-parenting change.
 
-### 4.3 Round 2 — SENT 2026-07-31, awaiting reply
+### 4.3 Round 2 — ~~SENT 2026-07-31, awaiting reply~~ **RETURNED 2026-08-04 → ROUND 3 RETURNED 2026-08-06 → STREAM CLOSED**
+
+> **✅ SUPERSEDED 2026-08-06. Nothing below is "awaiting reply".** Round 2 came back
+> **2026-08-04 with 157 of 166 answered and zero format failures** — the locked-dropdown design
+> worked. Nine blanks; eight were re-asked as **round 3**, which returned **2026-08-06 with 8 of 8
+> answered, zero blanks, and zero uses of the escape option.**
+> **THE LICENSING QUESTION STREAM IS CLOSED. THERE IS NO ROUND 4.** No session should record this
+> workstream as waiting on Laura again. The eight settled rulings, plus the two owner rulings of
+> 2026-08-06, are in `fix_characters_style_guides.md` §§ *"Licensing round 3 — RETURNED"* and
+> *"8-OWNER"*. The text below is kept for its design/lineage detail only.
 
 `docs/verification/character-identity-rules-20260728/licensing-questions-for-laura-round2-20260731.xlsx`
 
@@ -381,10 +400,16 @@ non-zero if any are found. The sheet generator is `tools/build-licensing-questio
    Verified: no preview ledger versions are missing from `main`. **Do not redo.**
 2. **Decide PR #335** (ColdLion source-of-truth plan, docs only). **Still OPEN.** Merge or reject.
    **Pass when:** the PR is closed one way or the other.
-3. ~~**Owner sends the round-2 sheet to Laura.**~~ ✅ **DONE 2026-07-31** — owner confirmed sent.
-   Now simply **waiting on her reply**. **Pass when:** the returned file has the 166 dropdowns
-   populated, and **every answer is re-validated against `core.property` before acceptance** —
-   round 1 looked 194/195 complete and was only 29 usable (§4.2).
+3. ~~**Owner sends the round-2 sheet to Laura.** ✅ **DONE 2026-07-31** — owner confirmed sent.
+   Now simply **waiting on her reply**.~~ **✅ FULLY CLOSED 2026-08-06.** Round 2 returned
+   2026-08-04 (**157/166**, zero format failures); round 3 (8 rows) returned **2026-08-06 with 8
+   of 8 answered and zero blanks**. **The licensing question stream is CLOSED — there is no round
+   4 and nothing is outstanding with Laura.** Settled rulings:
+   `fix_characters_style_guides.md` § *"Licensing round 3 — RETURNED"*.
+   ⚠️ **One acceptance step is still formally outstanding:** the answers have **not** been
+   re-validated against `core.property` with `tools/validate-licensing-answers.mjs` (the recording
+   session was forbidden database calls). Filed in `COORDINATOR_INTAKE.md`. Round 1 looked
+   194/195 complete and was only 29 usable (§4.2) — do not skip it.
 4. **Fix the 66 missing property codes** — specifically `EX`, `LB` and `JL`, which real answers
    now depend on. This is an owner policy decision, not a licensing one (§3.3).
    **Pass when:** the owner has either approved creating them or ruled them out in writing.

@@ -16,9 +16,38 @@
 > file.** Before you decide the project is idle, before you tell anyone there is
 > nothing pending, and before you plan a session, you **MUST** read:
 >
-> 1. the **most recent COORDINATOR HANDOVER section at the top of `HANDOFF.md`**,
->    including its opening agenda and its "waiting on Albert" list; and
-> 2. the **`## BACKLOG` section of `HANDOFF.md`** (items **B1–B13**).
+> 1. the **newest handover in [`HANDOFF.d/`](HANDOFF.d/)** — see the boxed warning
+>    immediately below on how to find it; and
+> 2. the **`## BACKLOG` section of `HANDOFF.md`** (items **B1–B14**).
+>
+> > ### ⚠️ CORRECTED 2026-08-06 — the old instruction here was WRONG AND DANGEROUS.
+> >
+> > This banner used to say *"read the most recent COORDINATOR HANDOVER section at
+> > the top of `HANDOFF.md`"*. **Do not do that.** The newest handover at the top of
+> > `HANDOFF.md` is dated **2026-07-31**. The real newest handovers live in
+> > **`HANDOFF.d/`** and are **days newer**. A reader who followed the old pointer
+> > would open a stale snapshot believing it was current.
+> >
+> > **Filenames in `HANDOFF.d/` come in TWO formats.** You must **PARSE the
+> > timestamp** out of the filename and compare the parsed instants. **Never
+> > text-sort the directory listing** — a plain sort puts the *oldest* file last and
+> > you will pick the wrong one. Both formats are ISO-8601-ish UTC but punctuated
+> > differently:
+> >
+> > - `YYYY-MM-DDTHHMMZ-<machine>-<slug>.md` — e.g.
+> >   `2026-08-06T0149Z-al8960ofc-coordinator-skill-repair.md`
+> > - `YYYYMMDDTHHMMSSZ-<machine>-<slug>.md` — e.g.
+> >   `20260731T231155Z-t16-coordinator-session-handover.md`
+> >
+> > Strip the dashes and colons from the date-time portion, then compare. In that
+> > example the **first** file is the newer one, but a text sort ranks it *before*
+> > the July file. That is the trap.
+> >
+> > `HANDOFF.md` remains authoritative for the **`## BACKLOG`** and for the
+> > long-form history. It is **not** where the current handover lives.
+> >
+> > And per B2.0: **no document wins by name or by date.** Where `HANDOFF.d/`,
+> > `HANDOFF.md` and this file disagree, **re-derive the fact from `git`/`gh`.**
 >
 > If the queues below are empty and `HANDOFF.md` has a backlog, **the backlog is
 > your work.** Never report "nothing to do" on the strength of this file alone.
@@ -315,6 +344,32 @@ have already happened in this repo, more than once.
    else.
 8. **Documents in this repo go stale within the hour.** Verify against the live
    repo, not against what a Markdown file says.
+9. **Property codes are NOT globally unique — never resolve a property by code
+   alone.** Licensor → Property is a **parent-child** relationship and the *same*
+   code can exist as separate property rows under many different licensors at
+   once. The schema enforces exactly this:
+   `core.property … unique nulls not distinct (licensor_id, code)`
+   (`supabase/migrations/20260621150815_app_core.sql:200`). **`core.licensor` is
+   different** — it *is* `unique nulls not distinct (code)` (`:188`), so
+   **licensor** codes are global. The two are routinely confused, and confusing
+   them produces instructions like *"re-parent code `CC` under Disney"* that are
+   not meaningful. Owner-confirmed by Albert Hazan, **2026-08-06**. See also
+   `AGENTS.md` §6 (merch-group codes are unique only within
+   `(division, mgTypeCode)`) and `fix_item_taxonomy_wiring.md:147`.
+10. **Worktree counts in this repo are per-MACHINE and go stale immediately — always
+    re-measure, never quote.** Measured on **`al8960ofc`, 2026-08-06**:
+    **3 worktrees** — the `C:\repos\shared-db` main checkout plus two live
+    sub-agent worktrees (`.claude/worktrees/cutover-plan`,
+    `.claude/worktrees/stale-sweep`), both **held by running agents**. Verified
+    with `git worktree list`. **Every earlier count is SUPERSEDED as a statement
+    of today's state** — 18 and 22 (2026-07-31), 23, 33/34 (2026-07-31 late),
+    51/52 (2026-08-03/05), 16 (2026-08-05), and 1 (2026-08-06 01:49Z). They were
+    each true when written, on the machine that wrote them; they are history, not
+    inventory. The drop from 51 to 1 was an **authorised sweep**, not a mystery —
+    resolved by intake PR #455 (`9a933c8`) and recorded in
+    `HANDOFF.d/2026-08-06T0149Z-al8960ofc-coordinator-skill-repair.md` §4. **Do
+    not sweep or remove any worktree on the strength of a number in a document**,
+    and never remove one that is dirty, locked, or held by a live agent (B2.3).
 
 ---
 
@@ -616,6 +671,290 @@ after it is filed. Only the coordinator moves a block out of here.
 >
 > Priority order for the top of the session is the opening agenda in
 > `HANDOFF.md` §U4. Items are listed here in roughly that order.
+
+### ⛔ QUESTION TO RESOLVE — which `CC` property row should the Disney `Coco` style guide point at? — 2026-08-06 — session: sub-agent `stale-sweep`
+
+> **This is a QUESTION, not a defined change. Do NOT queue, plan, or implement it
+> as "re-parent `CC` under Disney" — that instruction is meaningless here.**
+> Follows the owner ruling *"Coco IS a Disney license"* (Albert Hazan, 2026-08-06),
+> which closed the old *"is `Coco` correctly under NO LICENSE?"* request (now in
+> `## COMPLETED`).
+
+**1. What outcome is needed, and why.** Albert has ruled that **Coco is a Disney
+license**, and Laura has confirmed (round-3 `A005`, 2026-08-06) that **`CC`** is
+the property code POP used for Coco. The Disney `Coco` style guide must end up
+pointing at the right `core.property` row. **Which row that is, is unknown.**
+
+⚠️ **The thing that makes this a question and not a task:** **property codes are
+NOT globally unique.** Licensor → Property is a parent-child relationship and the
+*same* code can exist as separate property rows under many different licensors at
+once — there could be a `CC` under twenty licensors. (Albert, 2026-08-06. The
+schema already models this: `supabase/migrations/20260621150815_app_core.sql:200`
+declares `core.property … unique nulls not distinct (licensor_id, code)`. Note
+`core.licensor` at `:188` **is** `unique (code)` — licensor codes are global,
+property codes are not. The two are routinely confused.)
+
+**Three things to establish, read-only, before anyone proposes a change:**
+
+- **(i)** Does a `CC` property row **already exist under the Disney licensor**,
+  separately from the one under `ZZ` (`DTR - NO LICENSE`)? Query by
+  `(licensor_id, code)` — never by `code` alone.
+- **(ii)** **Which licensor's `CC` did Laura's answer refer to?** Her note cites a
+  specific POP item number as evidence that POP shipped product under `CC`. **That
+  item number is deliberately not written into this repository** — it is a real
+  internal POP item identifier and the workbook carrying it is deliberately
+  uncommitted. The coordinator holds it out of band; ask for it when this is
+  dispatched.
+- **(iii)** Is the correct fix **(a)** point the Coco style guide at an existing
+  Disney `CC`, **(b)** create a `CC` property under the Disney licensor, or
+  **(c)** something else entirely — including that the Disney-side Coco property
+  carries a code other than `CC`, or that the `ZZ` row is a legitimately distinct
+  row that simply is not the one this style guide should use?
+
+**⛔ Do NOT decide between (a), (b) and (c) from documents.** No committed artifact
+in this repo enumerates `core.property` by `(licensor, code)`; it needs a live
+read. Guessing would corrupt curated Master Data, which `AGENTS.md` §6.4 forbids.
+
+**2. Which application(s) depend on this.** Every app reading the licensor →
+property hierarchy — PopDAM, poppim-web, popcrm-web, DesignFlow; royalty
+reporting most of all.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. It is a
+data-quality item that should be settled before the licensor/property move, and
+it is on the path of the characters/style-guides Phase 3 backfill.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** `core.property` is keyed
+`(licensor_id, code)` — read from the migration file, **not** verified live. The
+`Coco`-under-`ZZ` observation came from PR #402 (2026-08-02) and has **not** been
+re-verified since. Authoritative narrative:
+`fix_characters_style_guides.md` § *"8-OWNER. OWNER RULINGS — 2026-08-06"*.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No database call of any
+kind, no `supabase` CLI, no Supabase MCP call, no psql, no migration file written
+or edited, no preview or production write, no background task chip. Docs only.
+
+---
+
+### REQUEST — DEFECT: `tools/validate-licensing-answers.mjs` matches property codes GLOBALLY, ignoring the licensor — 2026-08-06 — session: sub-agent `stale-sweep`
+
+**1. What outcome is needed, and why.** The validator this repo **mandates** for
+every returned licensing sheet (*"Never accept a returned sheet on its
+answered-count alone"*, `fix_characters_style_guides.md`) decides whether an
+answered code is usable by running:
+
+```sql
+select p.code, p.name, l.name as licensor
+  from core.property p
+  left join core.licensor l on l.id = p.licensor_id
+ where p.code = any($1)
+```
+
+then building its "present" set from **`p.code` alone**
+(`tools/validate-licensing-answers.mjs:86-96`). **There is no licensor scope.** A
+code that exists only under the *wrong* licensor is reported as present and
+usable. It even selects `l.name as licensor` and then never uses it.
+
+This is wrong under the `(licensor_id, code)` model and it is exactly the defect
+class that would have waved `A005`/`CC` through. The outcome needed: the validator
+compares against the licensor the sheet row belongs to, and reports
+"present-but-under-a-different-licensor" as its own distinct problem class rather
+than as a pass. **Add negative-path tests that prove it REFUSES** (backlog B7
+standard).
+
+**2. Which application(s) depend on this.** None directly — repo tooling — but it
+gates what enters `core.property` mappings that all four apps read.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM.** The
+licensing question stream is now closed, so nothing is queued behind it today;
+fix it before the next licensing round or reuse of the tool.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** `core.property` is
+`unique nulls not distinct (licensor_id, code)`;
+`core.licensor` is `unique nulls not distinct (code)`
+(`supabase/migrations/20260621150815_app_core.sql:188`, `:200`). Read from the
+migration file, **not** verified live.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No code changed, no test
+written, no branch beyond this session's own docs branch, no migration, no
+database call of any kind, no background task chip.
+
+---
+
+### REQUEST — Re-derive the "66 missing / 51 active" ColdLion property-code gap PER LICENSOR — 2026-08-06 — session: sub-agent `stale-sweep`
+
+**1. What outcome is needed, and why.** `fix_characters_style_guides.md` §8a
+states *"ColdLion type-`06` exposes 322 distinct property codes; `core.property`
+holds 256; 66 are missing, 51 of them still active"* — and an **owner policy
+decision** (whether to admit the unmatched codes) is framed on top of those
+numbers. **That is a set difference computed on bare codes, ignoring the
+licensor**, so under the `(licensor_id, code)` model it may not mean what it says:
+a code counted "present" may exist only under the wrong licensor, and one counted
+"missing" may exist under several. Re-derive the gap per `(licensor, code)` so the
+owner rules on a real number. **A second, independent staleness already exists:**
+`docs/coldlion-source-of-truth-plan.md:72-73` records that ColdLion now returns
+**285** distinct property codes, not 322, and 33 missing, not 66.
+
+**2. Which application(s) depend on this.** The ColdLion sync lane and the
+characters/style-guides Phase 3 backfill.
+
+**3. Is it blocking anything, and how urgently?** Not blocking today, but it is an
+input to a **pending owner decision** (the `EX`/`LB`/`JL` policy), so it should be
+correct before that question is put to Albert. **MEDIUM.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Nothing verified live by this
+session — docs-only run, no database calls. §8a now carries a flag saying the
+numbers are unverified; the flag is not a fix.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No re-derivation
+attempted, no database call of any kind, no `supabase` CLI, no Supabase MCP call,
+no psql, no migration, no background task chip.
+
+---
+
+### REQUEST — LOW PRIORITY: the `GENERAL_ROYALTY_LABEL` exclusion misses the abbreviation `Gen` — 2026-08-06 — session: sub-agent `stale-sweep`
+
+> **⛔ This is NOT a doubt about `B042`. `B042` is SETTLED.** Albert put the
+> *"Moon Girl & Devil Dinosaur - Gen"* question to Laura **himself**, so her answer
+> (**IT SHOWS THE CHARACTERS**) is authoritative and the row is a real character
+> row kept as one row. Do not re-open it and do not ask Albert about `- Gen` again.
+
+**1. What outcome is needed, and why.** The exclusion in
+`tools/resolve-character-identity.mjs:66-70` matches only the **spelled-out** word
+`general` (`/(^|\s)general$/`, `/\(general\)/`,
+`/general (family )?(char|character)/`). The abbreviation **`Gen` is not matched**
+— which is why `B042` escaped exclusion and reached the licensing sheet at all,
+while **111 spelled-out "general" royalty labels were excluded.** So rows using the
+short spelling may be classified inconsistently with their 111 siblings. Outcome
+needed: decide whether `- Gen` / `Gen.` denote the same "General" royalty grouping
+and, if so, make the rule consistent (with negative-path tests). **This is a
+consistency question about the rest of the corpus, not about `B042`.**
+
+**2. Which application(s) depend on this.** None directly — resolver tooling for
+the characters/style-guides backfill.
+
+**3. Is it blocking anything, and how urgently?** **Not blocking. LOW.** Do not
+do this opportunistically.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — no schema involved.
+Line numbers read from the working tree at `8db1959`; re-verify before editing.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No code changed, no
+regex touched, no test written, no database call, no migration, no background task
+chip.
+
+---
+
+### REQUEST — LOW PRIORITY: the `LOGO_LABEL` rule only matches `logo` at the START or END of a name — 2026-08-06 — session: sub-agent `stale-sweep`
+
+**1. What outcome is needed, and why.** `tools/resolve-character-identity.mjs:65`
+matches `/(^|\s)logos?$/` or `/^logos?\b/`. Laura's round-3 rows `B039`–`B041`
+read `Marvel Studios\` Ant-Man & Wasp Logo ( ... )`, where `Logo` sits
+**mid-string** before a parenthetical — so the rule did not fire, and three
+obvious logo rows burned **two full licensing round trips** before being
+classified by hand. Her answers confirm the repo's own intent (all three are
+logos → DROP), so there is **no contradiction** — only a rule gap. Extend the
+rule, with negative-path tests proving it fires.
+
+**2. Which application(s) depend on this.** None directly — resolver tooling.
+
+**3. Is it blocking anything, and how urgently?** **Not blocking. LOW.** Its value
+is preventing the next batch from repeating the round trip.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Line numbers read from
+the working tree at `8db1959`; re-verify before editing.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No code changed, no test
+written, no database call, no migration, no background task chip.
+
+---
+
+### REQUEST — Record the 8 round-3 licensing answers as a committed evidence artifact, and run the mandated validator — 2026-08-06 — session: sub-agent `stale-sweep`
+
+**1. What outcome is needed, and why.** The eight round-3 rulings are now recorded
+in narrative form in `fix_characters_style_guides.md`. Two follow-ups remain:
+
+- **(a)** Append `ref → answer` for the 8 refs to the round-3 evidence set under
+  `docs/verification/character-identity-rules-20260728/`, in the same shape as the
+  existing `authorized-licensing-corrections.csv` (dated, attributed).
+  ⚠️ **Extract `ref → answer` ONLY. Do NOT commit the workbook**, and do **not**
+  copy her free-text notes — the workbook carries a third party's name and a real
+  POP item number and is deliberately uncommitted
+  (`fix_characters_style_guides.md`, round-3 section).
+- **(b)** Run **`tools/validate-licensing-answers.mjs`** against the round-3 answer
+  set. The repo's standing rule is *"never accept a returned sheet on its
+  answered-count alone"* and this step is **formally outstanding** — the recording
+  session was forbidden database calls. Only `A005`/`CC` is a code, so exposure is
+  low, but the step is not done. ⚠️ **Read the validator defect entry above first**
+  — the tool currently matches codes globally and would not catch a wrong-licensor
+  `CC`.
+
+**2. Which application(s) depend on this.** PopDAM primarily; the resulting
+taxonomy is shared.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM** —
+(b) is a standing compliance step, (a) is evidence hygiene.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Nothing verified live —
+docs-only run. The validator reads `core.property` on **preview**.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Validator NOT run, no
+evidence file written, no workbook committed, no database call of any kind, no
+`supabase` CLI, no Supabase MCP call, no psql, no migration, no background task
+chip.
+
+---
+
+### REQUEST — Fix a stale 1Password vault ID recorded in the `shared-db-orchestrator` skill (file lives OUTSIDE this repo) — 2026-08-06 — session: sub-agent `stale-sweep`
+
+**1. What outcome is needed, and why.** The `shared-db-orchestrator` skill file
+records a **1Password vault ID for `vibe_coding` that has changed.** The **live ID
+observed 2026-08-06 is `pimcaogmxxzoafh7lsluj6uxkq`.** A session following the
+stale ID gets a lookup failure that reads like a permissions or token problem.
+
+⚠️ **The skill file is NOT in this repository and was NOT edited by this session.**
+It is installed under the user profile Claude Code loads — on `al8960ofc` that is
+**`C:\Users\ahazan2\.claude\skills\shared-db-orchestrator\SKILL.md`** — and the
+**source of truth is the `ai-devops` hub repo** (`C:\repos\ai-devops` on this
+machine), from which `sync-dotfiles` installs it. **Fix it at the source in
+`ai-devops` and re-sync**, or the next `sync-dotfiles` overwrites any local edit.
+
+⚠️ **Standing trap, already recorded in memory:** 1Password vault and item IDs
+**can be re-keyed within a single session** (MCP reconnect). The durable fix is to
+**look the vault up by TITLE (`vibe_coding`), not by a hard-coded ID.** Prefer
+removing the hard-coded ID over updating it — a hard-coded ID is guaranteed to go
+stale again. Nothing hard-coded that should be configurable (global rule 12).
+
+**2. Which application(s) depend on this.** None — AI session tooling. It affects
+every machine that runs a shared-db coordinator session.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **LOW/MEDIUM** —
+it wastes a session's time each time it bites, and it misdiagnoses as an auth
+failure.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — no database involved.
+The live vault ID above was supplied by the coordinator as observed today; this
+session made **no 1Password call** and did not independently verify it.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Skill file **not**
+edited, `ai-devops` **not** touched, no 1Password MCP or `op` CLI call made, no
+branch beyond this session's own docs branch, no migration, no database call, no
+background task chip.
+
+---
 
 ### REQUEST — Finish the sweep PR #455 started: ~42 stale local branch labels — 2026-08-06 — session: outgoing coordinator (al8960ofc)
 
@@ -1171,6 +1510,21 @@ migration, no database call of any kind.
 
 **[SATISFIED — 2026-08-02, PR #402 merged (`1d7d0d8`). Phase 1 re-verified against production. Two findings that create NEW open questions: the property code `JL` is LAURA's question, not Albert's (so do not put it to Albert); and the property `Coco` sits under a licensor named "NO LICENSE" — an unanswered owner question, see the new entry below. The incoming coordinator may retire this block; Phase 2 is not yet scoped.]**
 
+**[CORRECTIONS — 2026-08-06, session `stale-sweep`. The block below is left unedited per B2.1; these
+two statements inside it are now false.**
+**(a) "the licensing team's 174-row review" (item 1) — THERE IS NO SUCH LIVE ARTIFACT.** It was
+replaced on 2026-07-26 by one 335-row list and its track closed 2026-07-27
+(`fix_characters_style_guides.md:640`, `:615`, `:641`). The real lineage is round 1 (2026-07-29) →
+round 2 (2026-07-31) → round 3. Do not reintroduce the 174-row framing — it has already produced a
+wrong premise once.
+**(b) "Laura's round-2 reply … is awaited" (item 4) — NO LONGER AWAITED.** Round 2 returned
+2026-08-04 (157/166) and **round 3 returned 2026-08-06, 8 of 8 answered, zero blanks. The licensing
+question stream is CLOSED; there is no round 4.** Settled rulings:
+`fix_characters_style_guides.md` § *"Licensing round 3 — RETURNED"*.
+**(c) "the property `Coco` sits under a licensor named NO LICENSE — an unanswered owner question"
+(in the SATISFIED note above) — ANSWERED 2026-08-06: Coco IS a Disney license.** See the COMPLETED
+section of this file.]**
+
 ### REQUEST — Characters / style-guides Phase 1 (read-only, dispatchable NOW) — 2026-07-31 — session: outgoing coordinator (t16)
 
 **1. What outcome is needed, and why.** Compare PopDAM's existing character /
@@ -1515,6 +1869,27 @@ database contact.
 
 ---
 
+> ### ⚠️ CORRECTION NOTE — 2026-08-06 — READ BEFORE THE B6 BLOCK BELOW
+>
+> **The B6 block below and its SATISFIED note say the collision guard is "ADVISORY
+> only, because `main` has NO branch protection". That sentence is FALSE.**
+>
+> **Branch protection on `main` has been ON since 2026-08-04**, turned on by Albert
+> at 12:00 UTC and recorded as a standing owner ruling in **`AGENTS.md` §6.7**:
+> `enforce_admins: true`, `allow_force_pushes: false`, `allow_deletions: false`,
+> with required status checks. **CI guards on this repository are no longer
+> advisory.**
+>
+> **The B6 block itself is deliberately NOT edited.** A later queue entry
+> (*"close the two remaining branch-protection gaps on `main`"*, 2026-08-05) states
+> explicitly: *"Do not edit or delete the B6 block."* This note is placed adjacent
+> to it instead, which satisfies both that instruction and the lifecycle rule in
+> B2.1 that nobody but the coordinator moves a block.
+>
+> **Known remaining gaps** (tracked by that 2026-08-05 entry, NOT by this note):
+> `required_status_checks.strict` is still `false`, and
+> `required_pull_request_reviews` is absent.
+
 **[SATISFIED — 2026-08-02, PR #397 merged (`c16331a`), shipped as `.github/workflows/pr-object-collision.yml`. DO NOT DELETE THIS BLOCK: the `Backlog / Queue Sync` CI guard requires every `B<n>` in `HANDOFF.md`'s BACKLOG to remain referenced from a queue section. CAVEAT: the guard is ADVISORY only, because `main` has NO branch protection.]**
 
 ### REQUEST — Backlog B6 — cross-PR object collision guard — 2026-07-31 — session: queue-seeding agent
@@ -1710,31 +2085,6 @@ live by this session — check the workflow before acting.
 **6. Confirmation of what I have NOT done. [MANDATORY]** No variable changed, no
 issue closed, no branch, no migration, no preview or production write, no
 `supabase` CLI, no Supabase MCP call, no psql, no background task chip.
-
----
-
-### REQUEST — ⛔ ALBERT: is the property `Coco` correctly filed under a licensor named "NO LICENSE"? — 2026-08-03 — session: sub-agent `characters-phase1`
-
-**1. What outcome is needed, and why.** The property `Coco` currently sits under
-a licensor literally named **"NO LICENSE"**. Either that is a deliberate holding
-place and should stay, or `Coco` needs re-homing under its real licensor. Nobody
-can decide this except Albert, and guessing would corrupt curated data — which
-`AGENTS.md` §6.4 forbids.
-
-**2. Which application(s) depend on this.** Every app reading the licensor →
-property hierarchy; royalty reporting most of all.
-
-**3. Is it blocking anything, and how urgently?** Not blocking, but it is one of
-the data-quality items that should be resolved before the licensor/property move.
-
-**4. Deadline, if any.** None.
-
-**5. What I already know about the current schema.** Found live by PR #402
-(Phase 1 re-verification against production). Not independently re-verified since.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing re-homed, no
-branch, no migration, no preview or production write, no `supabase` CLI, no
-Supabase MCP call, no psql, no background task chip.
 
 ---
 
@@ -2333,8 +2683,16 @@ dispatched.** Do not dispatch a sub-agent at any of them.
    coordination rules — the exact condition that produced the chip incident.
    *Coordinator's only action: chase it.* (`HANDOFF.md` §U1.5 item 1, §U4 item 8.)
 
-2. **Laura — reply to the round-2 licensing xlsx, SENT 2026-07-31.** Nothing to
-   do but wait. (`HANDOFF.md` §U1.5 item 3.)
+2. ~~**Laura — reply to the round-2 licensing xlsx, SENT 2026-07-31.** Nothing to
+   do but wait. (`HANDOFF.md` §U1.5 item 3.)~~
+   **✅ CLOSED 2026-08-06 — REMOVE THIS FROM YOUR MENTAL MODEL. Nothing is waiting
+   on Laura.** Round 2 returned 2026-08-04 (157/166, zero format failures) and
+   **round 3 returned 2026-08-06 with 8 of 8 answered and zero blanks. The
+   licensing question stream is CLOSED. There is no round 4.** The eight settled
+   rulings are in `fix_characters_style_guides.md` § *"Licensing round 3 —
+   RETURNED"*. The characters/style-guides workstream is **not** closed — it is now
+   blocked on **Albert** (the `EX`/`LB`/`JL` property-code policy decision) and on
+   running the Phase 3 backfill, neither of which involves Laura.
 
 3. **Albert — the ColdLion Step 8 production decision. ⛔ NOT YET ASKABLE.** The
    rehearsal prerequisite is unmet, so there is nothing to put to him. **Do not
@@ -2356,6 +2714,46 @@ to `docs/intake-archive/` under the retention rule in Part B2.2 — archived,
 never deleted.
 
 > **Refreshed 2026-07-31 23:11 UTC by the outgoing coordinator (`HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md`).** The six blocks below were moved here VERBATIM from `## REQUEST QUEUE` under the Part B2.1 lifecycle. Each is preceded by a single completion line naming the PR and merge date; the block body itself is unedited. Nothing was deleted. None is yet past the Part B2.2 retention threshold, so nothing was archived this sweep.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-08-06 by session `stale-sweep`, body VERBATIM and unedited]**
+**ANSWERED 2026-08-06 by Albert Hazan — OWNER RULING: "Coco IS a Disney license."** The question
+this block asks (*is the "NO LICENSE" parent deliberate?*) is **settled: no.** Recorded as a
+standing ruling in `fix_characters_style_guides.md` § *"8-OWNER. OWNER RULINGS — 2026-08-06"*.
+This also **resolves the cross-licensor conflict previously flagged against `A005`** — Laura's
+`CC` answer and the Disney `Coco` style guide are consistent with each other.
+⚠️ **The ruling does NOT define a database change.** The block body below says *"`Coco` needs
+re-homing under its real licensor"* — **that framing is WRONG and superseded.** Property codes are
+**not globally unique**; licensor→property is parent-child and the same code may exist as separate
+rows under many licensors (Albert, 2026-08-06; schema:
+`supabase/migrations/20260621150815_app_core.sql:200` — `core.property … unique (licensor_id,
+code)`). "Re-parent `CC` to Disney" is therefore **not a meaningful instruction and must not be
+implemented.** The remaining technical work is an **OPEN QUESTION**, re-filed as a new entry at the
+top of `REQUEST QUEUE`. No migration written; no database call made.
+
+### REQUEST — ⛔ ALBERT: is the property `Coco` correctly filed under a licensor named "NO LICENSE"? — 2026-08-03 — session: sub-agent `characters-phase1`
+
+**1. What outcome is needed, and why.** The property `Coco` currently sits under
+a licensor literally named **"NO LICENSE"**. Either that is a deliberate holding
+place and should stay, or `Coco` needs re-homing under its real licensor. Nobody
+can decide this except Albert, and guessing would corrupt curated data — which
+`AGENTS.md` §6.4 forbids.
+
+**2. Which application(s) depend on this.** Every app reading the licensor →
+property hierarchy; royalty reporting most of all.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but it is one of
+the data-quality items that should be resolved before the licensor/property move.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Found live by PR #402
+(Phase 1 re-verification against production). Not independently re-verified since.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing re-homed, no
+branch, no migration, no preview or production write, no `supabase` CLI, no
+Supabase MCP call, no psql, no background task chip.
 
 ---
 

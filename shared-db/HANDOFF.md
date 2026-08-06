@@ -5,6 +5,30 @@
 > worktrees. Write your handover into the intake queue in
 > [`COORDINATOR_INTAKE.md`](COORDINATOR_INTAKE.md) and stop.
 
+> ## ⚠️ THE NEWEST HANDOVER IS **NOT** IN THIS FILE. (added 2026-08-06)
+>
+> The big green *"COORDINATOR HANDOVER — START HERE"* section immediately below is
+> dated **2026-07-31**. It is **not current.** The newest coordinator handovers
+> live in **[`HANDOFF.d/`](HANDOFF.d/)** and are **days newer**.
+>
+> **Filenames there come in TWO formats — PARSE the timestamp, never text-sort:**
+>
+> - `YYYY-MM-DDTHHMMZ-<machine>-<slug>.md` — e.g. `2026-08-06T0149Z-al8960ofc-…`
+> - `YYYYMMDDTHHMMSSZ-<machine>-<slug>.md` — e.g. `20260731T231155Z-t16-…`
+>
+> A plain alphabetical sort ranks the **older** July file last and you will pick
+> the wrong one. Strip the punctuation from the date-time portion and compare the
+> parsed instants.
+>
+> **What this file IS still authoritative for:** the **`## BACKLOG`** section
+> (items **B1–B14**) and the long-form history — the five defects, the chip
+> incident, the Supabase-MCP-is-production warning. **What it is NOT:** the
+> current handover, or a current inventory of anything.
+>
+> Per `COORDINATOR_INTAKE.md` §B2.0: **no document wins by name or by date.**
+> Where `HANDOFF.d/`, this file, and `COORDINATOR_INTAKE.md` disagree,
+> **re-derive the fact from `git`/`gh`** rather than ranking the documents.
+
 <!-- ============================================================================
      COORDINATOR HANDOVER — FINAL — 2026-07-31 19:01 UTC
      This SUPERSEDES the 17:55 UTC handover immediately below it.
@@ -112,7 +136,8 @@ live (#322, #325); Step 7A tool tests wired into CI (#340); `COORDINATOR_INTAKE.
 INTAKE queue (for sessions that started and were told to stop), plus a full lifecycle and
 retention discipline (#348, #351); two skills — `shared-db-orchestrator` and `shared-db-handover`
 — exist locally and are **pending in `ai-devops` PR #1, which is still OPEN**; backlog grew to
-**B1–B11**.
+**B1–B11** *(**SUPERSEDED 2026-08-06** — the `## BACKLOG` section now runs **B1–B14**. `B12`,
+`B13` and `B14` were added after this snapshot was written.)*.
 
 ---
 
@@ -245,8 +270,13 @@ work is a **separate task in a separate repo and has not been started.** It is a
    produced the chip incident.
 2. **Step 8 production switch-on** — not until the five prerequisites in §U1.2 exist. Do not ask
    yet.
-3. **Laura's reply.** The round-2 licensing xlsx was **SENT 2026-07-31**. Awaiting response.
-   Nothing to do but wait.
+3. ~~**Laura's reply.** The round-2 licensing xlsx was **SENT 2026-07-31**. Awaiting response.
+   Nothing to do but wait.~~ **✅ CLOSED 2026-08-06 — NOT waiting on Laura, and never again.**
+   Round 2 returned 2026-08-04 (157/166) and **round 3 returned 2026-08-06 with 8 of 8 answered,
+   zero blanks.** **The licensing question stream is CLOSED; there is no round 4.** Detail and the
+   eight settled rulings: `fix_characters_style_guides.md` § *"Licensing round 3 — RETURNED"*.
+   The blocker on this workstream moved from **Laura** to **Albert** (item 4 below, and the
+   `EX`/`LB`/`JL` policy decision).
 4. **The property codes `EX` / `LB` / `JL`, and the 66 unmatched ColdLion codes.** Inherited from
    an earlier session. **⚠️ Nobody has yet framed these as an answerable question.** There is no
    document that puts them to Albert in a form he can rule on — no list, no proposed mapping, no
@@ -716,11 +746,12 @@ THE FOUR WORKSTREAMS:
      core.property_alias instead of its hard-coded arrays, and must prove normalizePopSGTag is
      byte-identical to core.normalize_popsg_property_observation across all 21 frozen fixtures.
      UNTIL THEN EVERY ALIAS APPROVAL HAS ZERO RUNTIME EFFECT.
-  4. Repo health — backlog B1-B11 in HANDOFF.md. B6 (cross-PR object collision guard) is the
+  4. Repo health — backlog B1-B11 [SUPERSEDED 2026-08-06: the backlog is now **B1–B14**] in HANDOFF.md. B6 (cross-PR object collision guard) is the
      root cause of the chip incident and is STILL UNFIXED.
 
-AWAITING ALBERT: merge ai-devops PR #1 then "sync my dotfiles" on his other machines; Laura's
-reply (round-2 xlsx sent 2026-07-31); the EX/LB/JL property codes and the 66 unmatched ColdLion
+AWAITING ALBERT: merge ai-devops PR #1 then "sync my dotfiles" on his other machines; ~~Laura's
+reply (round-2 xlsx sent 2026-07-31)~~ [CLOSED 2026-08-06 — round 3 returned 8/8; licensing is
+DONE, no round 4]; the EX/LB/JL property codes and the 66 unmatched ColdLion
 codes — nobody has yet framed those as an answerable question, and doing so is a task for you.
 
 PREVIEW rjyboqwcdzcocqgmsyel IS NOT A CLEAN BASELINE: ClickUp migrations plus importer data
@@ -930,7 +961,10 @@ GLM 5.2 review reached the same verdict: **NOT YET**.
    (in PR #345) — do not re-ask him.
 3. **The property codes `EX` / `LB` / `JL`**, and the **66 unmatched ColdLion codes** inherited
    from an earlier session.
-4. **Laura's reply.** The round-2 licensing xlsx was **SENT 2026-07-31**; awaiting response.
+4. ~~**Laura's reply.** The round-2 licensing xlsx was **SENT 2026-07-31**; awaiting response.~~
+   **✅ CLOSED 2026-08-06.** Round 2 returned 2026-08-04; round 3 returned 2026-08-06, 8 of 8
+   answered. **Licensing is CLOSED — no round 4, nothing outstanding with Laura.** See
+   `fix_characters_style_guides.md` § *"Licensing round 3 — RETURNED"*.
 
 ---
 
@@ -2158,8 +2192,16 @@ that one place answers "what is outstanding?".
   ClickUp migrations (`20260728174500`), never before, or the apply aborts with
   `undefined_function`. See `fix_public_schema_anon_lockdown.md`.
 - **Characters and style guides, Phase 0** — blocked on an **owner decision** (promote DAM's
-  existing character→property mapping vs the 174-row licensing-team review). Phase 1 is
+  existing character→property mapping vs the ~~174-row~~ licensing-team review). Phase 1 is
   read-only and can start now regardless.
+  > **CORRECTED 2026-08-06 — there is no live "174-row licensing review".** That sheet was
+  > **replaced on 2026-07-26** with a single 335-row list, because the 367-agreement track and the
+  > 174-row track did not cover the same population
+  > (`fix_characters_style_guides.md:640`, and the "what did not work" entry at `:615`). The track
+  > it belonged to **closed on 2026-07-27** when licensing returned all 153 uncertainty rows
+  > (`:641`). The real lineage is **round 1 (195 questions, 2026-07-29) → round 2 (166 rows,
+  > 2026-07-31, returned 2026-08-04) → round 3 (8 rows, returned 2026-08-06 — CLOSED)**. Do not
+  > carry the 174-row framing forward; it has already produced a wrong premise once.
 - **PopSG PSG-5 — the eight Licensor aliases** remain a blocking owner gate; that is Albert's
   call, not an AI's.
 
@@ -4240,6 +4282,17 @@ change written, no database modified.**
 
 Merged: PRs #197 `db97cd9`, #203 `31e6583`, #215 `f9c8758`, #236 `5bd2f5f`, #237 `1a9a4b1`.
 
+> ### ✅ SUPERSEDED 2026-08-06 — LICENSING IS CLOSED, NOT "AWAITING LAURA".
+>
+> The status update immediately below is a **2026-07-31 snapshot** and its
+> conclusion ("awaiting Laura's response; no further action is available to any AI
+> session") is **no longer true.** Round 2 returned **2026-08-04** (157/166, zero
+> format failures) and **round 3 returned 2026-08-06 with 8 of 8 answered and zero
+> blanks. The licensing question stream is CLOSED. There is no round 4 and nothing
+> is outstanding with Laura.** The eight settled rulings are recorded in
+> `fix_characters_style_guides.md` § *"Licensing round 3 — RETURNED"*. The block
+> below is kept for its lineage detail only.
+
 **STATUS UPDATE — licensing coordination with Laura, round-2 sheet SENT (2026-07-31).** The
 round-2 workbook
 `docs/verification/character-identity-rules-20260728/licensing-questions-for-laura-round2-20260731.xlsx`
@@ -4252,8 +4305,14 @@ unedited only because the session recording this was scoped to `HANDOFF.md` alon
 with Laura happens from any session.
 
 **Exact next action:** Phase 0 — blocking **owner decision** (promote DAM's existing
-character→property mapping vs the 174-row licensing-team review). Phase 1 is read-only and can
+character→property mapping vs the ~~174-row~~ licensing-team review). Phase 1 is read-only and can
 start immediately regardless.
+
+> **CORRECTED 2026-08-06 — the "174-row licensing-team review" no longer exists as a live
+> artifact.** Replaced 2026-07-26 by a single 335-row list; the track closed 2026-07-27
+> (`fix_characters_style_guides.md:640` and `:615`, `:641`). The real lineage is round 1
+> (2026-07-29) → round 2 (2026-07-31, returned 2026-08-04) → **round 3 (returned 2026-08-06 —
+> CLOSED)**. Do not reintroduce the 174-row framing.
 
 **Sequencing:** this touches the property spine, so **its Phase 5 production apply must not land
 in the same window as the separately approved ColdLion production cutover**. There is no longer a

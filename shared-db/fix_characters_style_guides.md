@@ -459,10 +459,163 @@ not allow:
 > committed to this repository.** It is delivered out of band. Round 1 and round 2 artifacts that
 > are already committed stay as they are.
 
+### Licensing round 3 — RETURNED, AND THE LICENSING QUESTION STREAM IS CLOSED (2026-08-06)
+
+**Source:** Laura, round-3 workbook, returned 2026-08-06. Verified cell-by-cell against the
+delivered workbook by the recording session (sheet `Open questions`, rows 2–9, answer column `I`).
+
+**8 of 8 answered. Zero blanks. Zero uses of the `NONE OF THESE FIT` escape. Zero format
+failures.** The round-3 design (required cells + per-row option lists + escape hatch) worked.
+
+These are **settled rulings**, not proposals:
+
+| Ref | Row | Laura's answer | Disposition |
+|---|---|---|---|
+| `A005` | Disney / `Coco` / `Coco` | **`CC`** | **SETTLED as a licensing fact:** `CC` is the property code POP used for Coco. Her note states `CC` is the code used for products POP made in the past and cites one concrete produced item number as evidence. **That item number is deliberately NOT reproduced here** — it is a real internal POP item identifier and the workbook carrying it is deliberately uncommitted (see the note above); the coordinator holds it out of band. ⚠️ **Her answer names a CODE, not a row.** Property codes are not globally unique (see the 2026-08-06 owner rulings below), so *which licensor's* `CC` she meant is an open technical question, not something this table settles. |
+| `B039` | Marvel / `...Quantumania - No Likeness` / `Marvel Studios\` Ant-Man & Wasp Logo ( Marvel Studios\` Ant-Man Wasp Quantuma` | **IT IS JUST A LOGO OR TITLE** | **SETTLED — DROP.** Non-character. Also settles the round-2 `NONE` ambiguity ("drop the row" vs "no property code") as *drop*. |
+| `B040` | Marvel / `...Quantumania - No Likeness` / `Marvel Studios\` Ant-Man & Wasp Logo ( MS\` Ant-Man Wasp Quantumania )` | **IT IS JUST A LOGO OR TITLE** | **SETTLED — DROP.** Non-character. |
+| `B041` | Marvel / `...Quantumania - With Likeness` / same logo row | **IT IS JUST A LOGO OR TITLE** | **SETTLED — DROP.** Non-character. Confirms the likeness variant behaves identically, consistent with the owner's likeness rule. |
+| `B042` | Marvel / `Marvel's Moon Girl and Devil Dinosaur` / `Moon Girl & Devil Dinosaur - Gen ( Marvel\`s Moon Girl and Devil Dinosaur )` | **IT SHOWS THE CHARACTERS** | **SETTLED — KEEP as ONE row.** See the `- Gen` ruling below: this answer is authoritative. |
+| `B043` | Disney / `Mickey Mouse` / `Mickey & Donald Show` | **IT SHOWS THE CHARACTERS** | **SETTLED — KEEP as ONE row**, named by its own label, per the 2026-08-04 ruling. |
+| `B044` | Disney / `Mickey Mouse` / `Mickey & Pluto - Back To School` | **IT SHOWS THE CHARACTERS** | **SETTLED — KEEP as ONE row**, named by its own label. |
+| `B045` | Disney / `Mickey Mouse Family` / `Morty & Ferdy` | **IT SHOWS THE CHARACTERS** | **SETTLED — KEEP as ONE row**. |
+
+Rolled up: **3 DROP (`B039`–`B041`), 4 KEEP-as-one-character (`B042`–`B045`), 1 code confirmation
+(`A005` = `CC`).**
+
+**⛔ THE LICENSING QUESTION STREAM IS CLOSED. There is no round 4.** Rounds 1 → 2 → 3 are done and
+all 195 original decisions now carry a usable licensing answer or a recorded disposition.
+**Nothing is outstanding with Laura, and no session should record the workstream as "awaiting
+Laura's reply" again.** Any document that still says so is stale as of 2026-08-06.
+
+**Consequence for `B043`/`B044`:** the canonical characters will literally be named
+`Mickey & Donald Show` and `Mickey & Pluto - Back To School`. That looks odd and is **exactly what
+the 2026-08-04 ruling mandates.** Do not "fix" it later.
+
+**Still outstanding (NOT licensing, and NOT closed by the above):** the `EX` / `LB` / `JL`
+canonical-property-code policy decision (§8a) — an owner decision — and the Phase 3 backfill
+itself, which has not been run. The blocker on this workstream moved from Laura to Albert.
+
+**Formal step not yet done:** `tools/validate-licensing-answers.mjs` has not been run against the
+round-3 answer set (the recording session was forbidden database calls). Only `A005`/`CC` would be
+affected. Recorded as a queue entry, not skipped silently — see `COORDINATOR_INTAKE.md`.
+
+### 8-OWNER. OWNER RULINGS — 2026-08-06 (Albert Hazan) — SETTLED, DO NOT RE-LITIGATE
+
+#### Ruling 1 — **Coco IS a Disney license.**
+
+Albert, 2026-08-06. This is a **settled owner decision** about a commercial fact, not a data guess.
+
+**What it supersedes.** Every previous statement in this repository that treats *"`Coco` sits
+under a licensor named NO LICENSE"* as possibly deliberate — a real commercial fact that should
+stay — is **SUPERSEDED as of 2026-08-06**. The open question *"is the property `Coco` correctly
+filed under a licensor named NO LICENSE?"* is **ANSWERED: no.** Coco is a Disney license.
+
+**⚠️ READ THIS BEFORE ACTING ON THE RULING — the obvious next step is NOT the right one.**
+
+**Property codes are NOT globally unique.** Licensor → Property is a **parent-child**
+relationship, and the *same* property code can exist as a **separate property row under many
+different licensors at the same time**. There could be a `CC` under twenty different licensors.
+Confirmed by Albert, 2026-08-06.
+
+Therefore *"re-parent `CC` from `ZZ` to Disney"* is **not a meaningful instruction** and **must
+not be queued, planned, or implemented in those words.** Any earlier text in this repository that
+describes this as a re-parenting job, or that treats a bare code like `CC` as identifying one
+global row, is **wrong and superseded**.
+
+**What follows.**
+
+- The `A005` cross-licensor conflict is **RESOLVED as a licensing/ownership question.** Laura's
+  `CC` answer and the Disney `Coco` style guide are consistent with each other: Coco is Disney.
+  The fail-closed cross-licensor rule (owner answer #2, 2026-07-29) is not in dispute; what is
+  unresolved is purely *which row the style guide should point at*.
+- Item **A3** in `docs/characters-style-guides-phase1-reverification-20260802.md` is **no longer
+  an open OWNER question.** The owner has ruled. What remains is a **technical open question**,
+  below.
+- **The database work is an OPEN QUESTION, not a defined change.** Three candidate fixes, none
+  chosen, and **this document does not choose between them**:
+  1. point the Disney `Coco` style guide at a `CC` property row that **already exists under the
+     Disney licensor**, if one does; or
+  2. **create** a `CC` property under the Disney licensor; or
+  3. something else entirely — including that the Disney-side Coco property may carry a code other
+     than `CC`, or that the `ZZ` row is a separate, legitimately distinct row that is simply not
+     the one this style guide should use.
+- Answering it requires reading the live licensor → property hierarchy. **No session may decide
+  this from documents.** Filed as a QUESTION TO RESOLVE in `COORDINATOR_INTAKE.md`. **No migration
+  has been written and none may be written outside coordinator dispatch.**
+
+**Read-only evidence gathered 2026-08-06 (repo only, NO database calls).** Recorded so the session
+that answers this does not re-derive it:
+
+- **The SCHEMA already agrees with Albert.** `supabase/migrations/20260621150815_app_core.sql:200`
+  declares `core.property … unique nulls not distinct (licensor_id, code)` — property codes are
+  unique **per licensor**, never globally. By contrast `core.licensor` (`:188`) *is*
+  `unique nulls not distinct (code)`, so **licensor** codes genuinely are global. The two are
+  routinely confused; they are not the same rule.
+- Whether a `CC` row already exists under the Disney licensor **could not be determined from the
+  repository** — no committed artifact enumerates `core.property` rows by `(licensor, code)`. It
+  needs a live read. **Do not guess.**
+- The repo is mostly *already* correct on this point and says so loudly — e.g.
+  `fix_item_taxonomy_wiring.md:147` (*"Resolving property by code alone is wrong. Resolve licensor
+  first"*), `AGENTS.md` §6 standing rule 3, and
+  `docs/licensor-property-parent-child-design-20260802.md:227`. The global-uniqueness framing was
+  introduced in the *description of this task*, not by the schema or the design docs.
+
+**⚠️ FLAGGED, NOT FIXED — two places that DO appear to assume a property code is globally
+unique.** Both are filed as queue entries; neither was changed by this session:
+
+1. **`tools/validate-licensing-answers.mjs:86-96`** — the mandated licensing validator queries
+   `where p.code = any($1)` with **no licensor scope**, then builds its "present" set from
+   `p.code` alone. A code that exists only under the *wrong* licensor is reported as present and
+   usable. It selects `l.name as licensor` but never uses it. This is the exact defect class that
+   would have waved `A005`/`CC` through. **Real defect; needs its own queue entry.**
+2. **§8a below (`fix_characters_style_guides.md:575-576`)** — *"ColdLion exposes 322 distinct
+   property codes; `core.property` holds 256; 66 are missing"*. That is a set difference computed
+   on **bare codes across all licensors**. Under a `(licensor_id, code)` model the figure does not
+   mean what it says, and the "66 missing / 51 active" owner decision is framed on top of it.
+   **Flagged; the numbers are NOT corrected here** — re-deriving them requires a live read.
+
+#### Ruling 2 — **`B042` "- Gen" is authoritative; the `GENERAL_ROYALTY_LABEL` risk is RESOLVED.**
+
+Albert, 2026-08-06: **Albert himself put the `Moon Girl & Devil Dinosaur - Gen` question to
+Laura.** The question therefore reached her with the owner's own framing, and her answer —
+**IT SHOWS THE CHARACTERS** — is **authoritative**.
+
+**What it supersedes.** The previously flagged risk that `- Gen` is an abbreviation of *General*
+and therefore collides with the `GENERAL_ROYALTY_LABEL` exclusion in
+`tools/resolve-character-identity.mjs:66-70` (which excluded 111 "general" royalty labels) is
+**CLOSED as of 2026-08-06.** `B042` is a real character row, kept as one row. Do not re-open it,
+do not hold `B042` behind a further question, and do not put `- Gen` to Albert again.
+
+**Low-priority follow-up, recorded as a queue entry and NOT actioned here.** The exclusion regexes
+match only the spelled-out word `general` (`/(^|\s)general$/`, `/\(general\)/`,
+`/general (family )?(char|character)/`). The abbreviation `Gen` is **not** matched. That is why
+`B042` escaped the exclusion and reached the sheet at all. Other `- Gen` / `Gen.` rows may
+therefore behave inconsistently with the 111 excluded siblings. **This is a consistency question
+about the rest of the corpus, not a doubt about `B042`** — `B042` is settled. Filed in
+`COORDINATOR_INTAKE.md`; do not fix it as a drive-by.
+
+**Related rule gap, also filed and NOT actioned here.** `B039`–`B041` are obvious logo rows that
+the `LOGO_LABEL` rule (`tools/resolve-character-identity.mjs:65`) did **not** catch, because it
+matches `logo` only at the **start or end** of a name and these read
+`... & Wasp Logo ( ... )` — `Logo` mid-string before a parenthetical. Three obvious logo rows
+burned two full licensing round trips as a result.
+
 ### 8a. Missing canonical property codes — OWNER DECISION, NOT A LICENSING ONE
 
 **Verified 2026-07-31 on preview:** ColdLion type-`06` exposes **322 distinct property codes**;
 `core.property` holds **256**. **66 are missing, 51 of them still active.**
+
+> **⚠️ FLAGGED 2026-08-06 — these three numbers may not mean what they say.** They are a set
+> difference computed on **bare property codes**, ignoring the licensor. But `core.property` is
+> keyed `unique (licensor_id, code)` — **property codes are unique only per licensor, never
+> globally** (owner ruling 2026-08-06, §8-OWNER; schema at
+> `supabase/migrations/20260621150815_app_core.sql:200`). A code counted as "present" may exist
+> only under the wrong licensor, and a code counted as "missing" may exist under several.
+> **Not corrected here** — re-deriving it needs a live read, and this session was docs-only.
+> Filed as a queue entry. Treat "66 missing / 51 active" as **unverified** until re-derived per
+> licensor. See also `docs/coldlion-source-of-truth-plan.md:72-73`, which already records these
+> counts as stale for a *different* reason (ColdLion now returns 285, not 322).
 
 This is **policy, not a bug**. ColdLion has **no expiry flag**, so it still returns lapsed licences
 (NASA, ZAG, FRIDA KAHLO among them). Admitting the unmatched codes wholesale would resurrect dead
@@ -646,3 +799,6 @@ model doc §6.
 | 2026-07-28 | Withdrew that Phase 3 exposure as overstated: ColdLion's `link_approved` provably never creates, deletes, or re-keys canonical rows and is guarded by a row-count immutability check, `promote_approved` is not implemented, and preview shows `core.property` at 256 rows with ColdLion's 542 source refs already written. Added a measured Phase 3 readiness table and flagged that the two file-row counts quoted earlier were production figures. |
 | 2026-07-31 | Licensing round 1 returned 194/195 answered but only **29 usable**. All 154 combination rows came back as MG06 property codes because the sheet asked for names in a code-shaped answer column — our defect, not the reviewer's. `LB`/`EX` confirmed correct and reclassified as our missing-property problem (§8a). Round 2 built with **166 locked dropdowns** and sent. Recorded the 66 missing ColdLion property codes as an owner policy decision, not a bug. |
 | 2026-08-04 | **Owner ruling: multi-character style-guide rows are NOT split — they stay as one row.** Closes §8a point 2, the last of the three pre-backfill owner decisions. Combination rows need only the binary real-or-drop classification; the free-text names column is dead and the echoed-name rows need no further work. Round 2 returned 157/166 with zero format failures. Round 3 built as **8 rows** (`A005`, `B039`–`B045`): `B038` recorded as DROP from its own note and `B007` closed by the ruling, so neither is re-asked. Round 3 keeps the locked dropdowns and adds required answers plus a `NONE OF THESE FIT` escape. |
+| 2026-08-06 | **Licensing round 3 RETURNED — 8 of 8 answered, zero blanks, zero format failures. THE LICENSING QUESTION STREAM IS CLOSED; there is no round 4.** `A005` = `CC`; `B039`–`B041` DROP as logos; `B042`–`B045` KEEP as one character row each. Source: Laura, round-3 workbook, 2026-08-06. Nothing further is outstanding with Laura — every document still saying "awaiting Laura's reply" is stale from this date. |
+| 2026-08-06 | **OWNER RULING (Albert Hazan): Coco IS a Disney license.** Supersedes any reading that `Coco` under a "NO LICENSE" licensor was deliberate, and closes that open question. **Same date, same owner: property codes are NOT globally unique** — licensor→property is parent-child and the same code may exist under many licensors, so *"re-parent `CC` to Disney"* is not a meaningful instruction and must not be planned in those words. The remaining database work is an **OPEN QUESTION** (point the guide at an existing Disney `CC`, create one, or something else), filed as a question in `COORDINATOR_INTAKE.md`, **not** a defined change. |
+| 2026-08-06 | **OWNER RULING (Albert Hazan): the `B042` "- Gen" answer is authoritative** — Albert put that question to Laura himself. The `GENERAL_ROYALTY_LABEL` collision risk against `B042` is **RESOLVED, not open.** The separate observation that the exclusion regex matches only the spelled-out word "general" (so other `- Gen` rows may behave inconsistently) is recorded as a **low-priority** queue entry, not work. |
