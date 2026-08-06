@@ -56,6 +56,10 @@ part of the imported workbook data, so they are preserved.
 
 ## UI Behavior
 
+- Approval dates color the whole row in both Master Data tabs. A date in
+  `Concept Approval` highlights the row yellow. A date in `Production Approval`
+  highlights it green. Production approval takes priority when both dates are
+  present.
 - Tabs:
   - Google Sheet `License.Style` maps to **Licensed**
   - Google Sheet `Generic.Style` maps to **Generic**

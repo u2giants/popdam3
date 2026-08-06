@@ -30,6 +30,7 @@ import {
   type StyleTrackerFieldKey,
   type StyleTrackerLinkCandidate,
 } from "@/lib/style-tracker-candidates";
+import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
 import { cn } from "@/lib/utils";
 
 LicenseManager.setLicenseKey("");
@@ -1867,6 +1868,12 @@ export default function StylesPage() {
             loading={rowsQuery.isLoading}
             quickFilterText={quickFilter}
             getRowId={(params) => params.data.id}
+            getRowStyle={(params) => {
+              const approval = approvalHighlightForRow(params.data);
+              if (approval === "production") return { backgroundColor: "#dcfce7", color: "#14532d" };
+              if (approval === "concept") return { backgroundColor: "#fef3c7", color: "#713f12" };
+              return undefined;
+            }}
             getContextMenuItems={contextMenuItems}
             onGridReady={(event: GridReadyEvent<StyleRow>) => {
               void event;
