@@ -408,7 +408,7 @@ Documents in this repo have gone stale within the hour.
 
 Verify before you act:
 
-1. `git fetch --all --prune=false` — get the real remote state. (Do not prune
+1. `git fetch --all --no-prune` — get the real remote state. (Do not prune
    or delete anything while agents may be live.)
 2. `gh pr list --state all --limit 40` — confirm every PR number and state the
    block claims. "Merged" claims are wrong often enough to check every time.
@@ -573,7 +573,7 @@ again at handover.** Both are checklist items, not optional tidying:
 
 **At session start (before dispatching anything):**
 
-- [ ] `git fetch --all --prune=false`, then `git worktree list` and
+- [ ] `git fetch --all --no-prune`, then `git worktree list` and
       `git branch -vv` — know what exists before adding to it.
 - [ ] Move any `IN PROGRESS` block whose PR has merged to `COMPLETED`.
 - [ ] Apply the retention rule (B2.2) — archive anything past threshold.
