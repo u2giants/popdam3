@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createSellThroughPreviewRows,
+  generateSellThroughWorkbook,
   normalizeStockNumber,
   parseSellThroughCsv,
   summarizeSellThroughRows,
@@ -48,5 +49,37 @@ describe("sell-through CSV export helpers", () => {
       unmatchedSkus: 1,
       rowsMissingThumbnail: 1,
     });
+  });
+
+  it("exports quantities as numbers, prices as currency, percentages as percentages, and dates as dates", async () => {
+    const parsed = parseSellThroughCsv(
+      "Vendor Stock Number,Units Sold,Net Sales,Unit Price,Sell Through %,Week Ending,Notes\n00123,1,1234.5,$12.50,25%,07/31/2026,Keep as text",
+    );
+    const previewRows = createSellThroughPreviewRows(parsed, new Map());
+    const generated = await generateSellThroughWorkbook(parsed.headers, previewRows);
+
+    const ExcelJS = await import("exceljs");
+    const workbook = new ExcelJS.default.Workbook();
+    const workbookBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(generated.blob);
+    });
+    await workbook.xlsx.load(workbookBuffer);
+    const sheet = workbook.getWorksheet("Sell-through Images");
+
+    expect(sheet).toBeDefined();
+    expect(sheet!.getCell(2, 3).value).toBe("00123");
+    expect(sheet!.getCell(2, 4).value).toBe(1);
+    expect(sheet!.getCell(2, 5).value).toBe(1234.5);
+    expect(sheet!.getCell(2, 5).numFmt).toContain("$");
+    expect(sheet!.getCell(2, 6).value).toBe(12.5);
+    expect(sheet!.getCell(2, 6).numFmt).toContain("$");
+    expect(sheet!.getCell(2, 7).value).toBe(0.25);
+    expect(sheet!.getCell(2, 7).numFmt).toBe("0.0%");
+    expect(sheet!.getCell(2, 8).value).toBeInstanceOf(Date);
+    expect(sheet!.getCell(2, 8).numFmt).toBe("mm/dd/yyyy");
+    expect(sheet!.getCell(2, 9).value).toBe("Keep as text");
   });
 });

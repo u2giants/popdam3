@@ -43,6 +43,13 @@ export interface ThumbnailBytes {
 
 export type ThumbnailFetcher = (url: string) => Promise<ThumbnailBytes>;
 
+type SellThroughColumnType = "text" | "number" | "currency" | "percent" | "date";
+
+interface SellThroughColumnFormat {
+  type: SellThroughColumnType;
+  numFmt?: string;
+}
+
 export function normalizeStockNumber(value: string | null | undefined): string {
   return (value ?? "").trim().toUpperCase();
 }
@@ -158,6 +165,82 @@ function rowValue(row: string[], index: number): string {
   return row[index] ?? "";
 }
 
+const IDENTIFIER_HEADER_PATTERN = /(?:^|\b)(?:id|sku|upc|ean|barcode|stock(?:\s+number)?|item(?:\s+number)?|style(?:\s+number)?|model(?:\s+number)?|zip|postal)(?:\b|$)/i;
+const CURRENCY_HEADER_PATTERN = /(?:\$|\b(?:price|cost|amount|revenue|dollars?|currency|retail|wholesale|msrp|aurr?|sales\s+value|net\s+sales|gross\s+sales)\b)/i;
+const PERCENT_HEADER_PATTERN = /(?:%|\b(?:percent(?:age)?|sell[ -]?thru|sell[ -]?through|margin|rate)\b)/i;
+const DATE_HEADER_PATTERN = /\b(?:date|week\s+ending|month\s+ending|period\s+ending)\b/i;
+
+function parseNumericCell(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const negative = /^\(.*\)$/.test(trimmed);
+  const normalized = trimmed.replace(/^\(|\)$/g, "").replace(/[$,\s]/g, "");
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? (negative ? -Math.abs(parsed) : parsed) : null;
+}
+
+function parseDateCell(value: string): Date | null {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{1,4})[/-](\d{1,2})[/-](\d{1,4})$/);
+  if (!match) return null;
+
+  const [, first, second, third] = match;
+  const year = first.length === 4 ? Number(first) : Number(third.length === 2 ? `20${third}` : third);
+  const month = Number(first.length === 4 ? second : first);
+  const day = Number(first.length === 4 ? third : second);
+  const date = new Date(year, month - 1, day);
+
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+}
+
+function inferColumnFormat(header: string, values: string[]): SellThroughColumnFormat {
+  if (IDENTIFIER_HEADER_PATTERN.test(header)) return { type: "text" };
+
+  const nonEmptyValues = values.filter((value) => value.trim() !== "");
+  if (nonEmptyValues.length === 0) return { type: "text" };
+
+  if (DATE_HEADER_PATTERN.test(header) && nonEmptyValues.every((value) => parseDateCell(value))) {
+    return { type: "date", numFmt: "mm/dd/yyyy" };
+  }
+
+  if (PERCENT_HEADER_PATTERN.test(header)) {
+    const allPercentValues = nonEmptyValues.every((value) => parseNumericCell(value.replace(/%$/, "")) !== null);
+    if (allPercentValues) return { type: "percent", numFmt: "0.0%" };
+  }
+
+  const allNumeric = nonEmptyValues.every((value) => parseNumericCell(value) !== null);
+  if (!allNumeric) return { type: "text" };
+
+  if (CURRENCY_HEADER_PATTERN.test(header)) return { type: "currency", numFmt: "$#,##0.00;[Red]-$#,##0.00" };
+
+  const hasLeadingZero = nonEmptyValues.some((value) => /^[-+]?0\d+/.test(value.trim()));
+  if (hasLeadingZero) return { type: "text" };
+
+  const hasDecimal = nonEmptyValues.some((value) => {
+    const parsed = parseNumericCell(value);
+    return parsed !== null && !Number.isInteger(parsed);
+  });
+  return { type: "number", numFmt: hasDecimal ? "#,##0.00" : "#,##0" };
+}
+
+function formattedCellValue(value: string, format: SellThroughColumnFormat): string | number | Date {
+  if (value.trim() === "") return "";
+  if (format.type === "text") return value;
+  if (format.type === "date") return parseDateCell(value) ?? value;
+
+  if (format.type === "percent") {
+    const hasPercentSign = /%\s*$/.test(value);
+    const parsed = parseNumericCell(value.replace(/%\s*$/, ""));
+    if (parsed === null) return value;
+    return hasPercentSign || Math.abs(parsed) > 1 ? parsed / 100 : parsed;
+  }
+
+  return parseNumericCell(value) ?? value;
+}
+
 function imageExtension(contentType: string, url: string): "jpeg" | "png" | "gif" {
   if (contentType.includes("png") || /\.png(?:$|\?)/i.test(url)) return "png";
   if (contentType.includes("gif") || /\.gif(?:$|\?)/i.test(url)) return "gif";
@@ -192,6 +275,12 @@ export async function generateSellThroughWorkbook(
   });
 
   const outputHeaders = ["Image", "PopDAM Match", ...headers];
+  const columnFormats = headers.map((header, index) =>
+    inferColumnFormat(
+      header,
+      rows.map((row) => rowValue(row.originalRow, index)),
+    ),
+  );
   sheet.addRow(outputHeaders);
   sheet.getRow(1).font = { bold: true };
   sheet.getRow(1).alignment = { vertical: "middle" };
@@ -213,10 +302,14 @@ export async function generateSellThroughWorkbook(
     const outputRow = sheet.addRow([
       "",
       matchLabel,
-      ...headers.map((_, index) => rowValue(previewRow.originalRow, index)),
+      ...headers.map((_, index) => formattedCellValue(rowValue(previewRow.originalRow, index), columnFormats[index])),
     ]);
     outputRow.height = previewRow.match?.thumbnailUrl ? 64 : 22;
     outputRow.alignment = { vertical: "middle", wrapText: true };
+  });
+
+  columnFormats.forEach((format, index) => {
+    if (format.numFmt) sheet.getColumn(index + 3).numFmt = format.numFmt;
   });
 
   const thumbnailFailures: ThumbnailFetchFailure[] = [];
