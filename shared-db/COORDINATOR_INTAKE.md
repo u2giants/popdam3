@@ -1559,34 +1559,6 @@ branch deleted, no prune, no force — nothing was cleaned.** No branch created 
 this handover's own, no migration, no preview or production push, no `supabase` CLI,
 no Supabase MCP call, no psql, no chip, no database call of any kind.
 
----
-
-**[SATISFIED — re-verified 2026-08-03 23:57 UTC. `C:\repos\shared-db` is on `main` at `9265986`, clean except the UNOWNED untracked directory `.ai/deepseek-sessions/` (predates this session, never touched, DO NOT DELETE). The incoming coordinator may retire this block.]**
-
-### REQUEST — ⚠️ FIRST ACTION: un-park the shared checkout `C:\repos\shared-db` from an intake branch — 2026-07-31 — session: outgoing coordinator (t16)
-
-**1. What outcome is needed, and why.** The shared checkout is sitting on branch
-`intake/coldlion-comparison-handover-20260731`, **not `main`**. It is clean, so
-nothing is at risk of loss, but the next session that opens it and assumes `main`
-will read stale files or branch from the wrong base. This supersedes the older
-"Update the stale shared checkout" block further down, which described a
-different (staleness) problem.
-
-**2. Which application(s) depend on this.** None directly — it is a working-copy
-hazard affecting every future shared-db session on `t16`.
-
-**3. Is it blocking anything, and how urgently?** Not blocking, but it is the
-single most likely way the next session goes wrong. **Do it before anything else.**
-
-**4. Deadline, if any.** None.
-
-**5. What I already know about the current schema.** N/A — no schema involved.
-Exact commands and the verification gate: handover §3.2.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** The outgoing coordinator
-did not switch the shared checkout (its own work was done in an isolated
-worktree). No branch deleted, no migration, no preview or production push, no
-`supabase` CLI, no Supabase MCP call, no psql, no chip.
 
 ---
 
@@ -1619,63 +1591,7 @@ ordering trap (`20260729120000` after `20260728174500` → `undefined_function`
 workflow edited, no branch, no migration, no production apply, no `supabase` CLI
 run by this session, no Supabase MCP call, no psql, no chip.
 
----
 
-**[SATISFIED — 2026-08-02, PR #395 merged (`13702f7`). Intake PRs #365 (`ce3eda8`), #366 (`df039f9`) and #373 (`8595a4a`) were all ingested with per-claim verification and merged; their blocks are in `## TAKEN OVER` at the bottom of this file. Four follow-on REQUEST entries came out of it and are still open above. The incoming coordinator may retire this block.]**
-
-### REQUEST — Ingest the two un-ingested intake PRs #365 and #366 — 2026-07-31 — session: outgoing coordinator (t16)
-
-**1. What outcome is needed, and why.** Both PRs are intake handovers from
-uncoordinated sessions. Neither has been ingested. **Do not merge them
-unverified** — that launders unchecked claims into `main`. Verify every claim
-against the live repo and live schema, then dispatch or explicitly drop, then move
-each block to `## TAKEN OVER` per Part B2.1.
-
-**2. Which application(s) depend on this.** Unknown until the blocks are read;
-both concern ColdLion.
-
-**3. Is it blocking anything, and how urgently?** Not blocking, but they are open
-PRs accumulating drift against a moving `main`.
-
-**4. Deadline, if any.** None.
-
-**5. What I already know about the current schema.** Nothing verified from these
-blocks — that is the point. Both PRs re-checked as `MERGEABLE` at 23:11 UTC.
-Detail: handover §3.5.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Not merged, not closed,
-not ingested, not verified. No branch, no migration, no database call of any kind.
-
----
-
-**[SATISFIED — 2026-08-02, PR #396 merged (`549bc16`). PROVEN read-only that the 5 stuck alerts were RESIDUE of the ENOBUFS fault already fixed by PR #367. DO NOT RE-DIAGNOSE THEM. The same work found the real defect — nothing could ever set `acknowledged_at`, so the alert channel was write-only — which PR #406 then fixed. The incoming coordinator may retire this block. What is STILL open is separate: stopping the monitor, building dedupe, and closing the 25 duplicate issues — see the new entry below.]**
-
-### REQUEST — Diagnose the hourly preview ColdLion alert-monitor failure (READ-ONLY FIRST) — 2026-07-31 — session: outgoing coordinator (t16)
-
-**1. What outcome is needed, and why.** The preview alert monitor has failed
-**every hour since 20:02 UTC** with "An undelivered ColdLion taxonomy alert exists.
-Human response owner: Albert Hazan." It is almost certainly residue of the ENOBUFS
-breaker trip, but that is **unproven** and it names Albert. Establish what it is
-before anything is acknowledged or cleared.
-
-**2. Which application(s) depend on this.** None directly; it is the ColdLion
-ingestion lane's own alerting in preview.
-
-**3. Is it blocking anything, and how urgently?** Not blocking work, but it is a
-**live red alarm** and every hour it repeats erodes trust in the alerting.
-
-**4. Deadline, if any.** None, but it is noisy now.
-
-**5. What I already know about the current schema.** Preview
-`rjyboqwcdzcocqgmsyel` carries `ingest.sync_run` failure rows and breaker events
-from the ENOBUFS defect, and the breaker was reset twice **by an agent** so
-`reset_by` names a sub-agent, not a human. Read live by a sub-agent, not by this
-session. Detail: handover §3.4, §3.6.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing touched: no alert
-acknowledged, no breaker reset, no branch, no migration, no `supabase` CLI, no
-Supabase MCP call, no psql, no chip, **no database call of any kind by this
-session.**
 
 ---
 
@@ -1706,74 +1622,7 @@ answered those correctly in round 1.** Detail: handover §5.7, §6 step 4.
 asked. No branch, no migration, no preview or production push, no `supabase` CLI,
 no Supabase MCP call, no psql, no chip.
 
----
 
-**[SATISFIED — Albert ANSWERED on 2026-08-02: *"agents should be required to prove which database they're connected to before any delete or update"*. Recorded as `AGENTS.md` §4.2 by PR #400 (`4447b48`). A Kimi review closed two loopholes: indirect destruction, and the human-relay path. NOTE: §4.2 is currently ADVISORY — there is no CI enforcement of it. The incoming coordinator may retire this block.]**
-
-### REQUEST — Re-offer the "prove which database you are connected to" rule — Albert DECLINED TO ANSWER — 2026-07-31 — session: outgoing coordinator (t16)
-
-**1. What outcome is needed, and why.** A proposed `AGENTS.md` rule requiring an
-agent to prove which database it is connected to **before any `DELETE` / `UPDATE`
-/ `DROP`** was put to Albert and he **did not answer**. **Silence is not
-approval.** It is open and must be re-offered plainly for an explicit yes or no.
-
-**2. Which application(s) depend on this.** All four — it is a safety rule over
-the shared database.
-
-**3. Is it blocking anything, and how urgently?** Not blocking. But the 442-row
-production delete this rule was prompted by has already happened once.
-
-**4. Deadline, if any.** None.
-
-**5. What I already know about the current schema.** N/A — process rule, not
-schema. The proposed text is in the 2026-07-31 coordinator session transcript.
-Detail: handover §9 decision 4, §6 step 5.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** The rule was **NOT**
-added to `AGENTS.md` — deliberately, because it was not approved. No branch, no
-migration, no database call of any kind.
-
----
-
-**[SATISFIED — 2026-08-02, PR #402 merged (`1d7d0d8`). Phase 1 re-verified against production. Two findings that create NEW open questions: the property code `JL` is LAURA's question, not Albert's (so do not put it to Albert); and the property `Coco` sits under a licensor named "NO LICENSE" — an unanswered owner question, see the new entry below. The incoming coordinator may retire this block; Phase 2 is not yet scoped.]**
-
-**[CORRECTIONS — 2026-08-06, session `stale-sweep`. The block below is left unedited per B2.1; these
-two statements inside it are now false.**
-**(a) "the licensing team's 174-row review" (item 1) — THERE IS NO SUCH LIVE ARTIFACT.** It was
-replaced on 2026-07-26 by one 335-row list and its track closed 2026-07-27
-(`fix_characters_style_guides.md:640`, `:615`, `:641`). The real lineage is round 1 (2026-07-29) →
-round 2 (2026-07-31) → round 3. Do not reintroduce the 174-row framing — it has already produced a
-wrong premise once.
-**(b) "Laura's round-2 reply … is awaited" (item 4) — NO LONGER AWAITED.** Round 2 returned
-2026-08-04 (157/166) and **round 3 returned 2026-08-06, 8 of 8 answered, zero blanks. The licensing
-question stream is CLOSED; there is no round 4.** Settled rulings:
-`fix_characters_style_guides.md` § *"Licensing round 3 — RETURNED"*.
-**(c) "the property `Coco` sits under a licensor named NO LICENSE — an unanswered owner question"
-(in the SATISFIED note above) — ANSWERED 2026-08-06: Coco IS a Disney license.** See the COMPLETED
-section of this file.]**
-
-### REQUEST — Characters / style-guides Phase 1 (read-only, dispatchable NOW) — 2026-07-31 — session: outgoing coordinator (t16)
-
-**1. What outcome is needed, and why.** Compare PopDAM's existing character /
-style-guide mapping against the licensing team's 174-row review, as a **read-only**
-document. **Phase 0** (reconciling the two into a decision) is blocked on Albert;
-**Phase 1 is not blocked and can be dispatched immediately.**
-
-**2. Which application(s) depend on this.** PopDAM primarily; the resulting
-taxonomy is shared.
-
-**3. Is it blocking anything, and how urgently?** Phase 1 is not blocking. Doing
-it now shortens Phase 0 once Albert answers.
-
-**4. Deadline, if any.** Laura's round-2 reply (166-row characters sheet, sent
-2026-07-31) is awaited and may supersede parts of it.
-
-**5. What I already know about the current schema.** Not verified live by this
-session. `HANDOFF.md` is authoritative. Detail: handover §6 step 10, §9.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Not started. No branch,
-no migration, no preview or production push, no `supabase` CLI, no Supabase MCP
-call, no psql, no chip.
 
 ---
 
@@ -2942,7 +2791,201 @@ never deleted.
 
 > **Refreshed 2026-07-31 23:11 UTC by the outgoing coordinator (`HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md`).** The six blocks below were moved here VERBATIM from `## REQUEST QUEUE` under the Part B2.1 lifecycle. Each is preceded by a single completion line naming the PR and merge date; the block body itself is unedited. Nothing was deleted. None is yet past the Part B2.2 retention threshold, so nothing was archived this sweep.
 
+> **Swept 2026-08-06 ~04:00 UTC by the incoming coordinator (session
+> `coordinator-sweep-20260806`).** Five blocks were moved here VERBATIM from
+> `## REQUEST QUEUE` under the Part B2.1 lifecycle. Each merged-PR claim was
+> **re-derived from `gh` and `git`**, not taken from the block's own text: PRs
+> #395, #396, #397 and #402 were confirmed `MERGED` and their merge commits
+> confirmed ancestors of `origin/main`. Nothing was edited or deleted.
+>
+> **Two blocks that carry a SATISFIED marker were deliberately NOT moved:**
+> - **Backlog `B6`** — the blockquote note attached above it records an explicit
+>   owner instruction: *"Do not edit or delete the B6 block."*
+> - **Backlog `B7`** — its own marker states the standard *"remains standing
+>   policy … it is not 'done'"*, so it is not a completed item.
+>
+> **⚠️ THE PART B2.2 RETENTION RULE WAS NOT APPLIED, AND THAT IS DELIBERATE.**
+> This section now holds **12** blocks, two past the 10-block cap. Nothing was
+> archived because **the three oldest blocks — `B8`, `B13` and `B14` — cannot
+> leave this file.** The open request *"fix the backlog/queue CI guard, which
+> currently reports false passes"* records that the `Backlog / Queue Sync`
+> required check matches those three only via a prose parenthetical, and that
+> their real entries live **here in `## COMPLETED`**. Moving them to
+> `docs/intake-archive/` would break that check the moment the guard is
+> repaired to require a real entry. **Fix the guard first; archive these
+> afterwards.** No block is older than 30 days, so the other half of B2.2 does
+> not bite yet.
+
 ---
+
+**[moved from `REQUEST QUEUE` 2026-08-06 by the coordinator sweep (session `coordinator-sweep-20260806`), body VERBATIM and unedited]**
+**COMPLETED 2026-08-03 — no PR; resolved by re-verification.** The shared checkout `C:\repos\shared-db` was confirmed back on `main` and clean. NOTE: a LATER re-break of the same condition (`/worksp/shared-db`, 2026-08-05) is a SEPARATE entry and is still open in `REQUEST QUEUE` — retiring this block does not retire that one.
+
+**[SATISFIED — re-verified 2026-08-03 23:57 UTC. `C:\repos\shared-db` is on `main` at `9265986`, clean except the UNOWNED untracked directory `.ai/deepseek-sessions/` (predates this session, never touched, DO NOT DELETE). The incoming coordinator may retire this block.]**
+
+### REQUEST — ⚠️ FIRST ACTION: un-park the shared checkout `C:\repos\shared-db` from an intake branch — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** The shared checkout is sitting on branch
+`intake/coldlion-comparison-handover-20260731`, **not `main`**. It is clean, so
+nothing is at risk of loss, but the next session that opens it and assumes `main`
+will read stale files or branch from the wrong base. This supersedes the older
+"Update the stale shared checkout" block further down, which described a
+different (staleness) problem.
+
+**2. Which application(s) depend on this.** None directly — it is a working-copy
+hazard affecting every future shared-db session on `t16`.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but it is the
+single most likely way the next session goes wrong. **Do it before anything else.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — no schema involved.
+Exact commands and the verification gate: handover §3.2.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** The outgoing coordinator
+did not switch the shared checkout (its own work was done in an isolated
+worktree). No branch deleted, no migration, no preview or production push, no
+`supabase` CLI, no Supabase MCP call, no psql, no chip.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-08-06 by the coordinator sweep (session `coordinator-sweep-20260806`), body VERBATIM and unedited]**
+**COMPLETED 2026-08-02 — PR #395 (merged 2026-08-02T13:02:43Z, `13702f7`).** Verified this sweep: the merge commit is an ancestor of `origin/main`. Intake PRs #365, #366 and #373 were all ingested with per-claim verification; their blocks sit in `## TAKEN OVER` below.
+
+**[SATISFIED — 2026-08-02, PR #395 merged (`13702f7`). Intake PRs #365 (`ce3eda8`), #366 (`df039f9`) and #373 (`8595a4a`) were all ingested with per-claim verification and merged; their blocks are in `## TAKEN OVER` at the bottom of this file. Four follow-on REQUEST entries came out of it and are still open above. The incoming coordinator may retire this block.]**
+
+### REQUEST — Ingest the two un-ingested intake PRs #365 and #366 — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** Both PRs are intake handovers from
+uncoordinated sessions. Neither has been ingested. **Do not merge them
+unverified** — that launders unchecked claims into `main`. Verify every claim
+against the live repo and live schema, then dispatch or explicitly drop, then move
+each block to `## TAKEN OVER` per Part B2.1.
+
+**2. Which application(s) depend on this.** Unknown until the blocks are read;
+both concern ColdLion.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but they are open
+PRs accumulating drift against a moving `main`.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Nothing verified from these
+blocks — that is the point. Both PRs re-checked as `MERGEABLE` at 23:11 UTC.
+Detail: handover §3.5.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Not merged, not closed,
+not ingested, not verified. No branch, no migration, no database call of any kind.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-08-06 by the coordinator sweep (session `coordinator-sweep-20260806`), body VERBATIM and unedited]**
+**COMPLETED 2026-08-02 — PR #396 (merged 2026-08-02T13:04:22Z, `549bc16`).** Verified this sweep: the merge commit is an ancestor of `origin/main`. The 5 stuck alerts were proven read-only to be residue of the ENOBUFS fault already fixed by PR #367.
+
+**[SATISFIED — 2026-08-02, PR #396 merged (`549bc16`). PROVEN read-only that the 5 stuck alerts were RESIDUE of the ENOBUFS fault already fixed by PR #367. DO NOT RE-DIAGNOSE THEM. The same work found the real defect — nothing could ever set `acknowledged_at`, so the alert channel was write-only — which PR #406 then fixed. The incoming coordinator may retire this block. What is STILL open is separate: stopping the monitor, building dedupe, and closing the 25 duplicate issues — see the new entry below.]**
+
+### REQUEST — Diagnose the hourly preview ColdLion alert-monitor failure (READ-ONLY FIRST) — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** The preview alert monitor has failed
+**every hour since 20:02 UTC** with "An undelivered ColdLion taxonomy alert exists.
+Human response owner: Albert Hazan." It is almost certainly residue of the ENOBUFS
+breaker trip, but that is **unproven** and it names Albert. Establish what it is
+before anything is acknowledged or cleared.
+
+**2. Which application(s) depend on this.** None directly; it is the ColdLion
+ingestion lane's own alerting in preview.
+
+**3. Is it blocking anything, and how urgently?** Not blocking work, but it is a
+**live red alarm** and every hour it repeats erodes trust in the alerting.
+
+**4. Deadline, if any.** None, but it is noisy now.
+
+**5. What I already know about the current schema.** Preview
+`rjyboqwcdzcocqgmsyel` carries `ingest.sync_run` failure rows and breaker events
+from the ENOBUFS defect, and the breaker was reset twice **by an agent** so
+`reset_by` names a sub-agent, not a human. Read live by a sub-agent, not by this
+session. Detail: handover §3.4, §3.6.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing touched: no alert
+acknowledged, no breaker reset, no branch, no migration, no `supabase` CLI, no
+Supabase MCP call, no psql, no chip, **no database call of any kind by this
+session.**
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-08-06 by the coordinator sweep (session `coordinator-sweep-20260806`), body VERBATIM and unedited]**
+**COMPLETED 2026-08-02 — no PR; settled by owner answer.** Albert answered the standing question on 2026-08-02 ("agents should be required to prove which database they are connected to before any delete or update"). The rule is recorded in `AGENTS.md` §4.2, so the block has nothing left to ask.
+
+**[SATISFIED — Albert ANSWERED on 2026-08-02: *"agents should be required to prove which database they're connected to before any delete or update"*. Recorded as `AGENTS.md` §4.2 by PR #400 (`4447b48`). A Kimi review closed two loopholes: indirect destruction, and the human-relay path. NOTE: §4.2 is currently ADVISORY — there is no CI enforcement of it. The incoming coordinator may retire this block.]**
+
+### REQUEST — Re-offer the "prove which database you are connected to" rule — Albert DECLINED TO ANSWER — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** A proposed `AGENTS.md` rule requiring an
+agent to prove which database it is connected to **before any `DELETE` / `UPDATE`
+/ `DROP`** was put to Albert and he **did not answer**. **Silence is not
+approval.** It is open and must be re-offered plainly for an explicit yes or no.
+
+**2. Which application(s) depend on this.** All four — it is a safety rule over
+the shared database.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. But the 442-row
+production delete this rule was prompted by has already happened once.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — process rule, not
+schema. The proposed text is in the 2026-07-31 coordinator session transcript.
+Detail: handover §9 decision 4, §6 step 5.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** The rule was **NOT**
+added to `AGENTS.md` — deliberately, because it was not approved. No branch, no
+migration, no database call of any kind.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-08-06 by the coordinator sweep (session `coordinator-sweep-20260806`), body VERBATIM and unedited]**
+**COMPLETED 2026-08-02 — PR #402 (merged 2026-08-02T13:14:33Z, `1d7d0d8`).** Verified this sweep: the merge commit is an ancestor of `origin/main`. Phase 1 was re-verified against production. Phase 2 is NOT scoped and is NOT carried by this block. Both markers below are preserved verbatim, including the 2026-08-06 CORRECTIONS marker that falsifies two statements inside the body.
+
+**[SATISFIED — 2026-08-02, PR #402 merged (`1d7d0d8`). Phase 1 re-verified against production. Two findings that create NEW open questions: the property code `JL` is LAURA's question, not Albert's (so do not put it to Albert); and the property `Coco` sits under a licensor named "NO LICENSE" — an unanswered owner question, see the new entry below. The incoming coordinator may retire this block; Phase 2 is not yet scoped.]**
+
+**[CORRECTIONS — 2026-08-06, session `stale-sweep`. The block below is left unedited per B2.1; these
+two statements inside it are now false.**
+**(a) "the licensing team's 174-row review" (item 1) — THERE IS NO SUCH LIVE ARTIFACT.** It was
+replaced on 2026-07-26 by one 335-row list and its track closed 2026-07-27
+(`fix_characters_style_guides.md:640`, `:615`, `:641`). The real lineage is round 1 (2026-07-29) →
+round 2 (2026-07-31) → round 3. Do not reintroduce the 174-row framing — it has already produced a
+wrong premise once.
+**(b) "Laura's round-2 reply … is awaited" (item 4) — NO LONGER AWAITED.** Round 2 returned
+2026-08-04 (157/166) and **round 3 returned 2026-08-06, 8 of 8 answered, zero blanks. The licensing
+question stream is CLOSED; there is no round 4.** Settled rulings:
+`fix_characters_style_guides.md` § *"Licensing round 3 — RETURNED"*.
+**(c) "the property `Coco` sits under a licensor named NO LICENSE — an unanswered owner question"
+(in the SATISFIED note above) — ANSWERED 2026-08-06: Coco IS a Disney license.** See the COMPLETED
+section of this file.]**
+
+### REQUEST — Characters / style-guides Phase 1 (read-only, dispatchable NOW) — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** Compare PopDAM's existing character /
+style-guide mapping against the licensing team's 174-row review, as a **read-only**
+document. **Phase 0** (reconciling the two into a decision) is blocked on Albert;
+**Phase 1 is not blocked and can be dispatched immediately.**
+
+**2. Which application(s) depend on this.** PopDAM primarily; the resulting
+taxonomy is shared.
+
+**3. Is it blocking anything, and how urgently?** Phase 1 is not blocking. Doing
+it now shortens Phase 0 once Albert answers.
+
+**4. Deadline, if any.** Laura's round-2 reply (166-row characters sheet, sent
+2026-07-31) is awaited and may supersede parts of it.
+
+**5. What I already know about the current schema.** Not verified live by this
+session. `HANDOFF.md` is authoritative. Detail: handover §6 step 10, §9.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Not started. No branch,
+no migration, no preview or production push, no `supabase` CLI, no Supabase MCP
+call, no psql, no chip.
 
 **[moved from `REQUEST QUEUE` 2026-08-06 by session `stale-sweep`, body VERBATIM and unedited]**
 **ANSWERED 2026-08-06 by Albert Hazan — OWNER RULING: "Coco IS a Disney license."** The question
