@@ -36,7 +36,7 @@ const FILE = 'COORDINATOR_INTAKE.md';
 // passes trivially, so it can be made required BEFORE the cutover — which is the point:
 // the required context must already exist and be green when step 8 lands, or step 8's PR
 // is blocked by its own new gate.
-const POINTER_MODE = false;
+const POINTER_MODE = true;
 
 // Headings that mean the queue is back. Matched case-insensitively: `AGENTS.md:1011` and
 // `:1013` refer to "the coordinator intake" in lower case, and a case-sensitive gate would

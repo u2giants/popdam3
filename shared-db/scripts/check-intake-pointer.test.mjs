@@ -22,8 +22,17 @@ function runGuard(content, { pointerMode = true, writeFile = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pointer-guard-'));
   try {
     mkdirSync(join(dir, 'scripts'), { recursive: true });
-    let src = readFileSync(SCRIPT, 'utf8');
-    if (pointerMode) src = src.replace('const POINTER_MODE = false;', 'const POINTER_MODE = true;');
+    // Force the flag in BOTH directions. The first version only forced false->true, so
+    // once step 8 flipped the real source to `true` the dormant test silently ran in
+    // ARMED mode and failed. A test helper that depends on the current value of the thing
+    // under test is not a test helper.
+    let src = readFileSync(SCRIPT, 'utf8').replace(
+      /^const POINTER_MODE = (?:true|false);$/m,
+      `const POINTER_MODE = ${pointerMode};`,
+    );
+    if (!new RegExp(`const POINTER_MODE = ${pointerMode};`).test(src)) {
+      throw new Error('Could not set POINTER_MODE in the copied script — the declaration changed shape.');
+    }
     const copy = join(dir, 'scripts', 'check-intake-pointer.mjs');
     writeFileSync(copy, src, 'utf8');
     if (writeFile) writeFileSync(join(dir, 'COORDINATOR_INTAKE.md'), content, 'utf8');

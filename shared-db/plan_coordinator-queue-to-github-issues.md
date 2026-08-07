@@ -17,35 +17,40 @@
 | 4 | **OWNER GATE — Albert's go/no-go on the scrub report** | A | ✅ **APPROVED** | 2026-08-07 |
 | 4b | Rotate the credential before publishing | A | ✅ **owner overruled — published as written** | 2026-08-07 |
 | 4c | **Freeze the queue** between the final inventory and step 6 | A | ✅ held; inventory re-run clean at publish | 2026-08-07 |
-| 5 | Update the skills in `ai-devops` and propagate them to every machine | B | ⚠️ **authored + pushed; PROPAGATION PENDING (issue #565)** | 2026-08-07 |
+| 5 | Update the skills in `ai-devops` and propagate them to every machine | B | ✅ **t16, al8960ofc, hetz synced; 916 is POWERED OFF** | 2026-08-07 |
 | 5b | **Re-home the standing facts into `AGENTS.md`** before the file shrinks | B | ✅ **done, byte-identical** (`AGENTS.md` §12) | 2026-08-07 |
 | 5c | Land the **intake pointer guard** as a required check, while dormant | B | ✅ **required and green** | 2026-08-07 |
 | 6 | Create one issue per **work item** | B | ✅ **63 issues created** (#502–#565) | 2026-08-07 |
 | 7a | **OWNER GATE — protection changes, both named by the owner** | B | ✅ **APPROVED** | 2026-08-07 |
 | 7b | Remove the context, confirm, **then** delete the workflow and script | B | ✅ **done in order** | 2026-08-07 |
-| 8 | Reduce `COORDINATOR_INTAKE.md` to a pointer | B | ⛔ **BLOCKED on step 5 propagation (issue #565)** | — |
-| 9 | Rewrite `HANDOFF.md` B10/B13; delete the B2 lifecycle rules | C | ✅ **B10 and B13 closed**; B2 deletion rides with step 8 | 2026-08-07 |
+| 8 | Reduce `COORDINATOR_INTAKE.md` to a pointer | B | ✅ **done — 37 lines, guard armed** | 2026-08-07 |
+| 9 | Rewrite `HANDOFF.md` B10/B13; delete the B2 lifecycle rules | C | ✅ **done** | 2026-08-07 |
 
 **Phases A and B are complete except step 8. A fresh session starts at STEP 8, and step 8
 is BLOCKED — read the box below before touching anything.**
 
-> ## ⛔ STEP 8 IS BLOCKED, AND THE BLOCK IS NOT TECHNICAL
+> ## ✅ THE MIGRATION IS COMPLETE. One machine is a known exception.
 >
-> Step 8 reduces `COORDINATOR_INTAKE.md` to a pointer. It is gated on the updated skills
-> reaching **every machine**, and they have not. Verified in sync: `al8960ofc` (by hash) and
-> `t16` (by its own session's report). **Unverified: `hetz`, `916`, `4837`.**
+> All nine steps are done. `COORDINATOR_INTAKE.md` is a 37-line pointer and the
+> `Intake pointer guard` required check is **armed** (`POINTER_MODE = true`).
 >
-> **Albert must run "sync my dotfiles" on those machines** — tracked as issue **#565**. A
-> machine still on the old skills appends its handover to the pointer file and regrows the
-> queue, live, which is the exact failure this plan exists to prevent.
+> **The one loose end: `916` is POWERED OFF and was never synced.** Albert confirmed this
+> on 2026-08-07 and chose to proceed rather than wait. That is safe while it is off — a
+> machine that is not running cannot append to anything. **The risk is the day it comes
+> back on**, still carrying the old skills that say "append to `COORDINATOR_INTAKE.md`.
 >
-> The `Intake pointer guard` required check now DETECTS that and fails the PR, so the
-> failure is loud rather than silent. **That is a safety net, not permission to skip the
-> gate.** Do step 8 after the sync, and flip `POINTER_MODE` to `true` in
-> `scripts/check-intake-pointer.mjs` in the same PR.
+> **Two things protect that day, and neither needs anyone to remember:**
+> 1. The armed pointer guard **fails any PR** in which this file regrows a queue section
+>    or exceeds 40 lines. The append is caught on the very next PR, loudly.
+> 2. The pointer file itself says, in its first three lines, that the file is retired.
 >
-> **Deleting the Part B2 lifecycle rules (the rest of step 9) rides with step 8**, because
-> those rules live inside the file step 8 rewrites.
+> **Before `916` does any `shared-db` work, run "sync my dotfiles" on it.** Tracked as
+> issue **#565**, deliberately left open for exactly that. Do not close it as done — it
+> is not done, it is deferred.
+>
+> ⚠️ **If a machine named `4837` exists separately from `al8960ofc`, it is unverified.**
+> This machine reports hostname `al8960ofc`; Albert referred to it as `4837`. If they are
+> two boxes rather than two names for one, the second one still needs the sync.
 
 **What actually shipped: 63 issues, `gh issue list --repo u2giants/shared-db --label db-work`.**
 63 `db-work`, 7 `needs-albert`, 6 `blocked`.
