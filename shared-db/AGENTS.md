@@ -1338,6 +1338,46 @@ The exposure is currently **dormant, not fixed**: the PLM master-data lane has n
 silently reverts the moment it comes back. Do not treat "we have a durability migration" as "curated
 parentage is durable".
 
+### 6.13 OWNER RULINGS — Paramount landing tables and sub-licensors (Albert Hazan, 2026-08-07)
+
+Five rulings, all made the same evening, all **settled**. Full record with the reasoning and the
+costs: [`docs/verification/owner-rulings-20260807/README.md`](docs/verification/owner-rulings-20260807/README.md).
+Read that file before acting on any of them.
+
+1. **Per-licensor landing tables, not one shared table.** Each licensor's raw scrape data gets its
+   own `plm.*` tables. No shared multi-licensor landing table with a discriminator column. A shared
+   table would force Disney's hard `CHECK`s to be softened for a licensor they have nothing to do
+   with, and the importer's shrink-band guard counts rows in its own table — unscoped, a
+   **completely truncated Paramount extract would pass by being measured against Disney's ~10,262
+   rows**. Silent wrong answer, not a loud one.
+
+2. **Paramount release 1 is FIVE tables, not fifteen.** Ships `plm.pmt_capture`, `pmt_property`,
+   `pmt_character`, `pmt_property_character`, `pmt_asset`, plus importer, RLS/grants, one `api` view
+   and contract tests. Eleven further tables, four views and the collection trigger are deferred —
+   they model structure no capture has proven. **Known consequence: release 1 loads assets that
+   connect to nothing.** It can answer which characters a property owns, but not which asset shows a
+   character.
+
+3. **The Paramount authorized-title list is 26, and the count is CLOSED.** The removed `902010`
+   entry was a duplicate. Do not re-open it and do not hunt for a 27th title. The *"Viacom Multi
+   (Paramount) — 27 codes"* section of
+   [`docs/coldlion-unmatched-properties-by-licensor-20260731.md`](docs/coldlion-unmatched-properties-by-licensor-20260731.md)
+   is a **different population** (unmatched ColdLion property codes) — do not reconcile the two.
+
+4. **Build waits for the second Paramount recon.** The five tables are designed, reviewed, revised
+   and approved, but implementation is **held** until a targeted second recon returns. Each of its
+   four open questions can move a primary key, and a wrong key with rows already in it costs a
+   migration **plus** a data repair. Do not start the migration because "the design is approved".
+
+5. **Sub-licensors stay FLAT.** ColdLion produced 19 new `- DESPERATE` records (5 licensors, 14
+   properties). Desperate is a **sub-licensor, not the brand owner**: POP reports sales to Desperate,
+   who files royalty reports upward to the real owner. FanCreations is the same shape for NCAA and
+   NFL. `core.licensor` will **NOT** model this; Desperate is stored as an ordinary licensor.
+   **Consequence, invisible in the data: any report answering "who is the licensor" for those 14
+   properties returns Desperate, not the ultimate brand owner.** Also: `ANHEUSER BUSCH - DESPERATE`
+   and the existing `potential` `Anheuser Busch` record are **NOT duplicates** — brand owner vs
+   sub-licensed route. A future dedupe pass must not merge them.
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
