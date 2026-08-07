@@ -1120,3 +1120,140 @@ node tools/sync-opa-property-character.mjs --apply
 `OPA_MIN_ROWS` and the expected ref have **no defaults** and the runner refuses
 to start without them. Take `OPA_MIN_ROWS` from the dry-run count, not from
 memory.
+
+---
+
+## 10. The required dry run against the REAL extract — done, PASSES
+
+Section 9.1 called a dry run against the genuine CSV **required** before any
+`--apply`. It has now been run. **The hardened parser accepts Disney's real
+extract unmodified.** Nothing was changed to make it pass, and no database was
+contacted (the dry-run path returns before `applySnapshot`).
+
+The CSV was fetched from the PRIVATE repo `u2giants/licensor-source-data` to a
+scratch directory **outside this repository**, via the raw API. Note the trap:
+`gh api .../contents/...` returns `encoding: "none"` and an **empty body** for
+files over 1 MB, and this file is 1,069,881 bytes — without
+`Accept: application/vnd.github.raw` you analyse zero rows and do not notice.
+
+```
+$ gh api -H "Accept: application/vnd.github.raw" \
+    repos/u2giants/licensor-source-data/contents/disney-opa/opa-characters.csv \
+    > <scratch>/opa-characters.csv
+
+bytes: 1069881          (matches the recorded size exactly)
+lines: 10263            (1 header + 10262 data rows)
+sha256: 333a1c04ea2da5a678da3527ee9a28b503cb6c16af94dbd902e10fbe776a5d69
+line endings: CRLF on all 10263 lines, consistently — no bare CR
+```
+
+### 10.1 The dry run
+
+```
+$ OPA_CSV_PATH=<scratch>/opa-characters.csv \
+  OPA_CAPTURED_AT=2026-08-06 \
+  OPA_SOURCE_URL='https://opa.disney.com/ProdApp/createEditProduct.spring' \
+  node tools/sync-opa-property-character.mjs
+{
+  "rows": 10262,
+  "distinct_licensed_property_id": 1445,
+  "distinct_character_id": 9613,
+  "distinct_name_pairs": 10240,
+  "name_pair_collisions": 22,
+  "captured_at": "2026-08-06",
+  "line_of_business": "Home"
+}
+
+DRY RUN. No database was contacted. Re-run with --apply to load.
+```
+
+Exit 0. No warnings. Every number the design predicted from the 2026-08-06
+measurement is reproduced **exactly**: 10,262 rows, 10,240 distinct name pairs,
+**22 name-pair collisions**. Re-run with `OPA_MIN_ROWS=10262` — identical output,
+so the row floor is satisfied at the true count.
+
+### 10.2 The ID-pair key holds — the table design is sound
+
+`buildSnapshot` throws on any duplicate `(licensedPropertyID, characterID)`. It
+did not throw, which is itself the proof. Cross-checked with a **separately
+written, regex-based RFC4180 tokenizer** (not the runner's parser), which agrees
+on every figure:
+
+| Measure | Value |
+| --- | --- |
+| data rows | 10,262 |
+| rows with a field count ≠ 6 | **0** |
+| distinct `(licensedPropertyID, characterID)` | **10,262 — unique, one per row** |
+| distinct `(property, character)` | 10,240 (**22 collisions**) |
+| distinct `licensedPropertyID` | 1,445 |
+| distinct `characterID` | 9,613 |
+| distinct `optionSourceID` values | `1007` only |
+
+Two independent parsers agreeing to the row means the counts are a property of
+the file, not of one parser's quirks.
+
+### 10.3 Why the bare-quote rule never fired — and why that is luck, not design
+
+The predicted first suspect was the unescaped `"` inside an *unquoted* field
+(the inch-mark case). Measured on the real file:
+
+- The **header line carries zero quote characters** — it is unquoted.
+- The **10,262 data lines carry 123,144 quote characters — exactly 10,262 × 12**,
+  i.e. every one of the 6 fields on every data row is fully quoted.
+- **Zero occurrences of a doubled `""`** anywhere in the file.
+
+So Disney's exporter quotes every data field unconditionally, and this particular
+extract contains no embedded quote character at all. An inch mark could not have
+tripped the rule here because there is no inch mark, and if one appeared it would
+arrive **inside an already-quoted field**, which is the case the runbook records
+as measured-passing. The strict rule costs this extract nothing.
+
+**This is a property of the observed export, not a guarantee.** Only the fully
+quoted, zero-embedded-quote shape was proven; a future extract that quotes
+selectively is untested. That is an argument for repeating this dry run on every
+refresh, not for weakening the rule.
+
+### 10.4 `OPA_SOURCE_URL` — the tightened contract REJECTS the natural URL
+
+This is the one contract that does not survive first contact unaided. The page
+the extract actually comes from — the URL recorded in the scrape procedure — is
+the OPA product page **with its full query string** (`?do=createEdit&lob=200&…`).
+Passed verbatim, the run aborts:
+
+```
+OPA_SOURCE_URL must not carry a query string. It is stored verbatim as
+provenance on every row, and a query string is where portals return session
+tokens and other credentials. Strip it and pass the plain page URL.
+(The value is deliberately not shown.)
+```
+
+Exit 1, before anything else runs. The guard behaves exactly as written, refuses
+outright rather than inspecting names, and does not echo the value.
+
+**The operator must strip the query string by hand.** Both of these pass:
+
+- `https://opa.disney.com/ProdApp/createEditProduct.spring` (recommended — names
+  the actual page)
+- `https://opa.disney.com`
+
+**The cost is real and should be recorded rather than shrugged off.** Those OPA
+query parameters are not decoration: `lob=200`, `lobName=Option.Lob.Home`,
+`regionName=Option.Region.4`, `templateId`, `workflowId` are what *select the
+extract*. Stripping them makes provenance say which page, not which slice — two
+different extracts from two different LOBs would store an identical
+`source_url`. `line_of_business` is captured separately, so the LOB itself is not
+lost; region and template are not captured anywhere.
+
+No session token was present in this URL. The rule is still the right default —
+a blocklist on a value persisted 10,262 times is the wrong shape — but the
+selecting parameters now have nowhere to live. **A decision for the owner**, not
+something to fix by loosening the guard: either accept the loss, or add a
+separate structured provenance field for the extract selectors. Do not put them
+back in `source_url`.
+
+### 10.5 What this dry run does NOT establish
+
+It parses and validates. It contacted no database and loaded nothing. The
+`--apply` path, the wrong-target gate against a live project, the shrink band and
+every database-side guard remain proven only against invented fixtures. Loading
+the real extract to preview, and any promotion to production, stay owner-gated.
