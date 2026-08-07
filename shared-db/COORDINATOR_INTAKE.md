@@ -3818,6 +3818,95 @@ Newest first. Copy the template from Part A and fill it in. The block below is
 an empty example showing the required format — **leave it in place, do not
 overwrite it.**
 
+### INTAKE — Dispatch-collision hardening, Phase A (COMPLETE and merged) — 2026-08-07 — session: Claude Code (Opus 5), machine t16, shared checkout `C:\repos\shared-db`
+
+**1. What I was doing and why.** Stopping two AI agents being sent to change the same part of the database at the same time, *before* either does the work, so nobody's session gets thrown away. A tool for this (`scripts/check-dispatch-collision.mjs`) was merged on 2026-08-06 and gave the **wrong answer in the most common case**: it printed `SAFE TO DISPATCH` when an open PR already contained `alter table core.licensor …`, because its SQL parser models only `function`/`procedure`/`view`/`materialized view`/`trigger`/`policy` and has no `alter` verb at all — measured 754 modelled statements against 1,921 unmodelled. Albert directed me to execute **Phase A only** of `plan_dispatch-collision-hardening.md` and explicitly not to start Phase B.
+
+**2. What I have actually DONE.** All merged to `origin/main`; no branch left behind.
+- **PR #474** (`a0ebe76`, merged `60b130c`) — Phase A steps 1, 1b, 2, 2b. Removed the `SAFE TO DISPATCH` verdict in all four places it survived; renamed `result.safe` → `overlapFound` (inverted); added `describeCoverage()` to `scripts/check-pr-object-collisions.mjs:257` so the printed CHECKED/NOT-CHECKED lists are derived from `PATTERNS` and cannot drift; withdrew `--allocate-version` (now exits 2 before any network call); added the four DDL tests that route real SQL through the parser; fixed five gatherer defects (drafts now count, all migration versions captured not just the first, deleted files skipped, `encodeURIComponent` per path segment, raw fetch with a loud failure on an empty body).
+- **PR #477** (merged) and **PR #487** (merged) — the handoff and the cross-plan conflict record.
+- **`u2giants/ai-devops` commit `14fefa6`** (different repo, pushed directly to main) — corrected `skills/claude/shared-db-orchestrator/SKILL.md`, because withdrawing `--allocate-version` made the dispatch-gate command that skill publishes exit 2 on every run.
+- Handoff: `HANDOFF.d/2026-08-07T0212Z-t16-claude-dispatch-collision-phase-a-done.md`.
+
+**3. What I applied to PREVIEW (`rjyboqwcdzcocqgmsyel`).** **Nothing.** No migration, no data row, no `supabase` CLI, no Supabase MCP, no `psql`. This workstream edits developer scripts only and needs no database access. I did not touch production either.
+
+**4. What is half-finished or abandoned mid-way.** Nothing is half-finished. **One deliberate, temporary state that the next session MUST resolve:** the four DDL tests are landed marked `node --test` **`todo`**. They are genuinely RED. The plan said to land them with the step-3 fix, which is impossible when step 2 is Phase A and step 3b is Phase B — a PR with a red tip can never merge past the required `Cross-PR object collision` job. `todo` keeps them running and reported (`ℹ todo 4`) without failing the build. **Step 3b must delete the `TODO_UNTIL_STEP_3B` marker from all four, or the fix is unproven.** Stated in four places on purpose.
+
+**5. What I own right now.** **Nothing.** No branch, no worktree. Every branch I created was merged and deleted by the merge. The only worktree besides the main checkout is `C:/repos/shared-db-worktrees/order-list-plan` on `codex/plan-popdam-order-list`, which is **not mine** — I did not touch it.
+
+**6. What I was ABOUT to do next.** Nothing in this workstream. Phase B starts at **step 3a, not 3b** — 3a is the historical-noise gate, and skipping it trades a false clear for alarm fatigue on a required check.
+
+**7. What I am blocked on.** Not blocked. Phase B is unblocked and fully specified.
+
+**8. What I tried that did NOT work, and why. [MANDATORY]**
+- **Landing the red tests as ordinary failing tests — impossible.** See item 4. A red tip cannot merge past a required check, so it would have stranded Phase A permanently. I used `todo`, not `skip`, because a skipped test is invisible and that is the silent-failure pattern this repo forbids.
+- **`assert.doesNotMatch(text, /safe/i)` failed on my own wording.** I wrote "not about safety" — which contains "safe". Rewritten to "not a clearance". Trivial, but it proves the assertion does real work; keep it.
+- **Backticks inside the `USAGE` template literal.** I used Markdown-style backtick quoting inside a JavaScript backtick-delimited string; it terminated the literal and produced `SyntaxError: Unexpected identifier 'alter'`, so the module would not load and every test in both suites failed at once. **Use double quotes inside `USAGE`.**
+- **`bash bin/ai-install-skills` and `bash scripts/check-sql.sh` do not run on this machine** — both die at `set -o pipefail` because of CRLF line endings. They run fine in CI on Linux. **I did not "fix" the scripts** — backlog **B1** owns the line endings, and editing them would be a band-aid that also fights CI. Workaround: copy the skill file and verify with `Get-FileHash`.
+- **Deferring the `AGENTS.md` / skill correction to plan step 8 — considered and rejected.** Step 8 owns those documents, but step 1b made the command they publish exit 2, which would have broken the dispatch gate for every coordinator across two phases.
+
+**9. Facts I believe that may already be stale.** `origin/main` was `ce16397` and the maximum migration version `20260807030000`, both checked **2026-08-07 16:08 UTC**. `main` moved four times during my session and I had to run `gh pr update-branch` twice — **re-derive both before acting.** Branch protection was `strict: true`, six required contexts, `enforce_admins: true` at the same time.
+
+---
+
+### INTAKE — Plan to replace `COORDINATOR_INTAKE.md` with GitHub Issues (WRITTEN and reviewed, NOT started) — 2026-08-07 — session: Claude Code (Opus 5), machine t16, shared checkout `C:\repos\shared-db`
+
+> ⚠️ **Coordinator: this block proposes deleting the file you are reading.** It is filed here anyway, because this queue is the live system until the migration actually runs and routing around it would be the exact behaviour the queue exists to stop.
+
+**1. What I was doing and why.** Albert asked whether the 8 open `HANDOFF.d/` files should become GitHub Issues. Answering it required separating two things that had been conflated: **handoff files** are ~10-page briefings for the next worker and are not tickets, so they stay as files; **this queue** genuinely is a ticket system, badly reimplemented in Markdown, and that is what should move. He then chose **public** Issues over a private repo, having been told this file contains licensor names, customer data problems and internal incident write-ups. The measured case: this file is 3,837 lines, grew 0 → 68 items in six days and **has never once shrunk**; `docs/intake-archive/` does not exist so its retention rule has **never fired**; and two of its rules deadlock.
+
+**2. What I have actually DONE.** Planning and review only — **no migration work, no issues created, nothing published.**
+- **PR #482** (merged) — the plan, first draft.
+- **PR #486** (`b4c93ca`, merged) — the plan revised after three adversarial rounds with **GLM 5.2**. Two steps changed direction.
+- **PR #487** (merged) — handoff `HANDOFF.d/2026-08-07T1534Z-t16-claude-intake-to-issues-plan.md`, plus the cross-plan conflict recorded in **both** plans.
+- **PR #488** (merged) — added a consolidated "decisions only Albert can make" section to that handoff after Albert challenged whether a fresh session would actually surface them. It would not have: of eight items, three would have been raised, two silently self-decided, and three never raised at all.
+
+**3. What I applied to PREVIEW (`rjyboqwcdzcocqgmsyel`).** **Nothing.** No database contact of any kind in this workstream.
+
+**4. What is half-finished or abandoned mid-way.** Nothing started. **Step 1 of the plan is open and nothing has been published.** Two owner gates are built in and **neither has been asked**: step 4 (approve what specifically gets published) and step 7a (approve removing the `Backlog / queue sync` required context, by name).
+
+**5. What I own right now.** **Nothing** — no branch, no worktree. **But three untracked files are mine and are NOT gitignored:** `.ai/reviews/glm-intake-queue-to-issues-plan-20260807T15{1415,2136,2616}Z.md` — the three GLM review reports. **The plan cites them, so as untracked files that citation is dead on every machine except `t16`.** Coordinator decision needed: commit them so the citation is real, or accept the reports are machine-local and correct the plan's wording. I did not commit them unilaterally because no session has ever committed to `.ai/reviews/` and I am not the coordinator. The other files in that directory are other sessions' and I left them alone.
+
+**6. What I was ABOUT to do next.** Nothing. The next action is **not** step 1 — it is putting §0 of my handoff (eight owner decisions) to Albert in one message.
+
+**7. What I am blocked on.** **(b) — decisions only Albert can make.** Eight, listed in §0 of the handoff with a recommendation each. Three block the work: approve the published content; approve removing the named required check; **rotate the Cloud SQL read-only password that `COORDINATOR_INTAKE.md:988` records as emailed in plaintext on 2026-08-04 and whose rotation request is still open** — so it is presumed unrotated, and publishing that block would announce that publicly. **The plan inverts this file's own "rotate after the migration" note: rotate first, or hold the block back entirely.**
+
+**8. What I tried that did NOT work, and why. [MANDATORY]**
+- **My first plan deleted the `Backlog / queue sync` required check and removed it from branch protection.** Forbidden outright by `AGENTS.md:1081` — *"Branch protection must not be removed or weakened without an explicit, per-change owner instruction naming the setting… If a required check is wrong, fix the check — never the protection."*
+- **My second answer — repoint the check at Issues rather than delete it — was also wrong, and why is the useful part.** I preferred it partly because *it needed no owner decision*. That was the tell: I was optimising to avoid asking Albert, when that rule exists precisely to make the ask mandatory. GLM argued for going to Albert and **I changed position.** Repointing survives only as the documented fallback if he says no.
+- **My scrub step said "do not do it by eye" and then supplied no tool** — an eye-scan with extra words, in a repo whose whole philosophy is that human-performed rules do not happen. Now a real script.
+- **I had two steps in the wrong order.** The skills must propagate to every machine *before* this file becomes a pointer; otherwise a machine still running the old skill appends to the pointer and **rebuilds its body**, live, mid-migration, with no alarm.
+- **"One issue per block" would have produced four issues for one thing** — the Disney OPA item spans blocks at `:682`, `:776`, `:821` and `:2946`.
+- **My step-9 verification gate was false-green** — it searched three tokens that appear in neither of the two places the rules are actually restated (`HANDOFF.md:1850` B10 and `:1943` B13, both live instructions to rebuild what the plan removes).
+- **GLM was confidently wrong once.** It claimed `gh issue list --label` returns empty in this repo, citing `COORDINATOR_INTAKE.md:3019`, and built two objections on it. **Tested live: it works** (`--label coordinator-marker` correctly returned issue #473). It quoted a *document* as evidence in a review whose subject is that this repo over-trusts documents. **`COORDINATOR_INTAKE.md:3019` is wrong and should be corrected or dated.**
+- **`ai-glm ask` aborted with "review session CHANGED the working tree"** — alarming and benign: the wrapper snapshots `git status` before and after, and its own round-1 report under `.ai/reviews/` is a new untracked file. No tracked file changed and GLM edited nothing. Recovery: `ai-glm abort <session>` then re-ask; context survives. **Do not panic-revert on that message.**
+
+**9. Facts I believe that may already be stale.** Same `main`/version stamps as the block above (16:08 UTC). **Also:** a warm GLM session named `intake-queue-to-issues-plan` holds this plan's entire review context — **continue it with `ai-glm ask`, do not run `ai-glm new`.** And `AGENTS.md` §6.7's branch-protection table was stale once before and misled a reviewer; I read `:1081` directly rather than the table, but **re-derive protection state from `gh api` rather than any document.**
+
+---
+
+### INTAKE — `handoff-writer` skill hardened in `ai-devops` (affects every future handover in THIS repo) — 2026-08-07 — session: Claude Code (Opus 5), machine t16
+
+**1. What I was doing and why.** Albert had to ask whether a fresh session would actually put all the open questions to him. The answer was no, and the cause was structural, not a slip: the 9-section handoff format had **no home for owner decisions**, so they scattered into whichever section they operationally belonged to, and anything noticed *in passing* was filed as a **finding** rather than an **ask** and never raised at all.
+
+**2. What I have actually DONE.** In **`u2giants/ai-devops`** (a different repo, main-only, pushed directly, no PR): commit **`8f4f77b`**, changing `skills/shared/handoff-writer/SKILL.md` and `templates/system/handoff-standard.md`. Adds a mandatory **section 0** ("decisions only the owner can make") that consolidates every owner decision, grouped by consequence, each with a recommendation, plus an "already settled — do not re-ask" list; a **sweep** with explicit search tells; a **fourth self-audit question** that must be answered by walking the document line by line rather than from memory; three new anti-patterns; and the section count updated 9 → 10 throughout both files. Installed on `t16` and verified hub-and-local hash-identical.
+
+**3. What I applied to PREVIEW (`rjyboqwcdzcocqgmsyel`).** **Nothing.** Different repository entirely; no database contact.
+
+**4. What is half-finished or abandoned mid-way.** Nothing. **But it is live on `t16` only** until Albert runs the dotfile sync on his other machines. Until then, handovers written on another machine still follow the old 9-section format.
+
+**5. What I own right now.** Nothing in `shared-db`. In `C:\repos\ai-devops`, `main` is clean and pushed.
+
+**6. What I was ABOUT to do next.** Nothing — it is complete.
+
+**7. What I am blocked on.** Nothing, though propagation to the other machines needs Albert to run the sync.
+
+**8. What I tried that did NOT work, and why. [MANDATORY]** I first looked for the skill under `skills/claude/handoff-writer/` — it is under **`skills/shared/`**, because Claude and Codex share it. Changing only the skill would also have been wrong: the canonical cross-tool standard `templates/system/handoff-standard.md` carries the same structure for Codex, Grok, GLM, Kimi and Qwen, and the skill's own footer says to keep the two in sync. Both are updated.
+
+**9. Facts I believe that may already be stale.** `ai-devops` `main` was `8f4f77b` at 2026-08-07 16:10 UTC; that repo takes direct pushes from several machines, so **re-check before assuming**. I rebased once mid-session because it had already moved.
+
+---
+
 ### INTAKE — Stale local BRANCH LABELS swept (the half the 2026-08-05 worktree sweep left undone), plus 1 leftover worktree — 2026-08-07 — session: unnamed Claude Code session (Opus 5), machine t16, shared checkout `C:\repos\shared-db`
 
 **1. What I was doing and why.** Albert asked, in session, why the worktree
