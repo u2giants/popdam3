@@ -9,13 +9,28 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
 
 import {
   parseCsv,
   buildSnapshot,
   summarise,
   resolveShrinkFraction,
+  resolveSupabaseTarget,
+  resolveMinRows,
+  assertIsoDate,
+  assertSourceUrlIsNotACredential,
+  decodeUtf8Strict,
+  applySnapshot,
 } from "./sync-opa-property-character.mjs";
+
+// Invented project refs. Both are 20 chars, neither is a real project.
+const REF_A = "aaaabbbbccccddddeeee";
+const REF_B = "zzzzyyyyxxxxwwwwvvvv";
 
 const HEADER =
   "licensedPropertyID,characterID,property,character,brandPropertyID,optionSourceID";
@@ -163,4 +178,392 @@ test("resolveShrinkFraction REJECTS non-numeric values (the NaN -> null -> guard
 test("resolveShrinkFraction rejects out-of-range values", () => {
   assert.throws(() => resolveShrinkFraction("-0.5"), /between 0 and 1/);
   assert.throws(() => resolveShrinkFraction("2"), /between 0 and 1/);
+});
+
+// ---------------------------------------------------------------------------
+// W1 -- THE WRONG-TARGET GATE. Every database guard runs inside whichever
+// project you reached, so nothing on the database side can catch a wrong-project
+// load. This is the only place it can be caught, and it must ABORT BEFORE THE
+// FIRST BYTE IS SENT -- not warn, and not fail after the request.
+// ---------------------------------------------------------------------------
+test("resolveSupabaseTarget accepts a URL whose ref matches the expected ref", () => {
+  const t = resolveSupabaseTarget(`https://${REF_A}.supabase.co`, REF_A);
+  assert.equal(t.ref, REF_A);
+  assert.equal(t.origin, `https://${REF_A}.supabase.co`);
+});
+
+test("resolveSupabaseTarget REFUSES a URL pointing at a different project", () => {
+  assert.throws(
+    () => resolveSupabaseTarget(`https://${REF_B}.supabase.co`, REF_A),
+    /REFUSING TO SEND/
+  );
+});
+
+test("resolveSupabaseTarget REQUIRES an explicit expected ref -- there is no default", () => {
+  for (const missing of [undefined, null, "", "   "]) {
+    assert.throws(
+      () => resolveSupabaseTarget(`https://${REF_A}.supabase.co`, missing),
+      /must be stated EXPLICITLY/,
+      `expected ${JSON.stringify(missing)} to be rejected`
+    );
+  }
+  assert.throws(() => resolveSupabaseTarget(`https://${REF_A}.supabase.co`, "short"), /shaped like/);
+});
+
+test("applySnapshot aborts on a ref mismatch WITHOUT attempting any network call", async () => {
+  let called = 0;
+  const fetchImpl = () => {
+    called += 1;
+    throw new Error("NETWORK CALL ATTEMPTED");
+  };
+
+  await assert.rejects(
+    () =>
+      applySnapshot(
+        { rows: [] },
+        {
+          url: `https://${REF_B}.supabase.co`,
+          key: "invented-not-a-real-key",
+          expectedRef: REF_A,
+          fetchImpl,
+          log: () => {},
+        }
+      ),
+    /REFUSING TO SEND/
+  );
+  assert.equal(called, 0, "fetch must not be reached at all when the ref does not match");
+});
+
+test("applySnapshot does reach fetch when the ref matches (proves the guard is the only blocker)", async () => {
+  let seenUrl = null;
+  const fetchImpl = (u) => {
+    seenUrl = u;
+    return { ok: true, status: 200, text: async () => '{"ok":true}' };
+  };
+
+  const res = await applySnapshot(
+    { rows: [] },
+    {
+      url: `https://${REF_A}.supabase.co`,
+      key: "invented-not-a-real-key",
+      expectedRef: REF_A,
+      fetchImpl,
+      log: () => {},
+    }
+  );
+  assert.equal(res.ref, REF_A);
+  assert.equal(seenUrl, `https://${REF_A}.supabase.co/rest/v1/rpc/sync_opa_property_character`);
+});
+
+test("applySnapshot never prints the response body on failure", async () => {
+  const fetchImpl = () => ({ ok: false, status: 400, text: async () => "SECRET ROW CONTENT" });
+  await assert.rejects(
+    () =>
+      applySnapshot(
+        { rows: [] },
+        {
+          url: `https://${REF_A}.supabase.co`,
+          key: "invented-not-a-real-key",
+          expectedRef: REF_A,
+          fetchImpl,
+          log: () => {},
+        }
+      ),
+    (err) => {
+      assert.match(err.message, /HTTP 400/);
+      assert.ok(!err.message.includes("SECRET ROW CONTENT"), "body must never be echoed");
+      return true;
+    }
+  );
+});
+
+// ---------------------------------------------------------------------------
+// W2 -- SUPABASE_URL validation. An unvalidated URL sends the SERVICE-ROLE KEY
+// and the whole confidential extract to whatever host it names.
+// ---------------------------------------------------------------------------
+test("resolveSupabaseTarget rejects a non-https, non-Supabase, ported or path-bearing URL", () => {
+  const cases = [
+    [`http://${REF_A}.supabase.co`, /https/],
+    [`https://${REF_A}.supabase.co.example.invalid`, /not a Supabase project host/],
+    ["https://example.invalid", /not a Supabase project host/],
+    [`https://${REF_A}.supabase.co:8443`, /port/],
+    [`https://${REF_A}.supabase.co/rest/v1`, /no path/],
+    [`https://${REF_A}.supabase.co/?x=1`, /query string/],
+    ["not-a-url", /not a valid URL/],
+    ["", /not a valid URL/],
+  ];
+  for (const [url, re] of cases) {
+    assert.throws(() => resolveSupabaseTarget(url, REF_A), re, `expected ${url} to be rejected`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// W3 -- THE FIRST LOAD HAS NO FLOOR without this. The database shrink band only
+// fires when rows are ALREADY stored, so a one-row snapshot into an empty mirror
+// passes every database guard.
+// ---------------------------------------------------------------------------
+test("buildSnapshot rejects an extract smaller than the expected minimum", () => {
+  const csv = [HEADER, '1,101,"A","B",1,1007'].join("\n");
+  assert.throws(
+    () => buildSnapshot(parseCsv(csv), { ...opts, minRows: 100 }),
+    /fewer than the expected minimum of 100/
+  );
+  const snap = buildSnapshot(parseCsv(csv), { ...opts, minRows: 1 });
+  assert.equal(snap.rows.length, 1);
+});
+
+test("resolveMinRows rejects anything that is not a whole number of at least 1", () => {
+  for (const bad of ["0", "-1", "1.5", "abc", "", "1e400"]) {
+    assert.throws(() => resolveMinRows(bad), /whole number of at least 1/, `expected ${bad} rejected`);
+  }
+  assert.equal(resolveMinRows("10262"), 10262);
+});
+
+// ---------------------------------------------------------------------------
+// W5 -- MALFORMED QUOTING IS REJECTED, NOT REPAIRED.
+// ---------------------------------------------------------------------------
+test("parseCsv rejects text after a closing quote instead of silently appending it", () => {
+  assert.throws(
+    () => parseCsv([HEADER, '1,101,"A"junk,"B",1,1007'].join("\n")),
+    /after a closing quote/
+  );
+});
+
+test("parseCsv rejects a bare quote in an unquoted field (it used to MERGE fields)", () => {
+  // Old behaviour: the quote flipped quote mode and swallowed the following
+  // commas, so several values collapsed into one field and every later value
+  // shifted a column.
+  assert.throws(() => parseCsv([HEADER, '1,101,A"B,C,1,1007'].join("\n")), /unescaped/);
+});
+
+test("parseCsv rejects a file that ends inside a quoted field -- a TRUNCATED download", () => {
+  assert.throws(() => parseCsv([HEADER, '1,101,"A","Unter'].join("\n")), /TRUNCATED/);
+});
+
+test("buildSnapshot rejects a row whose field count disagrees with the header", () => {
+  assert.throws(
+    () => buildSnapshot(parseCsv([HEADER, '1,101,"A","B",1,1007,extra'].join("\n")), opts),
+    /7 field\(s\) but the header has 6/
+  );
+  assert.throws(
+    () => buildSnapshot(parseCsv([HEADER, '1,101,"A","B",1'].join("\n")), opts),
+    /5 field\(s\) but the header has 6/
+  );
+});
+
+test("decodeUtf8Strict refuses invalid UTF-8 instead of substituting U+FFFD", () => {
+  const bad = Buffer.from([0x41, 0xff, 0x42]);
+  assert.throws(() => decodeUtf8Strict(bad), /not valid UTF-8/);
+  // Prove the failure mode this guard exists to prevent.
+  assert.ok(bad.toString("utf8").includes("�"));
+  assert.equal(decodeUtf8Strict(Buffer.from("ok", "utf8")), "ok");
+});
+
+// ---------------------------------------------------------------------------
+// Lows.
+// ---------------------------------------------------------------------------
+test("buildSnapshot rejects an id beyond the safe integer range", () => {
+  const csv = [HEADER, '9007199254740993,101,"A","B",1,1007'].join("\n");
+  assert.throws(() => buildSnapshot(parseCsv(csv), opts), /safe integer range/);
+  // Prove the failure mode: two distinct id strings round to the same Number.
+  assert.equal(Number("9007199254740993"), Number("9007199254740992"));
+});
+
+test("assertIsoDate rejects a date-SHAPED string that is not a real date", () => {
+  for (const bad of ["2026-99-99", "2026-02-30", "2026-13-01", "6 Aug 2026", "", undefined]) {
+    assert.throws(() => assertIsoDate(bad), /REAL ISO date/, `expected ${bad} rejected`);
+  }
+  assert.equal(assertIsoDate("2026-08-06"), "2026-08-06");
+});
+
+test("assertSourceUrlIsNotACredential FAILS CLOSED on a scheme-less URL", () => {
+  // THE BUG THIS REPLACES: `new URL()` throws on a scheme-less string, and the old
+  // code returned it UNCHECKED. A paste straight out of a browser address bar is
+  // exactly that shape, and the token then landed on every one of ~10,262 rows.
+  const SECRET = "CANARY-SESSION-SECRET";
+  for (const bad of [
+    `opa.example.invalid/x?session_token=${SECRET}`,
+    `//opa.example.invalid/x?session_token=${SECRET}`,
+    "not a url at all",
+    "",
+  ]) {
+    assert.throws(
+      () => assertSourceUrlIsNotACredential(bad),
+      /absolute URL/,
+      `expected ${JSON.stringify(bad)} to be rejected, not silently accepted`
+    );
+  }
+  // Canary: the secret must not survive into the message.
+  try {
+    assertSourceUrlIsNotACredential(`opa.example.invalid/x?session_token=${SECRET}`);
+    assert.fail("should have thrown");
+  } catch (err) {
+    assert.ok(!err.message.includes(SECRET), `secret leaked into the message: ${err.message}`);
+  }
+});
+
+test("assertSourceUrlIsNotACredential refuses ANY query string or fragment, however named", () => {
+  const SECRET = "CANARY-QUERY-SECRET";
+  // Named like a credential...
+  assert.throws(() => assertSourceUrlIsNotACredential("https://x.invalid/p?session_token=a"), /query string/);
+  assert.throws(() => assertSourceUrlIsNotACredential("https://x.invalid/p?apiKey=a"), /query string/);
+  // ...and NOT named like one. A blocklist missed these; refusing the whole class does not.
+  assert.throws(() => assertSourceUrlIsNotACredential("https://x.invalid/p?t=a"), /query string/);
+  assert.throws(() => assertSourceUrlIsNotACredential("https://x.invalid/p?page=2"), /query string/);
+  // A SHORT fragment used to pass: the old check only fired above 40 characters.
+  assert.throws(() => assertSourceUrlIsNotACredential("https://x.invalid/p#abc123"), /fragment/);
+  assert.throws(() => assertSourceUrlIsNotACredential(`https://x.invalid/p#${"a".repeat(60)}`), /fragment/);
+  // Userinfo.
+  assert.throws(() => assertSourceUrlIsNotACredential("https://u:p@x.invalid/page"), /userinfo/);
+  // Non-http scheme.
+  assert.throws(() => assertSourceUrlIsNotACredential("ftp://x.invalid/page"), /http\(s\)/);
+
+  for (const url of [
+    `https://x.invalid/p?session_token=${SECRET}`,
+    `https://x.invalid/p#${SECRET}`,
+  ]) {
+    try {
+      assertSourceUrlIsNotACredential(url);
+      assert.fail("should have thrown");
+    } catch (err) {
+      assert.ok(!err.message.includes(SECRET), `secret leaked: ${err.message}`);
+    }
+  }
+});
+
+test("assertSourceUrlIsNotACredential refuses a token in the PATH, and reports position not content", () => {
+  // A token in the path passed the old check entirely -- only query NAMES were read.
+  const cases = [
+    ["https://x.invalid/session/abc", /path segment 1/],          // credential-ish word
+    ["https://x.invalid/p/eyJhbGciOiJIUzI1NiJ9", /path segment 2/], // a JWT
+    [`https://x.invalid/p/${"a1b2c3d4".repeat(4)}`, /path segment 2/], // 32-char hex digest
+    [`https://x.invalid/p/${"Ab1".repeat(20)}`, /path segment 2/],  // long opaque
+  ];
+  for (const [url, re] of cases) {
+    assert.throws(() => assertSourceUrlIsNotACredential(url), re, `expected ${url} rejected`);
+  }
+  // The offending segment must never be echoed.
+  try {
+    assertSourceUrlIsNotACredential("https://x.invalid/p/eyJhbGciOiJIUzI1NiJ9");
+    assert.fail("should have thrown");
+  } catch (err) {
+    assert.ok(!err.message.includes("eyJhbGciOiJIUzI1NiJ9"), `token leaked: ${err.message}`);
+  }
+});
+
+test("assertSourceUrlIsNotACredential still accepts ordinary page URLs", () => {
+  for (const ok of [
+    "https://example.invalid/page",
+    "https://example.invalid",
+    "https://example.invalid/licensing/licensed-properties-2026",
+    "https://example.invalid/OPA-Characters-Export2026",
+    "http://example.invalid/a/b/c",
+  ]) {
+    assert.doesNotThrow(() => assertSourceUrlIsNotACredential(ok), `expected ${ok} accepted`);
+  }
+});
+
+test("buildSnapshot refuses a snapshot whose provenance URL carries a credential", () => {
+  assert.throws(
+    () =>
+      buildSnapshot(parseCsv(good), {
+        ...opts,
+        sourceUrl: "https://example.invalid/x?auth=abc",
+      }),
+    /credential/
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The auto-run guard. The old check fired whenever argv[1] merely ENDED WITH the
+// filename, so a NEIGHBOURING file whose name ends the same way would trigger a
+// REAL RUN just by importing the module. This spawns exactly that file.
+// ---------------------------------------------------------------------------
+test("importing from a file named *sync-opa-property-character.mjs does NOT start a run", () => {
+  const dir = mkdtempSync(join(tmpdir(), "opa-entrypoint-"));
+  const modUrl = pathToFileURL(
+    join(dirname(fileURLToPath(import.meta.url)), "sync-opa-property-character.mjs")
+  ).href;
+  // The name is the whole point: it ENDS WITH the module's filename.
+  const probe = join(dir, "test-sync-opa-property-character.mjs");
+  writeFileSync(probe, `await import(${JSON.stringify(modUrl)});\nconsole.log("IMPORTED-ONLY");\n`);
+
+  const run = spawnSync(process.execPath, [probe], { encoding: "utf8" });
+  rmSync(dir, { recursive: true, force: true });
+
+  assert.equal(
+    run.status,
+    0,
+    `importing must not run main(). stderr was: ${run.stderr}`
+  );
+  assert.match(run.stdout, /IMPORTED-ONLY/);
+  assert.ok(
+    !/OPA_CSV_PATH is required/.test(run.stderr),
+    "main() ran on import -- the entry-point check is too broad"
+  );
+});
+
+// ---------------------------------------------------------------------------
+// COUNTS, ORDINALS AND STATUS -- NEVER A VALUE. These two messages used to echo
+// extract field content into terminals and CI logs for a PUBLIC repository. The
+// old defence was that a non-integer in a numeric column could only be numeric
+// junk -- which fails on exactly the failure parseCsv now detects: if the columns
+// SHIFT, a character name lands in a numeric column and gets printed. Each test
+// uses a canary value and asserts the message does NOT contain it.
+// ---------------------------------------------------------------------------
+const CANARY = "CANARY-LEAKED-VALUE";
+
+test("the non-integer message reports row and column but NEVER the value", () => {
+  const csv = [HEADER, `1,${CANARY},"A","B",1,1007`].join("\n");
+  try {
+    buildSnapshot(parseCsv(csv), opts);
+    assert.fail("should have thrown");
+  } catch (err) {
+    assert.match(err.message, /row 2/, "the row ordinal must be reported");
+    assert.match(err.message, /characterID/, "the column name must be reported");
+    assert.ok(
+      !err.message.includes(CANARY),
+      `the offending value must never appear in the message: ${err.message}`
+    );
+  }
+});
+
+test("the duplicate-pair message reports row ordinals but NEVER the id values", () => {
+  // Distinctive ids so a leak is unmistakable.
+  const row = '123454321,987656789,"A","B",1,1007';
+  const csv = [HEADER, row, row].join("\n");
+  try {
+    buildSnapshot(parseCsv(csv), opts);
+    assert.fail("should have thrown");
+  } catch (err) {
+    assert.match(err.message, /duplicate/i);
+    assert.match(err.message, /row 3 repeats the ID pair first seen at row 2/);
+    assert.ok(!err.message.includes("123454321"), `licensedPropertyID leaked: ${err.message}`);
+    assert.ok(!err.message.includes("987656789"), `characterID leaked: ${err.message}`);
+  }
+});
+
+test("parseCsv rejects a BARE carriage return that is not part of a CRLF", () => {
+  // Measured on the old parser: 'a,b\r1,2' parsed to the single row ["a","b1","2"],
+  // joining the end of one line to the start of the next.
+  assert.throws(() => parseCsv("a,b\r1,2"), /bare carriage return/);
+  assert.throws(() => parseCsv([HEADER, '1,101,"A","B",1,1007\r'].join("\n")), /bare carriage return/);
+});
+
+test("parseCsv still accepts CRLF line endings unchanged", () => {
+  const rows = parseCsv([HEADER, '1,101,"A","B",1,1007'].join("\r\n"));
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[1], ["1", "101", "A", "B", "1", "1007"]);
+});
+
+test("resolveSupabaseTarget treats the expected ref case-insensitively", () => {
+  // `new URL` lowercases the hostname, so an UPPERCASE host was already accepted
+  // while an UPPERCASE expected ref was rejected as malformed. Same answer now.
+  const t = resolveSupabaseTarget(`https://${REF_A.toUpperCase()}.supabase.co`, REF_A.toUpperCase());
+  assert.equal(t.ref, REF_A);
+  // and a genuine mismatch is still refused regardless of case
+  assert.throws(
+    () => resolveSupabaseTarget(`https://${REF_B}.supabase.co`, REF_A.toUpperCase()),
+    /REFUSING TO SEND/
+  );
 });
