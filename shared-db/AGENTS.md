@@ -8,6 +8,10 @@
 
 # AGENTS.md — cross-app coordination playbook
 
+## Active implementation plan
+
+- PopDAM OrderList linked to Master Data: [`plan_popdam_order_list.md`](plan_popdam_order_list.md). Read its STATUS table first. Do not re-derive or re-plan completed steps.
+
 This is the operating contract for **every AI session working on any app that
 shares the Supabase database**: PM/PIM `poppim-web`, CRM `popcrm-web`, DAM
 `popdam-web`, and the six `popcre/designflow-*` PLM repos. Read it before
