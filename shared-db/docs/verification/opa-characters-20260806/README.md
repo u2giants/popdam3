@@ -1,9 +1,11 @@
 # Disney OPA property→character extract — 2026-08-06
 
-**Status:** source data captured and committed. **No database work has been done.**
-The request to turn this into a lookup table is filed in `COORDINATOR_INTAKE.md`
-under `## REQUEST QUEUE` ("Store the Disney OPA property→character list as a
-lookup table", 2026-08-06) and was opened as PR #466.
+**Status:** source data captured and **merged to `main`** (PR #466, 2026-08-07).
+**No database work has been done and none is in flight.** The request to turn
+this into a lookup table is filed in `COORDINATOR_INTAKE.md` under
+`## REQUEST QUEUE` ("Store the Disney OPA property→character list as a lookup
+table", 2026-08-06) and is **waiting for a coordinator to dispatch it**. Read
+§6a and §7 before designing anything.
 
 This document is written for someone who has never seen OPA, was not in the
 session that produced this file, and needs to either (a) act on the request,

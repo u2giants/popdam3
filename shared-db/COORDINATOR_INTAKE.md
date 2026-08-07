@@ -679,6 +679,30 @@ after it is filed. Only the coordinator moves a block out of here.
 > ⚠️ **That session could not reach GitHub. Five branches are unpushed and
 > coordinator marker issue #453 is still OPEN — it is NOT a dead coordinator.**
 
+### CLOSING NOTE — all three findings in the block below are now RESOLVED; the OPA request itself is still OPEN — 2026-08-07 — session: opa-scrape (t16)
+
+Appended rather than edited in place, per this file's log rule. Verified against
+`origin/main`, not from memory.
+
+| Finding in the block below | State |
+| --- | --- |
+| (a) `AGENTS.md` §6.7 stale on branch protection | ✅ **FIXED on `main`** by PR #467 (`53bc3f0`). §6.7 now reads `strict: true` and is dated. It was fixed on that branch hours before it reached `main` — this session marked it closed too early on branch-level evidence. Verify against `main`, never a branch. |
+| (b) PR #467 carrying this session's four OPA files | ✅ **RESOLVED.** The other session merged `main` into its branch and took `main`'s version in all three conflicts. **Verified: the retraction in §4 of the OPA README survived — the disproved claim is gone from `main` and the corrected block is present.** ⚠️ Note the prediction in the block below that "merging #466 first clears #467 automatically" was **WRONG**: the rescue used `git cherry-pick`, which creates new commit IDs, so git never saw the two copies as the same commits. |
+| (c) Hosted-runner starvation reading as a failed check | ✅ **CLEARED** with the 2026-08-06 GitHub Actions outage. `Cross-PR object collision` later passed in **28 seconds**. Dropped push events were **not** replayed — closing and reopening the PR was what fired fresh runs. The documentation value stands: **check job annotations before believing a red X.** |
+
+**Still OPEN and unstarted: the OPA lookup table itself.** Both the original
+request and its supplement remain live below. Nothing has been dispatched, no
+database call has been made, and `HANDOFF.d/` no longer carries an OPA file
+because this session's own work is complete — **the queue is now the only record
+of the outstanding work.**
+
+⚠️ **Two sessions independently hit the shared-checkout problem on 2026-08-06**
+(this one had commits land on another branch twice; the other silently inherited
+a commit and nearly landed a retracted claim on `main`). That is two findings,
+not one, and nothing currently guards it. The durable fix is a hard rule: **no
+session works in the shared checkout `C:/repos/shared-db` directly — worktrees only.** Belongs in
+`AGENTS.md`, which is single-writer and was deliberately not touched here.
+
 ### REQUEST — `AGENTS.md` §6.7 is STALE on branch protection (verified live), plus fresh evidence the shared checkout is still colliding, plus a CI trap — 2026-08-06 — session: opa-scrape (t16)
 
 Three findings from one session. Full detail:
