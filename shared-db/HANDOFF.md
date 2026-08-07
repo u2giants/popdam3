@@ -1847,7 +1847,38 @@ the crons** — e.g. a separate job not gated on the enable variable, or a disti
 `..._READINESS_ONLY` mode. This must be done in its own PR with its own review; it changes the
 production workflow.
 
-### B10 — Coordinator intake lifecycle/retention is MANUAL; CI could enforce it (MEDIUM — recorded 2026-07-31, NOT implemented)
+### B10 — Coordinator intake lifecycle/retention — ⛔ CLOSED 2026-08-07, DO NOT IMPLEMENT
+
+> ## ⛔ STOP. Implementing this item rebuilds the thing that was just removed.
+>
+> **B10 asked for CI that enforces the lifecycle and retention rules of
+> `COORDINATOR_INTAKE.md`. That file has been retired.** Its 63 open work items became
+> GitHub issues on 2026-08-07
+> ([`plan_coordinator-queue-to-github-issues.md`](plan_coordinator-queue-to-github-issues.md)).
+> Building CI to enforce the lifecycle of a retired file would recreate the file, which is
+> exactly the failure this item is being closed to prevent: **a faithful future session
+> reads B10, implements it in good faith, and the queue comes back.**
+>
+> **Work now lives here:** `gh issue list --repo u2giants/shared-db --label db-work`.
+>
+> **If you want the underlying good idea** — mechanical enforcement instead of written
+> discipline — it already exists in a better form: the required
+> [`Intake pointer guard`](.github/workflows/intake-pointer-guard.yml) check fails any PR in
+> which the retired file starts growing a queue back. That is B10's intent, aimed at
+> preventing the queue rather than maintaining it.
+>
+> **Why it was manual and never enforced, kept because it is the actual lesson:** the file's
+> Part B2 defined a full lifecycle and retention discipline, and it **never once fired** —
+> `docs/intake-archive/`, the directory the retention rule archived into, was never created.
+> Two of its rules deadlocked: retention required archiving blocks that a CI check required
+> stay present. The file grew from 0 to 89 blocks in eight days and never shrank. **Rules
+> that depend on a human remembering them do not happen in this repo.** That is why the
+> replacement is a detector, not a discipline.
+
+<details>
+<summary>The original B10 text, kept for the record. It describes a system that no longer exists.</summary>
+
+#### B10 (original, 2026-07-31) — Coordinator intake lifecycle/retention is MANUAL; CI could enforce it
 
 `COORDINATOR_INTAKE.md` at the repo root is the mailbox for (a) **requests** for database work
 from anyone who has not started it, and (b) **handovers** from sessions that had started and
@@ -1940,7 +1971,30 @@ guessing:
 **Status at the 2026-07-31 handover:** four orphaned processes existed on the machine and **Albert
 was given the `Stop-Process` commands to clear them. Whether he ran them is UNVERIFIED.**
 
-### B13 — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry (DONE 2026-07-31)
+</details>
+
+### B13 — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry — ⛔ RETIRED 2026-08-07
+
+> **The check has been DELETED, and so has the `REQUEST QUEUE` it read.**
+> `scripts/check-backlog-queue-sync.mjs`, its tests and
+> `.github/workflows/backlog-queue-sync.yml` were removed on 2026-08-07, and the required
+> status context `Backlog / queue sync` was removed from branch protection by owner
+> instruction naming it (Albert Hazan, 2026-08-07).
+>
+> **It was retired rather than repaired, for two reasons.** It only ever verified that each
+> of the 14 `B<n>` items had a mention in the queue — it never looked at the 60+ queue items
+> that were the actual sprawl. And it **false-passed**: its `B(\d{1,3})` pattern matched
+> a bare number anywhere in prose, so it printed "OK B8 — found in `## REQUEST QUEUE`" for
+> B8, B13 and B14, none of which had an entry in that section at all. A small, broken check
+> with a big name, carrying authority on every pull request that it had not earned.
+>
+> **Do not rebuild it.** Backlog items are tracked as GitHub issues now:
+> `gh issue list --repo u2giants/shared-db --label db-work`.
+
+<details>
+<summary>The original B13 text, kept for the record. Every file it names has been deleted.</summary>
+
+#### B13 (original, 2026-07-31) — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry
 
 > **DONE — implemented 2026-07-31.** The check is
 > [`scripts/check-backlog-queue-sync.mjs`](scripts/check-backlog-queue-sync.mjs), unit-tested by
@@ -2016,6 +2070,8 @@ drift **visible at review time**, which is the one thing prose could not do.
 testable offline against the two committed files. **Explicitly not implemented in the session
 that assessed it** — that session's scope was limited to `HANDOFF.md` and `COORDINATOR_INTAKE.md`
 and was forbidden from adding scripts or workflows.
+
+</details>
 
 ### B14 — The ENOBUFS fix MOVES the cliff, it does not remove it — and it still auto-trips the breaker (**RESOLVED 2026-07-31** — no longer a Step 8 blocker)
 
