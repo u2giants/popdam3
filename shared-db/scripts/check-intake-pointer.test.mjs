@@ -68,7 +68,7 @@ test('REFUSES a returning REQUEST QUEUE heading', () => {
 });
 
 test('REFUSES a lower-cased section heading', () => {
-  // The case-insensitivity matters: AGENTS.md refers to "the coordinator intake" in lower
+  // The case-insensitivity matters: AGENTS.md refers to "the orchestrator intake" in lower
   // case, and a case-sensitive gate would wave a lower-cased rebuild straight through.
   const r = runGuard(GOOD_POINTER + '\n## intake queue\n');
   assert.equal(r.code, 1, 'guard is case-sensitive and missed a lower-cased rebuild');

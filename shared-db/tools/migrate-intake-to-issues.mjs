@@ -338,7 +338,7 @@ function ensureLabels(labels, create) {
     JSON.parse(gh(['label', 'list', '--repo', REPO, '--limit', '200', '--json', 'name'])).map((l) => l.name),
   );
   const spec = {
-    'db-work': ['1D76DB', 'A unit of work on the shared database or this repo. Migrated from the coordinator queue.'],
+    'db-work': ['1D76DB', 'A unit of work on the shared database or this repo. Migrated from the orchestrator queue.'],
     'needs-albert': ['D93F0B', 'Blocked on an owner decision. Do not act without a fresh answer in the current chat.'],
     // GitHub caps a label description at 100 characters and returns HTTP 422 past it.
     // Keep every description below that; the long-form reasoning belongs in the issue.

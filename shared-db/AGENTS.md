@@ -18,8 +18,8 @@ shares the Supabase database**: PM/PIM `poppim-web`, CRM `popcrm-web`, DAM
 touching code or the database. It exists to stop separate
 AI sessions from breaking each other through the one database they all depend on.
 
-> **Started in `shared-db` and you are not the coordinator? Stop and hand over.**
-> This repo runs **one coordinator session**, which dispatches every task to
+> **Started in `shared-db` and you are not the orchestrator? Stop and hand over.**
+> This repo runs **one orchestrator session**, which dispatches every task to
 > sub-agents in isolated worktrees. **Any other session opens a GitHub issue and stops:**
 > `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
 > ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07) and is now a 37-line pointer.
@@ -28,7 +28,7 @@ AI sessions from breaking each other through the one database they all depend on
 > production-bound Supabase MCP, preview as a shared mutable resource, and the ban on
 > background task chips — are now §12 of THIS file**, re-homed 2026-08-07 ahead of the
 > queue file being retired. Skills:
-> `shared-db-orchestrator` to run a coordinator session, `shared-db-handover` to
+> `shared-db-orchestrator` to run a orchestrator session, `shared-db-handover` to
 > close one out.
 
 ## 0. Shared-db gatekeeper rule for consumer repos
@@ -230,7 +230,7 @@ four rules below are non-negotiable for any database change.
 
    ⚠️ **`--allocate-version` was withdrawn on 2026-08-07 and now exits `2`.** It
    never reserved anything — it read the versions in use and printed a
-   suggestion, so two coordinators running it in the same minute were handed the
+   suggestion, so two orchestrators running it in the same minute were handed the
    same number. Pick a version manually; duplicates are already blocked at merge
    by the `SQL migration guards` check. An atomic reservation is plan step 6.
 
@@ -385,7 +385,7 @@ rule closes that evidence gap, not a mistake.
    "preview". Any tool call, environment change, reconnect, or turn boundary between the
    check and the statement invalidates the check — redo it.
 3. **The proof must be stated in the agent's report** — the message it gives the owner (or
-   the coordinator) at the end of the turn — quoting the value it actually
+   the orchestrator) at the end of the turn — quoting the value it actually
    observed (the project ref or URL) and the statement it authorised. A report of a
    destructive statement without a quoted, immediately-preceding target proof is an
    incomplete report.
@@ -1011,9 +1011,9 @@ never by rewriting history.
   parent for a human to look at; it may never set one. A curation *screen* is exactly what a
   hand-curated link requires, so the hand-curation ruling and this section point the same way.
   (Recorded in the
-  coordinator intake as ruling 4.)
+  orchestrator intake as ruling 4.)
 - **`dflow.*` is being retired; `core.*` becomes the source of truth for all applications**, fed
-  from ColdLion as the ultimate upstream. (Recorded in the coordinator intake as ruling 6.)
+  from ColdLion as the ultimate upstream. (Recorded in the orchestrator intake as ruling 6.)
   **§6.6 is the direct consequence of this.** If `core.*` serves every app, the surface on which
   humans curate `core.*` must not be locked inside one application — which is precisely Albert's
   "it should not be only in 1 particular application". Building further curation into DesignFlow
@@ -1108,7 +1108,7 @@ weaken it.**
 
 1. **CI guards on this repository are no longer advisory.** Merging through a red *required* check
    is now **mechanically impossible**, including for admins — `enforce_admins` is `true`, so there
-   is no "coordinator override". The event that motivated this ruling was real: on 2026-08-03 PR
+   is no "orchestrator override". The event that motivated this ruling was real: on 2026-08-03 PR
    #431 was merged through a **red** `verify` check (run `30846938009`, job `91797438635`). That
    route is closed.
 2. **`main` cannot be force-pushed or deleted.** Any recovery plan that assumes a rewrite of `main`
@@ -1224,7 +1224,7 @@ may exist under many licensors. `core.property` is keyed `(licensor_id, code)`
 (`20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql`, and see
 [`docs/licensor-property-parent-child-design-20260802.md`](docs/licensor-property-parent-child-design-20260802.md) §2.1).
 
-> **This corrected a wrong assumption the coordinator held on 2026-08-06, and that assumption is
+> **This corrected a wrong assumption the orchestrator held on 2026-08-06, and that assumption is
 > baked into at least one committed tool.** `tools/validate-licensing-answers.mjs` (the property
 > lookup around lines 86–92) resolves a property with `where p.code = any($1)` — no licensor scope.
 > It selects the licensor name and then discards it; only `r.code` is used. It is safe **only**
@@ -1506,7 +1506,7 @@ Item IDs can be re-keyed by 1Password, so if that ID 404s, re-resolve it with
 - **`public` schema anon lockdown (2026-07-29) — read before creating a function or a view in `public`:** [`docs/security/public-schema-execute-audit.md`](docs/security/public-schema-execute-audit.md) (EXECUTE grants; 88 of 99 SECURITY DEFINER functions were anon-callable) and [`docs/security/public-schema-anon-read-audit.md`](docs/security/public-schema-anon-read-audit.md) (table/view reads; ~27,000 rows were anon-readable). Summarised as a standing rule in §10.2 above.
 - **PopDAM access — read before granting/revoking/debugging a user's access:** [`docs/popdam-access-provisioning.md`](docs/popdam-access-provisioning.md). Permissions run on **three independent axes across two schemas**. `public.app_access('popdam')` alone lets someone log in and **see nothing**: every `core.*`/`api.*` policy is **app-schema** gated (`app.has_any_role(...)`), so a user with no active `app.user_role` gets `HTTP 200` with an empty array — success-shaped and data-free. On 2026-07-26, **18 of 35 PopDAM users** were in exactly that state.
 
-- **Cross-workflow take-over (2026-07-31):** [`coordinator_take_over.md`](coordinator_take_over.md).
+- **Cross-workflow take-over (2026-07-31):** [`orchestrator_take_over.md`](orchestrator_take_over.md).
   Splits four in-flight threads — characters/style guides, ColdLion source-of-truth, licensing
   coordination, shared-db hygiene — into what is done, what is verified vs merely documented, what
   blocks each, and the failed paths not to repeat. **Read its §1 table before picking up any of
@@ -1630,10 +1630,41 @@ production yet. Promote it **together with or after** the ClickUp migrations
 production-safe equivalent (`20260729130000`) is already applied, so nothing is exposed in
 the meantime.
 
+## 11b. The role is called ORCHESTRATOR (renamed 2026-08-07)
+
+**One word for the role, and the word is orchestrator.** Owner instruction, Albert Hazan,
+2026-08-07. Renamed throughout this file, `HANDOFF.md`, the plans, the tooling, the three
+`shared-db-*` skills, and the marker label.
+
+**"Coordinator" is the OLD word for exactly the same role.** It survives in three places,
+all deliberately:
+
+1. **Older GitHub issues and their titles**, including any open marker issue.
+2. **`HANDOFF.d/` files.** These are write-once records of what past sessions did. This
+   repo's own rule is that you never edit another session's handover — rewriting them to
+   change a word would falsify the record of who said what.
+3. **Git history and merged PR titles**, which cannot be rewritten.
+
+**Both words mean the same thing, and both still load the `shared-db-orchestrator` skill.**
+Do not go looking for a separate coordinator skill; there has never been one.
+
+⚠️ **The marker label was renamed `coordinator-marker` → `orchestrator-marker`.** GitHub
+carried the existing issues across. **If `gh issue list --label coordinator-marker` returns
+empty, that is the rename, not an empty board** — query `orchestrator-marker`. This matters:
+step 0 of the orchestrator skill treats an empty result as permission to start, so reading
+the old label would let a second orchestrator start while one is already live.
+
+⚠️ **Two filenames deliberately keep the old spelling**, because renaming them would break
+links from the 63 migrated issues and from merged PR bodies:
+`COORDINATOR_INTAKE.md` (now a retired pointer) and
+`plan_coordinator-queue-to-github-issues.md` (a completed plan).
+
+---
+
 ## 12. Standing facts an incoming session must know
 
 > **Re-homed from `COORDINATOR_INTAKE.md` on 2026-08-07, verbatim.** These ten rules
-> used to live in the coordinator queue file, and `AGENTS.md` §2 pointed at that file for
+> used to live in the orchestrator queue file, and `AGENTS.md` §2 pointed at that file for
 > them. The queue is being retired
 > ([`plan_coordinator-queue-to-github-issues.md`](plan_coordinator-queue-to-github-issues.md)
 > step 8), so they moved here first — otherwise retiring the file would have deleted live
@@ -1647,8 +1678,8 @@ the meantime.
 Read these before you write anything. Several of them describe failures that
 have already happened in this repo, more than once.
 
-1. **One coordinator.** All work is dispatched to sub-agents in isolated
-   worktrees. If you were not started as the coordinator, you are not it.
+1. **One orchestrator.** All work is dispatched to sub-agents in isolated
+   worktrees. If you were not started as the orchestrator, you are not it.
 2. **One schema change in flight at a time.** Two simultaneous schema edits are
    the number-one cause of a broken shared database here.
 3. **Never edit a migration that has already been applied.** The migration
@@ -1703,7 +1734,7 @@ have already happened in this repo, more than once.
     each true when written, on the machine that wrote them; they are history, not
     inventory. The drop from 51 to 1 was an **authorised sweep**, not a mystery —
     resolved by intake PR #455 (`9a933c8`) and recorded in
-    `HANDOFF.d/2026-08-06T0149Z-al8960ofc-coordinator-skill-repair.md` §4. **Do
+    `HANDOFF.d/2026-08-06T0149Z-al8960ofc-orchestrator-skill-repair.md` §4. **Do
     not sweep or remove any worktree on the strength of a number in a document**,
     and never remove one that is dirty, locked, or held by a live agent (B2.3).
 

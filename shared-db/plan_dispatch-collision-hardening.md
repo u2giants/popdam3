@@ -1,7 +1,7 @@
 # Implementation plan — harden the dispatch-time collision check
 
 **File:** `plan_dispatch-collision-hardening.md` · **Repo:** `u2giants/shared-db` · **Created:** 2026-08-06
-**Companion handoff:** `HANDOFF.d/2026-08-06T1700Z-t16-coordinator-dispatch-hardening.md` (write it at session end; neither document should be read alone)
+**Companion handoff:** `HANDOFF.d/2026-08-06T1700Z-t16-orchestrator-dispatch-hardening.md` (write it at session end; neither document should be read alone)
 
 ---
 
@@ -40,7 +40,7 @@ and it left four tests deliberately RED-as-`todo` that step 3b must un-mark.
 >
 > - The 2026-07-31 four-way incident was **the same object**, not the same version.
 > - Duplicate versions are **already blocked at merge** by `scripts/check-sql.sh`.
-> - Two coordinators could both get exit 0 for `plm.promote_coldlion_source_owned`, both
+> - Two orchestrators could both get exit 0 for `plm.promote_coldlion_source_owned`, both
 >   print a claim command, and both dispatch. Nothing serialised them. In its words, the
 >   tool was *"a race reporter with extra steps, not a lock."*
 >
@@ -70,7 +70,7 @@ either does the work — so nobody's work has to be thrown away, and so two chan
 never quietly overwrite each other.
 
 A tool for this was built and merged this morning (PR #464). **It currently gives the
-wrong answer in the most common case.** It tells the coordinator "SAFE TO DISPATCH" when
+wrong answer in the most common case.** It tells the orchestrator "SAFE TO DISPATCH" when
 two agents are both about to alter the same table, because the SQL parser it uses cannot
 see `alter table` at all. This plan fixes that, and makes the tool honest about the limits
 of what it checked.
@@ -278,7 +278,7 @@ that can never collide** — a silent false-safe inside the ledger itself.
 **The allocator does not do what its own comment claims.** `--allocate-version`
 (line 444) computes a stamp from `new Date()`, checks it against versions on disk and in
 open claims, and then **prints** a suggestion. Nothing is reserved between the check and
-the (manual) filing. Two coordinators dispatching in the same minute both see the version
+the (manual) filing. Two orchestrators dispatching in the same minute both see the version
 as free and both take it. The header comment on `nextFreeVersion` (line 190) says this
 "kills the duplicate-timestamp class"; **it does not**, and that comment must be corrected.
 
@@ -311,7 +311,7 @@ when challenged.** Two reasons: (a) it puts database credentials on the *dispatc
 the hot path every task crosses — in order to solve a *wasted work* problem, and this repo
 already suffered a **442-row production `DELETE`** from a session that believed it was on
 preview (`AGENTS.md` §4.2, incident 2026-07-31); the blast-radius asymmetry is
-unacceptable. (b) The coordinator is explicitly forbidden from making database calls at
+unacceptable. (b) The orchestrator is explicitly forbidden from making database calls at
 all, which is a load-bearing control, not an incidental style rule. **Do not reintroduce
 without owner sign-off.**
 
@@ -339,7 +339,7 @@ correct retroactively.
 
 **R10 — Object claims as GitHub-issue bodies parsed with a mini-language (drafts 1 and 2).**
 Rejected after Grok review. An issue body is not create-if-absent, so it cannot serialise
-anything: two coordinators could both read "no claim exists", both file one, and both
+anything: two orchestrators could both read "no claim exists", both file one, and both
 dispatch. It also required a hand-rolled parser that produced four reproduced defects in a
 day, and a shell recipe that did not work on this machine's shell. Atomic refs give
 exclusivity, binding and listing for free and delete all of that code. **Do not reintroduce
@@ -448,7 +448,7 @@ objects.` Replace the clear-result branch with a report naming coverage explicit
 No overlap found in the object classes this tool can see.
   CHECKED:     function, procedure, view, materialized view, trigger, policy
   NOT CHECKED: table, column, index, grant, comment, type, and every ALTER form
-This is EVIDENCE, not clearance. The coordinator must confirm no collision in the
+This is EVIDENCE, not clearance. The orchestrator must confirm no collision in the
 unchecked classes before dispatching.
 ```
 
@@ -783,7 +783,7 @@ can never be blocked by its own claim on a re-run — the earlier design's undef
 everyday flow (Grok finding D) no longer exists.
 
 **Open PRs are still consulted.** Refs only cover work that claimed; `gatherOpenPrObjects`
-still covers work that did not (nine PRs merged outside coordinator control). If an open PR
+still covers work that did not (nine PRs merged outside orchestrator control). If an open PR
 touches a requested object, release what you acquired and report the conflict.
 
 **Optional human context.** A `db-claim` issue may still be filed for readability, but it
@@ -819,7 +819,7 @@ step 7 was cut): from it you can tell whether the claiming work landed or died.
 
 - Target commit is an ancestor of `origin/main` ⇒ the work merged; release.
 - Target commit is on no open PR and no remote branch ⇒ abandoned; release.
-- Otherwise ⇒ live; leave it and name it in the coordinator's register.
+- Otherwise ⇒ live; leave it and name it in the orchestrator's register.
 
 This replaces D10's issue-staleness question for objects. **D10 remains open only if
 optional claim issues are used at all.**
@@ -915,7 +915,7 @@ repo** — clone at `C:\repos\ai-devops`, main-only, push directly).
 
 **What to change.** Both currently describe exit 0 as "safe". After step 1 there is no such
 verdict — say "no overlap found in the checked classes" and state that the unchecked
-classes remain the coordinator's judgment. Add the reservation command from step 6 and the
+classes remain the orchestrator's judgment. Add the reservation command from step 6 and the
 release step. Note the coverage limit **at the gate**, not in a footnote.
 
 ⚠️ After editing the skill in `ai-devops`, run `bin/ai-install-skills` to install it on this
@@ -981,7 +981,7 @@ bash scripts/check-sql.sh
 8. **Do not create GitHub issues, labels, or public content without asking** — `shared-db`
    is a **public** repo.
 9. **Clean up every test ref/branch you create.** Verify with `matching-refs`.
-10. **`COORDINATOR_INTAKE.md` blocks are moved only by the coordinator**, and only forward.
+10. **`COORDINATOR_INTAKE.md` blocks are moved only by the orchestrator**, and only forward.
 11. **Gotcha — Windows line endings.** These files are CRLF in the working tree; `.mjs`
     edits will show a `LF will be replaced by CRLF` warning. Harmless; do not "fix" it, and
     do not reformat whole files (backlog B1 covers `.gitattributes` separately).
@@ -1164,7 +1164,7 @@ directly and expect `alter table core.licensor` to yield `table core.licensor`.
 **Hits:** step 8, which is now smaller.
 Both documented the gate with `--allocate-version` and glossed exit 0 as "safe".
 Withdrawing the flag (step 1b) made the documented command exit 2 on every run,
-so leaving that for Phase C would have broken the gate for every coordinator in
+so leaving that for Phase C would have broken the gate for every orchestrator in
 the meantime. Already corrected in this phase:
 - `AGENTS.md` §4 rule 1 — flag removed from the snippet, exit-0 gloss rewritten,
   a withdrawal notice added.
@@ -1186,7 +1186,7 @@ labelling, not a fix; step 5 is still owed.**
 Both are still exported and tested. `--allocate-version` returns 2 **before any
 network call**, so nothing calls them at runtime today. Step 6 re-wires both into
 `--reserve-version`. **Recommendation: keep `--allocate-version` permanently as a
-tombstone that exits 2** rather than deleting the flag — a coordinator pasting an
+tombstone that exits 2** rather than deleting the flag — a orchestrator pasting an
 older command then gets the explanation instead of `unknown argument`.
 
 ### D-A10 — EVERY line number inside the step bodies (§9) is now WRONG.

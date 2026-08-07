@@ -92,7 +92,7 @@ live working tree. None was accepted from another document.
 
 ## 1. The goal
 
-**In plain business English:** the coordinator queue is a 3,837-line text file that several AI sessions edit at once. It is a hand-built imitation of an issue tracker. GitHub already gives us a real one, free. Move the work items there so each is a single thing with an owner and a status, visible on a phone, impossible for two sessions to overwrite.
+**In plain business English:** the orchestrator queue is a 3,837-line text file that several AI sessions edit at once. It is a hand-built imitation of an issue tracker. GitHub already gives us a real one, free. Move the work items there so each is a single thing with an owner and a status, visible on a phone, impossible for two sessions to overwrite.
 
 **What we are NOT doing:** tidying the file, or writing more rules about keeping it tidy. Every previous attempt did that and it grew anyway.
 
@@ -191,7 +191,7 @@ Minimum patterns: credentials, tokens, connection strings, private keys · 1Pass
 
 ### Step 3 — Labels and issue shape
 
-Labels: `db-work` (the type label, D6), `needs-albert` (⛔ owner decision), `blocked`. `db-claim` and `coordinator-marker` already exist — leave them alone.
+Labels: `db-work` (the type label, D6), `needs-albert` (⛔ owner decision), `blocked`. `db-claim` and `orchestrator-marker` already exist — leave them alone.
 
 Status is open/closed (D7). Ownership is the assignee, or a line naming the session, since AI sessions have no GitHub account.
 
@@ -214,7 +214,7 @@ finalised and the moment the issues exist, any session appending a block creates
 belongs to neither system. **PR #490 did exactly this on 2026-08-07**, adding three blocks
 after the first inventory was taken.
 
-The freeze is announced in the queue file's own preamble and in the coordinator marker
+The freeze is announced in the queue file's own preamble and in the orchestrator marker
 issue: *"This file is frozen pending migration. File an issue instead."* It is **not**
 mechanical, and that is a known weakness — but the window is short, and the inventory's
 order-check makes a violation loud rather than silent. When PR #490 landed mid-Phase-A the
@@ -288,7 +288,7 @@ Propagation itself remains an owner task, tracked as work item **WI-63**.
 
 1. Reads the step-1 inventory, never the raw file.
 2. **`--dry-run` by default.** Creates nothing without an explicit flag.
-3. **Idempotent** — see item 8 below for how. *(The original wording here described a title-based check over open issues only; that was replaced after review because it duplicated on both a closed issue and a renamed one.)* `gh issue list --label` **works correctly in this repo**; a claim in `COORDINATOR_INTAKE.md:3019` that it returns empty is **false**, verified live 2026-08-07 (`--label coordinator-marker` correctly returned issue #473).
+3. **Idempotent** — see item 8 below for how. *(The original wording here described a title-based check over open issues only; that was replaced after review because it duplicated on both a closed issue and a renamed one.)* `gh issue list --label` **works correctly in this repo**; a claim in `COORDINATOR_INTAKE.md:3019` that it returns empty is **false**, verified live 2026-08-07 (`--label orchestrator-marker` correctly returned issue #473).
 4. Uses `gh issue create --body-file`, never a heredoc — this is a PowerShell-first machine and heredoc recipes have silently failed here before.
 5. Writes a **temporary** mapping file (block → issue number). Summarise it in the PR body; do not commit it. A permanent artefact for a one-time event is the leftover this repo accumulates.
 6. **Fails loudly and stops on the first error.** A partial migration reporting success is the worst available outcome.
@@ -341,7 +341,7 @@ Ask both together, verbatim:
 > **May I make two changes to branch protection on `main` in `u2giants/shared-db`?**
 >
 > **(1) Remove the required status check named `Backlog / queue sync`.** It checks that
-> each of the 14 backlog items in `HANDOFF.md` has an entry in the coordinator queue. After
+> each of the 14 backlog items in `HANDOFF.md` has an entry in the orchestrator queue. After
 > the migration that queue no longer exists, so the check has nothing to read. It is also
 > already broken — it reports a pass when it should fail.
 >
@@ -385,7 +385,7 @@ Ask both together, verbatim:
 
 Replace the contents with a short pointer: what the file was, where work lives now, the `gh issue list` command, and the SHA where the full history can be read.
 
-⚠️ **The pointer MUST carry the "empty does not mean idle" warning.** `COORDINATOR_INTAKE.md:1–30` exists because a coordinator once concluded the project was idle from an empty queue while about 20 jobs sat in the backlog. The pointer must say: an empty issue list is not proof there is no work — also read `HANDOFF.md ## BACKLOG` and `HANDOFF.d/`. *(Found by GLM; my earlier draft dropped this.)*
+⚠️ **The pointer MUST carry the "empty does not mean idle" warning.** `COORDINATOR_INTAKE.md:1–30` exists because a orchestrator once concluded the project was idle from an empty queue while about 20 jobs sat in the backlog. The pointer must say: an empty issue list is not proof there is no work — also read `HANDOFF.md ## BACKLOG` and `HANDOFF.d/`. *(Found by GLM; my earlier draft dropped this.)*
 
 **Verification gate.** Under ~40 lines, carrying that warning; `git log` still shows the full text at the prior SHA.
 
@@ -394,7 +394,7 @@ Replace the contents with a short pointer: what the file was, where work lives n
 Remove the B2 lifecycle, the B2.2 retention rule, and the six-section model wherever restated. **This step is the point of the plan.** Leave the rules in force with nothing to govern and a future session will faithfully obey them and rebuild the file.
 
 ⚠️ **Two live backlog items are instructions to rebuild exactly what this plan removes** *(found by GLM; my earlier gate would have passed while both survived)*:
-- `HANDOFF.md:1850` — *"B10 — Coordinator intake lifecycle/retention is MANUAL; CI could enforce it (NOT implemented)"*. **Rewrite or close it.** A session that implements B10 rebuilds the queue.
+- `HANDOFF.md:1850` — *"B10 — Orchestrator intake lifecycle/retention is MANUAL; CI could enforce it (NOT implemented)"*. **Rewrite or close it.** A session that implements B10 rebuilds the queue.
 - `HANDOFF.md:1943` — *"B13 — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry (DONE)"*. **Rewrite** to describe issue-backed tracking, or close it as superseded.
 
 **Verification gate.** Search, **case-insensitively**, for `INTAKE QUEUE`, `TAKEN OVER`,
@@ -404,7 +404,7 @@ disease as the check being retired.)*
 
 Two corrections to that gate, both from Kimi K3, 2026-08-07:
 
-- **Case matters.** `AGENTS.md:1011` and `:1013` say *"the coordinator intake"* in lower
+- **Case matters.** `AGENTS.md:1011` and `:1013` say *"the orchestrator intake"* in lower
   case. A case-sensitive gate walks straight past them, and they are live instructions.
   **They must be rewritten at step 9**, not just found.
 - **Scope with a per-file allowlist, not a directory exclusion.** Excluding `docs/`
@@ -436,7 +436,7 @@ Re-read every remaining step and record **drift** into this file before handing 
    - Its **§4 item 4** (`:177`) defers *fixing* `scripts/check-backlog-queue-sync.mjs`, describing the fix as "tracked in the `REQUEST QUEUE`". This plan **deletes both the script and that queue**. The two plans have opposite fates for one file and neither pointed at the other until now.
    - Its **§10 "must stay green"** list (`:950–951`) runs `node scripts/check-backlog-queue-sync.mjs` and `node --test scripts/check-backlog-queue-sync.test.mjs`. **Step 7b.3 deletes both.** A Phase B or C session following that plan literally would run a command against a deleted file and read the failure as its own breakage.
    **Whoever reaches step 7b first must update that plan's §4 item 4 and §10 in the same PR.** Do not delete the script without doing so.
-10. **An open coordinator marker exists: issue #473, "COORDINATOR ACTIVE — session 774f5010 — t16".** The orchestrator skill's step 0 says an open marker that is not yours means STOP and ask Albert before dispatching. Raised with him 2026-08-07; **confirm its status before starting this work**, do not assume it is stale.
+10. **An open orchestrator marker exists: issue #473, "ORCHESTRATOR ACTIVE — session 774f5010 — t16".** The orchestrator skill's step 0 says an open marker that is not yours means STOP and ask Albert before dispatching. Raised with him 2026-08-07; **confirm its status before starting this work**, do not assume it is stale.
 11. **A warm GLM review session already holds this plan's full context** — `intake-queue-to-issues-plan` (3 rounds, reports under `.ai/reviews/glm-intake-queue-to-issues-plan-*.md`). **Continue it with `ai-glm ask`; do not start a new one.** A fresh session re-reads the repo, loses every conclusion reached, and pays full price for context this one already has cached.
 12. **The `ai-glm` review wrapper trips on its own report file.** It snapshots `git status` before and after and fails if the tree changed; its round-1 report under `.ai/reviews/` is itself a new untracked file, so the next turn aborts. Recovery: `ai-glm abort <session>` then re-ask — the session keeps its context. Not a GLM failure and not a working-tree problem.
 
@@ -470,7 +470,7 @@ Three rounds with **GLM 5.2**, adversarial by request. Recorded so nobody re-der
 
 **It found seven defects I had missed**, all verified against the repo before being accepted: the §6.7 violation in step 7; `HANDOFF.md` B10/B13 being live rebuild instructions; the step-9 gate searching tokens that appear in neither; step 5/8 being in the wrong order; the four-block OPA item; the step-1 silent-loss door; and the "empty does not mean idle" warning missing from the pointer. It also refused to let the eye-scan scrub stand, and was right.
 
-**It was wrong once, and how it went wrong is worth keeping.** It claimed `gh issue list --label` returns empty in this repo, citing `COORDINATOR_INTAKE.md:3019`, and built two objections on it. Tested live: it works (`--label coordinator-marker` → issue #473). It had quoted a **document** as evidence — in a review whose entire subject is that this repo trusts documents over the repo. Both objections were withdrawn. **The lesson is the repo's own standing rule: re-derive from `git`/`gh`, including when a reviewer is the one citing.**
+**It was wrong once, and how it went wrong is worth keeping.** It claimed `gh issue list --label` returns empty in this repo, citing `COORDINATOR_INTAKE.md:3019`, and built two objections on it. Tested live: it works (`--label orchestrator-marker` → issue #473). It had quoted a **document** as evidence — in a review whose entire subject is that this repo trusts documents over the repo. Both objections were withdrawn. **The lesson is the repo's own standing rule: re-derive from `git`/`gh`, including when a reviewer is the one citing.**
 
 **It conceded three of my pushbacks**: that a "local, non-published archive" is impossible in a public repo; that the consistent handover rule is issue-points-to-file rather than handoff-becomes-issue; and that the per-phase drift re-read is not ceremony, on the measured evidence.
 
@@ -600,13 +600,13 @@ Consequences for this plan:
   the sole legal path for schema changes across five applications. It is carried as work
   item **WI-57** and it belongs in front of Albert now, not at step 7.
 
-### D4 — the coordinator marker gate is satisfied, but a NEW marker is open
+### D4 — the orchestrator marker gate is satisfied, but a NEW marker is open
 
-- **Issue #473** (`COORDINATOR ACTIVE — session 774f5010 — t16`) is **CLOSED**, with a
+- **Issue #473** (`ORCHESTRATOR ACTIVE — session 774f5010 — t16`) is **CLOSED**, with a
   closing comment recording a clean end: handover merged as PR #489, zero open PRs, zero
   open `db-claim` issues, no live agents, all worktrees retired. **Constraint 10, and
   handoff §0 item 8 and §6 step 1, are all satisfied. Do not re-raise #473.**
-- **Issue #491 is OPEN** — `COORDINATOR ACTIVE — 697b5b87-a3a5-4aef-a03b-26fe277d52f5 —
+- **Issue #491 is OPEN** — `ORCHESTRATOR ACTIVE — 697b5b87-a3a5-4aef-a03b-26fe277d52f5 —
   al8960ofc`, opened 2026-08-07 16:14 UTC, inheriting from session 774f5010. **It is not
   this session's marker.** Phase A dispatched no sub-agent, created no marker, made no
   database call and published nothing, so it did not conflict — but **anything that
@@ -623,7 +623,7 @@ material into issues spreads it into a second store. The step-2 scrub agrees ind
 
 ### D6 — an intake PR is open and will add blocks after the inventory was taken
 
-**PR #490** (`intake: three workstreams from a non-coordinator session on t16`) is OPEN and
+**PR #490** (`intake: three workstreams from a non-orchestrator session on t16`) is OPEN and
 appends to `COORDINATOR_INTAKE.md`. The inventory was taken at `ce16397` and does not
 include it. **Re-run `node tools/intake-inventory.mjs` immediately before step 6** — it will
 fail loudly on the new blocks rather than skip them, which is the intended behaviour.
@@ -682,11 +682,11 @@ WI-15, WI-16, WI-30, WI-37, WI-49, plus the two gates this plan itself owes (ste
 
 ### D13 — the `IN PROGRESS` block carries a tooling claim that is false
 
-`COORDINATOR_INTAKE.md:3333` tells the next coordinator that `gh issue list --label`
+`COORDINATOR_INTAKE.md:3333` tells the next orchestrator that `gh issue list --label`
 returns empty in this repo and prescribes a REST workaround. **Re-verified live 2026-08-07:
-it works** — `--label coordinator-marker --state open` correctly returned issue #491. §8
+it works** — `--label orchestrator-marker --state open` correctly returned issue #491. §8
 already recorded this as GLM's one error; it is recorded here too because the false claim is
-still sitting in the file, where the next coordinator will read it. It should not be carried
+still sitting in the file, where the next orchestrator will read it. It should not be carried
 into any migrated issue.
 
 ### D14 — no drift

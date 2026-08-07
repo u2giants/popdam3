@@ -44,7 +44,7 @@ const FILE = 'COORDINATOR_INTAKE.md';
 
 // Headings that mean the queue is back.
 //
-// Matched case-insensitively, because `AGENTS.md` refers to "the coordinator intake" in
+// Matched case-insensitively, because `AGENTS.md` refers to "the orchestrator intake" in
 // lower case and a case-sensitive gate would walk straight past a lower-cased rebuild.
 // (Kimi K3, 2026-08-07.)
 //
@@ -118,14 +118,14 @@ async function main() {
     }
   });
 
-  // The warning the pointer must always carry. A coordinator once concluded the project
+  // The warning the pointer must always carry. A orchestrator once concluded the project
   // was idle from an empty queue while ~20 jobs sat in the backlog.
   if (!/empty/i.test(text) || !/backlog/i.test(text)) {
     problems.push(`${FILE} must keep the "an empty issue list is not proof there is no work" warning, pointing at HANDOFF.md ## BACKLOG and HANDOFF.d/.`);
   }
 
   if (problems.length) {
-    console.error('FAIL: the coordinator queue is growing back.\n');
+    console.error('FAIL: the orchestrator queue is growing back.\n');
     for (const p of problems) console.error('  - ' + p);
     console.error('\nWhat this almost certainly means: a machine is still running the OLD skills and');
     console.error('appended a handover here instead of opening an issue. Do not just revert the file —');

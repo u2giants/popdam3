@@ -20,11 +20,11 @@ creating issues or labels without the owner's say-so.
 
 | Label | Colour | Description | Why it exists |
 | --- | --- | --- | --- |
-| `db-work` | `#1D76DB` | A unit of work on the shared database or this repo. Migrated from the coordinator queue. | The single **type** label (design decision D6). It marks "this came from, or belongs in, the queue" and nothing more. |
+| `db-work` | `#1D76DB` | A unit of work on the shared database or this repo. Migrated from the orchestrator queue. | The single **type** label (design decision D6). It marks "this came from, or belongs in, the queue" and nothing more. |
 | `needs-albert` | `#D93F0B` | Blocked on an owner decision. Nobody may act on it without a fresh answer in the current chat. | The queue used a ⛔ prefix for this. It is the one distinction that changes who can act. |
 | `blocked` | `#B60205` | Blocked on something other than the owner — another work item, an upstream system, or a machine nobody has access to. | Distinguishes "waiting on Albert" from "waiting on a thing", which the queue conflated. |
 
-**Already exist. Leave them alone:** `coordinator-marker`, `db-claim`. They belong to the
+**Already exist. Leave them alone:** `orchestrator-marker`, `db-claim`. They belong to the
 dispatch protocol, not to this migration.
 
 **Deliberately NOT created — a status-label set.** Design decision D7: a `triage` /
@@ -113,7 +113,7 @@ Step 6's script searches for an existing **open** issue with the same title befo
 creating one, so a half-finished run is safely re-runnable.
 
 `gh issue list --label <label>` **works correctly in this repository** — re-verified live
-2026-08-07: `--label coordinator-marker --state open` returned issue #491. The claim at
+2026-08-07: `--label orchestrator-marker --state open` returned issue #491. The claim at
 `COORDINATOR_INTAKE.md:3333` that it "returns EMPTY in this repo even for issues that
 demonstrably carry the label" is **false**, and the REST workaround it prescribes is not
 needed. That claim cited a document as its evidence, in a file whose own standing rule is

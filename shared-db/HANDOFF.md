@@ -1,15 +1,15 @@
 # HANDOFF — shared-db current state
 
-> **Not the coordinator session? Do not start or continue work here.** This repo
-> runs one coordinator, which dispatches everything to sub-agents in isolated
+> **Not the orchestrator session? Do not start or continue work here.** This repo
+> runs one orchestrator, which dispatches everything to sub-agents in isolated
 > worktrees. **Open a GitHub issue and stop:**
 > `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
 > ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07). Do not write into it.
 
 > ## ⚠️ THE NEWEST HANDOVER IS **NOT** IN THIS FILE. (added 2026-08-06)
 >
-> The big green *"COORDINATOR HANDOVER — START HERE"* section immediately below is
-> dated **2026-07-31**. It is **not current.** The newest coordinator handovers
+> The big green *"ORCHESTRATOR HANDOVER — START HERE"* section immediately below is
+> dated **2026-07-31**. It is **not current.** The newest orchestrator handovers
 > live in **[`HANDOFF.d/`](HANDOFF.d/)** and are **days newer**.
 >
 > **Filenames there come in TWO formats — PARSE the timestamp, never text-sort:**
@@ -31,15 +31,15 @@
 > **re-derive the fact from `git`/`gh`** rather than ranking the documents.
 
 <!-- ============================================================================
-     COORDINATOR HANDOVER — FINAL — 2026-07-31 19:01 UTC
+     ORCHESTRATOR HANDOVER — FINAL — 2026-07-31 19:01 UTC
      This SUPERSEDES the 17:55 UTC handover immediately below it.
      Read this section first, then the 17:55 section for the detail it still owns.
      ============================================================================ -->
 
-## 🟩 COORDINATOR HANDOVER — FINAL — 2026-07-31 (written 19:01 UTC) — **START HERE, NOT AT 17:55**
+## 🟩 ORCHESTRATOR HANDOVER — FINAL — 2026-07-31 (written 19:01 UTC) — **START HERE, NOT AT 17:55**
 
-You are taking over the **coordinator** seat for `u2giants/shared-db`. This repo runs **one
-coordinator at a time**; the coordinator does no work itself and dispatches every task to a
+You are taking over the **orchestrator** seat for `u2giants/shared-db`. This repo runs **one
+orchestrator at a time**; the orchestrator does no work itself and dispatches every task to a
 sub-agent in its own git worktree (skill `shared-db-orchestrator`). This section carries the two
 halves that skill requires — **coordination state** and **one block per sub-agent** — as an
 **UPDATE** on the 17:55 UTC handover directly below.
@@ -258,7 +258,7 @@ worker in `u2giants/popdam3`** still resolves aliases from its **own hard-coded 
 
 **Until that lands, every alias approval recorded here changes nothing a user can see.** That
 work is a **separate task in a separate repo and has not been started.** It is also, correctly,
-**not** something a shared-db coordinator starts on its own.
+**not** something a shared-db orchestrator starts on its own.
 
 ---
 
@@ -297,15 +297,15 @@ work is a **separate task in a separate repo and has not been started.** It is a
 | # | Worktree | Branch | HEAD | Lock | Tip an ancestor of `origin/main`? | Disposition |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `C:/repos/shared-db` | `main` | `6720511` | no | n/a | **THE SHARED CHECKOUT IS STALE** — its local `main` is at `6720511` while `origin/main` is `768594e`, **nine commits behind**. First action for the next session: `git -C C:/repos/shared-db pull`. |
-| 2 | `agent-a471c39b395fb07f4` | `docs/coordinator-final-handover-20260731` | this handover | **LOCKED** (pid 24420) | no | **THIS SESSION.** Retire after its PR merges. |
+| 2 | `agent-a471c39b395fb07f4` | `docs/orchestrator-final-handover-20260731` | this handover | **LOCKED** (pid 24420) | no | **THIS SESSION.** Retire after its PR merges. |
 | 3 | `agent-a9b9b048681d1744f` | `worktree-agent-a9b9b048681d1744f` | `510c3a6` | no | no | **CHIP-INCIDENT REMNANT** — duplicate authoring of the fan-in tiebreak fix, superseded by merged `cc0d1dd`. Believed safe to clean; **left in place**, see reason 2. |
 | 4 | `elastic-babbage-df8f2e` | `claude/elastic-babbage-df8f2e` | `3222667` | no | no | **CHIP-INCIDENT REMNANT** — a *third* authoring of the same fix. Superseded. **Left in place**, see reason 2. |
 | 5 | `agent-a8fd75e9b517885c6` | `nbc-alias-work` | `7390e5a` | no | no | Held the NBC ruling work; **its content shipped inside merged PR #345**. Believed safe to clean; **left in place**. |
 | 6 | `agent-a2209c948a524d76a` | `docs/handoff-corrections-20260731` | `dfb91a0` | no | no | PR **#349 MERGED**. Finished. |
-| 7 | `agent-a18e8dbd5e9f2a218` | `docs/coordinator-intake-20260731` | `a6077a8` | no | no | PR **#348 MERGED**. Finished. |
+| 7 | `agent-a18e8dbd5e9f2a218` | `docs/orchestrator-intake-20260731` | `a6077a8` | no | no | PR **#348 MERGED**. Finished. |
 | 8 | `agent-ae7a53ae600b5b683` | `feat/core-licensor-alias-20260731` | `e0855ef` | no | no | PR **#345 MERGED**. Finished. |
-| 9 | `agent-a7c7145b2908491b5` | `docs/coordinator-handover-20260731-1755` | `0c77618` | no | no | PR **#350 MERGED** (`80db8e8`) — the previous handover. Finished. |
-| 10 | `agent-a89327b8bdc3cad66` | `docs/coordinator-intake-lifecycle-20260731` | `aed9ad9` | no | **YES** | PR **#351 MERGED**. Finished. |
+| 9 | `agent-a7c7145b2908491b5` | `docs/orchestrator-handover-20260731-1755` | `0c77618` | no | no | PR **#350 MERGED** (`80db8e8`) — the previous handover. Finished. |
+| 10 | `agent-a89327b8bdc3cad66` | `docs/orchestrator-intake-lifecycle-20260731` | `aed9ad9` | no | **YES** | PR **#351 MERGED**. Finished. |
 | 11 | `agent-licensor-approve` | `feat/licensor-alias-owner-approval-20260731` | `0b08ecf` | no | **YES** | PR **#352 MERGED**. Finished. |
 | 12 | `agent-a34d0b857a86a8e5a` | `backlog/paused-agent-worktree-sweep` | `de076b7` | no | **YES** | PR **#353 MERGED** (backlog B11). Finished. |
 | 13 | `agent-a9b5bd066c13f571c` | `docs/psg5-entry-record-slot-blocked-20260731` | `f14c1b7` | no | no | PR **#338 MERGED**. Finished. |
@@ -429,7 +429,7 @@ object collision guard — is STILL UNFIXED**, so §U1.8 discipline is a *conven
 
 # HALF TWO (UPDATE) — ONE BLOCK PER SUB-AGENT
 
-Roughly **35 agents** ran across this coordinator seat and the one immediately before it.
+Roughly **35 agents** ran across this orchestrator seat and the one immediately before it.
 **The 17:55 section below already carries a full block for ~25 of them** — Workstreams 1–4,
 lines covering PRs #297–#349 — and **those blocks are not repeated here.** What follows is:
 **(U2.A)** a full block for every agent that ran **after** 17:55 or was not previously blocked;
@@ -463,13 +463,13 @@ survives only as a merged PR, that is stated. No detail has been invented.**
   **Viacom**, which are dormant and stay `inherited_unverified` with no ruling; and did **not**
   change any consuming code — see §U1.4, the approvals are inert until popdam3 changes.
 
-### Agent: intake lifecycle and request queue — `docs/coordinator-intake-lifecycle-20260731` (PR #351, MERGED `33d36c9`)
+### Agent: intake lifecycle and request queue — `docs/orchestrator-intake-lifecycle-20260731` (PR #351, MERGED `33d36c9`)
 - **Asked to do:** make `COORDINATOR_INTAKE.md` self-cleaning, and give people who need database
   work a way to *ask* rather than *start*.
 - **Actually did:** added **Part 0 (the REQUEST path)** with its own template and a copy-paste
   message Albert can send to any session that needs database work; and **Part B2**, a full
   lifecycle: `REQUEST QUEUE → IN PROGRESS → COMPLETED` and `INTAKE QUEUE → TAKEN OVER`, with
-  **only the coordinator** moving blocks between sections; a retention rule (prune past **30 days
+  **only the orchestrator** moving blocks between sections; a retention rule (prune past **30 days
   or the most recent 10** per section, **archived verbatim** to
   `docs/intake-archive/YYYY-MM-DD-intake-archive.md`, **never deleted**); branch/worktree hygiene
   rules; and a periodic sweep run at **session start and again at handover**.
@@ -489,11 +489,11 @@ survives only as a merged PR, that is stated. No detail has been invented.**
   worktree**. **The cleanup agent broke no rule** — the worktree was clean, unlocked, and held no
   unmerged work. The affected agent recovered by creating a fresh worktree, so **nothing was lost
   this time**. The gap: *clean + unlocked + merged* is **necessary but not sufficient**; it must
-  also be established that **no coordinator intends to re-dispatch that agent**, and **a paused
+  also be established that **no orchestrator intends to re-dispatch that agent**, and **a paused
   agent is indistinguishable from a finished one**.
 - **PR / branch:** #353, MERGED.
 - **Worktree:** `agent-a34d0b857a86a8e5a` — finished.
-- **Deliberately did NOT do:** proposed a fix (a coordinator-maintained resumable-agent list, or a
+- **Deliberately did NOT do:** proposed a fix (a orchestrator-maintained resumable-agent list, or a
   marker a sweep can see) but **built nothing**, and deliberately did **not** restate the retention
   thresholds, which live in `COORDINATOR_INTAKE.md` Part B2.
 
@@ -509,7 +509,7 @@ survives only as a merged PR, that is stated. No detail has been invented.**
 - **Deliberately did NOT do:** claimed **no** readiness, **no** accelerated exit, and **no**
   production cutover. The file says so in its own header.
 
-### Agent: previous coordinator handover — `docs/coordinator-handover-20260731-1755` (PR #350, MERGED `80db8e8`)
+### Agent: previous orchestrator handover — `docs/orchestrator-handover-20260731-1755` (PR #350, MERGED `80db8e8`)
 - **Actually did:** wrote the two-halves handover that sits immediately below this section.
 - **Found:** that its own inherited snapshot was **eight commits stale** by the time it wrote —
   the finding that produced the re-verify-everything discipline this session inherited and
@@ -527,10 +527,10 @@ survives only as a merged PR, that is stated. No detail has been invented.**
 - **Worktree:** **unknown.** It is one of the 22 in §U1.6 and cannot be identified from here. This
   is the third independent reason nothing was retired.
 - **Deliberately NOT done by this session:** **did not interfere with it in any way**, per the
-  brief. The next coordinator should **look for its intake block in `COORDINATOR_INTAKE.md`
+  brief. The next orchestrator should **look for its intake block in `COORDINATOR_INTAKE.md`
   before assuming any worktree is abandoned.**
 
-### Agent: this session — final coordinator handover (`docs/coordinator-final-handover-20260731`)
+### Agent: this session — final orchestrator handover (`docs/orchestrator-final-handover-20260731`)
 - **Asked to do:** run the hygiene sweep, then write the final handover superseding the 17:55 one,
   and **merge its own PR**.
 - **Actually did:** re-derived all ground truth at 18:55–19:01 UTC; enumerated all 22 worktrees;
@@ -550,7 +550,7 @@ their "deliberately did NOT do" lines, stand unaltered.
 | Agent / branch | 17:55 said | Now |
 | --- | --- | --- |
 | licensor alias table + NBC ruling — `feat/core-licensor-alias-20260731` | PR **#345 OPEN** | **MERGED** as `a1848c1`. Migration `20260731210000` is on `main`. Its warning that the table **has zero runtime effect until popdam3 reads it** is unchanged and is now §U1.4. |
-| coordinator intake — `docs/coordinator-intake-20260731` | PR **#348 OPEN** | **MERGED** as `cac46ff`. |
+| orchestrator intake — `docs/orchestrator-intake-20260731` | PR **#348 OPEN** | **MERGED** as `cac46ff`. |
 | handoff corrections — `docs/handoff-corrections-20260731` | PR **#349 OPEN** | **MERGED** as `32e62b7`. It carried the ColdLion switch-on ORDER warning and backlog **B6/B7**. |
 | `nbc-alias-work` loose worktree | "LIVE, and NOT on any PR — confirm it is represented in #345" | **Confirmed represented**: #345 merged carrying the NBC ruling and the two missing variants. The worktree is believed safe to clean but was **left in place** (§U1.6). |
 | everything else (#297–#347, Grok, GLM, the ClickUp agents, the ColdLion agents, the lockdown agents) | as written | **unchanged.** |
@@ -618,8 +618,8 @@ the two new entries marked **NEW**.
 
 ### U3.1 Background task chips for shared-db work — never again
 Chips create **independent sessions with no shared register**, invisible to each other and to the
-coordinator. This is the single largest source of waste in this repo and it produced the four-way
-`CREATE OR REPLACE` collision. **The coordinator dispatches sub-agents in worktrees; it never
+orchestrator. This is the single largest source of waste in this repo and it produced the four-way
+`CREATE OR REPLACE` collision. **The orchestrator dispatches sub-agents in worktrees; it never
 creates chips.** If a chip is ever genuinely unavoidable, its title **must** begin
 `DO NOT START —`. Backlog **B4**; skill `shared-db-orchestrator`.
 
@@ -659,7 +659,7 @@ direction could delete live work. **Use `gh pr view <n> --json state`.**
 
 ---
 
-# U4. THE NEXT COORDINATOR'S OPENING AGENDA, IN ORDER
+# U4. THE NEXT ORCHESTRATOR'S OPENING AGENDA, IN ORDER
 
 1. **RE-VERIFY EVERY NUMBER IN §U0 AND EVERY "UNVERIFIED" FIGURE IN §U1.7 BEFORE ACTING.**
    `git fetch --all`, `git ls-remote origin refs/heads/main` (**not** a local ref), `gh pr list
@@ -703,12 +703,12 @@ direction could delete live work. **Use `gh pr view <n> --json state`.**
 Copy the block below verbatim into a fresh session.
 
 ```text
-You are the single COORDINATOR for u2giants/shared-db. Invoke the `shared-db-orchestrator`
+You are the single ORCHESTRATOR for u2giants/shared-db. Invoke the `shared-db-orchestrator`
 skill FIRST and follow it. You do no work yourself: you dispatch every task to a sub-agent in
 its own git worktree. Never create background task chips — that pattern is what broke this repo.
 
 START BY READING, IN THIS ORDER:
-  1. HANDOFF.md — the section headed "COORDINATOR HANDOVER — FINAL — 2026-07-31 (written 19:01
+  1. HANDOFF.md — the section headed "ORCHESTRATOR HANDOVER — FINAL — 2026-07-31 (written 19:01
      UTC)". It supersedes the 17:55 section below it; its §U0.1 lists exactly which earlier
      statements are now wrong.
   2. The open issues — `gh issue list --label db-work`. *(Was COORDINATOR_INTAKE.md, retired 2026-08-07.)*
@@ -810,29 +810,29 @@ first agenda item is to re-measure, and §U4 item 1 says exactly that.
 **Grade: PASS.**
 
 <!-- ============================================================================
-     END COORDINATOR HANDOVER — FINAL — 2026-07-31 19:01 UTC
+     END ORCHESTRATOR HANDOVER — FINAL — 2026-07-31 19:01 UTC
      Everything below is the 17:55 UTC handover. It is superseded ONLY where
      §U0.1 above says so; the rest of it remains authoritative.
      ============================================================================ -->
 
 ---
 <!-- ============================================================================
-     COORDINATOR HANDOVER — 2026-07-31 17:55 UTC
+     ORCHESTRATOR HANDOVER — 2026-07-31 17:55 UTC
      Read this whole section before anything else in this file.
      ============================================================================ -->
 
-## ⚠️ SUPERSEDED IN PART — COORDINATOR HANDOVER — 2026-07-31 (written 17:55 UTC)
+## ⚠️ SUPERSEDED IN PART — ORCHESTRATOR HANDOVER — 2026-07-31 (written 17:55 UTC)
 
 > **This is NOT the current handover.** It was superseded at **19:01 UTC on 2026-07-31** by the
-> FINAL coordinator handover at the top of this file. **Read that first.** Its **§U0.1** lists
+> FINAL orchestrator handover at the top of this file. **Read that first.** Its **§U0.1** lists
 > every statement below that is now wrong — chiefly the `main` SHA, the migration count and max
 > version, the list of open PRs (there are none), the worktree table, the file-ownership map, and
 > the claim that six licensor-alias rulings are outstanding (**all are now ruled and the gate is
 > CLOSED**). Everything **not** named in §U0.1 remains accurate, which is why this section is kept
 > rather than deleted — it holds the long-form explanations the newer section only indexes.
 
-You are taking over the **coordinator** seat for `u2giants/shared-db`. This repo runs
-**one coordinator at a time**; the coordinator does no work itself and dispatches every
+You are taking over the **orchestrator** seat for `u2giants/shared-db`. This repo runs
+**one orchestrator at a time**; the orchestrator does no work itself and dispatches every
 task to a sub-agent in its own git worktree (skill `shared-db-orchestrator`). This section
 has the two halves that skill requires: **coordination state** and **one block per
 sub-agent**. If you only read the first half you will undo work.
@@ -978,9 +978,9 @@ oldest first, and let each re-run CI.
 | PR | Branch | Files it holds | Notes |
 | --- | --- | --- | --- |
 | **#349** | `docs/handoff-corrections-20260731` | `HANDOFF.md` | **Must land first.** Corrects three stale sections, adds the CRITICAL ColdLion switch-on ordering warning, and adds backlog items **B6/B7**. This handover deliberately **does not restate its content** — read #349 itself. |
-| **#348** | `docs/coordinator-intake-20260731` | `AGENTS.md`, `COORDINATOR_INTAKE.md`, `HANDOFF.md` | Creates the intake queue other sessions file into. |
+| **#348** | `docs/orchestrator-intake-20260731` | `AGENTS.md`, `COORDINATOR_INTAKE.md`, `HANDOFF.md` | Creates the intake queue other sessions file into. |
 | **#345** | `feat/core-licensor-alias-20260731` | `HANDOFF.md`, `fix_popsg_property_taxonomy_reconciliation.md`, `supabase/migrations/20260731210000_core_licensor_alias.sql`, `supabase/tests/core_licensor_alias_contracts.sql` | The only open PR carrying a **migration**. Moves eight hard-coded licensor aliases into `core.licensor_alias`, adds the two missing NBC variants, records Albert's NBC ruling. |
-| **this one** | `docs/coordinator-handover-20260731-1755` | `HANDOFF.md` only | Rebase after the other three. |
+| **this one** | `docs/orchestrator-handover-20260731-1755` | `HANDOFF.md` only | Rebase after the other three. |
 
 > **Known stale text this handover does NOT fix, because #349 owns it:** the section headed
 > *"OPEN, NOT MERGED — ColdLion promotion serialization lock (2026-07-31)"* near the top of
@@ -1029,10 +1029,10 @@ bound to **PRODUCTION** and takes **no project parameter** — see §3.6.
 | --- | --- | --- |
 | `C:/repos/shared-db` | `main` | the shared checkout — its local `main` was **stale at `6720511`**; run `git pull` there |
 | `agent-a2209c948a524d76a` | `docs/handoff-corrections-20260731` | **LIVE** — PR #349 open |
-| `agent-a18e8dbd5e9f2a218` | `docs/coordinator-intake-20260731` | **LIVE** — PR #348 open |
+| `agent-a18e8dbd5e9f2a218` | `docs/orchestrator-intake-20260731` | **LIVE** — PR #348 open |
 | `agent-ae7a53ae600b5b683` | `feat/core-licensor-alias-20260731` | **LIVE** — PR #345 open |
 | `agent-a8fd75e9b517885c6` | `nbc-alias-work` (`7390e5a`) | **LIVE, and NOT on any PR.** Holds *"record Albert's NBC ruling and add the two variants that matched nothing"*. Confirm it is fully represented in #345 before anyone retires it. |
-| `agent-a7c7145b2908491b5` | `docs/coordinator-handover-20260731-1755` | **LIVE** — this handover; **locked** |
+| `agent-a7c7145b2908491b5` | `docs/orchestrator-handover-20260731-1755` | **LIVE** — this handover; **locked** |
 | `agent-a9b9b048681d1744f` | `worktree-agent-a9b9b048681d1744f` (`510c3a6`) | **CHIP-INCIDENT REMNANT** — a duplicate authoring of the fan-in tiebreak fix. Superseded by merged `cc0d1dd`. Safe to clean. |
 | `elastic-babbage-df8f2e` | `claude/elastic-babbage-df8f2e` (`3222667`) | **CHIP-INCIDENT REMNANT** — a *third* authoring of the same fan-in tiebreak fix. Superseded. Safe to clean. |
 | `happy-proskuriakova-a20b47` | `claude/coldlion-promotion-dead-failure-update-20260731` | finished — #341 merged |
@@ -1053,7 +1053,7 @@ work that is not on `main`. Use the `cleanup-worktree` skill, which never treats
 
 # HALF TWO — ONE BLOCK PER SUB-AGENT
 
-Roughly 25 agents ran across this and the immediately preceding coordinator seats. The blocks
+Roughly 25 agents ran across this and the immediately preceding orchestrator seats. The blocks
 below are reconstructed from `gh pr list --state all`, `git log`, and `git worktree list`. **Where
 an agent's work survives only as a merged PR, that is stated** — no detail has been invented.
 The **"deliberately did NOT do"** line is the one that stops the next session undoing good work.
@@ -1117,7 +1117,7 @@ The **"deliberately did NOT do"** line is the one that stops the next session un
 - **Actually did:** merged `49d2ac1`. Migration `20260731190000` — widened the cross-check to the `source_code` and held-row provenance paths.
 - **Found:** **two blind spots** in the old, narrower assertion, both now encoded as rehearsal cases **10b** and **10c**: (b) a **`source_code`-only drift** where all names agree, so the curated-name set is empty and the old cross-check saw a perfectly quiet cycle while the database was still rewriting `core.taxonomy_source_ref.source_code`; (c) a **row held for review** still has its provenance refreshed by design, but the old assertion required `quarantine_reason IS NULL`, so that write fell outside it. Case **10a** refuses an out-of-date runner (a plan with no `provenance_refreshes` key); case **10d** proves the new guard does **not cry wolf** on a healthy cycle — *"a guard that fails on a healthy cycle gets switched off, which is the same outcome as having no guard."*
 - **Worktree:** `intelligent-benz-f7502b` — finished, safe to clean.
-- **Deliberately did NOT do:** **wrote cases 10a–10d but never executed them.** They sit at `tools/rehearse-coldlion-recurring-cycles.mjs` lines 398–442 and **have never run**. Running them is task #1 for the next coordinator.
+- **Deliberately did NOT do:** **wrote cases 10a–10d but never executed them.** They sit at `tools/rehearse-coldlion-recurring-cycles.mjs` lines 398–442 and **have never run**. Running them is task #1 for the next orchestrator.
 
 ### Agent: serialization lock — `claude/adoring-bose-f6e5ef` (PR #343)
 - **Asked to do:** stop two promotion runs overlapping.
@@ -1201,8 +1201,8 @@ The **"deliberately did NOT do"** line is the one that stops the next session un
 - **Worktree:** `agent-a2209c948a524d76a` — **LIVE**.
 - **Deliberately NOT duplicated here:** this handover **references** #349 rather than restating it, to avoid a merge conflict on the same file. **#349 must land first.**
 
-### Agent: coordinator intake — `docs/coordinator-intake-20260731` (PR **#348, STILL OPEN**)
-- **Actually did:** authored `COORDINATOR_INTAKE.md` plus `AGENTS.md` and `HANDOFF.md` edits — the queue and template non-coordinator sessions use to hand work in.
+### Agent: orchestrator intake — `docs/orchestrator-intake-20260731` (PR **#348, STILL OPEN**)
+- **Actually did:** authored `COORDINATOR_INTAKE.md` plus `AGENTS.md` and `HANDOFF.md` edits — the queue and template non-orchestrator sessions use to hand work in.
 - **Worktree:** `agent-a18e8dbd5e9f2a218` — **LIVE**.
 
 ### Agents: public-schema lockdown — PRs #316, #318, #319, #320, #326, #327, #332, #333
@@ -1223,7 +1223,7 @@ The **"deliberately did NOT do"** line is the one that stops the next session un
 ### 3.1 Background task chips — never again
 Spawning background task chips for shared-db work **created independent sessions with no shared
 register**. This is the single largest source of waste in this repo. The rule is in backlog
-**B4** and in `shared-db-orchestrator`: **the coordinator dispatches sub-agents in worktrees; it
+**B4** and in `shared-db-orchestrator`: **the orchestrator dispatches sub-agents in worktrees; it
 never creates chips.**
 
 ### 3.2 Trusting plan documents over the live repo
@@ -1273,7 +1273,7 @@ It takes **no project parameter**. Anything you run through it hits
 
 ---
 
-# 4. THE FRESH COORDINATOR'S OPENING AGENDA, IN ORDER
+# 4. THE FRESH ORCHESTRATOR'S OPENING AGENDA, IN ORDER
 
 1. **Re-verify §0.** `git fetch --all`, `git ls-remote origin refs/heads/main`, `gh pr list`,
    `git worktree list`, and re-derive the max migration version. Do not trust the table above;
@@ -1323,7 +1323,7 @@ number that is labelled unverified costs an hour; one presented as fact costs a 
 incident.
 
 <!-- ============================================================================
-     END COORDINATOR HANDOVER — 2026-07-31 17:55 UTC
+     END ORCHESTRATOR HANDOVER — 2026-07-31 17:55 UTC
      ============================================================================ -->
 
 ---
@@ -1343,7 +1343,7 @@ incident.
 > the missing property codes `EX` / `LB` / `JL`. **Read the STATUS table at the top of
 > [`fix_characters_style_guides.md`](fix_characters_style_guides.md) first — do not re-derive the
 > phases.** Cross-workflow context, including the failed paths, is in
-> [`coordinator_take_over.md`](coordinator_take_over.md). **Phase 3 writes rows into three shared
+> [`orchestrator_take_over.md`](orchestrator_take_over.md). **Phase 3 writes rows into three shared
 > tables when it runs, so it must be scheduled by whoever owns collision control — do not start
 > it opportunistically.**
 
@@ -1551,7 +1551,7 @@ yet.** Until it lands, these tests are not enforced by CI on pull requests.
 >
 > *Original wording, kept for the record:* ~~Every `B<n>` below must ALSO appear as a short
 > entry in the `## REQUEST QUEUE` of `COORDINATOR_INTAKE.md`, and keeping that true is the
-> outgoing coordinator's responsibility at handover.~~
+> outgoing orchestrator's responsibility at handover.~~
 
 **Status: documentation only. Nothing in this section has been implemented.** It was written by
 a planning session that was explicitly forbidden from changing anything except this file — no
@@ -1729,13 +1729,13 @@ already been stopped for new code, and doing it carelessly is more dangerous tha
 ### B4 — Backlog discipline: never create background task chips for shared-db work
 
 **The rule.** Follow-up work for `shared-db` is recorded **in this backlog section**, where it
-sits inert until a coordinator deliberately dispatches it to a sub-agent in its own git
+sits inert until a orchestrator deliberately dispatches it to a sub-agent in its own git
 worktree. Do **not** create background task chips. If a chip is ever genuinely unavoidable, its
 title **must** begin `DO NOT START —` so that nobody launches it by accident. See the
 `shared-db-orchestrator` skill for the full coordination model.
 
 **Why — the incident this rule comes from.** After a review, five follow-up chips were created.
-Each chip launches an **independent session outside any coordinator's control**, and none of
+Each chip launches an **independent session outside any orchestrator's control**, and none of
 them can see the others. **Four of the five** authored forward migrations doing
 `CREATE OR REPLACE` on the **same** function, `plm.promote_coldlion_source_owned`, and **three
 of them chose the identical migration version `20260731170000`.**
@@ -1750,7 +1750,7 @@ previous merged function body. Merge commits: `691d5ea`, `01f0214`, `6a00e31`, `
 `cc0d1dd`.
 
 **How to verify the rule is being followed.** No open task chips referencing `shared-db`; every
-follow-up appears as a written item in this section; and before any dispatch, the coordinator
+follow-up appears as a written item in this section; and before any dispatch, the orchestrator
 confirms that no two in-flight branches touch the same function or claim the same migration
 version.
 
@@ -1852,7 +1852,7 @@ the crons** — e.g. a separate job not gated on the enable variable, or a disti
 `..._READINESS_ONLY` mode. This must be done in its own PR with its own review; it changes the
 production workflow.
 
-### B10 — Coordinator intake lifecycle/retention — ⛔ CLOSED 2026-08-07, DO NOT IMPLEMENT
+### B10 — Orchestrator intake lifecycle/retention — ⛔ CLOSED 2026-08-07, DO NOT IMPLEMENT
 
 > ## ⛔ STOP. Implementing this item rebuilds the thing that was just removed.
 >
@@ -1883,14 +1883,14 @@ production workflow.
 <details>
 <summary>The original B10 text, kept for the record. It describes a system that no longer exists.</summary>
 
-#### B10 (original, 2026-07-31) — Coordinator intake lifecycle/retention is MANUAL; CI could enforce it
+#### B10 (original, 2026-07-31) — Orchestrator intake lifecycle/retention is MANUAL; CI could enforce it
 
 `COORDINATOR_INTAKE.md` at the repo root is the mailbox for (a) **requests** for database work
 from anyone who has not started it, and (b) **handovers** from sessions that had started and
 were told to stop. Its Part B2 now defines a full lifecycle and retention discipline:
 
 - `REQUEST QUEUE` → `IN PROGRESS` → `COMPLETED`, and `INTAKE QUEUE` → `TAKEN OVER`. **Only the
-  coordinator moves a block between sections.**
+  orchestrator moves a block between sections.**
 - Blocks in `COMPLETED` / `TAKEN OVER` are pruned once older than **30 days** or outside the
   **most recent 10** in their section, and are **archived verbatim** to
   `docs/intake-archive/YYYY-MM-DD-intake-archive.md` — never deleted. The "what did NOT work"
@@ -1900,7 +1900,7 @@ were told to stop. Its Part B2 now defines a full lifecycle and retention discip
   `git branch -d` only when merged and checked out nowhere. Remote branches are deleted by the
   merge, never by hand. A worktree is **never** removed while dirty, locked, or held by a live
   process.
-- The coordinator runs this sweep **at session start and again at handover**.
+- The orchestrator runs this sweep **at session start and again at handover**.
 
 **Backlog item (not built, deliberately):** all of the above is manual discipline with no
 enforcement — which is exactly how one day's work left 23 worktrees and ~30 stale local branch
@@ -1920,11 +1920,11 @@ this time; it easily could have been.
 
 **The gap:** the cleanup criteria in `COORDINATOR_INTAKE.md` Part B2 and the `cleanup-worktree`
 procedure treat *clean + unlocked + work merged* as sufficient to retire a worktree. That is
-**necessary but not sufficient** — it must also be established that **no coordinator intends to
+**necessary but not sufficient** — it must also be established that **no orchestrator intends to
 re-dispatch that agent**. A paused-awaiting-redispatch agent is indistinguishable from a finished
 one.
 
-**Proposed fix (not built):** the coordinator maintains the authoritative list of agents it may
+**Proposed fix (not built):** the orchestrator maintains the authoritative list of agents it may
 still resume and no sweep runs without checking it; or an agent awaiting re-dispatch marks its
 worktree in a way a sweep can see. `COORDINATOR_INTAKE.md` Part B2 remains the authority for
 retention numbers — do not restate thresholds here.
@@ -1954,7 +1954,7 @@ the same state.**
 
 **Why it matters.** A stuck process is **indistinguishable at a glance from a legitimate
 long-running one** — and on the same day a real ClickUp importer run genuinely took **52 minutes**,
-so the ambiguity is not hypothetical. It burns the coordinator's and Albert's attention, it
+so the ambiguity is not hypothetical. It burns the orchestrator's and Albert's attention, it
 **accumulates silently across sessions**, and the next occurrence may coincide with a real
 migration, where the safe-versus-unsafe judgement is much harder and the cost of guessing wrong is
 much higher.
@@ -1965,7 +1965,7 @@ password files**, so a hung invocation **dies rather than lingering**. This touc
 tooling and needs its own coordinated change.
 
 **Also worth doing in the same item:** document the **read-only diagnostic recipe** that resolved
-this, so the next coordinator can answer *"is it stuck or is it working?"* in minutes instead of
+this, so the next orchestrator can answer *"is it stuck or is it working?"* in minutes instead of
 guessing:
 
 1. **Check GitHub Actions first.** If Actions is clear, it is not CI.
@@ -2017,11 +2017,11 @@ was given the `Stop-Process` commands to clear them. Whether he ran them is UNVE
 > items found all produce a loud warning and **exit 0**, mirroring Guard B in
 > `scripts/check-sql.sh`. (b) The opt-out marker is `no-queue-entry-needed: <reason>` written
 > inside the `### B<n>` item itself, and the check **reports** every exclusion, so a parked item
-> stays visible instead of silently disappearing. An item the coordinator has already moved to
+> stays visible instead of silently disappearing. An item the orchestrator has already moved to
 > `## IN PROGRESS` / `## COMPLETED` / `## TAKEN OVER` counts as queued. The reverse direction — a
 > queue entry naming a `B<n>` that no longer exists — is reported and never fails.
 
-**The problem it would solve.** On 2026-07-31 a fresh coordinator read the empty queues in
+**The problem it would solve.** On 2026-07-31 a fresh orchestrator read the empty queues in
 `COORDINATOR_INTAKE.md` and reported "there is no pending work" while ~20 jobs sat in this
 BACKLOG. The fix shipped that night is documentation — this file's banner, the
 `COORDINATOR_INTAKE.md` § B2.0 ownership statement, and a required completion criterion in the
@@ -2048,7 +2048,7 @@ drift **visible at review time**, which is the one thing prose could not do.
 
 **Failure modes to accept going in:**
 
-- **Heading-convention drift.** A future coordinator titles an entry `### REQUEST — B7 …` or
+- **Heading-convention drift.** A future orchestrator titles an entry `### REQUEST — B7 …` or
   `### REQUEST — line endings …` and the check reports a false "missing" even though the work is
   queued. Mitigation: the convention is now written down in § B2.0 and in the skill; and warn-only
   means a false positive costs a glance, not a blocked PR.
@@ -2322,7 +2322,7 @@ Consumer repos (e.g. `poppim-web`) carry a **read-only mirror** at `<repo>/share
 
 | PR | Branch | State | Notes |
 |---|---|---|---|
-| [#348](https://github.com/u2giants/shared-db/pull/348) | `docs/coordinator-intake-20260731` | open, mergeable | docs only — `COORDINATOR_INTAKE.md` |
+| [#348](https://github.com/u2giants/shared-db/pull/348) | `docs/orchestrator-intake-20260731` | open, mergeable | docs only — `COORDINATOR_INTAKE.md` |
 | [#345](https://github.com/u2giants/shared-db/pull/345) | `feat/core-licensor-alias-20260731` | open, mergeable | PSG-5 — moves the eight hard-coded Licensor aliases into `core.licensor_alias`; still being extended |
 
 **Merged earlier the same day (do not re-open or re-plan these):** #311 and #307 (both merged —
@@ -4389,7 +4389,7 @@ round-2 workbook
 (166 open rows, every answer cell a locked dropdown — 166 data validations verified) was built
 and merged, and **Albert sent it to Laura on 2026-07-31.** The workstream is now **awaiting
 Laura's response**; no further action is available to any AI session until the completed sheet
-comes back. Note that `coordinator_take_over.md` §4.3 still reads "built, ready to send, NOT
+comes back. Note that `orchestrator_take_over.md` §4.3 still reads "built, ready to send, NOT
 sent" and "Owner still has to send it" — **that is now superseded by this entry**; it was left
 unedited only because the session recording this was scoped to `HANDOFF.md` alone. No contact
 with Laura happens from any session.

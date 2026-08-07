@@ -1,6 +1,6 @@
 # COORDINATOR_INTAKE.md — RETIRED 2026-08-07
 
-This was the coordinator's intake queue. **It is retired. Do not append to it.**
+This was the orchestrator's intake queue. **It is retired. Do not append to it.**
 A hand-built issue tracker in Markdown that several AI sessions edited at once: it grew
 from 0 to 89 blocks in eight days, never shrank, and its retention rule never once fired
 because the directory it archived into was never created.
@@ -17,7 +17,7 @@ can make? Add `needs-albert`.
 
 ## ⚠️ An EMPTY issue list is NOT proof there is no work
 
-A coordinator once read an empty queue, concluded the project was idle, and stood down
+A orchestrator once read an empty queue, concluded the project was idle, and stood down
 while about 20 jobs sat waiting. Before concluding there is nothing to do, also read:
 
 - `HANDOFF.md` — the `## BACKLOG` section, items B1 to B14

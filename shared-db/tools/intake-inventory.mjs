@@ -39,7 +39,7 @@ const WI_CODEQ = 'WI-37 OWNER: the 5 remaining ColdLion property-code contract q
 const WI_SKILL = 'WI-26 Fix the shared-db-orchestrator skill: stale 1Password vault ID and an invalid fetch command';
 
 export const CLASSIFICATION = [
-  // ---- REQUEST QUEUE — 2026-08-07 batch (outgoing coordinator 774f5010) ----
+  // ---- REQUEST QUEUE — 2026-08-07 batch (outgoing orchestrator 774f5010) ----
   M('R-SEC-1', 'WI-01 Disney extract: move it to the private repo and scrub it from git history'),
   M('four owner decisions left open', 'WI-02 OWNER: four decisions left open by session 774f5010'),
   M('Phase 2: BUILD the OPA lookup table', WI_OPA),
@@ -60,7 +60,7 @@ export const CLASSIFICATION = [
 
   // ---- REQUEST QUEUE — 2026-08-06 al8960ofc batch ----
   X('FIRST ACTION: push and merge FIVE unpushed',
-    'Landed. The five branches reached `main` as PRs #455-#460, all MERGED, and coordinator marker issue #453 is CLOSED. Both verified live 2026-08-07 with `gh pr list --state all` and `gh issue view 453`.'),
+    'Landed. The five branches reached `main` as PRs #455-#460, all MERGED, and orchestrator marker issue #453 is CLOSED. Both verified live 2026-08-07 with `gh pr list --state all` and `gh issue view 453`.'),
   M('Collect the `csv-export` agent', 'WI-13 Collect the csv-export agent output left on the Desktop'),
   M('how should an ownerless property be stored', 'WI-14 OWNER: how should an ownerless property be stored?'),
   M('the remaining licensor/property cutover decisions', 'WI-15 OWNER: the six remaining licensor/property cutover decisions'),
@@ -140,9 +140,9 @@ export const CLASSIFICATION = [
   M('fix the backlog/queue CI guard', 'WI-58 The "Backlog / queue sync" check false-passes — fix it or retire it'),
   M('un-park the shared checkout', 'WI-55 Un-park the shared checkout /worksp/shared-db and find the root cause'),
   M('the 2 untracked GLM review files', 'WI-56 Decide the fate of the 2 untracked GLM review files'),
-  M('read the diffs of the nine pull requests', 'WI-59 Read the diffs of the nine PRs that merged outside coordinator control'),
+  M('read the diffs of the nine pull requests', 'WI-59 Read the diffs of the nine PRs that merged outside orchestrator control'),
   X('the "92 rows" style-guide question is ANSWERED',
-    'Self-closing. The block IS the answer: it states the question has been located, is answered in `fix_characters_style_guides.md`, and that the only outcome needed is that the next coordinator stops carrying it. Migrating it would carry it further, which is the one thing it asks nobody to do.'),
+    'Self-closing. The block IS the answer: it states the question has been located, is answered in `fix_characters_style_guides.md`, and that the only outcome needed is that the next orchestrator stops carrying it. Migrating it would carry it further, which is the one thing it asks nobody to do.'),
   X("ALBERT'S ASK #3",
     'Answered elsewhere in this same file. The 2026-08-06 rotation request records the credential as a named 1Password item in vault `vibe_coding` for user `albert_read_only`, granted 2026-08-04 — which is exactly the yes-plus-item-title this block asks for. The rotation itself is a separate live item, WI-16. *(The item ID was written out here in the first version. Removed 2026-08-07 after Grok 4.5 pointed out that CLOSED reasons never pass through the scrub, which only scans MIGRATE blocks — so this line committed an identifier to `main` that the publication gate never saw.)*'),
   M('fix the `shared-db-orchestrator` skill', WI_SKILL),
