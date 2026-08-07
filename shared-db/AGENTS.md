@@ -226,6 +226,17 @@ four rules below are non-negotiable for any database change.
    This runs BEFORE the work. The `Cross-PR object collision` CI check is the
    backstop AFTER it, and by the time that one fires, somebody's session is
    already wasted — on 2026-07-31, three of four were.
+
+   ⚠️ **KNOWN LIMIT, being fixed — read this before trusting a clear result.**
+   The SQL parser behind both checks models only `function`, `procedure`,
+   `view`, `materialized view`, `trigger` and `policy`. It is **blind to
+   `alter table`, `create table`, `create index`, `grant`, `comment on` and
+   `create type`** — about 1,921 statements in `supabase/migrations/` versus 754
+   it can see. Two agents both running `alter table core.licensor …` are
+   reported as no-overlap. The fix, its reasoning, and the two live experiments
+   that settled the design are in
+   [`plan_dispatch-collision-hardening.md`](plan_dispatch-collision-hardening.md)
+   — **read its STATUS table first; do not re-plan or re-derive it.**
    **The concrete symptom when this rule is broken:** the preview branch is
    persistent, so its ledger holds every branch that ever ran `db push` —
    including unmerged ones. A `main`-based checkout then cannot dry-run against
@@ -1019,17 +1030,30 @@ Albert turned branch protection **ON** for `main` on 2026-08-04. This is a stand
 by the owner. **It is settled — do not re-ask it, do not treat it as an AI's preference, and do not
 weaken it.**
 
-**The verified fact, not a claim.** Read back live at 2026-08-04 12:00 UTC with
-`gh api repos/u2giants/shared-db/branches/main/protection`, after PR #442 (agent `ci-check-names`)
-gave every job a unique `name:` and the coordinator added the newly-disambiguated contexts:
+**The verified fact, not a claim.** Read back live at **2026-08-06 16:00 UTC** with
+`gh api repos/u2giants/shared-db/branches/main/protection`:
 
 | Setting | Value |
 | --- | --- |
-| `required_status_checks.contexts` | `["Promotion contract tests (offline)", "Backlog / queue sync", "Cross-PR object collision", "Tools offline tests"]` |
-| `required_status_checks.strict` | `false` |
+| `required_status_checks.contexts` | `["Promotion contract tests (offline)", "Backlog / queue sync", "Cross-PR object collision", "Tools offline tests", "SQL migration guards", "Domain ownership"]` (**six**) |
+| `required_status_checks.strict` | **`true`** (changed 2026-08-06 — see below) |
 | `enforce_admins.enabled` | **`true`** |
 | `allow_force_pushes.enabled` | `false` |
 | `allow_deletions.enabled` | `false` |
+
+> **`strict` was turned ON on 2026-08-06, by the owner's explicit instruction.** It had
+> been `false`, which left a real hole: `.github/workflows/pr-object-collision.yml` says in
+> its own header that it cannot re-run when a *sibling* PR appears later, so the last
+> member of a colliding set must be re-checked — and *"require branches to be up to date
+> before merging"* is what forces that. With `strict: false`, two PRs could both pass every
+> check and both merge, silently erasing one another. That is the 2026-07-31 four-way
+> incident's exact mechanism. **Do not turn it back off.**
+>
+> ⚠️ **This table was stale for two days** — it still read `strict: false` and four
+> contexts after both had changed. A reviewing model (Grok 4.5, 2026-08-06) read it and
+> concluded a *correct* document was wrong. **Verify branch protection with the `gh api`
+> command above rather than trusting this table**, and re-read it back whenever you change
+> it. Prose asserting mutable state goes stale; the command does not.
 
 **The rule.**
 
