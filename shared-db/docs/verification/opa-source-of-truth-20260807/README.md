@@ -475,7 +475,78 @@ owning two overlapping contracts forever.**
 
 ## 6. What happens to the existing character work
 
+> ## ⛔ SUPERSEDED — §6.1, §6.2 and §8 Decision 2 measured the WRONG SOURCE
+>
+> **Added 2026-08-07 by sub-agent `opa-build` (coordinator session `697b5b87`,
+> marker #491). Everything below in §6.1 and §6.2, and the figures quoted in §8
+> Decision 2, is WRONG. The corrected figures are in §6.0A. The original text is
+> left in place deliberately — do not delete it — because it is the only record
+> of what was believed, and someone will otherwise re-derive the same wrong
+> answer from the same file.**
+>
+> ### §6.0A — what was actually measured, and why the old numbers came out wrong
+>
+> **Root cause.** §6.1 did not measure the database. It measured
+> `docs/verification/character-identity-rules-20260728/canonical-character-identities.csv`
+> — a **derived artifact from 28 July** which had **already flipped names into
+> `Firstname Lastname` order** as part of its own identity resolution. The live
+> database stores the surname-first form, **the same order Disney uses**. So the
+> comparison manufactured 147 "surname-order differences" that do not exist in
+> the data: it compared a re-ordered copy of our names against Disney's original
+> order and reported the difference it had itself introduced.
+>
+> **Secondary cause.** The suffix-stripping did not handle **nested
+> parentheses** (a trailing ` ( … ( … ) )` qualifier), so those names were never
+> normalised. That inflated both the distinct-name count and the miss count.
+>
+> | Measurement | §6.1 claimed | **Actually measured** |
+> | --- | ---: | ---: |
+> | Canonical Disney-family distinct names | 2,951 | **2,811** |
+> | Found in Disney's list | 2,743 (93.0%) | **2,803 (99.7%)** |
+> | Apparent mismatches | 208 | **26** |
+> | **Pure surname-order differences** | 147 | **ZERO** |
+> | Real word-level differences | 61 | **ZERO** |
+> | Genuine Disney-side typos we would fix | 3 | **ZERO** |
+> | Rows destroyed by following Disney destructively | 58 | **8** |
+> | Backtick-vs-apostrophe disagreements | ~250 | **ZERO cross-side** |
+>
+> **Disney does not meaningfully disagree with us. The 99.7% match is the
+> headline, and the residue is 26 rows, not 208.** Of the 8 that a destructive
+> reading would remove, **7 are our own retired entries with a "Do Not Use"
+> marker typed into the name field** — our defect, not a Disney disagreement.
+> The 5 remaining differences are **capitalisation only**, and Disney's own list
+> carries **both** spellings, so there is nothing to reconcile.
+>
+> **The backtick finding is inverted from what §6.1 implies.** Both sides carry
+> the same defect identically: **331** of our Disney/Marvel rows and **637** of
+> Disney's use a backtick where an apostrophe belongs. That is **zero
+> disagreement** — it is a **shared upstream export defect**. Independently
+> re-confirmed here: **331 rows, and `0` rows on our side contain a real
+> apostrophe at all.** See §9.3 for why this is dangerous rather than harmless.
+>
+> **What was measured against what — stated precisely, because the two sides are
+> not equivalent.** *Our* side is the **live preview database**
+> (`rjyboqwcdzcocqgmsyel`, read-only): `public.characters.name` joined
+> `public.properties` → `public.licensors` on `external_id in ('DS','MV')` —
+> **4,921 rows**, independently re-confirmed. *Disney's* side **cannot** have
+> come from any database: `plm.opa_property_character` exists as of migration
+> `20260807170000` but holds **0 rows**, and no other table carries the OPA
+> extract. It therefore came from the CSV in the private repo
+> `u2giants/licensor-source-data`. **The "our side" figures are re-verifiable on
+> demand; the cross-side figures are not, without that private file.**
+>
+> **`public.characters` is the ONLY live source for our character names.**
+> `core.character`, `core.style_guide` and `core.style_guide_character` are
+> **all 0 rows** in preview (re-confirmed here), while `core.property` holds 256
+> and `core.licensor` 26. **Any design that assumes `core.style_guide_character`
+> carries data is building on an empty table.**
+
 ### 6.1 Verification of the prior review's numbers — they hold exactly
+
+> **⛔ SUPERSEDED — see §6.0A above. Every number in this subsection is wrong.**
+> It "verifies" one derived CSV against another, which is why it agreed so
+> exactly. It never touched the database, and the CSV it trusted had already
+> re-ordered our names.
 
 Re-measured against `canonical-character-identities.csv` and the OPA CSV,
 normalising by stripping the trailing ` ( … )` suffix, collapsing whitespace,
@@ -499,6 +570,12 @@ apostrophe belongs (the merged doc said 250 base names; my figure counts raw
 names before suffix stripping). **OPA distinct normalised base names: 6,564.**
 
 ### 6.2 What following Disney would actually overwrite — quantified
+
+> **⛔ SUPERSEDED — see §6.0A.** Corrected: 2,803 of 2,811 match (99.7%); the
+> "147 surname-order differences" are **ZERO**; the 3 typos are **ZERO**; and
+> the 58 hard misses are **8**, of which **7 carry a "Do Not Use" marker typed
+> into our own name field**. The exposure this subsection describes is roughly
+> **one seventh** of what it says, and is almost entirely our own retired data.
 
 | Bucket | Count | What "following Disney" does | Risk |
 | --- | ---: | --- | --- |
@@ -1028,6 +1105,29 @@ one property rather than a different kind of thing.
 
 ### Decision 2 — How far may Disney's list overwrite what we already have?
 
+> **⛔ CORRECTED 2026-08-07. The numbers first published in this section were
+> wrong** — they came from a derived 28-July spreadsheet that had already
+> re-ordered our names, not from the database. Full explanation in §6.0A. The
+> original wording is kept below, struck through in effect, so the change is
+> visible rather than silent.
+>
+> ### The true picture
+>
+> We compared Disney's list against our own. Out of **2,811** names, **2,803
+> match — 99.7%.** Only **26** do not, and on inspection:
+>
+> - **ZERO** are name-order differences. We already write names the same way
+>   Disney does. *(The old text claimed 147. That difference was created by the
+>   spreadsheet, not found in our data.)*
+> - **ZERO** are real spelling differences. **5** differ only by capitalisation,
+>   and Disney's own list contains both spellings, so there is nothing to fix.
+> - **8** are names Disney does not list — and **7 of those are our own retired
+>   entries with "Do Not Use" typed into the name.**
+>
+> **In plain terms: Disney and our records already agree almost perfectly. There
+> is very little to decide, and nothing urgent.** The 26-row sheet Laura is
+> reviewing reflects these corrected figures.
+
 We compared Disney's list against our own Disney character list. Out of 2,951
 names, 2,743 match. Of the 208 that do not:
 
@@ -1042,8 +1142,8 @@ names, 2,743 match. Of the 208 that do not:
 | --- | --- | --- | --- |
 | **A. Store Disney's list beside ours. Change nothing yet.** | We load Disney's list and can compare any time. No existing record is edited. | Nothing. | Minutes — delete one table. |
 | **B. Store it, and let Disney correct our spellings.** *(recommended)* | The 3 typos get fixed. The 147 name-order differences get flagged for you to decide, not changed automatically. Nothing is deleted. | Very little. If you later want our spelling back, it is recorded. | Hours. Every old value is kept. |
-| **C. Also adopt Disney's name order everywhere.** | All 147 names flip to `Surname, Firstname`. | Screens and reports that sort or search by first name would look wrong to staff. | Days. Reversible but touches a lot of screens. |
-| **D. Treat Disney as complete — delete anything Disney does not list.** | The 58 unmatched names are removed. | **Real damage.** Disney's list only covers the Home product line and only what our account may see. It is also a photograph from one day, with no updates. We already found a block of 30 Disney+ TV characters filed under the wrong film **in Disney's own system**, so their list is not perfect either. | **High.** Deleted rows need a backup restore. |
+| ~~**C. Also adopt Disney's name order everywhere.**~~ **WITHDRAWN — solves a problem that does not exist.** | ~~All 147 names flip.~~ **Nothing would change.** Our names are *already* in Disney's order; the 147 was an artifact of the 28-July spreadsheet (§6.0A). | Nothing to break, because there is nothing to change. | n/a — **do not choose this option.** |
+| ~~**D. Treat Disney as complete — delete anything Disney does not list.**~~ **DEAD ON ARRIVAL.** | ~~The 58 unmatched names are removed.~~ The real number is **8**, and **7 of them are our own retired "Do Not Use" entries.** | **Forbidden regardless.** Albert's standing ruling, 2026-08-07: **NEVER delete — mark inactive instead.** Any option framed as deletion is off the table before its merits are considered. The old warning still stands too: Disney's list is one product line, one account's entitlement, one day, and we already found 30 Disney+ characters mis-filed **in Disney's own system**. | **High**, and irrelevant — **this option is not available.** |
 
 **One-line recommendation: take Option B.** It gives you Disney's authority where
 it genuinely helps, fixes real mistakes, and cannot lose anything.
@@ -1115,6 +1215,32 @@ good data.
 ### 9.3 Follow-ups for the coordinator
 
 Listed here rather than raised as task chips, per the brief.
+
+**Added 2026-08-07 (sub-agent `opa-build`), arising from the §6.0A correction:**
+
+- **THE SHARED BACKTICK DEFECT IS A REAL HAZARD — treat it as its own item.**
+  Both sides carry it **identically**: **331** of our 4,921 Disney/Marvel rows
+  and **637** of Disney's use a backtick (`` ` ``) where an apostrophe belongs,
+  and **`0`** of our rows contain a real apostrophe at all. Today that is *zero
+  disagreement* and looks harmless. **It will stop being harmless the moment any
+  sync normalises one side and not the other** — backtick→apostrophe on our side
+  alone would turn 331 exact matches into 331 misses overnight, and a
+  "Disney is truth" rule would then rewrite or retire all of them. Any future
+  matching code must normalise **both sides or neither**, and that rule belongs
+  in the code, not in a reviewer's memory. The root cause is a shared upstream
+  export, so **fixing it properly means fixing it at the source**, not
+  papering over it in a join.
+- **The `core.*` character axis is entirely unpopulated.** `core.character`,
+  `core.style_guide` and `core.style_guide_character` are **all 0 rows** in
+  preview (`core.property` 256, `core.licensor` 26). `public.characters` (9,622
+  rows) is the **only** live source of character names. Any design or estimate
+  that assumes `core.style_guide_character` already carries the legacy edges is
+  building on an empty table — including §5.5's duplication argument, which is
+  *theoretical today* precisely because both bridges are empty.
+- **Do not re-derive character figures from
+  `character-identity-rules-20260728/canonical-character-identities.csv`.** It is
+  a derived artifact whose identity resolution **re-ordered names**, and trusting
+  it is exactly what produced the wrong §6.1/§8 figures. Measure the database.
 
 - Put §8's two decisions to Albert.
 - **Consider recording in `AGENTS.md` §6.1 that `core.properties_and_characters`
