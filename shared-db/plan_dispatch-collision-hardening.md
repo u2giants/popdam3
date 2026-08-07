@@ -407,6 +407,14 @@ verdict must be *removed*, not qualified.
 > **Phase C = steps 6, 7, 8** — reservation, binding, docs.
 > Context cut points after Phase A and after Phase B. **Re-read the remaining steps at the
 > start of each phase** — this plan may have been updated by whoever did the previous phase.
+>
+> **AND, AT THE END OF YOUR PHASE — this is a required completion step, not tidying:**
+> re-read **every remaining step through step 8**, and report any **drift**: anything you
+> did or learned that changes a later step's assumptions, files, identifiers, or approach.
+> Then write it into this file before you hand over. A later phase built on a stale
+> assumption is the single most expensive failure mode this document has, because the next
+> session cannot know what you learned. If nothing drifted, say so explicitly in the STATUS
+> table — "no drift" is information; silence is not.
 
 ---
 
@@ -958,9 +966,44 @@ bash scripts/check-sql.sh
 11. **Gotcha — Windows line endings.** These files are CRLF in the working tree; `.mjs`
     edits will show a `LF will be replaced by CRLF` warning. Harmless; do not "fix" it, and
     do not reformat whole files (backlog B1 covers `.gitattributes` separately).
-12. **Gotcha — GitHub Actions flakes.** On 2026-08-06 two required checks failed with
-    `Failed to resolve action download info. Error: Service Unavailable`. That is infra,
-    not your code. Re-run with `gh run rerun <id> --failed` before debugging.
+12. **Gotcha — GitHub Actions flakes, and the ORPHANED-RUN trap.** On 2026-08-06 Actions
+    had a `major_outage`. Checks failed with `Failed to resolve action download info.
+    Error: Service Unavailable`. That is infra, not your code — `gh run rerun <id> --failed`
+    clears the simple case.
+
+    ⚠️ **But there is a worse failure that `rerun` does NOT fix, and it cost a session
+    real time.** Two required checks were left **stranded**: `status=queued`,
+    `conclusion=null`, `attempt=1`, not updating for hours. GitHub refused to cancel them
+    (`Cannot cancel a workflow run that is completed`) **while still reporting them as
+    queued**. They can never report a conclusion, so the PR stays `BLOCKED` forever on a
+    required context. Neither `gh run rerun` nor closing/reopening the PR helps — the
+    stranded runs hold that commit SHA.
+
+    **The only reliable fix is to move the SHA:**
+    ```bash
+    git commit --allow-empty -m "ci: re-trigger checks stranded by an Actions outage"
+    git push
+    ```
+    Diagnose it with `gh api repos/u2giants/shared-db/actions/runs/<id> --jq '.status, .conclusion, .updated_at'` — a `queued` run whose `updated_at` is hours old is stranded, not slow.
+
+13. **⚠️ Gotcha — YOU MAY BE SHARING THIS CHECKOUT WITH ANOTHER LIVE AI SESSION.**
+    `C:\repos\shared-db` is a shared working copy and 3–7 sessions run at once. On
+    2026-08-06 this went wrong in a way that is easy to miss and expensive to unpick:
+
+    - Another session committed its work while this one was creating a branch, so
+      **the new branch silently inherited that session's commit** (`48680a3`).
+    - That work later reached `main` by a different route — including a commit that
+      **retracted the claim the inherited commit made.**
+    - Merging `main` then conflicted in **three files this session never touched**, and
+      the branch was carrying a retracted claim toward `main`.
+
+    **Before you start:** run `git status` and `git log --oneline -5`, and know exactly
+    which commits are yours. **Before you open a PR:** run
+    `git diff origin/main --stat` and confirm it lists **only** files you meant to change.
+    If it lists someone else's, resolve by taking `origin/main`'s version for their files —
+    do **not** delete or revert their work, and never `git add -A`/`git add .`; stage
+    explicit paths only. Uncommitted changes you did not make are **another session's
+    live work** — leave them exactly as they are.
 
 ---
 
