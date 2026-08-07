@@ -413,3 +413,16 @@ Recorded so nobody burns time repeating it.
   1,069,881 bytes). See §top for the full pointer and handling rules.
 - **Related request:** `COORDINATOR_INTAKE.md` → `## REQUEST QUEUE` → "Store the
   Disney OPA property→character list as a lookup table" (2026-08-06). PR #466.
+
+---
+
+## 10. The design document that used to sit beside this one
+
+`DESIGN.md` in this folder — the schema design for landing the extract — was
+**removed from this repository on 2026-08-07** and now lives in
+`u2giants/licensor-source-data` (PRIVATE) at `disney-opa/DESIGN.md`.
+
+It went for the same reason the source data went: unlike this document, it
+quoted real licensor property names, character names, and licensor-internal ID
+values as worked examples. See the pointer stub left at `DESIGN.md` for the
+detail. The owner's ruling was to move it, not redact it.
