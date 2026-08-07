@@ -2949,7 +2949,86 @@ Requests the coordinator has verified and dispatched. Each block is annotated
 with the branch name and the sub-agent handling it. Moved here and out again by
 the coordinator only.
 
-_(none yet)_
+### IN PROGRESS — Store the Disney OPA property→character list as a lookup table — dispatched 2026-08-07 — coordinator session 774f5010 (t16), marker issue #473
+
+Covers the `## REQUEST QUEUE` block "Store the Disney OPA property→character list
+as a lookup table" (2026-08-06), its SUPPLEMENT, and its 2026-08-07 CLOSING NOTE.
+Those three blocks stay in the REQUEST QUEUE until the work merges.
+
+**Dispatched to (phase 1 of 2, READ-ONLY DESIGN):**
+
+| | |
+| --- | --- |
+| Branch | `agent/opa-lookup-design-20260807` |
+| Worktree | `C:/Users/ahazan2/AppData/Local/Temp/claude/opa-design-20260807` |
+| Base | `origin/main` `105c2ecfb39363f23353216a9cc0d805b58260eb` |
+| Owns | new files under `docs/verification/opa-characters-20260806/` ONLY |
+| Does NOT own | `HANDOFF.md`, `AGENTS.md`, `COORDINATOR_INTAKE.md`, `supabase/**` |
+| Migration version | none allocated — phase 1 writes no migration |
+| Deliverable | `docs/verification/opa-characters-20260806/DESIGN.md` + PR |
+
+**Collision check run before dispatch** (`scripts/check-dispatch-collision.mjs`,
+objects `core.character, core.property, ingest.raw_record,
+plm.opa_property_character`): exit 0, **0 in-flight items to compare against**.
+The tool reports it does NOT check tables, indexes, grants or any `ALTER` form —
+the coordinator confirmed those separately: no open `db-claim` issues, and both
+open PRs (#468, #472) are single-file docs-only appends to this file with no SQL.
+**No `db-claim` was filed**, because phase 1 is read-only and cannot collide. A
+claim IS required before phase 2, using the exact object names phase 1 returns.
+
+**Why the work was split.** The coordinator could not confidently declare the
+objects phase 2 will write without first reading the live schema (the vendor
+landing-schema home is not established from repo docs alone). Per the
+orchestrator skill, a task that cannot declare its objects is dispatched
+read-only rather than guessed at — a wrong declaration reads as safety.
+
+**Dedupe performed before dispatch (do not redo).** PR #468
+("characters/style-guides findings — `core.character` is EMPTY") **OVERLAPS but
+does not duplicate** this request. #468's diff is one file, +188/−0, prose only,
+with no DDL and no table design; its finding is that `core.character` has 0 rows.
+The OPA request is a proposal for what fills it. The datasets count different
+things — OPA holds 10,262 distinct (property, character) **pairs**, the legacy
+tables hold ~9,622 **appearances** — so neither is redundant. #468 states in its
+own block that it never opened the OPA file. Also deduped against the wider
+characters / style-guides workstream (`docs/style-guides-characters-and-royalties.md`,
+`docs/verification/character-identity-rules-20260728/`): that workstream has
+already settled the `core.character` **shape**; what it lacks is the **input**,
+which is exactly what this request supplies.
+
+**The disproved lineage claim in README §6a was NOT re-derived.** The agent is
+explicitly instructed not to re-raise it or to cite row-count similarity as
+evidence of shared lineage.
+
+**Owner decisions obtained from Albert 2026-08-07 (§7 of the OPA README):**
+
+| §7 question | Ruling | By |
+| --- | --- | --- |
+| 5. Refresh policy | **One-off snapshot.** No schedule. Stamp the capture date; document the manual two-minute refresh ritual. Automation impossible (MFA, no API). | Albert |
+| Line-of-business scope (README §5 caveat) | **Build from the Home extract we have.** Do not ask Albert to re-log into OPA. The design must record plainly that it is Home-only and entitlement-scoped. | Albert |
+| 6. `- No Likeness` / `- With Likeness` | **Base name plus a likeness flag.** Coordinator ruling on HOW: raw table keeps Disney's exact string untouched; the split lives in the **view**, marked as our interpretation. | Albert (what) + coordinator (how) |
+| 1. Where does it land? | **Raw vendor source table + consumable view**, following the repo's existing vendor/source-owned pattern. The agent must find and name that pattern, not invent one. | Coordinator |
+| 2. Does it join to `core.property`? | **No — not in this landing.** A join makes it a cross-app data contract (PopCRM + DesignFlow read licensor/property data). Land standalone; reconciliation is separate, later work. | Coordinator |
+| 4. Overlap with existing character identity work? | **Deduped, see above.** Agent must report disagreements with `canonical-character-identities.csv` as findings, not resolve them. | Coordinator |
+| 3. How is Disney identified as a licensor? | **STILL OPEN — reserved for Albert.** Agent looks it up read-only and presents options; picking the canonical licensor value is an owner gate. Note history: a property was filed under a licensor named `NO LICENSE`, and Albert ruled 2026-08-06 that "Coco IS a Disney license." | pending |
+
+**Standing session facts recorded in the brief:** all work in a git worktree,
+never in the shared checkout `C:/repos/shared-db` (two sessions collided there
+2026-08-06); and before believing a red CI check, read its job annotations —
+hosted-runner starvation shows up as a failure that never ran.
+
+**Tooling note for the next coordinator.** `gh issue list --label <label>` returns
+EMPTY in this repo even for issues that demonstrably carry the label (verified
+against marker issue #473). Use the REST path instead:
+`gh api "repos/u2giants/shared-db/issues?labels=coordinator-marker&state=open"`.
+Trusting the empty `gh issue list` result would let a second coordinator claim a
+marker while one is already live. The same caveat applies to `db-claim` lookups.
+Separately, `check-dispatch-collision.mjs --allocate-version` is **WITHDRAWN** and
+now refuses; pick the migration version manually.
+
+**Phase 2 (BUILD) is NOT dispatched.** It must not be dispatched until phase 1's
+design is reviewed, Albert has answered §7 Q3, a `db-claim` is filed with phase
+1's exact object names, and the collision check is re-run against a re-derived
+`origin/main`.
 
 ---
 
