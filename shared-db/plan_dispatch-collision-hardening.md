@@ -174,8 +174,14 @@ the dispatch gate (`AGENTS.md` §4 rule 1 and the `shared-db-orchestrator` skill
    are good ideas from Kimi K3; both are follow-on work with their own plan.
 3. **Migrating `COORDINATOR_INTAKE.md` to GitHub Issues.** Separate, larger decision the
    owner has not yet made.
-4. **Fixing `scripts/check-backlog-queue-sync.mjs`** (the documented false-passing required
-   check). Real and worth doing — tracked in the `REQUEST QUEUE` — but a different defect.
+4. ~~**Fixing `scripts/check-backlog-queue-sync.mjs`** (the documented false-passing required
+   check). Real and worth doing — tracked in the `REQUEST QUEUE` — but a different defect.~~
+   ⚠️ **RESOLVED 2026-08-07, and NOT by fixing it.** The script, its tests and its workflow
+   are **deleted**, and the `Backlog / queue sync` required context was removed from branch
+   protection by owner instruction naming it. The queue it read no longer holds the work —
+   that moved to GitHub Issues the same day. **Do not try to fix it; there is nothing there.**
+   The tracking issue is closed as retired. The `REQUEST QUEUE` this item pointed at no
+   longer exists either; work is now `gh issue list --label db-work`.
 5. **Any change to `scripts/check-pr-object-collisions.mjs` behaviour other than adding
    patterns.** Its `Skip`-to-green posture is correct for a required merge gate and must
    not be altered. Broadening `PATTERNS` *will* make that guard stricter too; that is
@@ -947,8 +953,10 @@ regression on the six existing kinds.
 ```bash
 node --test scripts/check-pr-object-collisions.test.mjs
 node --test scripts/check-dispatch-collision.test.mjs
-node scripts/check-backlog-queue-sync.mjs
-node --test scripts/check-backlog-queue-sync.test.mjs
+# NOTE 2026-08-07: check-backlog-queue-sync.mjs and its tests were DELETED. Running them
+# now fails with "no such file", which is NOT your breakage. Removed from this list; the
+# replacement guard below is the one that must stay green.
+node --test scripts/check-intake-pointer.test.mjs
 bash scripts/check-sql.sh
 ```
 
@@ -963,7 +971,7 @@ bash scripts/check-sql.sh
    rewriting history. 231 wrong-identity commits have already reached shared branches.
 3. **No database contact in this plan.** Nothing here needs it.
 4. **Branch protection is on and `strict: true`** — your branch must be up to date before
-   merging, so expect to update it if `main` moves. Six required checks.
+   merging, so expect to update it if `main` moves. Six required checks (the set CHANGED 2026-08-07: `Backlog / queue sync` retired, `Intake pointer guard` added — re-derive with `gh api`).
 5. **Never weaken `check-pr-object-collisions.mjs`'s `Skip`-to-green posture.** A required
    gate that cannot gather its inputs must warn and pass, or it blocks every PR. The
    dispatch tool's opposite posture (unknown ⇒ exit 2) is also deliberate. **Do not

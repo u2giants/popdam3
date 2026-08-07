@@ -22,9 +22,10 @@ AI sessions from breaking each other through the one database they all depend on
 > This repo runs **one coordinator session**, which dispatches every task to
 > sub-agents in isolated worktrees. Any other session writes its handover into
 > the intake queue in [`COORDINATOR_INTAKE.md`](COORDINATOR_INTAKE.md) and stops.
-> That file also carries the standing facts an incoming session needs (silent
-> duplicate-version skips, the production-bound Supabase MCP, preview as a shared
-> mutable resource) and the ban on background task chips in this repo. Skills:
+> **The standing facts an incoming session needs — silent duplicate-version skips, the
+> production-bound Supabase MCP, preview as a shared mutable resource, and the ban on
+> background task chips — are now §12 of THIS file**, re-homed 2026-08-07 ahead of the
+> queue file being retired. Skills:
 > `shared-db-orchestrator` to run a coordinator session, `shared-db-handover` to
 > close one out.
 
@@ -1081,7 +1082,7 @@ weaken it.**
 
 | Setting | Value |
 | --- | --- |
-| `required_status_checks.contexts` | `["Promotion contract tests (offline)", "Backlog / queue sync", "Cross-PR object collision", "Tools offline tests", "SQL migration guards", "Domain ownership"]` (**six**) |
+| `required_status_checks.contexts` | `["Promotion contract tests (offline)", "Cross-PR object collision", "Tools offline tests", "SQL migration guards", "Domain ownership", "Intake pointer guard"]` (**six**) — updated 2026-08-07: `Backlog / queue sync` removed, `Intake pointer guard` added, both named by the owner |
 | `required_status_checks.strict` | **`true`** (changed 2026-08-06 — see below) |
 | `enforce_admins.enabled` | **`true`** |
 | `allow_force_pushes.enabled` | `false` |
@@ -1115,9 +1116,12 @@ weaken it.**
    deadline is **not** approval. If a required check is wrong, fix the check — never the protection.
    This mirrors the standing production-infrastructure rule: an AI session does not relax a control
    in order to get past it.
-4. **Every PR to `main` — including a docs-only PR — must now pass all FOUR required contexts
-   before it is mergeable:** `Promotion contract tests (offline)`, `Backlog / queue sync`,
-   `Cross-PR object collision`, `Tools offline tests`. Confirm with `gh pr checks` before reporting
+4. **Every PR to `main` — including a docs-only PR — must now pass all SIX required contexts
+   before it is mergeable:** `Promotion contract tests (offline)`, `Cross-PR object collision`,
+   `Tools offline tests`, `SQL migration guards`, `Domain ownership`, `Intake pointer guard`.
+   *(Corrected 2026-08-07. This line said FOUR and listed four for days after there were six —
+   re-derive the list with `gh api`, never from this sentence. `Backlog / queue sync` was
+   removed and `Intake pointer guard` added on 2026-08-07 by owner instruction naming both.)* Confirm with `gh pr checks` before reporting
    a PR as ready, and check the run's `head_sha` — a green tick can be a **stale verdict from an
    older commit**. A green PR page is not the same as a satisfied required context.
 
@@ -1583,6 +1587,85 @@ production yet. Promote it **together with or after** the ClickUp migrations
 (`20260728174500...`), never before, or the apply aborts with `undefined_function`. Its
 production-safe equivalent (`20260729130000`) is already applied, so nothing is exposed in
 the meantime.
+
+## 12. Standing facts an incoming session must know
+
+> **Re-homed from `COORDINATOR_INTAKE.md` on 2026-08-07, verbatim.** These ten rules
+> used to live in the coordinator queue file, and `AGENTS.md` §2 pointed at that file for
+> them. The queue is being retired
+> ([`plan_coordinator-queue-to-github-issues.md`](plan_coordinator-queue-to-github-issues.md)
+> step 8), so they moved here first — otherwise retiring the file would have deleted live
+> safety rules, **including the background-task-chip ban**, which is the rule that stopped
+> a repeat of the 2026-07-31 four-way migration collision. Caught in adversarial review by
+> Kimi K3 and ranked BLOCKING; it was correct.
+>
+> **This is a relocation, not a rewrite.** The text below is byte-identical to its last
+> revision in `COORDINATOR_INTAKE.md`. Do not tidy it here.
+
+Read these before you write anything. Several of them describe failures that
+have already happened in this repo, more than once.
+
+1. **One coordinator.** All work is dispatched to sub-agents in isolated
+   worktrees. If you were not started as the coordinator, you are not it.
+2. **One schema change in flight at a time.** Two simultaneous schema edits are
+   the number-one cause of a broken shared database here.
+3. **Never edit a migration that has already been applied.** The migration
+   ledger already records that version as run, so editing the file changes
+   nothing on any database that has seen it — it only makes the repo lie. Fix
+   forward with a new migration.
+4. **Duplicate 14-digit migration versions cause a SILENT SKIP.** Two files with
+   the same version prefix: one applies, the other is quietly ignored with no
+   error. This has happened twice — `20260722220000` and `20260728160000`. CI
+   now blocks duplicate versions and backdated versions, but do not rely on CI
+   to save you; pick a version above the current maximum in
+   `supabase/migrations/`.
+5. **Never create background task chips for this repo — banned.** Four
+   chip-spawned sessions recently authored competing `CREATE OR REPLACE`
+   migrations against the *same* database function, three of them sharing
+   version `20260731170000`. Because of rule 4 those would have silently erased
+   each other. Chips spawn sessions that cannot see each other; this repo cannot
+   survive that.
+6. **The Supabase MCP server may be bound to PRODUCTION, and it takes no
+   project parameter.** There is no way to aim it at preview. Call
+   `get_project_url` FIRST and confirm which project you are actually pointed at
+   before any other MCP call. All preview work goes through the Supabase CLI /
+   psql, and you must verify `cat supabase/.temp/project-ref` immediately before
+   every push.
+7. **Preview (`rjyboqwcdzcocqgmsyel`) is a SHARED, MUTABLE resource** holding a
+   full clone of production data. It is currently **NOT a clean baseline** —
+   other sessions have written to it. Never assume it is empty, never assume it
+   matches production, and treat anything you apply there as visible to everyone
+   else.
+8. **Documents in this repo go stale within the hour.** Verify against the live
+   repo, not against what a Markdown file says.
+9. **Property codes are NOT globally unique — never resolve a property by code
+   alone.** Licensor → Property is a **parent-child** relationship and the *same*
+   code can exist as separate property rows under many different licensors at
+   once. The schema enforces exactly this:
+   `core.property … unique nulls not distinct (licensor_id, code)`
+   (`supabase/migrations/20260621150815_app_core.sql:200`). **`core.licensor` is
+   different** — it *is* `unique nulls not distinct (code)` (`:188`), so
+   **licensor** codes are global. The two are routinely confused, and confusing
+   them produces instructions like *"re-parent code `CC` under Disney"* that are
+   not meaningful. Owner-confirmed by Albert Hazan, **2026-08-06**. See also
+   `AGENTS.md` §6 (merch-group codes are unique only within
+   `(division, mgTypeCode)`) and `fix_item_taxonomy_wiring.md:147`.
+10. **Worktree counts in this repo are per-MACHINE and go stale immediately — always
+    re-measure, never quote.** Measured on **`al8960ofc`, 2026-08-06**:
+    **3 worktrees** — the `C:\repos\shared-db` main checkout plus two live
+    sub-agent worktrees (`.claude/worktrees/cutover-plan`,
+    `.claude/worktrees/stale-sweep`), both **held by running agents**. Verified
+    with `git worktree list`. **Every earlier count is SUPERSEDED as a statement
+    of today's state** — 18 and 22 (2026-07-31), 23, 33/34 (2026-07-31 late),
+    51/52 (2026-08-03/05), 16 (2026-08-05), and 1 (2026-08-06 01:49Z). They were
+    each true when written, on the machine that wrote them; they are history, not
+    inventory. The drop from 51 to 1 was an **authorised sweep**, not a mystery —
+    resolved by intake PR #455 (`9a933c8`) and recorded in
+    `HANDOFF.d/2026-08-06T0149Z-al8960ofc-coordinator-skill-repair.md` §4. **Do
+    not sweep or remove any worktree on the strength of a number in a document**,
+    and never remove one that is dirty, locked, or held by a live agent (B2.3).
+
+---
 
 ## 11. Hosted-Supabase gotchas (do not relearn these the hard way)
 

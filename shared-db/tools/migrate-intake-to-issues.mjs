@@ -340,8 +340,13 @@ function ensureLabels(labels, create) {
   const spec = {
     'db-work': ['1D76DB', 'A unit of work on the shared database or this repo. Migrated from the coordinator queue.'],
     'needs-albert': ['D93F0B', 'Blocked on an owner decision. Do not act without a fresh answer in the current chat.'],
-    blocked: ['B60205', 'Blocked on something other than the owner: another item, an upstream system, or an unreachable machine.'],
+    // GitHub caps a label description at 100 characters and returns HTTP 422 past it.
+    // Keep every description below that; the long-form reasoning belongs in the issue.
+    blocked: ['B60205', 'Blocked on something other than the owner: another item, an upstream system, or a machine.'],
   };
+  for (const [name, [, description]] of Object.entries(spec)) {
+    if (description.length > 100) throw new Error(`Label "${name}" has a ${description.length}-character description; GitHub's limit is 100.`);
+  }
   const missing = [...labels].filter((l) => !existing.has(l));
   if (!missing.length) return [];
   if (!create) return missing;
