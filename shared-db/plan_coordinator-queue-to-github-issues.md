@@ -18,8 +18,8 @@
 | 4b | **Rotate the plaintext-emailed Cloud SQL credential BEFORE any publish** | A | ⬜ open | — |
 | 5 | Update the skills in `ai-devops` and propagate them to every machine | B | ⬜ open | — |
 | 6 | Create one issue per **work item** (scripted, dry-run default, idempotent) | B | ⬜ open | — |
-| 7a | **OWNER GATE — Albert names `Backlog / queue sync` for removal from protection** | B | ⚠️ **MOOT — see drift D3** | 2026-08-07 |
-| 7b | Remove the required context, confirm, **then** delete the workflow and script | B | ⚠️ **partly moot — see drift D3** | 2026-08-07 |
+| 7a | **OWNER GATE — Albert names `Backlog / queue sync` for removal from protection** | B | ⬜ open (was briefly moot — see D3) | — |
+| 7b | Remove the required context, confirm, **then** delete the workflow and script | B | ⬜ open (was briefly moot — see D3) | — |
 | 8 | Reduce `COORDINATOR_INTAKE.md` to a pointer | B | ⬜ open | — |
 | 9 | Rewrite `HANDOFF.md` B10 and B13; delete the B2 lifecycle and retention rules | C | ⬜ open | — |
 
@@ -28,8 +28,8 @@ Steps 1–3 published nothing, created no label and no issue, and are fully reve
 **Step 6 is the first irreversible action in this plan.** It is gated on steps 4 and 4b.
 **Step 5 comes BEFORE step 8, deliberately** — see the trap in §5.
 
-**⚠️ Before reading step 4 to Albert, read §10 — the repository is no longer public, and
-the script written into step 4 says it is.**
+**⚠️ Before reading step 4 to Albert, read §10.** The repository went private and public
+again on 2026-08-07; step 4 reads correctly as written, but §10 explains why.
 
 ### What Phase A produced
 
@@ -336,7 +336,30 @@ Ten of the new `REQUEST QUEUE` entries were seeded by session `774f5010` at ~16:
 2026-08-07 — **after** the plan was written. The plan's own warning ("do not promise Albert
 67 issues") was right for the wrong number. **The real figures are 86 blocks → 60 issues.**
 
-### D2 — ⚠️ THE REPOSITORY IS PRIVATE. The plan's foundation is gone.
+> ### ✅ D2 AND D3 WERE RESOLVED THE SAME DAY — read this before acting on either
+>
+> Both were put to Albert immediately. **On 2026-08-07 he ruled that the Disney extract
+> is not sensitive and instructed, twice, that the repository be made public again.** It
+> was, and **branch protection was restored in full** and read back live: six required
+> contexts, `strict: true`, `enforce_admins: true`, force-pushes and deletions off.
+>
+> **Net effect on this plan: the original premises hold again.**
+> - **The repo is PUBLIC.** §1, constraint 4 and design decision D1 ("public Issues") are
+>   correct as originally written. Step 4's script may be read to Albert as written.
+> - **Constraint 3 is correct as written.** Protection is back to the documented six.
+> - **Steps 7a and 7b are NOT moot after all.** The required context `Backlog / queue sync`
+>   exists again, so the owner gate at 7a is real and must be put to Albert before 7b.
+> - **Open question Q1 is live again.**
+> - **The scrub's hold-back proposal for the 3 Disney work items is overruled by the owner
+>   ruling.** Those items may be published. The rest of the scrub report stands.
+> - **R-SEC-1's history scrub is CANCELLED.** See `AGENTS.md` §6.7.
+>
+> **D2 and D3 are kept below unedited**, because the failure they document is real, is
+> undocumented anywhere else, and will recur: on this account's plan, **making the repo
+> private silently destroys branch protection**. Anyone who flips visibility again must
+> re-read this.
+
+### D2 — ⚠️ THE REPOSITORY IS PRIVATE. The plan's foundation is gone. *(resolved — see the box above)*
 
 `u2giants/shared-db` was flipped to **PRIVATE on 2026-08-07 at ~15:10 UTC** on Albert's
 instruction, because it had held Disney's confidential character extract while public
@@ -361,7 +384,7 @@ What this breaks:
 **The scrub still matters and step 4 is still a gate.** Do not treat "it is private now" as
 permission to publish unreviewed.
 
-### D3 — ⚠️ BRANCH PROTECTION ON `main` IS GONE. Steps 7a and 7b are moot.
+### D3 — ⚠️ BRANCH PROTECTION ON `main` IS GONE. Steps 7a and 7b are moot. *(resolved — see the box above D2)*
 
 Verified live 2026-08-07:
 

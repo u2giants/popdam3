@@ -1038,6 +1038,40 @@ it.
 
 ### 6.7 OWNER RULING — branch protection on `main` is ON, and CI guards are no longer advisory (Albert Hazan, 2026-08-04)
 
+> ### ⛔ READ THIS FIRST — two owner rulings on 2026-08-07 that change everything below
+>
+> **(1) `u2giants/shared-db` is PUBLIC, and it stays public.** It was made private at
+> ~15:10 UTC on 2026-08-07 and **public again at ~16:5x UTC the same day, on Albert's
+> explicit and twice-repeated instruction.** Do **not** make it private again, and do not
+> re-raise the question.
+>
+> **(2) OWNER RULING — the Disney OPA property/character extract is NOT sensitive
+> (Albert Hazan, 2026-08-07).** `docs/verification/opa-characters-20260806/opa-characters.csv`
+> — 10,262 rows of Disney property and character names with Disney's own IDs — may stay in
+> this public repository. Albert was told plainly, twice, that making the repo public
+> republishes that file and that it had never been moved to `licensor-source-data`. He
+> ruled: *"that data is not sensitive."* **He owns the Disney licensee relationship and
+> this is his call to make. It is settled.**
+>
+> **What this supersedes.** Request **R-SEC-1** in `COORDINATOR_INTAKE.md` asks for that
+> CSV to be moved out and scrubbed from git history before the repo can go public. **Its
+> premise is overruled.** Parts (a) and (b) — move the file, leave a pointer — are now
+> optional tidying, not a blocker. Part (c), the git-history rewrite, is **cancelled**;
+> do not rewrite this repository's history for that reason. Part (d) is done.
+> The private repo `u2giants/licensor-source-data` exists and holds only a README.
+>
+> **Why this is written here and not only in the queue.** A future session reading R-SEC-1
+> on its own would make the repo private again, which silently destroys branch protection
+> (see the note below). This ruling is the stop.
+>
+> **⚠️ The trap that caused it, worth keeping.** Going private **silently removed all
+> branch protection**, because a private repository on this account's plan cannot have it.
+> `gh api …/branches/main/protection` returned `403 "Upgrade to GitHub Pro or make this
+> repository public"` and `…/branches/main` reported `protected: false`. Nobody noticed for
+> about two hours. Protection was **restored in full** at 2026-08-07 after the repo went
+> public again, and read back live to the exact table below. **Visibility and protection
+> are coupled on this plan. Never change one without checking the other.**
+
 Albert turned branch protection **ON** for `main` on 2026-08-04. This is a standing decision, ruled
 by the owner. **It is settled — do not re-ask it, do not treat it as an AI's preference, and do not
 weaken it.**

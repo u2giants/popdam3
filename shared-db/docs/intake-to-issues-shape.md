@@ -5,10 +5,11 @@
 migration script follows, written down before anything irreversible happens, so that the
 owner gate at step 4 has something concrete to approve.
 
-> ⚠️ **Read this first: the repository is now PRIVATE.** It flipped on 2026-08-07 at
-> ~15:10 UTC (request R-SEC-1). Issues created here are therefore **private to people
-> with repository access**, not public. The plan was written when the repo was public and
-> says so throughout; that premise no longer holds. See §5.
+> ✅ **The repository is PUBLIC, and issues created here are public.** It went private at
+> ~15:10 UTC on 2026-08-07 (request R-SEC-1) and **public again the same day on Albert's
+> instruction**, after he ruled the Disney extract is not sensitive. Branch protection was
+> restored in full at the same time. See §5 for what that episode taught, which is worth
+> keeping even though both problems are fixed.
 
 ---
 
@@ -120,16 +121,37 @@ that facts must be re-derived from `git`/`gh`.
 
 ---
 
-## 5. ⚠️ What changed under this step after the plan was written
+## 5. The visibility episode of 2026-08-07, and the trap worth keeping
 
-1. **The repository is PRIVATE** (2026-08-07 ~15:10 UTC). Issues created here are private.
-   The plan's step-4 owner gate is scripted around "publishing is one-way, and public" —
-   that wording is now wrong and must not be read to Albert as written. The scrub still
-   matters: R-SEC-1 part (d) contemplates making the repo public again, and anything in an
-   issue at that moment becomes public with it.
-2. **Branch protection on `main` is GONE.** `gh api …/branches/main/protection` returns
-   403 *"Upgrade to GitHub Pro or make this repository public"*, and
-   `…/branches/main` reports `protected: false`. Private repositories on this plan cannot
-   have branch protection, so flipping the repo to private silently removed all six
-   required checks. **Plan steps 7a and 7b are moot** — there is no required context to
-   remove. This is also a live safety regression in its own right and is carried as WI-57.
+For about two hours on 2026-08-07 the repository was private. Both problems that caused
+are now **fixed**, but the mechanism is undocumented anywhere else and will recur.
+
+**What happened.** The repo went private at ~15:10 UTC to get Disney's character extract
+out of public view (request R-SEC-1). Albert then ruled that **the Disney extract is not
+sensitive**, and instructed twice that the repo be made public again. It was.
+
+**The trap.** Going private **silently destroyed branch protection.** A private repository
+on this account's plan cannot have it, so all six required status checks, `strict: true`,
+`enforce_admins: true` and the force-push and deletion blocks disappeared without a warning
+or a log entry. `gh api …/branches/main/protection` returned
+`403 "Upgrade to GitHub Pro or make this repository public"`, and `…/branches/main`
+reported `protected: false`. For those two hours `main` was directly writable,
+force-pushable and deletable, in the repository that is the only legal path for schema
+changes across five applications. Nobody noticed.
+
+**Where it stands now**, read back live after the repo went public again:
+
+| Setting | Value |
+| --- | --- |
+| `required_status_checks.contexts` | the documented **six** |
+| `required_status_checks.strict` | `true` |
+| `enforce_admins.enabled` | `true` |
+| `allow_force_pushes` / `allow_deletions` | `false` / `false` |
+
+**The rule this leaves behind: visibility and branch protection are coupled on this plan.
+Never change one without immediately checking the other.** Restoring protection is not
+automatic — it had to be re-applied by hand.
+
+**Consequences for this document.** None. Issues are public, which is what design
+decision D1 assumed. The scrub still applies in full, minus the Disney identifiers, which
+the owner ruling releases. The standing ruling is recorded in `AGENTS.md` §6.7.
