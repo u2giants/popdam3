@@ -11,21 +11,45 @@
 
 | # | Step | Phase | State | Date |
 |---|---|---|---|---|
-| 1 | Inventory: classify every block, with an arithmetic completeness cross-check | A | ⬜ open | — |
-| 2 | Build the **scrub tool**; run it; write the scrub report | A | ⬜ open | — |
-| 3 | Labels and the issue shape (one label, pointer model for handovers) | A | ⬜ open | — |
-| 4 | **OWNER GATE — Albert's go/no-go on the scrub report** | A | ⬜ open | — |
+| 1 | Inventory: classify every block, with an arithmetic completeness cross-check | A | ✅ **done** | 2026-08-07 |
+| 2 | Build the **scrub tool**; run it; write the scrub report | A | ✅ **done** | 2026-08-07 |
+| 3 | Labels and the issue shape (one label, pointer model for handovers) | A | ✅ **done — specified, nothing created** | 2026-08-07 |
+| 4 | **OWNER GATE — Albert's go/no-go on the scrub report** | A | ⬜ open — **next action** | — |
 | 4b | **Rotate the plaintext-emailed Cloud SQL credential BEFORE any publish** | A | ⬜ open | — |
 | 5 | Update the skills in `ai-devops` and propagate them to every machine | B | ⬜ open | — |
 | 6 | Create one issue per **work item** (scripted, dry-run default, idempotent) | B | ⬜ open | — |
-| 7a | **OWNER GATE — Albert names `Backlog / queue sync` for removal from protection** | B | ⬜ open | — |
-| 7b | Remove the required context, confirm, **then** delete the workflow and script | B | ⬜ open | — |
+| 7a | **OWNER GATE — Albert names `Backlog / queue sync` for removal from protection** | B | ⚠️ **MOOT — see drift D3** | 2026-08-07 |
+| 7b | Remove the required context, confirm, **then** delete the workflow and script | B | ⚠️ **partly moot — see drift D3** | 2026-08-07 |
 | 8 | Reduce `COORDINATOR_INTAKE.md` to a pointer | B | ⬜ open | — |
 | 9 | Rewrite `HANDOFF.md` B10 and B13; delete the B2 lifecycle and retention rules | C | ⬜ open | — |
 
-**A fresh session starts at Step 1.** Steps 1–3 publish nothing and are fully reversible.
+**Phase A is complete. A fresh session starts at step 4, which is an owner gate — not at step 1.**
+Steps 1–3 published nothing, created no label and no issue, and are fully reversible.
 **Step 6 is the first irreversible action in this plan.** It is gated on steps 4 and 4b.
 **Step 5 comes BEFORE step 8, deliberately** — see the trap in §5.
+
+**⚠️ Before reading step 4 to Albert, read §10 — the repository is no longer public, and
+the script written into step 4 says it is.**
+
+### What Phase A produced
+
+| Artefact | What it is |
+|---|---|
+| `tools/intake-blocks.mjs` | Shared parser. Splits the file into sections and blocks; ignores `###` lines inside code fences, which the file's own templates contain. |
+| `tools/intake-inventory.mjs` | Step 1. Carries the classification of all 86 blocks and **fails loudly** if a block is unclassified, if the list stops lining up with the file, or if the arithmetic does not balance. |
+| `tools/scrub-intake-for-publication.mjs` | Step 2. The denylist scanner. Never prints a matched value — it masks every hit, so the report is safe to hand over. |
+| `docs/verification/intake-publication-scrub-20260807.md` | Step 2's report. 225 hits across 68 blocks. |
+| `docs/intake-to-issues-shape.md` | Step 3. Labels and issue shape, written down; **nothing created**. |
+
+**Step 1 arithmetic, from `node tools/intake-inventory.mjs`:**
+
+```
+86 blocks  =  68 MIGRATE  +  16 CLOSED (each with a checked reason)  +  2 NOISE
+68 migrating blocks collapse to 60 WORK ITEMS  →  60 issues, not 86
+```
+
+Every CLOSED reason was checked against `git log` / `gh pr list` / `gh issue view` / the
+live working tree. None was accepted from another document.
 
 ---
 
@@ -286,3 +310,181 @@ Three rounds with **GLM 5.2**, adversarial by request. Recorded so nobody re-der
 - [ ] The `AGENTS.md` safety rules are **untouched** — verified by diff
 - [ ] Committed, pushed, PR merged by you, checks green
 - [ ] STATUS table dated, drift recorded, `HANDOFF.d/` file written
+
+---
+
+## 10. DRIFT — recorded at the end of Phase A, 2026-08-07
+
+Every remaining step was re-read against the live repo before this was written, as §5
+requires. **Fourteen items drifted. Two of them invalidate whole steps.** Read D2 and D3
+before doing anything else.
+
+### D1 — the file is 42% bigger than the plan measured, and §2's table is wrong
+
+Measured on `main` @ `ce16397`, 2026-08-07: **5,449 lines, not 3,837.**
+
+| Section | §2 says | **Actually** |
+|---|---|---|
+| `REQUEST QUEUE` | 67 | **78** |
+| `IN PROGRESS` | 1 | 1 |
+| `WAITING ON OTHER PEOPLE` | 0 | 0 |
+| `COMPLETED` | 12 | 12 |
+| `INTAKE QUEUE` | 5 | **7** |
+| `TAKEN OVER` | 6 | **5** |
+
+Ten of the new `REQUEST QUEUE` entries were seeded by session `774f5010` at ~16:00 UTC on
+2026-08-07 — **after** the plan was written. The plan's own warning ("do not promise Albert
+67 issues") was right for the wrong number. **The real figures are 86 blocks → 60 issues.**
+
+### D2 — ⚠️ THE REPOSITORY IS PRIVATE. The plan's foundation is gone.
+
+`u2giants/shared-db` was flipped to **PRIVATE on 2026-08-07 at ~15:10 UTC** on Albert's
+instruction, because it had held Disney's confidential character extract while public
+(request **R-SEC-1**, `COORDINATOR_INTAKE.md:689`). Verified live: `gh repo view` reports
+`"visibility": "PRIVATE"`.
+
+What this breaks:
+
+- **§1 and constraint 4** — *"`shared-db` is PUBLIC. That is load-bearing for this
+  workstream."* No longer true.
+- **Design decision D1, "Public Issues"** — issues created now are **private**, visible
+  only to people with repository access. Albert chose *public* Issues on 2026-08-07 having
+  been told what the queue contains. He is now getting something different from what he
+  agreed to. **That is not a downgrade he needs to worry about, but he must be told**, and
+  it is not a licence to skip the scrub.
+- **Step 4's script** — it tells Albert *"publishing is one-way — content can be indexed
+  and cached even if deleted later."* Read as written, that is now **false and alarming**.
+  Rewrite it: this is private today, but R-SEC-1 part (d) explicitly contemplates making
+  the repo public again, and everything in an issue becomes public at that moment.
+- **§7 risk row 1** is materially reduced today and returns in full if the repo goes public.
+
+**The scrub still matters and step 4 is still a gate.** Do not treat "it is private now" as
+permission to publish unreviewed.
+
+### D3 — ⚠️ BRANCH PROTECTION ON `main` IS GONE. Steps 7a and 7b are moot.
+
+Verified live 2026-08-07:
+
+```
+gh api repos/u2giants/shared-db/branches/main/protection
+  → 403  "Upgrade to GitHub Pro or make this repository public to enable this feature."
+gh api repos/u2giants/shared-db/branches/main --jq .protected
+  → false
+```
+
+Private repositories on this account's plan **cannot have branch protection**. Flipping the
+repo to private therefore removed it silently — all six required status checks, `strict:
+true`, `enforce_admins: true`, the force-push and deletion blocks. Nobody recorded this.
+
+Consequences for this plan:
+
+- **Step 7a is moot.** There is no required context named `Backlog / queue sync` to remove,
+  so there is nothing to ask Albert to name. **Do not put the step-7a question to him as
+  written** — it asks permission to remove something that no longer exists, and he would
+  reasonably conclude protection is still on.
+- **Step 7b.1 and 7b.2 are moot** for the same reason. **7b.3 — deleting the workflow, the
+  script and its tests — is still wanted**, and is now unblocked by any owner gate. It
+  remains blocked by the cross-plan conflict in constraint 9, which is unchanged.
+- **Open question Q1 is moot.** There is no required gate to repoint.
+- **Constraint 3 is false as written** and must not be relied on.
+- ⚠️ **This is a live safety regression far bigger than this plan.** `main` is writable
+  directly, force-pushable and deletable, with no check enforced, in the repository that is
+  the sole legal path for schema changes across five applications. It is carried as work
+  item **WI-57** and it belongs in front of Albert now, not at step 7.
+
+### D4 — the coordinator marker gate is satisfied, but a NEW marker is open
+
+- **Issue #473** (`COORDINATOR ACTIVE — session 774f5010 — t16`) is **CLOSED**, with a
+  closing comment recording a clean end: handover merged as PR #489, zero open PRs, zero
+  open `db-claim` issues, no live agents, all worktrees retired. **Constraint 10, and
+  handoff §0 item 8 and §6 step 1, are all satisfied. Do not re-raise #473.**
+- **Issue #491 is OPEN** — `COORDINATOR ACTIVE — 697b5b87-a3a5-4aef-a03b-26fe277d52f5 —
+  al8960ofc`, opened 2026-08-07 16:14 UTC, inheriting from session 774f5010. **It is not
+  this session's marker.** Phase A dispatched no sub-agent, created no marker, made no
+  database call and published nothing, so it did not conflict — but **anything that
+  dispatches work must resolve #491 first.**
+
+### D5 — R-SEC-1 is now a prerequisite for step 6, not an item within it
+
+R-SEC-1 asks for Disney's confidential CSV to be moved to a private repository and
+**scrubbed from this repo's git history**. Until that lands, quoting the surrounding
+material into issues spreads it into a second store. The step-2 scrub agrees independently:
+"licensor-owned internal identifiers" is the only category that produced a genuine
+**hold-back** proposal, and it maps to exactly this material (3 work items, 4 blocks).
+**Sequence R-SEC-1 before step 6, or hold those 3 work items back.**
+
+### D6 — an intake PR is open and will add blocks after the inventory was taken
+
+**PR #490** (`intake: three workstreams from a non-coordinator session on t16`) is OPEN and
+appends to `COORDINATOR_INTAKE.md`. The inventory was taken at `ce16397` and does not
+include it. **Re-run `node tools/intake-inventory.mjs` immediately before step 6** — it will
+fail loudly on the new blocks rather than skip them, which is the intended behaviour.
+
+### D7 — every `COORDINATOR_INTAKE.md` line number in this plan has moved
+
+| Cited as | Now at | What it is |
+|---|---|---|
+| `:988` | **`:1283`** | the ⛔ Cloud SQL rotation request (step 4b's anchor) |
+| `:991` | **`:1286`** | "emailed in plaintext on 2026-08-04" |
+| `:682`, `:776`, `:821`, `:2946` | **`:977`, `:1071`, `:1116`, `:776` + `:3266`** | the OPA work item — it now spans **five** blocks, not four |
+| `:3019` | **`:3333`** | the false "`gh issue list --label` returns empty" claim |
+| `:1–30` | `:1–30` | the "empty does not mean idle" warning — unmoved |
+
+`HANDOFF.md:1850` (B10) and `HANDOFF.md:1943` (B13) are **still correct** — re-verified.
+
+### D8 — step 4b's premise holds, unchanged
+
+The rotation request at `:1283` is still open, so the credential is still presumed
+unrotated. **Step 4b stands exactly as written.** It is the one step nothing has undermined.
+
+### D9 — step 2's denylist was missing its most important category
+
+The plan's minimum-pattern list did not include **licensor-owned internal identifiers** —
+Disney's own `licensedPropertyID` / `characterID` / `brandPropertyID` keys. That is the
+R-SEC-1 material, and it turned out to be the **only** category producing a genuine
+hold-back. It has been added to the tool.
+
+Also added: a separate rule for 40-character hex strings. Folding them into "credentials"
+made the tool propose holding back three work items over ordinary **git commit SHAs**,
+which this repo quotes constantly. They are now their own HUMAN-decision category with the
+`git cat-file -t` test written into the report.
+
+### D10 — step 5's stated blocker is stale, but its real gate is not
+
+The plan and the `WAITING ON OTHER PEOPLE` list both say the `ai-devops` skills PR is
+unmerged. **It is merged** — `u2giants/ai-devops` PRs **#1 and #2 are both MERGED**,
+verified live. The skills are no longer waiting on a merge.
+
+**Step 5's actual gate is unchanged and still unmet:** propagation to *every machine*, not
+the PR. Nothing in Phase A verified that, and it cannot be verified from this machine alone.
+
+### D11 — step 9's verification gate needs one more token
+
+Searching the repo today: `INTAKE QUEUE` appears in 9 files, `TAKEN OVER` in 15, `B2.2` in
+5, `REQUEST QUEUE` in **21**. The gate's token list is right as far as it goes, but it will
+also need **`COORDINATOR_INTAKE`** itself — several documents reference the file by name
+rather than by section, and those pointers break silently at step 8.
+
+### D12 — open question Q4 is asking about the wrong number
+
+Q4 asks whether "the six questions already waiting on Albert" become one issue or six. The
+inventory counts **nine** work items that need an owner decision, not six: WI-02, WI-14,
+WI-15, WI-16, WI-30, WI-37, WI-49, plus the two gates this plan itself owes (steps 4 and
+4b). **Re-ask it as nine.**
+
+### D13 — the `IN PROGRESS` block carries a tooling claim that is false
+
+`COORDINATOR_INTAKE.md:3333` tells the next coordinator that `gh issue list --label`
+returns empty in this repo and prescribes a REST workaround. **Re-verified live 2026-08-07:
+it works** — `--label coordinator-marker --state open` correctly returned issue #491. §8
+already recorded this as GLM's one error; it is recorded here too because the false claim is
+still sitting in the file, where the next coordinator will read it. It should not be carried
+into any migrated issue.
+
+### D14 — no drift
+
+Design decisions D1–D8, the §5 step ordering (5 before 8, 7b's internals), the §5C
+cross-plan conflict with `plan_dispatch-collision-hardening.md`, and constraints 1, 2, 5, 6,
+7, 8, 11 and 12 were all re-checked and are **unchanged**. Constraint 11's warm GLM session
+`intake-queue-to-issues-plan` was **not** used in Phase A — no review was needed for an
+inventory and a scanner — so it is still warm and still holds the full plan context.
