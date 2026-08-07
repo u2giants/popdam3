@@ -4279,6 +4279,35 @@ change written, no database modified.**
 - **Handoff:** [`fix_characters_style_guides_handoff.md`](fix_characters_style_guides_handoff.md)
 - **Model (read before touching anything):** [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
 - **Licensing-team review sheet + regenerator:** [`docs/verification/style-guide-property-mapping-20260726/`](docs/verification/style-guide-property-mapping-20260726/README.md)
+- **Disney's OWN property→character list, captured from the OPA portal (2026-08-06):** [`docs/verification/opa-characters-20260806/README.md`](docs/verification/opa-characters-20260806/README.md) — 10,262 rows, 1,445 properties, 9,591 distinct character names, carrying Disney's own IDs. **Requested as a lookup table; NOT built.** Request + supplement in `COORDINATOR_INTAKE.md` `## REQUEST QUEUE`, PR #466. Reproducible in ~2 minutes (Albert's MFA login is the only manual step); the snippet is in that README.
+
+> ### ❌ DISPROVED SAME DAY (2026-08-06) — do NOT re-raise "the OPA extract looks like `dflow.properties_and_characters`"
+>
+> The session that captured the OPA file noticed that its **10,262 rows / 9,591
+> names** sit within ~1% of `dflow.properties_and_characters` (**10,122**) and
+> `public.characters` (**9,622**), and floated that the legacy table might be a
+> stale import of the same list. **That was wrong, and it is recorded here so the
+> next session does not spend time re-deriving it.**
+>
+> The counts measure different things:
+>
+> - `dflow.properties_and_characters` — `type='PROPERTY'` rows are **style
+>   guides**; `type='CHARACTER'` rows are character **appearances**, one per style
+>   guide. It is the **style** axis (§6.1 of `AGENTS.md`).
+> - `public.characters` — also **appearances**, but each row carries a
+>   `property_id`. It is the **ownership** axis.
+> - The OPA file — **distinct (property, character) pairs**. Neither of the above.
+>
+> This is exactly the trap `AGENTS.md` §6.1 warns about ("two AI sessions have
+> already corrupted their understanding by reading those column names literally").
+> **Numeric coincidence between these tables is not evidence of shared lineage.**
+>
+> **The real point, which survives:** `core.character` is **0 rows**, and it wants
+> distinct characters parented to a property. Neither legacy table supplies that
+> shape — the OPA extract does. That strengthens the case for landing it.
+> Still unverified: whether OPA's `characterID` can serve as the stable identity
+> key `core.character` needs. No database call has been made by any session in
+> this thread.
 
 Merged: PRs #197 `db97cd9`, #203 `31e6583`, #215 `f9c8758`, #236 `5bd2f5f`, #237 `1a9a4b1`.
 

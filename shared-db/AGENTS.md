@@ -206,6 +206,26 @@ four rules below are non-negotiable for any database change.
    check whether another change is already in progress (§6). If so, finish or
    land that one first, or coordinate with the owner. Two simultaneous schema
    edits are the number-one cause of a broken shared database.
+
+   **Do not judge this by reading documents — run the check.** It compares what
+   you intend to write against every open `db-claim` and every open pull request:
+
+   ```bash
+   node scripts/check-dispatch-collision.mjs \
+     --task "<what you are about to do>" \
+     --objects "<every object you will WRITE, comma-separated>" \
+     --allocate-version
+   ```
+
+   Exit `0` safe (file the claim it prints, then start), `1` collision (**stop**),
+   `2` undetermined (**stop**, or proceed READ-ONLY). **If you cannot list the
+   objects up front, your task is read-only** — and read-only work cannot
+   collide. Close your claim when the work merges or is abandoned; an open claim
+   is a lock on those objects, not a note.
+
+   This runs BEFORE the work. The `Cross-PR object collision` CI check is the
+   backstop AFTER it, and by the time that one fires, somebody's session is
+   already wasted — on 2026-07-31, three of four were.
    **The concrete symptom when this rule is broken:** the preview branch is
    persistent, so its ledger holds every branch that ever ran `db push` —
    including unmerged ones. A `main`-based checkout then cannot dry-run against
