@@ -202,18 +202,28 @@ developer scripts, not a running service). `main` tip at time of writing: `700f0
 
 ### Exact locations you will edit
 
-| What | Where |
+> ⚠️ **REFRESHED 2026-08-07 after Phase A. Every line number in the STEP BODIES
+> below (§9) is from before Phase A and is now WRONG by 20–60 lines.** Trust this
+> table, or better, `grep` for the symbol name — the names are stable, the numbers
+> are not. Items Phase A already resolved are struck through.
+
+| What | Where (as of `main` @ `60b130c`, 2026-08-07) |
 |---|---|
-| `PATTERNS` array (the parser's whole vocabulary) | `scripts/check-pr-object-collisions.mjs:128–220` |
-| `extractObjects` | `scripts/check-pr-object-collisions.mjs:235` |
-| `parseClaimBlock` (the brittle parser) | `scripts/check-dispatch-collision.mjs:102–139` |
-| `inObjects` state machine (drops objects after a comment) | `scripts/check-dispatch-collision.mjs:110,120,124,127,130` |
-| `formatReport` — the `SAFE TO DISPATCH` line | `scripts/check-dispatch-collision.mjs:197–235`, verdict at **line 206** |
-| `gatherOpenPrObjects` — `version ??= stamp` bug | `scripts/check-dispatch-collision.mjs:334` |
-| Unencoded filename in contents fetch | `scripts/check-dispatch-collision.mjs:335` |
-| `--allocate-version` implementation | `scripts/check-dispatch-collision.mjs:444–447` |
-| `nextFreeVersion` | `scripts/check-dispatch-collision.mjs:190` |
-| `claimCommand` (emits the `db-claim` block) | `scripts/check-dispatch-collision.mjs:237–268` |
+| `PATTERNS` array (the parser's whole vocabulary) | `scripts/check-pr-object-collisions.mjs:128–229` |
+| `KNOWN_DDL_CLASSES` (**new** — the NOT-CHECKED vocabulary) | `scripts/check-pr-object-collisions.mjs:231` |
+| `describeCoverage` (**new** — derives CHECKED / NOT CHECKED) | `scripts/check-pr-object-collisions.mjs:257` |
+| `extractObjects` | `scripts/check-pr-object-collisions.mjs:281` |
+| `parseClaimBlock` (the brittle parser) | `scripts/check-dispatch-collision.mjs:108` |
+| `findDispatchConflicts` (returns `overlapFound`, compares `versions[]`) | `scripts/check-dispatch-collision.mjs:169` |
+| ~~`formatReport` — the `SAFE TO DISPATCH` line~~ **removed in Phase A** | `scripts/check-dispatch-collision.mjs:222` (the coverage report lives here now) |
+| ~~`gatherOpenPrObjects` — `version ??= stamp` bug~~ **fixed in Phase A** | `scripts/check-dispatch-collision.mjs:388` |
+| ~~Unencoded filename in contents fetch~~ **fixed in Phase A** | `encodeRepoPath` at `scripts/check-dispatch-collision.mjs:376` |
+| `defaultIo` (**new** — the injectable GitHub calls) | `scripts/check-dispatch-collision.mjs:433` |
+| ~~`--allocate-version` implementation~~ **withdrawn in Phase A** | the tombstone is in `main()` at `scripts/check-dispatch-collision.mjs:506` |
+| `nextFreeVersion` (kept for step 6; comment corrected) | `scripts/check-dispatch-collision.mjs:215` |
+| `versionsOnDisk` (kept for step 6; no runtime caller today) | `scripts/check-dispatch-collision.mjs:446` |
+| `claimCommand` (emits the `db-claim` block; step 5 deletes it) | `scripts/check-dispatch-collision.mjs:277` |
+| `USAGE` (exit-code documentation) | `scripts/check-dispatch-collision.mjs:479` |
 
 ### Branch/commit state
 
@@ -1170,6 +1180,16 @@ network call**, so nothing calls them at runtime today. Step 6 re-wires both int
 `--reserve-version`. **Recommendation: keep `--allocate-version` permanently as a
 tombstone that exits 2** rather than deleting the flag — a coordinator pasting an
 older command then gets the explanation instead of `unknown argument`.
+
+### D-A10 — EVERY line number inside the step bodies (§9) is now WRONG.
+**Hits:** every remaining step.
+Phase A added roughly 130 lines to `check-dispatch-collision.mjs` and 46 to
+`check-pr-object-collisions.mjs`, so references like "`main()` around lines
+425–440" or "`PATTERNS` at 128–220" are off by 20–60 lines. **The §5 table has
+been refreshed against `main` @ `60b130c` and is the one to trust** — or grep for
+the symbol name, which is stable. The step bodies were deliberately left
+unedited: rewriting numbers inside prose that also carries reasoning is how a
+plan gets quietly corrupted.
 
 ### No drift found in:
 **Step 3a** (the historical noise gate) — untouched by Phase A; its inputs and its
