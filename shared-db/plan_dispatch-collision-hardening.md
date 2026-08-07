@@ -9,10 +9,10 @@
 
 | # | Step | Phase | State | Date |
 |---|---|---|---|---|
-| 1 | Remove the verdict — message **and** the internal `safe` name **and** the exit-code docs | A | ⬜ open | — |
-| 1b | **Disable `--allocate-version`** (fail with an explanation) — it reserves nothing | A | ⬜ open | — |
-| 2 | Add the failing tests that route real DDL through the parser | A | ⬜ open | — |
-| 2b | Fix the four gatherer defects: **draft PRs excluded**, one-version-per-PR, deleted files, unencoded path | A | ⬜ open | — |
+| 1 | Remove the verdict — message **and** the internal `safe` name **and** the exit-code docs | A | ✅ done | 2026-08-07 |
+| 1b | **Disable `--allocate-version`** (fail with an explanation) — it reserves nothing | A | ✅ done | 2026-08-07 |
+| 2 | Add the failing tests that route real DDL through the parser | A | ✅ done — landed as `todo`, RED; **step 3b must remove the `todo` flag** | 2026-08-07 |
+| 2b | Fix the four gatherer defects: **draft PRs excluded**, one-version-per-PR, deleted files, unencoded path | A | ✅ done (all **five**) | 2026-08-07 |
 | 3a | **Historical noise gate** — reconstruct concurrently-open PR sets; fix the acceptance rule BEFORE seeing results | B | ⬜ open | — |
 | 3b | Return **structured operations** `{action, kind, target}`; separate dispatch policy from merge policy | B | ⬜ open | — |
 | 4 | Default object derivation to `--sql`; make bare `--objects` warn | B | ⬜ open | — |
@@ -22,9 +22,10 @@
 | 7 | ~~Add `branch`/`pr` binding to the claim block~~ — **SUPERSEDED by step 5**; the ref's target commit *is* the binding | — | ✂️ cut | 2026-08-06 |
 | 8 | Update `AGENTS.md` §4 rule 1 and the orchestrator skill to match | C | ⬜ open | — |
 
-**A fresh session starts at Step 1.** Phase A is the urgent set: it removes the live
-false-clear message, disables an allocator that does not allocate, and fixes four
-gatherer defects that each produce their own false-clear.
+**Phase A is COMPLETE (2026-08-07). A fresh session starts at Step 3a.**
+⚠️ **Read §14 — DRIFT AFTER PHASE A — before starting step 3a.** Phase A changed
+function signatures and field names that steps 3b, 4, 5, 5b, 6 and 8 all assume,
+and it left four tests deliberately RED-as-`todo` that step 3b must un-mark.
 
 > **Reviewed twice and revised twice.** GPT-5.6 (Codex) found four scheduled-nowhere bugs,
 > a better architecture for step 3, and a sequencing error. Grok 4.5 then found that **the
@@ -1058,6 +1059,127 @@ bash scripts/check-sql.sh
    automated; until then, release is manual at session start (skill step 7).
 4. **Sequencing of R4** (enforcement check) — after the scaffold tool and bot, per Kimi.
    Needs its own plan and the owner's decision on the Issues migration.
+
+---
+
+## 14. DRIFT AFTER PHASE A (recorded 2026-08-07 — read before step 3a)
+
+Required completion step of Phase A: every remaining step through step 8 was
+re-read against what actually shipped. **Drift was found in six of them.** Each
+item below says what changed, which step it hits, and what that step must now do
+differently. Nothing here is optional tidying — a later phase built on the old
+assumption breaks a test or reintroduces a false clear.
+
+### D-A1 — `result.safe` no longer exists. The field is `overlapFound` (inverted).
+**Hits:** steps 4, 5, 5b, 6, and any `--json` consumer.
+`findDispatchConflicts` now returns `{objectConflicts, versionConflicts, overlapFound}`.
+A test asserts the result has **no** key named `safe`, so re-adding one fails the
+build. `main()` returns `overlapFound ? 1 : 0`. Step 5's redefinition of exit 0
+("the claim succeeded — you now hold these objects") sits on top of this cleanly.
+
+### D-A2 — a holder's version field is `versions` (an ARRAY), not `version`.
+**Hits:** steps 5, 5b, 6, and every test helper.
+`gatherClaims` emits `versions: [v]` or `[]`; `gatherOpenPrObjects` emits every
+14-digit stamp in the pull request. `findDispatchConflicts` compares the proposed
+scalar version against every entry. **`proposed.version` is still scalar** — a
+proposal has one version, a holder can have several. Do not "harmonise" those two.
+
+### D-A3 — `gatherOpenPrObjects(repo, io)` now takes an injectable I/O object.
+**Hits:** steps 5 and 5b, which both add gathering.
+Signature: `gatherOpenPrObjects(repo, io = defaultIo)` where `io` is
+`{listPulls, listPullFiles, readFileAtRef}` (exported as `defaultIo`). This is
+the only reason the five step-2b defects are unit-testable at all — the old code
+called `gh` inline and could not be tested without a network. **Any new gathering
+in step 5 must go through the same object, or its defects become untestable too.**
+
+### D-A4 — the coverage report is DERIVED, and a test locks it to the parser.
+**Hits:** step 3b directly.
+`describeCoverage()` is a new export of `check-pr-object-collisions.mjs`. It
+returns `{checked, notChecked, alterModelled}`, computing `checked` from
+`PATTERNS` and `notChecked` as `KNOWN_DDL_CLASSES` minus `checked`.
+`formatReport` prints both lists, and a test asserts the printed report contains
+every entry of both. **Step 3b must therefore:**
+- keep `PATTERNS` (or whatever replaces it) readable by `describeCoverage()`, and
+- add each newly-modelled kind using the SAME vocabulary as `KNOWN_DDL_CLASSES`
+  (`table`, `column`, `index`, `grant`, `comment`, `type`, `sequence`, `schema`).
+Use a different word (`tables`, `indexes`) and the class silently stays on the
+NOT CHECKED list forever — a false statement printed by a tool whose whole
+purpose is not making false statements.
+
+### D-A5 — step 2's four tests are LANDED AS `todo`, and step 3b must un-mark them.
+**Hits:** step 3b. This is the one that is easiest to miss.
+The plan said "run them red locally, land them with the step-3 fix." That is not
+possible when step 3 is in a **later phase** than step 2 — a pull request whose
+tip is red can never merge past the required `Cross-PR object collision` job. So
+they are landed with `{ todo: … }`: `node --test` runs them, reports them every
+run (`ℹ todo 4`), and does not fail the build.
+
+**Observed failing locally on 2026-08-07, exactly as the plan required:**
+
+```
+⚠ an alter table in an open PR collides with a proposal naming that table  # RED until plan step 3b
+⚠ a create table in an open PR collides with a proposal naming that table  # RED until plan step 3b
+⚠ a create index in an open PR collides with a proposal naming its table   # RED until plan step 3b
+⚠ a grant in an open PR collides with a proposal naming that table         # RED until plan step 3b
+  AssertionError: Expected values to be strictly equal: false !== true
+ℹ tests 37   ℹ pass 33   ℹ fail 0   ℹ todo 4
+```
+
+A fifth test, *"the modelled class DOES route through the parser end to end"*, is
+a **positive control**: it passes today, proving the wiring is sound and that the
+four failures are the parser's blind spot and nothing else.
+
+⚠️ **STEP 3b MUST DELETE THE `TODO_UNTIL_STEP_3B` OPTION FROM ALL FOUR TESTS.**
+If they are still `todo` when step 3b is called done, the fix is unproven and the
+plan's central defect is still shipping.
+
+### D-A6 — `extractObjects` must keep emitting FLAT STRINGS including the new kinds.
+**Hits:** step 3b.
+Step 3b says to add `extractOperations` and keep `extractObjects` as "a thin
+wrapper returning the old flat strings **so existing callers and tests keep
+working**." Read literally, a wrapper that returns only the *old six kinds* would
+leave all four step-2 tests red forever, because they call `extractObjects`
+directly and expect `alter table core.licensor` to yield `table core.licensor`.
+**The wrapper must flatten every operation, new kinds included.**
+
+### D-A7 — AGENTS.md and the orchestrator skill were PARTLY updated already.
+**Hits:** step 8, which is now smaller.
+Both documented the gate with `--allocate-version` and glossed exit 0 as "safe".
+Withdrawing the flag (step 1b) made the documented command exit 2 on every run,
+so leaving that for Phase C would have broken the gate for every coordinator in
+the meantime. Already corrected in this phase:
+- `AGENTS.md` §4 rule 1 — flag removed from the snippet, exit-0 gloss rewritten,
+  a withdrawal notice added.
+- `u2giants/ai-devops` → `skills/claude/shared-db-orchestrator/SKILL.md` — same
+  two corrections, plus a warning that the printed claim recipe is bash-only.
+**Still owed by step 8:** the AGENTS.md "KNOWN LIMIT" paragraph (rewrite once the
+parser can see the classes it names), the step-6 reservation and release commands,
+and the `bin/ai-install-skills` re-install + hub/local `diff`.
+
+### D-A8 — `claimCommand`'s bash heredoc is still live, now loudly labelled.
+**Hits:** step 5, which deletes it.
+D18 forbids a printed heredoc, but replacing it in Phase A would rewrite
+`bodyFromClaimCommand` and its tests — all of which step 5 deletes anyway. It now
+prints a warning that it is bash-only and does not work in PowerShell. **This is
+labelling, not a fix; step 5 is still owed.**
+
+### D-A9 — `versionsOnDisk` and `nextFreeVersion` are now unreferenced by `main()`.
+**Hits:** step 6.
+Both are still exported and tested. `--allocate-version` returns 2 **before any
+network call**, so nothing calls them at runtime today. Step 6 re-wires both into
+`--reserve-version`. **Recommendation: keep `--allocate-version` permanently as a
+tombstone that exits 2** rather than deleting the flag — a coordinator pasting an
+older command then gets the explanation instead of `unknown argument`.
+
+### No drift found in:
+**Step 3a** (the historical noise gate) — untouched by Phase A; its inputs and its
+`docs/verification/` artefact requirement stand exactly as written.
+
+### One local-environment note, unrelated to the plan
+`bash scripts/check-sql.sh` cannot run under Git Bash on Windows: it fails at
+`set -o pipefail` because the file has CRLF line endings (backlog B1). It runs
+correctly in CI on Linux. **Do not "fix" it by editing the script** — the line
+endings are the issue, and B1 owns them.
 
 ---
 

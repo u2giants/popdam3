@@ -218,6 +218,52 @@ const PATTERNS = [
   },
 ]
 
+/**
+ * Every DDL class a migration in this repo is known to use. `PATTERNS` covers a
+ * SUBSET of these; the rest are the parser's blind spot, measured at ~1,921
+ * unmodelled statements versus ~754 modelled (plan §3).
+ *
+ * Kept here, next to `PATTERNS`, so `describeCoverage()` can derive BOTH lists
+ * from one place. When step 3b of plan_dispatch-collision-hardening.md teaches
+ * `PATTERNS` a new kind, that kind moves from NOT CHECKED to CHECKED with no
+ * other edit — the coverage report cannot silently go stale.
+ */
+const KNOWN_DDL_CLASSES = [
+  'function',
+  'procedure',
+  'view',
+  'materialized view',
+  'trigger',
+  'policy',
+  'table',
+  'column',
+  'index',
+  'grant',
+  'comment',
+  'type',
+  'sequence',
+  'schema',
+]
+
+/**
+ * What the parser can and cannot see, derived from `PATTERNS` rather than
+ * written down. Callers print this instead of asserting a clear result.
+ *
+ * `alterModelled` is derived the same way: today NO pattern contains an `alter`
+ * verb at all, which is the single largest hole and must be said out loud.
+ *
+ * @returns {{checked: string[], notChecked: string[], alterModelled: boolean}}
+ */
+export function describeCoverage() {
+  const checked = [...new Set(PATTERNS.map((p) => p.kind))]
+  const checkedSet = new Set(checked)
+  return {
+    checked: checked.sort(),
+    notChecked: KNOWN_DDL_CLASSES.filter((kind) => !checkedSet.has(kind)).sort(),
+    alterModelled: PATTERNS.some((p) => /alter/i.test(p.re.source)),
+  }
+}
+
 function canonical(raw) {
   // Split into identifier parts WITHOUT destroying whitespace inside a quoted
   // identifier (`"Weird Name"` is one legal Postgres name).

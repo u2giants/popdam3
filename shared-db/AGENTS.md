@@ -213,13 +213,21 @@ four rules below are non-negotiable for any database change.
    ```bash
    node scripts/check-dispatch-collision.mjs \
      --task "<what you are about to do>" \
-     --objects "<every object you will WRITE, comma-separated>" \
-     --allocate-version
+     --objects "<every object you will WRITE, comma-separated>"
    ```
 
-   Exit `0` safe (file the claim it prints, then start), `1` collision (**stop**),
-   `2` undetermined (**stop**, or proceed READ-ONLY). **If you cannot list the
-   objects up front, your task is read-only** — and read-only work cannot
+   Exit `0` means **the check completed and found no overlap in the object
+   classes it can read** — that is evidence, not clearance; read the CHECKED /
+   NOT CHECKED lists it prints and judge the rest yourself. `1` collision
+   (**stop**), `2` undetermined (**stop**, or proceed READ-ONLY).
+
+   ⚠️ **`--allocate-version` was withdrawn on 2026-08-07 and now exits `2`.** It
+   never reserved anything — it read the versions in use and printed a
+   suggestion, so two coordinators running it in the same minute were handed the
+   same number. Pick a version manually; duplicates are already blocked at merge
+   by the `SQL migration guards` check. An atomic reservation is plan step 6.
+
+   **If you cannot list the objects up front, your task is read-only** — and read-only work cannot
    collide. Close your claim when the work merges or is abandoned; an open claim
    is a lock on those objects, not a note.
 
