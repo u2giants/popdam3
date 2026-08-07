@@ -20,8 +20,10 @@ AI sessions from breaking each other through the one database they all depend on
 
 > **Started in `shared-db` and you are not the coordinator? Stop and hand over.**
 > This repo runs **one coordinator session**, which dispatches every task to
-> sub-agents in isolated worktrees. Any other session writes its handover into
-> the intake queue in [`COORDINATOR_INTAKE.md`](COORDINATOR_INTAKE.md) and stops.
+> sub-agents in isolated worktrees. **Any other session opens a GitHub issue and stops:**
+> `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
+> ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07) and is now a 37-line pointer.
+> Do not write into it — a required check fails any PR that regrows it.
 > **The standing facts an incoming session needs — silent duplicate-version skips, the
 > production-bound Supabase MCP, preview as a shared mutable resource, and the ban on
 > background task chips — are now §12 of THIS file**, re-homed 2026-08-07 ahead of the

@@ -23,7 +23,7 @@
 //
 // Node >= 20. Plain ESM, no dependencies.
 
-import { loadIntake, migratingBlocks, headingDate, backlogRefs } from './intake-blocks.mjs';
+import { loadIntake, migratingBlocks, headingDate, backlogRefs, DEFAULT_INTAKE_PATH } from './intake-blocks.mjs';
 
 // Each entry is [headingFragment, verdict, workItem-or-reason]. The list is
 // ORDER-CHECKED against the file: entry i's fragment must appear in block i's heading.
@@ -144,7 +144,7 @@ export const CLASSIFICATION = [
   X('the "92 rows" style-guide question is ANSWERED',
     'Self-closing. The block IS the answer: it states the question has been located, is answered in `fix_characters_style_guides.md`, and that the only outcome needed is that the next coordinator stops carrying it. Migrating it would carry it further, which is the one thing it asks nobody to do.'),
   X("ALBERT'S ASK #3",
-    'Answered elsewhere in this same file. The 2026-08-06 rotation request records the credential as 1Password item `tcaf3o3u2cx52g6ivvczxbhola`, vault `vibe_coding`, user `albert_read_only`, granted 2026-08-04 — which is exactly the yes-plus-item-title this block asks for. The rotation itself is a separate live item, WI-16.'),
+    'Answered elsewhere in this same file. The 2026-08-06 rotation request records the credential as a named 1Password item in vault `vibe_coding` for user `albert_read_only`, granted 2026-08-04 — which is exactly the yes-plus-item-title this block asks for. The rotation itself is a separate live item, WI-16. *(The item ID was written out here in the first version. Removed 2026-08-07 after Grok 4.5 pointed out that CLOSED reasons never pass through the scrub, which only scans MIGRATE blocks — so this line committed an identifier to `main` that the publication gate never saw.)*'),
   M('fix the `shared-db-orchestrator` skill', WI_SKILL),
 
   // ---- IN PROGRESS ----
@@ -178,6 +178,21 @@ export async function buildInventory(path) {
   const blocks = migratingBlocks(parsed);
   const errors = [];
   const rows = [];
+
+  // The migration is DONE. These tools are archaeology now, and a future session running
+  // this as a health check would otherwise read the count mismatch below as a defect and
+  // try to "fix" it. (Raised by Grok 4.5, 2026-08-07.)
+  if (blocks.length === 0) {
+    errors.push(
+      `${path ?? DEFAULT_INTAKE_PATH} holds no queue blocks, because the migration is COMPLETE.\n` +
+        '    This tool did its job on 2026-08-07 and is kept only as the record of how the 89\n' +
+        '    blocks were classified. There is nothing to re-run and nothing to fix.\n' +
+        '    Work lives in issues:  gh issue list --repo u2giants/shared-db --label db-work\n' +
+        '    If the file HAS grown blocks again, that is a real incident — a machine is running\n' +
+        '    the old skills. See scripts/check-intake-pointer.mjs and issue #565.',
+    );
+    return { source: { path: path ?? DEFAULT_INTAKE_PATH, totalLines: parsed.totalLines }, counts: { MIGRATE: 0, CLOSED: 0, NOISE: 0, total: 0, workItems: 0 }, workItems: [], blocks: [], errors };
+  }
 
   if (blocks.length !== CLASSIFICATION.length) {
     errors.push(`The file holds ${blocks.length} blocks in the migrating sections but the classification list has ${CLASSIFICATION.length} entries. A block was added, removed or moved — reclassify it, do not adjust the count.`);

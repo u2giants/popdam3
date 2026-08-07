@@ -32,16 +32,28 @@ import { readFile } from 'node:fs/promises';
 
 const FILE = 'COORDINATOR_INTAKE.md';
 
-// Set to true by step 8, in the same PR that reduces the file. Until then the check
-// passes trivially, so it can be made required BEFORE the cutover — which is the point:
-// the required context must already exist and be green when step 8 lands, or step 8's PR
-// is blocked by its own new gate.
-const POINTER_MODE = true;
+// There is deliberately NO on/off flag here.
+//
+// There used to be one: a constant, false until step 8 armed it, so the check could be
+// made required before the cutover. Grok 4.5 pointed out the hole on review, and it is
+// obvious once said: the flag lived in the same repository as the file it guarded, so ONE
+// pull request could switch it off AND regrow the queue, and the required check would
+// print "dormant" and exit 0. **A control that the thing it controls can switch off is not
+// a control.** Step 8 has landed, so the flag has served its purpose and is gone. This
+// guard is always on, and its tests fail if a flag is ever declared here again.
 
-// Headings that mean the queue is back. Matched case-insensitively: `AGENTS.md:1011` and
-// `:1013` refer to "the coordinator intake" in lower case, and a case-sensitive gate would
-// miss a lower-cased rebuild. (Raised by Kimi K3, 2026-08-07.)
-const FORBIDDEN_HEADINGS = [
+// Headings that mean the queue is back.
+//
+// Matched case-insensitively, because `AGENTS.md` refers to "the coordinator intake" in
+// lower case and a case-sensitive gate would walk straight past a lower-cased rebuild.
+// (Kimi K3, 2026-08-07.)
+//
+// TWO lists, because the first version only had the first one and that was the bigger hole.
+// Grok 4.5, 2026-08-07: the guard only knew SECTION titles, so `### REQUEST — do a thing`
+// normalised to "request  do a thing", did not start with "request queue", and sailed
+// through — and `### REQUEST — …` is EXACTLY the shape a machine on the old skills appends.
+// The guard missed the precise failure it exists to catch.
+const FORBIDDEN_SECTIONS = [
   'request queue',
   'intake queue',
   'in progress',
@@ -49,9 +61,18 @@ const FORBIDDEN_HEADINGS = [
   'completed',
   'taken over',
   'part b2',
+  'part 0',
+  'part a',
+  'part b',
+  'standing facts',
 ];
 
+// Block headings, the shape an append actually takes.
+const FORBIDDEN_BLOCKS = ['request', 'intake', 'taken over', 'closing note', 'supplement', 'handover', 'question to resolve'];
+
 const MAX_POINTER_LINES = 40;
+// Line count alone is defeatable by putting the whole queue on a few very long lines.
+const MAX_POINTER_BYTES = 4096;
 
 async function main() {
   let text;
@@ -65,11 +86,6 @@ async function main() {
     process.exit(1);
   }
 
-  if (!POINTER_MODE) {
-    console.log(`OK: pointer mode is off. ${FILE} is still the live queue, so this guard is dormant.`);
-    console.log('    Step 8 flips POINTER_MODE to true in the same PR that reduces the file.');
-    return;
-  }
 
   const lines = text.split(/\r?\n/);
   const problems = [];
@@ -77,15 +93,28 @@ async function main() {
   if (lines.length > MAX_POINTER_LINES) {
     problems.push(`${FILE} is ${lines.length} lines. A pointer is at most ${MAX_POINTER_LINES}.`);
   }
+  if (Buffer.byteLength(text, 'utf8') > MAX_POINTER_BYTES) {
+    problems.push(`${FILE} is ${Buffer.byteLength(text, 'utf8')} bytes. A pointer is at most ${MAX_POINTER_BYTES}. (Line count alone is defeatable by very long lines.)`);
+  }
 
-  // Length alone is not enough — a stale machine's first append is small. Match the
-  // headings that mean the sections are back.
+  // Any heading level, not just ## and ###: `# REQUEST QUEUE` and `#### REQUEST — …` were
+  // both invisible to the first version.
   lines.forEach((line, i) => {
-    const m = line.match(/^#{2,3}\s+(.*)$/);
+    const m = line.match(/^#{1,6}\s+(.*)$/);
     if (!m) return;
-    const heading = m[1].toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-    for (const bad of FORBIDDEN_HEADINGS) {
-      if (heading.startsWith(bad)) problems.push(`${FILE}:${i + 1} — the section heading "${m[1].trim()}" is back.`);
+    const raw = m[1].trim();
+    const heading = raw.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const bad of FORBIDDEN_SECTIONS) {
+      if (heading.startsWith(bad)) {
+        problems.push(`${FILE}:${i + 1} — the section heading "${raw}" is back.`);
+        return;
+      }
+    }
+    for (const bad of FORBIDDEN_BLOCKS) {
+      if (heading === bad || heading.startsWith(bad + ' ')) {
+        problems.push(`${FILE}:${i + 1} — "${raw}" is a queue BLOCK heading. Work goes in an issue, not here.`);
+        return;
+      }
     }
   });
 

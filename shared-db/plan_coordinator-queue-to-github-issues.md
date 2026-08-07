@@ -26,8 +26,8 @@
 | 8 | Reduce `COORDINATOR_INTAKE.md` to a pointer | B | ✅ **done — 37 lines, guard armed** | 2026-08-07 |
 | 9 | Rewrite `HANDOFF.md` B10/B13; delete the B2 lifecycle rules | C | ✅ **done** | 2026-08-07 |
 
-**Phases A and B are complete except step 8. A fresh session starts at STEP 8, and step 8
-is BLOCKED — read the box below before touching anything.**
+**ALL NINE STEPS ARE COMPLETE.** The migration shipped on 2026-08-07. Read the box below
+for the single deferred item.
 
 > ## ✅ THE MIGRATION IS COMPLETE. One machine is a known exception.
 >

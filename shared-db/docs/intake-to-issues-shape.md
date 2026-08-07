@@ -37,7 +37,7 @@ From the step-1 inventory (`node tools/intake-inventory.mjs`):
 
 | | |
 | --- | --- |
-| Work items → issues | **60** |
+| Work items → issues | **63** (was 60; three more arrived with PR #490 before the cutover) |
 | Of those, `needs-albert` | **9** (WI-02, 14, 15, 16, 30, 37, 49, and the two owner gates the plan itself owes) |
 | Of those, `blocked` | **6** (WI-13, 31, 41, 55 — machines or repos not reachable from here — plus WI-34 and WI-42, both explicitly on hold) |
 | Everything else | plain `db-work` |

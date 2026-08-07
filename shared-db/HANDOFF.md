@@ -2,8 +2,9 @@
 
 > **Not the coordinator session? Do not start or continue work here.** This repo
 > runs one coordinator, which dispatches everything to sub-agents in isolated
-> worktrees. Write your handover into the intake queue in
-> [`COORDINATOR_INTAKE.md`](COORDINATOR_INTAKE.md) and stop.
+> worktrees. **Open a GitHub issue and stop:**
+> `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
+> ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07). Do not write into it.
 
 > ## ⚠️ THE NEWEST HANDOVER IS **NOT** IN THIS FILE. (added 2026-08-06)
 >
@@ -25,7 +26,7 @@
 > incident, the Supabase-MCP-is-production warning. **What it is NOT:** the
 > current handover, or a current inventory of anything.
 >
-> Per `COORDINATOR_INTAKE.md` §B2.0: **no document wins by name or by date.**
+> Standing rule (was `COORDINATOR_INTAKE.md` §B2.0, retired 2026-08-07): **no document wins by name or by date.**
 > Where `HANDOFF.d/`, this file, and `COORDINATOR_INTAKE.md` disagree,
 > **re-derive the fact from `git`/`gh`** rather than ranking the documents.
 
@@ -667,8 +668,8 @@ direction could delete live work. **Use `gh pr view <n> --json state`.**
    brief that opened this session was already stale when the session started.
 2. **Update the stale shared checkout:** `git -C C:/repos/shared-db pull`. Its local `main` is
    nine commits behind at `6720511`.
-3. **Read `COORDINATOR_INTAKE.md` top to bottom**, including the REQUEST QUEUE, the INTAKE QUEUE
-   and Part B2. **Check whether the concurrent preview-diagnosis agent (§U2.A) has filed a block**
+3. **Read the open issues** — `gh issue list --repo u2giants/shared-db --label db-work`.
+   *(Was "read `COORDINATOR_INTAKE.md` top to bottom"; that file was retired 2026-08-07.)* **Check whether the concurrent preview-diagnosis agent (§U2.A) has filed a block**
    before assuming any worktree is abandoned. Run the Part B2 session-start sweep.
 4. **Dispatch ONE sub-agent to run the full 18-case rehearsal** against the **current** promotion
    function on preview, and to **commit a dated evidence artifact to the repo** — a file, not a
@@ -710,7 +711,7 @@ START BY READING, IN THIS ORDER:
   1. HANDOFF.md — the section headed "COORDINATOR HANDOVER — FINAL — 2026-07-31 (written 19:01
      UTC)". It supersedes the 17:55 section below it; its §U0.1 lists exactly which earlier
      statements are now wrong.
-  2. COORDINATOR_INTAKE.md — all of it, including the REQUEST QUEUE, the INTAKE QUEUE and Part B2.
+  2. The open issues — `gh issue list --label db-work`. *(Was COORDINATOR_INTAKE.md, retired 2026-08-07.)*
   3. AGENTS.md — only the sections your first task touches.
 
 VERIFY BEFORE YOU ACT — every document in this repo has gone stale within the hour, three times
@@ -1542,11 +1543,15 @@ yet.** Until it lands, these tests are not enforced by CI on pull requests.
 
 ## BACKLOG — repository-level improvements, NOT STARTED (recorded 2026-07-31)
 
-> **Every `B<n>` below must ALSO appear as a short entry in the `## REQUEST QUEUE` of
-> `COORDINATOR_INTAKE.md`** (heading form `### REQUEST — Backlog B<n> — …`), pointing back here
-> for the detail rather than repeating it. **Keeping that true is the outgoing coordinator's
-> responsibility at handover** — a handover that leaves it un-seeded is incomplete. See
-> `COORDINATOR_INTAKE.md` § B2.0 and the `shared-db-handover` skill.
+> ⛔ **OBSOLETE 2026-08-07 — DO NOT DO THIS.** This used to require every `B<n>` to ALSO appear
+> as an entry in the `## REQUEST QUEUE` of `COORDINATOR_INTAKE.md`. **That file is retired and
+> the CI check that enforced this is deleted.** Re-seeding it would rebuild the queue, which is
+> exactly what backlog B10's closure above exists to prevent. Backlog items are tracked as
+> issues: `gh issue list --label db-work`.
+>
+> *Original wording, kept for the record:* ~~Every `B<n>` below must ALSO appear as a short
+> entry in the `## REQUEST QUEUE` of `COORDINATOR_INTAKE.md`, and keeping that true is the
+> outgoing coordinator's responsibility at handover.~~
 
 **Status: documentation only. Nothing in this section has been implemented.** It was written by
 a planning session that was explicitly forbidden from changing anything except this file — no

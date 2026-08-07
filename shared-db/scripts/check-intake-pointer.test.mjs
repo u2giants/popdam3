@@ -18,27 +18,23 @@ import { readFileSync } from 'node:fs';
 const SCRIPT = new URL('./check-intake-pointer.mjs', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
 /** Run the guard in a throwaway directory holding `content`, with POINTER_MODE forced on. */
-function runGuard(content, { pointerMode = true, writeFile = true } = {}) {
+function runGuard(content, { writeFile = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pointer-guard-'));
   try {
     mkdirSync(join(dir, 'scripts'), { recursive: true });
-    // Force the flag in BOTH directions. The first version only forced false->true, so
-    // once step 8 flipped the real source to `true` the dormant test silently ran in
-    // ARMED mode and failed. A test helper that depends on the current value of the thing
-    // under test is not a test helper.
-    let src = readFileSync(SCRIPT, 'utf8').replace(
-      /^const POINTER_MODE = (?:true|false);$/m,
-      `const POINTER_MODE = ${pointerMode};`,
-    );
-    if (!new RegExp(`const POINTER_MODE = ${pointerMode};`).test(src)) {
-      throw new Error('Could not set POINTER_MODE in the copied script — the declaration changed shape.');
+    const src = readFileSync(SCRIPT, 'utf8');
+    // There is no on/off flag to force any more. It was removed after Grok 4.5 pointed out
+    // that ONE pull request could switch the guard off and regrow the queue at the same
+    // time, and the required check would pass. If a flag ever comes back, this assertion
+    // fails and says why.
+    if (/POINTER_MODE\s*=/.test(src)) {
+      throw new Error('check-intake-pointer.mjs has an on/off flag again. A control the guarded thing can switch off is not a control.');
     }
     const copy = join(dir, 'scripts', 'check-intake-pointer.mjs');
     writeFileSync(copy, src, 'utf8');
     if (writeFile) writeFileSync(join(dir, 'COORDINATOR_INTAKE.md'), content, 'utf8');
     try {
-      const stdout = execFileSync(process.execPath, [copy], { cwd: dir, encoding: 'utf8' });
-      return { code: 0, out: stdout };
+      return { code: 0, out: execFileSync(process.execPath, [copy], { cwd: dir, encoding: 'utf8' }) };
     } catch (err) {
       return { code: err.status ?? 1, out: (err.stdout ?? '') + (err.stderr ?? '') };
     }
@@ -102,8 +98,35 @@ test('REFUSES a missing file rather than passing vacuously', () => {
   assert.match(r.out, /does not exist/);
 });
 
-test('is dormant, and says so, while pointer mode is off', () => {
-  const r = runGuard('anything at all\n', { pointerMode: false });
-  assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /dormant/);
+test('REFUSES a bare `### REQUEST ---` block, the shape a stale machine actually appends', () => {
+  // Grok 4.5, 2026-08-07: the first version only knew SECTION titles, so this normalised to
+  // "request  do a thing", did not start with "request queue", and passed. The guard missed
+  // the precise failure it exists to catch.
+  const r = runGuard(GOOD_POINTER + '\n### REQUEST --- do a thing --- 2026-08-09 --- session: someone\n');
+  assert.equal(r.code, 1, 'guard waved through the real append shape');
+  assert.match(r.out, /BLOCK heading/);
+});
+
+test('REFUSES an `### INTAKE ---` handover block', () => {
+  const r = runGuard(GOOD_POINTER + '\n### INTAKE --- I was doing a thing --- 2026-08-09\n');
+  assert.equal(r.code, 1, 'guard waved through a handover append');
+});
+
+test('REFUSES a queue heading hidden at h1 or h4', () => {
+  for (const h of ['# REQUEST QUEUE', '#### REQUEST QUEUE']) {
+    const r = runGuard(GOOD_POINTER + '\n' + h + '\n');
+    assert.equal(r.code, 1, 'guard only looked at ## and ###, so "' + h + '" was invisible');
+  }
+});
+
+test('REFUSES a queue dumped onto a few very long lines', () => {
+  // Line count alone is defeatable: stay under 40 lines, put everything on long ones.
+  const r = runGuard(GOOD_POINTER + '\n' + 'x'.repeat(9000) + '\n');
+  assert.equal(r.code, 1, 'guard counted lines but not bytes');
+  assert.match(r.out, /bytes/);
+});
+
+test('REFUSES a reinstated on/off flag', () => {
+  const src = readFileSync(SCRIPT, 'utf8');
+  assert.doesNotMatch(src, /POINTER_MODE\s*=/, 'the guard must not DECLARE a switch the guarded repo can flip (the word may appear in the comment explaining why it was removed)');
 });
