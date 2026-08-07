@@ -298,8 +298,13 @@ both required or do not build it:
 - **A rot-valve test:** the check must fail if the table is empty or if a row lacks a
   reason, so silently gutting it is not a quiet way to make the check pass.
 
-**The model already exists in this repo** — the `HARD_BLOCKED` mechanism — so follow it
-rather than inventing a new shape.
+**Two working models already exist in this repo — follow one rather than inventing a shape:**
+- `scripts/check-skill-drift.mjs`, added 2026-08-07. It is the closest match: a committed
+  table of contradictions, each row carrying its reason and the rule it violates, consumed
+  by exactly one check. It also demonstrates the two traps — it found three real defects on
+  its first run *and* produced three false positives of its own, all from patterns that were
+  line-scoped while the corrections wrapped onto the next line. **Budget for that.**
+- The `HARD_BLOCKED` mechanism, for the shape of an owner-gated block list.
 
 **C3** — Add to the handover skill: an orchestrator re-reads `AGENTS.md` §6 owner rulings
 **at handover**, not only at session start, and states in its handover which rulings post-date
@@ -327,6 +332,31 @@ of a query is a cache, and a stale cache here is exactly the failure being fixed
 ⚠️ **The risk is honest: this is the queue's ordering problem in a new place, and it can rot
 the same way.** The mitigation is that it holds ordering only and never detail, and that it
 is small enough to re-derive from scratch in minutes.
+
+---
+
+## ⚠️ Required at the END of every phase
+
+**Re-read every remaining item through the end of this plan, and record DRIFT into this
+file before handing over.** If nothing drifted, write "no drift" — silence is not
+information.
+
+This is not ceremony, and it is kept against the general instinct to cut it. The identical
+instruction on `plan_coordinator-queue-to-github-issues.md` produced **14 concrete drift
+items**, including two that invalidated whole steps, and it was the highest-yield
+instruction in that document measured against every other control it carried. **This plan
+was written without it and the omission was caught by the `fresh-session` check, not by a
+model review.**
+
+Specifically, before you hand over, confirm for **every** later item:
+- nothing you did changes a later item's assumptions without that being written here;
+- nothing you *discovered* invalidates a later item's approach without it being flagged;
+- every later item still has the identifiers, counts and decisions it needs.
+
+**Counts in this plan go stale within the hour.** The ledger figures, the pending list, the
+`B<n>` → issue mapping and the issue totals were all measured on 2026-08-07. **Re-derive
+them; do not quote them from here.** That is this repo's standing rule and this plan is not
+exempt from it.
 
 ---
 
