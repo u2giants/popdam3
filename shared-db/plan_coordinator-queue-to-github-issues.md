@@ -1,7 +1,9 @@
 # Implementation plan — replace `COORDINATOR_INTAKE.md` with GitHub Issues
 
 **File:** `plan_coordinator-queue-to-github-issues.md` · **Repo:** `u2giants/shared-db` · **Created:** 2026-08-07
-**Owner decision this plan rests on:** **2026-08-07 — Albert chose PUBLIC Issues** in `u2giants/shared-db`, having been told the queue contains licensor names, customer data problems and internal incident write-ups, and having been offered a private repo as the alternative. **Do not re-open that decision.** What is still owed to him is the scrub report at step 3 — that is a different question (*what specifically gets published*), not the same one.
+**Revised:** 2026-08-07 after an adversarial review by **GLM 5.2** (3 rounds, session `intake-queue-to-issues-plan`; reports under `.ai/reviews/glm-intake-queue-to-issues-plan-*.md`). **Two steps changed direction as a result. Do not restore the earlier shape of step 7 or step 3 — both were reviewed and found wrong.** What changed and why is in §8.
+
+**Owner decision this plan rests on:** **2026-08-07 — Albert chose PUBLIC Issues**, having been told the queue contains licensor names, customer data problems and internal incident write-ups, and having been offered a private repo instead. **Do not re-open that decision.** Two things are still owed to him and are named as blocking gates below: the **scrub report** (step 4) and the **branch-protection instruction** (step 7a).
 
 ---
 
@@ -9,192 +11,222 @@
 
 | # | Step | Phase | State | Date |
 |---|---|---|---|---|
-| 1 | Inventory the queue: classify every block OPEN / HISTORY / NOISE | A | ⬜ open | — |
-| 2 | Design and create the label set; decide the issue template | A | ⬜ open | — |
-| 3 | **The scrub gate — find everything that must not be published, and show Albert** | A | ⬜ open | — |
-| 4 | **STOP. Albert's explicit go/no-go on the scrub report** | A | ⬜ open | — |
-| 5 | Create one issue per OPEN item (scripted, idempotent, dry-run first) | B | ⬜ open | — |
-| 6 | Reduce `COORDINATOR_INTAKE.md` to a pointer; history stays in git | B | ⬜ open | — |
-| 7 | **Remove `Backlog / queue sync` from branch protection, THEN delete the workflow** | B | ⬜ open | — |
-| 8 | Rewrite the request/handover path in `AGENTS.md` and the two skills | C | ⬜ open | — |
-| 9 | Retire the B2 lifecycle and retention rules that Issues now do for free | C | ⬜ open | — |
+| 1 | Inventory: classify every block, with an arithmetic completeness cross-check | A | ⬜ open | — |
+| 2 | Build the **scrub tool**; run it; write the scrub report | A | ⬜ open | — |
+| 3 | Labels and the issue shape (one label, pointer model for handovers) | A | ⬜ open | — |
+| 4 | **OWNER GATE — Albert's go/no-go on the scrub report** | A | ⬜ open | — |
+| 4b | **Rotate the plaintext-emailed Cloud SQL credential BEFORE any publish** | A | ⬜ open | — |
+| 5 | Update the skills in `ai-devops` and propagate them to every machine | B | ⬜ open | — |
+| 6 | Create one issue per **work item** (scripted, dry-run default, idempotent) | B | ⬜ open | — |
+| 7a | **OWNER GATE — Albert names `Backlog / queue sync` for removal from protection** | B | ⬜ open | — |
+| 7b | Remove the required context, confirm, **then** delete the workflow and script | B | ⬜ open | — |
+| 8 | Reduce `COORDINATOR_INTAKE.md` to a pointer | B | ⬜ open | — |
+| 9 | Rewrite `HANDOFF.md` B10 and B13; delete the B2 lifecycle and retention rules | C | ⬜ open | — |
 
-**A fresh session starts at Step 1.** Steps 1–4 are all reversible and publish nothing. **Step 5 is the first irreversible action in this plan** and is gated on step 4.
+**A fresh session starts at Step 1.** Steps 1–3 publish nothing and are fully reversible.
+**Step 6 is the first irreversible action in this plan.** It is gated on steps 4 and 4b.
+**Step 5 comes BEFORE step 8, deliberately** — see the trap in §5.
 
 ---
 
-## 1. The goal — what we are actually trying to achieve
+## 1. The goal
 
-**In plain business English:** the coordinator queue is a 3,837-line text file that several AI sessions edit at once. It is a hand-built imitation of an issue tracker. GitHub already gives us a real one, free, that we are not using. Move the work items there so each one is a single thing with an owner and a status, visible on a phone, impossible for two sessions to overwrite.
+**In plain business English:** the coordinator queue is a 3,837-line text file that several AI sessions edit at once. It is a hand-built imitation of an issue tracker. GitHub already gives us a real one, free. Move the work items there so each is a single thing with an owner and a status, visible on a phone, impossible for two sessions to overwrite.
 
-**What we are NOT trying to do:** tidy the file, or write more rules about how to keep it tidy. Every previous attempt did that, and the file grew anyway. Two mandatory rules currently **deadlock** — a retention rule requires archiving blocks that a CI check requires stay — which is the clearest possible evidence that the file cannot be fixed by more process.
+**What we are NOT doing:** tidying the file, or writing more rules about keeping it tidy. Every previous attempt did that and it grew anyway.
 
-> **If a step in this plan conflicts with that goal, THE GOAL WINS — stop and flag it.** Specifically: if a step would end with us maintaining *both* the file and Issues, do not do it. Two tracking systems is strictly worse than the one bad system we have now, because then "which is right?" becomes a real question instead of a rhetorical one.
+> **If a step conflicts with that goal, THE GOAL WINS — stop and flag it.** Specifically: if a step would leave us maintaining *both* the file and Issues, do not do it. Two tracking systems is strictly worse than the one bad system we have, because "which is right?" stops being rhetorical.
 
 ---
 
 ## 2. What this replaces, measured
 
-`COORDINATOR_INTAKE.md`, **3,837 lines**, measured 2026-08-07 on `main` @ `ffb9b97`:
+`COORDINATOR_INTAKE.md`, **3,837 lines**, measured on `main` @ `ffb9b97`:
 
-| Section | `###` blocks | What it is | Migrates? |
-|---|---|---|---|
-| `REQUEST QUEUE` | 67 | Work somebody needs done | **Yes — the open ones** |
-| `IN PROGRESS` | 1 | Dispatched, live | **Yes** |
-| `WAITING ON OTHER PEOPLE` | 0 | Blocked externally | Yes (empty today) |
-| `COMPLETED` | 12 | Done | **No — git history is the archive** |
-| `INTAKE QUEUE` | 5 | Handed over by a stopped session | **Yes** |
-| `TAKEN OVER` | 6 | Ingested handovers | **No — history** |
-| Parts 0, A, B, B2 + standing facts | ~650 lines of prose | Instructions, templates, lifecycle rules | **No — mostly deleted, see steps 8–9** |
+| Section | `###` blocks | Migrates? |
+|---|---|---|
+| `REQUEST QUEUE` | 67 | **Yes — the open ones** |
+| `IN PROGRESS` | 1 | **Yes** |
+| `WAITING ON OTHER PEOPLE` | 0 | Yes (empty today) |
+| `COMPLETED` | 12 | No — history |
+| `INTAKE QUEUE` | 5 | **Yes, as pointers** (§4 D3) |
+| `TAKEN OVER` | 6 | No — history |
+| Parts 0, A, B, B2 + standing facts | ~650 lines | No — deleted at step 9 |
 
-⚠️ **The 67 is a headline count, not an item count.** Sampling shows the section also holds `CLOSING NOTE` blocks, `SUPPLEMENT` blocks that amend a request further down, and requests already resolved but never moved. **Step 1 exists precisely to turn 67 headings into a real number.** Do not promise Albert "67 issues" before step 1 is done.
+⚠️ **67 is a heading count, not an item count.** The section also holds `CLOSING NOTE` blocks, `SUPPLEMENT` blocks amending a request further down, and requests resolved but never moved. **Step 1 turns 67 headings into a real number. Do not promise Albert "67 issues".**
 
-### The four problems this deletes
+⚠️ **One work item can span several blocks.** The Disney OPA item spans **four**: `COORDINATOR_INTAKE.md:682` (CLOSING NOTE), `:776` (SUPPLEMENT), `:821` (REQUEST) and `:2946` (IN PROGRESS). "One issue per block" would produce four issues for one thing — the sprawl this plan claims to prevent. *(Found by GLM.)*
 
-1. **The retention rule** (B2.2) — Issues do not need one; closed is closed.
-2. **The lifecycle rules** (B2, ~160 lines of when a block moves between six sections) — an issue is open or closed, with labels.
-3. **The broken CI check** — `scripts/check-backlog-queue-sync.mjs` is a **required** status check that **reports a pass when it should fail** (verified in the live code 2026-08-07). It exists only to police this file. Step 7 deletes it.
-4. **"Which document is right?"** — the file itself carries a rule saying no document wins by name or date and that facts must be re-derived from `git`/`gh`. That rule is an admission the file is not trustworthy.
+### Evidence the rules model has failed
+
+- `docs/intake-archive/` **does not exist**, so the B2.2 retention rule has **never once fired**. The file has grown monotonically, 0 → 68 in six days.
+- Two mandatory rules deadlock: retention requires archiving blocks that the CI check requires stay present.
+- The file itself instructs readers that no document wins by name or date and that facts must be re-derived from `git`/`gh` — an admission that it is not trustworthy.
 
 ---
 
 ## 3. Scope — in and out
 
 ### In scope
-The queue file, its CI check, and the three places that tell a session how to file a request: `AGENTS.md`, `skills/claude/shared-db-orchestrator/SKILL.md` and `skills/claude/shared-db-handover/SKILL.md` (both in `u2giants/ai-devops`, a **different repo**).
+The queue file, its CI check, and the three places that tell a session how to file a request: `AGENTS.md`, and `shared-db-orchestrator` / `shared-db-handover` in `u2giants/ai-devops` (a **different repo**).
 
 ### Explicitly NOT in scope
 
-1. **The safety rules in `AGENTS.md`.** Preview before production, never reuse a migration timestamp, add rather than rename, prove your database target. **These are not bureaucracy — each one exists because it already prevented real data loss, and the timestamp rule caught a genuine bug twice.** Do not touch them. They are the reason this plan is safe to run.
-2. **`HANDOFF.d/` and the handoff standard.** A handoff is a 10-page briefing document for the next worker; an issue is a unit of work. Pasting the first into the second gives an unreadable issue and a worse handoff. Handoffs stay as files. *(Decided 2026-08-07.)*
-3. **The `## BACKLOG` items B1–B14** in root `HANDOFF.md`. Several queue blocks reference them by number. See risk R3 — they need a decision, not a silent migration.
-4. **Answering the decisions the queue is currently holding.** Six are waiting on Albert. Migrating them is this plan; answering them is his.
-5. **Any database contact.** Nothing here needs it.
+1. **The safety rules in `AGENTS.md`.** Preview before production, never reuse a migration timestamp, add rather than rename, prove your database target. **Each exists because it already prevented real data loss, and the timestamp rule caught a genuine bug twice.** Untouched, and the definition of done verifies that by diff.
+2. **`HANDOFF.d/` and the handoff standard.** Handoffs stay as files. See D3 for how handovers are tracked without becoming issues.
+3. **Answering the decisions the queue is holding.** Six are waiting on Albert. Migrating them is this plan; answering them is his.
+4. **Any database contact.** Nothing here needs it. *(Exception: step 4b is a credential rotation, which is an owner-approved security action, not schema work.)*
 
 ---
 
-## 4. Approaches considered and REJECTED
+## 4. Design decisions
 
-**R1 — Keep the file and fix its rules.** This is what every previous session did. The file went 0 → 68 items in six days and **never once shrank**; two of its rules now deadlock. The file is not failing for want of a better rule.
-
-**R2 — A private repo for the Issues, `shared-db` staying public for code.** My recommendation, and **Albert chose public instead on 2026-08-07.** Recorded so nobody re-litigates it. The residual privacy risk is handled by the scrub at step 3, not by reversing the decision.
-
-**R3 — Migrate everything, including `COMPLETED` and `TAKEN OVER`.** Rejected. Creating 18 issues just to close them immediately publishes internal history for no operational benefit. Git history already holds every word, and the file's own commits are the archive.
-
-**R4 — Migrate by hand, block by block.** Rejected. ~70 blocks, each needing consistent labels and a body; a human-driven pass will be inconsistent by item 20, and it cannot be re-run after a mistake. Step 5 is a script with a dry-run mode and idempotency, so a bad run can be corrected rather than cleaned up by hand.
-
-**R5 — Delete the CI workflow first, then remove it from branch protection.** Rejected, and this ordering is a real trap: `Backlog / queue sync` is a **required status context**. Delete the workflow while it is still required and **every future PR hangs forever** waiting for a check that will never report. **Protection first, workflow second.** This is the same class of trap as renaming the `Cross-PR object collision` job.
+| # | Decision | Status | Reasoning |
+|---|---|---|---|
+| D1 | Public Issues in `u2giants/shared-db` | **LOCKED** | Albert, 2026-08-07, after being offered a private repo |
+| D2 | Only OPEN items migrate; `COMPLETED`/`TAKEN OVER` stay in git history | **LOCKED** | Publishing 18 items purely to close them exposes internal history for no benefit |
+| D3 | **A handover is tracked by an issue that POINTS at it; the narrative stays a file** | **LOCKED** | GLM was right that the earlier line was drawn by *which file a block sat in* rather than by what it is. The consistent rule: the issue is the tracked unit and carries what is outstanding plus a link; the 10-page briefing stays a document. Applies equally to `INTAKE QUEUE` blocks and `HANDOFF.d/` files |
+| D4 | **One issue per WORK ITEM, not per block** | **LOCKED** | The OPA four-block case. Collapse rules in step 1 |
+| D5 | **The required CI check is retired via an owner instruction, not repointed at Issues** | **LOCKED** | See §8. This reversed my position |
+| D6 | One type label, not a `db-request`/`db-handover` split | **LOCKED** | The distinction cannot be drawn cleanly (D3) and issues do not enforce it |
+| D7 | No status-label lifecycle. Open or closed, plus `needs-albert` / `blocked` | **LOCKED** | A status label set is the six-section lifecycle in a new costume |
+| D8 | The dead-end (“what did not work”) content becomes **a named loss**, not a silent one | **OPEN** | See §7 Q2 |
 
 ---
 
 ## 5. The plan — ordered, executable steps
 
-### Step 1 — Inventory: classify every block
+### Step 1 — Inventory, with an arithmetic completeness check
 
-**What to do.** Parse `COORDINATOR_INTAKE.md` into blocks by `### ` heading. For each, record: which section it is in, its title, its date, its requesting session, whether it is a real request or a `CLOSING NOTE` / `SUPPLEMENT` / already-resolved leftover, and whether it references a `B<n>` backlog item.
+Parse the file into blocks by `### ` heading. For each record: section, title, date, requesting session, kind (REQUEST / CLOSING NOTE / SUPPLEMENT / handover), any `B<n>` reference, and which **work item** it belongs to (D4).
 
-Then, for each block in `REQUEST QUEUE`, `IN PROGRESS` and `INTAKE QUEUE`, **verify against the repo whether it is actually still open** — the same method the 2026-08-07 handoff audit used. Several are known to be landed-but-unmoved; PR #463 already retired five that way.
+For every block in `REQUEST QUEUE`, `IN PROGRESS` and `INTAKE QUEUE`, verify against the repo whether it is genuinely still open — the method PR #463 used to retire five landed-but-unmoved blocks.
 
-**Verification gate.** A table under `docs/verification/` with one row per block: heading, section, verdict (OPEN / ALREADY DONE / NOISE / SUPPLEMENT-OF-#n), and the evidence for anything marked done. **This artefact is what makes step 5 auditable** — without it, nobody can later tell whether an item was migrated, merged into another, or dropped.
+⚠️ **The silent-loss door is HERE, not at step 6, and the mapping file cannot see it.** A block misclassified NOISE or ALREADY-DONE never reaches step 6, and a mapping file only records what the script was given — proving nothing was lost from the set it saw is circular. *(Found by GLM.)* So:
 
-### Step 2 — Labels and the issue shape
+**Completeness cross-check (mandatory).** Count `###` blocks in the three source sections. Assert:
 
-**Labels** (create with `gh label create`; naming kept boring on purpose):
+```
+migrated + closed-with-a-cited-reason + noise-with-a-written-justification  ==  total blocks
+```
 
-| Label | Meaning |
-|---|---|
-| `db-request` | work somebody needs done |
-| `db-handover` | work a stopped session handed over |
-| `needs-albert` | ⛔ blocked on an owner decision |
-| `blocked` | blocked on something else |
-| `coordinator-marker` | already exists; leave it alone |
-| `db-claim` | already exists; leave it alone |
+Any block in the middle two categories carries its evidence inline. **An unexplained block is a failed inventory, not a rounding error.**
 
-**Status is open/closed plus labels. Do not build a status label set** — that is the six-section lifecycle again, in a new costume.
+**Verification gate.** The arithmetic balances, and every non-migrated block has a reason a stranger could check. Put this in the migration PR description, **not** in `docs/verification/` — that directory is for proving a change correct, not for process bookkeeping.
 
-**Ownership** is the GitHub assignee, or a line in the body naming the session, since AI sessions have no GitHub account.
+### Step 2 — Build the scrub TOOL, then write the scrub report
 
-**Body:** the original block text, verbatim, under a one-line header naming the source file, section, and the commit it was read from. **Verbatim matters** — a summarised block loses the reasoning, and the reasoning is the only reason some of these blocks are worth keeping.
+**The earlier draft said "do not do it by eye" and then supplied no tool. In a repo whose entire control philosophy is "mechanical or it does not happen", that was the weakest specification attached to the highest-blast-radius step.** *(GLM's non-negotiable, and it is right.)*
 
-### Step 3 — THE SCRUB GATE
+Write `tools/scrub-intake-for-publication.mjs`. It scans every block marked OPEN by step 1 against a denylist and emits a report. It is a **floor under human judgement, not a replacement for it** — a clean run does not authorise publishing, it only means the obvious hits are found.
 
-**Do not skip this and do not do it by eye.** Publishing is one-way: once an issue exists, it can be indexed and cached even if deleted afterwards.
+Minimum patterns: credentials, tokens, connection strings, private keys · 1Password item IDs and field names · database project refs (`qsllyeztdwjgirsysgai`, `rjyboqwcdzcocqgmsyel`) and pooler hosts · internal hostnames (`x5.coldlion.com`, `*.designflow.app`) · machine names (`t16`, `hetz`, `al8960ofc`, `916`, `4837`) · local filesystem paths (`C:\Users\…`, `/home/…`) · email addresses and personal names · licensor and customer commercial terms.
 
-Scan every block that step 1 marked OPEN for:
+**Two categories the tool cannot decide — a human must rule on each hit:**
+- **Named individuals outside the company.** At least one exists in the `WAITING` section.
+- **Descriptions of live, unfixed weaknesses.** Publishing a working description of an unfixed hole is materially different from publishing a resolved one.
 
-- credentials, tokens, connection strings, 1Password item IDs or field names
-- database hostnames, project refs, internal URLs
-- personal data, and named individuals outside the company
-- customer and licensor commercial detail (the licensor/property blocks are the highest-risk group)
-- anything describing a live unfixed security or data-integrity weakness — publishing a working description of an unfixed hole is different from publishing a resolved one
+**Verification gate.** A report stating blocks scanned, hits by category, and a proposal — redact / hold back / publish as-is — for every hit. **Nothing is published before Albert reads it.**
 
-For each hit: quote it, name the block, and propose one of **redact** / **move to a private note** / **publish as-is**.
+### Step 3 — Labels and issue shape
 
-**Verification gate.** A written scrub report. It must state the number of blocks scanned, the number with hits, and a proposal for each hit. **Nothing is published before Albert has read it.**
+Labels: `db-work` (the type label, D6), `needs-albert` (⛔ owner decision), `blocked`. `db-claim` and `coordinator-marker` already exist — leave them alone.
 
-### Step 4 — STOP: Albert's go/no-go
+Status is open/closed (D7). Ownership is the assignee, or a line naming the session, since AI sessions have no GitHub account.
 
-Present the scrub report in plain English: how many issues will be created, what they contain, what has been redacted, and the one-way nature of publishing. **Wait for an explicit yes.** He has already chosen public Issues in principle; this is the confirmation of *what specifically goes out*, which he has not yet seen.
+**Body:** for a request, the original text verbatim under a header naming the source file, section and commit SHA. Verbatim matters — a summarised block loses the reasoning, and the reasoning is why some blocks are worth keeping. **For a handover (D3): what is outstanding, plus a link to the file. Never the whole briefing.**
 
-### Step 5 — Create the issues (first irreversible step)
+### Step 4 — OWNER GATE: the scrub report
 
-A script, `tools/migrate-intake-to-issues.mjs`, that:
+Present it in plain English: how many issues, what they contain, what was redacted, and that publishing is one-way — content can be indexed and cached even if deleted later. **Wait for an explicit yes.** Albert has chosen public Issues in principle; this is the first time he sees *what specifically* goes out.
 
-1. Reads the step-1 inventory, not the raw file.
-2. Has a **`--dry-run` default** that prints each issue it would create and creates nothing.
-3. Is **idempotent**: before creating, searches for an existing open issue with the same title; skips if found. A half-finished run must be safely re-runnable.
-4. Uses `gh issue create --body-file` (never a heredoc — this is a PowerShell-first machine and heredoc recipes have silently failed here before).
-5. Writes a mapping file: block heading → issue number. **This is what step 6 needs**, and what proves nothing was lost.
-6. **Fails loudly and stops on the first error.** A partial migration that reports success is the worst outcome available.
+### Step 4b — Rotate the credential BEFORE publishing
 
-**Verification gate.** Issue count equals the OPEN count from step 1, the mapping file has no blanks, and spot-checking three issues shows the body matches the source block verbatim.
+`COORDINATOR_INTAKE.md:988` is an open request: *"⛔ ALBERT: approve rotating the Cloud SQL read-only password that was emailed in plaintext"*, and `:991` records it was *"emailed in plaintext on 2026-08-04"* and *"should be rotated **after** the migration"*.
 
-### Step 6 — Reduce the file to a pointer
+**That ordering is now wrong and this plan inverts it.** The request is still open, so the credential is presumed **unrotated**. Publishing that block — or any block referencing it — announces publicly that a live credential was emailed in plaintext and never rotated. **Rotate first, then publish.** If rotation is refused or deferred, the block is **held back entirely**, not redacted, because the surrounding blocks give it away by context. *(Found by GLM; upgraded from scrub finding to hard block.)*
 
-Replace the entire contents of `COORDINATOR_INTAKE.md` with a short pointer, the same pattern root `HANDOFF.md` uses: what the file used to be, where the work lives now, the `gh issue list` command to see it, and the commit SHA where the full history can be read. **Do not keep a "recently completed" section.** Git history is the archive.
+### Step 5 — Skills first, and this ordering is load-bearing
 
-**Verification gate.** The file is under ~40 lines; `git log` still shows the full text at the prior SHA.
+Update `AGENTS.md` and both skills in `u2giants/ai-devops` (main-only, push directly, no PR) so the instruction is **open an issue**, not "append to a section of a 3,837-line file". Delete the copy-paste templates the file carried; `gh issue create` needs none.
 
-### Step 7 — Retire the broken CI check, in this order
+⚠️ **This MUST land, and propagate to every machine, BEFORE step 8 turns the file into a pointer.** *(GLM's trace, and I had the order backwards.)* Otherwise: an updated machine files issues while a machine still running the old skill appends to a pointer file and **re-creates its body** — the rebuild this plan exists to prevent, happening live during the migration, with no alarm.
 
-1. **First** remove `Backlog / queue sync` from `required_status_checks.contexts` on `main`.
-2. **Confirm** the context is gone (`gh api repos/u2giants/shared-db/branches/main/protection`).
-3. **Then** delete the workflow, `scripts/check-backlog-queue-sync.mjs` and its tests.
+The skills currently exist on one machine only, because the `ai-devops` PR is unmerged and the other machines have not been synced. **Step 8 is gated on propagation being confirmed on every machine, not on the PR being merged.**
 
-**Reversing this order hangs every future PR forever** (R5).
+⚠️ `bin/ai-install-skills` does not run on Windows (CRLF vs `set -o pipefail`). Copy the file and verify with `Get-FileHash` that hub and local match.
 
-**Verification gate.** Protection lists five contexts, and a throwaway PR reaches mergeable state.
+**Verification gate.** No document instructs anyone to edit `COORDINATOR_INTAKE.md`, and every machine's local skill copy hash-matches the hub.
 
-### Step 8 — Rewrite the request path
+### Step 6 — Create the issues (first irreversible step)
 
-`AGENTS.md`, plus `shared-db-orchestrator` and `shared-db-handover` in `u2giants/ai-devops` (main-only, push directly, no PR). The instruction becomes: **open an issue** with the right label, not "edit a section of a 3,837-line file." Delete the copy-paste templates the file carried; `gh issue create` needs no template.
+`tools/migrate-intake-to-issues.mjs`:
 
-⚠️ After editing skills in `ai-devops`, install them locally. **`bin/ai-install-skills` does not run on Windows** (CRLF vs `set -o pipefail`) — copy the file and verify with `Get-FileHash` that hub and local match.
+1. Reads the step-1 inventory, never the raw file.
+2. **`--dry-run` by default.** Creates nothing without an explicit flag.
+3. **Idempotent** — searches for an existing open issue with the same title and skips if found, so a half-finished run is safely re-runnable. `gh issue list --label` **works correctly in this repo**; a claim in `COORDINATOR_INTAKE.md:3019` that it returns empty is **false**, verified live 2026-08-07 (`--label coordinator-marker` correctly returned issue #473).
+4. Uses `gh issue create --body-file`, never a heredoc — this is a PowerShell-first machine and heredoc recipes have silently failed here before.
+5. Writes a **temporary** mapping file (block → issue number). Summarise it in the PR body; do not commit it. A permanent artefact for a one-time event is the leftover this repo accumulates.
+6. **Fails loudly and stops on the first error.** A partial migration reporting success is the worst available outcome.
 
-**Verification gate.** No document tells anyone to edit `COORDINATOR_INTAKE.md`, and both skill copies hash-match the hub.
+**Verification gate.** Issue count equals the OPEN work-item count from step 1, the mapping has no blanks, and three spot-checked issues match their source blocks.
 
-### Step 9 — Delete the rules that Issues now do for free
+### Step 7a — OWNER GATE: branch protection
 
-Remove the B2 lifecycle, the B2.2 retention rule, and the six-section model from every document that restates them. **This step is the point of the whole plan.** Skipping it leaves the rules in force with nothing to govern, and a future session will faithfully obey them and rebuild the file.
+`AGENTS.md:1081` (§6.7 rule 3): *"Branch protection must not be removed or weakened without an explicit, per-change owner instruction naming the setting… If a required check is wrong, fix the check — never the protection."*
 
-**Verification gate.** Searching the repo for `INTAKE QUEUE`, `TAKEN OVER` and `B2.2` returns only the pointer file and historical handoffs.
+So the AI cannot drop this context on its own authority, and Albert's public-Issues decision does **not** cover it — that was a different question. **Ask him, naming the setting exactly:**
+
+> May I remove the required status check named `Backlog / queue sync` from branch protection on `main` in `u2giants/shared-db`? It checks that each of the 14 backlog items in `HANDOFF.md` has an entry in the coordinator queue. After the migration that queue no longer exists, so the check has nothing to read. It is also already broken — it reports a pass when it should fail. Removing it leaves five required checks in place.
+
+**No is a valid answer**, and it is survivable: see §7 Q1 for the fallback.
+
+### Step 7b — Retire the check, in this order
+
+1. Remove `Backlog / queue sync` from `required_status_checks.contexts`.
+2. **Confirm** it is gone: `gh api repos/u2giants/shared-db/branches/main/protection --jq '.required_status_checks.contexts'`.
+3. **Then** delete `.github/workflows/backlog-queue-sync.yml`, `scripts/check-backlog-queue-sync.mjs` and its tests.
+
+**Reversing this order hangs every future PR forever** on a required context that can never report. Same class as renaming the `Cross-PR object collision` job.
+
+⚠️ **Step 7b.3 must not be bundled into a PR that merges before 7b.1 has run.** Step 7b.1 is a standalone `gh api` action, not part of any PR. *(Found by GLM.)*
+
+**Verification gate.** Protection lists five contexts and a throwaway PR reaches mergeable state.
+
+### Step 8 — Reduce the file to a pointer
+
+Replace the contents with a short pointer: what the file was, where work lives now, the `gh issue list` command, and the SHA where the full history can be read.
+
+⚠️ **The pointer MUST carry the "empty does not mean idle" warning.** `COORDINATOR_INTAKE.md:1–30` exists because a coordinator once concluded the project was idle from an empty queue while about 20 jobs sat in the backlog. The pointer must say: an empty issue list is not proof there is no work — also read `HANDOFF.md ## BACKLOG` and `HANDOFF.d/`. *(Found by GLM; my earlier draft dropped this.)*
+
+**Verification gate.** Under ~40 lines, carrying that warning; `git log` still shows the full text at the prior SHA.
+
+### Step 9 — Delete the rules, including the two that would rebuild the file
+
+Remove the B2 lifecycle, the B2.2 retention rule, and the six-section model wherever restated. **This step is the point of the plan.** Leave the rules in force with nothing to govern and a future session will faithfully obey them and rebuild the file.
+
+⚠️ **Two live backlog items are instructions to rebuild exactly what this plan removes** *(found by GLM; my earlier gate would have passed while both survived)*:
+- `HANDOFF.md:1850` — *"B10 — Coordinator intake lifecycle/retention is MANUAL; CI could enforce it (NOT implemented)"*. **Rewrite or close it.** A session that implements B10 rebuilds the queue.
+- `HANDOFF.md:1943` — *"B13 — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry (DONE)"*. **Rewrite** to describe issue-backed tracking, or close it as superseded.
+
+**Verification gate.** Searching the repo for `INTAKE QUEUE`, `TAKEN OVER`, `B2.2`, **`REQUEST QUEUE`, `B10` and `B13`** returns only the pointer file and historical handoffs. *(The first three tokens alone were a false-green gate — the same disease as the check being retired.)*
 
 ### ⚠️ Required at the END of each phase
-Re-read every remaining step and record any **drift** — anything you did or learned that changes a later step's assumptions — into this file before handing over. If nothing drifted, write "no drift" in the STATUS table. **Silence is not information.**
+Re-read every remaining step and record **drift** into this file before handing over. If nothing drifted, write "no drift" in the STATUS table; silence is not information. **This is kept deliberately against a reviewer's advice to cut it** — the identical instruction ran on the sibling plan on 2026-08-07 and produced ten concrete drift items, including every line number being off by 20–60. It is the highest-yield instruction in that document, measured.
 
 ---
 
-## 6. Constraints and gotchas in force
+## 6. Constraints and gotchas
 
-1. **Branch + PR, and you merge it yourself.** Never commit to `main` directly. Specific to `shared-db`.
+1. **Branch + PR, and you merge it yourself.** Never commit to `main` directly.
 2. **Commit identity must be `Albert Hazan <u2giants@users.noreply.github.com>`.** Check `git var GIT_COMMITTER_IDENT` before the first commit.
-3. **Branch protection: `strict: true`, six required contexts (five after step 7), `enforce_admins: true`.** Your branch must be up to date before merging, and `main` moves often — expect to run `gh pr update-branch`.
-4. **`shared-db` is PUBLIC.** Step 5 is the first action in this plan that publishes anything, and it is gated on step 4.
-5. **You may be sharing this checkout with other live sessions.** Before opening a PR, run `git diff origin/main --stat` and confirm it lists only your files. Never `git add -A`.
-6. **Do not delete `.ai/deepseek-sessions/` or `.ai/reviews/`** — untracked, not yours.
-7. **No band-aids, no silent failures.** Every fallback must be loud. This is why step 5 stops on the first error.
-8. **Never rename or delete a required CI job without removing it from protection first** (R5).
-9. **Windows line endings:** `.mjs` and `.md` edits show a `LF will be replaced by CRLF` warning. Harmless; do not "fix" it, and do not reformat whole files.
+3. **Branch protection: `strict: true`, six required contexts, `enforce_admins: true`.** `main` moves often; expect `gh pr update-branch`. **Never weaken protection without a named owner instruction** (§6.7 rule 3, `AGENTS.md:1081`).
+4. **`shared-db` is PUBLIC.** A file committed here is published exactly as an issue is. There is no "local, non-published" location inside this repo — any archive proposal must pass the same scrub gate.
+5. **You may share this checkout with other live sessions.** Before opening a PR run `git diff origin/main --stat` and confirm it lists only your files. Never `git add -A`.
+6. **Do not delete `.ai/deepseek-sessions/` or `.ai/reviews/`.**
+7. **No band-aids, no silent failures.** Every fallback must be loud.
+8. **Windows line endings:** `.mjs`/`.md` edits warn `LF will be replaced by CRLF`. Harmless; do not "fix" it, do not reformat whole files.
+9. **The `ai-glm` review wrapper trips on its own report file.** It snapshots `git status` before and after and fails if the tree changed; its round-1 report under `.ai/reviews/` is itself a new untracked file, so the next turn aborts. Recovery: `ai-glm abort <session>` then re-ask — the session keeps its context. Not a GLM failure and not a working-tree problem.
 
 ---
 
@@ -202,27 +234,48 @@ Re-read every remaining step and record any **drift** — anything you did or le
 
 | Risk | Mitigation |
 |---|---|
-| **Something confidential is published, and publishing is one-way** | Steps 3 and 4: a written scrub report and an explicit owner go/no-go before the first issue is created |
-| **A half-finished migration leaves work in two places** | Step 5 is idempotent, dry-run by default, and stops loudly on the first error; the mapping file proves completeness |
-| **The file is emptied but the rules survive, so a future session rebuilds it** | Step 9, and it is stated as the point of the plan rather than as cleanup |
-| **Deleting the workflow before de-listing the required context hangs every PR** | R5 and step 7's explicit ordering |
-| **Issue sprawl replaces file sprawl** | Only OPEN items migrate (R3); no status-label lifecycle (step 2) |
+| **Something confidential is published, and it is one-way** | Step 2 tool + step 4 owner gate + step 4b credential rotation |
+| **A genuinely open item is misclassified at step 1 and silently vanishes** | The arithmetic cross-check; every non-migrated block carries a checkable reason |
+| **New work is filed to two different homes during the cutover** | Step 5 precedes step 8, gated on propagation to every machine |
+| **The rules survive and a future session rebuilds the file** | Step 9, including B10 and B13 |
+| **Deleting the workflow before de-listing the context hangs every PR** | Step 7b's ordering, and 7b.1 is not part of any PR |
+| **Issue sprawl replaces file sprawl** | Only OPEN items (D2), one issue per work item (D4), no status lifecycle (D7) |
 
 ### Open questions
 
-1. **The `B1`–`B14` backlog** lives in root `HANDOFF.md` and several queue blocks reference it by number. Migrate those to issues too, leave them, or convert them? **Decide during step 1, before any issue is created**, or the references break.
-2. **Assignees.** AI sessions have no GitHub account. Naming the session in the body is the fallback; confirm that is enough to answer "who is on this?"
-3. **The six decisions currently waiting on Albert** become `needs-albert` issues. Worth asking whether he wants them as one issue or six — six is more actionable, one is less noisy on a phone.
+1. **Q1 — What if Albert says no at step 7a?** Then the check must not be deleted, and the fallback is to **repoint it at Issues** (assert each `B<n>` has an issue, open or closed). That path was reviewed in depth and rejected as the primary because it puts an external API on a required gate: an outage becomes either a false pass (if it skips green) or a freeze on every schema change across all five apps (if it fails). It also needs `issues: read` added to `.github/workflows/backlog-queue-sync.yml:35`, which today grants only `contents: read`, and a rewrite of the header comment that currently claims the job reads two files and needs no token. **Acceptable as a fallback, wrong as the plan.**
+2. **Q2 — D8, the dead-end content.** The file's own retention rule says the "what did not work" sections are its most valuable content and must stay findable. After step 8 they exist only in old commits, which is where nobody looks. Options: accept it as a **named loss** told to Albert plainly, or publish a scrubbed digest — which is publishing, and must clear step 2. **Decide before step 8.**
+3. **Q3 — the `B1`–`B14` backlog.** Several blocks reference it by number. Decide during step 1 whether those become issues, or the references break.
+4. **Q4 — the six decisions waiting on Albert.** One issue each, or one combined? Six is more actionable; one is less noisy on a phone.
 
 ---
 
-## 8. Definition of done
+## 8. What the review changed, and the one thing it got wrong
+
+Three rounds with **GLM 5.2**, adversarial by request. Recorded so nobody re-derives it.
+
+**It reversed my position on step 7.** I proposed repointing the CI check at Issues, partly because it needed no owner decision. GLM's argument, which I accept: the check only ever policed **14 backlog items and never once looked at the 67 queue items** that are the actual sprawl, and it was false-passing anyway. Installing a more complex, externally-dependent required gate to preserve a small broken one is this repo's defining pathology in miniature. And "it needs no owner decision" was the tell — I was optimising to avoid asking Albert, when §6.7 rule 3 exists precisely to make that ask mandatory. Satisfying the rule by the letter (keep the context name) while changing the check from offline-deterministic to online-best-effort is routing around a control, which is the behaviour the rule forbids.
+
+**It found seven defects I had missed**, all verified against the repo before being accepted: the §6.7 violation in step 7; `HANDOFF.md` B10/B13 being live rebuild instructions; the step-9 gate searching tokens that appear in neither; step 5/8 being in the wrong order; the four-block OPA item; the step-1 silent-loss door; and the "empty does not mean idle" warning missing from the pointer. It also refused to let the eye-scan scrub stand, and was right.
+
+**It was wrong once, and how it went wrong is worth keeping.** It claimed `gh issue list --label` returns empty in this repo, citing `COORDINATOR_INTAKE.md:3019`, and built two objections on it. Tested live: it works (`--label coordinator-marker` → issue #473). It had quoted a **document** as evidence — in a review whose entire subject is that this repo trusts documents over the repo. Both objections were withdrawn. **The lesson is the repo's own standing rule: re-derive from `git`/`gh`, including when a reviewer is the one citing.**
+
+**It conceded three of my pushbacks**: that a "local, non-published archive" is impossible in a public repo; that the consistent handover rule is issue-points-to-file rather than handoff-becomes-issue; and that the per-phase drift re-read is not ceremony, on the measured evidence.
+
+**It also withdrew one of its own arguments mid-review** — an "org-wide deploy freeze" mechanism it could not substantiate on checking, replacing it with the narrower and correct one: a false-fail blocks every *schema* change across all five apps, because `shared-db` is the sole legal path for them, while app code keeps deploying.
+
+---
+
+## 9. Definition of done
 
 - [ ] Steps 1–9 complete, or explicitly deferred with the reason in the STATUS table
-- [ ] Every OPEN block exists as an issue, proven by the mapping file
-- [ ] `COORDINATOR_INTAKE.md` is a pointer under ~40 lines
-- [ ] `Backlog / queue sync` is gone from protection **and** the workflow is deleted, in that order
-- [ ] No document instructs anyone to edit the queue file
+- [ ] Every OPEN work item exists as an issue; the step-1 arithmetic balances
+- [ ] The scrub tool exists, ran, and its report was approved by Albert
+- [ ] The plaintext-emailed credential is rotated, or its block was held back entirely
+- [ ] Skills propagated to every machine **before** the file became a pointer
+- [ ] `COORDINATOR_INTAKE.md` is a pointer under ~40 lines carrying the "empty ≠ idle" warning
+- [ ] `Backlog / queue sync` removed from protection **by named owner instruction**, then the workflow deleted — in that order
+- [ ] `HANDOFF.md` B10 and B13 rewritten or closed
 - [ ] The `AGENTS.md` safety rules are **untouched** — verified by diff
 - [ ] Committed, pushed, PR merged by you, checks green
-- [ ] STATUS table dated, drift recorded, and a `HANDOFF.d/` file written
+- [ ] STATUS table dated, drift recorded, `HANDOFF.d/` file written
