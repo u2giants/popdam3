@@ -11,6 +11,41 @@
 
 ---
 
+## 0. ⚠️ DECISIONS ONLY ALBERT CAN MAKE — put ALL of these to him, in one go
+
+**Read this before step 1 and surface the whole list early.** These are scattered through §3, §6, §9 and Part (b) of this document because that is where they belong operationally — but scattered means a session raises them one at a time, days apart, and Albert answers the same context six times. **Do not do that.** Ask them together, in plain business English, near the start.
+
+*Added 2026-08-07 after Albert asked whether a fresh session would actually surface these. Reading the rest of this file, it would have raised items 1–3 (they are hard stops) and quietly decided 4 and 5 by itself, and would probably never have raised 6, 7 or 8 at all — they are recorded below as findings from a different question. That is a defect in how this handoff was organised, and this section is the fix.*
+
+**He is not a programmer. One or two plain sentences each, no jargon, and say what you recommend.**
+
+### Blocking — this plan cannot finish without them
+
+1. **Approve what gets published.** He chose public Issues in principle but has never seen the actual content. Step 2 produces a scrub report; step 4 is him reading it. **Publishing is one-way** — say that. *(Blocks step 6, the first irreversible action.)*
+2. **Approve removing one named check from branch protection.** The exact wording is in the plan's step 7a — use it verbatim, do not paraphrase. `AGENTS.md:1081` requires the setting be named. **No is a valid answer**; the fallback is plan §7 Q1. *(Blocks step 7b.)*
+3. **Rotate the Cloud SQL read-only password, or hold that item back.** It was **emailed in plaintext on 2026-08-04** and the rotation request is still open, so it is presumed unrotated. Publishing that item would announce it publicly. *(Blocks step 6 for that item.)*
+
+### Needed, but a wrong guess is recoverable
+
+4. **The "what we tried that did not work" writing — keep it findable, or let it go?** After this migration it survives only inside old commits, where nobody looks. Either publish a cleaned-up digest (which is publishing, and must clear the scrub) or accept losing it. **My recommendation: accept the loss and tell him plainly it is a loss** — most of that knowledge is already restated in `AGENTS.md` and the handoffs. *(Plan Q2, needed before step 8.)*
+5. **The six questions already waiting in the queue: one issue or six?** **Recommendation: six.** Each is separately answerable, and one combined issue means he must answer all six before any can move. *(Plan Q4.)*
+
+### Not part of this plan, and nobody is working on them
+
+**These came out of a read-only audit this session. They are live and they are ageing. Raise them even though they are outside this workstream** — that is exactly why they keep getting missed.
+
+6. **A bug sits directly in front of the licensor cleanup everyone is planning.** `tools/validate-licensing-answers.mjs:90` reads `where p.code = any($1)` with **no licensor scope**, so it can match a product code belonging to a different licensor. `AGENTS.md` §6.10 already calls this a landmine. Ask whether he wants it fixed before the licensor work starts. **Recommendation: yes, and first.**
+7. **Alert issue #444** — *"ColdLion taxonomy alert — 18 undelivered, breaker tripped"* — has been **open and untouched since 2026-08-04**. Three separate handoffs flag it and nobody has acted. Ask whether those alerts still matter. **Recommendation: either fix the alert path or close the issue; leaving a tripped breaker open teaches everyone to ignore it.**
+8. **Coordinator marker issue #473** (`COORDINATOR ACTIVE — session 774f5010 — t16`) is open. An open marker tells every other session to stop. Ask whether a session is genuinely running. **Recommendation: if he does not know of one, close it with a note.** *(This one is a hard stop — see §6 step 1.)*
+
+### Already answered — do NOT re-ask
+
+- **Public vs private Issues** — settled 2026-08-07, public, after being offered private and told what the queue contains.
+- **Should the `HANDOFF.d/` files become Issues** — no. They are briefings, not tickets.
+- **Which of the six stale handoffs can be deleted** — none. Audited against git this session; all six are genuinely open. See Part (b).
+
+---
+
 ## 1. What this application is
 
 `u2giants/shared-db` is the canonical repository for **one** Supabase PostgreSQL database shared by five separate applications, each in its own repo:
@@ -120,6 +155,9 @@ A faithful future session reading B10 rebuilds the queue. **Step 9 must rewrite 
 ## 6. Exact next steps
 
 **The authoritative steps are in the plan. Do not start with step 1 — start with the two things that gate everything.**
+
+0. **Put §0 to Albert — the whole list, in one message.** Do this before step 1, not as you trip over each item. Three of the eight are hard stops and two more decide work you would otherwise do twice.
+   *You'll know it worked when:* every item in §0 has an answer or an explicit "not yet".
 
 1. **Confirm the coordinator marker.** `gh issue list --label coordinator-marker --state open` currently returns **issue #473, "COORDINATOR ACTIVE — session 774f5010 — t16"**. The orchestrator skill's step 0 says an open marker that is not yours means **STOP and ask Albert**. It was raised with him on 2026-08-07 and he has not answered. **Do not assume it is stale.**
    *You'll know it worked when:* either #473 is closed with a reason, or Albert confirms whose it is.
