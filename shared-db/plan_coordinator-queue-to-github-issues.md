@@ -48,9 +48,9 @@ is BLOCKED — read the box below before touching anything.**
 > issue **#565**, deliberately left open for exactly that. Do not close it as done — it
 > is not done, it is deferred.
 >
-> ⚠️ **If a machine named `4837` exists separately from `al8960ofc`, it is unverified.**
-> This machine reports hostname `al8960ofc`; Albert referred to it as `4837`. If they are
-> two boxes rather than two names for one, the second one still needs the sync.
+> ✅ **`4837` and `al8960ofc` are the SAME machine** — confirmed by Albert 2026-08-07.
+> `4837` is what he calls it; `al8960ofc` is the hostname. There is no fifth box and no
+> unverified machine. The full list is `t16`, `al8960ofc`/`4837`, `hetz`, `916`.
 
 **What actually shipped: 63 issues, `gh issue list --repo u2giants/shared-db --label db-work`.**
 63 `db-work`, 7 `needs-albert`, 6 `blocked`.
