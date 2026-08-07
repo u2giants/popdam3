@@ -679,6 +679,301 @@ after it is filed. Only the coordinator moves a block out of here.
 > ⚠️ **That session could not reach GitHub. Five branches are unpushed and
 > coordinator marker issue #453 is still OPEN — it is NOT a dead coordinator.**
 
+> **Refreshed 2026-08-07 ~16:00 UTC** by outgoing coordinator session `774f5010`
+> (t16), marker issue **#473**. Nothing was deleted. The entries immediately below
+> are the new outstanding items from that session. Its full record is
+> `HANDOFF.d/2026-08-07T1600Z-t16-coordinator-opa-disney-licensor.md`.
+> ⚠️ **`u2giants/shared-db` was PUBLIC until 2026-08-07 ~15:10 UTC and is now
+> PRIVATE. Read request R-SEC-1 below BEFORE committing anything.**
+
+### ⛔ R-SEC-1 — REQUEST — Move Disney's confidential extract out of this repo and scrub it from history — 2026-08-07 — requester: Albert Hazan (via coordinator 774f5010)
+
+**1. What outcome is needed, and why.** `u2giants/shared-db` was a **PUBLIC**
+GitHub repository from creation (2026-06-20) until **2026-08-07 ~15:10 UTC**,
+when this coordinator made it **PRIVATE** on Albert's explicit instruction.
+During that window it contained `docs/verification/opa-characters-20260806/opa-characters.csv`
+— 10,262 rows of Disney's property and character list with Disney's own internal
+IDs, merged in PR #466 — plus the README beside it which states in its own words
+that the data is business-confidential and must not be published.
+
+Measured at the moment of the flip: **0 forks, 0 stars, 0 watchers.** No evidence
+anyone copied it. That is not proof; crawlers leave no trace.
+
+**Albert's decision (2026-08-07):** make it private now, **move the data to a
+private home and link to it from here, so `shared-db` can be made PUBLIC again.**
+
+Work required, in order:
+(a) Move `opa-characters.csv` (and any future licensor extract) to the private
+repo **`u2giants/licensor-source-data`** — created 2026-08-07 by this
+coordinator, PRIVATE, currently EMPTY. Structure agreed with the scraping
+sessions: `disney-opa/` and `warner-bros/` folders, one file per level plus a
+README, one branch + PR per session.
+(b) Leave a **pointer only** in `shared-db` — which repo, which file, capture
+date, coverage. **No data.**
+(c) **Scrub the CSV from `shared-db` git history.** Deleting the file is NOT
+enough; git retains every version. Until this is done `shared-db` can never go
+public again.
+(d) Only then consider restoring public visibility.
+
+⚠️ **(c) rewrites history and breaks every existing clone and worktree, including
+any live session's.** Do it once, deliberately, when nothing else is running.
+**Do NOT attempt it while agents are dispatched.** (a) and (b) are safe now.
+
+⚠️ **Scope check before scrubbing:** the raw CSV is the crown jewel, but several
+merged docs also carry bulk licensor data and production identifiers
+(`docs/verification/opa-characters-20260806/`, `…/disney-licensor-identity-20260807/`,
+`…/opa-source-of-truth-20260807/`, `…/coldlion-as-source-20260807/`,
+`…/ds-to-dy-at-source-20260807/`). Decide the scrub scope deliberately — analysis
+about the data is not the same as the data.
+
+**2. Which application(s) depend on this.** None directly. This is a
+confidentiality and licensor-relationship matter, not a schema one.
+
+**3. Is it blocking anything?** (a)+(b) block the two live scraping sessions from
+committing anywhere safe. (c) blocks any return to public visibility.
+
+**4. Deadline.** (a)+(b) as soon as practical. (c) when the repo is quiet.
+
+**5. Current schema knowledge.** Not applicable — no schema change.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** History NOT rewritten.
+CSV NOT moved or deleted. `licensor-source-data` created but left EMPTY. No
+migration, no database write, no preview or production push.
+
+### ⛔ ALBERT — four owner decisions left open by session 774f5010 — 2026-08-07
+
+Do not act on any of these without a fresh answer from Albert **in the current
+chat**. Prior context is not approval.
+
+1. **Is the many-to-many property↔character junction still wanted?** Albert ruled
+   YES on 2026-08-07 — but he ruled on the coordinator's report that **609**
+   Disney characters belong to several properties. **That number did not survive
+   measurement.** Of the 609: **561** are the same property written twice
+   (`- No Likeness` / `- With Likeness`), and **42** are one Disney data-entry
+   error (`Morbius Movie 2020 - No Likeness` holds 30 characters literally named
+   `( MS Disney Plus TV Shows )`). **Genuine residual: ~6 of 9,613 identities
+   (0.06%).** One property per character survives Disney's own data. Albert has
+   been told. The design exists either way in
+   `docs/verification/opa-source-of-truth-20260807/README.md`, which recommends
+   **not** building it because it would duplicate `core.style_guide_character`.
+2. **How far may Disney overwrite our curated names?** Following it destructively
+   deletes **58** rows, several of which are defects on our side. Of 208 apparent
+   mismatches, **147 are pure surname ordering** (`Arnim Zola` vs `Zola, Arnim`)
+   and 250 use a backtick for an apostrophe; only **61** are real misses. Four
+   options in §8 of the same doc; it recommends option B (store it, let Disney fix
+   the 3 typos, flag the 147, delete nothing).
+3. **Does the §6.3 "follow ColdLion, including deletions" ruling apply to
+   licensors/properties?** That ruling was given about **vendors** (442 bronze
+   rows). Here **92,173 `public.assets` rows** carry a `core.licensor` id with
+   `ON DELETE SET NULL` — a ColdLion deletion would silently blank them with no
+   error and no way to tell which. **Albert was asked on 2026-08-07 and DISMISSED
+   the question without answering. It remains open.**
+4. **Should the actual asset files be downloaded from the licensor portals?**
+   Both scraping sessions were told **names and metadata only** — not the artwork
+   or style-guide documents — because they are large, they are the most sensitive
+   material on those portals, and no home was agreed. Needs a decision if wanted.
+
+### REQUEST — Phase 2: BUILD the OPA lookup table (the original ask, still not built) — 2026-08-07 — requester: Albert Hazan
+
+**1. What outcome is needed, and why.** **Nothing was built this session.**
+Everything produced was design and evidence. The original request — "Store the
+Disney OPA property→character list as a lookup table" — remains **unbuilt**, and
+its three source blocks are still live in this queue below.
+
+Authoritative design: `docs/verification/opa-source-of-truth-20260807/README.md`
+(revised on Albert's "OPA is the source of truth" ruling), which **supersedes**
+`docs/verification/opa-characters-20260806/DESIGN.md` (the earlier standalone-
+reference design). Read both, newest first, and re-derive anything they disagree
+on from `git`.
+
+Settled and NOT open for re-litigation: Home line-of-business only; one-off
+snapshot with a manual refresh ritual; raw table keeps Disney's exact string with
+the likeness split in the **view**; follow the repo's real vendor-landing pattern
+(`plm.erp_*` raw + `api.*` views — **there is no `coldlion` schema**); `bigint`
+IDs left unconstrained because one row carries negative sentinels (`Special
+Projects`, `-9999`/`-9998`); `optionSourceID` is `1007` everywhere and its meaning
+is unknown, so build no logic on it.
+
+⚠️ Albert's "OPA is the source of truth" ruling means it now **joins
+`core.property`**, which makes it a **cross-app data contract** (PopCRM and
+DesignFlow both read licensor/property data) and triggers the `AGENTS.md` §4
+review. It must be **serialised against the ColdLion cutover**, not run alongside.
+
+⚠️ **Do NOT commit the CSV anywhere new until R-SEC-1 is resolved.**
+
+**2. Which application(s) depend on this.** PopDAM primarily; cross-app once
+joined to `core.property`.
+
+**3. Blocking?** No. **4. Deadline.** None.
+
+**5. Current schema knowledge.** Measured on production 2026-08-07:
+`core.character` **0 rows**; `core.property` 256; `core.licensor` 26. Note both
+legacy shapes exist **twice** (`core.properties_and_characters` 10,122 and
+`core.property_character_associations` 9,622) — a future session will find them
+and try to restart the retracted lineage argument. Do not.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No table created, no
+migration written, no `supabase/` file touched for this, no preview or production
+write, no chip.
+
+### REQUEST — Execute the DS→DY-at-source plan (Albert's ruling: no hard-coding) — 2026-08-07
+
+**Outcome:** Albert ruled *"don't hard-code DS to DY, change DS to DY at its
+source."* Full chain-of-custody, blast radius and executable plan are in
+`docs/verification/ds-to-dy-at-source-20260807/README.md` (merged PR #483).
+
+Key established facts: "at its source" **is** the `public.licensors` row
+(`10a445bc-cdb8-4384-ad6f-a46fd029f2bc`) — nothing upstream writes it, no
+migration seeds it, the only live writer is a human PopDAM admin via RLS policy
+`Admin write licensors`. The hard-code survives in exactly **one** live object,
+the view `public.dam_character_catalog`, and degrades to a pass-through. Applied
+migration `20260723113000` never needs editing.
+
+⚠️ **The trap that would have corrupted data:** 30 `public.assets` and 6
+`public.style_groups` rows carry `licensor_code = 'DS'` that is **NOT Disney** —
+the letters are a substring of the item SKU (`MCZ6X**DS**PT01`). All have
+`licensor_name IS NULL` and `is_licensed = false`. A blanket sweep would label 30
+unlicensed products as Disney. Use the `licensor_name` discriminator.
+
+⛔ **ONE HONEST BLOCKER: `popdam3` is not checked out on this machine and was
+NOT read.** It owns the only live write path. **Read it before executing.**
+
+**Rider:** the `WWE`/`WW` twin is the identical shape and undocumented. No `WWF`
+exists in `core.licensor`, so there is no company conflation; the doc recommends
+it rides along. Also flagged: `tools/process-style-guide-licensing-review.mjs:123`
+uses `'WW'` to mean **Wonder Woman** while `core.licensor` uses `WW` for **WWE**.
+
+**Confirmation of what has NOT been done:** no migration written, no database
+write, nothing under `supabase/` touched.
+
+### REQUEST — Promote migration `20260807030000` (the Coco ruling) to PRODUCTION — 2026-08-07
+
+**Outcome:** merged to `main` in PR #481 and rehearsed on preview
+(`rjyboqwcdzcocqgmsyel`, applied 2026-08-07 03:07 UTC and re-verified 03:27 UTC).
+**NOT promoted to production.** Promotion is an explicit owner gate: Albert must
+name the exact project and the exact action.
+
+Independent review: Codex `gpt-5.6-sol`, medium effort — APPROVE, zero
+Critical/High. The negative tests were found **vacuous** on first review (zero
+savepoints despite the header claiming them; `E4` queried `pg_proc.prosrc` for an
+anonymous `DO` block that can never appear there) and were **rewritten to execute
+the real migration**; each guard has since been observed FAILING when neutralised.
+
+⚠️ `core.taxonomy_owner_ruling` exists on **preview but NOT production** — the
+audit insert is `to_regclass`-guarded and dynamically executed for that reason.
+Preview cannot catch a production-only failure here.
+
+**Confirmation:** no production push performed by session 774f5010.
+
+### REQUEST — Parentage durability: NO migration protects `core.property.licensor_id` — 2026-08-07
+
+**Outcome needed:** a decision, then a fix, **before the DesignFlow→Supabase
+master-data pull is repaired.**
+
+`AGENTS.md` §6.6 rule 5 claimed `20260802170000` stops `plm.import_master_data`
+force-setting `core.property.licensor_id`. **That was factually wrong** and is
+corrected in `AGENTS.md` §6.12 (PR #481). That migration preserves **status
+only** — its own header, line 36, reads *"The property UPDATE still sets
+`licensor_id = parent_core_licensor_id`."* **No parentage-durability migration
+exists anywhere in this repo, merged or held.**
+
+Consequence: the Coco fix, and **every** hand-curated licensor parent, reverts on
+the next **successful** `plm.import_master_data()` run. Exposure is dormant only
+because that pull has been dead since **2026-07-08** (upstream 502). Repairing
+the feed without fixing this re-breaks everything curated.
+
+**Confirmation:** not fixed by session 774f5010; documented only.
+
+### REQUEST — ColdLion as the source for Supabase: the 47-row decision sheet — 2026-08-07
+
+**Outcome:** Albert asked *"what is needed to have ColdLion API as the source for
+our Supabase without breaking anything?"* Full answer, measured against
+production and the live ColdLion API on 2026-08-07:
+`docs/verification/coldlion-as-source-20260807/README.md` (merged PR #484). It
+**extends** the existing "Move Licensors and Properties off Cloud SQL" request
+below rather than replacing it — read both.
+
+**The headline: there is no name-mapping problem.** Across all **271** entities
+in both systems (19 licensors, 252 properties) **not one name differs**. The
+disagreement is about which rows exist, not what they are called. **The mapping is
+47 rows:** 33 ColdLion-only properties, 4 Supabase-only properties, 3
+ColdLion-only licensors, 7 Supabase-only licensors. A decision-sheet CSV of those
+47 was generated for Albert locally on 2026-08-07 and **deliberately not
+committed** (see R-SEC-1); regenerate it from §2.6 of that doc.
+
+⚠️ **The 33/4/3/7 figures are code-only matches.** `core.property` is really keyed
+`(licensor_id, code)` and property codes are **not** globally unique. The diff is
+exact *today* only because production's copy is crippled to one row per code.
+**Re-derive by full typed identity at the time of the work.**
+
+⚠️ **15 of ColdLion's 22 licensor codes are also ColdLion property codes**
+(`1P CB CC DC DY FK HP MV PN PP SE SM SS SW WW`). A code-keyed mapping is
+guaranteed to corrupt this.
+
+Other measured findings: ColdLion licensor/property has **never reached
+production at all** (`plm.erp_licensor` 0, `plm.erp_property` 0, promotion
+functions absent, `core.taxonomy_source_ref` 100% `designflow_plm`); production is
+**39 merged migrations behind `main`**; the famous **"111 unparented properties"
+is NOT a Supabase condition** — Supabase has **zero** orphans, they are in
+DesignFlow's Cloud SQL, and every document repeating it reads as ours.
+
+**Blockers: two closed, nine still open, three newly discovered.** The count went
+up. Verdict, unsoftened: still the **hardest** table set to move; `age_group`
+(PR #435) should still be the two-row rehearsal first. ColdLion-as-source makes
+the mapping far easier but makes the human curation screen **mandatory rather
+than optional** — ColdLion cannot supply a parent and `core.property.licensor_id`
+is `NOT NULL`.
+
+**Confirmation:** nothing moved, no migration, no database write.
+
+### REQUEST — SILENT FAILURE: the dead PLM feed reports `succeeded` on every run — 2026-08-07
+
+**Outcome:** the DesignFlow master-data pull has been dead **30 days** and **all
+15 `ingest.sync_run` rows say `succeeded`**. No failed row exists anywhere.
+Nothing in the database would ever raise a hand. This is a direct violation of the
+standing "no silent failures" rule and it is sitting on the most important feed
+this project has. Needs a loud alert, and then a sweep for the same pattern
+elsewhere.
+
+**Confirmation:** not fixed; measured and documented only.
+
+### REQUEST — Preview Supabase branch reports `MIGRATIONS_FAILED` — 2026-08-07
+
+**Outcome:** the Supabase branch named `main` reports `status: MIGRATIONS_FAILED`
+(observed 2026-08-07 via `list_branches` metadata). **Not investigated by anyone.**
+Look at it **before the next promotion**, because a promotion planned against a
+broken preview proves nothing.
+
+**Confirmation:** not investigated by session 774f5010.
+
+### REQUEST — `core.character` is `ON DELETE CASCADE` on `core.property` — 2026-08-07
+
+**Outcome:** revisit this constraint **before** the characters/style-guides
+workstream populates `core.character`. It is empty today, so deleting a property
+costs nothing. Once populated, deleting a property **destroys character rows
+outright** — no `SET NULL`, no recovery. Newly discovered 2026-08-07; not flagged
+anywhere previously.
+
+**Confirmation:** constraint not changed.
+
+### REQUEST — Close the app-repo blast-radius gap: `popdam3`, `poppim-web`, `monitor`, `hiclaw` — 2026-08-07
+
+**Outcome:** every blast-radius analysis in this repo has been inferred from
+schema and migrations. Three separate agents on 2026-08-07 tried to close this and
+each hit the same wall: **`popdam3`, `poppim-web`, `monitor` and `hiclaw` are not
+checked out on machine t16** (`D:/` does not exist there). `popcrm-web` and the
+six `designflow-*` repos WERE read.
+
+**`popdam3` is the one that matters** — PopDAM is the heaviest consumer at
+**92,173** asset rows and owns the only live write path to `public.licensors`.
+Hard-coded strings and literal UUIDs in application code are **invisible to every
+catalog query**. One real example already found in a repo that WAS readable:
+~150 hard-coded brand and character strings in `desc-cleaner.ts`.
+
+Either check the repos out on t16, or run this on a machine that has them.
+
+**Confirmation:** gap recorded, not closed.
+
 ### CLOSING NOTE — all three findings in the block below are now RESOLVED; the OPA request itself is still OPEN — 2026-08-07 — session: opa-scrape (t16)
 
 Appended rather than edited in place, per this file's log rule. Verified against
@@ -2948,6 +3243,25 @@ Supabase MCP call, no psql, no background task chip.
 Requests the coordinator has verified and dispatched. Each block is annotated
 with the branch name and the sub-agent handling it. Moved here and out again by
 the coordinator only.
+
+> ### ⚠️ STATUS UPDATE 2026-08-07 ~16:00 UTC — session 774f5010 ENDED. NOTHING BELOW IS LIVE.
+>
+> **Every agent dispatched by session 774f5010 has finished and every worktree is
+> retired.** There are **zero open PRs**, **zero open `db-claim` issues**, and the
+> only remaining worktree (`C:/repos/shared-db-worktrees/order-list-plan`,
+> branch `codex/plan-popdam-order-list`) belongs to a **different, uncoordinated
+> session** — do not touch it.
+>
+> **The block below is kept as the audit trail of what was dispatched, not as
+> work in flight.** All outstanding work from this session is in the REQUEST
+> QUEUE above (R-SEC-1 first) and in
+> `HANDOFF.d/2026-08-07T1600Z-t16-coordinator-opa-disney-licensor.md`.
+>
+> **Phase 1 (design) is DONE and merged.** **Phase 2 (build) was never
+> dispatched** — see "Phase 2: BUILD the OPA lookup table" in the REQUEST QUEUE.
+> Its design was superseded mid-session by Albert's "OPA is the source of truth"
+> ruling, so the object list recorded below is **STALE**; take object names from
+> `docs/verification/opa-source-of-truth-20260807/README.md` instead.
 
 ### IN PROGRESS — Store the Disney OPA property→character list as a lookup table — dispatched 2026-08-07 — coordinator session 774f5010 (t16), marker issue #473
 
