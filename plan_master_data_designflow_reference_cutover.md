@@ -6,10 +6,10 @@
 |---|---|---|---|
 | 1. Freeze baselines and confirm exact production sources | ⬜ open | 2026-08-06 | Fresh session starts here. Produce read-only counts, schemas, and source-ref coverage before changing data. |
 | 2. Compare Packaging Types | ⬜ open | 2026-08-06 | Reconciliation artifact classifies every hard-coded DesignFlow value and every `core.packaging_type` row. |
-| 3. Compare MG04 Sizes with `core.product_size` | ⬜ open | 2026-08-06 | Reconciliation artifact covers all ColdLion MG04 rows, all source refs, and all live-item usage. |
+| 3. Compare MG04 Sizes and build the guarded importer | ⬜ open | 2026-08-07 | Prove the direct ColdLion MG04 feed, create `core.product_size` if absent, and require preview/apply guards before any write. |
 | 4. Compare DesignFlow item assignments with `core.creative_designer` | ⬜ open | 2026-08-06 | Reconciliation artifact distinguishes users, assignment roles, and canonical creative designers. |
 | 5. Compare DesignFlow Vendors with ColdLion-backed `core.factory` | ⬜ open | 2026-08-06 | Reconciliation artifact resolves every referenced DesignFlow Vendor or records an explicit exception. |
-| 6. Compare and design the `itemDepth` Supabase move | ⬜ open | 2026-08-06 | Reconciliation artifact proves row, code, title, status, and item-usage coverage. |
+| 6. Compare and move `itemDepth` to `core.product_depth` | ⬜ open | 2026-08-07 | Reconciliation proves coverage; the shared table, source refs, audit, and restricted DB Data Admin editor are ready before consumer cutover. |
 | 7. Review comparison report and lock cutover mappings | ⬜ open | 2026-08-06 | Albert approves only ambiguous merges, splits, and retirements. Exact matches do not need manual review. |
 | 8. Implement canonical shared-db contracts | ⬜ open | 2026-08-06 | Shared-db preview passes data, FK, RLS, API-view, and rollback checks; PR is merged and production apply is verified. |
 | 9. Cut DesignFlow consumers over | ⬜ open | 2026-08-06 | Item Details reads and writes canonical UUID-backed sources; sandbox UI and API checks pass. |
@@ -64,6 +64,10 @@ Relevant DesignFlow areas:
 
 The shared hosted Supabase project is `qsllyeztdwjgirsysgai`. Canonical schema changes belong only in `u2giants/shared-db`, locally `/worksp/shared-db`, using a dedicated branch, preview branch, PR, merge, and production apply. App repositories must not contain shared schema migrations.
 
+DB Data Admin is the shared reference-data administration app. It lives in `/worksp/shared-db/apps/db-data-admin/`, despite its DesignFlow-branded hostname. Development is `https://data-dev.designflow.app`. The Product Depth editor belongs there and must use the app's existing protected API, role checks, optimistic-concurrency, and audit patterns.
+
+DesignFlow sandbox already uses the shared Supabase PostgreSQL backend. Current DesignFlow configuration documents port `6543` and the five-secret Supabase database tuple for `develop`, staging, `sandbox-albert`, and `albert-2sandbox`. Production still uses Cloud SQL on port `5432`. The sandbox architecture is therefore the tested model for production, but production must move through the controlled Cloud SQL-to-Supabase migration program. Changing one URL or bypassing the existing pooler and secret contract is not an acceptable cutover.
+
 ColdLion is the ERP source for merchandise groups and Vendors. Credentials live in 1Password vault `vibe_coding`; the existing item title for the API credential is `Coldlion ERP API key x5.coldlion.com`. Never place the value in files, logs, plans, or commits.
 
 ## 3. What triggered this work
@@ -86,9 +90,12 @@ The follow-up audit found four additional reference-data boundaries that could d
 - Produce reproducible, read-only comparison artifacts for all five domains.
 - Prove the authoritative source, stable identity, row counts, status rules, duplicates, unmatched values, and live-item usage for each domain.
 - Verify that ColdLion MG04 is the source for `core.product_size`, including inactive-but-referenced MG04 rows.
+- Build a guarded, server-side ColdLion MG04 importer with dry-run, explicit apply, pagination proof, source snapshot, change thresholds, one-run-at-a-time protection, audit history, and loud failure behavior.
 - Verify that ColdLion `/vendors` is the source for `core.factory` and reconcile DesignFlow Vendor references to it.
 - Define how only DesignFlow creative-designer assignments map to `core.creative_designer`, without collapsing other assignment roles.
 - Design and then implement the move of `itemDepth` into the canonical Supabase schema.
+- Create `core.product_depth`, populate it from DesignFlow `itemDepth`, and add a restricted Product Depth editor to DB Data Admin at `data-dev.designflow.app`.
+- Use DesignFlow sandbox's Supabase connection, secret, and pooler pattern as the production model, subject to the broader production database cutover gates.
 - Make DesignFlow and PopDAM consume the same canonical lookups after comparison approval.
 - Preserve source IDs and add explicit foreign keys or source-reference mappings so names are labels, not identities.
 - Update documentation, automated tests, CI, and deployment verification.
@@ -210,7 +217,7 @@ All shared schema, migration, RLS, API view, and backfill work belongs in canoni
 
 ## 8. Design decisions
 
-### Locked decisions as of 2026-08-06
+### Locked decisions as of 2026-08-07
 
 1. Comparison precedes mutation. No ambiguous match is auto-merged.
 2. `core.packaging_type` is the canonical Packaging Type lookup.
@@ -222,15 +229,41 @@ All shared schema, migration, RLS, API view, and backfill work belongs in canoni
 8. Legacy IDs are preserved as source references. Names are labels, not keys.
 9. Shared database work uses `/worksp/shared-db`; DesignFlow code stays on `sandbox-albert` with PRs to `develop`; PopDAM code lands on `main`.
 10. Rollouts are additive first. Legacy columns and endpoints remain available until parity and zero-use are verified.
+11. `core.product_depth` is the canonical Depth table. DesignFlow `itemDepth` is the seed source, and legacy IDs are preserved in source references.
+12. Product Depth lookup values are maintained in DB Data Admin at `data-dev.designflow.app`. Writes use protected RPCs and audit history. Access uses the existing DB Data Admin authorization model plus an explicit database-managed permission, never a frontend-only or hard-coded email check.
+13. A guarded server-side importer pulls MG04 directly from the ColdLion API into `core.product_size`. It must prove endpoint completeness and pagination against the current DesignFlow MG04 mirror before its first apply.
+14. DesignFlow sandbox's Supabase setup is the model for production. Production migration keeps the established five-secret database contract and pooler behavior; the BFF remains a proxy and does not become a new database layer.
 
 ### Open decisions, resolved by evidence rather than preference
 
-1. Final canonical Depth table name and schema. Recommended default: `core.product_depth`, with `core.product_depth_source_ref` or the existing generic taxonomy source-ref pattern. Use `plm.item_depth` only if the inventory proves Depth is operationally PLM-only. Because PopDAM and other product contexts need it, `core.product_depth` is the expected result.
-2. Whether existing `core.packaging_type` rows and DesignFlow strings are exact matches, aliases, or separate concepts. The comparison report decides.
-3. How inactive MG04 rows appear in new-item pickers. Existing referenced values must render; new selection should use an explicit approved/selectable policy that does not destroy source status.
-4. How a DesignFlow auth user or assignment person maps to `core.creative_designer`. Prefer an immutable person/source-ref bridge. Human review is required for ambiguous names.
-5. Whether DesignFlow's current Vendor table contains non-factory contacts or obsolete rows. Only true factories/vendors map to `core.factory`; people belong in contact tables.
-6. Whether PopDAM should write canonical item fields directly through a service API or call a shared, audited database function. Choose the fewest-moving-parts path that preserves DesignFlow's authorization, validation, and audit rules. Do not grant broad browser writes to PLM tables.
+1. Whether existing `core.packaging_type` rows and DesignFlow strings are exact matches, aliases, or separate concepts. The comparison report decides.
+2. How inactive MG04 rows appear in new-item pickers. Existing referenced values must render; new selection should use an explicit approved/selectable policy that does not destroy source status.
+3. How a DesignFlow auth user or assignment person maps to `core.creative_designer`. Prefer an immutable person/source-ref bridge. Human review is required for ambiguous names.
+4. Whether DesignFlow's current Vendor table contains non-factory contacts or obsolete rows. Only true factories/vendors map to `core.factory`; people belong in contact tables.
+5. Whether PopDAM should write canonical item fields directly through DesignFlow Item Master or call a shared, audited database function. Choose the fewest-moving-parts path that preserves DesignFlow's authorization, validation, and audit rules. Do not grant broad browser writes to PLM tables.
+6. Which non-administrator users receive the new `product_depth_admin` permission. This is a deploy-time access decision, not a schema-design decision; default to administrators only until Albert names additional users.
+
+### Release boundary: required now versus Phase 2
+
+The first release fixes Depth and establishes Product Size correctly. Findings are sequenced by what they can break, not by review severity.
+
+#### Required before the first Depth and Size cutover
+
+1. Prove the ColdLion MG04 endpoint, pagination, and row completeness; create `core.product_size` if it is absent; and ship the guarded importer. Without this, Size pickers can be empty, stale, or silently lose live MG04 values.
+2. Create `core.product_depth`, source references, audit history, protected read/write functions, and the restricted DB Data Admin editor. Import every `itemDepth` row and every referenced legacy value before switching a picker. Without this, existing items can show blanks and there is no safe place to maintain Depth values.
+3. Add stable `product_depth_id` and `product_size_id` links while keeping legacy text/IDs as compatibility shadows. A label alone is not a safe identity.
+4. Put the Master Data Depth storage/view change in a canonical shared-db migration. The UI cannot safely ship before its database contract exists.
+5. Complete the production DesignFlow Cloud SQL-to-Supabase connection, secret, pooler, schema-parity, rollback, and load checks needed by these consumers. The working sandbox setup is the template. Do not point production consumers at canonical Supabase tables until this gate passes.
+6. Test the exact deploy order: shared-db, DB Data Admin, DesignFlow sandbox, Uma-approved DesignFlow `develop` merge and production deploy, then PopDAM. Carlos's edit must pass after reload in both apps before the release is complete.
+
+#### May move to Phase 2 without blocking Carlos's Depth fix
+
+1. Packaging Type union and hard-coded-list removal, if Packaging Type itself is not cut over in the first release. They become blocking before the Packaging Type cutover.
+2. The DesignFlow-person bridge to `core.creative_designer`, if Creative Designer is not cut over in the first release. It becomes blocking before that picker changes.
+3. Vendor-to-Factory exception resolution and legacy source references, if Vendor is not cut over in the first release. They become blocking before that picker changes.
+4. Automated recurring scheduling for the existing guarded Vendor sync. Manual guarded runs with a named owner and audit evidence are acceptable during the first soak.
+5. Legacy table, column, endpoint, and compatibility-shadow deletion. Remove them only after the measured parity soak.
+6. Extra dashboards and generalized source-reference tooling. The first release still requires focused contract tests, audit rows, and parity queries.
 
 ## 9. Implementation plan
 
@@ -272,17 +305,20 @@ Verification gate: the report accounts for all eight hard-coded values, 100% of 
 #### Step 3. Compare MG04 with `core.product_size`
 
 1. Add `tools/compare-coldlion-mg04-product-sizes.mjs` in shared-db.
-2. Pull ColdLion `/merchGroupHeaders` and `/merchGroupDetails` for every relevant division using the existing guarded API conventions. Save hashes and pagination evidence, not credentials.
-3. Compare the ColdLion MG04 composite identity `(companyCode, divisionCode, mgTypeCode, mgCode)` and DesignFlow `merchGroup.mg_id` with `core.product_size` and its taxonomy source references.
-4. Include all MG04 rows regardless of `is_active`.
-5. Count live items by `udf_merchgroup04_id` and code. Identify:
+2. Prove the exact ColdLion endpoint and request shape that returns MG04. Pull `/merchGroupHeaders` and `/merchGroupDetails` for every relevant division using the existing guarded API conventions. Save hashes, request metadata, pagination evidence, and expected-versus-received counts, never credentials.
+3. Compare the direct ColdLion result with DesignFlow's current `merchGroup` MG04 mirror. Stop before implementation if the direct feed omits rows, truncates pagination, or cannot explain every live mirrored MG04 identity.
+4. Inventory whether `core.product_size` and its source-reference contract actually exist in the canonical migration ledger. If absent, treat table creation as required work, not a repair.
+5. Compare the ColdLion MG04 composite identity `(companyCode, divisionCode, mgTypeCode, mgCode)` and DesignFlow `merchGroup.mg_id` with `core.product_size` and its taxonomy source references.
+6. Include all MG04 rows regardless of `is_active`.
+7. Count live items by `udf_merchgroup04_id` and code. Identify:
    - MG04 rows referenced by items but missing from core.
    - core sizes with no ColdLion source reference.
    - duplicate labels with different codes or divisions.
    - one ColdLion concept repeated across divisions.
    - item rows whose ID and code disagree.
-6. Define a stable deduplication rule. Prefer one canonical `core.product_size` row for semantically identical sizes, with multiple source refs when division copies are the same concept. Require review when normalized labels collide but dimensions or meaning differ.
-7. Define separate `source_status` and `selectable_for_new_items` behavior so inactive-but-referenced sizes remain resolvable.
+8. Define a stable deduplication rule. Prefer one canonical `core.product_size` row for semantically identical sizes, with multiple source refs when division copies are the same concept. Require review when normalized labels collide but dimensions or meaning differ.
+9. Define separate `source_status` and `selectable_for_new_items` behavior so inactive-but-referenced sizes remain resolvable.
+10. Specify the guarded importer contract: dry-run is the default; `--apply` is explicit; only one run may execute; every run records source hash/counts and proposed/applied changes; delete/deactivate thresholds stop the run; unknown payload shape stops the run; credentials never reach browser code; and rerunning the same snapshot is idempotent.
 
 Verification gate: every ColdLion MG04 row and every live item's MG04 reference resolves to exactly one proposed canonical size or one explicit review finding. No live item would display blank after cutover.
 
@@ -316,10 +352,12 @@ Verification gate: every Vendor referenced by an item resolves to exactly one ca
 2. Inventory all current `itemDepth` rows, including inactive rows, duplicate titles/codes, blank codes, and audit fields.
 3. Count item usage by stored `itemHeader.item_depth_size` text and compare it with lookup titles. Include values not found in the lookup, including `0.63"` if present.
 4. Compare Cloud SQL/current authority with the reconciled Supabase `dflow."itemDepth"` copy row by row. Measure lag and identify the writer.
-5. Propose canonical `core.product_depth` columns: UUID `id`, stable `code`, display `name`, `status`, source metadata, timestamps, and uniqueness rules. Preserve legacy `itemDepth_id` through a source-reference row.
+5. Define canonical `core.product_depth` columns: UUID `id`, stable `code`, display `name`, `status`, source metadata, timestamps, and uniqueness rules. Preserve legacy `itemDepth_id` through `core.product_depth_source_ref` or the established generic source-reference pattern.
 6. Propose an item-level canonical `product_depth_id` FK on the future/current PLM item representation. Keep legacy `item_depth_size` text during transition.
 7. Define title parsing and units. Store a normalized numeric quantity and unit only if every source value can be represented safely; otherwise preserve the exact display text and add normalized fields additively.
-8. Define the single writer for Depth administration after cutover. Recommended: DesignFlow Depth admin writes the canonical Supabase table through an authenticated server API; PopDAM reads it and may edit item selection, not administer the lookup unless explicitly authorized.
+8. Define DB Data Admin as the single lookup-maintenance UI after cutover. Add a Product Depth table under `/worksp/shared-db/apps/db-data-admin/` with create, rename, activate/deactivate, filtering, conflict feedback, and history. It writes only through protected functions using expected `updated_at` values.
+9. Add a database-managed `product_depth_admin` permission or the closest existing DB Data Admin grant pattern. Administrators qualify automatically. Unapproved authenticated users can read picker values but cannot maintain the lookup. Test allowed and denied users at the database layer.
+10. Inventory the existing DesignFlow Depth admin screen and plan its retirement or read-only redirect so two administration screens cannot diverge.
 
 Verification gate: all lookup rows and all item text values are accounted for; the report proves the current writer and mirror status; the proposed migration preserves every referenced legacy value and ID.
 
@@ -347,7 +385,8 @@ Use one dedicated `/worksp/shared-db` branch. Follow `/worksp/shared-db/AGENTS.m
    - Add approved missing rows to `core.packaging_type` with idempotent seed/upsert SQL.
    - Add aliases/source refs only if the comparison proves they are needed.
 2. Product Size:
-   - Add or repair the guarded ColdLion MG04 importer using the existing taxonomy ingestion patterns, not a new direct browser path.
+   - Create `core.product_size` and its source-reference/audit contracts if the migration inventory proves they are absent.
+   - Add the guarded server-side ColdLion MG04 importer using the existing taxonomy ingestion patterns, never a browser path. Default to dry-run and require explicit apply, one-run-at-a-time locking, payload/count guards, deletion thresholds, source snapshots, audit records, and idempotency.
    - Import all MG04 source rows and link them to `core.product_size` through stable source refs.
    - Add an `api` picker view that exposes selectable rows plus legacy referenced rows needed for display.
 3. Creative Designer:
@@ -359,12 +398,17 @@ Use one dedicated `/worksp/shared-db` branch. Follow `/worksp/shared-db/AGENTS.m
    - Add the DesignFlow legacy Vendor source-reference/backfill needed by Item Header.
    - Do not create a second canonical Vendor table.
 5. Depth:
-   - Create the approved canonical table, expected `core.product_depth`, its source references, RLS, indexes, and `api` picker view.
+   - Create `core.product_depth`, its source references, change-history/audit contract, RLS, indexes, protected maintenance functions, and `api` picker view.
    - Import all legacy `itemDepth` rows idempotently.
    - Add the PLM item Depth FK/backfill contract without dropping legacy text.
-6. Add database contract tests for uniqueness, source-ref completeness, inactive-but-referenced MG04 visibility, role-scoped designer mapping, Vendor exclusion rules, and Depth parity.
-7. Apply to preview, load representative fixtures, run rollback-only backfills, and save query plans/count evidence.
-8. Open the shared-db PR, pass checks, merge it as the AI owner per repo rules, apply production through the canonical workflow, and verify migration ledger plus row counts.
+   - Add the Master Data Depth field/view/storage change in this same canonical shared-db phase, before PopDAM UI work.
+6. DB Data Admin:
+   - Add the Product Depth grid in `/worksp/shared-db/apps/db-data-admin/` and deploy it first to `https://data-dev.designflow.app` against preview.
+   - Reuse existing authentication, protected API, optimistic concurrency, audit history, and app feature-gate patterns.
+   - Grant maintenance only through the database-managed Product Depth permission. Test an administrator, an explicitly granted maintainer, a normal signed-in user, and an anonymous user.
+7. Add database contract tests for uniqueness, source-ref completeness, MG04 importer guards, inactive-but-referenced MG04 visibility, role-scoped designer mapping, Vendor exclusion rules, Depth parity, Depth write authorization, optimistic conflicts, and audit history.
+8. Apply to preview, load representative fixtures, run rollback-only backfills, and save query plans/count evidence.
+9. Open the shared-db PR, pass checks, merge it as the AI owner per repo rules, apply production through the canonical workflow, and verify migration ledger plus row counts.
 
 Verification gate: preview and production counts match approved fixtures; all live foreign references resolve; anon access is denied; authenticated picker reads work; only approved service roles can mutate; the migration is in the production ledger.
 
@@ -377,6 +421,8 @@ Start a fresh session after shared-db production verification. Re-read the downs
 #### Step 9. Point DesignFlow at canonical sources
 
 Work only on `sandbox-albert`; PRs target `develop`; Uma merges.
+
+Before changing a production consumer, complete the applicable DesignFlow production database migration gate. Use the already-working sandbox Supabase arrangement as the model: the established five-secret database tuple, managed pooler behavior, service-by-service schema parity, connection-limit/load tests, transaction compatibility, backup/rollback proof, and loud startup failure on bad configuration. DesignFlow backend and Item Master keep their normal direct database responsibility; the BFF remains the HTTP proxy and must not become a substitute database client. This plan does not authorize a one-setting production flip outside the broader Cloud SQL-to-Supabase migration controls.
 
 1. Packaging Type:
    - Remove `packageTypeOptions` from `designflow-frontend/src/app/pages/itemDetail/itemDetail.component.ts`.
@@ -395,14 +441,15 @@ Work only on `sandbox-albert`; PRs target `develop`; Uma merges.
    - Store or bridge canonical Factory UUID while retaining the legacy Vendor ID during transition.
    - Ensure ColdLion-required vendor code is resolved through source refs for ERP calls.
 5. Depth:
-   - Change `getItemDepth()` and the Depth admin screen to the canonical Supabase-backed endpoint.
+   - Change `getItemDepth()` to the canonical Supabase-backed endpoint.
+   - Retire the old DesignFlow Depth administration write screen when DB Data Admin is verified. It may temporarily redirect authorized maintainers to `data-dev.designflow.app`; it must not remain a second writer.
    - Store canonical `product_depth_id` and maintain legacy text only as a compatibility shadow.
 6. Update `designflow-item-master/services/item_detail.service.js` allow-lists for new exact FK fields only after shared schema exists.
 7. Add server-side validation. A browser cannot submit an arbitrary UUID or label; supplied IDs must exist and be selectable or already referenced by that item.
 8. Update BFF routes only where needed. Do not duplicate reference data in the BFF cache without explicit invalidation.
 9. Visually verify Item Details and Item Library in `https://alsand.designflow.app` without creating disposable production-shared business rows.
 
-Verification gate: sandbox loads all five canonical pickers, existing legacy items retain labels, edits persist after reload, API responses contain stable IDs, and browser console/network logs show no relevant error. DesignFlow unit tests, TypeScript, production-equivalent build, Cloud Build, and sandbox deployment SHA all pass.
+Verification gate: sandbox loads the canonical pickers in the release scope, existing legacy items retain labels, edits persist after reload, API responses contain stable IDs, and browser console/network logs show no relevant error. DesignFlow unit tests, TypeScript, production-equivalent build, Cloud Build, and sandbox deployment SHA all pass. Uma has merged the PRs to `develop`, the approved production database gate has passed, the production deploy SHA is verified, and read-only post-deploy parity shows no missing Depth or Size values.
 
 ### Phase D: PopDAM cutover
 
@@ -525,15 +572,18 @@ Verification gate: repository search and runtime telemetry show zero active cons
 - [ ] Every ambiguous mapping has an explicit dated decision.
 - [ ] `core.packaging_type` contains the approved union and DesignFlow has no hard-coded production list.
 - [ ] `core.product_size` has complete ColdLion MG04 source-ref coverage, including inactive-but-referenced rows.
+- [ ] The guarded ColdLion MG04 importer defaults to dry-run, passes payload/count/delete guards, records an audit snapshot, and is idempotent on repeat apply.
 - [ ] DesignFlow creative-designer assignments use `core.creative_designer`; other roles remain separate.
 - [ ] DesignFlow Vendors resolve to ColdLion-backed `core.factory` or an explicit approved exception.
-- [ ] Depth is a separate canonical Supabase lookup with preserved legacy IDs and item FKs.
+- [ ] `core.product_depth` is populated from DesignFlow `itemDepth` with preserved legacy IDs, audit history, item FKs, and no unresolved referenced values.
+- [ ] DB Data Admin at `data-dev.designflow.app` has a verified Product Depth editor; only administrators and explicitly granted maintainers can write.
+- [ ] DesignFlow production uses the approved Supabase connection/pooler model for these consumers, with schema parity, load, rollback, and post-deploy checks recorded.
 - [ ] PopDAM and DesignFlow read the same canonical API views and store stable identities.
 - [ ] Carlos's `0.5"` to `0.63"` edit succeeds, survives reload, and appears identically in DesignFlow Item Details.
 - [ ] Unit, SQL contract, integration, TypeScript, lint, build, browser, and parity tests pass.
 - [ ] Shared-db migration is merged and present in the production ledger.
 - [ ] PopDAM changes are committed and pushed; CI is green; live build SHA is verified.
-- [ ] DesignFlow changes are committed and pushed on `sandbox-albert`; PRs to `develop` are ready for Uma; sandbox deployed SHA is verified.
+- [ ] DesignFlow changes are committed and pushed on `sandbox-albert`; Uma has merged the PRs to `develop`; sandbox and production deployed SHAs are verified.
 - [ ] Durable docs and STATUS are current; no mystery untracked migration or handoff file remains.
 - [ ] The parity soak finishes with zero unexplained mismatches before legacy retirement.
 
@@ -543,7 +593,9 @@ Verification gate: repository search and runtime telemetry show zero active cons
 - Inactive MG04 rows could disappear from existing items. Mitigation: explicit existing-reference visibility tests.
 - DesignFlow Vendor rows may mix companies and people. Mitigation: source-code-first mapping and contact-only exclusion.
 - Name-based designer mapping could assign the wrong person. Mitigation: immutable ID/email first and human review for ambiguity.
-- A mirrored `itemDepth` table could lag the writer. Mitigation: prove authority before migration and cut to one writer.
+- A mirrored `itemDepth` table could lag the writer. Mitigation: prove authority before migration, import from the authoritative snapshot, record its hash, and cut to DB Data Admin as the one lookup writer.
+- A malformed or partial ColdLion MG04 response could deactivate valid sizes. Mitigation: dry-run default, pagination/count proof, delete/deactivate thresholds, snapshot audit, and hard stop on unknown payloads.
+- Moving DesignFlow production from Cloud SQL without connection and schema gates could cause outages. Mitigation: reuse the proven sandbox Supabase contract and require pooler, load, rollback, and service-parity evidence before production consumers switch.
 - Dual writes could diverge during rollout. Mitigation: canonical-ID parity monitoring, visible failures, and short additive transition.
 - Cross-app browser writes could weaken security. Mitigation: authenticated server API or narrowly granted audited function, never broad direct table updates.
 
@@ -553,11 +605,12 @@ Each cutover remains additive until the soak completes. Roll back application co
 
 ### Genuine open questions
 
-1. Is current production `itemDepth` authoritative in Cloud SQL or already in Supabase? Step 1 must prove it.
-2. What is the approved selectable policy for inactive-but-referenced MG04 rows? Preserve display always; decide new selection from usage and business rules.
-3. Which DesignFlow person identity is stable enough for Creative Designer source refs? Prefer an immutable user/person ID, with email as corroboration.
-4. Are any DesignFlow Vendor rows valid non-ColdLion exceptions? The comparison report must name them and explain ownership.
-5. Should PopDAM write linked item values through DesignFlow Item Master or a shared audited function? Choose after auth and audit comparison; both must preserve the same validation contract.
+1. Which exact production snapshot is authoritative for the first `itemDepth` import? Current evidence says production Cloud SQL while sandbox uses Supabase; Step 1 must prove the live writer and snapshot time.
+2. Which named non-administrator users, if any, should receive Product Depth maintenance permission? Default is administrators only.
+3. What is the approved selectable policy for inactive-but-referenced MG04 rows? Preserve display always; decide new selection from usage and business rules.
+4. Which DesignFlow person identity is stable enough for Creative Designer source refs? Prefer an immutable user/person ID, with email as corroboration.
+5. Are any DesignFlow Vendor rows valid non-ColdLion exceptions? The comparison report must name them and explain ownership.
+6. Should PopDAM write linked item values through DesignFlow Item Master or a shared audited function? Choose after auth and audit comparison; both must preserve the same validation contract.
 
 ## Mandatory self-audit
 
@@ -575,4 +628,4 @@ Yes. Section 1 states the business result and canonical owner for each domain, r
 
 ### Checklist result
 
-Passed on 2026-08-06. All 13 required sections are present. The plan is standalone, includes exact evidence, rejected approaches, locked versus open decisions, concrete steps and tests, per-step verification, access and secrets locations, branch and database rules, deployment proof, rollback, and a complete definition of done.
+Passed on 2026-08-07. All 13 required sections are present. The plan is standalone, includes exact evidence, rejected approaches, locked versus open decisions, required-now versus Phase 2 boundaries, guarded MG04 ingestion, DB Data Admin Depth maintenance, the sandbox-to-production Supabase model, concrete steps and tests, per-step verification, access and secrets locations, branch and database rules, deployment proof, rollback, and a complete definition of done.
