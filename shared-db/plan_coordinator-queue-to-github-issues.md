@@ -14,20 +14,41 @@
 | 1 | Inventory: classify every block, with an arithmetic completeness cross-check | A | ✅ **done** | 2026-08-07 |
 | 2 | Build the **scrub tool**; run it; write the scrub report | A | ✅ **done** | 2026-08-07 |
 | 3 | Labels and the issue shape (one label, pointer model for handovers) | A | ✅ **done — specified, nothing created** | 2026-08-07 |
-| 4 | **OWNER GATE — Albert's go/no-go on the scrub report** | A | ⬜ open — **next action** | — |
-| 4b | **Rotate the plaintext-emailed Cloud SQL credential BEFORE any publish** | A | ⬜ open | — |
-| 4c | **Freeze the queue** between the final inventory and step 6 | A | ⬜ open | — |
-| 5 | Update the skills in `ai-devops` and propagate them to every machine | B | ⬜ open | — |
-| 5b | **Re-home the standing facts into `AGENTS.md`** before the file shrinks | B | ⬜ open | — |
-| 5c | Land the **intake pointer guard** as a required check, while dormant | B | ✅ **built, not yet required** | 2026-08-07 |
-| 6 | Create one issue per **work item** (scripted, dry-run default, idempotent) | B | ⬜ open | — |
-| 7a | **OWNER GATE — Albert names `Backlog / queue sync` for removal from protection** | B | ⬜ open (was briefly moot — see D3) | — |
-| 7b | Remove the required context, confirm, **then** delete the workflow and script | B | ⬜ open (was briefly moot — see D3) | — |
-| 8 | Reduce `COORDINATOR_INTAKE.md` to a pointer | B | ⬜ open | — |
-| 9 | Rewrite `HANDOFF.md` B10 and B13; delete the B2 lifecycle and retention rules | C | ⬜ open | — |
+| 4 | **OWNER GATE — Albert's go/no-go on the scrub report** | A | ✅ **APPROVED** | 2026-08-07 |
+| 4b | Rotate the credential before publishing | A | ✅ **owner overruled — published as written** | 2026-08-07 |
+| 4c | **Freeze the queue** between the final inventory and step 6 | A | ✅ held; inventory re-run clean at publish | 2026-08-07 |
+| 5 | Update the skills in `ai-devops` and propagate them to every machine | B | ⚠️ **authored + pushed; PROPAGATION PENDING (issue #565)** | 2026-08-07 |
+| 5b | **Re-home the standing facts into `AGENTS.md`** before the file shrinks | B | ✅ **done, byte-identical** (`AGENTS.md` §12) | 2026-08-07 |
+| 5c | Land the **intake pointer guard** as a required check, while dormant | B | ✅ **required and green** | 2026-08-07 |
+| 6 | Create one issue per **work item** | B | ✅ **63 issues created** (#502–#565) | 2026-08-07 |
+| 7a | **OWNER GATE — protection changes, both named by the owner** | B | ✅ **APPROVED** | 2026-08-07 |
+| 7b | Remove the context, confirm, **then** delete the workflow and script | B | ✅ **done in order** | 2026-08-07 |
+| 8 | Reduce `COORDINATOR_INTAKE.md` to a pointer | B | ⛔ **BLOCKED on step 5 propagation (issue #565)** | — |
+| 9 | Rewrite `HANDOFF.md` B10/B13; delete the B2 lifecycle rules | C | ✅ **B10 and B13 closed**; B2 deletion rides with step 8 | 2026-08-07 |
 
-**Phase A is complete. A fresh session starts at step 4, which is an owner gate — not at step 1.**
-Steps 1–3 published nothing, created no label and no issue, and are fully reversible.
+**Phases A and B are complete except step 8. A fresh session starts at STEP 8, and step 8
+is BLOCKED — read the box below before touching anything.**
+
+> ## ⛔ STEP 8 IS BLOCKED, AND THE BLOCK IS NOT TECHNICAL
+>
+> Step 8 reduces `COORDINATOR_INTAKE.md` to a pointer. It is gated on the updated skills
+> reaching **every machine**, and they have not. Verified in sync: `al8960ofc` (by hash) and
+> `t16` (by its own session's report). **Unverified: `hetz`, `916`, `4837`.**
+>
+> **Albert must run "sync my dotfiles" on those machines** — tracked as issue **#565**. A
+> machine still on the old skills appends its handover to the pointer file and regrows the
+> queue, live, which is the exact failure this plan exists to prevent.
+>
+> The `Intake pointer guard` required check now DETECTS that and fails the PR, so the
+> failure is loud rather than silent. **That is a safety net, not permission to skip the
+> gate.** Do step 8 after the sync, and flip `POINTER_MODE` to `true` in
+> `scripts/check-intake-pointer.mjs` in the same PR.
+>
+> **Deleting the Part B2 lifecycle rules (the rest of step 9) rides with step 8**, because
+> those rules live inside the file step 8 rewrites.
+
+**What actually shipped: 63 issues, `gh issue list --repo u2giants/shared-db --label db-work`.**
+63 `db-work`, 7 `needs-albert`, 6 `blocked`.
 **Step 6 is the first irreversible action in this plan.** It is gated on steps 4 and 4b.
 **Step 5 comes BEFORE step 8, deliberately** — see the trap in §5.
 
