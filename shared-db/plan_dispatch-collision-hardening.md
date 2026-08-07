@@ -1191,6 +1191,27 @@ the symbol name, which is stable. The step bodies were deliberately left
 unedited: rewriting numbers inside prose that also carries reasoning is how a
 plan gets quietly corrupted.
 
+### D-A11 — ⚠️ A SIBLING PLAN NOW PROPOSES DELETING A FILE THIS PLAN DEPENDS ON.
+**Hits:** §4 item 4 and §10. **Added 2026-08-07, after Phase A, by the same session.**
+`plan_coordinator-queue-to-github-issues.md` (merged, not yet started) replaces
+`COORDINATOR_INTAKE.md` with GitHub Issues and, at its step 7b, **deletes
+`scripts/check-backlog-queue-sync.mjs`, its tests and its workflow** — after an
+explicit owner instruction removes the required context.
+
+Two things in THIS plan go stale the moment that lands:
+
+- **§4 item 4** (`:177`) defers fixing that script and says the fix is "tracked in
+  the `REQUEST QUEUE`". That queue is being deleted too. If the sibling plan runs,
+  the deferral is not deferred — it is **moot**, and item 4 should say so.
+- **§10 "must stay green"** (`:950–951`) runs `node scripts/check-backlog-queue-sync.mjs`
+  and its test file. **Both disappear.** A Phase B or C session running that list
+  verbatim would hit a missing file and reasonably read it as its own breakage.
+
+**Neither plan may quietly win.** Whichever reaches the conflict first updates the
+other in the same PR. If Phase B or C runs first, nothing here needs changing yet
+— just do not "fix" a missing file. If the sibling plan's step 7b runs first, it
+owns updating §4 item 4 and §10 above.
+
 ### No drift found in:
 **Step 3a** (the historical noise gate) — untouched by Phase A; its inputs and its
 `docs/verification/` artefact requirement stand exactly as written.

@@ -226,7 +226,14 @@ Re-read every remaining step and record **drift** into this file before handing 
 6. **Do not delete `.ai/deepseek-sessions/` or `.ai/reviews/`.**
 7. **No band-aids, no silent failures.** Every fallback must be loud.
 8. **Windows line endings:** `.mjs`/`.md` edits warn `LF will be replaced by CRLF`. Harmless; do not "fix" it, do not reformat whole files.
-9. **The `ai-glm` review wrapper trips on its own report file.** It snapshots `git status` before and after and fails if the tree changed; its round-1 report under `.ai/reviews/` is itself a new untracked file, so the next turn aborts. Recovery: `ai-glm abort <session>` then re-ask — the session keeps its context. Not a GLM failure and not a working-tree problem.
+9. **⚠️ CROSS-PLAN CONFLICT with `plan_dispatch-collision-hardening.md` — read before step 7b.**
+   That plan is live (Phase A merged 2026-08-07; Phases B and C open) and it touches the same script from the other direction:
+   - Its **§4 item 4** (`:177`) defers *fixing* `scripts/check-backlog-queue-sync.mjs`, describing the fix as "tracked in the `REQUEST QUEUE`". This plan **deletes both the script and that queue**. The two plans have opposite fates for one file and neither pointed at the other until now.
+   - Its **§10 "must stay green"** list (`:950–951`) runs `node scripts/check-backlog-queue-sync.mjs` and `node --test scripts/check-backlog-queue-sync.test.mjs`. **Step 7b.3 deletes both.** A Phase B or C session following that plan literally would run a command against a deleted file and read the failure as its own breakage.
+   **Whoever reaches step 7b first must update that plan's §4 item 4 and §10 in the same PR.** Do not delete the script without doing so.
+10. **An open coordinator marker exists: issue #473, "COORDINATOR ACTIVE — session 774f5010 — t16".** The orchestrator skill's step 0 says an open marker that is not yours means STOP and ask Albert before dispatching. Raised with him 2026-08-07; **confirm its status before starting this work**, do not assume it is stale.
+11. **A warm GLM review session already holds this plan's full context** — `intake-queue-to-issues-plan` (3 rounds, reports under `.ai/reviews/glm-intake-queue-to-issues-plan-*.md`). **Continue it with `ai-glm ask`; do not start a new one.** A fresh session re-reads the repo, loses every conclusion reached, and pays full price for context this one already has cached.
+12. **The `ai-glm` review wrapper trips on its own report file.** It snapshots `git status` before and after and fails if the tree changed; its round-1 report under `.ai/reviews/` is itself a new untracked file, so the next turn aborts. Recovery: `ai-glm abort <session>` then re-ask — the session keeps its context. Not a GLM failure and not a working-tree problem.
 
 ---
 
