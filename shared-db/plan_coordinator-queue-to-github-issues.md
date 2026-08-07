@@ -16,7 +16,10 @@
 | 3 | Labels and the issue shape (one label, pointer model for handovers) | A | ✅ **done — specified, nothing created** | 2026-08-07 |
 | 4 | **OWNER GATE — Albert's go/no-go on the scrub report** | A | ⬜ open — **next action** | — |
 | 4b | **Rotate the plaintext-emailed Cloud SQL credential BEFORE any publish** | A | ⬜ open | — |
+| 4c | **Freeze the queue** between the final inventory and step 6 | A | ⬜ open | — |
 | 5 | Update the skills in `ai-devops` and propagate them to every machine | B | ⬜ open | — |
+| 5b | **Re-home the standing facts into `AGENTS.md`** before the file shrinks | B | ⬜ open | — |
+| 5c | Land the **intake pointer guard** as a required check, while dormant | B | ✅ **built, not yet required** | 2026-08-07 |
 | 6 | Create one issue per **work item** (scripted, dry-run default, idempotent) | B | ⬜ open | — |
 | 7a | **OWNER GATE — Albert names `Backlog / queue sync` for removal from protection** | B | ⬜ open (was briefly moot — see D3) | — |
 | 7b | Remove the required context, confirm, **then** delete the workflow and script | B | ⬜ open (was briefly moot — see D3) | — |
@@ -36,17 +39,25 @@ again on 2026-08-07; step 4 reads correctly as written, but §10 explains why.
 | Artefact | What it is |
 |---|---|
 | `tools/intake-blocks.mjs` | Shared parser. Splits the file into sections and blocks; ignores `###` lines inside code fences, which the file's own templates contain. |
-| `tools/intake-inventory.mjs` | Step 1. Carries the classification of all 86 blocks and **fails loudly** if a block is unclassified, if the list stops lining up with the file, or if the arithmetic does not balance. |
+| `tools/intake-inventory.mjs` | Step 1. Carries the classification of all 89 blocks and **fails loudly** if a block is unclassified, if the list stops lining up with the file, or if the arithmetic does not balance. |
 | `tools/scrub-intake-for-publication.mjs` | Step 2. The denylist scanner. Never prints a matched value — it masks every hit, so the report is safe to hand over. |
-| `docs/verification/intake-publication-scrub-20260807.md` | Step 2's report. 225 hits across 68 blocks. |
+| `docs/verification/intake-publication-scrub-20260807.md` | Step 2's report. |
+| `tools/migrate-intake-to-issues.mjs` | Step 6. Dry-run by default; refuses `--create` without an approved redaction map. **Not run.** |
+| `scripts/check-intake-pointer.mjs` + its workflow | Step 5c. The pointer guard, dormant until step 8. Eight negative-path tests. |
 | `docs/intake-to-issues-shape.md` | Step 3. Labels and issue shape, written down; **nothing created**. |
 
 **Step 1 arithmetic, from `node tools/intake-inventory.mjs`:**
 
 ```
-86 blocks  =  68 MIGRATE  +  16 CLOSED (each with a checked reason)  +  2 NOISE
-68 migrating blocks collapse to 60 WORK ITEMS  →  60 issues, not 86
+89 blocks  =  71 MIGRATE  +  16 CLOSED (each with a checked reason)  +  2 NOISE
+71 migrating blocks collapse to 63 WORK ITEMS  →  63 issues, not 89
 ```
+
+⚠️ **These numbers moved once already.** The first inventory measured 86 blocks and 60
+work items. PR #490 merged three more `INTAKE QUEUE` blocks hours later. The inventory
+**refused to run** and named all three rather than skipping them — which is the behaviour
+it exists for, and is why step 4c now declares a freeze. **Re-run it before step 6; do not
+quote these figures from here.**
 
 Every CLOSED reason was checked against `git log` / `gh pr list` / `gh issue view` / the
 live working tree. None was accepted from another document.
@@ -170,6 +181,23 @@ Present it in plain English: how many issues, what they contain, what was redact
 
 **That ordering is now wrong and this plan inverts it.** The request is still open, so the credential is presumed **unrotated**. Publishing that block — or any block referencing it — announces publicly that a live credential was emailed in plaintext and never rotated. **Rotate first, then publish.** If rotation is refused or deferred, the block is **held back entirely**, not redacted, because the surrounding blocks give it away by context. *(Found by GLM; upgraded from scrub finding to hard block.)*
 
+### Step 4c — FREEZE the queue between the final inventory and step 6
+
+Raised by Kimi K3, 2026-08-07, and it is a real hole: between the moment the inventory is
+finalised and the moment the issues exist, any session appending a block creates work that
+belongs to neither system. **PR #490 did exactly this on 2026-08-07**, adding three blocks
+after the first inventory was taken.
+
+The freeze is announced in the queue file's own preamble and in the coordinator marker
+issue: *"This file is frozen pending migration. File an issue instead."* It is **not**
+mechanical, and that is a known weakness — but the window is short, and the inventory's
+order-check makes a violation loud rather than silent. When PR #490 landed mid-Phase-A the
+inventory refused to run and named all three new blocks. Nothing was lost.
+
+**Verification gate.** Re-run `node tools/intake-inventory.mjs` immediately before step 6.
+If it passes, no block arrived. If it fails, classify the new blocks and re-run the scrub —
+`--create` will refuse a redaction map that predates them.
+
 ### Step 5 — Skills first, and this ordering is load-bearing
 
 Update `AGENTS.md` and both skills in `u2giants/ai-devops` (main-only, push directly, no PR) so the instruction is **open an issue**, not "append to a section of a 3,837-line file". Delete the copy-paste templates the file carried; `gh issue create` needs none.
@@ -182,18 +210,97 @@ The skills currently exist on one machine only, because the `ai-devops` PR is un
 
 **Verification gate.** No document instructs anyone to edit `COORDINATOR_INTAKE.md`, and every machine's local skill copy hash-matches the hub.
 
+### Step 5b — Re-home the standing facts BEFORE the file shrinks
+
+⚠️ **Found by Kimi K3, 2026-08-07, ranked BLOCKING, and confirmed. Without this, step 8
+deletes live safety rules.**
+
+`AGENTS.md:21-29` tells every session that `COORDINATOR_INTAKE.md` *"carries the standing
+facts an incoming session needs (silent duplicate-version skips, the production-bound
+Supabase MCP, preview as a shared mutable resource) and the ban on background task chips"*.
+Those facts are `COORDINATOR_INTAKE.md:309-375` — eight numbered rules, 67 lines. §2 of
+this plan schedules them for deletion at step 9.
+
+§3 says the safety rules are out of scope, but it means the ones written *inside*
+`AGENTS.md`. These are only *pointed at* from it and live in the file being deleted. **The
+chip ban is among them, and it is the rule that stopped a repeat of the four-way migration
+collision.**
+
+**Move them verbatim into `AGENTS.md` as a new section, and repoint `AGENTS.md:21-29` at
+itself.** `AGENTS.md` is the right home rather than a new `docs/standing-facts.md`: it
+already propagates to every session automatically, and a separate document is one more
+thing nobody must read. Move strictly verbatim — this is a relocation, not a rewrite.
+
+**This also amends the definition of done.** The clause "the `AGENTS.md` safety rules are
+untouched, verified by diff" now means *unchanged in substance*: this step adds a section
+to `AGENTS.md` deliberately, and the diff check must allow that one addition and nothing
+else.
+
+**Verification gate.** All eight standing facts appear in `AGENTS.md`, byte-identical to
+their text at the prior SHA; `AGENTS.md:21-29` no longer points at `COORDINATOR_INTAKE.md`
+for them; and this lands **before** step 8.
+
+### Step 5c — Land the pointer guard while it is dormant
+
+`scripts/check-intake-pointer.mjs` + `.github/workflows/intake-pointer-guard.yml`, made a
+**required** status check while `POINTER_MODE` is still `false`.
+
+This is step 5's gate, inverted. "Propagation confirmed on every machine" is not verifiable
+by any single session, so instead of proving every machine is current beforehand, the guard
+detects the one behaviour a stale machine produces — an append that regrows the queue — on
+the next PR, and fails. Its eight tests are all negative-path (backlog B7 standard).
+
+⚠️ **It must be required and green BEFORE step 8**, otherwise step 8's own PR is blocked by
+the gate step 8 introduces. Adding a required context is a **branch-protection change**, so
+step 7a's owner question must name it too.
+
+Propagation itself remains an owner task, tracked as work item **WI-63**.
+
 ### Step 6 — Create the issues (first irreversible step)
 
 `tools/migrate-intake-to-issues.mjs`:
 
 1. Reads the step-1 inventory, never the raw file.
 2. **`--dry-run` by default.** Creates nothing without an explicit flag.
-3. **Idempotent** — searches for an existing open issue with the same title and skips if found, so a half-finished run is safely re-runnable. `gh issue list --label` **works correctly in this repo**; a claim in `COORDINATOR_INTAKE.md:3019` that it returns empty is **false**, verified live 2026-08-07 (`--label coordinator-marker` correctly returned issue #473).
+3. **Idempotent** — see item 8 below for how. *(The original wording here described a title-based check over open issues only; that was replaced after review because it duplicated on both a closed issue and a renamed one.)* `gh issue list --label` **works correctly in this repo**; a claim in `COORDINATOR_INTAKE.md:3019` that it returns empty is **false**, verified live 2026-08-07 (`--label coordinator-marker` correctly returned issue #473).
 4. Uses `gh issue create --body-file`, never a heredoc — this is a PowerShell-first machine and heredoc recipes have silently failed here before.
 5. Writes a **temporary** mapping file (block → issue number). Summarise it in the PR body; do not commit it. A permanent artefact for a one-time event is the leftover this repo accumulates.
 6. **Fails loudly and stops on the first error.** A partial migration reporting success is the worst available outcome.
 
-**Verification gate.** Issue count equals the OPEN work-item count from step 1, the mapping has no blanks, and three spot-checked issues match their source blocks.
+7. ⚠️ **It applies the approved redaction map, and refuses `--create` without one.**
+   **This was missing and it was the worst defect in the work** (found by Kimi K3,
+   2026-08-07, ranked BLOCKING). The scrub proposed redactions, the owner approved them,
+   and the script then pasted every block **verbatim** — nothing consumed the report. That
+   made steps 2 and 4 pure ceremony and would have published all 225 flagged values on
+   approval. Now: `node tools/scrub-intake-for-publication.mjs --emit-redactions <tempfile>`
+   produces a map grouped **by value** (225 hits collapse to ~54 decisions, so nobody
+   rubber-stamps 132 lines); every HUMAN-category value starts `UNRESOLVED` and the map
+   does not validate until a person rules on each; `--create` refuses without it.
+   Redaction is applied by **literal value match**, never by character offset — an offset
+   recorded against one revision of a 5,500-line file silently redacts the wrong span
+   once the file shifts. At `--create` time the map is re-validated against a **fresh
+   scrub**, so a map approved before the file changed is rejected rather than applied.
+   Any value marked `hold-back` removes its whole work item from the run.
+   ⚠️ **The map lists the sensitive values themselves. Write it to a temp directory and
+   never commit it.**
+8. **Idempotent on the `(WI-nn)` marker in the body, over `--state all`.** Matching on
+   title over `--state open` duplicated on two paths: close a migrated issue and a re-run
+   recreates it; rename a title and a re-run creates a second copy. Matching is done
+   locally on one fetched list, **not** through `gh issue list --search` — that index is
+   eventually consistent and also matches comment text, so a fresh issue can be missed
+   while an unrelated comment mentioning `WI-12` causes a false skip, silently dropping a
+   work item. *(Both found by Kimi K3.)*
+9. **It asserts local `HEAD` equals `origin/main` and that the queue file is committed**
+   before creating anything, so the "as of commit" line in every body points at a revision
+   a reader can actually look up.
+10. **Handover issues carry a hand-written outstanding-work list, or the script refuses.**
+    "Fill this in when you pick it up" ships a stub. There are only six handover blocks;
+    they are written by hand.
+11. **Request and handover handling is decided PER BLOCK, not per issue.** WI-07 mixes
+    three REQUEST blocks with one 280-line `INTAKE QUEUE` handover; deciding per issue sent
+    the whole thing down the verbatim path and pasted the handover in full, violating D3.
+
+**Verification gate.** Issue count equals the OPEN work-item count from step 1, the mapping has no blanks, and three spot-checked issues match their source blocks — **including that the approved redactions are actually present in the published text.**
 
 ### Step 7a — OWNER GATE: branch protection
 
@@ -201,21 +308,52 @@ The skills currently exist on one machine only, because the `ai-devops` PR is un
 
 So the AI cannot drop this context on its own authority, and Albert's public-Issues decision does **not** cover it — that was a different question. **Ask him, naming the setting exactly:**
 
-> May I remove the required status check named `Backlog / queue sync` from branch protection on `main` in `u2giants/shared-db`? It checks that each of the 14 backlog items in `HANDOFF.md` has an entry in the coordinator queue. After the migration that queue no longer exists, so the check has nothing to read. It is also already broken — it reports a pass when it should fail. Removing it leaves five required checks in place.
+**⚠️ The question now covers TWO protection changes, not one.** Step 5c adds a required
+context as well as removing one, and adding a required context is also a protection change.
+Ask both together, verbatim:
 
-**No is a valid answer**, and it is survivable: see §7 Q1 for the fallback.
+> **May I make two changes to branch protection on `main` in `u2giants/shared-db`?**
+>
+> **(1) Remove the required status check named `Backlog / queue sync`.** It checks that
+> each of the 14 backlog items in `HANDOFF.md` has an entry in the coordinator queue. After
+> the migration that queue no longer exists, so the check has nothing to read. It is also
+> already broken — it reports a pass when it should fail.
+>
+> **(2) Add a required status check named `Intake pointer guard`.** It fails a pull request
+> if the retired queue file starts growing back, which is what happens if a machine that
+> has not been updated files work the old way. It needs to be required, because as an
+> optional check it would spot the problem and nobody would notice.
+>
+> That leaves **six** required checks, the same number as today.
+
+**No is a valid answer** to either part, and both are survivable:
+- No to (1): keep the check and repoint it at Issues — §7 Q1's fallback.
+- No to (2): the guard still runs on every PR, just advisory. Weaker, and the weakness
+  must be recorded rather than glossed: an advisory guard detecting a silent rebuild that
+  nobody reads is the same defect class as the check being retired.
 
 ### Step 7b — Retire the check, in this order
 
-1. Remove `Backlog / queue sync` from `required_status_checks.contexts`.
-2. **Confirm** it is gone: `gh api repos/u2giants/shared-db/branches/main/protection --jq '.required_status_checks.contexts'`.
+1. Remove `Backlog / queue sync` from `required_status_checks.contexts`, and add
+   `Intake pointer guard` (step 5c) in the same call.
+2. **Confirm** both: `gh api repos/u2giants/shared-db/branches/main/protection --jq '.required_status_checks.contexts'`.
 3. **Then** delete `.github/workflows/backlog-queue-sync.yml`, `scripts/check-backlog-queue-sync.mjs` and its tests.
+4. **In the same PR as 7b.3**, fix the documents that assert the retired check still exists.
+   Found by Kimi K3, 2026-08-07; the first two are already stale *today*, before this plan
+   touches anything:
+   - `AGENTS.md:1118` — rule 4 says *"all **FOUR** required contexts"* and lists four.
+     There are **six**. Correct the count and the list.
+   - `AGENTS.md:1084` — the §6.7 table lists the six contexts, including the retired one.
+   - `plan_dispatch-collision-hardening.md:966` — *"Six required checks"*.
+5. **Close work item WI-58** (*"the `Backlog / queue sync` check false-passes — fix it or
+   retire it"*). Retiring it IS the resolution; leaving it open invites someone to fix a
+   deleted script.
 
 **Reversing this order hangs every future PR forever** on a required context that can never report. Same class as renaming the `Cross-PR object collision` job.
 
 ⚠️ **Step 7b.3 must not be bundled into a PR that merges before 7b.1 has run.** Step 7b.1 is a standalone `gh api` action, not part of any PR. *(Found by GLM.)*
 
-**Verification gate.** Protection lists five contexts and a throwaway PR reaches mergeable state.
+**Verification gate.** Protection lists **six** contexts — the five that survive plus `Intake pointer guard` — and a throwaway PR reaches mergeable state. *(This gate said "five" until step 5c added a required context; a stale count here would read as a failed change.)*
 
 ### Step 8 — Reduce the file to a pointer
 
@@ -233,7 +371,24 @@ Remove the B2 lifecycle, the B2.2 retention rule, and the six-section model wher
 - `HANDOFF.md:1850` — *"B10 — Coordinator intake lifecycle/retention is MANUAL; CI could enforce it (NOT implemented)"*. **Rewrite or close it.** A session that implements B10 rebuilds the queue.
 - `HANDOFF.md:1943` — *"B13 — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry (DONE)"*. **Rewrite** to describe issue-backed tracking, or close it as superseded.
 
-**Verification gate.** Searching the repo for `INTAKE QUEUE`, `TAKEN OVER`, `B2.2`, **`REQUEST QUEUE`, `B10` and `B13`** returns only the pointer file and historical handoffs. *(The first three tokens alone were a false-green gate — the same disease as the check being retired.)*
+**Verification gate.** Search, **case-insensitively**, for `INTAKE QUEUE`, `TAKEN OVER`,
+`B2.2`, `REQUEST QUEUE`, `B10`, `B13`, `Backlog / queue sync`, `intake-archive`, `Part B2`
+and `COORDINATOR_INTAKE`. *(The first three alone were a false-green gate — the same
+disease as the check being retired.)*
+
+Two corrections to that gate, both from Kimi K3, 2026-08-07:
+
+- **Case matters.** `AGENTS.md:1011` and `:1013` say *"the coordinator intake"* in lower
+  case. A case-sensitive gate walks straight past them, and they are live instructions.
+  **They must be rewritten at step 9**, not just found.
+- **Scope with a per-file allowlist, not a directory exclusion.** Excluding `docs/`
+  wholesale is wrong because `docs/` mixes live guidance with historical evidence. Allowlist
+  the specific files that will legitimately carry these tokens forever — this plan,
+  `plan_dispatch-collision-hardening.md`, `docs/verification/**` reports, `.ai/reviews/**`,
+  and `HANDOFF.d/**` — each with a written reason. Anything not on the list is a hit.
+
+**The gate must be able to go red for the right reason.** A gate that can only pass is the
+false-green being replaced.
 
 ### ⚠️ Required at the END of each phase
 Re-read every remaining step and record **drift** into this file before handing over. If nothing drifted, write "no drift" in the STATUS table; silence is not information. **This is kept deliberately against a reviewer's advice to cut it** — the identical instruction ran on the sibling plan on 2026-08-07 and produced ten concrete drift items, including every line number being off by 20–60. It is the highest-yield instruction in that document, measured.
@@ -307,7 +462,11 @@ Three rounds with **GLM 5.2**, adversarial by request. Recorded so nobody re-der
 - [ ] `COORDINATOR_INTAKE.md` is a pointer under ~40 lines carrying the "empty ≠ idle" warning
 - [ ] `Backlog / queue sync` removed from protection **by named owner instruction**, then the workflow deleted — in that order
 - [ ] `HANDOFF.md` B10 and B13 rewritten or closed
-- [ ] The `AGENTS.md` safety rules are **untouched** — verified by diff
+- [ ] The eight **standing facts** were re-homed into `AGENTS.md` verbatim BEFORE step 8, and `AGENTS.md:21-29` no longer points at the queue file for them
+- [ ] The **approved redaction map was applied**, and three spot-checked issues show the redactions actually present in the published text
+- [ ] The `Intake pointer guard` context is required and green
+- [ ] `AGENTS.md:1118` ("FOUR"), `AGENTS.md:1084` and `plan_dispatch-collision-hardening.md:966` corrected; WI-58 closed
+- [ ] The `AGENTS.md` safety rules are unchanged **in substance** — verified by diff, allowing only the step-5b standing-facts section
 - [ ] Committed, pushed, PR merged by you, checks green
 - [ ] STATUS table dated, drift recorded, `HANDOFF.d/` file written
 

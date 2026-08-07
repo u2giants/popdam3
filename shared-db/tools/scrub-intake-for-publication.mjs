@@ -134,6 +134,8 @@ const RULES = [
     id: 'licensor-ids',
     label: "Licensor-owned internal identifiers (Disney's own keys and similar)",
     proposal: 'hold-back',
+    human: true,
+    note: '⚠️ **There is a standing owner ruling on this category** — `AGENTS.md` §6.7, Albert Hazan, 2026-08-07: the Disney OPA property/character extract is **NOT sensitive**. So the mechanical `hold-back` default is very likely wrong here, and holding these back silently would override the owner. It is marked HUMAN precisely so someone has to say `publish` out loud rather than letting a default decide. Do not blanket-publish either: the ruling covers the Disney OPA extract, not every licensor identifier that may appear later.',
     patterns: [
       /\blicensedPropertyID\b/g,
       /\bbrandPropertyID\b/g,
@@ -141,7 +143,6 @@ const RULES = [
       /\boptionSourceID\b/g,
       /\bopa-characters\.csv\b/g,
     ],
-    note: 'This is the R-SEC-1 material. A licensor\'s own ID space is the licensor\'s data, not ours.',
   },
   {
     id: 'live-weakness',
@@ -165,13 +166,48 @@ const RULES = [
 
 const mask = (s) => (s.length <= 4 ? '*'.repeat(s.length) : s.slice(0, 2) + '*'.repeat(Math.min(s.length - 2, 12)));
 
-function excerpt(body, index, length) {
-  const start = Math.max(0, index - 45);
-  const end = Math.min(body.length, index + length + 45);
-  const before = body.slice(start, index).replace(/\s+/g, ' ');
-  const hit = body.slice(index, index + length);
-  const after = body.slice(index + length, end).replace(/\s+/g, ' ');
-  return `${start > 0 ? '…' : ''}${before}[[${mask(hit)}]]${after}${end < body.length ? '…' : ''}`;
+/**
+ * Every span in the block that any rule matches. Used so an excerpt cannot leak a
+ * NEIGHBOURING secret while masking the one it is anchored on.
+ *
+ * Found in review (Kimi K3, 2026-08-07): the first version masked only the anchor match
+ * and printed 45 raw characters either side, so a credential sitting next to a machine
+ * name rode out in the machine name's excerpt. Spans are extended to full match
+ * boundaries, so a match that only partly overlaps the window is still masked whole.
+ */
+function allSpans(body) {
+  const spans = [];
+  for (const rule of RULES) {
+    for (const pattern of rule.patterns) {
+      pattern.lastIndex = 0;
+      for (const m of body.matchAll(pattern)) spans.push([m.index, m.index + m[0].length]);
+    }
+  }
+  return spans.sort((a, b) => a[0] - b[0]);
+}
+
+function excerpt(body, index, length, spans) {
+  let start = Math.max(0, index - 45);
+  let end = Math.min(body.length, index + length + 45);
+  // Extend the window out to the boundaries of any match it clips, so nothing is
+  // half-shown. A half-shown secret is still a shown secret.
+  for (const [s, e] of spans) {
+    if (e > start && s < end) {
+      if (s < start) start = s;
+      if (e > end) end = e;
+    }
+  }
+  let out = '';
+  let cursor = start;
+  for (const [s, e] of spans) {
+    if (e <= start || s >= end) continue;
+    if (s > cursor) out += body.slice(cursor, s).replace(/\s+/g, ' ');
+    const isAnchor = s === index && e === index + length;
+    out += (isAnchor ? '[[' : '<') + mask(body.slice(s, e)) + (isAnchor ? ']]' : '>');
+    cursor = e;
+  }
+  if (cursor < end) out += body.slice(cursor, end).replace(/\s+/g, ' ');
+  return `${start > 0 ? '…' : ''}${out}${end < body.length ? '…' : ''}`;
 }
 
 export async function scrub(intakePath) {
@@ -191,6 +227,7 @@ export async function scrub(intakePath) {
 
   for (const row of migrating) {
     const body = byLine.get(row.line)?.body ?? '';
+    const spans = allSpans(body);
     for (const rule of RULES) {
       for (const pattern of rule.patterns) {
         pattern.lastIndex = 0;
@@ -203,7 +240,11 @@ export async function scrub(intakePath) {
             blockLine: row.line,
             blockHeading: row.heading,
             workItem: row.workItem,
-            excerpt: excerpt(body, m.index, m[0].length),
+            // The literal matched text. This is what the migrate tool searches for and
+            // replaces, so redaction is a value match, never a character offset — offsets
+            // go stale the moment the source file shifts by a line.
+            value: m[0],
+            excerpt: excerpt(body, m.index, m[0].length, spans),
           });
         }
       }
@@ -295,6 +336,63 @@ function renderReport(r) {
   return L.join('\n');
 }
 
+/**
+ * The REDACTION MAP — the missing apply step.
+ *
+ * Found in review (Kimi K3, 2026-08-07), ranked BLOCKING and correct: the scrub proposed
+ * redactions, the owner approved them, and the migration script then pasted every block
+ * VERBATIM. Nothing consumed the report. That made steps 2 and 4 ceremony.
+ *
+ * The map is keyed by (work item, literal value) rather than by character offset, because
+ * offsets go stale as soon as the source file shifts and a stale offset redacts the wrong
+ * span silently. `migrate-intake-to-issues.mjs` refuses to run with `--create` unless a
+ * validated map is supplied.
+ *
+ * It groups by VALUE, not by hit, so the 103 name hits collapse to 3 decisions instead of
+ * 103 rubber-stamps. Every `review` value starts as `UNRESOLVED` and the map does not
+ * validate until a human has changed each one.
+ *
+ * ⚠️ The map lists the exact sensitive values. It is the secret list. Write it to a temp
+ * directory and NEVER commit it.
+ */
+export function buildRedactionMap(result) {
+  const byValue = new Map();
+  for (const h of result.hits) {
+    const key = `${h.rule} ${h.value}`;
+    if (!byValue.has(key)) {
+      byValue.set(key, {
+        rule: h.rule,
+        label: h.label,
+        value: h.value,
+        // 'redact' and 'hold-back' are mechanical and pre-filled. Every HUMAN category
+        // starts UNRESOLVED and must be decided before the map validates.
+        action: h.human ? 'UNRESOLVED' : h.proposal,
+        replacement: h.proposal === 'redact' ? `[redacted: ${h.rule}]` : null,
+        occurrences: 0,
+        workItems: new Set(),
+        sampleExcerpt: h.excerpt,
+      });
+    }
+    const e = byValue.get(key);
+    e.occurrences++;
+    e.workItems.add(h.workItem);
+  }
+  const entries = [...byValue.values()]
+    .map((e) => ({ ...e, workItems: [...e.workItems].sort() }))
+    .sort((a, b) => b.occurrences - a.occurrences);
+  return {
+    generatedFrom: { path: result.inventory.source.path, totalLines: result.inventory.source.totalLines },
+    legend: {
+      redact: 'replace every occurrence with `replacement` before publishing',
+      publish: 'leave as-is; a human ruled it is not sensitive',
+      'hold-back': 'do not publish the work item at all',
+      UNRESOLVED: 'a human has not ruled yet; the map will not validate',
+    },
+    unresolved: entries.filter((e) => e.action === 'UNRESOLVED').length,
+    entries,
+  };
+}
+
 if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href) {
   let result;
   try {
@@ -304,7 +402,19 @@ if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].re
     for (const e of err.inventoryErrors ?? []) console.error('  - ' + e);
     process.exit(1);
   }
-  if (process.argv.includes('--json')) {
+  const ri = process.argv.indexOf('--emit-redactions');
+  if (ri !== -1) {
+    const map = buildRedactionMap(result);
+    const out = process.argv[ri + 1];
+    if (!out) {
+      console.error('--emit-redactions needs a path. Write it to a TEMP directory: the map lists the exact sensitive values and must never be committed.');
+      process.exit(1);
+    }
+    await writeFile(out, JSON.stringify(map, null, 2) + '\n', 'utf8');
+    console.error(`Redaction map written to ${out}`);
+    console.error(`${map.entries.length} distinct values, ${map.unresolved} still UNRESOLVED and needing a human ruling.`);
+    console.error('⚠️ This file lists the sensitive values themselves. Do not commit it.');
+  } else if (process.argv.includes('--json')) {
     console.log(JSON.stringify({ ...result, byRule: undefined, blocksWithHoldBack: [...result.blocksWithHoldBack], workItemsWithHoldBack: [...result.workItemsWithHoldBack] }, null, 2));
   } else {
     const md = renderReport(result);

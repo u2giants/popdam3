@@ -136,7 +136,7 @@ export const CLASSIFICATION = [
 
   // ---- REQUEST QUEUE — 2026-08-05 hetz batch ----
   M('close the two remaining branch-protection gaps',
-    'WI-57 Branch protection on main is GONE — restore it (this block is now understated)'),
+    'WI-57 Branch protection on main: keep the required-review gap decided and documented'),
   M('fix the backlog/queue CI guard', 'WI-58 The "Backlog / queue sync" check false-passes — fix it or retire it'),
   M('un-park the shared checkout', 'WI-55 Un-park the shared checkout /worksp/shared-db and find the root cause'),
   M('the 2 untracked GLM review files', 'WI-56 Decide the fate of the 2 untracked GLM review files'),
@@ -152,7 +152,13 @@ export const CLASSIFICATION = [
     'Audit trail, not work in flight. Its own banner, added 2026-08-07 ~16:00 UTC, says session 774f5010 ended, every agent finished and every worktree is retired — "nothing below is live". Verified live: zero open db-claim issues, `git worktree list` returns 2. The live remainder is Phase 2, which is already its own REQUEST QUEUE block and is carried by WI-03.'),
 
   // ---- INTAKE QUEUE (design decision D3: the issue points at the file) ----
-  M('Stale local BRANCH LABELS swept', 'WI-27 Retire the one leftover worktree from the branch-label sweep'),
+  // The three below arrived with PR #490 on 2026-08-07, AFTER the first inventory was
+  // taken. The order-and-fragment check refused the whole run rather than skipping them,
+  // which is the behaviour it exists for — drift item D6 predicted exactly this.
+  M('Dispatch-collision hardening, Phase A', 'WI-61 Dispatch-collision hardening: Phase B, starting at step 3a'),
+  M('Plan to replace `COORDINATOR_INTAKE.md` with GitHub Issues', 'WI-62 This migration itself: finish steps 4-9, and settle the untracked GLM review files'),
+  M('`handoff-writer` skill hardened', 'WI-63 Propagate the ai-devops skill updates to every machine (this is step 5\'s gate)'),
+  M('Stale local BRANCH LABELS swept', 'WI-27 Retire the one leftover worktree the branch-label sweep left behind'),
   M('Characters/style-guides:', 'WI-60 Characters/style-guides: core.character is empty, plus a question-generator defect'),
   X('The worktree sweep is DONE',
     'Complete on its own terms. Delivered by PR #455 (MERGED); the heading states the outcome — all 51 worktrees removed, all 3 unattributed ones identified. Nothing outstanding: verified live, `git worktree list` returns 2 entries.'),
