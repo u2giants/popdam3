@@ -1,0 +1,1915 @@
+{
+  "capturedAt": "2026-08-07T22:38:30.987Z",
+  "packaging": {
+    "designflowCount": 8,
+    "coreCount": 19,
+    "rows": [
+      {
+        "designflow": "Cardboard corners",
+        "classification": "alias-candidate",
+        "core": "Cardboard Corner",
+        "liveUsage": 1
+      },
+      {
+        "designflow": "Traybox",
+        "classification": "designflow-only",
+        "core": null,
+        "liveUsage": 0
+      },
+      {
+        "designflow": "PVC bag with J-card",
+        "classification": "designflow-only",
+        "core": null,
+        "liveUsage": 0
+      },
+      {
+        "designflow": "Hanger with J-card and polybag",
+        "classification": "designflow-only",
+        "core": null,
+        "liveUsage": 0
+      },
+      {
+        "designflow": "Polybag with hangtag",
+        "classification": "designflow-only",
+        "core": null,
+        "liveUsage": 0
+      },
+      {
+        "designflow": "Packaging sticker",
+        "classification": "designflow-only",
+        "core": null,
+        "liveUsage": 0
+      },
+      {
+        "designflow": "Phone stand packaging",
+        "classification": "designflow-only",
+        "core": null,
+        "liveUsage": 0
+      },
+      {
+        "designflow": "Tablet stand packaging",
+        "classification": "designflow-only",
+        "core": null,
+        "liveUsage": 0
+      }
+    ],
+    "coreOnly": [
+      "Blister Tray",
+      "J-Card",
+      "UPC Sticker",
+      "U-card",
+      "Bubble Bag",
+      "Insert Card",
+      "Tray-Box",
+      "Shrink wrap + UPC Sticker",
+      "Blister Card",
+      "Sewn-in Label + UPC Sticker",
+      "Closed Box",
+      "Hangtag + Sewn-in Label",
+      "Header Card",
+      "Window Box",
+      "Hangtag",
+      "OPP BAG - J-CARD - PVC BAG FOR PUSHPINS",
+      "Cardboard Corner",
+      "Belly Band",
+      "PDQ"
+    ]
+  },
+  "productSize": {
+    "directCount": 530,
+    "mirrorCount": 661,
+    "exactCompositeMatches": 644,
+    "mirrorOnly": [
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "5B",
+        "mg_desc": "15X30\"",
+        "is_active": false,
+        "mg_id": 125
+      },
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "8H",
+        "mg_desc": "8\" HIGH",
+        "is_active": false,
+        "mg_id": 161
+      },
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "TT",
+        "mg_desc": "12X12\"",
+        "is_active": false,
+        "mg_id": 194
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "5B",
+        "mg_desc": "15X30\"",
+        "is_active": false,
+        "mg_id": 535
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "8T",
+        "mg_desc": "8x10\"",
+        "is_active": false,
+        "mg_id": 12
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "ET",
+        "mg_desc": "8X10\"",
+        "is_active": false,
+        "mg_id": 566
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "M8",
+        "mg_desc": "18oz",
+        "is_active": false,
+        "mg_id": 338
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "TT",
+        "mg_desc": "12X12\"",
+        "is_active": false,
+        "mg_id": 583
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "114",
+        "mg_desc": "114 books",
+        "is_active": false,
+        "mg_id": 426
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "144",
+        "mg_desc": "144 books",
+        "is_active": false,
+        "mg_id": 427
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "168",
+        "mg_desc": "168 pgs",
+        "is_active": false,
+        "mg_id": 428
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "192",
+        "mg_desc": "192 pgs",
+        "is_active": false,
+        "mg_id": 429
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "288",
+        "mg_desc": "288 pgs",
+        "is_active": false,
+        "mg_id": 430
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "360",
+        "mg_desc": "360 books",
+        "is_active": false,
+        "mg_id": 431
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "504",
+        "mg_desc": "504 books",
+        "is_active": false,
+        "mg_id": 432
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "576",
+        "mg_desc": "576 books",
+        "is_active": false,
+        "mg_id": 433
+      },
+      {
+        "divisionCode_fk": "EP001",
+        "divisionCode_id_fk": null,
+        "mg_code": "672",
+        "mg_desc": "672 books",
+        "is_active": false,
+        "mg_id": 18
+      }
+    ],
+    "directOnly": [],
+    "labelConflicts": [
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "25",
+        "mg_desc": "12.5X15.5\"",
+        "is_active": false,
+        "mg_id": 77
+      },
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "4A",
+        "mg_desc": "40\"X20\"",
+        "is_active": false,
+        "mg_id": 110
+      },
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "4S",
+        "mg_desc": "48 X 60\"",
+        "is_active": false,
+        "mg_id": 114
+      },
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "58",
+        "mg_desc": "5\"x8\"",
+        "is_active": false,
+        "mg_id": 122
+      },
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "71",
+        "mg_desc": "7X10.25\"",
+        "is_active": false,
+        "mg_id": 143
+      },
+      {
+        "divisionCode_fk": "CW001",
+        "divisionCode_id_fk": 1,
+        "mg_code": "T2",
+        "mg_desc": "20x3.5\"",
+        "is_active": false,
+        "mg_id": 191
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "05",
+        "mg_desc": "9.5X5",
+        "is_active": false,
+        "mg_id": 488
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "1A",
+        "mg_desc": "10X20\"",
+        "is_active": false,
+        "mg_id": 498
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "41",
+        "mg_desc": "40x16\"",
+        "is_active": false,
+        "mg_id": 522
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "6T",
+        "mg_desc": "6X2\"",
+        "is_active": false,
+        "mg_id": 543
+      },
+      {
+        "divisionCode_fk": "EH001",
+        "divisionCode_id_fk": 2,
+        "mg_code": "Q6",
+        "mg_desc": "22X16\"",
+        "is_active": false,
+        "mg_id": 578
+      }
+    ],
+    "mirrorOnlyCount": 17,
+    "directOnlyCount": 0,
+    "labelConflictCount": 11,
+    "coreProductSizeExists": false,
+    "ledgerMatches": []
+  },
+  "creativeDesigner": {
+    "assignmentCount": 3,
+    "uniquePeople": 1,
+    "rows": [
+      {
+        "id": 1,
+        "item_id_fk": 19534,
+        "role": "creative_designer",
+        "user_id_fk": 61,
+        "created_by_fk": 34,
+        "created_date": "2026-07-10T15:51:49.238Z",
+        "updated_by_fk": 34,
+        "updated_date": "2026-07-10T15:51:49.238Z",
+        "person": "Anyela Blandon",
+        "email": "aagudelo@popcre.com",
+        "status": "Active",
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "id": 3,
+        "item_id_fk": 20,
+        "role": "creative_designer",
+        "user_id_fk": 61,
+        "created_by_fk": 34,
+        "created_date": "2026-07-10T17:39:53.007Z",
+        "updated_by_fk": 34,
+        "updated_date": "2026-07-10T17:39:53.007Z",
+        "person": "Anyela Blandon",
+        "email": "aagudelo@popcre.com",
+        "status": "Active",
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "id": 5,
+        "item_id_fk": 19539,
+        "role": "creative_designer",
+        "user_id_fk": 61,
+        "created_by_fk": 15,
+        "created_date": "2026-07-10T19:28:34.023Z",
+        "updated_by_fk": 15,
+        "updated_date": "2026-07-10T19:28:34.023Z",
+        "person": "Anyela Blandon",
+        "email": "aagudelo@popcre.com",
+        "status": "Active",
+        "canonicalId": null,
+        "canonicalName": null
+      }
+    ],
+    "nonCreativeAssignments": 2
+  },
+  "vendorFactory": {
+    "legacyCount": 169,
+    "coreCount": 93,
+    "exactNameMatches": 14,
+    "unmatched": [
+      {
+        "legacyId": 1,
+        "name": "Beilun Jinhao",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 2,
+        "name": "Ying",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 3,
+        "name": "Susan Shengxing",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 7,
+        "name": "Ningbo Zaho Arts",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 8,
+        "name": "Yicheng",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 9,
+        "name": "OKAY Home",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 10,
+        "name": "Hangzhou Fun",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 23,
+        "name": "Yiwu Taoye",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 25,
+        "name": "New Deco Arts",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 29,
+        "name": "xiamen tengfei",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 31,
+        "name": "Ningbo Home Decor",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 32,
+        "name": "Pafy Zhejiang Fengyuan",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 33,
+        "name": "Suzhou Everich",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 34,
+        "name": "Jinhua CTR Arts & Crafts",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 36,
+        "name": "Test Factory",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 37,
+        "name": "Jiahong Creative",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 38,
+        "name": "NingboWaterdrop Paper Craft",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 39,
+        "name": "Home Dollar",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 40,
+        "name": "Ningbo Bellwell",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 41,
+        "name": "Putian Newpower Arts & Crafts Co. Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 42,
+        "name": "Internal",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 43,
+        "name": "Mascube",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 44,
+        "name": "Ningbo Sofine Framing",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 45,
+        "name": "Topwell Crafts Co., Ltd",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 46,
+        "name": "Chinese Crafts Ningbo Hardwork Art",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 47,
+        "name": "Hotfocus",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 48,
+        "name": "Joyce",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 51,
+        "name": "Zhangzhou UniQ Electronic",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 52,
+        "name": "Xiamen Golden Yuquan Industry & Trade",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 53,
+        "name": "Royal Packers India",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 54,
+        "name": "Dalian GraceHome Int'l",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 55,
+        "name": "Fuzhou New Flyway",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 56,
+        "name": "Ningbo Mascube",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 57,
+        "name": "Ningbo Royal Union",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 58,
+        "name": "Fujian Fancy Clock & Watch Co.",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 59,
+        "name": "7 EASY HOUSEWARE LTD",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 61,
+        "name": "Taizhou Zhongxia/Xianju Ande",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 62,
+        "name": "TAIZHOU JANE COLLECTION ENTERPRISE CO.LTD",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 64,
+        "name": "JinHua YuanShun Crafts Co.",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 65,
+        "name": "test ",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 66,
+        "name": "sonal",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 67,
+        "name": "test sonal",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 68,
+        "name": "Mr Heng",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 69,
+        "name": "Union Source Co.",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 70,
+        "name": "Yingjia Cambodia Art Supply",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 71,
+        "name": "Zhejiang Tongfeng Guangxing Home",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 72,
+        "name": "Fuzhou Grace Arts",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 73,
+        "name": "Intco",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 74,
+        "name": "Intco",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 75,
+        "name": "Best Sunny",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 76,
+        "name": "kangsheng-crafts.cn",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 77,
+        "name": "Shanghai Green Willow Textile",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 78,
+        "name": "Xingan ruixin precision electronic",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 79,
+        "name": "Shaofeng",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 80,
+        "name": "Ningbo Queen Star Commodity",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 81,
+        "name": "Zhejiang Xianju Boli Arts & Crafts ",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 82,
+        "name": "Wallery Home",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 83,
+        "name": "NINGBO YINZHOU LNS INTERNATIONAL",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 84,
+        "name": "Xianju Mallen Crafts",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 86,
+        "name": "yiwu boutibox co. ltd",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 87,
+        "name": "YiWu YuFei color printing factory",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 88,
+        "name": "Jonhson Plastic",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 89,
+        "name": "HZ yuefu",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 90,
+        "name": "Concept Mfg",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 91,
+        "name": "NB Stalwart",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 92,
+        "name": "Sunway",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 93,
+        "name": "XIANJU JINGHUA ARTWARES",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 94,
+        "name": "NINGBO STALWART INDUSTRIAL",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 95,
+        "name": "KanKan Merchandising",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 96,
+        "name": "Prisma",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 97,
+        "name": "ChicWallArt.com",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 98,
+        "name": "Qingdao Jinhexiu",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 99,
+        "name": "Xianju Yongzheng",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 100,
+        "name": "Zhejiang Zhongda Newland",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 101,
+        "name": "Ningbo HuaXun Imp & Exp Co Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 102,
+        "name": "YiwuJiaodian",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 104,
+        "name": "Ningbo Fullcos",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 105,
+        "name": "XIANJU SIYING ARTS AND CRAFTS CO.,LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 106,
+        "name": "Ningbo Suxing ",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 108,
+        "name": "Xianju Bohong Crafts",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 109,
+        "name": "CM Group",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 110,
+        "name": "CM Group",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 111,
+        "name": "Market Union",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 113,
+        "name": "Kaya Home",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 114,
+        "name": "iera living",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 115,
+        "name": "Tufko Intl",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 116,
+        "name": "MU Group",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 117,
+        "name": "GAMS",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 118,
+        "name": "D.S.Y. International Co.,Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 119,
+        "name": "NINGBO MOVING UP HOUSEWARE CO.,LTD ",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 120,
+        "name": "Kaya Home",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 121,
+        "name": "Zhejiang Lianbo Digital Technology Co., Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 125,
+        "name": "Ningbo Oranshine",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 126,
+        "name": "JIN HUA D&D GARDEN TOOLS CO., LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 127,
+        "name": "GAOZHOU FY",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 128,
+        "name": "Lishun",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 129,
+        "name": "FEH",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 130,
+        "name": "FEH",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 132,
+        "name": "LINYI HUANRUN ARTS&CRAFTS CO.,LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 134,
+        "name": "Coirflex",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 135,
+        "name": "Coirflex",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 136,
+        "name": "Coirflex",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 139,
+        "name": "HANGZHOU BEFORE AND FUTURE TECHNOLOGY CO.,LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 140,
+        "name": "SANMEN HENGXIN RUBBER & PLASTIC CO LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 141,
+        "name": "UNION HOME CO.,LTD  ",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 142,
+        "name": "3T Group",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 143,
+        "name": "JIANGSU PHOENIX ART MATERIALS TECHNOLOGY CO., LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 144,
+        "name": "Bacninh",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 145,
+        "name": "Jack",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 146,
+        "name": "Jane QDhighflyer",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 147,
+        "name": "Joy Meinuosen",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 148,
+        "name": "QD Best & Lucky",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 150,
+        "name": "Nancy Nahome",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 151,
+        "name": "3T Group",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 152,
+        "name": "3T Group",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 153,
+        "name": "3 T Group",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 157,
+        "name": "test factory 3",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 158,
+        "name": "DongYang Lucktree Creation CO., LTD.",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 159,
+        "name": "(DongYang) SANTAS-PRO Creation CO Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 160,
+        "name": "Linyi Leadchem lnc.",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 161,
+        "name": "Oriental Weavers Group",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 162,
+        "name": "Taizhou Huiya Carpet Co.,Ltd.",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 163,
+        "name": "YAJIE VIETNAM CO LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 164,
+        "name": "DongYang YuMei Home Products Co., LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 165,
+        "name": "NINGBO WAHFAY GROUP CO.,LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 166,
+        "name": "Tulip home Vietnam Co., Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 167,
+        "name": "Orientals Group",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 168,
+        "name": "Cavela",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 169,
+        "name": "Artcool Ray",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 170,
+        "name": "Lucky Star",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 171,
+        "name": "Artcool-Ray",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 172,
+        "name": "Tim Shen",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 173,
+        "name": "Daisy Yibai",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 174,
+        "name": "Cherry Jinhua Dike",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 175,
+        "name": "Shanghai Winnel Industry Co., Ltd.",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 176,
+        "name": "General Union",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 177,
+        "name": "Edar",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 178,
+        "name": "Jenny Vertak",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 179,
+        "name": "Jinhua Di Ke Home Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 180,
+        "name": "Xianju Xinyue Home Textile Co Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 181,
+        "name": "Yongliang",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 182,
+        "name": "YIWU RICH PHOTO FRAME CO.,LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 183,
+        "name": "Wenzhou Seko Packing Co,Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 184,
+        "name": "Ningbo Chanfonn Home Products Co., Ltd.",
+        "status": "Inactive",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 185,
+        "name": "Tracy - Maxim",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 186,
+        "name": "Ningbo Chanfonn Home Products Co., Ltd.",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 187,
+        "name": "Ningbo Reho Imp. & Exp. Co., Ltd.",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 188,
+        "name": "HANGZHOU EDAR INTERNATIONAL CO., LTD.",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 189,
+        "name": "HANGZHOU L&Y TRADING CO., LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 190,
+        "name": "NINGBO JOHN INTERNATIONAL INDUSTRIAL CO LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 191,
+        "name": "Amy Hengfan",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 192,
+        "name": "Qingdao Victoria",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 193,
+        "name": "Linhai Liguang Arts & Crafts Manufacture",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 194,
+        "name": "Hangzhou Light Industrial Products, Arts&Crafts, Textiles I/E. CO., LTD",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      },
+      {
+        "legacyId": 195,
+        "name": "Changzhou Trendecor Co., Ltd",
+        "status": "Active",
+        "usage": 0,
+        "canonicalId": null,
+        "canonicalName": null
+      }
+    ],
+    "liveNonblankVendorRefs": 0
+  },
+  "depth": {
+    "lookupCount": 121,
+    "activeCount": 121,
+    "usageValues": 98,
+    "usageRows": 19462,
+    "unmatchedUsage": [
+      {
+        "value": "0",
+        "usage_count": "11358",
+        "matches": []
+      },
+      {
+        "value": "0.1",
+        "usage_count": "232",
+        "matches": []
+      },
+      {
+        "value": "19",
+        "usage_count": "38",
+        "matches": []
+      },
+      {
+        "value": "10.25",
+        "usage_count": "23",
+        "matches": []
+      },
+      {
+        "value": "13.5",
+        "usage_count": "17",
+        "matches": []
+      },
+      {
+        "value": "0.125",
+        "usage_count": "9",
+        "matches": []
+      },
+      {
+        "value": "30",
+        "usage_count": "9",
+        "matches": []
+      },
+      {
+        "value": "17",
+        "usage_count": "7",
+        "matches": []
+      },
+      {
+        "value": "36",
+        "usage_count": "7",
+        "matches": []
+      },
+      {
+        "value": "12.6",
+        "usage_count": "6",
+        "matches": []
+      },
+      {
+        "value": "0.0833",
+        "usage_count": "5",
+        "matches": []
+      },
+      {
+        "value": "2.16",
+        "usage_count": "5",
+        "matches": []
+      },
+      {
+        "value": "0.0278",
+        "usage_count": "4",
+        "matches": []
+      },
+      {
+        "value": "0.0417",
+        "usage_count": "4",
+        "matches": []
+      },
+      {
+        "value": "0.1667",
+        "usage_count": "4",
+        "matches": []
+      },
+      {
+        "value": "1.77",
+        "usage_count": "4",
+        "matches": []
+      },
+      {
+        "value": "10.5",
+        "usage_count": "4",
+        "matches": []
+      },
+      {
+        "value": "15.25",
+        "usage_count": "4",
+        "matches": []
+      },
+      {
+        "value": "21",
+        "usage_count": "4",
+        "matches": []
+      },
+      {
+        "value": "8.46",
+        "usage_count": "4",
+        "matches": []
+      },
+      {
+        "value": "0.0313",
+        "usage_count": "3",
+        "matches": []
+      },
+      {
+        "value": "0.0714",
+        "usage_count": "3",
+        "matches": []
+      },
+      {
+        "value": "0.66",
+        "usage_count": "3",
+        "matches": []
+      },
+      {
+        "value": "3.4",
+        "usage_count": "3",
+        "matches": []
+      },
+      {
+        "value": "38",
+        "usage_count": "3",
+        "matches": []
+      },
+      {
+        "value": "60",
+        "usage_count": "3",
+        "matches": []
+      },
+      {
+        "value": "7.5",
+        "usage_count": "3",
+        "matches": []
+      },
+      {
+        "value": "1.4",
+        "usage_count": "2",
+        "matches": []
+      },
+      {
+        "value": "25",
+        "usage_count": "2",
+        "matches": []
+      },
+      {
+        "value": "28",
+        "usage_count": "2",
+        "matches": []
+      },
+      {
+        "value": "40",
+        "usage_count": "2",
+        "matches": []
+      },
+      {
+        "value": "5.7",
+        "usage_count": "2",
+        "matches": []
+      },
+      {
+        "value": "0.008",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "0.0125",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "0.0625",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "0.1111",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "0.1429",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "0.41",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "0.45",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "1.325",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "1.375",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "1.6667",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "10.2",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "10.44",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "3.125",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "3.3",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "4.5",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "7.19",
+        "usage_count": "1",
+        "matches": []
+      },
+      {
+        "value": "9.45",
+        "usage_count": "1",
+        "matches": []
+      }
+    ],
+    "ambiguousUsage": [
+      {
+        "value": "6",
+        "usage_count": "37",
+        "matches": [
+          23,
+          81
+        ]
+      },
+      {
+        "value": "8",
+        "usage_count": "27",
+        "matches": [
+          28,
+          80
+        ]
+      },
+      {
+        "value": "4",
+        "usage_count": "7",
+        "matches": [
+          47,
+          50,
+          83
+        ]
+      },
+      {
+        "value": "2.5",
+        "usage_count": "2",
+        "matches": [
+          7,
+          90
+        ]
+      },
+      {
+        "value": "7.2",
+        "usage_count": "1",
+        "matches": [
+          29,
+          59
+        ]
+      }
+    ],
+    "has063": true,
+    "mirrorLatest": "2021-08-19T18:37:18.583Z"
+  }
+}

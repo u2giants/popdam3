@@ -1,0 +1,13 @@
+{
+  "mode": "dry-run (rolled back)",
+  "pulled": 97,
+  "result": {
+    "sync_run_id": "d4eb07af-e9e3-4696-a09d-076091e20db5",
+    "rows_seen": 97,
+    "rows_inserted": 0,
+    "rows_updated": 95,
+    "rows_failed": 1,
+    "rows_skipped": 1,
+    "rows_deleted": 0
+  }
+}
