@@ -1,6 +1,39 @@
 # Disney OPA property→character extract — 2026-08-06
 
-**Status:** source data captured and **merged to `main`** (PR #466, 2026-08-07).
+> ## ⛔ The data is NOT in this repository. This document is a pointer.
+>
+> `opa-characters.csv` used to sit in this folder. **It has been removed.** It is
+> Disney business-confidential data carrying Disney's own internal ID numbers,
+> and this repository was **public** from 2026-06-20 until 2026-08-07 ~15:10 UTC.
+> The file was committed here on 2026-08-06 and was publicly readable until the
+> repository was made private.
+>
+> | | |
+> | --- | --- |
+> | **Now lives in** | `u2giants/licensor-source-data` — **PRIVATE** |
+> | **Path** | `disney-opa/opa-characters.csv` |
+> | **Captured** | 2026-08-06 |
+> | **Removed from here** | 2026-08-07 |
+> | **Rows** (excl. header) | 10,262 |
+> | **Columns** | `property`, `licensedPropertyID`, `optionSourceID`, `character`, `characterID`, `brandPropertyID` |
+> | **Bytes** | 1,069,881 |
+>
+> **Do not copy the data back into this repository** — not the CSV, not an
+> extract, not a sample, not "just a few illustrative rows" in a markdown table,
+> not a commit message, not a PR description. This repo is intended to become
+> public again. It may hold only this pointer.
+>
+> **The blob is still in this repository's git history**, reachable from many
+> historical commits. Removing it from the working tree stops the ongoing
+> exposure; scrubbing history is a separate, deliberate operation that has
+> **not** been performed.
+>
+> Everything below is **analysis** — method, caveats, schema reasoning, open
+> questions. It contains no data and stays here. Where the original showed
+> example values, they have been replaced with a description of the shape.
+
+**Status:** source data captured (PR #466, 2026-08-07) and since **relocated to
+the private repo** (see the pointer above).
 **No database work has been done and none is in flight.** The request to turn
 this into a lookup table is filed in `COORDINATOR_INTAKE.md` under
 `## REQUEST QUEUE` ("Store the Disney OPA property→character list as a lookup
@@ -22,9 +55,9 @@ has an account on it.
 
 When a licensee wants to make a product using Disney intellectual property, they
 submit it through OPA for approval. On the product submission screen, the
-licensee must declare **which property** the product uses (e.g. "Lion King",
-"Marvel Games", "101 Dalmatians - Individual Characters") and **which characters
-within that property** appear on it.
+licensee must declare **which property** the product uses (a named Disney film,
+franchise, or character-group property) and **which characters within that
+property** appear on it.
 
 That property-and-character picker is the data in this folder. It is **Disney's
 own canonical list**, with Disney's own internal IDs — not our reconstruction of
@@ -80,21 +113,28 @@ worth landing rather than filing away.
 
 ## 3. What is in `opa-characters.csv`
 
+**The file itself is in `u2giants/licensor-source-data` at
+`disney-opa/opa-characters.csv`.** These are its shape and counts only.
+
 | Fact | Value |
 | --- | --- |
 | Rows (excl. header) | **10,262** |
-| Distinct properties | **1,445** |
-| Distinct character names | **9,591** |
-| File size | ~1.05 MB |
+| Distinct `licensedPropertyID` | **1,445** |
+| Distinct property display names | **1,444** |
+| Distinct `characterID` | **9,613** |
+| Distinct character display names | **9,591** |
+| Distinct `brandPropertyID` | **1,345** |
+| Empty cells | **none**, in any column |
+| File size | 1,069,881 bytes (~1.05 MB), LF line endings |
 | Captured | 2026-08-06 |
 
 ### Columns
 
 | Column | What it is |
 | --- | --- |
-| `property` | Disney's display name for the property, e.g. `101 Dalmatians - Individual Characters` |
+| `property` | Disney's display name for the property |
 | `licensedPropertyID` | Disney's internal ID for that property |
-| `optionSourceID` | Disney's internal source/list identifier (was `1007` for every property row observed) |
+| `optionSourceID` | Disney's internal source/list identifier — a single constant value on every row |
 | `character` | Disney's display name for the character |
 | `characterID` | Disney's internal ID for that character |
 | `brandPropertyID` | Disney's internal brand-property ID attached to the character node |
@@ -109,10 +149,11 @@ The OPA picker is a **two-level tree**: property on top, characters beneath.
 There is no third level.
 
 ```
-101 Dalmatians - Individual Characters   (licensedPropertyID 93)
-├── 101 Dalmatians Animated              (characterID 298)
-├── ... 10 more
-Lion King
+<property display name>              (licensedPropertyID)
+├── <character display name>         (characterID)
+├── <character display name>         (characterID)
+├── ...
+<next property display name>         (licensedPropertyID)
 ├── ...
 ```
 
@@ -121,9 +162,24 @@ many different properties, with different `characterID` values. That is why
 10,262 rows collapse to only 9,591 distinct names — roughly 670 names appear
 under more than one property.
 
-> **The natural key is the (property, character) pair, not the character name.**
-> Anyone who builds a table keyed on character name alone will silently lose
-> rows or create false matches.
+### The natural key — measured 2026-08-07, and it is NOT what this document first said
+
+| Candidate key | Distinct values over 10,262 rows | Unique? |
+| --- | --- | --- |
+| `characterID` alone | 9,613 | **no** |
+| (`property`, `character`) — the **display names** | 10,240 | **no** |
+| (`licensedPropertyID`, `characterID`) — the **IDs** | **10,262** | **yes** |
+
+> **Key on the IDs, not on the display names.**
+
+An earlier revision of this document asserted that "the natural key is the
+(property, character) pair". **Measured against the file, that is false** — the
+name pair collides on 22 rows, and two distinct `licensedPropertyID` values even
+share a single property display name. Only `(licensedPropertyID, characterID)`
+is unique across the whole file.
+
+Anyone who builds a table keyed on character name alone, **or on the two display
+names together**, will silently lose rows or create false matches.
 
 This mirrors a rule already established in this repo for properties themselves:
 `core.property` is declared `unique (licensor_id, code)` — property codes are
@@ -236,14 +292,14 @@ https://opa.disney.com/ProdApp/createEditProduct.spring
    properties it is contractually allowed to see. This is **not** Disney's full
    catalogue, and it will differ for a different account.
 2. **It may be scoped to one line of business.** See §5. Unverified.
-3. **Nothing was filtered out.** Retired properties, and variants with names like
-   `MS Captain America New World Order - No Likeness` and
-   `... - With Likeness`, are all present exactly as OPA lists them. The
+3. **Nothing was filtered out.** Retired properties, and property names carrying
+   a trailing ` - No Likeness` or ` - With Likeness` qualifier on the property
+   name, are all present exactly as OPA lists them. The
    "No Likeness" / "With Likeness" distinction is a real licensing concept, not
    noise, and should not be stripped without a decision.
 4. **It is a point-in-time snapshot.** Disney adds and retires properties. There
    is no change feed; a refresh is a full re-extract.
-5. **`optionSourceID` was `1007` on every property row observed.** Its meaning is
+5. **`optionSourceID` held a single constant value on every row.** Its meaning is
    not understood. Do not build logic on it without establishing what it is.
 6. **No live schema was consulted.** The session that captured this made **zero**
    database calls of any kind. Every statement here about our schema is
@@ -350,5 +406,10 @@ Recorded so nobody burns time repeating it.
 - **Disney's data.** It came from a licensee portal under a commercial licensing
   relationship. It is business-confidential. Do not publish it, and do not push
   it to any third-party service.
+- **Relocated 2026-08-07** to `u2giants/licensor-source-data` (PRIVATE), at
+  `disney-opa/opa-characters.csv`, because this repository was public when the
+  CSV was committed here. The move was verified byte-for-byte: the git blob
+  SHA-1 is identical on both sides (`fa128591adc10adb4b12e5f0f0fdfd309f28ba92`,
+  1,069,881 bytes). See §top for the full pointer and handling rules.
 - **Related request:** `COORDINATOR_INTAKE.md` → `## REQUEST QUEUE` → "Store the
   Disney OPA property→character list as a lookup table" (2026-08-06). PR #466.
