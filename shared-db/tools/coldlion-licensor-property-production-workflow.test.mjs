@@ -85,19 +85,104 @@ test("one non-cancelling concurrency group prevents overlapping write cycles", (
   assert.equal((workflow.match(/cancel-in-progress:/g) ?? []).length, 1);
 });
 
+// READ-ONLY GUARDS ARE EXEMPT FROM THE WRITE AUTHORIZATION, AND ONLY THESE. The
+// four-part authorization exists to stop an unauthorised WRITE; a script that cannot
+// write has nothing to authorise.
+//
+// MIRRORED DELIBERATELY from tools/coldlion-production-lane-readiness.mjs rather than
+// imported. This is a CONTRACT test: if it imported the very helper it is meant to
+// police, a bug in that helper would excuse itself here. The duplication is the point.
+const READ_ONLY_GUARD_SCRIPTS = ["check-supabase-link-state.mjs"];
+
+/**
+ * One entry per invocation, keyed on the SCRIPT NAME.
+ *
+ * Do NOT simplify this to the script name followed by a greedy "rest of line"
+ * (`[^\n]` star, global) plus a substring test
+ * for the guard's name. That combination was a real bypass (review, 2026-08-07):
+ * `[^\n]*` is greedy to end of line and matchAll does not overlap, so two invocations
+ * chained with `&&` on ONE line collapsed into a single match whose text contained the
+ * guard's name -- and the write runner beside it inherited the read-only exemption.
+ * The lookahead stops each invocation's arguments at the next `node tools/`.
+ */
+function parseCalls(text) {
+  const CALL = /node tools\/([a-z0-9-]+\.mjs)((?:(?!node tools\/)[^\n])*)/g;
+  return [...String(text ?? "").matchAll(CALL)].map((m) => ({
+    script: m[1],
+    raw: `node tools/${m[1]}${m[2]}`.replace(/\s+/g, " ").trim(),
+  }));
+}
+
+const isReadOnlyGuard = (c) => READ_ONLY_GUARD_SCRIPTS.includes(c.script);
+
 test("all production runner calls carry the four authorization parts", () => {
   // Part 4 (the env variable) is set once on the production job.
   assert.match(workflow, /COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED: "true"/);
 
-  const runnerCalls = [...folded.matchAll(/node tools\/[a-z0-9-]+\.mjs[^\n]*/g)].map((m) =>
-    m[0].replace(/\s+/g, " ").trim(),
-  );
+  const allCalls = parseCalls(folded);
+
+  const runnerCalls = allCalls.filter((c) => !isReadOnlyGuard(c));
   assert.ok(runnerCalls.length >= 6, `expected the five lanes plus the alert dispatcher, got ${runnerCalls.length}`);
   for (const call of runnerCalls) {
-    assert.match(call, /--production\b/, `missing --production in: ${call}`);
-    assert.match(call, /--production-authorized\b/, `missing --production-authorized in: ${call}`);
-    assert.match(call, /--project-ref "\$PRODUCTION_PROJECT_REF"/, `missing exact --project-ref in: ${call}`);
+    assert.match(call.raw, /--production\b/, `missing --production in: ${call.raw}`);
+    assert.match(call.raw, /--production-authorized\b/, `missing --production-authorized in: ${call.raw}`);
+    assert.match(call.raw, /--project-ref "\$PRODUCTION_PROJECT_REF"/, `missing exact --project-ref in: ${call.raw}`);
   }
+
+  // THE EXEMPTION MUST NOT BECOME A HOLE. An exempt script may never be handed --apply,
+  // or "call it a guard, then pass --apply" would route a write around the authorization.
+  for (const call of allCalls.filter(isReadOnlyGuard)) {
+    assert.doesNotMatch(call.raw, /--apply\b/, `a read-only guard must never be given --apply: ${call.raw}`);
+  }
+});
+
+test("BYPASS REGRESSION: a write runner sharing a LINE with the guard still needs authorization", () => {
+  // The bug this pins (found in review 2026-08-07, never shipped): the old matcher was
+  // `/node tools\/[a-z0-9-]+\.mjs[^\n]*/g` plus a SUBSTRING test for the guard's name.
+  // `[^\n]*` runs greedily to end of line and matchAll does not overlap, so two
+  // invocations on one line became ONE match whose text contained the guard's name --
+  // and the WRITE RUNNER inherited the read-only exemption. One `&&` defeated the gate.
+  const chained =
+    '          node tools/check-supabase-link-state.mjs --expect-ref="$PRODUCTION_PROJECT_REF" && node tools/sync-coldlion-licensors-properties.mjs --apply --linked\n';
+
+  const parsed = parseCalls(chained);
+  assert.equal(parsed.length, 2, "two invocations on one line must parse as TWO calls");
+  assert.deepEqual(
+    parsed.map((c) => c.script),
+    ["check-supabase-link-state.mjs", "sync-coldlion-licensors-properties.mjs"],
+  );
+
+  // The guard is exempt; the writer beside it is NOT, and is caught for missing all
+  // three flags rather than silently inheriting the exemption.
+  const writers = parsed.filter((c) => !isReadOnlyGuard(c));
+  assert.equal(writers.length, 1);
+  assert.equal(writers[0].script, "sync-coldlion-licensors-properties.mjs");
+  assert.doesNotMatch(writers[0].raw, /--production-authorized\b/);
+  assert.doesNotMatch(writers[0].raw, /--project-ref "\$PRODUCTION_PROJECT_REF"/);
+  // The RUNTIME checker is held to the same rule in
+  // tools/coldlion-production-lane-readiness.test.mjs, so this cannot pass here while
+  // the shipped checker still has the hole.
+});
+
+test("the exemption is keyed on the INVOKED SCRIPT, never on surrounding text", () => {
+  // A write runner must not become exempt merely because the guard's name appears
+  // nearby -- in a comment, an echo, or an adjacent argument.
+  const decoy =
+    '          echo "see node tools/check-supabase-link-state.mjs" && node tools/promote-coldlion-source-owned.mjs --apply\n';
+  const writers = parseCalls(decoy).filter((c) => !isReadOnlyGuard(c));
+  assert.equal(writers.length, 1);
+  assert.equal(writers[0].script, "promote-coldlion-source-owned.mjs");
+});
+
+test("the link-state guard runs in the production job, and names the production ref", () => {
+  // Added 2026-08-07. The workflow's own gate reads ONE of the three files in
+  // supabase/.temp/ that can name a project. This step asserts all three agree.
+  // If this step is ever dropped, the production lane silently loses that check.
+  assert.match(
+    folded,
+    /node tools\/check-supabase-link-state\.mjs --expect-ref="\$PRODUCTION_PROJECT_REF"/,
+    "the production job must prove ALL Supabase link files agree on production",
+  );
 });
 
 test("both write lanes run --apply --linked; there is no silent read-only variant", () => {

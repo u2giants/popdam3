@@ -52,6 +52,39 @@ test("the real production workflow passes every production-lane check", () => {
   }
 });
 
+test("BYPASS REGRESSION: a write runner chained onto the guard's line is still unauthorized", () => {
+  // Found in review 2026-08-07, before this ever ran against production. The exemption
+  // for read-only guards used to be a SUBSTRING test over a match that ran greedily to
+  // end of line, so two invocations on one line became one "call" and the WRITE RUNNER
+  // inherited the guard's exemption. A single `&&` would have defeated the whole gate.
+  const chained =
+    '          node tools/check-supabase-link-state.mjs --expect-ref="$PRODUCTION_PROJECT_REF" && node tools/sync-coldlion-licensors-properties.mjs --apply --linked\n';
+
+  const checks = byName(
+    evaluateProductionLaneReadiness(baseInput({ workflowText: `${realWorkflow}\n${chained}` })),
+  );
+  assert.equal(
+    checks.every_production_runner_call_has_four_part_authorization.pass,
+    false,
+    "the chained write runner must NOT inherit the read-only guard exemption",
+  );
+});
+
+test("a read-only guard handed --apply is refused, so the exemption cannot become a hole", () => {
+  const abused =
+    '          node tools/check-supabase-link-state.mjs --expect-ref="$PRODUCTION_PROJECT_REF" --apply\n';
+  const checks = byName(
+    evaluateProductionLaneReadiness(baseInput({ workflowText: `${realWorkflow}\n${abused}` })),
+  );
+  assert.equal(checks.read_only_guard_calls_never_apply.pass, false);
+});
+
+test("the real workflow passes both exemption checks as written", () => {
+  const checks = byName(evaluateProductionLaneReadiness(baseInput()));
+  assert.equal(checks.every_production_runner_call_has_four_part_authorization.pass, true);
+  assert.equal(checks.read_only_guard_calls_never_apply.pass, true);
+});
+
 test("readiness FAILS when the production workflow does not exist", () => {
   const checks = byName(evaluateProductionLaneReadiness(baseInput({ workflowText: null })));
   assert.equal(checks.production_workflow_exists.pass, false);

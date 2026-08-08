@@ -159,10 +159,20 @@ test("the migration cross-checks the provenance set and refuses a plan that omit
  * about SQL, which is a test that passes for the wrong reason.
  */
 function migrationBody() {
-  return readFileSync(MIGRATION, "utf8")
-    .split("\n")
-    .map((line) => line.replace(/--.*$/, ""))
-    .join("\n");
+  return (
+    readFileSync(MIGRATION, "utf8")
+      // NORMALISE LINE ENDINGS FIRST. Without this, these tests FAIL on any Windows
+      // checkout and pass in CI, which is the worst possible split: a developer or agent
+      // sees two red tests that main does not have, and the obvious conclusion ("main is
+      // broken") is wrong. Measured 2026-08-07 on this exact file with git's autocrlf
+      // checkout: comment stripping left the `--` comments in place, so the SQL body
+      // still contained commentary, `grant` appeared inside a comment, and one term
+      // matched 3 times instead of 2.
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map((line) => line.replace(/--.*$/, ""))
+      .join("\n")
+  );
 }
 
 test("the 5.6 assertion predicate is the 5.8 UPDATE predicate, term for term", () => {

@@ -420,18 +420,14 @@ export function buildSnapshot(
   // so importing a one-row snapshot into an EMPTY mirror passes every database
   // guard. That is precisely the "a failed extract must not look like a success"
   // case, and only the caller knows how many rows to expect.
-  if (minRows !== undefined && minRows !== null) {
-    const floor = resolveMinRows(minRows);
-    const dataRows = rows.length - 1;
-    if (dataRows < floor) {
-      throw new Error(
-        `extract has ${dataRows} data row(s), fewer than the expected minimum of ${floor}. ` +
-          "A truncated or partly-scraped extract looks exactly like this, and on a FIRST " +
-          "load into an empty mirror no database guard would catch it. Re-extract, or lower " +
-          "OPA_MIN_ROWS deliberately if the source really did shrink."
-      );
-    }
-  }
+  // The VALUE is validated here, early, because a malformed OPA_MIN_ROWS is a
+  // configuration error and should fail before any parsing work. The COMPARISON
+  // happens after the row loop, against the rows that actually SURVIVE the sentinel
+  // filter -- the floor has to describe what will land in the mirror, not what was
+  // read out of the file, or the sentinel rule would quietly consume one row of the
+  // operator's safety margin.
+  const rowFloor =
+    minRows === undefined || minRows === null ? null : resolveMinRows(minRows);
 
   assertIsoDate(capturedAt);
   if (!String(sourceUrl ?? "").trim()) {
@@ -452,6 +448,7 @@ export function buildSnapshot(
   const out = [];
   const seen = new Map(); // natural key -> the row ordinal it was first seen on
   const duplicates = [];
+  const rejected = []; // row ordinals dropped by the sentinel rule -- NEVER their values
 
   for (let i = 1; i < rows.length; i += 1) {
     const r = rows[i];
@@ -517,6 +514,40 @@ export function buildSnapshot(
       );
     }
 
+    // ------------------------------------------------------------------------
+    // SENTINEL ROWS ARE DROPPED. Owner ruling, Albert Hazan, 2026-08-07.
+    //
+    // Disney's extract carries a sentinel node -- measured in the 2026-08-06 file as
+    // licensedPropertyID -9999 / characterID -9998, the ONLY negative ids in 10,262
+    // rows (every other id runs from 38 to 1,159,383,366). It is not a real licensed
+    // property and it must not reach the mirror, because anything counting Disney
+    // properties off this mirror would be off by one.
+    //
+    // THE RULE IS GENERAL, NOT THE SPECIFIC PAIR. Hard-coding -9999/-9998 would rot
+    // the moment Disney picks different sentinel values, and this shop's standing
+    // rule is that nothing is hard-coded which should be a rule. A NEGATIVE
+    // licensedPropertyID or a NEGATIVE characterID is not a real Disney record.
+    // Zero is NOT rejected: it is a plausible (if unseen) real id, and the boundary
+    // case that must keep working is the SMALLEST legitimate id, so the comparison
+    // is strictly `< 0`.
+    //
+    // WHY THE PARSER STILL ACCEPTS NEGATIVES. The integer check above deliberately
+    // permits a leading minus. That is load-bearing and must stay: if parsing
+    // rejected negatives, the sentinel would blow up the whole run instead of being
+    // counted, and a future change in Disney's sentinel scheme would be invisible.
+    // Parse permissively, then reject deliberately, and COUNT what was rejected.
+    //
+    // NEVER SILENTLY. The count is returned in the snapshot and printed by the
+    // runner. A silent filter is a silent failure, and an unexpectedly large reject
+    // count is exactly the signal that Disney's export changed shape.
+    // ------------------------------------------------------------------------
+    if (rec.licensedPropertyID < 0 || rec.characterID < 0) {
+      // ROW ORDINAL ONLY -- never the ids or the names. Same rule as everywhere else
+      // in this file: this output reaches public CI logs.
+      rejected.push(i + 1);
+      continue;
+    }
+
     // THE NATURAL KEY IS THE ID PAIR, NOT THE NAME PAIR. Measured on the
     // 2026-08-06 extract, the name pair yields 10,240 distinct values across
     // 10,262 rows -- 22 collisions -- so keying on names silently drops 22 rows.
@@ -541,11 +572,29 @@ export function buildSnapshot(
     );
   }
 
+  // Compared against SURVIVING rows, not rows read. See the note where rowFloor is set.
+  if (rowFloor !== null && out.length < rowFloor) {
+    throw new Error(
+      `extract yields ${out.length} loadable data row(s) (${rows.length - 1} read, ` +
+        `${rejected.length} rejected as sentinels), fewer than the expected minimum of ` +
+        `${rowFloor}. A truncated or partly-scraped extract looks exactly like this, and ` +
+        "on a FIRST load into an empty mirror no database guard would catch it. " +
+        "Re-extract, or lower OPA_MIN_ROWS deliberately if the source really did shrink."
+    );
+  }
+
   return {
     captured_at: capturedAt,
     source_url: sourceUrl,
     line_of_business: lineOfBusiness,
     rows: out,
+    // Provenance of the filtering, carried WITH the snapshot so the runner cannot
+    // report a load without also reporting what was dropped from it.
+    rows_read: rows.length - 1,
+    rows_rejected_sentinel: rejected.length,
+    // Ordinals only, capped. Enough to find the rows in the operator's own CSV
+    // without ever putting extract content in a log.
+    rejected_row_ordinals: rejected.slice(0, 10),
   };
 }
 
@@ -734,6 +783,11 @@ export function summarise(snapshot) {
   const namePairs = new Set(snapshot.rows.map((r) => `${r.property}\0${r.character}`));
 
   return {
+    // What was READ vs what will LOAD. Reported separately and always, so a run can
+    // never show a clean row count while quietly having dropped rows.
+    rows_read: snapshot.rows_read ?? snapshot.rows.length,
+    rows_rejected_sentinel: snapshot.rows_rejected_sentinel ?? 0,
+    rejected_row_ordinals: snapshot.rejected_row_ordinals ?? [],
     rows: snapshot.rows.length,
     distinct_licensed_property_id: properties.size,
     distinct_character_id: characters.size,
@@ -779,7 +833,28 @@ async function main() {
   });
 
   // Counts only. NEVER print a row: this output lands in CI logs and terminals.
-  console.log(JSON.stringify(summarise(snapshot), null, 2));
+  const summary = summarise(snapshot);
+  console.log(JSON.stringify(summary, null, 2));
+
+  // Say it in words as well as in JSON. The owner ruling of 2026-08-07 requires the
+  // drop to be LOUD; a number buried in a JSON blob is not loud, and a reader
+  // skimming for "rows" would see a smaller figure with no explanation.
+  if (summary.rows_rejected_sentinel > 0) {
+    console.log(
+      `\nSENTINEL ROWS DROPPED: ${summary.rows_rejected_sentinel} of ${summary.rows_read} ` +
+        `data row(s) had a NEGATIVE licensedPropertyID or characterID and were NOT loaded ` +
+        `(owner ruling 2026-08-07). Row ordinal(s): ` +
+        `${summary.rejected_row_ordinals.join(", ")}` +
+        (summary.rows_rejected_sentinel > summary.rejected_row_ordinals.length
+          ? ", ... (list truncated)"
+          : "") +
+        `. ${summary.rows} row(s) will load.` +
+        (summary.rows_rejected_sentinel > 1
+          ? "\nMORE THAN ONE SENTINEL: the 2026-08-06 extract had exactly ONE. A larger " +
+            "count means Disney's export changed shape -- investigate before loading."
+          : "")
+    );
+  }
 
   if (!apply) {
     console.log("\nDRY RUN. No database was contacted. Re-run with --apply to load.");

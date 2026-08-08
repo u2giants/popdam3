@@ -1,0 +1,23 @@
+# 01 -- source file identity
+# Captured 2026-08-07T23:29:03Z on al8960ofc. TRANSCRIBED: the commands were really run and these are their real
+#   outputs, but the `$ ` prompt lines are hand-written labels -- this is not a
+#   verbatim terminal capture. Files 04-08, 10 and 11 ARE verbatim captures.
+
+$ gh api -H 'Accept: application/vnd.github.raw' repos/u2giants/licensor-source-data/contents/disney-opa/opa-characters.csv > opa-characters.csv
+$ wc -c < opa-characters.csv
+1069881
+$ wc -l < opa-characters.csv
+10262
+$ sha256sum opa-characters.csv
+333a1c04ea2da5a678da3527ee9a28b503cb6c16af94dbd902e10fbe776a5d69 *opa-characters.csv
+
+# Truncated fixture used for the shrink-band test (first 1000 data rows):
+$ wc -c < opa-truncated.csv
+104101
+$ wc -l < opa-truncated.csv
+1001
+
+# NOTE on the two line figures, so they do not read as a contradiction:
+#   `wc -l` counts NEWLINE CHARACTERS and reports 10262.
+#   The file has 10263 LINES: 1 header + 10262 data rows, with NO trailing
+#   newline on the final line. Both figures describe the same file.

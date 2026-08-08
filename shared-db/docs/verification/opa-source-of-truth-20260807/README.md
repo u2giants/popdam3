@@ -156,6 +156,31 @@ this table is the change record.
 | 9 | **`option_source_id` check constraint** | `check (option_source_id = 1007)` | **Kept, unchanged.** Constant across all 10,262 rows; meaning unknown | No logic is built on it |
 | 10 | **Negative sentinel IDs** | `bigint`, not constrained positive | **Kept, unchanged.** `Special Projects` = `-9999`/`-9998` | Confirmed against the CSV |
 
+> ### ⚠️ ROW 10 IS SUPERSEDED — owner ruling, Albert Hazan, 2026-08-07
+>
+> **The `Special Projects` sentinel row is NO LONGER LOADED.** Row 10 above records the
+> state before that ruling and is left unedited as the historical record; **do not act
+> on it.**
+>
+> **Read `docs/verification/opa-preview-load-20260807/README.md` §2 before changing
+> anything about sentinel handling.**
+>
+> Be precise about what changed, because the two halves are easy to confuse:
+>
+> - **UNCHANGED — the column typing.** IDs are still `bigint` and still **not**
+>   constrained positive. **Do not add a positive check constraint.** The CSV parser
+>   still accepts a leading minus, deliberately: if it rejected negatives the sentinel
+>   would abort the whole run instead of being counted, and a future change in Disney's
+>   sentinel scheme would be invisible.
+> - **CHANGED — what gets loaded.** `tools/sync-opa-property-character.mjs` now REJECTS
+>   any row with `licensedPropertyID < 0` or `characterID < 0` at load time, counts the
+>   rejects, and reports them. The rule is general (`< 0`), not the specific
+>   `-9999`/`-9998` pair, and ID `0` is deliberately kept.
+>
+> Effect on preview, measured 2026-08-07: 10,262 → **10,261** rows, 1,445 → **1,444**
+> property nodes, 9,613 → **9,612** characters. Anything counting Disney properties off
+> the pre-ruling mirror was off by one.
+
 ### 2.1 The cross-app consequence, stated plainly
 
 Adding `property_id → core.property` to the OPA landing means **shared-catalogue
@@ -808,6 +833,15 @@ create table plm.opa_property_character (
 > `Special Projects` carries `licensedPropertyID = -9999`,
 > `characterID = -9998`, `brandPropertyID = -9999`. These are Disney sentinels,
 > not corrupt data. Any unsigned or `text`-with-digit-check typing rejects them.
+>
+> **⚠️ SUPERSEDED IN PART — owner ruling, Albert Hazan, 2026-08-07.** The typing
+> statement above is still CORRECT and must not be changed: keep `bigint`, and **do
+> not add a positive check constraint**. What changed is that the `Special Projects`
+> row is **no longer loaded** — `tools/sync-opa-property-character.mjs` rejects any row
+> with a negative `licensedPropertyID` or `characterID` at load time, counting and
+> reporting each one. So the column still *accepts* negatives while the loader no
+> longer *supplies* them. See
+> `docs/verification/opa-preview-load-20260807/README.md` §2.
 
 ```sql
 comment on table plm.opa_property_character is

@@ -1,0 +1,20 @@
+# 02 -- DRY RUN against the real extract (contacts no database)
+# Captured 2026-08-07T23:29:21Z. TRANSCRIBED: the commands were really run and these are their real
+#   outputs, but the `$ ` prompt lines are hand-written labels -- this is not a
+#   verbatim terminal capture. Files 04-08, 10 and 11 ARE verbatim captures.
+
+$ OPA_CSV_PATH=<scratch>/opa-characters.csv OPA_CAPTURED_AT=2026-08-06 \
+  OPA_SOURCE_URL=https://opa.disney.com/ProdApp/createEditProduct.spring \
+  OPA_MIN_ROWS=10262 node tools/sync-opa-property-character.mjs
+{
+  "rows": 10262,
+  "distinct_licensed_property_id": 1445,
+  "distinct_character_id": 9613,
+  "distinct_name_pairs": 10240,
+  "name_pair_collisions": 22,
+  "captured_at": "2026-08-06",
+  "line_of_business": "Home"
+}
+
+DRY RUN. No database was contacted. Re-run with --apply to load.
+EXIT=0

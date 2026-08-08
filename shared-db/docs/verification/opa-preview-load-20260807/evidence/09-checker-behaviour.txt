@@ -1,0 +1,27 @@
+# 09 -- THE COMMITTED CHECK, run against the ACTUAL bytes of the trap
+# Captured 2026-08-07T23:34:21Z. TRANSCRIBED: the commands were really run and these are their real
+#   outputs, but the `$ ` prompt lines are hand-written labels -- this is not a
+#   verbatim terminal capture. Files 04-08, 10 and 11 ARE verbatim captures.
+
+## 9a. Replay of the 2026-08-07 state (project-ref=preview, linked-project.json=production)
+REFUSED, exit would be 1:
+SUPABASE LINK STATE IS INCONSISTENT -- THIS IS THE 2026-08-07 TRAP.
+  supabase/.temp/project-ref says      rjyboqwcdzcocqgmsyel   <- the CLI follows THIS one
+  supabase/.temp/linked-project.json says  qsllyeztdwjgirsysgai
+The CLI targets the project-ref value (measured 2026-08-07), so the risk here is NOT that the CLI goes astray -- it is that a DIFFERENT tool reading linked-project.json (the Supabase MCP / editor extension) acts on the other project while you believe you are working on this one. Do not pick a winner by hand: delete supabase/.temp/ and re-link naming the project explicitly.
+
+##     NOTE: it fails even though project-ref MATCHES the expected ref -- which is
+##     exactly the state that produced a green check while the two halves of the
+##     checkout pointed at different databases.
+
+## 9b. A pooler-url naming a different project (the THIRD file) is also caught
+SUPABASE LINK STATE IS INCONSISTENT.
+  supabase/.temp/project-ref says  rjyboqwcdzcocqgmsyel
+  supabase/.temp/pooler-url names  qqqqqqqqqqqqqqqqqqqq (in its username, as postgres.<ref>)
+The URL itself is deliberately NOT printed: it can carry the database password. Delete supabase/.temp/ and re-link naming the project explicitly.
+
+password leaked into the error? NO
+
+## 9c. CLI: the expected ref is REQUIRED and has no default
+The expected project ref is REQUIRED and has no default. Pass --expect-ref=<ref> or set SUPABASE_EXPECTED_PROJECT_REF. Link state is exactly what must not be trusted here, so the ref you MEAN has to be stated explicitly.
+EXIT=1 (refused)

@@ -1,0 +1,26 @@
+﻿# 04 -- WRONG-TARGET GATE, provoked for real
+# Captured 2026-08-07T23:31Z. Real command output.
+#
+# SUPABASE_URL points at PREVIEW; the EXPECTED ref is deliberately set to
+# PRODUCTION. Arranged so the only possible failure mode still writes to preview.
+
+$ OPA_EXPECTED_PROJECT_REF=qsllyeztdwjgirsysgai node tools/sync-opa-property-character.mjs --apply
+{
+  "rows": 10262,
+  "distinct_licensed_property_id": 1445,
+  "distinct_character_id": 9613,
+  "distinct_name_pairs": 10240,
+  "name_pair_collisions": 22,
+  "captured_at": "2026-08-06",
+  "line_of_business": "Home"
+}
+node : REFUSING TO SEND: SUPABASE_URL points at project rjyboqwcdzcocqgmsyel, but the expected project is 
+qsllyeztdwjgirsysgai. NOTHING HAS BEEN SENT. No database-side guard can catch a wrong-project load, because every one 
+of them runs inside whichever project you reached. Fix SUPABASE_URL or the expected ref -- do not bypass this check.
+At line:16 char:1
++ node tools/sync-opa-property-character.mjs --apply 2>&1 | Out-File -E ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (REFUSING TO SEN...ass this check.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+EXIT=1  (1 = refused before the first byte was sent)

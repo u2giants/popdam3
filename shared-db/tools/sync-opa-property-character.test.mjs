@@ -63,11 +63,104 @@ test("parseCsv handles a newline inside a quoted field", () => {
   assert.equal(rows[1][2], "Multi\nLine");
 });
 
-test("buildSnapshot accepts the negative Disney sentinels", () => {
+// ---------------------------------------------------------------------------
+// SENTINEL FILTERING -- owner ruling, Albert Hazan, 2026-08-07.
+//
+// This REPLACES an earlier test that asserted the sentinel row must SURVIVE.
+// The ruling reversed that: the sentinel is not a real licensed property and must
+// never reach the mirror. Both directions are covered, because the obvious way to
+// get a threshold rule wrong is at its boundary.
+// ---------------------------------------------------------------------------
+
+test("POSITIVE: a sentinel row with negative IDs is DROPPED, not loaded", () => {
   const snap = buildSnapshot(parseCsv(good), opts);
-  const sentinel = snap.rows.find((r) => r.licensedPropertyID === -9999);
-  assert.ok(sentinel, "the -9999 sentinel row must survive");
-  assert.equal(sentinel.characterID, -9998);
+  assert.equal(
+    snap.rows.find((r) => r.licensedPropertyID === -9999),
+    undefined,
+    "the -9999/-9998 sentinel must NOT survive into the snapshot"
+  );
+  assert.ok(
+    snap.rows.every((r) => r.licensedPropertyID >= 0 && r.characterID >= 0),
+    "no negative id of any kind may survive"
+  );
+});
+
+test("POSITIVE: the drop is COUNTED and located, never silent", () => {
+  const snap = buildSnapshot(parseCsv(good), opts);
+  assert.equal(snap.rows_read, 4, "four data rows were read");
+  assert.equal(snap.rows_rejected_sentinel, 1);
+  assert.equal(snap.rows.length, 3, "three rows survive");
+  // The sentinel is the 3rd data row => line 4 of the file.
+  assert.deepEqual(snap.rejected_row_ordinals, [4]);
+});
+
+test("NEGATIVE (BOUNDARY): id 0 -- the smallest legitimate id -- is NOT dropped", () => {
+  // The rule is strictly `< 0`. Zero is a plausible real id and an off-by-one here
+  // would silently delete a genuine Disney record.
+  const csv = [
+    HEADER,
+    '0,0,"Zero Prop","Zero Char",0,1007',
+    '1,1,"One Prop","One Char",1,1007',
+    "",
+  ].join("\n");
+  const snap = buildSnapshot(parseCsv(csv), opts);
+  assert.equal(snap.rows_rejected_sentinel, 0, "nothing may be rejected here");
+  assert.equal(snap.rows.length, 2);
+  assert.ok(snap.rows.some((r) => r.licensedPropertyID === 0 && r.characterID === 0));
+});
+
+test("NEGATIVE: a row is dropped if EITHER id is negative, not only when both are", () => {
+  const csv = [
+    HEADER,
+    '-1,500,"Neg Prop","Ok Char",1,1007', // only the property id is negative
+    '500,-1,"Ok Prop","Neg Char",1,1007', // only the character id is negative
+    '500,500,"Ok Prop","Ok Char",1,1007', // keeper
+    "",
+  ].join("\n");
+  const snap = buildSnapshot(parseCsv(csv), opts);
+  assert.equal(snap.rows_rejected_sentinel, 2);
+  assert.equal(snap.rows.length, 1);
+  assert.equal(snap.rows[0].licensedPropertyID, 500);
+});
+
+test("the sentinel rule is a RULE, not the hard-coded -9999/-9998 pair", () => {
+  // If Disney changes its sentinel values, the filter must still work. This is the
+  // whole reason the rule is `< 0` rather than an equality test on two magic numbers.
+  const csv = [
+    HEADER,
+    '-4242,-777,"Other Sentinel","Other",1,1007',
+    '7,7,"Real","Real",1,1007',
+    "",
+  ].join("\n");
+  const snap = buildSnapshot(parseCsv(csv), opts);
+  assert.equal(snap.rows_rejected_sentinel, 1);
+  assert.equal(snap.rows.length, 1);
+});
+
+test("the PARSER must still ACCEPT negative integers, so sentinels are counted not fatal", () => {
+  // Load-bearing: if parsing rejected a leading minus, the sentinel would throw and
+  // abort the whole run instead of being filtered and reported.
+  const csv = [HEADER, '-5,-6,"S","S",1,1007', "" ].join("\n");
+  const snap = buildSnapshot(parseCsv(csv), { ...opts, minRows: undefined });
+  assert.equal(snap.rows_rejected_sentinel, 1);
+  assert.equal(snap.rows.length, 0, "it is filtered, not an exception");
+});
+
+test("the row floor counts rows that will LOAD, not rows that were READ", () => {
+  // 4 rows read, 1 sentinel, 3 loadable. A floor of 4 must FAIL even though the file
+  // does contain 4 data rows -- otherwise the sentinel rule silently eats one row of
+  // the operator's safety margin.
+  assert.throws(
+    () => buildSnapshot(parseCsv(good), { ...opts, minRows: 4 }),
+    (err) => {
+      assert.match(err.message, /yields 3 loadable data row/);
+      assert.match(err.message, /4 read/);
+      assert.match(err.message, /1 rejected as sentinels/);
+      return true;
+    }
+  );
+  // A floor of 3 is satisfied.
+  assert.equal(buildSnapshot(parseCsv(good), { ...opts, minRows: 3 }).rows.length, 3);
 });
 
 test("buildSnapshot preserves Disney strings verbatim", () => {
@@ -85,8 +178,11 @@ test("THE NATURAL KEY IS THE ID PAIR: an identical name pair under different IDs
   assert.equal(dupes.length, 2, "both name-pair collisions must be retained");
 
   const s = summarise(snap);
-  assert.equal(s.rows, 4);
-  assert.equal(s.distinct_name_pairs, 3);
+  // 3, not 4: the sentinel row is filtered out (owner ruling 2026-08-07).
+  assert.equal(s.rows, 3);
+  assert.equal(s.rows_read, 4);
+  assert.equal(s.rows_rejected_sentinel, 1);
+  assert.equal(s.distinct_name_pairs, 2);
   assert.equal(s.name_pair_collisions, 1, "collisions must be reported, not silently dropped");
 });
 
@@ -142,8 +238,14 @@ test("summarise reports counts only and never a row", () => {
     "distinct_name_pairs",
     "line_of_business",
     "name_pair_collisions",
+    "rejected_row_ordinals",
     "rows",
+    "rows_read",
+    "rows_rejected_sentinel",
   ]);
+  // The reject reporting must be ordinals only -- never an id, never a name.
+  assert.deepEqual(s.rejected_row_ordinals, [4]);
+  assert.ok(!text.includes("Fixture Sentinel"), "the dropped row's name must not leak either");
 });
 
 // ---------------------------------------------------------------------------

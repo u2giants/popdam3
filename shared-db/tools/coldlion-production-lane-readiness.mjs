@@ -28,6 +28,60 @@ export const REQUIRED_PRODUCTION_SECRET_NAMES = Object.freeze([
 export const PRODUCTION_PROJECT_REF = "qsllyeztdwjgirsysgai";
 export const PREVIEW_PROJECT_REF = "rjyboqwcdzcocqgmsyel";
 
+/**
+ * Scripts exempt from the four-part WRITE authorization because they cannot write.
+ *
+ * Keep this list TINY. A script named here MUST be incapable of writing to a database,
+ * and the exemption is only safe while paired with the `--apply` refusal enforced below
+ * and in the workflow contract test.
+ *
+ * MIRRORED, DELIBERATELY, in tools/coldlion-licensor-property-production-workflow.test.mjs.
+ * The contract test re-states the rule instead of importing it, so that a mistake in this
+ * module cannot silently excuse itself in the test that is supposed to catch it.
+ */
+export const READ_ONLY_GUARD_SCRIPTS = Object.freeze(["check-supabase-link-state.mjs"]);
+
+/**
+ * Parse EVERY `node tools/<script>.mjs ...` invocation out of workflow text, one entry
+ * per invocation, keyed on the SCRIPT NAME.
+ *
+ * ============================================================================
+ * WHY THIS IS NOT A ONE-LINE REGEX -- it closes a real bypass (found in review,
+ * 2026-08-07, before this ever ran against production).
+ * ============================================================================
+ * The previous version matched the script name followed by a greedy "rest of line"
+ * (`[^\n]` star, global) and then asked
+ * whether the matched TEXT contained the guard's name. Two problems compounded:
+ *
+ *   1. `[^\n]*` is greedy to end of line, and matchAll is non-overlapping. So TWO
+ *      invocations on ONE line collapse into a SINGLE match string.
+ *   2. The exemption test was a substring check over that whole string.
+ *
+ * Together they meant:
+ *
+ *     node tools/check-supabase-link-state.mjs --expect-ref="$X" && \
+ *       node tools/sync-coldlion-licensors-properties.mjs --apply
+ *
+ * parsed as ONE "call" whose text contains the guard's name, so the WRITE RUNNER on
+ * the same line INHERITED THE READ-ONLY EXEMPTION and escaped the authorization check
+ * entirely. A single `&&` would have defeated the whole gate.
+ *
+ * The fix is to stop reasoning about lines. The regex below captures the script name
+ * explicitly and stops each invocation's argument text at the NEXT `node tools/`, so
+ * chained invocations are separate entries and the exemption is decided by the script
+ * that was actually invoked -- never by what happens to sit beside it.
+ */
+export function parseRunnerCalls(text) {
+  // (?:(?!node tools\/)[^\n])*  -- consume args, but stop before the next invocation
+  // and never cross a newline.
+  const CALL = /node tools\/([a-z0-9-]+\.mjs)((?:(?!node tools\/)[^\n])*)/g;
+  return [...String(text ?? "").matchAll(CALL)].map((m) => ({
+    script: m[1],
+    args: m[2].replace(/\s+/g, " ").trim(),
+    raw: `node tools/${m[1]}${m[2]}`.replace(/\s+/g, " ").trim(),
+  }));
+}
+
 function check(name, pass, detail, blockingReason = null) {
   return { name, pass: Boolean(pass), detail, blocking_reason: pass ? null : blockingReason };
 }
@@ -115,19 +169,47 @@ export function evaluateProductionLaneReadiness({
 
     // --- 4. every write runner call carries the four-part authorization ---------------
     const folded = workflowText.replace(/\\\r?\n\s*/g, " ");
-    const calls = [...folded.matchAll(/node tools\/[a-z0-9-]+\.mjs[^\n]*/g)].map((m) => m[0]);
-    const unauthorized = calls.filter(
+    const calls = parseRunnerCalls(folded);
+
+    // READ-ONLY GUARDS ARE EXEMPT FROM THE WRITE AUTHORIZATION, AND ONLY THESE.
+    //
+    // The four-part authorization exists to stop an UNAUTHORISED WRITE. A script that
+    // cannot write has nothing to authorise, and demanding `--production-authorized`
+    // from a guard would mean either weakening the guard or bolting write-shaped flags
+    // onto something that must never write -- both worse than an explicit exemption.
+    //
+    // The list is deliberately TINY and is matched on the SCRIPT NAME parsed out of each
+    // invocation -- never on a substring of the surrounding text. See parseRunnerCalls
+    // for the bypass that substring matching allowed. Adding to this list is a real
+    // decision: a script named here MUST be incapable of writing, which is why the
+    // exemption is paired below with a hard refusal of `--apply`. Without that pairing
+    // the list would be a hole -- "call it a guard, then pass --apply".
+    const isReadOnlyGuard = (c) => READ_ONLY_GUARD_SCRIPTS.includes(c.script);
+
+    const writeCalls = calls.filter((c) => !isReadOnlyGuard(c));
+    const unauthorized = writeCalls.filter(
       (c) =>
-        !/--production\b/.test(c) ||
-        !/--production-authorized\b/.test(c) ||
-        !/--project-ref "\$PRODUCTION_PROJECT_REF"/.test(c),
+        !/--production\b/.test(c.raw) ||
+        !/--production-authorized\b/.test(c.raw) ||
+        !/--project-ref "\$PRODUCTION_PROJECT_REF"/.test(c.raw),
     );
     checks.push(
       check(
         "every_production_runner_call_has_four_part_authorization",
-        calls.length > 0 && unauthorized.length === 0,
-        { runner_calls: calls.length },
+        writeCalls.length > 0 && unauthorized.length === 0,
+        { runner_calls: writeCalls.length, read_only_guard_calls: calls.length - writeCalls.length },
         `${unauthorized.length} production runner call(s) are missing part of the four-part authorization`,
+      ),
+    );
+
+    // The exemption above is only safe while an exempt script cannot write. Enforce that.
+    const guardCallsThatApply = calls.filter((c) => isReadOnlyGuard(c) && /--apply\b/.test(c.raw));
+    checks.push(
+      check(
+        "read_only_guard_calls_never_apply",
+        guardCallsThatApply.length === 0,
+        { read_only_guard_scripts: [...READ_ONLY_GUARD_SCRIPTS] },
+        `${guardCallsThatApply.length} call(s) claim the read-only guard exemption while passing --apply`,
       ),
     );
 

@@ -1,0 +1,40 @@
+﻿# 05 -- THE LOAD: genuine BEFORE and AFTER, with the sentinel filter active
+# Captured 2026-08-07T23:32:46Z. Real command output. Target: PREVIEW rjyboqwcdzcocqgmsyel.
+# The mirror is CLEARED first so the before/after is real and not remembered.
+
+## 5a. State before clearing (this is the PRE-RULING load, sentinel included)
+HTTP 201 (project rjyboqwcdzcocqgmsyel)
+[{"rows":10262,"props":1445,"chars":9613,"negative_id_rows":1}]
+
+## 5b. Clear the mirror
+HTTP 201 (project rjyboqwcdzcocqgmsyel)
+[]
+HTTP 201 (project rjyboqwcdzcocqgmsyel)
+[{"rows_now":0}]
+
+## 5c. Load, with the sentinel filter (owner ruling 2026-08-07)
+$ OPA_MIN_ROWS=10261 OPA_EXPECTED_PROJECT_REF=rjyboqwcdzcocqgmsyel node tools/sync-opa-property-character.mjs --apply
+{
+  "rows_read": 10262,
+  "rows_rejected_sentinel": 1,
+  "rejected_row_ordinals": [
+    8640
+  ],
+  "rows": 10261,
+  "distinct_licensed_property_id": 1444,
+  "distinct_character_id": 9612,
+  "distinct_name_pairs": 10239,
+  "name_pair_collisions": 22,
+  "captured_at": "2026-08-06",
+  "line_of_business": "Home"
+}
+
+SENTINEL ROWS DROPPED: 1 of 10262 data row(s) had a NEGATIVE licensedPropertyID or characterID and were NOT loaded (owner ruling 2026-08-07). Row ordinal(s): 8640. 10261 row(s) will load.
+
+Applying to Supabase project ref: rjyboqwcdzcocqgmsyel (matches the expected ref).
+[{"mode":"mirror_only","captured_at":"2026-08-06","rows_seen":10261,"rows_inserted":10261,"rows_updated":0,"rows_unchanged":0,"rows_missing":0,"distinct_property":1444,"distinct_character":9612,"snapshot_hash":"87247b596f9a3a090a5a4ee877856876"}]
+EXIT=0
+
+## 5d. State AFTER the filtered load
+HTTP 201 (project rjyboqwcdzcocqgmsyel)
+[{"rows":10261,"props":1444,"chars":9612,"negative_id_rows":0,"recon_nodes":1444,"core_pc":0,"core_char":0}]

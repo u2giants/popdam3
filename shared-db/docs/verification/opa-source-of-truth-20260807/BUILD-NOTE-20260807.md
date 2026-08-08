@@ -390,6 +390,20 @@ path for a decision that has not been made.
   `licensedPropertyID = -9999`, `characterID = -9998`. Any unsigned or
   `text`-with-digit-check typing rejects them. Tested at both the table and the
   loader.
+  > **⚠️ SUPERSEDED IN PART — owner ruling, Albert Hazan, 2026-08-07.** "Accepted"
+  > is now true only of **parsing and column typing**, not of **loading**. Keep the
+  > `bigint` typing and the parser's tolerance of a leading minus — both are still
+  > required, so that a sentinel is *counted* rather than fatal, and **do not add a
+  > positive check constraint**. But the row is **no longer written to the mirror**:
+  > `tools/sync-opa-property-character.mjs` rejects any row with
+  > `licensedPropertyID < 0` or `characterID < 0`, reports the count and the row
+  > ordinals, and warns if more than one ever appears. The rule is general (`< 0`),
+  > not the `-9999`/`-9998` pair; ID `0` is deliberately kept. The loader test that
+  > asserted the sentinel **must survive** was replaced by tests asserting it is
+  > **dropped**, plus a boundary test for ID `0`.
+  > Measured effect: 10,262 → **10,261** rows, 1,445 → **1,444** nodes.
+  > Full account and evidence:
+  > `docs/verification/opa-preview-load-20260807/README.md` §2.
 - **`captured_at` is supplied explicitly and never derived from `now()`.** The
   server runs **`America/New_York`**: a timestamp at UTC midnight reads back
   through `::date` as the **previous day**. The landing test *demonstrates* the

@@ -1,0 +1,29 @@
+﻿# 06 -- RE-ENTRANCY and the DATABASE SHRINK BAND
+# Captured 2026-08-07T23:33:10Z. Real command output. Target: PREVIEW rjyboqwcdzcocqgmsyel.
+
+## 6a. Apply the SAME extract again -- must be a no-op
+
+Applying to Supabase project ref: rjyboqwcdzcocqgmsyel (matches the expected ref).
+[{"mode":"mirror_only","captured_at":"2026-08-06","rows_seen":10261,"rows_inserted":0,"rows_updated":0,"rows_unchanged":10261,"rows_missing":0,"distinct_property":1444,"distinct_character":9612,"snapshot_hash":"87247b596f9a3a090a5a4ee877856876"}]
+EXIT=0
+
+## 6b. SHRINK BAND: apply a deliberately TRUNCATED extract (1000 data rows).
+##     OPA_MIN_ROWS is lowered to 1000 so the RUNNER-side floor passes and ONLY
+##     the DATABASE guard can catch it. This is the guard that had never run
+##     against a real database before today.
+
+Applying to Supabase project ref: rjyboqwcdzcocqgmsyel (matches the expected ref).
+node : import failed (HTTP 400). The response body is deliberately NOT printed: it can contain extract content, and 
+this repository and its CI logs are public. Response length: 296 bytes.
+At line:23 char:1
++ node tools/sync-opa-property-character.mjs --apply 2>&1 | Select-Obje ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (import failed (...gth: 296 bytes.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 76
+EXIT=-1073740791  (non-zero = the database REFUSED it)
+
+## 6c. The mirror must be UNHARMED -- the rejecting transaction rolled back
+HTTP 201 (project rjyboqwcdzcocqgmsyel)
+[{"rows":10261,"props":1444,"chars":9612,"recon_nodes":1444}]
