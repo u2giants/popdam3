@@ -1553,6 +1553,51 @@ yet.** Until it lands, these tests are not enforced by CI on pull requests.
 > entry in the `## REQUEST QUEUE` of `COORDINATOR_INTAKE.md`, and keeping that true is the
 > outgoing orchestrator's responsibility at handover.~~
 
+> ## ⛔ THIS BACKLOG IS A POINTER NOW. Do not track work here. (2026-08-09, plan item E)
+>
+> **All 14 `B<n>` items are accounted for. Eight are open GitHub issues; six are closed.
+> Nothing here is outstanding-but-untracked, and no new `B<n>` may be added.**
+>
+> The one list is:
+>
+> ```bash
+> gh issue list --repo u2giants/shared-db --label db-work
+> ```
+>
+> **Why this changed.** This section was a SECOND tracker running alongside Issues, which is the
+> exact thing `plan_coordinator-queue-to-github-issues.md` §1 forbade in its own words: *two
+> tracking systems is strictly worse than the one bad system we have, because "which is right?"
+> stops being rhetorical.* It was already producing that ambiguity — the retired intake pointer
+> told readers to check both places by written instruction.
+>
+> **Re-derived live on 2026-08-09, not copied from the plan:**
+>
+> | Item | State | Evidence |
+> |---|---|---|
+> | B1 line endings / `.gitattributes` | **TRACKED** | issue #545 |
+> | B2 repo-wide checkers behind narrow `paths:` | **CLOSED — done** | Its own recommended fix shipped: the standalone, unfiltered `.github/workflows/domain-ownership.yml`, whose `Domain ownership` context is required. B2's own stated verification test — a PR touching only `HANDOFF.md` shows the ownership check while the Docker build, Playwright and `deploy-development` stay silent — is the PR that introduced this pointer |
+> | B3 `SECURITY DEFINER` exposure | **TRACKED** | issue #546 |
+> | B4 never create background task chips | **CLOSED — standing policy** | Not a task. Lives in `AGENTS.md` §12 and the `shared-db-orchestrator` skill |
+> | B5 carried-forward constraints | **TRACKED** | issue #547 |
+> | B6 cross-PR object collision guard | **TRACKED** | issue #529 — and the guard itself now exists as a required context |
+> | B7 negative-path assertions | **CLOSED — standing policy, sub-item verified** | The rule is policy. Its one concrete LOW sub-item asked whether `main` requires branches to be up to date, which would close Guard B's strict-`<` hole. Verified 2026-08-09 via `gh api repos/u2giants/shared-db/branches/main/protection`: `strict: true`. The hole is closed; do **not** edit `scripts/check-sql.sh` |
+> | B8 no unit test for `emit-coldlion-rollback-sql.mjs` | **TRACKED** | issue #520 |
+> | B9 no armed-but-read-only state | **TRACKED** | issue #548 |
+> | B10 intake lifecycle/retention | **CLOSED 2026-08-07** | ⛔ Do not implement — it would rebuild the retired queue |
+> | B11 paused agent vs finished agent | **TRACKED** | issue #549 |
+> | B12 WSL `psql` orphaned processes | **TRACKED** | issue #550 |
+> | B13 CI check tying `B<n>` to the queue | **RETIRED 2026-08-07** | The queue it checked no longer exists |
+> | B14 ENOBUFS cliff | **RESOLVED 2026-07-31** | No longer a Step 8 blocker |
+>
+> **Zero new issues were created by this change**, which was the point: eight already existed, and
+> "open an issue per item" would have manufactured eight duplicates while claiming to reduce sprawl.
+>
+> ⚠️ **An empty issue list still does not mean there is no work** — it means nothing is filed.
+> Read the newest `HANDOFF.d/` files before concluding the project is idle.
+
+<details>
+<summary><strong>Original B1–B14 backlog text, kept verbatim for the record. It is HISTORY, not a queue — do not add to it and do not act from it without checking the issue above.</strong></summary>
+
 **Status: documentation only. Nothing in this section has been implemented.** It was written by
 a planning session that was explicitly forbidden from changing anything except this file — no
 `.gitattributes`, no workflow, no migration, no script, no database contact.
@@ -2265,6 +2310,8 @@ that one place answers "what is outstanding?".
   > carry the 174-row framing forward; it has already produced a wrong premise once.
 - **PopSG PSG-5 — the eight Licensor aliases** remain a blocking owner gate; that is Albert's
   call, not an AI's.
+
+</details>
 
 ---
 
