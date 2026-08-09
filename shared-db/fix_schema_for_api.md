@@ -261,7 +261,14 @@ api.plm_item_list / api.plm_production_order_list   (NEW browser/reads contract)
 
 - **Production orders built native from day one** — because `prod_order_*` has 0 rows, we skip the
   bespoke `public` tables entirely and pull straight into `ingest` → `plm.production_order[_line]`. No
-  backfill, no legacy tables to retire. (Only items carry a real data move.)
+  legacy ERP tables need backfilling or retiring. However, Albert ruled on 2026-08-07 that Google
+  OrderList rows and Coldlion production-order rows are the **same orders**. The Coldlion importer must
+  therefore claim/upsert matching Google-seeded canonical rows, never create a parallel copy. The
+  formula audit and reconciliation requirements are in
+  [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md).
+  Because one canonical row must retain both identities, the target contract also needs dedicated
+  production-order and line source-reference tables; the existing single `source_system/source_id`
+  pair cannot safely represent both Google and Coldlion.
 
 **Pitfalls to preserve across the move (do not lose these):**
 
@@ -339,7 +346,10 @@ so snapshot the bridge table first. **Risk: medium.**
    `erp_items_current`, `erp_sync_runs`, `erp_enrichment_log` (decide: wire enrichment into the new path
    or drop it — it's 0 rows).
 3. Build the **production-order** pull straight into `ingest` → `plm.production_order[_line]` (no bespoke
-   `public.prod_order_*` tables ever go live). Drop the empty `public.prod_order_*` scaffolding.
+   `public.prod_order_*` tables ever go live). Its upsert/reconciliation contract must attach Coldlion
+   source IDs to matching Google OrderList-seeded rows and quarantine ambiguous matches instead of
+   duplicating orders. Use the dedicated order/line source-reference tables defined by the OrderList
+   plan so both identities survive. Drop the empty `public.prod_order_*` scaffolding.
 4. Update `docs/unified-supabase-schema-map.md` line 70 and the vision doc to describe the finished state.
 **Reversible:** keep the dropped-table DDL in the migration so it can be recreated; don't drop until soak
 passes. **Risk: low once Phase 4 is proven (it's cleanup).**

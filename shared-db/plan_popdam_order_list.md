@@ -4,7 +4,7 @@
 
 | Step | Status | Last updated | Evidence / next action |
 |---|---|---|---|
-| 0. Confirm the legacy source and field contract | ⬜ open | 2026-08-06 | Start here. Export the Google Sheet and produce the field/profile report described in Phase 0. |
+| 0. Confirm the legacy source and field contract | ✅ done | 2026-08-09 | Formula audit plus full row profile, item-match census, 48-column map, assortment rules, and source-identity proof: [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md). |
 | 1. Add the shared database contract | ⬜ open | 2026-08-06 | Create a dedicated `shared-db` branch only after the collision check is clear. |
 | 2. Rehearse and verify the database contract on preview | ⬜ open | 2026-08-06 | Apply only to preview `rjyboqwcdzcocqgmsyel`; do not promote yet. |
 | 3. Import the legacy OrderList data into preview | ⬜ open | 2026-08-06 | Use an idempotent importer and retain a reconciliation report. |
@@ -13,7 +13,7 @@
 | 6. Land shared-db, seed production, then deploy PopDAM | ⬜ open | 2026-08-06 | Shared-db PR is merged by the AI; PopDAM commits directly to `main`. |
 | 7. Verify production and update durable docs | ⬜ open | 2026-08-06 | Verify the live build SHA and sampled linked records. |
 
-**Fresh-session starting point:** Step 0. Re-read this STATUS table, then Sections 1, 8, 9, 11, and 13 before doing anything. Update this table whenever a step changes state. Do not redo completed work.
+**Fresh-session starting point:** Step 1, but only after coordinating with the active ERP relocation plan. Do not repeat Step 0. Re-read this STATUS table, both OrderList audit documents, then Sections 1, 8, 9, 11, and 13 before changing SQL. Update this table whenever a step changes state.
 
 ## 1. The ultimate goal
 
@@ -22,13 +22,14 @@ POP staff need an OrderList inside PopDAM that replaces the legacy Google Sheet 
 When the work is complete:
 
 - signed-in PopDAM users can open `https://dam.designflow.app/orders` and view, search, filter, sort, add, and edit order lines;
-- an order line links to the exact PopDAM Master Data row through a stored database relationship;
+- an order line links to the canonical `plm.item`; PopDAM Master Data reaches the same item through its style-to-item bridge;
 - the `Licensed` or `Generic` classification determines which Master Data tab is eligible for linking;
 - product fields such as SKU, description, license status, licensor, and default vendor display from the linked Master Data record;
 - order facts such as PO number, customer PO, quantity, ship dates, container, and tracking status remain on the order record;
-- historical OrderList rows from the provided Google Sheet are imported once with a written reconciliation report;
+- historical OrderList rows from the provided Google Sheet are imported once with a written reconciliation report, then claimed/updated by matching Coldlion records when that API becomes available;
 - ambiguous or missing SKU matches are visible and reviewable, never silently guessed;
-- future Master Data edits appear in OrderList without rewriting the order record, while a small immutable product snapshot preserves what the order said at import/creation time for audit purposes.
+- future Master Data edits appear in OrderList without rewriting the order record, while a small immutable product snapshot preserves what the order said at import/creation time for audit purposes;
+- Google OrderList and Coldlion never create parallel copies of the same order.
 
 **If a step conflicts with this goal, the goal wins. Stop and flag the conflict instead of following the step literally.**
 
@@ -59,6 +60,12 @@ Existing long-term order tables already exist at `plm.production_order` and `plm
 
 The legacy source is Google Sheet `OrderList`, spreadsheet ID `1i1da5J0qy5a0EvsO1CvfyQ6Xijn4678LG7TFqbwxwUk`, tab `Order` (`gid=0`). It currently has 48 columns and about 12,925 grid rows. The related `MasterData` workbook is spreadsheet ID `1ZL6cEwydC0cWSGP2I92uILn1ixILr_qAeDfDfD6F214`, with tabs `License.Style` (`gid=381648817`) and `Generic.Style` (`gid=2144577418`).
 
+Owner decisions added 2026-08-07:
+
+- Google OrderList rows and future Coldlion production-order rows are the same business records. The two feeds must upsert/reconcile into the same canonical rows.
+- `plm.item` is the ultimate item list. There is no planned `core.item`; `core.*` holds shared reference entities.
+- The complete formula findings and workbook dependency map are in [`docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md`](docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md).
+
 ## 3. What triggered this work
 
 On 2026-08-06 Albert asked whether PopDAM could contain a replica of the OrderList workbook linked to PopDAM Master Data in the same way the spreadsheet Order tab relates to the License.Style and Generic.Style tabs. Live sheet inspection established the relationship:
@@ -82,7 +89,7 @@ This is a new feature. No OrderList application code or new database migration h
 - A new protected PopDAM route `/orders`, available only in PopDAM mode, not PopSG.
 - A familiar AG Grid order table based on all business-useful columns in the legacy `Order` tab.
 - Native create and edit flows for order headers and lines.
-- Stored links from order lines to Master Data rows.
+- Stored links from order lines to canonical `plm.item` rows, with Master Data shown through the existing style-to-item bridge.
 - Read-through display of current Master Data values plus an immutable creation/import snapshot for audit.
 - Search, sort, Text + Set multi-filters, column show/hide/reorder, pagination, and saved per-user views.
 - One-time import of the legacy `Order` tab, with idempotency and reconciliation.
@@ -92,7 +99,7 @@ This is a new feature. No OrderList application code or new database migration h
 ### Not in this plan
 
 - Importing or retaining the copied `License.Style` or `Generic.Style` tabs from OrderList. PopDAM Master Data is authoritative.
-- Continuous two-way synchronization with Google Sheets.
+- Continuous two-way synchronization with Google Sheets. Coldlion is a later recurring source for the same canonical orders, not a second order list.
 - Allowing Google Sheets to overwrite edits made in PopDAM.
 - Replacing unrelated PO tracking, sample tracking, or DesignFlow workflows.
 - Building vendor, customer, licensor, or factory master tables. Reuse canonical `core.*` records.
@@ -106,11 +113,13 @@ This is a new feature. No OrderList application code or new database migration h
 
 ### Shared database
 
-- `plm.production_order` already holds order number, customer/company link, factory link, status, order date, requested/actual ship dates, metadata, and source identity.
-- `plm.production_order_line` already holds order FK, item FK, line number, SKU, ordered/shipped quantity, unit cost, status, metadata, and source identity.
+- `plm.production_order` already holds order number, customer/company link, factory link, status, order date, requested/actual ship dates, metadata, and one legacy source-identity pair.
+- `plm.production_order_line` already holds order FK, item FK, line number, SKU, ordered/shipped quantity, unit cost, status, metadata, and one legacy source-identity pair.
+- One source-identity pair is insufficient for Albert's ruling because the same canonical row must retain both Google and Coldlion identities. Dedicated order and line source-reference tables are required.
 - `dam.production_order_snapshot` exists but is an ingest/cache bridge, not the business editing surface. Do not use it as the new source of truth.
 - `public.style_tracker_rows` and `public.style_tracker_rows_with_bridge` serve PopDAM Master Data.
-- `api.plm_item_list` and `plm.style_tracker_item_bridge` can help resolve existing PLM items, but the user-requested relationship is specifically to the Master Data row and needs an explicit FK on the order line.
+- `api.plm_item_list` currently serves legacy `public.erp_items_current`. The style bridge still points there, while `plm.item` is empty. ERP-plan Phase 4 will repoint the bridge and API view to canonical `plm.item`.
+- The final order-line relationship is the existing `plm.production_order_line.item_id -> plm.item.id`. Do not add a competing permanent FK directly to `public.style_tracker_rows`.
 - No OrderList-specific API view, user-view table, importer, or contract test exists.
 
 ### PopDAM
@@ -126,18 +135,24 @@ This is a new feature. No OrderList application code or new database migration h
 ### Legacy data
 
 - The Order sheet's header row includes PO status, import PO number, vendor, order dates, customer, customer PO, assortment ID, style, description, license status, quantity, case pack, ship/cancel/delivery dates, booking, ETD/ETA, test/photos, warehouse/container/MBL, close tracking, Licensed/Generic discriminator, and PO-writing helper fields.
-- A single spreadsheet row is an order line. Header facts repeat across sibling rows sharing an Import PO number.
-- The exact count of populated business rows, duplicate source keys, duplicate SKUs within a Master Data type, blank PO numbers, formula errors, and mixed header values has not yet been profiled. Step 0 resolves these without asking Albert to make a technical decision.
+- The completed profile found 12,328 populated rows: 8,412 direct-SKU rows, 3,899 assortment rows, 3 rows with both shapes, and 14 incomplete rows. Valid assortment rows expand into multiple component lines, so a spreadsheet row is not always one canonical line.
+- There are 3,083 normalized Import PO numbers and 130 populated rows with no PO number. Five PO groups conflict on customer/vendor identity and must be quarantined rather than silently collapsed.
+- Complete counts, invalid values, duplicate keys, item-match rates, and all 48 mappings are in [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md).
 
 ## 6. Key findings and root cause
 
 1. The workbook is a denormalized database. Order header values repeat on every line, while product facts are looked up by SKU and the Licensed/Generic discriminator.
 2. A literal 48-column table would preserve spreadsheet duplication and allow product facts to drift. The app must separate header facts, line facts, and Master Data facts.
-3. SKU alone is insufficient because the legacy workbook explicitly carries `Licensor or Generic`. The stored link must validate both normalized SKU and source type.
-4. A live lookup without a stored FK is unsafe. Duplicate or malformed SKUs can cause a row to silently point at a different product. Auto-link only an exact, unique match and persist the selected Master Data row ID.
-5. Purely live Master Data display is also insufficient for historical audit. Keep a small snapshot on each line containing the source SKU, type, description, license status, and linked Master Data row ID as observed at import/creation. Current display should still come from the live linked row.
+3. SKU alone is insufficient during the historical import because the legacy workbook explicitly carries `Licensor or Generic`. Use both values to resolve the Master Data row and then its canonical item.
+4. A live lookup without a stored FK is unsafe. Duplicate or malformed SKUs can cause a row to silently point at a different product. Auto-link only an exact, unique match and persist `plm.item.id` on the order line.
+5. Purely live Master Data display is also insufficient for historical audit. Keep a small snapshot on each line containing the source SKU, type, description, license status, and resolved canonical item ID as observed at import/creation. Current display should still come from the live linked item/Master Data relationship.
 6. The copied License.Style and Generic.Style tabs in OrderList are sampled duplicates of MasterData. Importing them would create two competing sources.
 7. Existing `plm.production_order` and `plm.production_order_line` are the declared long-term canonical tables. Building new order tables in `public` or `dam` would violate the shared schema map.
+8. The full export contains 321,544 formula cells, but the `Order` tab has only 43: 37 display headers and six one-off arithmetic quantities. It has no lookup formula to either style tab. The old Master Data relationship is implied, not enforced.
+9. Google and Coldlion represent the same orders. Source identity and reconciliation must converge on one canonical header/line pair.
+10. A canonical order needs multiple source references. The existing single `source_system/source_id` pair cannot preserve both the Google seed identity and later Coldlion identity.
+11. Import PO + SKU and Import PO + SKU + quantity are not unique. Even Import PO + customer PO + SKU + quantity has one duplicate and covers only 5,622 direct rows. A Coldlion line key cannot be declared until a real API payload exists.
+12. Assortment rows contain newline-aligned component SKUs, types, descriptions, and status flags. Ten rows have mismatched counts and must be rejected for review.
 
 ## 7. Approaches considered and rejected
 
@@ -179,19 +194,21 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 
 1. **Native PopDAM feature:** `/orders` is the new operational home.
 2. **Canonical tables:** extend `plm.production_order` and `plm.production_order_line`; do not create a competing business table.
-3. **Explicit Master Data FK:** add `master_data_row_id uuid null references public.style_tracker_rows(id) on delete set null` to `plm.production_order_line`.
-4. **Typed relationship:** add `master_data_type text null check (master_data_type in ('licensed','generic'))` and `master_data_match_status text not null` with allowed values `matched`, `unmatched`, `ambiguous`, `manual`, `not_applicable`.
+3. **Canonical item FK:** use the existing `plm.production_order_line.item_id -> plm.item.id`. Master Data reaches the same item through `plm.style_tracker_item_bridge` after ERP-plan Phase 4. Do not add a second permanent FK to `style_tracker_rows`.
+4. **Import matching evidence:** preserve the source Licensed/Generic discriminator and a match status with allowed values `matched`, `unmatched`, `ambiguous`, `manual`, `not_applicable`. These explain how the historical row resolved; they do not replace `item_id`.
 5. **Exact unique auto-match:** normalize SKU with trim + case-fold only. Do not remove punctuation or guess fuzzy matches. The eligible Master Data source sheet must match the order type.
 6. **Historical snapshot:** store source product facts in `plm.production_order_line.metadata.order_list_snapshot`; do not display the snapshot as the current product truth unless the link is missing.
-7. **One-time source import:** import the Google `Order` tab once. No recurring sync is part of this build.
+7. **One canonical order, two source stages:** import the Google `Order` tab once as historical/pre-API evidence. When the Coldlion API is available, its recurring pull must claim/upsert the same rows using Coldlion IDs plus a reviewed reconciliation key. It must never create a parallel order copy.
 8. **All signed-in PopDAM staff can use OrderList:** initial read/create/update permission follows the intentional collaborative Master Data model. Deletes are not part of version 1; corrections use status/void fields so history remains.
 9. **PopSG exclusion:** `/orders` and its nav item render only when `!IS_POPSG`.
 10. **Spreadsheet familiarity, app quality:** preserve names/order for core visible columns, but use linked current Master Data fields, canonical pickers, filters, validation, and audit-friendly editing.
+11. **Multiple source identities:** add dedicated header and line source-reference tables. Google and Coldlion source refs point to the same canonical records; one never overwrites the other.
+12. **Assortment expansion:** one staged Google assortment row may create several canonical component lines. Component ordinal is part of the Google source key. Missing component quantities are never guessed.
 
 ### Open implementation judgment, resolved by criteria rather than asking Albert
 
 1. **Which legacy fields receive first-class columns vs metadata:** first-class fields are those needed for joins, common filters, sorting, constraints, or date/number math. Rare PO-writing helper fields may remain in typed JSON metadata but must be projected with stable names in the serving view. Decide from the Step 0 profile and document the mapping.
-2. **Header grouping key:** prefer normalized Import PO number. If a blank PO number exists, use a deterministic source-row-specific header so unrelated blank rows never collapse together. If the same PO number has conflicting header facts, retain the most frequent nonblank value on the header and record every conflict in the import report; line snapshots preserve source values.
+2. **Header grouping key:** prefer normalized Import PO number. If a blank PO number exists, use a deterministic source-row-specific header so unrelated blank rows never collapse together. Quarantine the documented customer/vendor/status/company conflicts; do not choose the first or most frequent identity value silently.
 3. **Page loading:** use server-side bounded queries if production data plus future growth makes full loading slow. Use the existing full-load pattern only if an authenticated preview benchmark loads and filters the entire current dataset within 3 seconds and stays below a reasonable browser memory footprint. Either choice must preserve complete search/filter results.
 
 ## 9. Ordered implementation plan
@@ -206,10 +223,10 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 
 **Verification gate:** the local file opens, includes the visible `Order` tab, the header begins with `PO Status`, and its checksum is recorded without committing the file.
 
-#### Step 0.2: add a profiler and mapping document
+#### Step 0.2: profile and map the source ✅ completed 2026-08-09
 
-- In `shared-db`, create `scripts/profile-order-list.py` following the safe workbook-reading patterns in `scripts/import-style-tracker-xlsx.py`.
-- Create `docs/app-migration-notes/popdam-order-list.md` with a source-to-destination table for all 48 source columns.
+- The complete output is `docs/app-migration-notes/popdam-order-list.md`, produced from bounded live range reads plus a fresh read-only XLSX audit with a recorded SHA-256.
+- No standalone profiler was retained because a throwaway workbook dependency would not be durable. Phase 2's real importer must emit the same reconciliation counters and is the maintained executable implementation.
 - The profiler must report:
   - populated business-row count after excluding formula/default-only tail rows;
   - distinct and blank Import PO numbers;
@@ -220,9 +237,10 @@ That page contains Master Data-specific matching and editing logic. Copying it w
   - exact unique Master Data matches, ambiguous matches, and unmatched rows using normalized SKU + type;
   - duplicate normalized SKUs within each Master Data type;
   - formulas and errors such as `#REF!` that must be preserved as source evidence but not treated as valid values.
+- Do not repeat the 16-tab formula census. Use the completed audit linked from STATUS. The profiler should consume its findings and add row-level evidence.
 - The mapping document must state for every source column: header table column, line table column, metadata key, live Master Data projection, derived field, or intentionally omitted with reason.
 
-**Verification gate:** run the profiler twice against the same export and confirm byte-for-byte identical JSON/Markdown output. Every one of the 48 headers appears exactly once in the mapping document.
+**Verification gate passed 2026-08-09:** the live sheet was read in bounded chunks, the fresh XLSX formula scan was repeated, the export hash was recorded, and every one of the 48 headers appears exactly once in the mapping document. Phase 2 must reproduce the documented arithmetic before any write.
 
 **Natural context cut:** after Step 0, update STATUS and use the `fresh-session` skill. The next session must re-read the completed profile and downstream phases before creating SQL.
 
@@ -230,35 +248,37 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 
 #### Step 1.1: claim the database objects before editing
 
+- Coordinate this phase with the still-active [`fix_schema_for_api.md`](fix_schema_for_api.md) plan before changing `plm.item`, `plm.production_order*`, or the style-item bridge. The ERP plan owns populating `plm.item`, repointing the bridge, and building the native Coldlion production-order feed.
 - From a clean `shared-db` worktree based on current `origin/main`, run:
-  `node scripts/check-dispatch-collision.mjs --task "PopDAM OrderList linked to Master Data" --objects "plm.production_order,plm.production_order_line,api.dam_order_list,public.create_dam_order,public.update_dam_order,public.link_dam_order_line,public.order_list_user_views" --allocate-version`
+  `node scripts/check-dispatch-collision.mjs --task "PopDAM OrderList linked to Master Data" --objects "plm.production_order,plm.production_order_line,plm.production_order_source_ref,plm.production_order_line_source_ref,api.dam_order_list,public.create_dam_order,public.update_dam_order,public.link_dam_order_line,public.order_list_user_views"`
+- Choose a unique timestamp manually after checking existing migrations. `--allocate-version` was withdrawn and must not be used.
 - File the printed claim exactly as required by `COORDINATOR_INTAKE.md`/the coordinator workflow.
 - Stop on exit 1 or 2. Do not trust parser coverage alone; manually inspect open PRs for writes to both PLM tables because the known parser may miss `ALTER TABLE`.
 
-**Verification gate:** collision command exits 0, the claim is open, the allocated migration version is unique, and open PR inspection finds no overlapping writes.
+**Verification gate:** collision command exits 0, the claim is open, the manually chosen migration version is unique, and open PR inspection finds no overlapping writes.
 
 #### Step 1.2: create the additive migration
 
 - Add one new timestamped migration under `supabase/migrations/`.
 - Extend `plm.production_order` with first-class fields selected by the Step 0 map, expected to include:
   - `import_po_number text` or reuse `production_order_number` with an explicit invariant;
-  - `order_person text`, `order_type text`, `customer_po_number text`, `assortment_id text` where profiling proves header scope;
-  - `customer_id uuid references core.customer(id) on delete set null` if the current renamed column is not already present on latest main;
-  - seal/container, sent PO, vendor delivery, ETD, ETA, warehouse dates where header-scoped;
+  - seal/container, sent-PO, vendor-delivery, ETD, ETA, warehouse, booking/container, MBL, and close-tracking fields that profiling proved are header scoped;
+  - reuse the existing `company_id` customer relationship, whose foreign key now points to `core.customer`; do not add a second customer column unless the coordinated ERP plan deliberately renames the existing one;
   - `voided_at`, `voided_by`, and `void_reason` for non-destructive correction;
   - source metadata/provenance in existing `metadata`.
-- Extend `plm.production_order_line` with:
-  - `master_data_row_id` FK;
-  - `master_data_type` and match-status checks;
-  - line-scoped order fields from the map, including case pack, cases, ship-to, requested/cancel dates, test report, professional photos, container/booking group, MBL, close-tracking flag, repeat-order flag, contractual-sample flag;
+- Extend `plm.production_order_line` only with fields not already owned by the ERP relocation plan:
+  - use existing `item_id` as the durable product relationship;
+  - source discriminator and match-status evidence for the historical Google reconciliation;
+  - line-scoped fields from the completed map, including order person/type, customer PO, suffix, assortment ID, order depth, case pack, reported cases, ship-to, start/cancel/cargo dates or raw instructions, test report, professional photos, and contractual-sample reorder;
   - normalized SKU generated column or immutable SQL normalization function plus indexes required for matching/filtering;
   - source snapshot and import provenance in existing `metadata`.
-- Add indexes for order number, dates, status, customer, factory, SKU, Master Data FK/type/match status, and the common default sort.
-- Add a constraint trigger that rejects a non-null Master Data FK when its `source_sheet` does not agree with `master_data_type`, and rejects a mismatched normalized SKU. Manual relinking still requires the exact SKU and type; correction of a bad source SKU must update the line first.
+- Add `plm.production_order_source_ref` and `plm.production_order_line_source_ref`, each with a canonical-row FK and `unique(source_system, source_id)`. Preserve existing source columns for compatibility until the ERP relocation plan explicitly retires them.
+- Add indexes for order number, dates, status, customer, factory, SKU, `item_id`, match status, both source-reference tables, and the common default sort.
+- Do not add a competing FK to `style_tracker_rows`. Item linking must follow the ERP plan's final `plm.item` contract. The create/relink path accepts an item only when the exact normalized SKU and Licensed/Generic-qualified style bridge resolve uniquely to that item.
 - Add `public.order_list_user_views` keyed by user + view name with column/filter state, patterned after `public.style_tracker_user_views`, but scoped to the OrderList page.
 - Add an authenticated-readable `api.dam_order_list` security-invoker view. It must project:
   - stable order and line IDs plus editable order facts;
-  - current linked Master Data fields from `public.style_tracker_rows_with_bridge`;
+  - current `plm.item` fields plus linked Master Data fields reached through `plm.style_tracker_item_bridge`;
   - snapshot fallback fields when unmatched;
   - explicit `master_data_match_status` and mismatch diagnostics;
   - canonical customer/factory display labels where linked.
@@ -270,19 +290,21 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 #### Step 1.3: add database tests
 
 - Add `supabase/tests/dam_order_list_contract.sql` covering:
-  - Licensed and Generic exact matches;
-  - wrong-type FK rejection;
-  - wrong-SKU FK rejection;
+  - Licensed and Generic exact item/bridge matches;
+  - wrong-type item link rejection;
+  - wrong-SKU item link rejection;
   - unmatched and ambiguous rows remain readable;
   - current Master Data description changes appear through the view while snapshot remains unchanged;
   - voided records retain history;
   - anon cannot read or mutate;
   - authenticated user can perform the approved operations;
   - saved views are isolated per user;
-  - source-system/source-ID idempotency uniqueness.
+  - source-reference idempotency uniqueness and two different source refs pointing to one canonical row.
 - Extend any schema inventory or API contract tests that enumerate browser-facing views.
 
 **Verification gate:** the new pgTAP/SQL contract test passes in the repository test harness and fails when the FK/type guard is deliberately inverted in a local throwaway edit.
+
+**End-of-phase rule:** after Phase 1, re-read Phases 2 through 5 and Section 13. Record any discovery or schema choice that changes a later assumption before starting the preview import.
 
 ### Phase 2: preview rehearsal and import
 
@@ -298,16 +320,21 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 #### Step 2.2: implement the idempotent importer
 
 - Add `scripts/import-order-list-xlsx.py` in shared-db.
-- Follow `scripts/import-style-tracker-xlsx.py` for safe parsing, configuration, dry-run, transaction control, and no-secret logging.
+- Follow the repository's established import safety rules: explicit configuration, dry-run mode, one transaction per bounded batch, loud failures, and no secret or raw customer data in logs.
 - Generate deterministic source IDs from spreadsheet ID + tab gid + stable source row number, and use `source_system = 'google_order_list'`.
 - Support `--dry-run`, `--preview`, a bounded batch size, and a required source checksum.
-- Group line rows into `plm.production_order` per the Step 0 header-key rule.
+- Group nonblank rows by normalized Import PO. Blank-PO rows each receive a row-specific header. Quarantine the documented customer/vendor/status/company conflicts instead of choosing a value silently.
+- Stage each Google row before canonical writes. A direct SKU row creates one candidate line. A valid assortment row expands newline-aligned component values into child candidates with source IDs `order:row:<row>:component:<ordinal>`.
+- Reject the 14 incomplete rows, the 3 both-shape rows until reviewed, and the 10 structurally invalid assortment rows from automatic canonical line creation while preserving their raw evidence.
 - Auto-link only exact unique normalized SKU + type matches. Persist `matched`, `unmatched`, or `ambiguous`; never choose the first duplicate.
 - Store raw source row number and a compact raw/snapshot JSON object for audit.
 - Produce a durable, secret-free report under `docs/verification/popdam-order-list-preview-<date>/README.md` with counts, conflicts, rejected values, link results, and representative sampled IDs. Do not commit raw customer/order rows.
 - A repeat run against the same checksum must update no business rows unless `--replace-source` is explicitly passed. `--replace-source` is preview-only until separately approved for production.
+- Reconciliation arithmetic must balance against the Phase 0 baseline: 12,328 staged rows split across direct, assortment, both-shape, and incomplete classes; valid assortment components split across linked, ambiguous, and rejected counts.
 
 **Verification gate:** preview import total equals profiler total; sum of matched + unmatched + ambiguous + not-applicable equals imported lines; a second identical run changes zero rows; sampled known styles `NCV3SP1`, `BFC02GABB`, and `3FZ64SPC01` link to the expected Master Data types.
+
+**End-of-phase rule:** after Phase 2, re-read Phases 3 through 5 and Section 13. Update later steps for any observed performance, matching, or data-quality facts before PopDAM work starts.
 
 ### Phase 3: PopDAM implementation
 
@@ -360,6 +387,8 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 
 **Natural context cut:** after the PopDAM code and tests pass locally against preview, update STATUS and use the `fresh-session` skill before production landing. The landing session must re-read Phase 4 and the production safety rules.
 
+**End-of-phase rule:** before that cut, re-read Phases 4 and 5 plus Section 13 and record every interface or behavior change that affects landing, production import, or final cleanup.
+
 ### Phase 4: full verification and landing
 
 #### Step 4.1: test against preview
@@ -400,6 +429,8 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 
 **Verification gate:** GitHub Actions are green; deployed build SHA equals the pushed commit; authenticated live screenshots prove grid load, filters, edit, and relink behavior.
 
+**End-of-phase rule:** after Phase 4, re-read Phase 5 and Section 13. Update the closeout evidence and rollback notes for anything learned during production landing.
+
 #### Step 4.5: close out safely
 
 - Update this STATUS table with dates and evidence.
@@ -421,10 +452,14 @@ That page contains Master Data-specific matching and editing logic. Copying it w
   - duplicate eligible Master Data matches producing `ambiguous`;
   - missing SKU producing `unmatched`;
   - blank PO values that must not merge;
-  - conflicting repeated header values;
+  - conflicting customer/vendor/header identity values producing quarantine, never majority selection;
+  - one valid multiline assortment expanding to multiple component lines with deterministic component source refs;
+  - mismatched assortment SKU/type/description counts producing rejection;
+  - a direct row and an assortment row that both reference the same canonical item without duplicating it;
   - formula/default-only tail rows;
   - invalid date/number and `#REF!` values;
-  - second-run idempotency.
+  - second-run Google idempotency;
+  - a later Coldlion source ref claiming an existing Google-seeded order/line rather than inserting a duplicate.
 - Existing `scripts/check-sql.sh` and repository database test suite remain green.
 
 ### PopDAM
@@ -466,7 +501,9 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 17. Commits must be authored and committed as `Albert Hazan <u2giants@users.noreply.github.com>`; verify before the first commit in each repo.
 18. PopDAM commits directly to `main`. Shared-db uses branch + PR, and the AI merges it after the checklist passes.
 19. No secret values or raw order/customer workbook data may enter logs, docs, commits, screenshots, or the plan.
-20. The legacy `Licensor or Generic` cell can contain malformed concatenated text. Normalize only the exact valid values and classify anything else as invalid for reconciliation, not as a guessed type.
+20. The legacy `Licensor or Generic` cell can contain newline-aligned component values. Direct rows accept only one exact valid type. Assortment rows split and validate each component type; mixed licensed/generic assortments are valid when list lengths align.
+21. Never treat one visible Google assortment row as one finished canonical line. Preserve the staged parent row and expand valid components.
+22. Never overwrite a Google source ref with a Coldlion source ref. Both identities must remain attached to the same canonical row.
 
 ## 12. Access and environment
 
@@ -486,7 +523,7 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 
 ### Definition of done
 
-- [ ] Source workbook profiled and all 48 fields mapped.
+- [x] Source workbook profiled and all 48 fields mapped (2026-08-09; evidence document and export hash recorded).
 - [ ] Shared-db collision claim filed and later closed.
 - [ ] Additive migration, API view/RPCs, indexes, grants, RLS, and tests pass.
 - [ ] Migration rehearsed on preview with quoted target proof.
@@ -508,9 +545,11 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 4. **Import is run twice.** Mitigation: deterministic source IDs, checksum requirement, uniqueness, second-run zero-change test.
 5. **Large-grid browser performance.** Mitigation: benchmark before choosing full load; use bounded server queries if the 3-second gate fails.
 6. **Wrong database receives writes.** Mitigation: mandatory immediate target proof before every write and quoted evidence.
-7. **A pending migration backlog causes accidental broad promotion.** Mitigation: bounded checkout procedure and exact dry-run file list.
-8. **PopSG accidentally exposes business order data.** Mitigation: `!IS_POPSG` route/nav guards and routing tests.
-9. **Sheet formulas/errors become trusted business values.** Mitigation: typed parser, invalid-value report, raw snapshot only.
+7. **Assortment rows are flattened incorrectly.** Mitigation: stage the parent row, expand newline-aligned components, reject mismatched lists, and never guess component quantities.
+8. **Coldlion creates duplicates of Google-seeded rows.** Mitigation: dedicated multi-source reference tables, exact unique candidate claiming, and quarantine when a match is not unique.
+9. **A pending migration backlog causes accidental broad promotion.** Mitigation: bounded checkout procedure and exact dry-run file list.
+10. **PopSG accidentally exposes business order data.** Mitigation: `!IS_POPSG` route/nav guards and routing tests.
+11. **Sheet formulas/errors become trusted business values.** Mitigation: typed parser, invalid-value report, raw snapshot only.
 
 ### Rollback
 
@@ -521,12 +560,12 @@ That page contains Master Data-specific matching and editing logic. Copying it w
 
 ### Genuine open questions
 
-No product decision is required before implementation starts. Phase 0 supplies the facts needed for the remaining technical choices. If profiling reveals that the source sheet is not actually production orders, or that PO numbers cannot group lines without changing business meaning, stop and ask Albert one plain-English question with a recommended option. Do not silently remodel a different business process.
+No new owner decision is required before Phase 1 planning starts. The exact Coldlion line reconciliation key remains technically open until a real production-order payload is available; do not invent it. The Google import can proceed with deterministic Google row/component source refs, while later Coldlion auto-claiming remains disabled for any non-unique candidate.
 
 ## Self-audit
 
-1. **Could a brand-new AI session execute this plan without asking Albert anything? Yes.** Sections 1 through 4 define the business outcome, applications, source files, exact spreadsheet IDs, scope, and exclusions. Sections 8 and 9 lock the architecture and give ordered file-level work with a verification gate for every step. Section 12 names access and environments.
-2. **Does the plan carry the current background, nuance, and rejected paths? Yes.** Sections 3, 5, and 6 record the observed spreadsheet relationship, repository state, existing database tables, sample matches, and unknowns. Section 7 records every material rejected design and why. Section 11 carries the shared-db, Master Data, target-proof, migration-backlog, AG Grid, and git traps.
-3. **Is the ultimate goal clear enough for correct judgment if a step is wrong? Yes.** Section 1 states the user-visible outcome and explicitly says the goal wins over a conflicting step. Section 8 separates locked decisions from criteria-based implementation judgment. Section 13 defines completion, risk responses, rollback, and the only condition that requires returning to Albert.
+1. **Could a brand-new AI session execute this plan without asking Albert anything? Yes, re-audited 2026-08-09.** STATUS points to the completed formula and row-level evidence. Sections 1 through 4 define the business outcome, source files, exact spreadsheet IDs, scope, and exclusions. Sections 8 and 9 lock the architecture, including assortment expansion and multiple source identities, and give ordered file-level work with a verification gate for every step. Section 12 names access and environments.
+2. **Does the plan carry the current background, nuance, and rejected paths? Yes, re-audited 2026-08-09.** Sections 3, 5, and 6 record the 12,328-row profile, Master Data match census, missing universal Coldlion key, existing database relationships, and remaining dependency. Section 7 records every material rejected design and why. Section 11 carries the shared-db, Master Data, target-proof, migration-backlog, AG Grid, and git traps.
+3. **Is the ultimate goal clear enough for correct judgment if a step is wrong? Yes, re-audited 2026-08-09.** Section 1 states the user-visible outcome and explicitly says the goal wins over a conflicting step. Section 8 distinguishes the ultimate `plm.item` relationship from source snapshots and source references. Section 13 defines completion, risk responses, rollback, and the one technical fact that must wait for the real Coldlion payload.
 
 All implementation-plan-writer checklist items pass: all 13 sections are present; scope and out-of-scope are explicit; rejected approaches are documented; decisions are labeled locked/open; every implementation step names concrete objects/files and a verification gate; tests are specific; secrets are location-only; and done includes commit, push, CI, deploy SHA, live behavior, documentation, and evidence.
