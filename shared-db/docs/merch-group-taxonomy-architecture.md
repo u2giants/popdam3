@@ -4,6 +4,12 @@
 API, (b) live queries against the shared Supabase backend `qsllyeztdwjgirsysgai`, and
 (c) a full read of the six `popcre/designflow-*` repos on branch `sandbox-albert`.
 
+**Corrected 2026-08-09 (issue #556):** four sentences in §3.2 were disproved by later
+sessions and are superseded in place — see the correction box in §3.2. The conclusions of
+§3.2 (a), (b) and (c) still stand and were re-confirmed live on 2026-08-07. Everything
+outside §3.2 is unreviewed by that correction and still carries its original 2026-07-19
+measurement date.
+
 **Who this is for:** an engineer who has never seen this system. Read this before touching
 anything named licensor, property, merch group, big theme, little theme, style guide,
 art type, art source, artist, age group, or `mgTypeCode`.
@@ -156,18 +162,52 @@ and only five models exist in the whole spec (`ItemDetail`, `ItemHeader`, `ItemI
 
 ### 3.2 Three hard facts about Coldlion merch groups
 
-**(a) There is no parent-child link. At all.**
-`mgCategory` is the only field that could plausibly carry one, and it is **empty on every
-row** — verified across all 22 licensors and all 258 properties in CW001. `mgCode2` and
-`itemNoCode` are near-duplicates of `mgCode` (identical on all 22 licensors; they differ on
-11 of 258 properties, e.g. `CHR`/`CH`, `EBB`/`BB`). **The licensor→property relationship
-does not exist in the ERP and cannot be recovered from `/merchGroupDetails`.**
+> ### ⛔ CORRECTION 2026-08-09 — parts (a) and (b) below were overstated (issue #556)
+>
+> The **conclusions** of (a) and (b) survived every re-check between 2026-07-19 and
+> 2026-08-07. The **absolute wording** did not. Four specific sentences were disproved.
+> They are listed here rather than deleted, because sessions have been quoting them.
+>
+> | Original wording (2026-07-19) | Verdict | What is true instead | Evidence |
+> |---|---|---|---|
+> | "`mgCategory` … is **empty on every row**" | **Wrong as written** | Empty on 100% of licensor (`05`) and property (`06`) rows. **Populated on the product-axis rows** `01`/`02`/`03` with values like `Wall` (648), `Tabletop` (190), `Workspace` (177), `Storage` (139), `Floor` (60), `Garden` (44), `Clock` (39). §4.2 of this same document already said so and was ignored. | [`docs/verification/master-data-designflow-reference-cutover-20260807/baseline.json`](verification/master-data-designflow-reference-cutover-20260807/baseline.json); §4.2 line "MG Category (mgCategory — allowlisted per division by substring match)" |
+> | "`mgCode2` and `itemNoCode` are near-duplicates of `mgCode`" | **Wrong as a general rule** | True for licensors, not generally. `mgCode2` carries independent values (`00`, `02`, `04`, `83`) on other types. | same `baseline.json` |
+> | "There is no parent-child link. **At all.**" | **Overstated** | No field *reproduces* parentage, but the residual signal is not zero: of 503 real DesignFlow edges, **14 have `mgCode2` = the parent's `mg_code`, 20 share `ItemNoCode`, 27 share a `mg_code` prefix**. No rule reproduces the data — which is a *measured* finding, not an absence. | `docs/dflow-parent-logic-and-curation-home-20260803.md:105` |
+> | "There is no active/inactive flag." (unqualified) | **Wrong outside merch groups** | True of the **merch-group payload**. ColdLion `/customers` and `/vendors` *do* carry an `active` flag — the customer one is known-unreliable, which is why `core.customer.status` is app-owned. | `docs/coldlion-source-of-truth-plan.md:380`; `docs/coldlion-customer-dedupe-review.md:9,16`; `docs/coldlion-erp-api-reference.md:51` |
+>
+> **Do not re-litigate the conclusions.** Both were re-confirmed live on 2026-08-07:
+> `docs/verification/coldlion-as-source-20260807/README.md:298-306` lists the complete
+> merch-group payload and states "No licensor → property relationship" and
+> "No active / inactive flag". See also `docs/master-data-cutover-scoreboard.md:148-152`,
+> `docs/parent-child-answers-20260803.md:137-147`,
+> `docs/coldlion-erp-api-reference.md:26,188`, and
+> `supabase/migrations/20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql:287`.
 
-**(b) There is no active/inactive flag.**
-The payload has no `status`, `active`, `isActive`, or `deleted` field. A discontinued
-licensor is byte-for-byte indistinguishable from a current one. **Coldlion is structurally
-incapable of telling you a license has lapsed.** Deactivation is therefore *necessarily* a
-DesignFlow-side concern — see §6.
+**(a) No parent-child link is recoverable from `/merchGroupDetails`.**
+`mgCategory` is the only field that could plausibly carry one, and it is **empty on every
+licensor (`05`) and property (`06`) row** — verified across all 22 licensors and all 258
+properties in CW001, and again on the full 2026-08-07 pull. (It is *not* empty on
+product-axis rows `01`–`03`; see the correction box.) On licensors, `mgCode2` and
+`itemNoCode` are duplicates of `mgCode`; on properties they differ on 11 of 258
+(e.g. `CHR`/`CH`, `EBB`/`BB`), and on other merch-group types `mgCode2` carries
+unrelated values entirely. Attempts to derive parentage from these fields were measured
+and failed: of 503 real edges only 14 match on `mgCode2`, 20 on `ItemNoCode`, 27 on a
+code prefix (`docs/dflow-parent-logic-and-curation-home-20260803.md:105`).
+**The licensor→property relationship does not exist in the ERP and cannot be recovered
+from `/merchGroupDetails`.** The one place it is *observable* in ColdLion is item
+co-occurrence (§10.2) — which is evidence only, never authority, by standing policy
+(`fix_coldlion_licensor_property_cutover.md:227-228`).
+
+**(b) There is no active/inactive flag in the merch-group payload.**
+The `/merchGroupDetails` payload has no `status`, `active`, `isActive`, or `deleted` field
+— the complete field list is `companyCode, divisionCode, mgTypeCode, mgCode, mgDesc,
+itemNoCode, mgCategory, mgCode2, createdTime/User, modTime/User`, confirmed live
+2026-08-07 (`docs/verification/coldlion-as-source-20260807/README.md:298-303`). A
+discontinued licensor is byte-for-byte indistinguishable from a current one; the same pull
+still returned `FK` FRIDA KAHLO, `NA` NASA and `ZG` ZAG (ibid. `:157,164`).
+**Coldlion is structurally incapable of telling you a license has lapsed.** Deactivation is
+therefore *necessarily* a DesignFlow-side concern — see §6. This is a statement about
+merch groups only: `/customers` and `/vendors` do expose an `active` flag.
 
 **(c) Codes are only unique within `(division, mgTypeCode)`.**
 The same code means different things in different slots. Real example: **`FR` is a
