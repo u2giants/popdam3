@@ -1128,20 +1128,33 @@ weaken it.**
    a PR as ready, and check the run's `head_sha` — a green tick can be a **stale verdict from an
    older commit**. A green PR page is not the same as a satisfied required context.
 
-**KNOWN LIMITATION — state this honestly, do not claim protection is complete. The gap is the
-migrations lane itself.** The two workflows that actually **touch the database** —
-`.github/workflows/shared-supabase-migrations.yml` and `.github/workflows/db-data-admin.yml` — are
-**`paths:`-filtered**, and a path-filtered workflow reports **NO check at all** on a PR that misses
-its paths. GitHub treats a required context that never reports as *pending forever*, so making
-either one required would **deadlock every unrelated PR** in the repository. Neither can therefore
-join the required list as things stand.
+**PATH FILTERING — where it still applies, and where this document was wrong.**
+*(Corrected 2026-08-09, plan item F. This paragraph previously said BOTH database-touching
+workflows were `paths:`-filtered and that neither could ever be required. That was stale, and
+it discouraged the migrations-lane hardening it should have invited. Re-derive from the
+workflow files, never from this sentence.)*
 
-Say the consequence plainly, because it is the opposite of reassuring: **the riskiest path in this
-repository — migrations — is currently the one guard that CANNOT block a merge.** The four required
-contexts above are the cheap, always-run guards; the expensive, genuinely dangerous one is advisory.
-This is **backlog item B2** ("repo-wide checkers gated behind narrow `paths:` filters") and it is
-**UNFIXED**. Until it is fixed, do not describe branch protection on this repository as complete,
-and do not let "protection is on" stand in for "a bad migration cannot be merged" — it can.
+The mechanic is real: a `paths:`-filtered workflow reports **NO check at all** on a PR that
+misses its paths, GitHub treats a required context that never reports as *pending forever*, and
+making such a workflow required would **deadlock every unrelated PR**.
+
+Measured live on 2026-08-09:
+
+- `.github/workflows/shared-supabase-migrations.yml` is **NOT** path-filtered. Its `on:` block
+  (`:4-9`) carries a comment saying the omission is deliberate, for exactly this reason. Its
+  cheap `validate` job (`SQL migration guards`) runs on **every** pull request and is **already
+  one of the six required contexts**. The expensive `preview` and `production-dry-run` jobs are
+  gated on `workflow_dispatch`, not on paths.
+- `.github/workflows/db-data-admin.yml` **IS** path-filtered (`:5-12`, `:15-22`) and therefore
+  cannot itself become a required context. This does **not** leave domain ownership unguarded:
+  the required `Domain ownership` context comes from the separate, unfiltered
+  `.github/workflows/domain-ownership.yml` (`:26`).
+
+**What is still honestly true.** The migrations lane's *cheap, static* guards block a merge; its
+*expensive* jobs — the ones that talk to a real database — run only on `workflow_dispatch` and so
+cannot block a merge. Do not let "protection is on" stand in for "a bad migration cannot be
+merged": static SQL checks pass on a migration that is destructive at runtime. But do **not**
+repeat the retired claim that path filtering makes hardening this lane impossible. It does not.
 
 ### 6.8 OWNER RULING — the six HARD_BLOCKED ColdLion migrations are NOT unblocked individually (Albert Hazan, 2026-08-04)
 
