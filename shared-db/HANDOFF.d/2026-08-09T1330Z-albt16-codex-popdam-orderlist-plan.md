@@ -16,7 +16,7 @@ Phase 0 is complete. The authoritative plan is `plan_popdam_order_list.md`; its 
 
 The audit found 12,328 populated Order rows: 8,412 direct-SKU-only rows, 3,899 assortment-only rows, 3 rows with both shapes, and 14 with neither. Valid assortment rows contain 15,816 component SKUs. Direct and valid component SKUs had zero unmatched Master Data values, but 449 matches are ambiguous because Master Data itself contains duplicate normalized SKUs. No universal Google-only key can safely prove that a future Coldlion row is the same line. The plan therefore requires separate header and line source-reference tables so Google and Coldlion IDs can point to the same canonical records.
 
-No schema, database, production, or PopDAM code changes were made. The documentation is on branch `codex/docs-orderlist-formulas` in worktree `C:\repos\shared-db-worktrees\orderlist-formulas`. Commit, push, PR, and merge status must be updated here if publishing has not completed when this is read.
+No schema, database, production, or PopDAM code changes were made. Documentation commit `00c5e9cb764ec23b630b18c5b061ea84f4224f01` passed all GitHub checks and was merged to `main` through PR `#598` at merge commit `d81606766fc9c8c67d24c8f0bb83c2468bd5dfde`. This follow-up sentence is the only post-merge documentation correction; its own final merge is recorded in the closing task report and Git history.
 
 ## 4. Everything tried that did not work
 
