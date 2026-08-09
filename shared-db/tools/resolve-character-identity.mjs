@@ -54,6 +54,83 @@ export function isSentinel(characterName) {
   return SENTINELS.has(norm(characterName));
 }
 
+// --- marker matching -------------------------------------------------------
+//
+// WHY SEGMENTS. Until 2026-08-09 every marker rule below was a regex anchored to
+// the start or the end of the WHOLE normalised name. Coldlion labels are
+// compounds, so a marker that sits anywhere but an outer edge never fired:
+//
+//   "Marvel Studios' Ant-Man & Wasp Logo ( Ant-Man )"  -> `logo` is mid-string
+//   "Moon Girl & Devil Dinosaur - Gen"                 -> `general` is abbreviated
+//
+// Those are two symptoms of one wrong approach, not two missing regexes. The fix
+// is to split the label into the segments that can independently carry a marker,
+// then match the marker against a SEGMENT edge rather than a STRING edge.
+// Matching is still edge-anchored per segment, never a substring search, so
+// "General Zod", "Genie" and "Logan" stay characters.
+
+/**
+ * Split a compound label into the segments that can independently carry a
+ * marker. Segments break on brackets, slashes, pipes, commas, and a spaced dash
+ * (a spaced dash separates a franchise prefix from its qualifier; an unspaced
+ * one is part of a name, as in "Ant-Man").
+ */
+export function labelSegments(characterName) {
+  return String(characterName ?? '')
+    .split(/[()\[\]{}\/|,]|\s+[-–—]\s+/)
+    .map((part) => norm(part))
+    .filter(Boolean);
+}
+
+const tokensOf = (segment) => segment.split(' ').filter(Boolean);
+
+const endsWithPhrase = (tokens, phrase) => {
+  const p = phrase.split(' ');
+  return tokens.length >= p.length
+    && p.every((token, i) => token === tokens[tokens.length - p.length + i]);
+};
+
+const startsWithPhrase = (tokens, phrase) => {
+  const p = phrase.split(' ');
+  return tokens.length >= p.length && p.every((token, i) => token === tokens[i]);
+};
+
+/**
+ * Does any segment of `characterName` carry `phrase` at the requested edge?
+ *
+ * `where` is 'end' (the segment is "<something> Logo"), 'start' (the segment is
+ * "Logo <something>"), 'either', or 'exact' (the segment IS the phrase and
+ * nothing else). 'exact' is the setting for short abbreviations, where a looser
+ * edge match would start swallowing real names.
+ */
+export function segmentCarriesPhrase(characterName, phrase, where = 'end') {
+  return labelSegments(characterName).some((segment) => {
+    const tokens = tokensOf(segment);
+    switch (where) {
+      case 'exact': return tokens.join(' ') === phrase;
+      case 'start': return startsWithPhrase(tokens, phrase);
+      case 'either': return startsWithPhrase(tokens, phrase) || endsWithPhrase(tokens, phrase);
+      default: return endsWithPhrase(tokens, phrase);
+    }
+  });
+}
+
+/**
+ * Marker vocabularies. Each entry is [phrase, edge]. Spelled-out words are safe
+ * at a segment edge; abbreviations are only safe as a whole segment of their own
+ * ("... - Gen"), because "Gen" as an edge match would also catch a name that
+ * merely happens to end in that token.
+ */
+export const LOGO_MARKERS = [['logo', 'either'], ['logos', 'either']];
+export const GENERAL_MARKERS = [
+  ['general', 'end'],
+  ['gen', 'exact'],
+];
+export const DO_NOT_USE_MARKERS = [['dnu', 'start'], ['do not use', 'start']];
+
+const carriesAnyMarker = (characterName, markers) =>
+  markers.some(([phrase, where]) => segmentCarriesPhrase(characterName, phrase, where));
+
 /**
  * A label that describes the artwork or the guide, not a character:
  * the style guide's own name, logos, and "(General)" royalty groupings.
@@ -61,11 +138,10 @@ export function isSentinel(characterName) {
 export function classifyNonCharacterLabel(styleGuide, characterName) {
   const n = norm(characterName);
   if (!n) return 'EMPTY_NAME';
-  if (/^dnu\b/.test(n)) return 'DO_NOT_USE_LABEL';
-  if (/(^|\s)logos?$/.test(n) || /^logos?\b/.test(n)) return 'LOGO_LABEL';
-  if (/(^|\s)general$/.test(n)
+  if (carriesAnyMarker(characterName, DO_NOT_USE_MARKERS)) return 'DO_NOT_USE_LABEL';
+  if (carriesAnyMarker(characterName, LOGO_MARKERS)) return 'LOGO_LABEL';
+  if (carriesAnyMarker(characterName, GENERAL_MARKERS)
     || /general (family )?(char|character)/.test(n)
-    || /\(general\)/.test(String(characterName).toLowerCase())
     || (/\bgeneral\b/.test(n) && /no name likeness or voice royalty/.test(n))) {
     return 'GENERAL_ROYALTY_LABEL';
   }

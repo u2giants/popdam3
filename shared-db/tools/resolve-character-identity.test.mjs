@@ -7,6 +7,7 @@ import {
   renditionDescription,
   validateStyleGuideProperty,
   classifyNonCharacterLabel,
+  labelSegments,
   clusterAliases,
   codeSpecificity,
   editDistance,
@@ -320,4 +321,77 @@ test('no code and the NONE marker are not validation failures', () => {
 test('a franchise code that is not among the candidates is not invented', () => {
   const result = resolvePropertyForIdentity(new Map([['AV', 1], ['MU', 1]]), { franchiseCode: 'CA' });
   assert.notEqual(result.rule, 'REVIEWED_FRANCHISE_RULE');
+});
+
+// ---------------------------------------------------------------------------
+// Segment-scoped marker matching (issues #524, #525).
+//
+// The old rules anchored every marker to the start or end of the WHOLE name, so
+// a marker inside a compound label never fired. All fixture names below are
+// invented; this repo is public.
+// ---------------------------------------------------------------------------
+
+test('labelSegments splits a compound label but keeps hyphenated names whole', () => {
+  assert.deepEqual(
+    labelSegments("Nimbus Studios' Storm-Rider & Vane Logo ( Storm-Rider )"),
+    ['nimbus studios storm rider vane logo', 'storm rider'],
+  );
+  assert.deepEqual(labelSegments('Cloudmane & Thunderfoot - Gen'), ['cloudmane thunderfoot', 'gen']);
+});
+
+test('#525 LOGO_LABEL fires when "Logo" sits mid-string before a parenthetical', () => {
+  assert.equal(
+    classifyNonCharacterLabel('Storm-Rider', "Nimbus Studios' Storm-Rider & Vane Logo ( Storm-Rider )"),
+    'LOGO_LABEL',
+  );
+  assert.equal(classifyNonCharacterLabel('Vane', 'Vane Logo / secondary art'), 'LOGO_LABEL');
+});
+
+test('#525 the previously-working LOGO_LABEL edges still fire', () => {
+  assert.equal(classifyNonCharacterLabel('Vane', 'Vane Logo'), 'LOGO_LABEL');
+  assert.equal(classifyNonCharacterLabel('Vane', 'Logos'), 'LOGO_LABEL');
+  assert.equal(classifyNonCharacterLabel('Vane', 'Logo Sheet'), 'LOGO_LABEL');
+});
+
+test('#525 loosening LOGO_LABEL does not swallow real names containing those letters', () => {
+  for (const name of ['Logan Vex', 'Logostar Prime', 'Zelogo Marlow', 'Blogger Bear']) {
+    assert.equal(classifyNonCharacterLabel('Nimbus', name), null, name);
+  }
+});
+
+test('#524 GENERAL_ROYALTY_LABEL fires on the "Gen" abbreviation as its own segment', () => {
+  assert.equal(classifyNonCharacterLabel('Cloudmane', 'Cloudmane & Thunderfoot - Gen'), 'GENERAL_ROYALTY_LABEL');
+  assert.equal(classifyNonCharacterLabel('Cloudmane', 'Cloudmane (Gen.)'), 'GENERAL_ROYALTY_LABEL');
+});
+
+test('#524 the previously-working GENERAL_ROYALTY_LABEL forms still fire', () => {
+  assert.equal(classifyNonCharacterLabel('Nimbus', 'Nimbus General'), 'GENERAL_ROYALTY_LABEL');
+  assert.equal(classifyNonCharacterLabel('Nimbus', 'Nimbus (General) ( Nimbus )'), 'GENERAL_ROYALTY_LABEL');
+  assert.equal(classifyNonCharacterLabel('Nimbus', 'General Family Characters'), 'GENERAL_ROYALTY_LABEL');
+});
+
+test('#524 the "Gen" abbreviation is exact-segment only, so real names survive', () => {
+  for (const name of ['General Vex', 'Genie Marlow', 'Gene Thornby', 'Gen 9 Squad', 'Generator Kid']) {
+    assert.equal(classifyNonCharacterLabel('Nimbus', name), null, name);
+  }
+});
+
+test('sweep: DO_NOT_USE_LABEL was start-of-string only and had the same defect', () => {
+  assert.equal(classifyNonCharacterLabel('Nimbus', 'DNU-Old Art'), 'DO_NOT_USE_LABEL');
+  assert.equal(classifyNonCharacterLabel('Nimbus', 'Skyward Falls - DNU Old Art'), 'DO_NOT_USE_LABEL');
+  assert.equal(classifyNonCharacterLabel('Nimbus', 'Vane (Do Not Use)'), 'DO_NOT_USE_LABEL');
+  assert.equal(classifyNonCharacterLabel('Nimbus', 'Dnuka Thornby'), null);
+});
+
+test('DNU still outranks LOGO when a label carries both markers', () => {
+  assert.equal(classifyNonCharacterLabel('Nimbus', 'DNU-Nimbus Network Logo'), 'DO_NOT_USE_LABEL');
+});
+
+test('an excluded compound label reaches prepareAppearance as a non-character', () => {
+  const result = prepareAppearance({
+    styleGuide: 'Storm-Rider',
+    characterName: "Nimbus Studios' Storm-Rider & Vane Logo ( Storm-Rider )",
+  });
+  assert.equal(result.status, 'NON_CHARACTER_EXCLUDED');
+  assert.deepEqual(result.rules, ['LOGO_LABEL']);
 });
