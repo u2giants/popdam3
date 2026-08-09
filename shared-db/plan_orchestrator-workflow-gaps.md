@@ -8,11 +8,55 @@ on 2026-08-07. They are independent of each other and are listed worst-first.
 
 | # | Gap | Phase | State |
 |---|---|---|---|
-| A | Production migrations: the lane is **built but never exercised**, and there is no apply path | 1 | ⬜ open |
-| E | **The 14 `HANDOFF.md` backlog items are a SECOND tracker** — added after review | 1 | ⬜ open |
+| A | Production migrations: the lane is **built but never exercised**, and there is no apply path | 1 | 🟨 **A1 DONE** (PR #604). A2 **BLOCKED** — see drift. A3 shape decided by owner 2026-08-09 |
+| E | **The 14 `HANDOFF.md` backlog items are a SECOND tracker** — added after review | 1 | ✅ **DONE** — PR #603 |
+| F | Stale `AGENTS.md` KNOWN LIMITATION | 1 | ✅ **DONE** — PR #600 |
 | B | Nothing mechanically stops two orchestrators running at once | 2 | ⬜ open |
 | C | A session already running never learns of a new owner ruling | 3 | ⬜ open |
 | D | 71 open issues with no ordering — no single "what is next" | 3 | ⬜ open |
+
+## ⚠️ DRIFT RECORDED 2026-08-09 — read before touching A2
+
+**Orchestrator session `5e1ab3af`, marker #601.** Recorded per the end-of-phase rule below.
+
+1. **⛔ A2's allowlist as written is WRONG, and A2 must not run until this is resolved.**
+   A1 (PR #604, `docs/verification/orphan-migrations-classification-20260809.md`) established
+   that **all 33 orphans were NEVER APPLIED — bucket (a) is empty.** So production is **44
+   migrations behind, not 11**, and **several of the 11 pending build on objects the 33
+   create.** A dry-run allowlisting only the 11 would either fail or, worse, appear to succeed
+   while describing an apply that cannot work. **The 11-only allowlist in §A2 and in the A4
+   owner-gate sentence is now known to be incomplete.** Re-derive the apply set before A2.
+2. **No ledger back-fill is warranted.** Bucket (a) being empty means nothing may be inserted
+   into `supabase_migrations.schema_migrations` as a result of A1. Every one of the 44 reaches
+   production by being applied normally, in version order, or by being deliberately retired.
+3. **`20260729120000` should be RETIRED, not applied.** Its end state is present on production
+   but was produced by `20260729130000` and `20260729180000`, both already in the ledger.
+   Proved by bit-exact `md5(pg_proc.prosrc)` attribution. This is the case that would have been
+   misclassified by object existence, exactly as Kimi warned.
+4. **Two migrations need an owner ruling before any apply sequence is assembled:**
+   `20260724060000` and `20260724061000`. Never applied (high confidence); everything they
+   produce is dropped and re-created by `20260726030000`, so whether to retire them as
+   superseded is a judgement, not a measurement. **They must not be ledger-recorded and must not
+   be silently skipped.**
+5. **Method trap, applies to anyone re-deriving A1:** `pg_proc.prosrc` on this database is
+   stored with **CRLF** while the repo is **LF**. A naive md5 comparison reads every correctly
+   applied function as unapplied. Normalise `\n` → `\r\n` first.
+6. **A3's shape is decided (owner, 2026-08-09):** option (i), an `apply` mode behind the
+   `production` environment's required reviewer, **plus** an automatic model review (Kimi/Grok/
+   GLM) that posts the technical verdict on the PR. The owner's click is the authorisation; the
+   model review is the technical judgement. The owner's stated reason: he is not a programmer
+   and should not be the one grading SQL. **An AI review must NOT be the only gate** — GitHub
+   cannot name a model as an approver, so it would run inside the same pipeline the requesting
+   session controls, and a session could effectively approve itself.
+7. **F was not in the original table** and is now recorded. Its finding strengthens A: the
+   migrations workflow is **not** path-filtered and its guard is **already required**, so the
+   stale "this lane cannot be hardened" claim no longer blocks A3.
+8. **B, C and D: no drift.** Nothing done in this phase changes their assumptions, and nothing
+   discovered invalidates their approach. B's premise (the marker is honour-system) was
+   re-confirmed live: marker #587 was found already closed, and this session's own `gh issue
+   list --label orchestrator-marker` printed **empty output while the marker existed**, which is
+   precisely the "a failed or empty `gh` call is UNKNOWN, never none-open" failure B1 must
+   handle. Worth folding into B1's brief.
 
 > **Do A and E first.** A is why the database five applications share has not received a
 > migration since **2026-08-02**. E is the unfinished half of the migration that just
