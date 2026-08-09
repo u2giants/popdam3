@@ -64,6 +64,30 @@ HARD_BLOCKED = {
     # The reversal of 20260726190000. Already applied to production, so listing
     # it is inert; kept so the pair stays legible together.
     "20260726200000",
+    # A THIRD KIND. Read this before assuming it matches either pair above.
+    #
+    # NEVER APPLIED, and must NEVER be applied: promoting it would REGRESS a
+    # security control that is live on production right now. It rewrites
+    # public.lock_down_new_public_function_execute back to a narrower body
+    # (`command_tag = 'CREATE FUNCTION'`, `revoke execute on function`) than the
+    # one production runs today (`command_tag in ('CREATE FUNCTION',
+    # 'CREATE PROCEDURE')`, `revoke execute on routine`), so newly created public
+    # PROCEDURES would stop being locked down. Its `create or replace` and
+    # `drop event trigger`/`create event trigger` overwrite unconditionally, and
+    # it sorts BELOW the already-applied 20260729180000, which will therefore
+    # never re-run to repair the damage.
+    #
+    # Its whole end state is already on production, from two migrations that ARE
+    # in the ledger: 20260729130000 (the identical `alter default privileges`)
+    # and 20260729180000 (the live event-trigger body, md5 735985606362e032...
+    # matched bit-exactly after CRLF normalisation).
+    #
+    # Do NOT reach for the old argument that it would abort anyway on a missing
+    # public/pim.sync_clickup_tasks. That is true only for a lone promotion. In
+    # the full 50-file backlog 20260728174500 creates those functions FIRST, so
+    # the file would succeed and regress production silently.
+    # Evidence: docs/verification/production-apply-set-and-rehearsal-20260809.md
+    "20260729120000",
 }
 
 # The four unblocked above. This is ENFORCED, not documentary: `parse_allowlist`
@@ -78,6 +102,43 @@ BUNDLE_20260804 = {
     "20260726032000",
     "20260726180000",
 }
+
+# AGENTS.md section 6.5 -- OWNER RULING (Albert Hazan, 2026-08-03), "hold it and
+# ship it together with the removal work".
+#
+# NEITHER of these two may reach production by ANY route until the `FR`
+# "FRIENDS TV" REMOVAL work is ready to ship with them, as ONE bounded apply in
+# dependency order. Not alone, not as a pair, not inside a wider backlog sweep,
+# not via `--include-all`, not re-issued under a fresh timestamp.
+#
+# WHY the block is here and not in HARD_BLOCKED. HARD_BLOCKED means "never, by
+# any route, full stop". Section 6.5 is NOT that: it names a legal future event.
+# Putting these in HARD_BLOCKED would force a GUARD EDIT to perform a promotion
+# the owner has already authorised -- the wrong shape, and the kind of edit that
+# gets made carelessly under deadline. So this is a CO-PRESENCE rule instead,
+# the same shape as the 6.8 all-four-or-none rule above: the two held versions
+# are legal in an allowlist if and only if the whole FR ship set is in it too.
+#
+# Unblocking is therefore a DATA change, not a policy change: when the removal
+# migrations exist, list their versions in FR_REMOVAL_VERSIONS below and the
+# combined promotion parses. Until then FR_REMOVAL_VERSIONS is empty, so any
+# allowlist containing either held version is refused -- which is exactly right,
+# because the one legal event cannot yet be assembled.
+FR_HELD_20260803 = {
+    # plm.import_master_data preserves curated licensor/property status.
+    "20260802170000",
+    # The FRIENDS TV / FRIDA KAHLO ruling. Sets core.licensor `FR` to
+    # status = 'inactive' -- a remedy the REMOVAL ruling supersedes. Promoting
+    # it alone leaves production at rest in `inactive`, the state the owner
+    # rejected, with no undo.
+    "20260802171000",
+}
+
+# The `FR` removal migrations. EMPTY ON PURPOSE -- as of 2026-08-09 no removal
+# migration exists anywhere in supabase/migrations/. Add the version strings
+# here in the same change that adds the files. Do NOT add a placeholder, and do
+# NOT delete the co-presence check to "unblock" a promotion.
+FR_REMOVAL_VERSIONS: set[str] = set()
 
 
 class GuardError(ValueError):
@@ -110,6 +171,35 @@ def parse_allowlist(raw: str) -> list[str]:
             "Include all four (20260726030000, 20260726031000, 20260726032000, "
             "20260726180000) or none."
         )
+    # AGENTS.md section 6.5: the two held versions ship WITH the FR removal work
+    # or not at all. Enforced in the same single choke point as 6.8, so no
+    # subcommand can route around it.
+    held = FR_HELD_20260803 & set(values)
+    if held:
+        required = FR_HELD_20260803 | FR_REMOVAL_VERSIONS
+        missing = sorted(required - set(values))
+        if not FR_REMOVAL_VERSIONS:
+            raise GuardError(
+                "AGENTS.md 6.5 (OWNER RULING, 2026-08-03) holds "
+                f"{', '.join(sorted(held))}: neither 20260802170000 nor "
+                "20260802171000 may reach production by any route until the FR "
+                "'FRIENDS TV' removal work ships with them, as ONE bounded "
+                "apply in dependency order. No FR removal migration exists yet, "
+                "so that combined change cannot be assembled and this allowlist "
+                "is refused. Drop both versions from the allowlist. Do NOT edit "
+                "this guard to unblock them -- author the removal migrations "
+                "and register their versions in FR_REMOVAL_VERSIONS."
+            )
+        if missing:
+            raise GuardError(
+                "AGENTS.md 6.5 (OWNER RULING, 2026-08-03) forbids promoting the "
+                "FR ship set in parts: this allowlist has "
+                f"{', '.join(sorted(held & set(values)))} but is missing "
+                f"{', '.join(missing)}. The permitted event is exactly one -- a "
+                "single bounded apply carrying 20260802170000, 20260802171000 "
+                "and the FR removal migrations together, in dependency order. "
+                "Include the full set or none of it."
+            )
     return values
 
 
@@ -202,12 +292,10 @@ def validate_candidates(
 # known it stays silent rather than guessing.
 # ---------------------------------------------------------------------------
 
-# The tag group must ALWAYS participate (hence `|` rather than `?`): an
-# unmatched optional group makes the \1 backreference fail, which silently
-# leaves every `$$ ... $$` body in the text and produces false rejections.
-DOLLAR_QUOTE_RE = re.compile(r"\$([A-Za-z_]\w*|)\$.*?\$\1\$", re.DOTALL)
-LINE_COMMENT_RE = re.compile(r"--[^\n]*")
-BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+# DELIBERATELY REMOVED: DOLLAR_QUOTE_RE, LINE_COMMENT_RE, BLOCK_COMMENT_RE.
+# They were the three-pass stripper that `strip_sql` replaced, and they are gone
+# rather than left unused on purpose -- a dead regex named DOLLAR_QUOTE_RE is an
+# invitation to reintroduce the exact defect (see the `strip_sql` docstring).
 
 IDENT = r"([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)"
 
@@ -297,17 +385,113 @@ REFERENCE_RES = (
 )
 
 
+DOLLAR_OPEN_RE = re.compile(r"\$([A-Za-z_]\w*)?\$")
+
+
 def strip_sql(raw: str) -> str:
     """Lowercase SQL with comments and dollar-quoted bodies removed.
 
     Function bodies are stripped on purpose: names inside them resolve at CALL
     time, not at apply time, so they are deferrable and must not be treated as
     batch-ordering dependencies.
+
+    THIS IS A SINGLE LEFT-TO-RIGHT LEXER, AND IT MUST STAY ONE. The previous
+    implementation ran three independent regex passes -- dollar bodies first,
+    then block comments, then line comments. That is wrong, and it silently
+    destroyed real DDL in 8 of the 411 migrations in this repo:
+
+        -- `create index if not exists`, `create or replace function`, guarded
+        -- `do $$` block)          <-- a $$ inside a COMMENT
+
+    Postgres never sees that `$$`, but a dollar-first regex pass does. It became
+    the OPENING half of a pair, matched the next genuine `$$` hundreds of lines
+    later, and deleted every statement in between. For
+    20260728174500 that meant `created_objects` returned an EMPTY SET for a file
+    that creates `pim.sync_clickup_tasks`, `public.sync_clickup_tasks` and
+    `api.clickup_task_sync_run_list` -- so `preflight_batch` reported the file as
+    depending on a function that the very same file creates, and refused a batch
+    that is in fact correctly ordered. The same defect hid all 17 objects created
+    by 20260727154500, which is ALREADY APPLIED, so it also corrupted the
+    `available` set that every later file is judged against.
+
+    A false REJECT is the safe direction, but it is still a fault: it blocks
+    `prepare`, so the production lane could not be exercised at all.
+
+    Lexing order below is Postgres's own: at any point the next token decides.
+    Single-quoted string literals are SKIPPED OVER but KEPT -- `REFERENCE_RES`
+    matches `'plm.seq'::regclass` inside a literal on purpose.
     """
-    text = DOLLAR_QUOTE_RE.sub(" ", raw)
-    text = BLOCK_COMMENT_RE.sub(" ", text)
-    text = LINE_COMMENT_RE.sub(" ", text)
-    return text.lower()
+    out: list[str] = []
+    i, n = 0, len(raw)
+    while i < n:
+        ch = raw[i]
+        if raw.startswith("--", i):
+            end = raw.find("\n", i)
+            i = n if end == -1 else end
+            out.append(" ")
+        elif raw.startswith("/*", i):
+            # Postgres block comments nest.
+            depth, i = 1, i + 2
+            while i < n and depth:
+                if raw.startswith("/*", i):
+                    depth, i = depth + 1, i + 2
+                elif raw.startswith("*/", i):
+                    depth, i = depth - 1, i + 2
+                else:
+                    i += 1
+            out.append(" ")
+        elif ch == "'" or (
+            ch in "eE" and raw.startswith("'", i + 1)
+        ):
+            # `E'...'` uses BACKSLASH escapes, so `E'it\'s'` does not end at the
+            # second quote. A plain `'...'` string does not honour backslashes;
+            # only `''` ends it. Getting this wrong mis-terminates the literal
+            # and desynchronises everything after it. (Kimi K3, 2026-08-09.)
+            escaped = ch in "eE"
+            start = i
+            j = i + (2 if escaped else 1)
+            while j < n:
+                if escaped and raw[j] == "\\" and j + 1 < n:
+                    j += 2
+                    continue
+                if raw[j] == "'":
+                    if j + 1 < n and raw[j + 1] == "'":
+                        j += 2
+                        continue
+                    j += 1
+                    break
+                j += 1
+            out.append(raw[start:j])
+            i = j
+        elif ch == '"':
+            # A double-quoted identifier is opaque: `"weird--name"` contains no
+            # comment and `"a$$b"` opens no dollar quote.
+            j = i + 1
+            while j < n:
+                if raw[j] == '"':
+                    if j + 1 < n and raw[j + 1] == '"':
+                        j += 2
+                        continue
+                    j += 1
+                    break
+                j += 1
+            out.append(raw[i:j])
+            i = j
+        elif ch == "$" and (m := DOLLAR_OPEN_RE.match(raw, i)):
+            close = raw.find(m.group(0), m.end())
+            if close == -1:
+                # Unterminated: not a dollar quote at all (e.g. `$1`-adjacent
+                # text). Emit the character and carry on rather than eating the
+                # rest of the file.
+                out.append(ch)
+                i += 1
+            else:
+                out.append(" ")
+                i = close + len(m.group(0))
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out).lower()
 
 
 def created_objects(raw: str) -> set[str]:

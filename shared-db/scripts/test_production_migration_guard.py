@@ -12,7 +12,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from production_migration_guard import (  # noqa: E402
     HARD_BLOCKED,
     BUNDLE_20260804,
+    FR_HELD_20260803,
+    FR_REMOVAL_VERSIONS,
     GuardError,
+    created_objects,
     local_migrations,
     parse_allowlist,
     parse_remote_versions,
@@ -117,8 +120,21 @@ class GuardTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(GuardError):
                 parse_allowlist(value)
 
-    def test_master_data_pair_is_the_whole_block_list(self) -> None:
-        self.assertEqual(HARD_BLOCKED, {"20260726190000", "20260726200000"})
+    def test_the_block_list_is_exactly_these_three(self) -> None:
+        # Two kinds, deliberately together. 20260726190000/20260726200000 are the
+        # already-applied Master Data pair. 20260729120000 is the third kind:
+        # never applied, and applying it would REGRESS a live production security
+        # control (see the guard's own comment and
+        # docs/verification/production-apply-set-and-rehearsal-20260809.md).
+        self.assertEqual(
+            HARD_BLOCKED,
+            {"20260726190000", "20260726200000", "20260729120000"},
+        )
+
+    def test_the_retired_lockdown_migration_cannot_enter_an_allowlist(self) -> None:
+        """A2's RETIRE verdict must be mechanical, not prose. (Kimi K3.)"""
+        with self.assertRaises(GuardError):
+            parse_allowlist("20260728174500,20260729120000,20260729230000")
 
     def test_the_four_coldlion_versions_are_unblocked(self) -> None:
         # Owner ruling 2026-08-04, AGENTS.md section 6.8: unblocked as ONE
@@ -183,6 +199,51 @@ class GuardTests(unittest.TestCase):
         self.assertIn("20260726030000", message)
         self.assertIn("20260726031000", message)
         self.assertIn("20260726032000", message)
+
+    def test_the_fr_held_pair_is_refused_while_no_removal_migration_exists(self) -> None:
+        # AGENTS.md 6.5 (OWNER RULING 2026-08-03). This is the live state as of
+        # 2026-08-09: FR_REMOVAL_VERSIONS is empty because no removal migration
+        # exists, so EVERY allowlist touching either held version must ERROR.
+        self.assertEqual(FR_REMOVAL_VERSIONS, set())
+        for version in sorted(FR_HELD_20260803):
+            with self.subTest(version=version), self.assertRaises(GuardError) as caught:
+                parse_allowlist(version)
+            self.assertIn("6.5", str(caught.exception))
+        # The pair together is just as forbidden as either one alone.
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist(",".join(sorted(FR_HELD_20260803)))
+        self.assertIn("6.5", str(caught.exception))
+        # And inside a realistic batch, which is how it would actually arrive:
+        # the rehearsal document listed both as APPLY inside the 49.
+        batch = sorted(BATCH_18 + sorted(FR_HELD_20260803))
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist(",".join(batch))
+        message = str(caught.exception)
+        self.assertIn("6.5", message)
+        self.assertIn("20260802170000", message)
+        self.assertIn("20260802171000", message)
+        # An allowlist with neither held version still parses, so the rule is
+        # targeted and not a blanket refusal.
+        parse_allowlist(",".join(BATCH_18))
+
+    def test_the_fr_ship_set_must_be_complete_once_removal_migrations_exist(self) -> None:
+        # The future legal event: the two held versions promoted together WITH
+        # the FR removal work, in one bounded apply. Simulate registration of
+        # two removal versions and prove the co-presence rule both ACCEPTS the
+        # complete set and REJECTS every proper subset that still holds one of
+        # the two 6.5 versions.
+        removal = {"20260810010000", "20260810020000"}
+        full = sorted(FR_HELD_20260803 | removal)
+        with patch("production_migration_guard.FR_REMOVAL_VERSIONS", removal):
+            self.assertEqual(parse_allowlist(",".join(full)), full)
+            for size in range(1, len(full)):
+                for subset in itertools.combinations(full, size):
+                    if not (FR_HELD_20260803 & set(subset)):
+                        # Not a 6.5 allowlist at all; nothing to enforce.
+                        continue
+                    with self.subTest(subset=subset), self.assertRaises(GuardError) as caught:
+                        parse_allowlist(",".join(subset))
+                    self.assertIn("6.5", str(caught.exception))
 
     def test_remote_parser_uses_remote_column(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -482,6 +543,83 @@ class PreflightPositiveTests(unittest.TestCase):
             preflight_batch(
                 local_migrations(repo), ["20260102000000"], {"20260101000000"}
             )
+
+class StripSqlLexingTests(unittest.TestCase):
+    """Regression tests for the `strip_sql` single-pass lexer.
+
+    The three-regex predecessor stripped dollar-quoted bodies BEFORE comments, so
+    a `$$` written inside a comment became the opening half of a pair and deleted
+    every statement up to the next real `$$`. It made `production-dry-run` run
+    31327934569 fail at "Build bounded checkout" on a correctly ordered batch.
+    """
+
+    def test_dollar_sign_inside_a_line_comment_does_not_eat_the_file(self) -> None:
+        sql = (
+            "-- guarded `do $$` block, mentioned only in prose\n"
+            "create or replace function pim.sync_clickup_tasks() returns void as $fn$\n"
+            "begin\n  return;\nend;\n$fn$ language plpgsql;\n"
+        )
+        self.assertEqual(created_objects(sql), {"pim.sync_clickup_tasks"})
+
+    def test_dollar_sign_inside_a_block_comment_does_not_eat_the_file(self) -> None:
+        sql = (
+            "/* a $$ inside a block comment */\n"
+            "create table plm.kept (id uuid);\n"
+        )
+        self.assertEqual(created_objects(sql), {"plm.kept"})
+
+    def test_the_real_migration_that_broke_the_lane_is_parsed(self) -> None:
+        path = (
+            REPO
+            / "supabase"
+            / "migrations"
+            / "20260728174500_clickup_incremental_task_import_reissue.sql"
+        )
+        created = created_objects(path.read_text(encoding="utf-8"))
+        # This file creates the very function the old scanner claimed it needed
+        # from a LATER migration.
+        self.assertIn("pim.sync_clickup_tasks", created)
+        self.assertIn("public.sync_clickup_tasks", created)
+        self.assertIn("api.clickup_task_sync_run_list", created)
+
+    def test_clickup_pair_in_version_order_is_accepted(self) -> None:
+        """The exact false rejection that failed run 31327934569."""
+        migrations = local_migrations(REPO)
+        preflight_batch(
+            migrations,
+            ["20260728174500", "20260728181500"],
+            set(migrations) - {"20260728174500", "20260728181500"},
+        )
+
+    def test_function_bodies_are_still_stripped(self) -> None:
+        sql = (
+            "create or replace function plm.f() returns void as $$\n"
+            "begin\n  create table plm.not_really (id uuid);\nend;\n$$ language plpgsql;"
+        )
+        self.assertEqual(created_objects(sql), {"plm.f"})
+
+    def test_string_literals_survive_for_the_regclass_probe(self) -> None:
+        from production_migration_guard import hard_references
+
+        sql = "alter table plm.t alter column id set default nextval('plm.t_id_seq'::regclass);"
+        self.assertIn(("plm.t_id_seq", "regclass literal"), hard_references(sql))
+
+    def test_apostrophe_in_a_comment_does_not_swallow_following_sql(self) -> None:
+        sql = "-- the loser's row is kept\ncreate table plm.after_comment (id uuid);\n"
+        self.assertEqual(created_objects(sql), {"plm.after_comment"})
+
+    def test_unterminated_dollar_tag_does_not_eat_the_rest_of_the_file(self) -> None:
+        sql = "select $1 $ from x;\ncreate table plm.still_seen (id uuid);\n"
+        self.assertEqual(created_objects(sql), {"plm.still_seen"})
+
+    def test_e_string_backslash_escape_does_not_mis_terminate(self) -> None:
+        """`E'it\\'s'` does not end at the second quote. (Kimi K3.)"""
+        sql = "select E'it\\'s -- not a comment';\ncreate table plm.after_estring (id uuid);\n"
+        self.assertEqual(created_objects(sql), {"plm.after_estring"})
+
+    def test_double_quoted_identifier_is_opaque(self) -> None:
+        sql = 'create table plm."weird--name$$x" (id uuid);\ncreate table plm.after_ident (id uuid);\n'
+        self.assertIn("plm.after_ident", created_objects(sql))
 
 
 if __name__ == "__main__":

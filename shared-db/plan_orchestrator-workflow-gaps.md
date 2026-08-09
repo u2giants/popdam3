@@ -423,7 +423,31 @@ exempt from it.
 2. Commit identity `Albert Hazan <u2giants@users.noreply.github.com>` — check
    `git var GIT_COMMITTER_IDENT` before the first commit.
 3. Six required contexts, `strict: true`, `enforce_admins: true`. Expect `gh pr update-branch`.
-4. **Never `--include-all` against production.**
+4. **Never an UNBOUNDED `--include-all` against production. A BOUNDED one is required, and
+   `AGENTS.md` §5.1(4) already licenses it.** *(Corrected 2026-08-09 — the original wording,
+   "Never `--include-all` against production", was incomplete shorthand and, read literally,
+   forbade the only thing that can actually run. `AGENTS.md` §5.1 wins over this plan.)*
+
+   **Why bounded is safe.** 33 of the apply set sort *below* the production ledger head, and
+   `supabase db push` refuses out-of-order files without `--include-all`. The guard's
+   `prepare()` builds a bounded checkout that keeps **exactly `remote ∪ allowlist`** on disk and
+   deletes every other migration file, so inside that checkout `--include-all` has nothing to
+   sweep up beyond the approved set. The bound is the *filesystem*, not the flag.
+
+   **Forbidden:** `--include-all` against the full repository tree, or against any checkout not
+   produced by `prepare()`. That sweeps every unreviewed migration into a forward-only lane.
+
+   ⚠️ **Two conditions under which bounded use stops being safe (Grok 4.5, 2026-08-09 — both
+   verified against the code, both currently UNMITIGATED):**
+   - **TOCTOU.** `prepare()` reads the production ledger once to compute `remote`, and the guard
+     never re-reads it. If production receives a migration between `prepare` and the push, the
+     on-disk set no longer matches the live ledger and `--include-all` is no longer bounded by
+     what is actually applied. **Re-read the ledger immediately before the push and abort on any
+     change.**
+   - **Content drift.** `prepare()` compares migration **file names** only, never bytes. The
+     same version can carry different content at `commit_sha` than in the working checkout, and
+     the guard would not notice. **Pin file digests** — record a per-file hash at allowlist
+     approval time and re-verify it in the bounded checkout before the push.
 5. **The Supabase MCP is bound to PRODUCTION and takes no project parameter.** Call
    `get_project_url` first, every time. Preview work goes through the CLI or psql.
 6. Read-only measurement of production is allowed and encouraged. Writes are not, until A4.
