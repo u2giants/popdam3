@@ -595,6 +595,32 @@ def prepare(repo: Path, output: Path, commit_sha: str, raw_allowlist: str, ledge
         raise GuardError("bounded checkout does not match the approved file set")
 
 
+def assert_bounded(directory: Path, raw_allowlist: str, ledger: Path) -> None:
+    """Re-prove that a checkout is still bounded, immediately before it is pushed.
+
+    ``prepare`` prunes the checkout to exactly ``remote | allowlist`` and that
+    pruning is the ONLY thing that makes ``--include-all`` safe: the bound is the
+    filesystem, not the flag. ``prepare`` and the push happen in separate steps,
+    so this re-checks the invariant at the point of use rather than trusting a
+    result computed earlier in the job.
+    """
+    allowlist = parse_allowlist(raw_allowlist)
+    keep = parse_remote_versions(ledger) | set(allowlist)
+    on_disk = set(local_migrations(directory))
+    if not on_disk:
+        raise GuardError(f"no migrations found in bounded checkout: {directory}")
+    extra = sorted(on_disk - keep)
+    if extra:
+        raise GuardError(
+            "bounded checkout is NOT bounded -- --include-all would sweep "
+            f"unapproved migrations: {extra}"
+        )
+    print(
+        f"BOUNDED OK: {len(on_disk)} migration files on disk, all within "
+        f"remote-ledger | allowlist ({len(allowlist)} allowlisted)."
+    )
+
+
 def verify_dry_run(path: Path, raw_allowlist: str) -> None:
     allowlist = parse_allowlist(raw_allowlist)
     raw = path.read_text(encoding="utf-8")
@@ -625,6 +651,10 @@ def main() -> int:
     pre.add_argument("--repo", type=Path, required=True)
     pre.add_argument("--allowlist", required=True)
     pre.add_argument("--remote-ledger", type=Path, required=True)
+    bounded = subs.add_parser("assert-bounded")
+    bounded.add_argument("--dir", dest="directory", type=Path, required=True)
+    bounded.add_argument("--allowlist", required=True)
+    bounded.add_argument("--remote-ledger", type=Path, required=True)
     verify = subs.add_parser("verify-dry-run")
     verify.add_argument("--dry-run-output", type=Path, required=True)
     verify.add_argument("--allowlist", required=True)
@@ -640,6 +670,10 @@ def main() -> int:
             )
         elif args.command == "preflight":
             preflight(args.repo.resolve(), args.allowlist, args.remote_ledger)
+        elif args.command == "assert-bounded":
+            assert_bounded(
+                args.directory.resolve(), args.allowlist, args.remote_ledger
+            )
         else:
             verify_dry_run(args.dry_run_output, args.allowlist)
     except (GuardError, OSError, subprocess.CalledProcessError) as exc:
