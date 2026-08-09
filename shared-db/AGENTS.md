@@ -434,13 +434,23 @@ Then: merge to `main` (this auto-syncs the `shared-db/` folder into all apps) an
 promote to **production only in an approved window**. Docs-only PRs (no schema
 change) need just items 1 and "it reads correctly" — merge them promptly.
 
-### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` on the full repo set (learned 2026-07-23; recipe corrected 2026-07-27)
+### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` on the full repo set, ALWAYS inside the pruned temp checkout (learned 2026-07-23; recipe corrected 2026-07-27; wording made self-consistent 2026-08-09)
 
 Production almost always has **pending migrations from other workstreams that sit *before* your
 own** (e.g. DB Data Admin write paths, DAM taxonomy cutover, PopSG — several deliberately
 unpromoted). When that is true, `supabase db push` **refuses to run** and suggests
-`--include-all`. **Do not use `--include-all`** — it promotes *every* pending migration at once,
-including work another team has deliberately kept off production.
+`--include-all`.
+
+**The rule has two halves, and they are not in conflict — read both before you run anything:**
+
+- **Forbidden:** `--include-all` against the **full repo set** in `$GITHUB_WORKSPACE` (or any
+  checkout that still contains other workstreams' pending files). There it promotes *every* pending
+  migration at once, including work another team has deliberately kept off production.
+- **Required:** `--include-all` **inside the pruned bounded temp checkout** built in step 2 below,
+  once the dry run has confirmed the file list. There the migrations you must not promote are no
+  longer on disk, so the flag cannot reach them, and without it the push will not finish.
+
+What decides it is **which set of files is on disk**, never the flag itself.
 
 Apply **only your own** migration with a bounded temp checkout:
 
@@ -1354,7 +1364,24 @@ parentage is durable".
 
 ### 6.13 OWNER RULINGS — Paramount landing tables and sub-licensors (Albert Hazan, 2026-08-07)
 
-Five rulings, all made the same evening, all **settled**. Full record with the reasoning and the
+> ### ⚠️ TWO OF THESE FIVE RULINGS CHANGED ON 2026-08-09 — read this before quoting any of them
+>
+> **Owner ruling, Albert Hazan, 2026-08-09** (recorded by orchestrator session `8b3f21c4`,
+> marker issue [#622](https://github.com/u2giants/shared-db/issues/622)):
+>
+> | Ruling | Status as of 2026-08-09 |
+> | --- | --- |
+> | 1 — per-licensor landing tables | **STANDS UNCHANGED** |
+> | 2 — "release 1 is FIVE tables, not fifteen" | **SUPERSEDED.** The five-table cap is **lifted**. |
+> | 3 — authorized-title count closed at 26 | **STANDS UNCHANGED** |
+> | 4 — "build waits for the second Paramount recon" | **SUPERSEDED.** The hold is **RELEASED**; its condition was met. |
+> | 5 — sub-licensors stay flat | **STANDS UNCHANGED** |
+>
+> The original text of rulings 2 and 4 is kept below, marked, because sessions have been
+> quoting it. Do not act on the struck parts. The replacements are in §6.13-A.
+
+Five rulings, all made on the evening of 2026-08-07, **two of them since superseded** (see the box
+above and §6.13-A). Full record with the reasoning and the
 costs: [`docs/verification/owner-rulings-20260807/README.md`](docs/verification/owner-rulings-20260807/README.md).
 Read that file before acting on any of them.
 
@@ -1365,12 +1392,14 @@ Read that file before acting on any of them.
    **completely truncated Paramount extract would pass by being measured against Disney's ~10,262
    rows**. Silent wrong answer, not a loud one.
 
-2. **Paramount release 1 is FIVE tables, not fifteen.** Ships `plm.pmt_capture`, `pmt_property`,
+2. ~~**Paramount release 1 is FIVE tables, not fifteen.**~~ **SUPERSEDED 2026-08-09 — see §6.13-A.1.**
+   Original text, kept because it has been quoted:
+   ~~Ships `plm.pmt_capture`, `pmt_property`,
    `pmt_character`, `pmt_property_character`, `pmt_asset`, plus importer, RLS/grants, one `api` view
    and contract tests. Eleven further tables, four views and the collection trigger are deferred —
    they model structure no capture has proven. **Known consequence: release 1 loads assets that
    connect to nothing.** It can answer which characters a property owns, but not which asset shows a
-   character.
+   character.~~
 
 3. **The Paramount authorized-title list is 26, and the count is CLOSED.** The removed `902010`
    entry was a duplicate. Do not re-open it and do not hunt for a 27th title. The *"Viacom Multi
@@ -1378,10 +1407,12 @@ Read that file before acting on any of them.
    [`docs/coldlion-unmatched-properties-by-licensor-20260731.md`](docs/coldlion-unmatched-properties-by-licensor-20260731.md)
    is a **different population** (unmatched ColdLion property codes) — do not reconcile the two.
 
-4. **Build waits for the second Paramount recon.** The five tables are designed, reviewed, revised
+4. ~~**Build waits for the second Paramount recon.**~~ **SUPERSEDED 2026-08-09 — the hold is
+   RELEASED; see §6.13-A.2.** Original text, kept because it has been quoted:
+   ~~The five tables are designed, reviewed, revised
    and approved, but implementation is **held** until a targeted second recon returns. Each of its
    four open questions can move a primary key, and a wrong key with rows already in it costs a
-   migration **plus** a data repair. Do not start the migration because "the design is approved".
+   migration **plus** a data repair. Do not start the migration because "the design is approved".~~
 
 5. **Sub-licensors stay FLAT.** ColdLion produced 19 new `- DESPERATE` records (5 licensors, 14
    properties). Desperate is a **sub-licensor, not the brand owner**: POP reports sales to Desperate,
@@ -1391,6 +1422,81 @@ Read that file before acting on any of them.
    properties returns Desperate, not the ultimate brand owner.** Also: `ANHEUSER BUSCH - DESPERATE`
    and the existing `potential` `Anheuser Busch` record are **NOT duplicates** — brand owner vs
    sub-licensed route. A future dedupe pass must not merge them.
+
+### 6.13-A OWNER RULING — the Paramount five-table cap is lifted and the build hold is released (Albert Hazan, 2026-08-09)
+
+Recorded by orchestrator session `8b3f21c4`, marker issue
+[#622](https://github.com/u2giants/shared-db/issues/622). This supersedes **parts** of §6.13:
+rulings 2 and 4 only. Rulings 1, 3 and 5 stand unchanged and are not reopened by this.
+
+**Evidence anchor for everything below.** The completed second Paramount capture lives in the
+**private** repo `u2giants/licensor-source-data`, branch `codex/paramount-creative-library-20260807`,
+HEAD **`f340f74a`**, with its manifest. `u2giants/shared-db` is **public**: the counts and the
+structural shapes below are cleared for publication; Paramount titles, property names, entity names,
+source IDs, asset IDs and filenames are **not** and must never be committed here.
+
+#### 6.13-A.1 — Ruling 2 is superseded: the full landing schema is approved
+
+The **five-table cap is lifted.** Approved for build: the full **21-table** landing schema specified
+in GitHub issue [#623](https://github.com/u2giants/shared-db/issues/623), **plus two further tables
+the orchestrator approved the same day** — `plm.pmt_capture_expectation` and
+`plm.pmt_shrink_override`.
+
+**Why the original reason no longer holds.** Ruling 2 deferred sixteen tables because they
+"model structure no capture has proven". The completed capture proves all sixteen. **Every one now
+has a nonzero proven row count; none would land empty.** Counts from the capture at `f340f74a`
+(258 batches, 25,790 asset records):
+
+| Table | Proven rows | Table | Proven rows |
+| --- | ---: | --- | ---: |
+| `plm.pmt_capture_batch` | 258 | `plm.pmt_asset_collection` | 27,880 |
+| `plm.pmt_authorized_title` | 26 | `plm.pmt_asset_brand` | 25,983 |
+| `plm.pmt_authorized_title_property` | 38 | `plm.pmt_property_character` | 52 |
+| `plm.pmt_franchise` | 18 | `plm.pmt_property_collection` | 426 |
+| `plm.pmt_collection` | 426 | `plm.pmt_property_franchise_evidence` | 51 |
+| `plm.pmt_brand` | 7 | `plm.pmt_authorized_property_asset` | 25,858 |
+| `plm.pmt_asset` | 25,790 | `plm.pmt_relationship_anomaly` | 4 |
+| `plm.pmt_asset_property` | 26,451 | `plm.pmt_property_capture_log` | 33 |
+| `plm.pmt_asset_franchise` | 25,116 | `plm.pmt_property` | 60 |
+| `plm.pmt_asset_character` | 8,558 | | |
+
+**The original caution was honoured, not overridden.** Two things ruling 2 deferred are
+deliberately **still not built**:
+
+- **`plm.pmt_franchise_property` is NOT created.** The capture proves Paramount publishes **no
+  direct property-to-franchise pair**. The approved build lands
+  `plm.pmt_property_franchise_evidence` instead, hard-checked so it can never present itself as a
+  direct relationship.
+- **There is NO collection trigger.** Collections are exposed as style guides through a
+  **read-only view over one table**, so the two vocabularies cannot drift apart.
+
+**What is no longer true.** Ruling 2's "known consequence — release 1 loads assets that connect to
+nothing" is **void**. The approved build ships the asset link tables, so the database can answer
+*"which asset shows this character?"* from day one.
+
+#### 6.13-A.2 — Ruling 4 is superseded: the build hold is RELEASED
+
+The hold's condition **has been met**. All four questions the second recon had to answer are
+answered, verified against the capture at `f340f74a`:
+
+1. **The property field's full-metadata descriptor is `PROGRAM_ID`.** Exactly **seven** metadata
+   field descriptors exist across all 258 batches and 25,790 asset records.
+2. **Collections carry a real hidden identifier, not just a display label.** 426 collections, 426
+   distinct numeric source IDs, one name each. The ID comes from a `source_id` **attribute on the
+   cascade element** — it is not parsed out of a label — and the ID-to-name mapping is proven
+   **1:1 across all 25,790 assets**.
+3. **No character identifier recurs across more than one property.** 52 explicit property-character
+   pairs, 52 distinct character identifiers, **zero** overlap. **This is the question that could
+   have moved the `plm.pmt_character` primary key. It confirms the approved design rather than
+   changing it.**
+4. **The combined property-character value is a structured value, not a delimited string.** It
+   carries `raw_value`, `display_value`, and an `elements` array of **exactly two** elements, each
+   with `key`, `source_id` and `display_value`. **Four** assets are missing the second element's
+   source ID — precisely the **4 preserved anomalies** in the manifest, which is why
+   `plm.pmt_relationship_anomaly` shows 4 rows above.
+
+Because no answer moved a key, the "wrong key with rows already in it" risk that justified the hold
+did not materialise. Building is now the correct action.
 
 ## 7. When two apps need conflicting database changes
 

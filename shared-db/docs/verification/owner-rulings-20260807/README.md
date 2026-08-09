@@ -1,12 +1,31 @@
 # Owner rulings — Albert Hazan, 2026-08-07
 
-**Status: SETTLED. Five rulings, all made by Albert Hazan on the evening of 2026-08-07.**
+> ## ⚠️ UPDATED 2026-08-09 — rulings 2 and 4 are SUPERSEDED. Do not act on them.
+>
+> **Owner ruling, Albert Hazan, 2026-08-09**, recorded by orchestrator session `8b3f21c4`
+> (marker issue [#622](https://github.com/u2giants/shared-db/issues/622)):
+>
+> | Ruling | Status as of 2026-08-09 |
+> | --- | --- |
+> | 1 — per-licensor landing tables | **STANDS UNCHANGED** |
+> | 2 — "release 1 is FIVE tables, not fifteen" | **SUPERSEDED** — the five-table cap is **lifted** |
+> | 3 — authorized-title count closed at 26 | **STANDS UNCHANGED** |
+> | 4 — "build waits for the second Paramount recon" | **SUPERSEDED** — the hold is **RELEASED** |
+> | 5 — sub-licensors stay flat | **STANDS UNCHANGED** |
+>
+> The original text of rulings 2 and 4 is kept below, marked, because sessions have been quoting
+> it — a silently vanished ruling is worse than a corrected one. **What replaces them is in
+> "Supersession 2026-08-09" at the bottom of this file, and in `AGENTS.md` §6.13-A.**
+
+**Status: three of five SETTLED and unchanged; two SUPERSEDED on 2026-08-09 (see the box above).
+Five rulings, all made by Albert Hazan on the evening of 2026-08-07.**
 They were made in a chat window and existed nowhere else until this file. Do not re-ask them,
 do not treat them as an AI's preference, and do not quietly record a different answer because a
 better one seems available. If you believe a ruling is wrong, take it back to Albert — do not
 route around it.
 
-This file is the full record. `AGENTS.md` §6.13 is a short pointer to it.
+This file is the full record. `AGENTS.md` §6.13 is a short pointer to it, and `AGENTS.md` §6.13-A
+carries the 2026-08-09 supersession of rulings 2 and 4.
 
 ## Who this is for
 
@@ -67,9 +86,14 @@ set of tables is cheap; a silent empty load is not.
 
 ---
 
-## Ruling 2 — Paramount release 1 is FIVE tables, not fifteen
+## Ruling 2 — Paramount release 1 is FIVE tables, not fifteen — ⛔ SUPERSEDED 2026-08-09
 
-**Decided:** Albert Hazan, 2026-08-07.
+**Decided:** Albert Hazan, 2026-08-07. **Superseded:** Albert Hazan, 2026-08-09 — the five-table
+cap is **lifted**; the full 21-table landing schema of issue
+[#623](https://github.com/u2giants/shared-db/issues/623) plus `plm.pmt_capture_expectation` and
+`plm.pmt_shrink_override` is approved. See
+[Supersession 2026-08-09](#supersession-2026-08-09--rulings-2-and-4). **Everything in this section
+is the historical record only. Do not act on it.**
 
 **The decision.** The first Paramount release ships exactly five tables plus their supporting
 pieces. Everything else is deferred until a capture proves it is needed.
@@ -124,9 +148,12 @@ Paramount portal authorized-title list, and its 27 is not this 26 plus one. Do n
 
 ---
 
-## Ruling 4 — build waits for the second Paramount recon
+## Ruling 4 — build waits for the second Paramount recon — ⛔ SUPERSEDED 2026-08-09 (hold RELEASED)
 
-**Decided:** Albert Hazan, 2026-08-07.
+**Decided:** Albert Hazan, 2026-08-07. **Superseded:** Albert Hazan, 2026-08-09 — the recon landed
+and **all four questions below are answered**, so the hold is **RELEASED**. See
+[Supersession 2026-08-09](#supersession-2026-08-09--rulings-2-and-4). **Everything in this section
+is the historical record only. Do not hold a build on it.**
 
 **The decision.** The five release-1 tables are **designed, reviewed, revised and approved** — but
 implementation is **held** until a second, targeted reconnaissance of the Paramount portal returns.
@@ -206,6 +233,92 @@ This is "flat **for now**" as Albert ruled it — a decision about the current m
 a sub-licensor model is never warranted. Changing it is an owner decision, not an engineering one.
 Do not model the hierarchy on your own initiative, and do not restate this ruling as a
 recommendation to do otherwise.
+
+---
+
+## Supersession 2026-08-09 — rulings 2 and 4
+
+**Decided:** Albert Hazan, 2026-08-09. **Recorded by:** orchestrator session `8b3f21c4`, marker
+issue [#622](https://github.com/u2giants/shared-db/issues/622).
+
+**Scope.** This changes rulings **2** and **4** only. **Rulings 1, 3 and 5 stand unchanged** —
+per-licensor landing tables; the authorized-title count is closed at 26; sub-licensors stay flat.
+Nothing here reopens them.
+
+### The evidence anchor
+
+Everything below is verified against the **completed second Paramount capture** in the **private**
+repo `u2giants/licensor-source-data`, branch `codex/paramount-creative-library-20260807`, HEAD
+**`f340f74a`**, and its manifest. The capture covers **258 batches** and **25,790 asset records**.
+
+> **Public-repo boundary.** `u2giants/shared-db` is public. The counts and structural shapes on
+> this page are cleared for publication. Paramount titles, property names, entity names, source
+> IDs, asset IDs and filenames are **not**, and must never be committed here. This is the same
+> boundary the original ruling-4 confidentiality note drew.
+
+### Ruling 2 — what replaces it
+
+**The five-table cap is lifted.** Approved for build: the full **21-table** landing schema
+specified in GitHub issue [#623](https://github.com/u2giants/shared-db/issues/623), **plus two
+further tables the orchestrator approved on the same date** — `plm.pmt_capture_expectation` and
+`plm.pmt_shrink_override`.
+
+**Why the original reason no longer holds.** Ruling 2's stated reason was that the deferred tables
+"model structure no capture has proven". That reason is gone. **All 16 previously deferred tables
+now have nonzero proven counts, and none would land empty:**
+
+| Table | Proven rows | Table | Proven rows |
+| --- | ---: | --- | ---: |
+| `plm.pmt_capture_batch` | 258 | `plm.pmt_asset_collection` | 27,880 |
+| `plm.pmt_authorized_title` | 26 | `plm.pmt_asset_brand` | 25,983 |
+| `plm.pmt_authorized_title_property` | 38 | `plm.pmt_property_character` | 52 |
+| `plm.pmt_franchise` | 18 | `plm.pmt_property_collection` | 426 |
+| `plm.pmt_collection` | 426 | `plm.pmt_property_franchise_evidence` | 51 |
+| `plm.pmt_brand` | 7 | `plm.pmt_authorized_property_asset` | 25,858 |
+| `plm.pmt_asset` | 25,790 | `plm.pmt_relationship_anomaly` | 4 |
+| `plm.pmt_asset_property` | 26,451 | `plm.pmt_property_capture_log` | 33 |
+| `plm.pmt_asset_franchise` | 25,116 | `plm.pmt_property` | 60 |
+| `plm.pmt_asset_character` | 8,558 | | |
+
+**The original caution was honoured, not overridden.** Two things ruling 2 deferred are
+deliberately **still not built**:
+
+- **`plm.pmt_franchise_property` is NOT created.** The capture proves Paramount publishes **no
+  direct property-to-franchise pair**. The approved build lands
+  `plm.pmt_property_franchise_evidence` instead, **hard-checked so it can never claim to be a
+  direct relationship**.
+- **There is NO collection trigger.** Collections are exposed as style guides through a
+  **read-only view over one table**, so the two vocabularies cannot drift.
+
+**One consequence is now void.** Ruling 2's "release 1 loads assets that connect to nothing" no
+longer applies — the approved build ships the asset link tables, so *"which asset shows this
+character?"* is answerable from day one. Do not quote that warning any more.
+
+### Ruling 4 — what replaces it
+
+**The hold is RELEASED. Its condition has been met.** Ruling 4 held the build until a targeted
+second recon answered four open questions, because each could move a primary key and a wrong key
+with rows already in it costs a migration plus a data repair. **All four are now answered**,
+verified at `f340f74a`:
+
+1. **The property field's full-metadata descriptor is `PROGRAM_ID`.** Exactly **seven** metadata
+   field descriptors exist across all 258 batches and 25,790 asset records.
+2. **Collections carry a real hidden identifier, not just a display label.** 426 collections, 426
+   distinct numeric source IDs, one name each. The ID comes from a `source_id` **attribute on the
+   cascade element** — not from parsing a label — and the ID-to-name mapping is proven **1:1
+   across all 25,790 assets**.
+3. **No character identifier recurs across more than one property.** 52 explicit property-character
+   pairs, 52 distinct character identifiers, **zero overlap**. **This is the question that could
+   have moved the `plm.pmt_character` primary key, and it confirms the approved design rather than
+   changing it.**
+4. **The combined property-character value is a structured value, not a delimited string.** It has
+   `raw_value`, `display_value`, and an `elements` array of **exactly two** elements, each carrying
+   `key`, `source_id` and `display_value`. **Four** assets are missing the second element's source
+   ID — precisely the **4 preserved anomalies** in the manifest, which is why
+   `plm.pmt_relationship_anomaly` above shows 4 rows.
+
+Because no answer moved a key, the risk that justified the hold did not materialise. **Building is
+now the correct action**; chasing a further recon is not.
 
 ---
 
