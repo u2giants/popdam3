@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import itertools
+import re
 import sys
 import tempfile
 import unittest
@@ -18,8 +19,12 @@ from production_migration_guard import (  # noqa: E402
     assert_bounded,
     created_objects,
     local_migrations,
+    CO_PRESENCE_RULES,
+    assert_no_archaic_function_body,
+    hard_references,
     parse_allowlist,
     parse_remote_versions,
+    strip_sql,
     preflight_batch,
     prepare,
     validate_candidates,
@@ -92,6 +97,37 @@ def production_ledger_versions() -> set[str]:
         raise AssertionError(
             f"reconstructed production ledger has {len(versions)} rows, "
             f"expected {PRODUCTION_LEDGER_ROWS}"
+        )
+    return versions
+
+
+
+def recorded_apply_set() -> list[str]:
+    """The 50-row production apply set, read from the document that recorded it.
+
+    docs/verification/production-apply-set-and-rehearsal-20260809.md section 3
+    is the authority for this list. Reading it here rather than re-deriving it
+    from a version range matters: a range guess returns 49/51 (it sweeps files
+    the document deliberately excludes), and it would drift silently every time
+    a migration lands. If the document is edited, this test fails loudly, which
+    is the intended coupling.
+    """
+    path = (
+        REPO
+        / "docs"
+        / "verification"
+        / "production-apply-set-and-rehearsal-20260809.md"
+    )
+    rows: list[tuple[int, str]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"\|\s*(\d+)\s*\|\s*`(\d{14})`", line)
+        if match:
+            rows.append((int(match.group(1)), match.group(2)))
+    versions = [version for _, version in sorted(rows)]
+    if len(versions) != 47:
+        raise AssertionError(
+            f"expected 47 parseable APPLY rows in the apply-set document, "
+            f"found {len(versions)}"
         )
     return versions
 
@@ -278,7 +314,7 @@ class GuardTests(unittest.TestCase):
         # two removal versions and prove the co-presence rule both ACCEPTS the
         # complete set and REJECTS every proper subset that still holds one of
         # the two 6.5 versions.
-        removal = {"20260810010000", "20260810020000"}
+        removal = {"20260810010000", "20260810050000"}
         full = sorted(FR_HELD_20260803 | removal)
         with patch("production_migration_guard.FR_REMOVAL_VERSIONS", removal):
             self.assertEqual(parse_allowlist(",".join(full)), full)
@@ -338,16 +374,34 @@ class GuardTests(unittest.TestCase):
             with self.assertRaises(GuardError):
                 verify_dry_run(path, "20260727010000")
 
-    def test_general_workflow_has_no_production_apply(self) -> None:
+    def test_the_production_apply_is_gated_not_forbidden(self) -> None:
+        """SUPERSEDES `test_general_workflow_has_no_production_apply` (issue #617).
+
+        Until 2026-08-10 this workflow could never apply to production: the job
+        opened with a `Refuse production apply` step. That was the right shape
+        while no approval gate existed, but it also meant the lane was never
+        runnable, and four licensor features queued behind it.
+
+        The refusal is now replaced by GATES, and this test pins them. If a
+        future edit removes any one of them, production becomes writable by a
+        workflow_dispatch alone.
+        """
         workflow = (
             Path(__file__).resolve().parents[1]
             / ".github"
             / "workflows"
             / "shared-supabase-migrations.yml"
         ).read_text(encoding="utf-8")
-        production = workflow.split("production-dry-run:", 1)[1]
-        self.assertIn("Refuse production apply", production)
-        self.assertNotIn("supabase db push\n", production)
+        # Gate 1: the dry-run job cannot apply, whatever mode is requested.
+        self.assertIn(
+            "inputs.target == 'production' && inputs.mode == 'dry-run'", workflow
+        )
+        # Gate 2: the only writing job sits behind the `production` environment.
+        self.assertIn("environment: production", workflow)
+        # Gate 3: a typed confirmation, and a deterministic guard preflight that
+        # is independent of the advisory model review.
+        self.assertIn('= "APPLY $REQUESTED_SHA"', workflow)
+        self.assertIn("production_migration_guard.py preflight", workflow)
 
     def test_include_all_is_bounded_and_dry_run_only(self) -> None:
         """--include-all is licensed ONLY against the pruned bounded checkout.
@@ -370,7 +424,13 @@ class GuardTests(unittest.TestCase):
             / "workflows"
             / "shared-supabase-migrations.yml"
         ).read_text(encoding="utf-8")
-        production = workflow.split("production-dry-run:", 1)[1]
+        # Scope to THIS job only. Slicing to end-of-file used to be
+        # equivalent; it stopped being so when the apply jobs were added
+        # below, and an unscoped slice would silently start asserting about
+        # a different job's push. The apply job has its own equivalent test.
+        production = workflow.split("production-dry-run:", 1)[1].split(
+            "\n  production-apply-review:", 1
+        )[0]
 
         blocks = [
             commands
@@ -767,6 +827,472 @@ class StripSqlLexingTests(unittest.TestCase):
         sql = 'create table plm."weird--name$$x" (id uuid);\ncreate table plm.after_ident (id uuid);\n'
         self.assertIn("plm.after_ident", created_objects(sql))
 
+
+# ===========================================================================
+# THE STRING-LITERAL LEXER DEFECT (issue #660, fixed 2026-08-10)
+#
+# Same CLASS as the `$$`-inside-a-comment bug: text that Postgres treats as
+# opaque was being parsed as SQL. Here it was ordinary English prose inside a
+# `comment on ... is '...'` literal.
+#
+# THE DIRECTION OF THESE TESTS MATTERS. A fix that merely makes the guard more
+# permissive is WORSE than the bug -- the bug produced false REJECTS, which are
+# safe; a permissive guard produces false ACCEPTS, which are not. So every test
+# that proves a phantom is gone is paired with one proving a genuine reference
+# is still caught.
+# ===========================================================================
+class StringLiteralLexerTests(unittest.TestCase):
+    def test_prose_inside_a_comment_literal_is_not_a_reference(self) -> None:
+        """The Disney/Paramount shape, verbatim from 20260807170000."""
+        sql = (
+            "comment on table core.character is\n"
+            "  'character can appear in multiple properties. Distinct from "
+            "core.style_guide_character, which is AXIS 2.';\n"
+        )
+        self.assertNotIn(
+            ("core.style_guide_character", "query target"), hard_references(sql)
+        )
+
+    def test_the_live_migration_no_longer_yields_a_phantom(self) -> None:
+        path = local_migrations(REPO)["20260807170000"]
+        raw = path.read_text(encoding="utf-8")
+        self.assertNotIn(
+            ("core.style_guide_character", "query target"), hard_references(raw)
+        )
+
+    def test_no_migration_in_the_repo_yields_a_phantom_from_a_literal(self) -> None:
+        """The whole-repo sweep. Before the fix this found 30 across 23 files."""
+        import re as _re
+
+        literal = _re.compile(r"'(?:[^']|'')*'")
+        phantoms: list[str] = []
+        for version, path in local_migrations(REPO).items():
+            text = strip_sql(path.read_text(encoding="utf-8"))
+            for match in literal.finditer(text):
+                # After the fix every surviving literal is either blanked ('') or
+                # immediately cast to regclass, so none can carry a phantom name.
+                body = match.group(0)
+                if body == "''":
+                    continue
+                after = text[match.end() : match.end() + 20]
+                if "::" in after and "regclass" in after:
+                    continue
+                phantoms.append(version + ": " + body[:60])
+        self.assertEqual(phantoms, [])
+
+    # ---------------- the positive controls ----------------
+    def test_a_genuine_from_clause_is_still_caught(self) -> None:
+        sql = "create view a.b as select * from core.style_guide_character;"
+        self.assertIn(
+            ("core.style_guide_character", "query target"), hard_references(sql)
+        )
+
+    def test_a_regclass_literal_is_still_caught(self) -> None:
+        sql = "alter table a.b alter column id set default nextval('plm.s'::regclass);"
+        self.assertIn(("plm.s", "regclass literal"), hard_references(sql))
+
+    def test_a_blanked_literal_does_not_glue_neighbouring_tokens(self) -> None:
+        sql = "comment on table a.b is 'x'; select * from core.real_one;"
+        self.assertIn(("core.real_one", "query target"), hard_references(sql))
+
+    def test_a_deliberately_incomplete_allowlist_is_still_rejected(self) -> None:
+        """THE test that guards against a permissive fix.
+
+        20260810070000 has a REAL foreign key onto core.style_guide, created by
+        the unapplied 20260727230000. If the lexer fix ever makes this pass, the
+        fix has gone too far and the guard has become permissive -- which is
+        worse than the bug it replaced.
+        """
+        remote = production_ledger_versions()
+        migrations = local_migrations(REPO)
+        with self.assertRaises(GuardError) as caught:
+            preflight_batch(migrations, ["20260810070000", "20260810080000"], remote)
+        self.assertIn("core.style_guide", str(caught.exception))
+
+    def test_the_47_list_still_passes_preflight(self) -> None:
+        remote = production_ledger_versions()
+        migrations = local_migrations(REPO)
+        allowlist = recorded_apply_set()
+        self.assertEqual(len(allowlist), 47)
+        self.assertFalse(set(allowlist) & HARD_BLOCKED)
+        self.assertFalse(set(allowlist) & FR_HELD_20260803)
+        self.assertFalse(set(allowlist) & remote)
+        preflight_batch(migrations, allowlist, remote)
+
+    def test_the_illegal_49_list_is_still_rejected_by_the_6_5_rule(self) -> None:
+        remote = production_ledger_versions()
+        migrations = local_migrations(REPO)
+        # The 47 APPLY rows PLUS the two 6.5-held versions -- the exact
+        # string the apply-set document flags as policy-illegal.
+        illegal = sorted(set(recorded_apply_set()) | FR_HELD_20260803)
+        self.assertEqual(len(illegal), 49)
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist(",".join(illegal))
+        self.assertIn("6.5", str(caught.exception))
+
+
+class ArchaicFunctionBodyTests(unittest.TestCase):
+    """The residual blind spot, turned into a loud refusal rather than silence."""
+
+    def test_an_archaic_body_is_refused(self) -> None:
+        sql = "create function a.b() returns int language sql as 'select 1';"
+        with self.assertRaises(GuardError):
+            assert_no_archaic_function_body("29990101000000", sql)
+
+    def test_an_archaic_body_inside_a_do_block_is_refused(self) -> None:
+        """The ONLY real instance in this repo is inside a `do $$ ... $$` block.
+
+        A check that stripped dollar bodies would have found nothing and
+        reported a clean sweep, which is exactly the silence this exists to end.
+        """
+        sql = (
+            "do $$ begin\n"
+            "  create function a.b() returns int language sql "
+            "security definer as 'select 1';\n"
+            "end $$;"
+        )
+        with self.assertRaises(GuardError):
+            assert_no_archaic_function_body("29990101000000", sql)
+
+    def test_a_dollar_quoted_body_is_fine(self) -> None:
+        sql = "create function a.b() returns int language sql as $$ select 1 $$;"
+        assert_no_archaic_function_body("29990101000000", sql)
+
+    def test_an_unrelated_literal_is_not_a_routine_body(self) -> None:
+        sql = "comment on table a.b is 'x'; create table c.d (id int);"
+        assert_no_archaic_function_body("29990101000000", sql)
+
+    def test_exactly_one_migration_in_the_repo_uses_the_archaic_form(self) -> None:
+        """A sweep, so a NEW archaic body cannot slip in unnoticed.
+
+        20260729120000 is RETIRED and permanently HARD_BLOCKED, so no promotable
+        file is affected today. If this ever fails naming a second version, that
+        version must be rewritten with dollar quoting before it can be promoted.
+        """
+        offenders = []
+        for version, path in local_migrations(REPO).items():
+            try:
+                assert_no_archaic_function_body(
+                    version, path.read_text(encoding="utf-8")
+                )
+            except GuardError:
+                offenders.append(version)
+        self.assertEqual(offenders, ["20260729120000"])
+        self.assertIn("20260729120000", HARD_BLOCKED)
+
+
+# ===========================================================================
+# CO-PRESENCE, AND THE ONE-DIRECTIONALITY THAT MAKES RECOVERY POSSIBLE
+#
+# Read the comment on CO_PRESENCE_RULES before touching these. The recovery
+# tests below are not decoration: `validate_candidates` refuses an allowlist
+# containing an already-applied version, so after a run dies between a create
+# and its fix, the fix ALONE is the only allowlist that can legally exist. A
+# symmetric rule would refuse it and force an operator to edit this guard under
+# pressure while production sits in the insecure state.
+# ===========================================================================
+class CoPresenceTests(unittest.TestCase):
+    CREATE_WITHOUT_FIX = [
+        ("20260810020000", "20260810090000"),
+        ("20260810070000", "20260810080000"),
+        ("20260810030000", "20260810110000"),
+    ]
+
+    def test_a_create_without_its_fix_is_refused(self) -> None:
+        for create, fix in self.CREATE_WITHOUT_FIX:
+            with self.subTest(create=create), self.assertRaises(GuardError) as caught:
+                parse_allowlist(create)
+            self.assertIn(fix, str(caught.exception))
+
+    def test_warner_needs_both_fixes_not_one(self) -> None:
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260810030000,20260810110000")
+        self.assertIn("20260810120000", str(caught.exception))
+
+    def test_the_complete_sets_are_accepted(self) -> None:
+        for value in (
+            "20260810020000,20260810090000",
+            "20260810070000,20260810080000",
+            "20260810030000,20260810110000,20260810120000",
+        ):
+            with self.subTest(value=value):
+                self.assertEqual(parse_allowlist(value), value.split(","))
+
+    # ---------------- the recovery cases ----------------
+    def test_recovery_paramount_fix_alone_is_ALLOWED(self) -> None:
+        self.assertEqual(parse_allowlist("20260810090000"), ["20260810090000"])
+
+    def test_recovery_nbcu_fix_alone_is_ALLOWED(self) -> None:
+        self.assertEqual(parse_allowlist("20260810080000"), ["20260810080000"])
+
+    def test_recovery_warner_fixes_without_the_create_are_ALLOWED(self) -> None:
+        self.assertEqual(
+            parse_allowlist("20260810110000,20260810120000"),
+            ["20260810110000", "20260810120000"],
+        )
+
+    def test_no_rule_is_symmetric(self) -> None:
+        """Structural, so a later edit cannot quietly add the reverse implication."""
+        creates = {create for create, _, _ in CO_PRESENCE_RULES}
+        for _, fixes, _ in CO_PRESENCE_RULES:
+            for fix in fixes:
+                with self.subTest(fix=fix):
+                    self.assertNotIn(
+                        fix,
+                        creates,
+                        fix + " is a FIX in one rule and a CREATE in another. "
+                        "That makes recovery impossible -- see CO_PRESENCE_RULES.",
+                    )
+                    parse_allowlist(fix)
+
+    def test_the_ledger_aware_dependency_is_left_to_the_preflight(self) -> None:
+        """20260810110000 needs api.dam_order_list from 20260810010000.
+
+        That is a DEPENDENCY, not a policy, so it must NOT be a co-presence rule
+        (which is ledger-blind and would break the recovery case). It is caught
+        by preflight_batch instead, which reads the real production ledger and
+        therefore stays silent once 20260810010000 is applied.
+        """
+        for _, fixes, _ in CO_PRESENCE_RULES:
+            self.assertNotIn("20260810010000", fixes)
+        remote = production_ledger_versions()
+        migrations = local_migrations(REPO)
+        with self.assertRaises(GuardError):
+            preflight_batch(migrations, ["20260810110000", "20260810120000"], remote)
+        preflight_batch(
+            migrations,
+            [
+                "20260810010000",
+                "20260810030000",
+                "20260810110000",
+                "20260810120000",
+            ],
+            remote,
+        )
+
+
+# ===========================================================================
+# THE APPLY LANE (issue #617) and the dry-run environment move (issue #646)
+# ===========================================================================
+WORKFLOW_TEXT = (
+    REPO / ".github" / "workflows" / "shared-supabase-migrations.yml"
+).read_text(encoding="utf-8")
+
+
+def _job(name: str) -> str:
+    """Return one job's body. Jobs start at a fixed two-space indent."""
+    body = WORKFLOW_TEXT.split("\n  " + name + ":\n", 1)[1]
+    lines: list[str] = []
+    for line in body.splitlines():
+        stripped = line.rstrip()
+        if (
+            stripped
+            and stripped.startswith("  ")
+            and not stripped.startswith("   ")
+            and stripped.endswith(":")
+        ):
+            break
+        lines.append(line)
+    return "\n".join(lines)
+
+
+class ApplyLaneTests(unittest.TestCase):
+    def test_issue_646_dry_run_is_off_the_production_environment(self) -> None:
+        job = _job("production-dry-run")
+        self.assertNotIn("environment: production", job)
+        self.assertIn("inputs.mode == 'dry-run'", job)
+
+    def test_the_apply_job_is_ON_the_production_environment(self) -> None:
+        self.assertIn("environment: production", _job("production-apply"))
+
+    def test_the_apply_job_needs_the_review_job(self) -> None:
+        self.assertIn(
+            "needs: [validate, production-apply-review]", _job("production-apply")
+        )
+
+    def test_the_typed_confirmation_is_APPLY_plus_sha(self) -> None:
+        for name in ("production-apply-review", "production-apply"):
+            with self.subTest(job=name):
+                self.assertIn('= "APPLY $REQUESTED_SHA"', _job(name))
+
+    def test_the_confirmation_check_is_the_first_step_of_the_review_job(self) -> None:
+        """A wrong string must fail before any credential is used."""
+        steps = _steps(_job("production-apply-review"))
+        self.assertIn("Check exact confirmation", steps[0])
+
+    def test_the_model_review_is_advisory_and_cannot_block(self) -> None:
+        job = _job("production-apply-review")
+        self.assertIn("continue-on-error: true", job)
+        self.assertIn("ADVISORY", job)
+        script = (REPO / "scripts" / "production_apply_model_review.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("sys.exit(1)", script)
+        self.assertNotIn("return 1", script)
+
+    def test_the_model_review_is_not_the_only_gate(self) -> None:
+        """Belt and braces: a human gate AND a deterministic gate must exist."""
+        self.assertIn("environment: production", _job("production-apply"))
+        self.assertIn(
+            "production_migration_guard.py preflight", _job("production-apply-review")
+        )
+
+    def test_a_fresh_dry_run_immediately_precedes_the_real_push(self) -> None:
+        step = [s for s in _steps(_job("production-apply")) if "Fresh dry-run" in s][0]
+        commands = _run_block_commands(step)
+        bounded = [i for i, c in enumerate(commands) if "assert-bounded" in c][-1]
+        dry = [
+            i
+            for i, c in enumerate(commands)
+            if "db push" in c and "--dry-run" in c
+        ][-1]
+        verify = [i for i, c in enumerate(commands) if "verify-dry-run" in c][-1]
+        push = [
+            i for i, c in enumerate(commands) if "db push" in c and "--dry-run" not in c
+        ][-1]
+        self.assertLess(bounded, dry)
+        self.assertLess(dry, verify)
+        self.assertLess(verify, push)
+        self.assertEqual(push, len(commands) - 1, "the push must be the last command")
+
+    def test_the_apply_job_uploads_before_dryrun_and_after_evidence(self) -> None:
+        job = _job("production-apply")
+        for artifact in (
+            "production-ledger-before.txt",
+            "production-dry-run.txt",
+            "production-apply.txt",
+            "production-ledger-after.txt",
+        ):
+            with self.subTest(artifact=artifact):
+                self.assertIn(artifact, job)
+
+    def test_include_all_never_runs_in_the_github_workspace(self) -> None:
+        """The bound is the filesystem, not the flag (AGENTS.md 5.1)."""
+        for name in ("production-dry-run", "production-apply"):
+            for step in _steps(_job(name)):
+                if "--include-all" not in step:
+                    continue
+                commands = _run_block_commands(step)
+                self.assertIn(
+                    'cd "$RUNNER_TEMP/bounded-production"',
+                    commands,
+                    name + ": --include-all must run only in the bounded checkout",
+                )
+
+    # ---------------- negative paths the lane must refuse ----------------
+    def test_a_held_version_is_refused_before_the_lane_can_run(self) -> None:
+        with self.assertRaises(GuardError):
+            parse_allowlist("20260802170000")
+
+    def test_a_one_sided_co_presence_allowlist_is_refused(self) -> None:
+        with self.assertRaises(GuardError):
+            parse_allowlist("20260810020000")
+
+    def test_a_wrong_confirmation_string_cannot_match(self) -> None:
+        """The shell test is `= "APPLY $REQUESTED_SHA"` -- exact, not a prefix."""
+        job = _job("production-apply")
+        self.assertNotIn("APPLY*", job)
+        self.assertNotIn("grep", job)
+
+
+class CanaryTests(unittest.TestCase):
+    """Customer #1 for the apply lane -- deliberately NOT a licensor feature."""
+
+    VERSION = "20260810140000"
+
+    def test_the_canary_exists_and_is_additive_only(self) -> None:
+        raw = local_migrations(REPO)[self.VERSION].read_text(encoding="utf-8")
+        lowered = strip_sql(raw)
+        for forbidden in ("drop table", "drop schema", "drop column", "truncate"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, lowered)
+        self.assertIn("create table if not exists", lowered)
+
+    def test_the_canary_revokes_the_schema_default_grant(self) -> None:
+        """RLS ALONE IS NOT ENOUGH IN `plm`, and this test exists to say so.
+
+        `20260710135975_reconcile_service_role_grants.sql` line 14 runs
+        `alter default privileges in schema plm grant all on tables to
+        service_role`. That fires at CREATE TABLE, silently, with nothing in the
+        creating migration to hint at it -- so every new `plm.*` table is born
+        with ALL privileges held by `service_role`, and `service_role` BYPASSES
+        RLS in Supabase.
+
+        An earlier draft of this canary claimed "no role is granted anything"
+        and relied on RLS with no policies. That was false. The blast radius was
+        nil (an empty table nothing reads); the danger was the comment, because
+        a header that states a safety property the file does not have is what
+        the next author copies.
+        """
+        raw = local_migrations(REPO)[self.VERSION].read_text(encoding="utf-8")
+        lowered = strip_sql(raw)
+        self.assertIn("enable row level security", lowered)
+        self.assertNotIn("create policy", lowered)
+        for role in ("public", "anon", "authenticated", "service_role"):
+            with self.subTest(role=role):
+                self.assertIn(
+                    "revoke all on plm.production_lane_canary from " + role,
+                    lowered,
+                )
+
+    def test_the_canary_revokes_with_ALL_not_an_enumerated_list(self) -> None:
+        """A hand-enumerated list misses MAINTAIN on PG 17.6 and goes stale."""
+        raw = local_migrations(REPO)[self.VERSION].read_text(encoding="utf-8")
+        lowered = strip_sql(raw)
+        for line in lowered.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("revoke "):
+                with self.subTest(line=stripped):
+                    self.assertTrue(
+                        stripped.startswith("revoke all "),
+                        "revoke bits individually and the next privilege "
+                        "Postgres adds is silently left granted",
+                    )
+
+    def test_the_canary_asserts_the_RESULTING_privileges_at_apply_time(self) -> None:
+        """The assertion must be about the RESULT, not that the statements ran.
+
+        A revoke that silently did nothing looks identical in a migration log to
+        one that worked. This canary's entire job is to be trustworthy evidence
+        that the lane works, so it self-checks in the database it just wrote to
+        and raises if any privilege survived. That is stronger than anything
+        this offline suite could assert, because it runs against the real
+        production catalog.
+        """
+        raw = local_migrations(REPO)[self.VERSION].read_text(encoding="utf-8").lower()
+        # Version-proof check: catches MAINTAIN without naming it.
+        self.assertIn("aclexplode", raw)
+        # Named bits, so a failure says WHICH privilege survived.
+        self.assertIn("has_table_privilege", raw)
+        for privilege in (
+            "select",
+            "insert",
+            "update",
+            "delete",
+            "truncate",
+            "references",
+            "trigger",
+        ):
+            with self.subTest(privilege=privilege):
+                self.assertIn("'" + privilege + "'", raw)
+        for role in ("anon", "authenticated", "service_role"):
+            with self.subTest(role=role):
+                self.assertIn("'" + role + "'", raw)
+        self.assertIn("raise exception", raw)
+
+    def test_the_canary_header_no_longer_claims_it_grants_nothing(self) -> None:
+        """Guard against the false claim reappearing by copy-paste."""
+        raw = local_migrations(REPO)[self.VERSION].read_text(encoding="utf-8")
+        self.assertNotIn("no role is granted anything", raw)
+        # And it must explain WHY the revoke is needed, not just do it.
+        self.assertIn("20260710135975", raw)
+        self.assertIn("default privileges", raw)
+
+    def test_the_canary_passes_the_guard_on_its_own(self) -> None:
+        remote = production_ledger_versions()
+        migrations = local_migrations(REPO)
+        self.assertEqual(parse_allowlist(self.VERSION), [self.VERSION])
+        preflight_batch(migrations, [self.VERSION], remote)
 
 if __name__ == "__main__":
     unittest.main()

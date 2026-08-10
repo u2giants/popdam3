@@ -141,6 +141,76 @@ FR_HELD_20260803 = {
 FR_REMOVAL_VERSIONS: set[str] = set()
 
 
+# ---------------------------------------------------------------------------
+# SECURITY CO-PRESENCE RULES (added 2026-08-10, issue #660)
+#
+# Each entry is: "if the CREATE migration is in the allowlist, the FIX migration
+# must be too". Between the create and its fix, production sits in a state the
+# owner would not accept, so the two must land in one bounded apply.
+#
+# ****** THE RULE IS ONE-DIRECTIONAL, AND THAT IS DELIBERATE. ******
+#
+# Read this before you "make it symmetric for consistency". It is the single
+# most important property of this block.
+#
+# `validate_candidates()` REFUSES any allowlist containing a version that is
+# already applied on production. So consider the exact scenario these rules
+# exist for: a bounded apply dies after the CREATE migration has landed and
+# before the FIX migration runs. Production is now in the insecure state. The
+# only legal recovery allowlist is the FIX ALONE -- the create cannot be
+# re-listed, because it is applied.
+#
+# A symmetric rule ("the fix requires the create") would REFUSE that recovery.
+# The operator's only way out would be to EDIT THIS SAFETY GUARD, under
+# time pressure, while production sits exposed. That is precisely the shape of
+# change that gets made carelessly, and it is why AGENTS.md 6.5 was written as a
+# co-presence rule rather than a HARD_BLOCKED entry in the first place.
+#
+# So: `20260810090000` ALONE is legal. `20260810080000` ALONE is legal.
+# `20260810110000` + `20260810120000` without `20260810030000` is legal.
+# There are explicit tests for each of those recovery cases; if you change this
+# structure and they still pass, you have broken the tests, not proved the change.
+#
+# NOT LISTED HERE, ON PURPOSE: `20260810110000` also alters `api.dam_order_list`,
+# which `20260810010000` creates. That is a DEPENDENCY, not a policy, and it is
+# already enforced by `preflight_batch` -- which reads the real production ledger
+# and therefore stays silent when `20260810010000` is already applied. Encoding
+# it here would be ledger-blind and would break exactly the recovery case above.
+# Dependencies belong in the preflight; policy belongs here.
+CO_PRESENCE_RULES: tuple[tuple[str, frozenset[str], str], ...] = (
+    (
+        # Paramount
+        "20260810020000",
+        frozenset({"20260810090000"}),
+        "20260810020000 creates the Paramount Creative Library landing schema and "
+        "leaves `service_role` holding TRUNCATE on 23 tables. TRUNCATE does not "
+        "fire the row-level triggers those tables rely on, so between these two "
+        "migrations production is one statement away from silently bypassing "
+        "every one of them. 20260810090000 is the loader target guard and the "
+        "TRUNCATE revoke.",
+    ),
+    (
+        # NBCU
+        "20260810070000",
+        frozenset({"20260810080000"}),
+        "20260810070000 creates the NBCU creative-asset landing schema with "
+        "default-granted write privileges still in place. 20260810080000 revokes "
+        "them. Promoting the create without the revoke leaves production writable "
+        "by roles that must not write there.",
+    ),
+    (
+        # Warner
+        "20260810030000",
+        frozenset({"20260810110000", "20260810120000"}),
+        "20260810030000 creates the Warner STARLABS landing schema before its "
+        "grants, RLS and read-claim corrections exist. 20260810110000 applies the "
+        "grants/RLS (and makes api.dam_order_list security-invoker); "
+        "20260810120000 corrects the read claim and revokes the service_role "
+        "INSERT. All three land together or not at all.",
+    ),
+)
+
+
 class GuardError(ValueError):
     pass
 
@@ -199,6 +269,22 @@ def parse_allowlist(raw: str) -> list[str]:
                 "single bounded apply carrying 20260802170000, 20260802171000 "
                 "and the FR removal migrations together, in dependency order. "
                 "Include the full set or none of it."
+            )
+    # Security co-presence (issue #660). ONE-DIRECTIONAL by design -- see the
+    # long comment on CO_PRESENCE_RULES. Never add the reverse implication.
+    chosen = set(values)
+    for create, fixes, why in CO_PRESENCE_RULES:
+        if create not in chosen:
+            continue
+        missing = sorted(fixes - chosen)
+        if missing:
+            raise GuardError(
+                f"co-presence rule: {create} may not be promoted without "
+                f"{', '.join(missing)}. {why} Add the missing version(s) to the "
+                "allowlist. (This rule is one-directional on purpose: promoting "
+                f"{', '.join(sorted(fixes))} WITHOUT {create} is allowed, because "
+                "that is the only legal way to recover a run that died between "
+                "them.)"
             )
     return values
 
@@ -387,8 +473,61 @@ REFERENCE_RES = (
 
 DOLLAR_OPEN_RE = re.compile(r"\$([A-Za-z_]\w*)?\$")
 
+# A literal is KEPT only when it is immediately cast to `regclass` -- that is the
+# one position where the text inside a literal is a real, apply-time resolved
+# object reference (`default nextval('plm.s'::regclass)`). Every other literal is
+# blanked; see `strip_sql`.
+REGCLASS_AHEAD_RE = re.compile(r"\s*::\s*regclass\b", re.IGNORECASE)
 
-def strip_sql(raw: str) -> str:
+# The archaic, pre-dollar-quote function body: `... as 'select 1';`. Postgres
+# still accepts it, and this lexer CANNOT see inside it (the body is a string
+# literal, and blanking it is exactly what makes prose safe). Rather than leave a
+# silent blind spot, `assert_no_archaic_function_body` REFUSES any migration that
+# uses the form. A repo sweep on 2026-08-10 found exactly one, 20260729120000
+# (`language sql security definer as 'select 1';`), which is RETIRED and
+# permanently HARD_BLOCKED -- so no promotable file is affected today.
+ARCHAIC_BODY_AS_RE = re.compile(r"\bas\s+'")
+CREATE_ROUTINE_RE = re.compile(
+    r"\b(?:create|alter)\s+(?:or\s+replace\s+)?(?:function|procedure)\b"
+)
+
+
+def assert_no_archaic_function_body(version: str, raw: str) -> None:
+    """Refuse a migration whose function body is an old-style string literal.
+
+    `strip_sql` blanks single-quoted literals so English prose inside a
+    `comment on ... is '...'` stops being parsed as SQL. That is correct, but it
+    means a routine body written as `as 'select 1'` becomes invisible to the
+    preflight scanner. Invisible is the one outcome this lane must never have:
+    the whole point of the check is that a REJECT is trustworthy and a PASS is
+    merely "nothing known to be broken". A body we cannot read is neither.
+
+    So this turns the residual blind spot into a LOUD REFUSAL. If a future
+    migration legitimately needs this form, rewrite it with dollar quoting --
+    do not delete this check.
+    """
+    # keep_dollar=True as well: the one real instance in this repo
+    # (20260729120000) writes `as 'select 1'` INSIDE a `do $$ ... $$` block, so a
+    # scan that stripped dollar bodies would have found nothing and reported a
+    # clean sweep. Comments are still stripped, so prose cannot trip this.
+    text = strip_sql(raw, keep_literals=True, keep_dollar=True)
+    for match in ARCHAIC_BODY_AS_RE.finditer(text):
+        # Only inside a CREATE/ALTER FUNCTION|PROCEDURE statement: take the text
+        # back to the previous statement terminator and look for the header.
+        statement = text[: match.start()].rsplit(";", 1)[-1]
+        if CREATE_ROUTINE_RE.search(statement):
+            raise GuardError(
+                f"{version} defines a routine with an archaic single-quoted body "
+                f"(`as '...'`). The preflight scanner blanks string literals, so "
+                f"it cannot read that body and cannot judge what the migration "
+                f"depends on. Rewrite the body with dollar quoting ($$ ... $$) "
+                f"before promoting it. Do not delete this check to get past it."
+            )
+
+
+def strip_sql(
+    raw: str, keep_literals: bool = False, keep_dollar: bool = False
+) -> str:
     """Lowercase SQL with comments and dollar-quoted bodies removed.
 
     Function bodies are stripped on purpose: names inside them resolve at CALL
@@ -418,8 +557,35 @@ def strip_sql(raw: str) -> str:
     `prepare`, so the production lane could not be exercised at all.
 
     Lexing order below is Postgres's own: at any point the next token decides.
-    Single-quoted string literals are SKIPPED OVER but KEPT -- `REFERENCE_RES`
-    matches `'plm.seq'::regclass` inside a literal on purpose.
+
+    SINGLE-QUOTED LITERALS ARE BLANKED (fixed 2026-08-10). They used to be kept,
+    and that was the SAME CLASS OF DEFECT as the `$$`-inside-a-comment bug above:
+    ordinary English prose inside a `comment on ... is '...'` literal was parsed
+    as SQL. The live example is 20260807170000, whose documentation reads
+
+        'character can appear in multiple properties. Distinct from
+         core.style_guide_character, '
+
+    -- and `from core.style_guide_character` matched the "query target" pattern,
+    so `preflight_batch` reported the file as depending on a table created by an
+    unapplied migration and REFUSED it. A repo-wide sweep found 30 such phantom
+    references across 23 migration files.
+
+    It fires hardest on exactly the allowlists this lane is built for: a large
+    batch usually contains the phantom's real creator anyway, so nobody notices,
+    while a SMALL BOUNDED allowlist -- bounded promotion, the whole point -- gets
+    rejected. False rejects are the safe direction, but a lane that cannot run is
+    still a broken lane.
+
+    THE ONE EXCEPTION, and why it is narrow: `'plm.seq'::regclass` really is an
+    apply-time object reference. So a literal is kept only when the very next
+    non-space tokens are `::regclass`. Nothing else about a literal's contents is
+    a dependency -- text inside `execute format(...)` resolves at CALL time and
+    was never modelled (see the module header's honesty note).
+
+    `keep_literals=True` returns the pre-blanking text. It exists ONLY for
+    `assert_no_archaic_function_body`, which must see the `as '...'` form that
+    blanking would otherwise hide.
     """
     out: list[str] = []
     i, n = 0, len(raw)
@@ -461,7 +627,12 @@ def strip_sql(raw: str) -> str:
                     j += 1
                     break
                 j += 1
-            out.append(raw[start:j])
+            if keep_literals or REGCLASS_AHEAD_RE.match(raw, j):
+                out.append(raw[start:j])
+            else:
+                # Blank the body but keep the quotes, so an adjacent token cannot
+                # be glued to its neighbour (`is'x'from` must not become `isfrom`).
+                out.append("''")
             i = j
         elif ch == '"':
             # A double-quoted identifier is opaque: `"weird--name"` contains no
@@ -485,6 +656,9 @@ def strip_sql(raw: str) -> str:
                 # rest of the file.
                 out.append(ch)
                 i += 1
+            elif keep_dollar:
+                out.append(raw[i : close + len(m.group(0))])
+                i = close + len(m.group(0))
             else:
                 out.append(" ")
                 i = close + len(m.group(0))
@@ -535,6 +709,13 @@ def preflight_batch(
     for version in allowlist:
         path = migrations[version]
         raw = path.read_text(encoding="utf-8")
+        # Refuse a body this scanner cannot read, rather than passing it
+        # silently. Collected rather than raised so a file with BOTH an archaic
+        # body and a real missing dependency reports both at once.
+        try:
+            assert_no_archaic_function_body(version, raw)
+        except GuardError as exc:
+            problems.append(str(exc))
         available |= created_objects(raw)
         for obj, reason in hard_references(raw):
             if obj in available:

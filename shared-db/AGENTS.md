@@ -505,6 +505,69 @@ migrations still had to be replayed as no-ops on 2026-07-27 just to close the le
 worked example, including the verification queries:
 [`docs/migration-backlog-triage-2026-07-27.md`](docs/migration-backlog-triage-2026-07-27.md).
 
+#### 5.1-A The lane is now RUNNABLE — how a production apply actually happens (built 2026-08-10, issue #617/#660)
+
+**Everything in §5.1 above still describes the mechanics.** What changed is that you no longer
+perform them by hand. The workflow
+[`.github/workflows/shared-supabase-migrations.yml`](.github/workflows/shared-supabase-migrations.yml)
+now has an `apply` mode that does the whole bounded-temp-checkout recipe for you, under gates.
+Before 2026-08-10 that job opened with a step called `Refuse production apply`, so the lane could
+never run at all — which is why four licensor features queued up behind it.
+
+**To promote, dispatch the workflow with:** `target: production`, `mode: apply`, the exact
+`origin/main` SHA, the comma-separated allowlist, and `confirmation: APPLY <sha>`. A wrong
+confirmation string fails on the first step, before any credential is used.
+
+**Three gates, and NONE of them is sufficient alone:**
+
+1. **`production-apply-review`** — deterministic. The typed string, the exact SHA, and the whole
+   guard chain (`parse_allowlist` → hard blocks, the §6.8 all-four bundle, the §6.5 hold, the
+   co-presence rules → `validate_candidates` → whole-batch preflight). This job fails the run.
+2. **An automatic model review** that posts a technical verdict into the job summary.
+   ⚠️ **It is ADVISORY and may never be the only gate.** It cannot fail the run and it cannot
+   approve one; it exists to put a written opinion in front of the human. If `ANTHROPIC_API_KEY`
+   is missing it says so explicitly rather than skipping silently — read its absence as *no
+   opinion*, never as approval.
+3. **`environment: production`, with Albert as required reviewer.** This is the gate that holds.
+
+**Issue #646, also fixed here:** `production-dry-run` is **off** the `production` environment.
+It used to sit on it, so Albert was asked to approve every practice run — and a gate that fires
+on harmless events trains its holder to click approve without reading, which is the last habit
+you want on the one run that writes. The dry-run job is now read-only (`link`,
+`migration list`, `db push --dry-run`) and ungated. **If you ever add a mutating command to it,
+put the environment back first.**
+
+**Customer #1 is a canary, not a licensor feature.** `20260810140000_production_lane_canary.sql`
+creates one table, inserts one row, and is read by nothing. It goes through the lane first so a
+lane failure can never be confused with a migration failure. This lane has already produced two
+failures that looked like migration faults and were neither — both lexer bugs in
+`scripts/production_migration_guard.py` (`$$` inside a comment, then prose inside a string
+literal). Do not send Disney, Paramount, NBCU or Warner through untested write machinery.
+
+**Two limits you must not read past.**
+
+- ⚠️ **"PREFLIGHT OK" IS NOT AN APPROVAL.** `strip_sql` removes dollar-quoted bodies on purpose
+  (names inside a function body resolve at CALL time), which means a `do $$ … $$` block hides its
+  apply-time references from the scanner completely. A batch whose real dependency lives inside a
+  DO block passes preflight and still aborts on production. The preflight may REJECT; it can never
+  certify. The authoritative gate is the rehearsal against a production-shaped database.
+- ⚠️ **Whether `db push` writes a migration's SQL and its ledger row in ONE transaction is
+  NOT SETTLED (issue #611).** The experiment is written and reviewed at
+  [`scripts/experiment_611_db_push_atomicity.sh`](scripts/experiment_611_db_push_atomicity.sh)
+  but has **not been run** — no disposable database was available. Do not assert an answer; one
+  reviewer already did and retracted. Run it before relying on any claim about what a
+  half-finished apply leaves behind.
+
+**The co-presence rules are ONE-DIRECTIONAL, and that is not an oversight.** Three security
+pairings are enforced in `parse_allowlist`: `20260810020000` requires `20260810090000` (between
+them `service_role` holds TRUNCATE on 23 tables, and TRUNCATE does not fire row-level triggers);
+`20260810070000` requires `20260810080000`; `20260810030000` requires both `20260810110000` and
+`20260810120000`. **The reverse is deliberately NOT enforced.** `validate_candidates` refuses any
+allowlist containing an already-applied version, so if a run dies between a create and its fix,
+the fix ALONE is the only legal recovery allowlist. A symmetric rule would refuse that recovery
+and force an operator to edit the safety guard under pressure while production sits exposed.
+Do not "tidy" it into symmetry.
+
 ### 5.2 A red check on `main` can be a STALE verdict — the domain-ownership guard scans more than its trigger watches (learned 2026-07-31)
 
 **Read this before you debug a failing check on `main`.** The `DB Data Admin` workflow
