@@ -8,6 +8,23 @@ unblocks a production gate, so it is worth getting right rather than fast.
 
 ---
 
+## 0. STATUS — this run has ALREADY BEEN DONE ONCE. Read §3½ before you repeat it.
+
+The run happened on the **hetz** VPS on 2026-08-10 against `main` tip `bc29d36`, on CLI
+**2.105.0**. The gate is discharged. The result lives in
+[`issue-611-db-push-atomicity-20260810.md`](issue-611-db-push-atomicity-20260810.md) with the
+complete raw log in [`issue-611-run-output-20260810.txt`](issue-611-run-output-20260810.txt).
+
+**You only need to run this again if the pinned Supabase CLI version changes.** The behaviour
+belongs to the CLI, so a version bump reopens issue #611.
+
+**And if you do run it again, read [§3½](#3-two-defects-that-voided-three-of-the-four-attempts-read-this-or-lose-an-hour)
+first.** Three of the four attempts on 2026-08-10 were **void**, and each one printed a full page
+of `f` results that looked exactly like clean rollbacks. Both causes are now fixed in the script,
+but you must know them to recognise them.
+
+---
+
 ## 1. What you are being asked to do, in one line
 
 Run one bash script against a throwaway PostgreSQL container, and record its output in this
@@ -74,7 +91,14 @@ supabase --version
 ```
 
 It must print `2.105.0`. If it prints anything else, install that exact version before running
-(e.g. `npm i -g supabase@2.105.0`, or the pinned binary your platform uses) and re-check.
+and re-check.
+
+> ⚠️ **The version string alone is NOT enough, and installing "just the binary" WILL void your
+> run.** On Linux, install by downloading `supabase_linux_amd64.tar.gz` from the **v2.105.0**
+> GitHub release and **extracting the WHOLE tarball into one directory**, then invoking the
+> `supabase` inside that directory. The tarball ships **two** files — `supabase` is only a **shim**
+> that forwards to a co-located `supabase-go`. See §3½ below. The checksums of the two binaries
+> that produced the recorded result are in the result document.
 
 Corollary you may be tempted by and should not be: the **PostgreSQL major version does not
 matter**. A three-model review confirmed PG15 vs PG17 does not change the answer. Do not
@@ -93,13 +117,8 @@ git clone https://github.com/u2giants/shared-db.git
 cd shared-db
 ```
 
-Run from `main` once the hardening PR (branch `gate-611-run`, issue **#685**) has merged.
-Before it merges, run the branch directly:
-
-```bash
-git fetch origin gate-611-run
-git checkout gate-611-run
-```
+Run from `main`. (The hardening PR — branch `gate-611-run`, issue **#685** — merged as `bc29d36`,
+and the two script fixes in §3½ merged after it. Both are on `main`.)
 
 Record the exact commit SHA you ran — `git rev-parse HEAD` — in your results file. The
 fixtures matter, so which commit you ran is part of the answer.
@@ -108,6 +127,49 @@ fixtures matter, so which commit you ran is part of the answer.
 (`qsllyeztdwjgirsysgai`) or preview (`rjyboqwcdzcocqgmsyel`).** The script is destructive by
 design — it deliberately makes migrations fail halfway — and it points itself at its own local
 container via `--db-url`. If you ever see it about to talk to a hosted project, stop.
+
+---
+
+## 3½. Two defects that voided THREE of the four attempts. Read this or lose an hour.
+
+Both are now fixed in `scripts/experiment_611_db_push_atomicity.sh`. Both used to produce a full
+page of `f` result lines, which is **indistinguishable from a clean rollback** — the worst shape a
+failure can take. **An absent table with no push is not a rollback.**
+
+**Defect 1 — the two-binary trap ([issue #688](https://github.com/u2giants/shared-db/issues/688)).**
+The v2.105.0 linux tarball contains **two** binaries. `supabase` is a **shim**; the real CLI is a
+co-located `supabase-go`. Extract only `supabase` and every push dies with:
+
+```text
+Could not find the `supabase-go` binary
+```
+
+**Fix:** extract the WHOLE tarball into one directory and run the `supabase` from inside it.
+Do not copy the single file onto your PATH.
+
+**Defect 2 — TLS.** CLI 2.105.0 **forces TLS** on `--db-url` and **IGNORES `sslmode=disable`**.
+A plain `postgres:15` container serves no TLS, so every push dies with:
+
+```text
+tls error (server refused TLS connection)
+```
+
+**Fix (already in the script):** the throwaway container is given a self-signed cert and
+`ssl = on`. This is a **transport-only** change — no fixture, SQL file, or assertion is touched by
+it, and it must stay that way, or the experiment stops measuring what it claims to measure.
+
+**Two tripwires in the output. Check both before you believe anything downstream:**
+
+| Line | Must read | If it doesn't |
+| --- | --- | --- |
+| `container TLS:` (near the top) | `on` | every push will die on TLS; the run is void |
+| `CLI preflight:` | `OK` | the script now **aborts** here rather than measuring nothing |
+| `ledger rows seeded:` | `424` (or the current migration count) | the ledger seeding did not take; interpret nothing downstream |
+
+The script's step 1b runs one real, harmless CLI command against the throwaway container before
+any measurement. It exercises the same binary path and the same TLS connection as every push
+below, so a green preflight rules out **both** defects at once. If it fails, the script stops and
+tells you which one.
 
 ---
 

@@ -3,11 +3,30 @@
 # ISSUE #611 -- does `supabase db push` write a migration's SQL and its
 # `supabase_migrations.schema_migrations` row in ONE transaction?
 #
-# STATUS: **NOT SETTLED.** This script is the experiment, written and reviewed
-# but NOT RUN. The machine it was authored on (al8960ofc, 2026-08-10) has no
-# Docker and no local PostgreSQL, so there was no disposable database to destroy.
-# Run it and record the output in
-# docs/verification/ before anyone relies on an answer.
+# STATUS: **RUN AND SETTLED for CLI 2.105.0**, on the hetz VPS on 2026-08-10
+# against repo `main` tip bc29d36. Result, evidence and scope:
+#   docs/verification/issue-611-db-push-atomicity-20260810.md
+#   docs/verification/issue-611-run-output-20260810.txt   (the raw log)
+# The answer in one line: **SQL and ledger row are atomic PER FILE, NOT per
+# batch.** A batch that dies on file 40 leaves files 1-39 applied AND ledgered.
+# This script stays runnable so the result can be re-measured on a future CLI
+# version -- the behaviour belongs to the CLI, so a version bump reopens it.
+#
+# TWO DEFECTS VOIDED THREE OF THE FOUR ATTEMPTS ON 2026-08-10. Both are fixed
+# below; both used to look EXACTLY like a clean pass, which is the worst shape a
+# failure can take. Do not undo either.
+#   1. The v2.105.0 linux tarball ships TWO binaries. `supabase` is a SHIM that
+#      forwards to a co-located `supabase-go`. Extract the WHOLE tarball. If you
+#      extract only `supabase`, every push dies with "Could not find the
+#      `supabase-go` binary" and EVERY result line reads `f` -- indistinguishable
+#      from a clean rollback. See issue #688. The step-1b preflight below now
+#      fails loudly on this instead of producing a silent false pass.
+#   2. CLI 2.105.0 FORCES TLS on `--db-url` and IGNORES `sslmode=disable`. Plain
+#      `postgres:15` serves no TLS, so every push dies with
+#      "tls error (server refused TLS connection)". Step 1 now gives the
+#      throwaway container a self-signed cert and `ssl = on`, and prints
+#      `container TLS: on` as a visible tripwire. This changes the container's
+#      TRANSPORT ONLY -- no fixture, no SQL file, no assertion. Keep it that way.
 #
 # WHY YOU MUST NOT SKIP THIS AND JUST ASSERT AN ANSWER.
 # One recent plan's reviewer asserted this as settled fact, was challenged, and
@@ -74,7 +93,64 @@ docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 docker run -d --name "$CONTAINER" -e POSTGRES_PASSWORD="$PGPASSWORD" \
   -p "${PGPORT}:5432" postgres:15 >/dev/null
 until docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
+
+# --- TLS. NOT optional, and NOT a fixture change. CLI 2.105.0 forces TLS on
+# --- `--db-url` and ignores sslmode=disable; plain postgres:15 serves no TLS,
+# --- so without this every push dies with "tls error (server refused TLS
+# --- connection)". Only the container's transport is touched here.
+CERTD="$(mktemp -d)"
+openssl req -new -x509 -days 1 -nodes -subj "/CN=localhost" \
+  -keyout "$CERTD/server.key" -out "$CERTD/server.crt" 2>/dev/null
+docker cp "$CERTD/server.crt" "$CONTAINER":/var/lib/postgresql/data/server.crt
+docker cp "$CERTD/server.key" "$CONTAINER":/var/lib/postgresql/data/server.key
+docker exec -u root "$CONTAINER" chown postgres:postgres \
+  /var/lib/postgresql/data/server.key /var/lib/postgresql/data/server.crt
+docker exec -u root "$CONTAINER" chmod 600 /var/lib/postgresql/data/server.key
+docker exec -i "$CONTAINER" psql -U postgres -c "alter system set ssl = on;" >/dev/null
+docker restart "$CONTAINER" >/dev/null
+until docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
+# TRIPWIRE: this MUST print `container TLS: on`. If it prints `off`, every push
+# below will die on TLS and every result line will read `f` -- which reads
+# exactly like a clean rollback and would void the whole run.
+echo "container TLS: $(docker exec -i "$CONTAINER" psql -U postgres -tAc "show ssl;")"
+
 psql() { docker exec -i "$CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+
+# =============================================================================
+# == 1b. PREFLIGHT -- PROVE THE CLI ACTUALLY RUNS BEFORE MEASURING ANYTHING ==
+# =============================================================================
+# This exists because on 2026-08-10 three of four attempts produced a full page
+# of `f` results that looked like clean rollbacks and were in fact the CLI never
+# executing at all (the supabase-go shim trap, #688) or never connecting at all
+# (TLS). An absent table with no push is NOT a rollback. So: run one REAL,
+# harmless CLI command against the throwaway container and refuse to continue
+# unless it succeeds. It exercises the same binary path and the same TLS
+# connection as every measurement below, so a green preflight rules out both
+# defects at once.
+echo "== 1b. CLI preflight =="
+echo "supabase --version: $(supabase --version 2>&1 || true)"
+if ! PREFLIGHT="$(supabase migration list --db-url "$DB_URL" 2>&1)"; then
+  echo "$PREFLIGHT"
+  echo
+  echo "FATAL: the Supabase CLI could not talk to the throwaway database."
+  case "$PREFLIGHT" in
+    *supabase-go*)
+      echo "  CAUSE: the two-binary trap (#688). The \`supabase\` on your PATH is a"
+      echo "  SHIM that forwards to a co-located \`supabase-go\`, and \`supabase-go\` is"
+      echo "  missing. Extract the WHOLE v2.105.0 tarball into one directory and run"
+      echo "  the \`supabase\` inside it -- do not copy the single file anywhere." ;;
+    *tls*|*TLS*)
+      echo "  CAUSE: TLS. The container is not serving TLS -- check the"
+      echo "  \`container TLS:\` line above; it must read \`on\`." ;;
+    *)
+      echo "  CAUSE: unknown. Read the error above. DO NOT continue and DO NOT" ;;
+  esac
+  echo "  ABORTING. A run past this point would print a page of \`f\` results that"
+  echo "  are indistinguishable from clean rollbacks, and would be WORTHLESS."
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  exit 1
+fi
+echo "CLI preflight: OK (the real CLI ran and connected over TLS)"
 
 echo "== 2. Fixture migrations =="
 REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -392,3 +468,4 @@ echo
 echo "== cleanup =="
 docker rm -f "$CONTAINER" >/dev/null
 rm -rf "$WORK"
+rm -rf "${CERTD:-}" 2>/dev/null || true

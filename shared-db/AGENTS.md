@@ -548,29 +548,49 @@ failures that looked like migration faults and were neither — both lexer bugs 
 `scripts/production_migration_guard.py` (`$$` inside a comment, then prose inside a string
 literal). Do not send Disney, Paramount, NBCU or Warner through untested write machinery.
 
-**Two limits you must not read past.**
+**Three limits you must not read past.**
 
 - ⚠️ **"PREFLIGHT OK" IS NOT AN APPROVAL.** `strip_sql` removes dollar-quoted bodies on purpose
   (names inside a function body resolve at CALL time), which means a `do $$ … $$` block hides its
   apply-time references from the scanner completely. A batch whose real dependency lives inside a
   DO block passes preflight and still aborts on production. The preflight may REJECT; it can never
   certify. The authoritative gate is the rehearsal against a production-shaped database.
-- ⚠️ **HARD GATE — issue #611: whether `db push` writes a migration's SQL and its ledger row in
-  ONE transaction is NOT SETTLED, and only a RUN discharges it.** The experiment is written and
-  reviewed at
+- ⚠️ **`db push` is atomic PER FILE, NOT per batch. Issue #611 was MEASURED, and the gate is
+  DISCHARGED.** The experiment
   [`scripts/experiment_611_db_push_atomicity.sh`](scripts/experiment_611_db_push_atomicity.sh)
-  but has **never been executed** — no disposable database was available.
+  RAN on the hetz VPS on 2026-08-10 against `main` tip `bc29d36`, on the pinned **Supabase CLI
+  2.105.0**, with the tripwires `ledger rows seeded: 424` and `container TLS: on` both confirmed.
+  Full result, both binary checksums, every Q1–Q6 block and the complete raw log:
+  [`docs/verification/issue-611-db-push-atomicity-20260810.md`](docs/verification/issue-611-db-push-atomicity-20260810.md).
+  **Licensor batches are no longer blocked by #611.**
 
-  **The gate has two halves. Both bind:**
-  - **ALLOWED:** the canary `20260810140000` MAY go through the production apply lane with #611
-    still open. That is exactly what a canary is for, and running it is the cheapest way to
-    settle #611 instead of arguing it.
-  - **BLOCKED:** **NO licensor batch (Disney, Paramount, NBCU, Warner) may go** until
-    `scripts/experiment_611_db_push_atomicity.sh` has actually been RUN on the **pinned Supabase
-    CLI version 2.105.0**. A run on any other CLI version does NOT discharge this gate — the
-    behaviour in question is the CLI's.
+  **What was FOUND — say it this way, and no wider:**
+  - A migration's SQL and its `supabase_migrations.schema_migrations` row **are written in one
+    transaction, per FILE.** Proven, not inferred: blocking the ledger insert with a `BEFORE
+    INSERT` trigger took the file's perfectly valid SQL down with it (exception seen **t**, table
+    absent **f**, ledger row absent **f**).
+  - **The BATCH is NOT one transaction.** File A stayed applied **with its ledger row** after file
+    B failed. **A 63-migration run that dies on file 40 leaves files 1–39 applied and ledgered. A
+    mid-batch failure does NOT leave production unchanged.**
+  - **The feared state did not appear.** Nothing produced SQL-applied-without-a-ledger-row.
 
-  **Why it is a gate and not advice — the two bad outcomes are concrete:**
+  **The operational consequences — these are the point:**
+  - **Promote in SMALL, BOUNDED batches.** The bigger the batch, the more of it is already
+    committed and unrecoverable-as-listed after a mid-run failure.
+  - **Expect the recovery path to be "the fix ALONE."** The applied files stay applied; the next
+    allowlist contains only what still needs to run.
+  - **The one-directional co-presence rules below, and the already-applied refusal in
+    `validate_candidates` (`scripts/production_migration_guard.py`), are CORRECT AS WRITTEN. The
+    experiment confirms the assumption they rest on. DO NOT SOFTEN THEM** and do not "tidy" the
+    asymmetry away — the asymmetry is exactly what keeps "the fix alone" a legal recovery.
+
+  **Scope — do not overstate this, which is why the gate existed.** The result is for **CLI
+  2.105.0 only** and is **conditional on file contents**, not a universal law about `db push`. A
+  CLI version bump **reopens #611**: re-run the script and re-record. During earlier review a
+  reviewer asserted this answer by reasoning, was challenged, retracted, and dropped its own
+  confidence from 85% to 30% — the answer above is measured, and only what was measured.
+
+  **Why it mattered — the two bad outcomes it ruled out:**
   - *SQL without a ledger row:* a re-run replays the same SQL and dies on duplicate-object
     errors, and a `CREATE` can be left standing on production without the security migration
     that was supposed to follow it.
@@ -578,9 +598,23 @@ literal). Do not send Disney, Paramount, NBCU or Warner through untested write m
     allowlist containing an applied version), and preflight starts trusting objects that do not
     exist. Recovery requires manual ledger surgery on production.
 
-  **Reasoning is not sufficient here, and we have the evidence:** during review one reviewer
-  asserted the atomicity answer as settled fact, then RETRACTED it and dropped its own confidence
-  from 85% to 30%. Careful thinking produced a confident wrong answer. Run the script.
+- 🚫 **MIGRATION AUTHORS: `CREATE INDEX CONCURRENTLY` CANNOT BE PUSHED AT ALL.** The same
+  experiment (Q4) found that CLI 2.105.0 sends a migration file down a **pipeline**, and
+  PostgreSQL refuses `CREATE INDEX CONCURRENTLY` inside one:
+  `ERROR: CREATE INDEX CONCURRENTLY cannot be executed within a pipeline (SQLSTATE 25001)`.
+  The whole file rolls back cleanly — safe, but the migration **fails outright** and takes the
+  rest of its batch with it. The same applies to anything else PostgreSQL refuses inside a
+  transaction block or pipeline: `REINDEX … CONCURRENTLY`, `VACUUM`,
+  `REFRESH MATERIALIZED VIEW … CONCURRENTLY`, `CREATE DATABASE`, `ALTER SYSTEM`. **Write a plain
+  `CREATE INDEX`.** If a concurrent build is genuinely required for a large table, it must be run
+  as a deliberate out-of-band operation, never as a migration file.
+  **Scan result, 2026-08-10 at `bc29d36`:** all **424** migrations were searched
+  case-insensitively (multi-line tolerant) — **ZERO hits**, including **zero in the 63-migration
+  production backlog `20260724060000` → `20260810140000`**. The promotion plan is unaffected. The
+  only matches for the word "concurrently" are prose inside two error messages
+  (`20260802140000_acknowledge_taxonomy_sync_alert_rpc.sql`,
+  `20260802150000_taxonomy_alert_actor_heuristic_word_anchors.sql`). That is a point-in-time
+  result; this bullet is a standing constraint on new migrations.
 
 **The co-presence rules are ONE-DIRECTIONAL, and that is not an oversight.** Three security
 pairings are enforced in `parse_allowlist`: `20260810020000` requires `20260810090000` (between
