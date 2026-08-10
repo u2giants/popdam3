@@ -994,7 +994,9 @@ class ArchaicFunctionBodyTests(unittest.TestCase):
 class CoPresenceTests(unittest.TestCase):
     CREATE_WITHOUT_FIX = [
         ("20260810020000", "20260810090000"),
+        ("20260810020000", "20260810180000"),
         ("20260810070000", "20260810080000"),
+        ("20260810070000", "20260810180000"),
         ("20260810030000", "20260810110000"),
     ]
 
@@ -1011,12 +1013,75 @@ class CoPresenceTests(unittest.TestCase):
 
     def test_the_complete_sets_are_accepted(self) -> None:
         for value in (
-            "20260810020000,20260810090000",
-            "20260810070000,20260810080000",
+            "20260810020000,20260810090000,20260810180000",
+            "20260810070000,20260810080000,20260810180000",
             "20260810030000,20260810110000,20260810120000",
         ):
             with self.subTest(value=value):
                 self.assertEqual(parse_allowlist(value), value.split(","))
+
+    # ---------------- issues #664 / #649: the MAINTAIN completion ----------------
+    def test_paramount_with_its_own_fix_but_without_180000_is_refused(self) -> None:
+        """The exact B9 mistake: the old complete set is no longer complete.
+
+        Before this rule, `020000,090000` parsed. It must not any more:
+        20260810090000 predates PostgreSQL 17 and leaves REFERENCES and MAINTAIN
+        on all 23 tables, and nothing else closes the plm schema default.
+        """
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260810020000,20260810090000")
+        self.assertIn("20260810180000", str(caught.exception))
+
+    def test_nbcu_with_its_own_fix_but_without_180000_is_refused(self) -> None:
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260810070000,20260810080000")
+        self.assertIn("20260810180000", str(caught.exception))
+
+    def test_the_literal_b9_allowlist_without_180000_is_refused(self) -> None:
+        """The concrete regression this rule exists for.
+
+        B9 dispatched as 020000,070000,080000,090000 passed every gate, created
+        the 39 tables as `service_role=arwdDxtm`, and left the schema default
+        open. Both co-presence rules must fire on it.
+        """
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist(
+                "20260810020000,20260810070000,20260810080000,20260810090000"
+            )
+        self.assertIn("20260810180000", str(caught.exception))
+
+    def test_the_full_b9_allowlist_with_180000_is_accepted(self) -> None:
+        value = (
+            "20260810020000,20260810070000,20260810080000,"
+            "20260810090000,20260810180000"
+        )
+        self.assertEqual(parse_allowlist(value), value.split(","))
+
+    def test_recovery_180000_alone_is_ALLOWED(self) -> None:
+        """One-directionality, for the fix that spans two rules.
+
+        20260810180000 is a FIX in two rules and a CREATE in none, so it must
+        stay legal on its own. The migration is written to tolerate the tables
+        not existing (all-or-nothing per family, from a catalog read), so this
+        allowlist is genuinely runnable and not merely parseable.
+        """
+        self.assertEqual(parse_allowlist("20260810180000"), ["20260810180000"])
+
+    def test_warner_is_deliberately_not_coupled_to_180000(self) -> None:
+        """20260810110000 already revokes the full PG17 set on the wb_* tables.
+
+        Coupling them would enlarge every Warner recovery allowlist for no
+        security gain. If someone adds that coupling, this test tells them why
+        it was left out rather than letting them assume it was an oversight.
+        """
+        for create, fixes, _ in CO_PRESENCE_RULES:
+            if create == "20260810030000":
+                self.assertNotIn("20260810180000", fixes)
+                break
+        else:
+            self.fail("the Warner co-presence rule disappeared")
+        value = "20260810030000,20260810110000,20260810120000"
+        self.assertEqual(parse_allowlist(value), value.split(","))
 
     # ---------------- the recovery cases ----------------
     def test_recovery_paramount_fix_alone_is_ALLOWED(self) -> None:

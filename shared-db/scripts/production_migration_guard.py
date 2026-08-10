@@ -177,26 +177,57 @@ FR_REMOVAL_VERSIONS: set[str] = set()
 # and therefore stays silent when `20260810010000` is already applied. Encoding
 # it here would be ledger-blind and would break exactly the recovery case above.
 # Dependencies belong in the preflight; policy belongs here.
+#
+# ALSO NOT LISTED, ON PURPOSE: `20260810030000` (Warner) does NOT require
+# `20260810180000`. 20260810180000 touches only the 23 plm.pmt_* and 16
+# plm.nbcu_* tables; Warner's `20260810110000` already revokes the full
+# PostgreSQL 17 set (update, delete, truncate, references, trigger, maintain) and
+# is the pattern 20260810180000 brings the other two up to. Adding it to the
+# Warner rule would couple three landing schemas that do not depend on each
+# other and would enlarge every Warner recovery allowlist for no security gain.
+# A co-presence rule is a claim that promoting X without Y leaves production
+# insecure; that claim is not true here, and a rule that is not true is a rule
+# the next operator learns to route around.
+#
+# WHY `20260810180000` IS SAFE AS A REQUIRED FIX ON BOTH RULES. It is a FIX in
+# two rules and a CREATE in none, so `test_no_rule_is_symmetric` still holds and
+# `20260810180000` ALONE remains a legal allowlist. That matters more here than
+# usual: every one of its 39 table references goes through `execute format(...)`,
+# which `preflight_batch` explicitly does not model, so the migration itself
+# handles a missing family all-or-nothing from a catalog read instead of
+# aborting mid-batch. The rules below stop the lane producing that state; the
+# migration copes if anything else does.
 CO_PRESENCE_RULES: tuple[tuple[str, frozenset[str], str], ...] = (
     (
         # Paramount
         "20260810020000",
-        frozenset({"20260810090000"}),
+        frozenset({"20260810090000", "20260810180000"}),
         "20260810020000 creates the Paramount Creative Library landing schema and "
         "leaves `service_role` holding TRUNCATE on 23 tables. TRUNCATE does not "
         "fire the row-level triggers those tables rely on, so between these two "
         "migrations production is one statement away from silently bypassing "
         "every one of them. 20260810090000 is the loader target guard and the "
-        "TRUNCATE revoke.",
+        "TRUNCATE revoke. 20260810180000 COMPLETES that fix and is required with "
+        "it: 20260810090000 was written against the pre-PostgreSQL-17 privilege "
+        "list and revokes only TRUNCATE and TRIGGER, leaving REFERENCES and "
+        "MAINTAIN on all 23 tables (issue #664). 20260810180000 also narrows the "
+        "plm schema default privilege that hands every new table all eight bits "
+        "at CREATE TABLE, before any GRANT in the creating migration runs (issue "
+        "#649); promoting the create without it re-opens that hole on 23 more "
+        "tables and loses the one chance to prevent rather than repair it.",
     ),
     (
         # NBCU
         "20260810070000",
-        frozenset({"20260810080000"}),
+        frozenset({"20260810080000", "20260810180000"}),
         "20260810070000 creates the NBCU creative-asset landing schema with "
         "default-granted write privileges still in place. 20260810080000 revokes "
         "them. Promoting the create without the revoke leaves production writable "
-        "by roles that must not write there.",
+        "by roles that must not write there. 20260810180000 is required for the "
+        "same reason it is required alongside Paramount: 20260810080000 revokes "
+        "only UPDATE, DELETE and TRUNCATE and leaves REFERENCES, TRIGGER and "
+        "MAINTAIN on all 16 tables (issue #664), and only 20260810180000 closes "
+        "the plm schema default-privilege hole behind them (issue #649).",
     ),
     (
         # Warner
