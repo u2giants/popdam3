@@ -23,8 +23,21 @@ AI sessions from breaking each other through the one database they all depend on
 > This repo runs **one orchestrator session**, which dispatches every task to
 > sub-agents in isolated worktrees. **Any other session opens a GitHub issue and stops:**
 > `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
-> ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07) and is now a 37-line pointer.
-> Do not write into it — a required check fails any PR that regrows it.
+> ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07) and is now a short pointer file.
+> **It stays on disk on purpose — retired means "pointer plus guard", not "deleted".** The
+> required check `Intake pointer guard`
+> ([`.github/workflows/intake-pointer-guard.yml`](.github/workflows/intake-pointer-guard.yml))
+> fails any PR that regrows a queue in it **and also fails if the file is missing**, because a
+> deleted pointer sends the next stale machine looking for somewhere else to append. Do not
+> write into it and do not delete it. **Keep it under 40 lines and 4 KB** — the guard enforces
+> that too, so do not answer a question by adding prose here; add it to AGENTS.md and link.
+>
+> ⚠️ **Two different checks, do not confuse them.** `HANDOFF.md`'s `## BACKLOG` note says "the
+> CI check that enforced this is deleted". That is TRUE, and it means **`backlog-queue-sync`**
+> — the check that required every `B<n>` backlog item to also appear in this file's
+> `## REQUEST QUEUE`. It was removed in commit `534b20f`. It is **NOT** the `Intake pointer
+> guard`, which is live, required and green. Reading that sentence as "the intake guard is
+> gone" leads straight to deleting a file a required check demands. (Issue #657.)
 > **The standing facts an incoming session needs — silent duplicate-version skips, the
 > production-bound Supabase MCP, preview as a shared mutable resource, and the ban on
 > background task chips — are now §12 of THIS file**, re-homed 2026-08-07 ahead of the
@@ -540,8 +553,25 @@ The obvious fix here (adding `HANDOFF.md` and friends to the filter) is **not** 
 that same filter also gates the `container` build, Playwright browser tests and the Coolify
 `deploy-development` job, so widening it would run a full build-and-deploy on every unrelated
 docs PR. The correct permanent fix is a separate, tiny `domain-ownership` workflow with no
-`paths:` filter, running only the two `node` commands. Not yet built — do it the next time this
-bites.
+`paths:` filter, running only the two `node` commands.
+
+✅ **That fix IS BUILT and has been since 2026-08-05.** It is
+[`.github/workflows/domain-ownership.yml`](.github/workflows/domain-ownership.yml): no `paths:`
+filter, `on: pull_request` plus `on: push` to `main`, one job that runs
+`scripts/check-domain-ownership.test.mjs` and then `scripts/check-domain-ownership.mjs`. Its
+check-run name is **`Domain ownership`** and it is one of the six required contexts on `main`
+(§6.7). Verified green against the `main` tip on 2026-08-09. The duplicate invocation still
+inside `db-data-admin.yml` is left there deliberately — it is cheap, and removing it would
+weaken that workflow's own self-check.
+
+*(This paragraph said "Not yet built" until 2026-08-09, four days after it was built, while
+§6.7 of this same file already relied on the workflow existing. Issue #657. If you are adding
+a repo-wide guard, the pattern to copy is `domain-ownership.yml` or
+`intake-pointer-guard.yml`: own workflow, no `paths:` filter, unique check-run name, required
+context.)*
+
+**The stale-verdict trap itself is NOT retired.** Everything above about reading the run's SHA
+before believing a red X still applies, to every `paths:`-filtered workflow in this repo.
 
 ## 6. How to tell if a change is already in flight
 
@@ -1067,7 +1097,9 @@ it.
 > ruled: *"that data is not sensitive."* **He owns the Disney licensee relationship and
 > this is his call to make. It is settled.**
 >
-> **What this supersedes.** Request **R-SEC-1** in `COORDINATOR_INTAKE.md` asks for that
+> **What this supersedes.** Request **R-SEC-1** — in the retired `COORDINATOR_INTAKE.md` queue,
+> readable only in history via
+> `git show 360b85b3eec79c5f498cf9e669350737db27e6ab:COORDINATOR_INTAKE.md` — asks for that
 > CSV to be moved out and scrubbed from git history before the repo can go public. **Its
 > premise is overruled.** Parts (a) and (b) — move the file, leave a pointer — are now
 > optional tidying, not a blocker. Part (c), the git-history rewrite, is **cancelled**;

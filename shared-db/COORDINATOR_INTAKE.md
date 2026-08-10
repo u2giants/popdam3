@@ -5,6 +5,8 @@ A hand-built issue tracker in Markdown that several AI sessions edited at once: 
 from 0 to 89 blocks in eight days, never shrank, and its retention rule never once fired
 because the directory it archived into was never created.
 
+**Retired means POINTER, not DELETED.** The required `Intake pointer guard` check fails a PR that regrows a queue here **or** deletes this file. Keep it under 40 lines / 4 KB. See AGENTS.md §1.
+
 ## Where work lives now
 
 ```bash
@@ -31,6 +33,6 @@ chips — moved to **`AGENTS.md` §12**, byte-identically, on 2026-08-07.
 
 ## History
 
-The full 5,539-line file is at commit `360b85b3eec79c5f498cf9e669350737db27e6ab`:
-`git show 360b85b3eec79c5f498cf9e669350737db27e6ab:COORDINATOR_INTAKE.md`. Nothing was deleted; all 71 open blocks became
-63 issues, and the arithmetic is in `plan_coordinator-queue-to-github-issues.md`.
+The full 5,539-line file: `git show 360b85b3eec79c5f498cf9e669350737db27e6ab:COORDINATOR_INTAKE.md`.
+Nothing was deleted; all 71 open blocks became 63 issues, and the arithmetic is in
+`plan_coordinator-queue-to-github-issues.md`.
