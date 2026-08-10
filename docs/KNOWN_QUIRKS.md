@@ -1006,3 +1006,43 @@ current clock. The bridge sends `modified_at: null` and logs an error; `agent-ap
 check before every upsert so an old or faulty agent cannot reintroduce the bad sort date. The
 24-hour allowance protects against ordinary clock drift. Do not clamp a corrupt date to
 `now()`, because that would still make the file look newly modified and hide the fault.
+
+## 72. Asset Licensor and Property Never Come From Folder Position (fixed 2026-08-10)
+
+**Files**: `supabase/functions/_shared/metadata-derivation.ts`,
+`licensing-resolution.ts`, `sku-parser.ts`, `agent-api/index.ts`,
+`admin-handlers/metadata-handlers.ts`, and the bridge scan counters.
+
+**Looks like**: a licensed asset under
+`Decor/Character Licensed/[Licensor]/[Property]/...` can safely inherit its
+licensor and property from those two folder names.
+
+**Actually**: that layout is obsolete. Production evidence showed 117,576 of
+117,969 licensed assets under `____New Structure`, 9,973 licensor-ID/code
+disagreements, and 73,476 licensed assets without a property. Folder position
+is not licensing evidence and is never a fallback.
+
+**The fixed contract**:
+
+- Path metadata derives only `is_licensed` and `workflow_status`.
+- Per-item licensor/property codes come from the ColdLion-backed
+  `erp_items_current` mirror, not characters sliced from the filename.
+- ColdLion source keys include company, division, MG type, and code. MG05/MG06
+  are never treated as global code maps.
+- Canonical IDs come through exact `core.taxonomy_source_ref` rows. A property
+  is accepted only when `core.property.licensor_id` matches the resolved
+  licensor.
+- Missing authoritative data writes null. The bridge counts missing licensors
+  and properties, marks the scan `completed_with_errors`, and shows the totals
+  in Settings. Source/query failures throw and stop writes instead of looking
+  like ordinary missing data.
+
+**Do not change because**: adding path or fuzzy-name fallback recreates silent
+compliance errors. Do not merge ColdLion codes across divisions, and do not
+turn missing taxonomy into a best guess. Existing production data was not bulk
+repaired by this change; that owner-gated cleanup remains sequenced in canonical
+`u2giants/shared-db`.
+
+**Release evidence**: PopDAM commit `9e0ec1d`; CI, edge-function deploy, bridge
+image, frontend image, and both guards passed. `dam.designflow.app` and
+`sg.designflow.app` served HTTP 200 with frontend build `9e0ec1d`.
