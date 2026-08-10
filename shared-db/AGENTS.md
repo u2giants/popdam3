@@ -142,7 +142,7 @@ estimate of effort, downtime and risk was a guess. Reading it is how that stops.
   `usecreatedb`, role memberships (`pg_roles` / `pg_auth_members`) and schema/table privileges
   (`has_schema_privilege`, `has_table_privilege`, `information_schema.role_table_grants`).
   **If you cannot prove it is read-only, stop and report.** Never test the question by
-  attempting a write.
+  attempting a write. One credential is exempt from this proof, and only one — see §0.1-A.1.
 - `SELECT` against `information_schema` and `pg_catalog` only. Nothing that takes a lock
   beyond a plain shared read — no `LOCK`, no `SELECT … FOR UPDATE`, no `VACUUM`/`ANALYZE`,
   no long or unbounded scans. **This is a live production database serving real users.**
@@ -168,6 +168,84 @@ published into a repo file. A read permission is not a publication permission.
 
 **This ruling permits reading; it does not require it.** Do not connect unless the task
 actually needs a fact only that database holds.
+
+### 0.1-A.1 OWNER RULING — the read-only proof is waived for `albert_read_only`, for reads of the DesignFlow schema and nothing else (Albert Hazan, 2026-08-10, issue #705)
+
+> "ignore the 'read only is not read only' issue."
+> — Albert Hazan, 2026-08-10
+
+> "yes, use it to read production."
+> — Albert Hazan, 2026-08-10, answering whether that also permits USING the account to read
+
+**The proof rule in §0.1-A stands.** Proving a credential read-only before using it is still
+the default and still applies to every other credential and every other database. What
+follows is one named, bounded exception, not a relaxation.
+
+**The exception.** Reading the `designflow` schema on the DesignFlow production Cloud SQL
+instance with the account `albert_read_only` is permitted, even though that account fails the
+attribute test in §0.1-A.
+
+**Why the attribute test fails yet the read is safe.** Check the reasoning rather than
+re-deriving it:
+
+- The account holds `SELECT` on **296 relations and ZERO write privileges** in the
+  `designflow` schema.
+- All **386 relations are owned by `postgres`**, so membership of `cloudsqlsuperuser` is not
+  a route to that data.
+- For this account, what fails the proof is `rolcreatedb` / `rolcreaterole` / role membership,
+  plus `CREATE` on database `postgres` and `CREATE` on schema `public` — the power to create
+  **new** objects elsewhere, not the power to write DesignFlow. Those grants are a real
+  production-infrastructure exposure and #705 records them; they are simply not a write path
+  into `designflow`.
+- [`scripts/capture-postgres-schema.sql`](scripts/capture-postgres-schema.sql) line 66 sets
+  `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, which is why that particular run
+  could not have written. It is a session-scoped guard that the same session can reset to
+  `READ WRITE`, so it is **never** a substitute for the proof rule for any other credential.
+
+**Boundary. This permits a READ.** It does not permit writes, DDL, DML, creating a read
+replica, starting an export, restoring a backup, changing authorized networks, or any
+mutation in `lithe-breaker-323913`. It does not generalise to any other credential, any other
+database, or any other task. Everything under "Still forbidden" in §0.1-A is unchanged.
+
+**Closure rule — read this before assuming anything is allowed because it is not listed
+above.** This exception waives the read-only proof and **nothing else**. Every other condition
+in §0.1-A still binds — catalog-only `SELECT`s against `information_schema` and `pg_catalog`,
+no long or unbounded scans, and **no row contents read or reported** — and `pg_stats` is row
+contents, not catalog metadata, because `most_common_vals` and `histogram_bounds` hold sampled
+values from real columns. Catalog-only is the
+scope Albert was asked about and the scope he approved. So a row count, a sample row, a
+`SELECT` queued by a migration plan (for example
+[`docs/parent-child-answers-20260803.md`](docs/parent-child-answers-20260803.md) or the
+age_group plan's Step D1), and a client-side `pg_dump` are all **outside** this exception and
+each needs **its own ruling from Albert**. Not from the Cloud SQL instance owner — instance
+admin is not business authority here. The list above enumerates; this sentence closes.
+
+**Do NOT fix #705.** Albert ruled the account is to be left alone. Stop proposing privilege
+changes for it and do not re-raise it as a blocker.
+
+**Operational specifics — do not rediscover these:**
+
+- **On Cloud SQL the schema is `designflow`, NOT `dflow`.** The direction of the trap matters:
+  on **Supabase** production, DesignFlow lives in **`dflow`**, and Supabase *also* has a
+  separate schema named `designflow` — a 35-relation decoy. So do not "correct" either name to
+  the other. Confirm which host you are on before reading (§4.2).
+- Run with `exact_count_max_bytes=0` so the capture reads catalog only and touches no table
+  data.
+- The credential is in vault `vibe_coding`, item **`tcaf3o3u2cx52g6ivvczxbhola`**
+  ("DesignFlow PRODUCTION Cloud SQL - read-only …"). Its title contains parentheses, which are
+  invalid in an `op://` reference, so address it by **item ID**:
+  `op read 'op://vibe_coding/tcaf3o3u2cx52g6ivvczxbhola/DB_PASSWORD'`. The password is in a
+  **custom field named `DB_PASSWORD`**, not `credential`. 1Password item IDs can be re-keyed
+  mid-session, so if that ID 404s, re-resolve by title with
+  `op item list --vault vibe_coding --format json` (same pattern as §9, `AGENTS.md:1946-1963`).
+  Never write the
+  value anywhere.
+
+**Evidence.** The completed capture is at
+[`docs/verification/cloudsql-designflow-capture-2026-08-10/`](docs/verification/cloudsql-designflow-capture-2026-08-10/);
+the ruling and the privilege analysis are on issue **#705**. That capture's README describes
+the waiver as "for this capture only" and "not a general waiver"; **this section supersedes
+that wording** — the exception is standing, on the terms above.
 
 ## 0.2 `data.designflow.app` means DB Data Admin — never the retired system
 
