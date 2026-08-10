@@ -10,13 +10,21 @@ pull request, alongside the existing production-guard tests.
 """
 
 from pathlib import Path
+from unittest import mock
+import io
+import json
 import sys
 import tempfile
 import unittest
+import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from production_catalog_verification import (  # noqa: E402
+    USER_AGENT,
+    build_query_request,
+    read_error_body,
+    run_query,
     ALWAYS_PROBED_ROLES,
     BASE_PRIVILEGES,
     MAINTAIN_PRIVILEGE,
@@ -507,6 +515,84 @@ class RenderReportTests(unittest.TestCase):
             {"relations": []}, errors=["row-count query failed: boom"]
         )
         self.assertIn("row-count query failed: boom", markdown)
+
+
+class OutgoingRequestTests(unittest.TestCase):
+    """Issue #709: no network here -- only the constructed request is inspected."""
+
+    def request(self):
+        return build_query_request("abc123", "token-value", "select 1")
+
+    def test_user_agent_is_explicit_and_not_the_urllib_default(self):
+        ua = self.request().get_header("User-agent")
+        self.assertTrue(ua)
+        self.assertNotIn("Python-urllib", ua)
+        self.assertEqual(ua, USER_AGENT)
+
+    def test_user_agent_constant_is_descriptive(self):
+        self.assertTrue(USER_AGENT.strip())
+        self.assertNotIn("Python-urllib", USER_AGENT)
+
+    def test_request_still_carries_auth_and_read_only(self):
+        request = self.request()
+        self.assertEqual(request.get_header("Authorization"), "Bearer token-value")
+        self.assertEqual(request.method, "POST")
+        self.assertTrue(json.loads(request.data.decode("utf-8"))["read_only"])
+        self.assertIn("/v1/projects/abc123/database/query", request.full_url)
+
+
+class HTTPErrorReportingTests(unittest.TestCase):
+    """The failure message must carry the status AND the body."""
+
+    @staticmethod
+    def http_error(body):
+        return urllib.error.HTTPError(
+            "https://api.supabase.com/v1/projects/abc123/database/query",
+            403,
+            "Forbidden",
+            {},
+            io.BytesIO(body) if isinstance(body, bytes) else body,
+        )
+
+    def run_with_error(self, exc):
+        with mock.patch(
+            "production_catalog_verification.urllib.request.urlopen", side_effect=exc
+        ):
+            with self.assertRaises(GuardError) as caught:
+                run_query("abc123", "token-value", "select 1")
+        return str(caught.exception)
+
+    def test_status_and_body_are_both_reported(self):
+        message = self.run_with_error(
+            self.http_error(b'{"error":"error code: 1010"}')
+        )
+        self.assertIn("403", message)
+        self.assertIn("1010", message)
+        self.assertIn("/v1/projects/abc123/database/query", message)
+
+    def test_unreadable_body_does_not_mask_the_error(self):
+        class Exploding:
+            def read(self, *args):
+                raise OSError("stream gone")
+
+            def close(self):
+                pass
+
+        message = self.run_with_error(self.http_error(Exploding()))
+        self.assertIn("403", message)
+        self.assertIn("unreadable", message)
+
+    def test_empty_body_is_labelled(self):
+        self.assertIn("empty response body", read_error_body(self.http_error(b"")))
+
+    def test_failure_is_still_raised_not_swallowed(self):
+        """Change #709 makes the failure louder, never more forgiving."""
+        with mock.patch(
+            "production_catalog_verification.urllib.request.urlopen",
+            side_effect=self.http_error(b"nope"),
+        ):
+            with self.assertRaises(GuardError):
+                run_query("abc123", "token-value", "select 1")
 
 
 class SplitStatementTests(unittest.TestCase):

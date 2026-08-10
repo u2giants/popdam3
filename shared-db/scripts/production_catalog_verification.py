@@ -114,6 +114,12 @@ from production_migration_guard import (  # noqa: E402
 
 MANAGEMENT_API = "https://api.supabase.com"
 
+# Cloudflare sits in front of api.supabase.com and BANS the default
+# `Python-urllib/3.x` signature at the edge with HTTP 403 / error 1010, before
+# Supabase ever sees the token (issue #709). An explicit, descriptive
+# User-Agent is therefore load-bearing, not cosmetic. Do not remove it.
+USER_AGENT = "shared-db-catalog-verification/1.0"
+
 # Postgres's seven table privilege bits. MAINTAIN is PG 17 and is the exact trap
 # the canary was written to catch (#664: 39 `plm` tables carrying an unintended
 # MAINTAIN grant). It is added CONDITIONALLY in SQL rather than unconditionally,
@@ -499,19 +505,55 @@ def run_query(project_ref: str, token: str, sql: str, api: str = MANAGEMENT_API)
     is what forbids a write. If the endpoint rejects the field the caller is told
     LOUDLY -- it is never quietly dropped.
     """
+    request = build_query_request(project_ref, token, sql, api)
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # str(exc) alone hid a Cloudflare edge ban (403 / error 1010) for a full
+        # day on issue #709. The status AND the body are the evidence; a body
+        # that cannot be read must never mask the original error.
+        raise GuardError(
+            f"HTTP {exc.code} from {request.full_url}: {read_error_body(exc)}"
+        ) from exc
+
+
+def build_query_request(
+    project_ref: str, token: str, sql: str, api: str = MANAGEMENT_API
+) -> urllib.request.Request:
+    """Construct the Management API query request, headers included.
+
+    Split out from `run_query` so the outgoing headers -- above all the
+    User-Agent that keeps Cloudflare from banning us at the edge -- can be
+    asserted in tests WITHOUT any network call.
+    """
     url = f"{api.rstrip('/')}/v1/projects/{project_ref}/database/query"
     body = json.dumps({"query": sql, "read_only": True}).encode("utf-8")
-    request = urllib.request.Request(
+    return urllib.request.Request(
         url,
         data=body,
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return json.loads(response.read().decode("utf-8"))
+
+
+def read_error_body(exc: urllib.error.HTTPError) -> str:
+    """Best-effort decode of an HTTPError body; never raises."""
+    try:
+        raw = exc.read()
+    except Exception as read_exc:  # noqa: BLE001 -- must not mask the real error
+        return f"<response body unreadable: {read_exc!r}> ({exc})"
+    if not raw:
+        return f"<empty response body> ({exc})"
+    try:
+        text = raw.decode("utf-8", errors="replace")
+    except Exception as decode_exc:  # noqa: BLE001
+        return f"<response body undecodable: {decode_exc!r}> ({exc})"
+    return text.strip()[:2000]
 
 
 def extract_report(payload: object) -> object:
