@@ -172,5 +172,6 @@ scripts/check-sql.sh                                         passed
 Granting the shared **Designer** role is not sufficient on its own. A Designer also needs
 an explicit, non-revoked **`admin` app_access** row, or every Product Depth mutation RPC
 raises `insufficient_privilege`. That is deliberate — a role alone must not open an admin
-tool — but the cutover is not finished in any environment until that row exists for
-Carlos Corral.
+tool — but the cutover is not finished in any environment until that row exists for the
+Designer being onboarded. (Identify that person by `app.profile` UUID, never by name or
+email — this repository is public; see AGENTS.md §6.14.)

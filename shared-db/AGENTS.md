@@ -1498,6 +1498,69 @@ answered, verified against the capture at `f340f74a`:
 Because no answer moved a key, the "wrong key with rows already in it" risk that justified the hold
 did not materialise. Building is now the correct action.
 
+### 6.14 OWNER RULING — this repository is PUBLIC; no personal identifiers in anything you write from now on (Albert Hazan, 2026-08-09)
+
+`u2giants/shared-db` is a **public** GitHub repository. Every file, commit message, PR
+description, issue comment and CI log is world-readable, permanently and without warning.
+
+**The forward rule — applies to everything you author from 2026-08-09 onward:**
+
+Never write a person's **email address, full name, phone number, home or personal address,
+or any other personal identifier** into:
+
+- any file in this repository (migrations, docs, plans, tests, tooling, fixtures, JSON artifacts);
+- any commit message;
+- any pull-request title or description;
+- any GitHub issue or comment;
+- any CI job name, step name, or log line.
+
+**Refer to people by their `app.profile` UUID only.** That is the existing precedent in this
+repo and it is unambiguous, stable, and discloses nothing. If a human reader genuinely needs
+to know *who* a UUID is, that mapping lives in the database, not in a public file.
+
+If a verification artifact would otherwise embed contact data (a JSON baseline dump, a diff
+of a vendor or roster table, a test fixture copied from real rows), **do not commit it**.
+Commit row counts, checksums, and UUID-keyed diffs instead.
+
+**What is NOT covered by this rule.** Personal names that are *the data itself* — for example
+the designer roster seeded into `core.person`, where the name is the business value being
+stored — are legitimate schema content and stay. The rule is about *incidental* disclosure:
+identifying a person in a comment, a doc sentence, a commit message, or a debugging note,
+where a UUID would have done the same job.
+
+**The already-committed occurrences STAY. Do not "fix" them.**
+
+By owner ruling of 2026-08-09, migrations already merged to `main` that contain personal data
+are **left exactly as they are**. This is a *known, accepted exposure*, not an oversight, and
+not a task waiting for a volunteer. Two reasons, both hard:
+
+1. **They are applied migrations.** The ledger keys on the version string, so an edited file
+   will never re-run — editing changes nothing in any database and desynchronises the file
+   from the ledger. One of them is also inside the pending production promotion set, where
+   changing a single byte is far more dangerous than the disclosure itself.
+2. **History rewriting was explicitly rejected by the owner.** No `filter-repo`, no
+   `filter-branch`, no BFG, no force-push. Do not propose it again. The old copies exist in
+   the public history regardless; scrubbing the tip would not recall them.
+
+The two files, named here so nobody "discovers" them later and opens a well-meaning PR:
+
+- `supabase/migrations/20260726210000_popdam_access_reconcile_legacy_gmail_and_designer_grants.sql`
+  — a UUID followed by a comment naming a live work email address.
+- `supabase/migrations/20260809170500_db_data_admin_product_depth_mutations.sql`
+  — a person's full name in the header comment.
+
+Both are **untouchable**. If you believe you have found a reason to edit either one, you have
+not; re-read this section and stop.
+
+**Wider standing exposure (recorded 2026-08-09, no action taken).** A repo-wide sweep on this
+date found personal data far beyond those two migrations: several hundred third-party vendor
+contact records (email, phone, address) inside a committed verification baseline under
+`docs/verification/`, plus work email addresses in a dozen older docs, incident write-ups and
+migrations. All of it predates this rule and all of it is already public. It is listed here so
+future sessions know the sweep was done and the result was consciously accepted, not missed.
+Removing any of it from the working tree does not remove it from history, so removal buys
+nothing and costs review risk. **Do not start a cleanup pass without a fresh owner ruling.**
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
