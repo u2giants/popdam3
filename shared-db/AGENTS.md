@@ -112,6 +112,63 @@ remaining Google Cloud organization blocker, read
 [`docs/incidents/20260717-designflow-production-db-port.md`](docs/incidents/20260717-designflow-production-db-port.md)
 and then the canonical infrastructure runbook it links.
 
+## 0.1-A OWNER RULING — shared-db MAY read production Cloud SQL; it still may not change anything (Albert Hazan, 2026-08-10)
+
+> "remove from shared-db's own rulebook the rule that says this repo must not connect to Cloud SQL at all."
+> — Albert Hazan, 2026-08-10
+
+**What changed.** Until today §0.1 was read across this repo as putting the DesignFlow
+production Cloud SQL database entirely out of bounds — no connection, no query, at all.
+That reading is **withdrawn**. A shared-db session **may connect to production Cloud SQL
+and run read-only queries**, under the conditions below.
+
+**Why.** DesignFlow PLM production is the last environment still on Cloud SQL; every other
+DesignFlow environment is already on the shared Supabase project, and the owner has decided
+to start moving production over. Three separate migration plans over eight days
+([`docs/cloudsql-first-migration-candidate-20260803.md`](docs/cloudsql-first-migration-candidate-20260803.md),
+[`docs/age-group-cloudsql-migration-plan-20260804.md`](docs/age-group-cloudsql-migration-plan-20260804.md),
+[`docs/licensor-property-cloudsql-cutover-plan-20260806.md`](docs/licensor-property-cloudsql-cutover-plan-20260806.md))
+all stalled at the same wall: **nobody has ever looked inside that database**, so every
+estimate of effort, downtime and risk was a guess. Reading it is how that stops.
+
+**READ is permitted. WRITE is not.** That is the whole boundary. In detail:
+
+*Permitted:*
+
+- Connecting with a **read-only credential fetched from 1Password vault `vibe_coding` only**.
+  Fetch 1Password items **serially** — never fan out `op read` / `op run` / 1Password MCP calls.
+  Never write the credential into any file, commit, PR, report, issue, or chat message.
+- **The credential must be PROVEN read-only BEFORE you use it.** Check `usesuper`,
+  `usecreatedb`, role memberships (`pg_roles` / `pg_auth_members`) and schema/table privileges
+  (`has_schema_privilege`, `has_table_privilege`, `information_schema.role_table_grants`).
+  **If you cannot prove it is read-only, stop and report.** Never test the question by
+  attempting a write.
+- `SELECT` against `information_schema` and `pg_catalog` only. Nothing that takes a lock
+  beyond a plain shared read — no `LOCK`, no `SELECT … FOR UPDATE`, no `VACUUM`/`ANALYZE`,
+  no long or unbounded scans. **This is a live production database serving real users.**
+- Reporting **counts, object names, data types, sizes, constraints and definitions**.
+
+*Still forbidden — this ruling lifts nothing here:*
+
+- **No DDL and no DML against Cloud SQL from this repo, ever.** Applying schema changes there
+  is Uma's job via [`popcre/infrastructure`](https://github.com/popcre/infrastructure);
+  issue **#696** is the live example and it stays hers.
+- **No Secret Manager IAM, secret versions, or secret repointing.** §0.1 above is unchanged:
+  **unsuffixed DB secret IDs are production-only** and are the 2026-07-17 outage boundary.
+- **No Cloud Build substitutions or triggers, no Cloud Run bindings, no VPC routing changes.**
+- **No changes to the connection contract or `cloudbuild.yaml`** in the four `popcre`
+  DesignFlow repos — `popcre` org repos, PRs to `develop`, never self-merged.
+- The standing global rules stand untouched: AI sessions are **read-only for production and
+  shared cloud infrastructure**; no `terraform apply`/`destroy` against a production GCP
+  project; no mutating `gcloud`.
+
+**Never report row contents.** Counts, names, types, sizes and definitions only — never the
+values in a row. Issue **#645** exists because vendor emails, phones and addresses were once
+published into a repo file. A read permission is not a publication permission.
+
+**This ruling permits reading; it does not require it.** Do not connect unless the task
+actually needs a fact only that database holds.
+
 ## 0.2 `data.designflow.app` means DB Data Admin — never the retired system
 
 `https://data.designflow.app` is the permanent production hostname of **DB Data

@@ -223,6 +223,11 @@ and `:86` `"compan_code_fk": item.companyCode === 'EDGEHOME' ? 1 : 2,`.
 
 ## 4. What only a Cloud SQL query can settle
 
+> **UPDATE 2026-08-10.** Owner ruling `AGENTS.md` §0.1-A now permits read-only queries against
+> production Cloud SQL from this repo, so the questions below are answerable. The production
+> **secrets** are still off-limits — §0.1 is unchanged. Use the read-only credential from
+> 1Password vault `vibe_coding`, prove it read-only first, and never report row contents.
+
 Production DesignFlow secrets are off-limits per `AGENTS.md` §0.1 and were not requested. Every
 row count above is from Supabase — i.e. from DesignFlow's **sandbox** data, not production. The
 following are **NOT VERIFIED** and must be closed before any move:

@@ -164,6 +164,10 @@ DesignFlow Cloud SQL database (or by a trigger/procedure/job inside it), rather 
 The DesignFlow Cloud SQL database is out of scope (`AGENTS.md` §0.1 — I hold no read-only credential and
 did not request one). **Two queries settle it**, run read-only against the DesignFlow Cloud SQL database:
 
+> **UPDATE 2026-08-10 — the "out of scope" half is superseded.** Owner ruling `AGENTS.md` §0.1-A
+> permits a shared-db session to connect to production Cloud SQL and run read-only queries under
+> stated conditions. Writing to it remains forbidden. The two queries below are now runnable.
+
 ```sql
 -- Q1: is anything inside the database itself writing the edge?
 select tgname, tgrelid::regclass, pg_get_triggerdef(oid)

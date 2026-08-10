@@ -288,6 +288,13 @@ as verified by me.)*
 
 ### 5.3 DEPENDENCY, NOT YET SATISFIED — read access to production DesignFlow Cloud SQL
 
+> **UPDATE 2026-08-10 — largely superseded.** Owner ruling `AGENTS.md` §0.1-A permits a shared-db
+> session to connect to production Cloud SQL read-only, and a read-only DesignFlow account is
+> recorded in 1Password vault `vibe_coding` (see
+> [`docs/licensor-property-cloudsql-cutover-plan-20260806.md`](licensor-property-cloudsql-cutover-plan-20260806.md)
+> §"open questions"). Steps D1–D3 are no longer blocked on permission. Prove the credential is
+> read-only before use; report counts and definitions only, never row contents.
+
 We cannot currently read production DesignFlow. The one read-only credential we hold reaches an
 instance that contains no DesignFlow data. A request for proper read-only access has gone to the
 developer (Uma) and is expected back tomorrow (2026-08-05).
