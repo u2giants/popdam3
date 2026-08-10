@@ -1,8 +1,12 @@
 /**
  * Shared metadata derivation from asset relative paths.
  *
- * Single source of truth for workflow_status, is_licensed, licensor/property
- * extraction. Used by both agent-api (ingest) and admin-api (reprocess).
+ * Single source of truth for workflow_status and is_licensed. Used by both
+ * agent-api (ingest) and admin-api (reprocess).
+ *
+ * Licensor and property identity must never be inferred from path segments.
+ * Those identities come from ColdLion codes joined to the curated core
+ * taxonomy.
  */
 
 import type { ServiceClient } from "./service-client.ts";
@@ -25,10 +29,6 @@ export const DEFAULT_WORKFLOW_FOLDER_MAP: Record<string, string> = {
 export interface DerivedMetadata {
   workflow_status: string;
   is_licensed: boolean;
-  licensor_name: string | null;
-  property_name: string | null;
-  licensor_id: string | null;
-  property_id: string | null;
 }
 
 // ── Config cache (60s TTL) ──────────────────────────────────────────
@@ -57,8 +57,6 @@ export async function getCachedConfig<T>(db: ServiceClient, key: string): Promis
 export async function deriveMetadataFromPath(
   relativePath: string,
   db: ServiceClient,
-  licensorMap?: Map<string, string>,
-  propertyMap?: Map<string, string>,
 ): Promise<DerivedMetadata> {
   const pathParts = relativePath.split("/");
   const normalizedParts = pathParts.map((p) => p.trim().toLowerCase());
@@ -94,55 +92,5 @@ export async function deriveMetadataFromPath(
     }
   }
 
-  // licensor/property extraction for licensed files
-  // Structure: Decor/Character Licensed/[Licensor]/[Property]/...
-  let licensor_name: string | null = null;
-  let property_name: string | null = null;
-  if (is_licensed && decorIndex >= 0) {
-    const licIdx = decorIndex + 2;
-    if (pathParts.length > licIdx) licensor_name = pathParts[licIdx];
-    if (pathParts.length > licIdx + 1) property_name = pathParts[licIdx + 1];
-  }
-
-  // Look up licensor_id and property_id
-  let licensor_id: string | null = null;
-  let property_id: string | null = null;
-
-  if (licensor_name) {
-    if (licensorMap) {
-      licensor_id = licensorMap.get(licensor_name.toLowerCase()) ?? null;
-    } else {
-      const { data: lic } = await db
-        .schema("core")
-        .from("licensor")
-        .select("id")
-        .ilike("name", licensor_name)
-        .maybeSingle();
-      licensor_id = lic?.id || null;
-    }
-  }
-
-  if (licensor_id && property_name) {
-    if (propertyMap) {
-      property_id = propertyMap.get(`${licensor_id}:${property_name.toLowerCase()}`) ?? null;
-    } else {
-      const { data: prop } = await db
-        .schema("core")
-        .from("property")
-        .select("id")
-        .eq("licensor_id", licensor_id)
-        .ilike("name", property_name)
-        .maybeSingle();
-      property_id = prop?.id || null;
-    }
-  }
-
-  return {
-    workflow_status,
-    is_licensed,
-    licensor_name,
-    property_name,
-    licensor_id,
-    property_id,
-  };
+  return { workflow_status, is_licensed };
 }

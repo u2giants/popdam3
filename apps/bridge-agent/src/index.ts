@@ -130,6 +130,8 @@ const counters: api.Counters = {
   rejected_subfolder: 0,
   skipped_before_min_date: 0,
   rejected_ai_has_pdf_sibling: 0,
+  unresolved_licensor: 0,
+  unresolved_property: 0,
 };
 
 function resetCounters() {
@@ -151,6 +153,8 @@ function resetCounters() {
   counters.rejected_subfolder = 0;
   counters.skipped_before_min_date = 0;
   counters.rejected_ai_has_pdf_sibling = 0;
+  counters.unresolved_licensor = 0;
+  counters.unresolved_property = 0;
 }
 
 // ── Cloud Config State (overridden by heartbeat config sync) ────────
@@ -985,8 +989,10 @@ async function runScan(providedSessionId?: string) {
       return;
     }
 
-    // Determine final status: completed_with_errors if some files failed but scan overall succeeded
-    const finalStatus = counters.errors > 0 ? "completed_with_errors" : "completed";
+    // Missing licensing is a visible data-quality problem, not a successful
+    // silent fallback.
+    const hasUnresolvedLicensing = counters.unresolved_licensor > 0 || counters.unresolved_property > 0;
+    const finalStatus = counters.errors > 0 || hasUnresolvedLicensing ? "completed_with_errors" : "completed";
     logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length, finalStatus });
     await safeScanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
     await clearScanCheckpointWithRetry("after successful scan");
@@ -1229,6 +1235,9 @@ async function processFile(file: FileCandidate) {
       case "skipped":
         break; // junk files
     }
+
+    if (result.licensing?.unresolved_licensor) counters.unresolved_licensor++;
+    if (result.licensing?.unresolved_property) counters.unresolved_property++;
 
     // ── Step 4: Queue for Windows render agent ──
     const isNewOrChanged = result.action === "created" || result.action === "updated" || result.action === "moved";

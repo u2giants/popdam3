@@ -26,6 +26,7 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
+import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
@@ -764,7 +765,8 @@ async function assignToStyleGroup(
   relativePath: string,
   assetId: string,
   skuFields: Record<string, unknown>,
-  derived: Pick<DerivedMetadata, "is_licensed" | "licensor_name" | "property_name" | "licensor_id" | "property_id">,
+  derived: Pick<DerivedMetadata, "is_licensed">,
+  licensing: LicensingResolution,
   db: ReturnType<typeof serviceClient>,
 ): Promise<void> {
   try {
@@ -781,12 +783,12 @@ async function assignToStyleGroup(
       sku,
       folder_path: folderPath,
       is_licensed: derived.is_licensed,
-      licensor_id: skuFields.licensor_id ?? derived.licensor_id ?? null,
+      licensor_id: licensing.licensor_id,
       licensor_code: skuFields.licensor_code ?? null,
-      licensor_name: skuFields.licensor_name ?? derived.licensor_name ?? null,
-      property_id: skuFields.property_id ?? derived.property_id ?? null,
+      licensor_name: skuFields.licensor_name ?? null,
+      property_id: licensing.property_id,
       property_code: skuFields.property_code ?? null,
-      property_name: skuFields.property_name ?? derived.property_name ?? null,
+      property_name: skuFields.property_name ?? null,
       division_code: skuFields.division_code ?? null,
       division_name: skuFields.division_name ?? null,
       mg01_code: skuFields.mg01_code ?? null,
@@ -933,8 +935,6 @@ async function handleIngest(
       mg03_name: parsed.mg03_name,
       size_code: parsed.size_code,
       size_name: parsed.size_name,
-      licensor_code: parsed.licensor_code,
-      property_code: parsed.property_code,
       sku_sequence: parsed.sku_sequence,
       division_code: parsed.division_code,
       division_name: parsed.division_name,
@@ -943,13 +943,16 @@ async function handleIngest(
     }
     : {};
 
-  // Licensor/property names: prefer ColdLion (SKU parser), fall back to path-derived
-  if (parsed?.licensor_name) {
-    skuFields.licensor_name = parsed.licensor_name;
-  }
-  if (parsed?.property_name) {
-    skuFields.property_name = parsed.property_name;
-  }
+  // Licensing fields come from the authoritative ColdLion item mirror, never
+  // from filename character positions or folders. Explicit nulls clear stale
+  // guesses when the source has no answer.
+  const licensing = await resolveAuthoritativeLicensing(db, derived.is_licensed, parsed);
+  skuFields.licensor_id = licensing.licensor_id;
+  skuFields.property_id = licensing.property_id;
+  skuFields.licensor_code = licensing.licensor_code;
+  skuFields.licensor_name = licensing.licensor_name;
+  skuFields.property_code = licensing.property_code;
+  skuFields.property_name = licensing.property_name;
 
   const { data: existingByPath } = await db
     .from("assets")
@@ -1022,12 +1025,6 @@ async function handleIngest(
       ...thumbMove,
       ...skuFields,
     };
-    // Path-derived names fill in when ColdLion didn't resolve
-    if (!moveUpdates.licensor_name && reDerived.licensor_name) moveUpdates.licensor_name = reDerived.licensor_name;
-    if (!moveUpdates.property_name && reDerived.property_name) moveUpdates.property_name = reDerived.property_name;
-    if (reDerived.licensor_id) moveUpdates.licensor_id = reDerived.licensor_id;
-    if (reDerived.property_id) moveUpdates.property_id = reDerived.property_id;
-
     const { error: moveError } = await db
       .from("assets")
       .update(moveUpdates)
@@ -1041,7 +1038,7 @@ async function handleIngest(
       new_relative_path: relativePath,
     });
 
-    assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, db).catch((e) =>
+    assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, licensing, db).catch((e) =>
       console.error(`assignToStyleGroup failed for moved asset ${existingByHash.id}:`, e)
     );
 
@@ -1049,6 +1046,7 @@ async function handleIngest(
       ok: true,
       action: "moved",
       asset_id: existingByHash.id,
+      licensing,
     });
   }
 
@@ -1093,12 +1091,6 @@ async function handleIngest(
       ...thumbnailFields,
       ...skuFields,
     };
-    // Path-derived names fill in when ColdLion didn't resolve
-    if (!updateFields.licensor_name && derived.licensor_name) updateFields.licensor_name = derived.licensor_name;
-    if (!updateFields.property_name && derived.property_name) updateFields.property_name = derived.property_name;
-    if (derived.licensor_id) updateFields.licensor_id = derived.licensor_id;
-    if (derived.property_id) updateFields.property_id = derived.property_id;
-
     const { error: updateError } = await db
       .from("assets")
       .update(updateFields)
@@ -1108,7 +1100,7 @@ async function handleIngest(
 
     // processing_queue inserts removed — AI tagging is now handled by the Railway worker
 
-    assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, db).catch((e) =>
+    assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, licensing, db).catch((e) =>
       console.error(`assignToStyleGroup failed for updated asset ${existingByPath.id}:`, e)
     );
 
@@ -1116,6 +1108,7 @@ async function handleIngest(
       ok: true,
       action: "updated",
       asset_id: existingByPath.id,
+      licensing,
     });
   }
 
@@ -1140,12 +1133,6 @@ async function handleIngest(
     ...(pdfPage2Url ? { pdf_page2_url: pdfPage2Url } : {}),
     ...skuFields,
   };
-  // Path-derived names fill in when ColdLion didn't resolve
-  if (!newAssetRow.licensor_name && derived.licensor_name) newAssetRow.licensor_name = derived.licensor_name;
-  if (!newAssetRow.property_name && derived.property_name) newAssetRow.property_name = derived.property_name;
-  if (derived.licensor_id) newAssetRow.licensor_id = derived.licensor_id;
-  if (derived.property_id) newAssetRow.property_id = derived.property_id;
-
   const { data: newAsset, error: insertError } = await db
     .from("assets")
     .insert(newAssetRow)
@@ -1157,11 +1144,11 @@ async function handleIngest(
   // processing_queue inserts removed — thumbnails are handled by render_queue trigger,
   // AI tagging by the Railway worker
 
-  assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, db).catch((e) =>
+  assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, licensing, db).catch((e) =>
     console.error(`assignToStyleGroup failed for new asset ${newAsset.id}:`, e)
   );
 
-  return json({ ok: true, action: "created", asset_id: newAsset.id, needs_group_rebuild: true });
+  return json({ ok: true, action: "created", asset_id: newAsset.id, needs_group_rebuild: true, licensing });
 }
 
 // ── Route: update-asset ─────────────────────────────────────────────
@@ -1235,17 +1222,23 @@ async function handleMoveAsset(body: Record<string, unknown>) {
   if (fetchError || !asset) return err("Asset not found", 404);
 
   const derived = await deriveMetadataFromPath(newRelativePath, db);
+  const resolvedFilename = newFilename || asset.filename;
+  const parsed = await parseSku(resolvedFilename);
+  const licensing = await resolveAuthoritativeLicensing(db, derived.is_licensed, parsed);
 
   const moveUpdates: Record<string, unknown> = {
     relative_path: newRelativePath,
-    filename: newFilename || asset.filename,
+    filename: resolvedFilename,
     workflow_status: derived.workflow_status,
     is_licensed: derived.is_licensed,
+    licensor_id: licensing.licensor_id,
+    property_id: licensing.property_id,
+    licensor_code: licensing.licensor_code,
+    licensor_name: licensing.licensor_name,
+    property_code: licensing.property_code,
+    property_name: licensing.property_name,
     last_seen_at: new Date().toISOString(),
   };
-  if (derived.licensor_id) moveUpdates.licensor_id = derived.licensor_id;
-  if (derived.property_id) moveUpdates.property_id = derived.property_id;
-
   const { error: updateError } = await db
     .from("assets")
     .update(moveUpdates)
@@ -1259,7 +1252,7 @@ async function handleMoveAsset(body: Record<string, unknown>) {
     new_relative_path: newRelativePath,
   });
 
-  return json({ ok: true, asset_id: assetId });
+  return json({ ok: true, asset_id: assetId, licensing });
 }
 
 // ── Route: scan-progress ────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { getLicensorLookup, getPropertyLookup } from "./coldlion.ts";
+import { getMgLookup } from "./coldlion.ts";
 
 // ── MG01: Product Type ──────────────────────────────────────────
 const MG01: Record<string, string> = {
@@ -164,18 +164,30 @@ export async function parseSku(filename: string): Promise<ParsedSku | null> {
   else if (FLOOR_MG01.has(mg01_code)) size_name = SIZE_FLOOR[size_code] ?? size_code;
   else if (GARDEN_MG01.has(mg01_code)) size_name = SIZE_GARDEN[size_code] ?? size_code;
 
-  // Fetch licensor/theme lookup from ColdLion
-  const { licensors, themes } = await getLicensorLookup();
-  const is_licensed = licensor_code in licensors;
-  // Return null (not code) when ColdLion has no mapping — path-derived names are preferred
-  const licensor_name = licensors[licensor_code]
-    ?? themes[licensor_code]
-    ?? null;
+  // Determine the division before any MG lookup. ColdLion codes are scoped by
+  // (division, mgTypeCode), never globally.
+  let division_code = "EH001";
+  let division_name = "Spruce Gen";
+  if (WALL_MG01.has(mg01_code) || TABLETOP_MG01.has(mg01_code) || CLOCK_MG01.has(mg01_code)) {
+    division_code = "CW001";
+    division_name = "POP";
+  } else if (
+    STORAGE_MG01.has(mg01_code) || WORKSPACE_MG01.has(mg01_code) ||
+    FLOOR_MG01.has(mg01_code) || GARDEN_MG01.has(mg01_code)
+  ) {
+    division_code = "SP001";
+    division_name = "Spruce Lic";
+  }
 
-  // Fetch property name from ColdLion MG06
-  const division_for_lookup = is_licensed ? "CW001" : "EH001";
-  const properties = await getPropertyLookup(division_for_lookup);
-  const property_name = properties[property_code] ?? null;
+  const is_licensed = (division_code === "CW001" || division_code === "SP001") && licensor_code !== "ZZ";
+  const [mg05, mg06] = await Promise.all([
+    getMgLookup("05", division_code),
+    getMgLookup("06", division_code),
+  ]);
+  // Return null when ColdLion has no mapping. Folder names are never used as a
+  // licensing fallback.
+  const licensor_name = mg05[licensor_code] ?? null;
+  const property_name = mg06[property_code] ?? null;
 
   // Product category
   let product_category = "Other";
@@ -186,21 +198,6 @@ export async function parseSku(filename: string): Promise<ParsedSku | null> {
   else if (WORKSPACE_MG01.has(mg01_code)) product_category = "Workspace";
   else if (FLOOR_MG01.has(mg01_code)) product_category = "Floor";
   else if (GARDEN_MG01.has(mg01_code)) product_category = "Garden";
-
-  // Division
-  let division_code = "EH001";
-  let division_name = "Spruce Gen";
-  if (is_licensed) {
-    const isCW = WALL_MG01.has(mg01_code) ||
-                 TABLETOP_MG01.has(mg01_code) ||
-                 CLOCK_MG01.has(mg01_code);
-    const isSP = STORAGE_MG01.has(mg01_code) ||
-                 WORKSPACE_MG01.has(mg01_code) ||
-                 FLOOR_MG01.has(mg01_code) ||
-                 GARDEN_MG01.has(mg01_code);
-    if (isCW) { division_code = "CW001"; division_name = "POP"; }
-    else if (isSP) { division_code = "SP001"; division_name = "Spruce Lic"; }
-  }
 
   return {
     sku: base,

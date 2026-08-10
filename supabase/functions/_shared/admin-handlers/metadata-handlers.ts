@@ -6,6 +6,7 @@ import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { parseSku } from "../sku-parser.ts";
 import { deriveMetadataFromPath } from "../metadata-derivation.ts";
+import { loadAuthoritativeLicensingMaps, resolveAuthoritativeLicensing } from "../licensing-resolution.ts";
 
 // ── Route: reprocess-asset-metadata ─────────────────────────────────
 
@@ -28,22 +29,6 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
     }
   }
 
-  const { data: allLicensors } = await db
-    .schema("core")
-    .from("licensor")
-    .select("id, name");
-  const { data: allProperties } = await db
-    .schema("core")
-    .from("property")
-    .select("id, name, licensor_id");
-
-  const licensorMap = new Map(
-    (allLicensors ?? []).map((l) => [l.name.toLowerCase(), l.id]),
-  );
-  const propertyMap = new Map(
-    (allProperties ?? []).map((p) => [`${p.licensor_id}:${p.name.toLowerCase()}`, p.id]),
-  );
-
   const { data: assets, error: fetchErr } = await db
     .from("assets")
     .select("id, relative_path, filename, is_licensed, workflow_status, licensor_id, property_id, sku")
@@ -56,13 +41,26 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
     return json({ ok: true, done: true, updated: 0, total: 0, nextOffset: null });
   }
 
-  let updated = 0;
+  const parsedAssets = await Promise.all(assets.map(async (asset) => ({ asset, parsed: await parseSku(asset.filename) })));
+  let licensingMaps;
+  try {
+    licensingMaps = await loadAuthoritativeLicensingMaps(
+      db,
+      parsedAssets.flatMap(({ parsed }) => parsed ? [parsed.sku] : []),
+    );
+  } catch (error) {
+    return err(error instanceof Error ? error.message : "Could not load authoritative licensing taxonomy", 500);
+  }
 
-  for (const asset of assets) {
+  let updated = 0;
+  let unresolvedLicensor = 0;
+  let unresolvedProperty = 0;
+
+  for (const { asset, parsed } of parsedAssets) {
     const updates: Record<string, unknown> = {};
 
     // Re-derive path-based metadata
-    const derived = await deriveMetadataFromPath(asset.relative_path, db, licensorMap, propertyMap);
+    const derived = await deriveMetadataFromPath(asset.relative_path, db);
 
     if (asset.is_licensed !== derived.is_licensed) {
       updates.is_licensed = derived.is_licensed;
@@ -70,15 +68,12 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
     if (asset.workflow_status !== derived.workflow_status) {
       updates.workflow_status = derived.workflow_status;
     }
-    if (!asset.licensor_id && derived.licensor_id) {
-      updates.licensor_id = derived.licensor_id;
-    }
-    if (!asset.property_id && derived.property_id) {
-      updates.property_id = derived.property_id;
-    }
-
     // Re-derive SKU metadata from filename
-    const parsed = await parseSku(asset.filename);
+    const licensing = await resolveAuthoritativeLicensing(db, derived.is_licensed, parsed, licensingMaps);
+    if (asset.licensor_id !== licensing.licensor_id) updates.licensor_id = licensing.licensor_id;
+    if (asset.property_id !== licensing.property_id) updates.property_id = licensing.property_id;
+    if (licensing.unresolved_licensor) unresolvedLicensor++;
+    if (licensing.unresolved_property) unresolvedProperty++;
     if (parsed) {
       const skuFields: Record<string, string | null> = {
         sku: parsed.sku,
@@ -90,10 +85,10 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
         mg03_name: parsed.mg03_name,
         size_code: parsed.size_code,
         size_name: parsed.size_name,
-        licensor_code: parsed.licensor_code,
-        licensor_name: parsed.licensor_name,
-        property_code: parsed.property_code,
-        property_name: parsed.property_name,
+        licensor_code: licensing.licensor_code,
+        licensor_name: licensing.licensor_name,
+        property_code: licensing.property_code,
+        property_name: licensing.property_name,
         sku_sequence: parsed.sku_sequence,
         division_code: parsed.division_code,
         division_name: parsed.division_name,
@@ -123,6 +118,8 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
     total: assets.length,
     grand_total: grandTotal,
     assets_checked: offset + assets.length,
+    unresolved_licensor: unresolvedLicensor,
+    unresolved_property: unresolvedProperty,
     nextOffset: done ? null : offset + BATCH_SIZE,
   });
 }

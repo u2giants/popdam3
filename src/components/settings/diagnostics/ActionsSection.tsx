@@ -274,6 +274,8 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
         {(reprocessActive || reprocessOp.state.status === "completed" || reprocessOp.state.status === "failed") && rp && (() => {
           const checked = (rp.assets_checked as number) || 0;
           const updated = (rp.updated as number) || 0;
+          const unresolvedLicensor = (rp.unresolved_licensor as number) || 0;
+          const unresolvedProperty = (rp.unresolved_property as number) || 0;
           const grandTotal = (rp.grand_total as number) || 0;
           const pct = grandTotal > 0 ? Math.min(100, Math.round((checked / grandTotal) * 100)) : null;
           const elapsedMs = reprocessOp.state.started_at
@@ -327,6 +329,11 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
                   <span className="ml-1">({Math.round((updated / checked) * 100)}% needed changes)</span>
                 )}
               </div>
+              {(unresolvedLicensor > 0 || unresolvedProperty > 0) && (
+                <div className="text-xs text-[hsl(var(--warning))] font-medium">
+                  Missing authoritative licensing: {unresolvedLicensor.toLocaleString()} licensors · {unresolvedProperty.toLocaleString()} properties
+                </div>
+              )}
             </div>
           );
         })()}

@@ -112,6 +112,8 @@ export interface Counters {
   rejected_subfolder: number;
   skipped_before_min_date: number;
   rejected_ai_has_pdf_sibling: number;
+  unresolved_licensor: number;
+  unresolved_property: number;
 }
 
 export interface WindowsRenderPolicy {
@@ -210,11 +212,20 @@ export interface IngestPayload {
 export interface IngestResult {
   action: "created" | "updated" | "moved" | "noop" | "rejected_subfolder" | "skipped";
   asset_id: string;
+  licensing?: {
+    unresolved_licensor: boolean;
+    unresolved_property: boolean;
+    reason: string | null;
+  };
 }
 
 export async function ingest(payload: IngestPayload): Promise<IngestResult> {
   const data = await callApi("ingest", payload as unknown as Record<string, unknown>);
-  return { action: data.action as IngestResult["action"], asset_id: data.asset_id as string };
+  return {
+    action: data.action as IngestResult["action"],
+    asset_id: data.asset_id as string,
+    licensing: data.licensing as IngestResult["licensing"],
+  };
 }
 
 export async function scanProgress(

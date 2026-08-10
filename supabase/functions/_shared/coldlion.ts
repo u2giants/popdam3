@@ -1,7 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const COLDLION_BASE = "http://x5.coldlion.com/EhpApi";
-const HARDCODED_KEY = "Z21355JALT13A54L9X5";
 const COMPANY = "EDGEHOME";
 
 // In-memory cache so we only fetch once per Edge Function cold start
@@ -27,8 +26,7 @@ async function getApiKey(): Promise<string> {
   } catch (e) {
     console.warn("Failed to read COLDLION_API_KEY from admin_config:", e);
   }
-  _apiKey = HARDCODED_KEY;
-  return _apiKey;
+  throw new Error("COLDLION_API_KEY is missing from admin_config");
 }
 
 export async function getMgLookup(
@@ -49,8 +47,7 @@ export async function getMgLookup(
     });
 
     if (!res.ok) {
-      console.warn(`ColdLion API ${mgTypeCode}/${divisionCode} returned ${res.status}`);
-      return {};
+      throw new Error(`ColdLion API ${mgTypeCode}/${divisionCode} returned ${res.status}`);
     }
 
     const data = await res.json();
@@ -63,39 +60,7 @@ export async function getMgLookup(
     cache[cacheKey] = map;
     return map;
   } catch (e) {
-    console.warn(`ColdLion API fetch failed for ${mgTypeCode}/${divisionCode}:`, e);
-    return {};
+    const message = e instanceof Error ? e.message : String(e);
+    throw new Error(`ColdLion API fetch failed for ${mgTypeCode}/${divisionCode}: ${message}`);
   }
-}
-
-/**
- * Fetch MG05 (licensor/theme) for all three divisions and merge.
- * Licensed codes come from CW001 and SP001.
- * EH001 codes are unlicensed themes.
- */
-export async function getLicensorLookup(): Promise<{
-  licensors: Record<string, string>; // code → name (licensed)
-  themes: Record<string, string>; // code → name (unlicensed)
-}> {
-  const [cw, sp, eh] = await Promise.all([
-    getMgLookup("05", "CW001"),
-    getMgLookup("05", "SP001"),
-    getMgLookup("05", "EH001"),
-  ]);
-
-  // Merge CW001 and SP001 — these are licensed licensors
-  // Remove ZZ (DTR - NO LICENSE) from licensed set
-  const licensors: Record<string, string> = { ...cw, ...sp };
-  delete licensors["ZZ"];
-
-  return { licensors, themes: eh };
-}
-
-/**
- * Fetch MG06 (property) for a specific division
- */
-export async function getPropertyLookup(
-  divisionCode: string,
-): Promise<Record<string, string>> {
-  return getMgLookup("06", divisionCode);
 }

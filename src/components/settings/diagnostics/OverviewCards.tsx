@@ -141,7 +141,7 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
     : null;
 
   const counterText = counters
-    ? `${counters.files_checked ?? 0} files checked · ${counters.ingested_new ?? 0} new · ${counters.moved_detected ?? 0} moved · ${counters.errors ?? 0} errors`
+    ? `${counters.files_checked ?? 0} files checked · ${counters.ingested_new ?? 0} new · ${counters.moved_detected ?? 0} moved · ${counters.errors ?? 0} errors · ${counters.unresolved_licensor ?? 0} missing licensors · ${counters.unresolved_property ?? 0} missing properties`
     : null;
 
   return (
@@ -178,7 +178,7 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
               <>
                 {" · "}
                 <Link to="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline text-[hsl(var(--warning))]">
-                  {counters?.errors ?? 0} file error{(counters?.errors ?? 0) !== 1 ? "s" : ""} — view details
+                  {counters?.errors ?? 0} file error{(counters?.errors ?? 0) !== 1 ? "s" : ""}, {counters?.unresolved_licensor ?? 0} missing licensors, {counters?.unresolved_property ?? 0} missing properties — view details
                 </Link>
               </>
             )}
