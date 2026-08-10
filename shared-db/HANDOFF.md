@@ -30,6 +30,27 @@
 > Where `HANDOFF.d/`, this file, and `COORDINATOR_INTAKE.md` disagree,
 > **re-derive the fact from `git`/`gh`** rather than ranking the documents.
 
+> ## OWNER RULING — the ColdLion API key rotation ask is WITHDRAWN (Albert Hazan, 2026-08-09)
+>
+> > "I am not in control of the ColdLion system, I cannot do anything with that right now."
+> > — Albert Hazan, 2026-08-09
+>
+> **Stop asking the owner to rotate the ColdLion API key.** ColdLion is a third-party system
+> he does not administer. The ask is **withdrawn as of 2026-08-09**: it is no longer an open
+> owner gate, a blocker, or a next action anywhere. Issue #642 was closed under this ruling.
+> Do not re-file it, do not re-escalate it, and do not carry it forward in a handoff.
+>
+> **The exposure itself remains a recorded fact.** The key was found hardcoded in the public
+> repository `u2giants/popdam3`. That finding is written up in
+> [`HANDOFF.d/2026-08-10T0130Z-al8960ofc-claude-orchestrator-addendum-late-findings.md`](HANDOFF.d/2026-08-10T0130Z-al8960ofc-claude-orchestrator-addendum-late-findings.md)
+> §1 and in its item 0.1. Those are **write-once records and were deliberately left intact.**
+> This ruling supersedes the *action* they call for; it does not rewrite the history, and no
+> one should delete the security record. Never write the key value into any file or message.
+>
+> **What is still actionable** (neither is a credential action, and neither needs the owner):
+> the missing `COLDLION_API_KEY` row in PopDAM's `public.admin_config`, and removing the
+> hardcoded literal from `u2giants/popdam3` source. Both live in that app repo, not here.
+
 <!-- ============================================================================
      ORCHESTRATOR HANDOVER — FINAL — 2026-07-31 19:01 UTC
      This SUPERSEDES the 17:55 UTC handover immediately below it.

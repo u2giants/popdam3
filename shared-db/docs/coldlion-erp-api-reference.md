@@ -17,6 +17,30 @@ re-pulled the same day (see the division matrix below).
   vault `vibe_coding` → item *"Coldlion ERP API key x5.coldlion.com"*, field `credential`.
   Use it via `op run` with `op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential`
   — never paste the value. No key → `400 Missing request header 'X-API-Key'`.
+
+> ### OWNER RULING — do NOT ask Albert to rotate this key (Albert Hazan, 2026-08-09)
+>
+> **The ask is withdrawn. Do not raise it again, in any document, issue, handoff or chat.**
+>
+> > "I am not in control of the ColdLion system, I cannot do anything with that right now."
+> > — Albert Hazan, 2026-08-09
+>
+> ColdLion is a third-party system the owner does not administer, so he cannot rotate this
+> credential. Multiple sessions escalated "rotate the exposed ColdLion API key" to him as a
+> blocking owner gate. **It is not a gate, it is not a blocker, and it is not a next action.**
+> GitHub issue #642 was closed under this ruling on 2026-08-09.
+>
+> **The exposure remains a recorded fact and must not be erased.** This key was found
+> hardcoded in the public repository `u2giants/popdam3` (and in archived transcripts in the
+> public `u2giants/ai-devops`). That finding stands as written in
+> `HANDOFF.d/2026-08-10T0130Z-al8960ofc-claude-orchestrator-addendum-late-findings.md` §1,
+> which is a write-once record. This ruling **supersedes the action** in that section; it
+> does not rewrite the history. Never write the key value anywhere.
+>
+> Still in scope, and unaffected by this ruling: the missing `COLDLION_API_KEY` row in
+> PopDAM's `public.admin_config` (a real defect in `u2giants/popdam3`, not a credential
+> action), and removing the hardcoded literal from that repository's source.
+
 - **Company scope:** `companyCode=EDGEHOME` is the tenant. `divisionCode` (e.g. `EP001`,
   `SP001`) narrows further.
 
