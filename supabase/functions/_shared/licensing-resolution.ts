@@ -9,7 +9,10 @@ interface ErpLicensing {
   property_code: string | null;
 }
 
-interface SourceIdentity { id: string; name: string | null }
+interface SourceIdentity {
+  id: string;
+  name: string | null;
+}
 
 export interface LicensingResolution {
   licensor_id: string | null;
@@ -30,9 +33,15 @@ export interface LicensingMaps {
 }
 
 const emptyResolution = (reason: string | null, unresolved: boolean): LicensingResolution => ({
-  licensor_id: null, property_id: null, licensor_code: null, licensor_name: null,
-  property_code: null, property_name: null, unresolved_licensor: unresolved,
-  unresolved_property: unresolved, reason,
+  licensor_id: null,
+  property_id: null,
+  licensor_code: null,
+  licensor_name: null,
+  property_code: null,
+  property_name: null,
+  unresolved_licensor: unresolved,
+  unresolved_property: unresolved,
+  reason,
 });
 
 function coldLionSourceId(divisionCode: string, mgTypeCode: "05" | "06", mgCode: string): string {
@@ -61,12 +70,18 @@ export async function loadAuthoritativeLicensingMaps(
   const propertyParents = new Map((properties ?? []).map((row) => [row.id, row.licensor_id]));
   return {
     erpByStyleNumber: new Map((erpRows ?? []).map((row) => [row.style_number, row])),
-    licensorsBySourceId: new Map((refs ?? []).filter((row) => row.entity_table === "licensor")
-      .map((row) => [row.source_id, { id: row.entity_id, name: row.source_name }])),
-    propertiesBySourceId: new Map((refs ?? []).filter((row) => row.entity_table === "property")
-      .map((row) => [row.source_id, {
-        id: row.entity_id, name: row.source_name, licensor_id: propertyParents.get(row.entity_id) ?? "",
-      }])),
+    licensorsBySourceId: new Map(
+      (refs ?? []).filter((row) => row.entity_table === "licensor")
+        .map((row) => [row.source_id, { id: row.entity_id, name: row.source_name }]),
+    ),
+    propertiesBySourceId: new Map(
+      (refs ?? []).filter((row) => row.entity_table === "property")
+        .map((row) => [row.source_id, {
+          id: row.entity_id,
+          name: row.source_name,
+          licensor_id: propertyParents.get(row.entity_id) ?? "",
+        }]),
+    ),
   };
 }
 
@@ -106,7 +121,9 @@ export async function resolveAuthoritativeLicensing(
   if (!erp.property_code) {
     return {
       ...emptyResolution("coldlion_item_has_no_property_code", true),
-      licensor_id: licensor.id, licensor_code: erp.licensor_code, licensor_name: licensor.name,
+      licensor_id: licensor.id,
+      licensor_code: erp.licensor_code,
+      licensor_name: licensor.name,
       unresolved_licensor: false,
     };
   }
