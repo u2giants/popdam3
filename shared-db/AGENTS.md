@@ -449,6 +449,10 @@ change) need just items 1 and "it reads correctly" — merge them promptly.
 
 ### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` on the full repo set, ALWAYS inside the pruned temp checkout (learned 2026-07-23; recipe corrected 2026-07-27; wording made self-consistent 2026-08-09)
 
+> ⚠️ **Before you promote anything, read the #611 HARD GATE in §5.1-A.** The canary
+> `20260810140000` may go now; **no licensor batch may go** until
+> `scripts/experiment_611_db_push_atomicity.sh` has been RUN on Supabase CLI **2.105.0**.
+
 Production almost always has **pending migrations from other workstreams that sit *before* your
 own** (e.g. DB Data Admin write paths, DAM taxonomy cutover, PopSG — several deliberately
 unpromoted). When that is true, `supabase db push` **refuses to run** and suggests
@@ -551,12 +555,32 @@ literal). Do not send Disney, Paramount, NBCU or Warner through untested write m
   apply-time references from the scanner completely. A batch whose real dependency lives inside a
   DO block passes preflight and still aborts on production. The preflight may REJECT; it can never
   certify. The authoritative gate is the rehearsal against a production-shaped database.
-- ⚠️ **Whether `db push` writes a migration's SQL and its ledger row in ONE transaction is
-  NOT SETTLED (issue #611).** The experiment is written and reviewed at
+- ⚠️ **HARD GATE — issue #611: whether `db push` writes a migration's SQL and its ledger row in
+  ONE transaction is NOT SETTLED, and only a RUN discharges it.** The experiment is written and
+  reviewed at
   [`scripts/experiment_611_db_push_atomicity.sh`](scripts/experiment_611_db_push_atomicity.sh)
-  but has **not been run** — no disposable database was available. Do not assert an answer; one
-  reviewer already did and retracted. Run it before relying on any claim about what a
-  half-finished apply leaves behind.
+  but has **never been executed** — no disposable database was available.
+
+  **The gate has two halves. Both bind:**
+  - **ALLOWED:** the canary `20260810140000` MAY go through the production apply lane with #611
+    still open. That is exactly what a canary is for, and running it is the cheapest way to
+    settle #611 instead of arguing it.
+  - **BLOCKED:** **NO licensor batch (Disney, Paramount, NBCU, Warner) may go** until
+    `scripts/experiment_611_db_push_atomicity.sh` has actually been RUN on the **pinned Supabase
+    CLI version 2.105.0**. A run on any other CLI version does NOT discharge this gate — the
+    behaviour in question is the CLI's.
+
+  **Why it is a gate and not advice — the two bad outcomes are concrete:**
+  - *SQL without a ledger row:* a re-run replays the same SQL and dies on duplicate-object
+    errors, and a `CREATE` can be left standing on production without the security migration
+    that was supposed to follow it.
+  - *Ledger row without SQL:* `validate_candidates` refuses that version forever (it rejects any
+    allowlist containing an applied version), and preflight starts trusting objects that do not
+    exist. Recovery requires manual ledger surgery on production.
+
+  **Reasoning is not sufficient here, and we have the evidence:** during review one reviewer
+  asserted the atomicity answer as settled fact, then RETRACTED it and dropped its own confidence
+  from 85% to 30%. Careful thinking produced a confident wrong answer. Run the script.
 
 **The co-presence rules are ONE-DIRECTIONAL, and that is not an oversight.** Three security
 pairings are enforced in `parse_allowlist`: `20260810020000` requires `20260810090000` (between
