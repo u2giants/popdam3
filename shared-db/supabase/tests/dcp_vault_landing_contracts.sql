@@ -356,6 +356,9 @@ declare
   v_sec   uuid;
   v_ok    boolean;
   v_trigs int;
+  -- Declared out here because the row must be created BEFORE the crawl is completed, and
+  -- is then read by E3b further down. See the comment at its INSERT.
+  v_frozen_gap uuid;
 begin
   -- Structural precondition, so a missing trigger fails HERE with a clear reason rather
   -- than as a confusing "the write succeeded" further down.
@@ -438,6 +441,23 @@ begin
                                               listing_kind, crawl_section_id, link_evidence)
   values (v_crawl, v_asset, v_tile, 'asset', null, 'aggregated_row');
 
+  -- The gap under the crawl that is ABOUT TO BE COMPLETED. It has to be created while the
+  -- crawl is still `running`, because completing it freezes INSERT too.
+  --
+  -- IT USED TO BE CREATED AFTER, INSIDE E3 BELOW, AND THAT MADE THIS WHOLE FILE
+  -- UNRUNNABLE. The comment there said "the triggers are BEFORE UPDATE OR DELETE and
+  -- deliberately do not police inserts" -- which stopped being true when the INSERT branch
+  -- was added, the hardening this file's own E6 calls THE HIGH FINDING and the structural
+  -- check ~40 lines above asserts from pg_trigger.tgtype. So the file asserted in two
+  -- places that INSERT is refused on a completed crawl and then, in between, relied on
+  -- exactly that INSERT succeeding. The first execution of this file (2026-08-11, the CI
+  -- run that #695/#731 added) died here with `INSERT on plm.dcp_crawl_gap is refused`.
+  --
+  -- Nothing is weakened by moving it: E3b below still UPDATEs this gap and still requires
+  -- that UPDATE to be refused, which is the assertion E3 exists to make.
+  insert into plm.dcp_crawl_gap (crawl_section_id, offset_from, offset_to, reason)
+  values (v_sec, 0, 10, 'ZZTEST gap frozen') returning id into v_frozen_gap;
+
   -- Arm the guards.
   update plm.dcp_crawl set status = 'complete' where crawl_id = v_crawl;
 
@@ -471,7 +491,6 @@ begin
   -- COMPLETED crawl's gap refuses one.
   declare
     v_open_gap   uuid;
-    v_frozen_gap uuid;
     v_open uuid := '99999999-9999-4999-8999-000000000002';
     v_osec uuid;
   begin
@@ -489,11 +508,10 @@ begin
     insert into plm.dcp_crawl_gap (crawl_section_id, offset_from, offset_to, reason)
     values (v_osec, 0, 10, 'ZZTEST gap open') returning id into v_open_gap;
 
-    -- The gap under the COMPLETED crawl's section. The INSERT itself is expected to
-    -- SUCCEED -- the triggers are BEFORE UPDATE OR DELETE and deliberately do not police
-    -- inserts -- so it is the UPDATE below that must be refused.
-    insert into plm.dcp_crawl_gap (crawl_section_id, offset_from, offset_to, reason)
-    values (v_sec, 0, 10, 'ZZTEST gap frozen') returning id into v_frozen_gap;
+    -- v_frozen_gap -- the gap under the COMPLETED crawl's section -- was created ABOVE,
+    -- while that crawl was still `running`. It cannot be created here: completing a crawl
+    -- freezes INSERT as well as UPDATE and DELETE (E6). The UPDATE in E3b is what must be
+    -- refused, and that assertion is unchanged.
 
     -- E3a. MUST SUCCEED. This is the half that catches the field-read bug: the gap table
     -- has NO crawl_id column, so a trigger that read new.crawl_id would raise "record new

@@ -1,0 +1,63 @@
+# QUARANTINE LIST for the "Database Contract Tests" workflow.
+#
+# Every file listed here IS STILL EXECUTED on every run and its full output is still
+# printed and uploaded. Only its RESULT is prevented from failing the job.
+#
+# READ THIS BEFORE ADDING A LINE
+# ------------------------------
+# This list exists for ONE reason: a test that cannot hold on a FROM-EMPTY database is
+# not a failing test, it is a test aimed at a different target. It is NOT a place to
+# park a test that found a real defect. Adding a line to make a red job green, without
+# the reason being true, converts this workflow back into the thing #695 was filed
+# about -- a check that is present but enforces nothing.
+#
+# Every line is `<filename>  # <reason>`. A line with no reason is not valid.
+#
+# WHY SO MANY, AND WHAT IT MEANS (measured 2026-08-11, the first execution ever)
+# -----------------------------------------------------------------------------
+# Replaying all 429 migrations into an empty Supabase database applies 363 and FAILS 66.
+# The repository's migration history is NOT self-contained: it was adopted on top of an
+# already-populated database, so objects such as `public.assets`, the legacy popdam
+# tables and the `dflow.*` mirrors exist in preview and production without any migration
+# here having created them. Everything downstream of those 66 is therefore missing from
+# the ephemeral schema, and a second group of tests needs seeded reference data
+# (authenticated profiles, Customers, Vendors, real Licensor rows) that an empty
+# database has none of by definition.
+#
+# So this lane proves the subset of the contract that is provable from the repository
+# alone. THAT IS NOT THE WHOLE CONTRACT. The quarantined files below still have to be
+# run against preview by hand before a production promotion; making CI run them for real
+# needs a captured pre-adoption baseline migration and a test-fixture seed, neither of
+# which exists yet. Nothing here should be read as "these have passed".
+
+# --- Depend on objects no migration in this repository creates -------------------------
+app_serving_status_contracts.sql                              # api.dam_customer_list comes from a DAM migration that cannot replay from empty
+coldlion_licensor_property_phase6_contracts.sql               # phase4 baseline pins live in deployed data, not in any migration
+core_licensor_alias_contracts.sql                             # 20260731210000_core_licensor_alias did not replay: needs seeded core.licensor rows
+dam_customer_hub_wiring.sql                                   # style_groups.customer_id comes from the legacy popdam tables
+dam_order_list_contract.sql                                   # plm.production_order_source_ref is downstream of a non-replaying DAM migration
+dam_order_list_item_columns_contract.sql                      # api.dam_order_list is created by 20260810110000, which did not replay
+dflow_sample_shipment_item_restore.sql                        # dflow.* mirrors are not created by any migration here
+licensor_status_durability_and_owner_ruling.sql               # core.taxonomy_owner_ruling is downstream of a non-replaying migration
+product_size_depth_phase1_contracts.sql                       # needs the ColdLion landing rows; the seed migrations refuse on an empty database, correctly
+sample_tracking_completion_semantics.sql                      # dflow.sample does not exist from empty
+sample_tracking_office_inventory_withdrawal.sql               # dflow.sample does not exist from empty
+sample_tracking_quantity_contract.sql                         # dflow.sample does not exist from empty
+wb_grants_rls_and_dam_order_list_invoker.sql                  # asserts grants on objects that are downstream of non-replaying migrations
+
+# --- Need seeded reference data an empty database cannot have --------------------------
+coldlion_licensor_property_readiness_breaker_contracts.sql    # fixture requires at least one canonical Licensor and Property
+dam_picker_read_contracts.sql                                 # fixture requires an existing profile for its rollback-only access test
+db_data_admin_contract_errata.sql                             # fixture requires two active authenticated profiles
+db_data_admin_extensions.sql                                  # fixture requires a Customer, a Vendor and an active profile
+db_data_admin_foundation.sql                                  # fixture requires one active authenticated profile
+db_data_admin_licensor_property_tree.sql                      # fixture requires three active authenticated profiles
+db_data_admin_merge_coverage.sql                              # asserts FK coverage over tables that did not replay
+db_data_admin_merge_preview_moving_detail.sql                 # fixture requires seeded profiles (user_role.profile_id NOT NULL)
+db_data_admin_merge_workflow.sql                              # fixture requires seeded profiles (user_role.profile_id NOT NULL)
+db_data_admin_read_contracts.sql                              # fixture requires four active authenticated profiles
+db_data_admin_single_record_updates.sql                       # fixture requires three active authenticated profiles
+
+# --- Asserts a property of a specific deployed environment -----------------------------
+taxonomy_baseline_pin_and_breaker_environment_contracts.sql   # by name and by design: it asserts which baseline is ACTIVATED on the target database
+owner_ruling_coco_is_a_disney_license_contracts.sql             # asserts a specific real core.property row (COCO) that only a deployed database holds
