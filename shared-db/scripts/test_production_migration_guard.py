@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import itertools
+import json
 import re
 import sys
 import tempfile
@@ -1224,6 +1225,160 @@ class CoPresenceTests(unittest.TestCase):
         )
 
 
+
+B9_FOURTEEN = [
+    "20260810010000",
+    "20260810020000",
+    "20260810030000",
+    "20260810050000",
+    "20260810060000",
+    "20260810070000",
+    "20260810080000",
+    "20260810090000",
+    "20260810100000",
+    "20260810110000",
+    "20260810120000",
+    "20260810130000",
+    "20260810160000",
+    "20260810170000",
+]
+# Read from the LIVE production ledger on 2026-08-11 (project qsllyeztdwjgirsysgai,
+# read-only `list_migrations`): 20260810180000 IS applied, and none of B9's
+# fourteen are. It was promoted early and ALONE, and it sorts ABOVE B9's own end
+# version 20260810170000, which is how the deadlock below came to exist.
+B9_APPLIED_FIX = "20260810180000"
+
+
+class CoPresenceIsLedgerAwareTest(unittest.TestCase):
+    """The B9 deadlock (2026-08-11) and the property that must survive its fix.
+
+    CO_PRESENCE_RULES require 20260810180000 alongside both 20260810020000
+    (Paramount) and 20260810070000 (NBCU). 20260810180000 is already applied on
+    production. `validate_candidates` refuses any allowlist naming an applied
+    version. Ledger-blind, that made B9 -- the licensor landing batch --
+    impossible to apply by ANY allowlist string:
+
+      B9's 14                  -> "may not be promoted without 20260810180000"
+      B9's 14 + 20260810180000 -> "already applied on production"
+
+    The fix is the one `assert_atomic_batches` already uses: subtract the real
+    production ledger from the required-fix set. The tests below pin the cases
+    that must stay distinct. If you make this ledger-blind again and they still
+    pass, you have broken the tests, not proved the change.
+    """
+
+    def test_b9_deadlocks_when_the_check_is_ledger_blind(self) -> None:
+        """The regression test proper: with NO ledger, B9 is still refused.
+
+        Ledger-blind is the fail-closed default and stays correct on its own
+        terms; this test keeps the deadlock reproducible so nobody has to
+        rediscover it.
+        """
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist(",".join(B9_FOURTEEN))
+        self.assertIn(B9_APPLIED_FIX, str(caught.exception))
+
+    def test_b9_is_ACCEPTED_once_the_applied_fix_is_in_the_ledger(self) -> None:
+        """An ALREADY-APPLIED required fix satisfies the rule."""
+        self.assertEqual(
+            parse_allowlist(",".join(B9_FOURTEEN), {B9_APPLIED_FIX}),
+            B9_FOURTEEN,
+        )
+
+    def test_naming_the_applied_fix_as_well_is_still_refused_downstream(self) -> None:
+        """The other half of the deadlock, so the whole shape stays proven.
+
+        Adding 20260810180000 gets past co-presence but `validate_candidates`
+        refuses it for being applied. Both halves must be true for the deadlock
+        to be real; if either stops being true, this class needs re-reading.
+        """
+        remote = {B9_APPLIED_FIX}
+        allowlist = parse_allowlist(",".join(B9_FOURTEEN + [B9_APPLIED_FIX]), remote)
+        with self.assertRaises(GuardError) as caught:
+            validate_candidates(local_migrations(REPO), allowlist, remote)
+        self.assertIn("already applied on production", str(caught.exception))
+
+    def test_a_MISSING_fix_is_still_REFUSED_even_with_a_ledger(self) -> None:
+        """The property the rule exists to protect. APPLIED is not MISSING.
+
+        A ledger that does NOT contain the fix must not satisfy the rule --
+        neither an unrelated ledger nor an EMPTY one. This is the case someone
+        removes by accident when they "simplify" the subtraction into an
+        unconditional pass.
+        """
+        for ledger in (frozenset(), {"20260810140000"}):
+            for create, fix in (
+                ("20260810020000", "20260810090000"),
+                ("20260810070000", "20260810080000"),
+                ("20260810030000", "20260810110000"),
+                ("20260810190000", "20260810190100"),
+            ):
+                with self.subTest(create=create, ledger=sorted(ledger)):
+                    with self.assertRaises(GuardError) as caught:
+                        parse_allowlist(create, ledger)
+                    self.assertIn(fix, str(caught.exception))
+
+    def test_the_create_without_its_UNAPPLIED_fix_is_refused_paramount(self) -> None:
+        """20260810180000 applied does NOT excuse a missing 20260810090000."""
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260810020000", {B9_APPLIED_FIX})
+        message = str(caught.exception)
+        self.assertIn("20260810090000", message)
+        self.assertIn(
+            "may not be promoted without 20260810090000.",
+            message,
+            "the applied fix must drop OUT of the missing list, not stay in it",
+        )
+
+    def test_the_rule_stays_ONE_DIRECTIONAL_with_a_ledger(self) -> None:
+        """A fix ALONE stays legal -- the only recovery path -- ledger or not."""
+        for fix in ("20260810090000", "20260810080000", "20260810190100"):
+            for ledger in (frozenset(), {B9_APPLIED_FIX}, {"20260810140000"}):
+                with self.subTest(fix=fix, ledger=sorted(ledger)):
+                    self.assertEqual(parse_allowlist(fix, ledger), [fix])
+
+    def test_an_applied_CREATE_does_not_trigger_the_rule_at_all(self) -> None:
+        """Sanity: the rule only fires on a create that is IN the allowlist."""
+        self.assertEqual(
+            parse_allowlist("20260810090000", {"20260810020000"}),
+            ["20260810090000"],
+        )
+
+    def test_the_error_message_names_what_the_ledger_already_covers(self) -> None:
+        """An operator reading the refusal must see which fix was excused."""
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260810020000", {B9_APPLIED_FIX})
+        self.assertIn("Already applied on production", str(caught.exception))
+        self.assertIn(B9_APPLIED_FIX, str(caught.exception))
+
+    def test_verify_dry_run_accepts_b9_when_given_the_ledger(self) -> None:
+        """The lane's last gate must not re-introduce the deadlock.
+
+        `verify-dry-run` used to be ledger-blind with no way to pass a ledger,
+        so B9 would have been refused there even after `prepare` and
+        `preflight` accepted it. The optional --remote-ledger closes that.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dry = root / "dry-run.txt"
+            dry.write_text(
+                "Would push these migrations:\n"
+                + "\n".join(f" • {v}_x.sql" for v in B9_FOURTEEN)
+                + "\n",
+                encoding="utf-8",
+            )
+            ledger = root / "ledger.txt"
+            ledger.write_text(
+                json.dumps([{"version": B9_APPLIED_FIX}]), encoding="utf-8"
+            )
+            # Without the ledger it deadlocks exactly as the lane did.
+            with self.assertRaises(GuardError) as caught:
+                verify_dry_run(dry, ",".join(B9_FOURTEEN))
+            self.assertIn(B9_APPLIED_FIX, str(caught.exception))
+            # With it, the step passes.
+            verify_dry_run(dry, ",".join(B9_FOURTEEN), ledger)
+
+
 # ===========================================================================
 # THE APPLY LANE (issue #617) and the dry-run environment move (issue #646)
 # ===========================================================================
@@ -1331,6 +1486,27 @@ class ApplyLaneTests(unittest.TestCase):
         self.assertLess(dry, verify)
         self.assertLess(verify, push)
         self.assertEqual(push, len(commands) - 1, "the push must be the last command")
+
+    def test_every_verify_dry_run_call_passes_a_remote_ledger(self) -> None:
+        """The lane must never re-create the B9 deadlock at its last gate.
+
+        `verify-dry-run`'s co-presence check is ledger-aware; without a ledger
+        it reverts to the ledger-blind behaviour that made B9 unshippable, and
+        it would do so at the step immediately before the write, after every
+        other gate had already passed. `--remote-ledger` is `required=True` on
+        the CLI, so a dropped flag is an argparse error rather than a mystery
+        refusal -- and this test says so at the call sites too.
+        """
+        calls = [
+            WORKFLOW_TEXT[match.end() : match.end() + 400]
+            for match in re.finditer(r"verify-dry-run", WORKFLOW_TEXT)
+        ]
+        self.assertEqual(len(calls), 4, "expected four verify-dry-run call sites")
+        for index, call in enumerate(calls):
+            with self.subTest(call=index):
+                head = call.split("- name:")[0]
+                self.assertIn("--remote-ledger", head)
+                self.assertIn("ledger-before.txt", head)
 
     def test_the_apply_job_uploads_before_dryrun_and_after_evidence(self) -> None:
         job = _job("production-apply")

@@ -476,7 +476,16 @@ def assert_atomic_batches(allowlist: list[str], remote: set[str]) -> None:
         )
 
 
-def parse_allowlist(raw: str) -> list[str]:
+def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -> list[str]:
+    """Parse and policy-check a production allowlist.
+
+    ``remote`` is the real production ledger when the caller has one. It is
+    used by exactly ONE rule -- the co-presence check at the bottom of this
+    function -- and it is optional so that callers with no ledger in hand
+    (``verify-dry-run`` without ``--remote-ledger``, and
+    ``production_catalog_verification``) keep the STRICTER ledger-blind
+    behaviour. Defaulting to "no ledger" fails closed, never open.
+    """
     values = [item.strip() for item in raw.split(",") if item.strip()]
     if not values:
         raise GuardError("production allowlist is empty")
@@ -533,15 +542,46 @@ def parse_allowlist(raw: str) -> list[str]:
             )
     # Security co-presence (issue #660). ONE-DIRECTIONAL by design -- see the
     # long comment on CO_PRESENCE_RULES. Never add the reverse implication.
+    #
+    # LEDGER-AWARE ON PURPOSE (added 2026-08-11) -- a required FIX that is
+    # ALREADY APPLIED ON PRODUCTION satisfies the rule. See the header block
+    # above CO_PRESENCE_RULES. This is the SAME reasoning that made
+    # `assert_atomic_batches` ledger-aware: `validate_candidates` REFUSES any
+    # allowlist naming an already-applied version, so a ledger-blind
+    # requirement for an applied fix is not "strict", it is UNSATISFIABLE by
+    # any string, and the only escape is editing this guard under pressure.
+    #
+    # THE DEADLOCK THIS FIXES, CONCRETELY. `20260810180000` was promoted early
+    # and alone on 2026-08-11 (it sorts ABOVE B9's own end version
+    # `20260810170000`). It is a required fix on both the Paramount
+    # (`20260810020000`) and NBCU (`20260810070000`) rules. So B9's 14 versions
+    # were refused for missing it, and B9's 14 PLUS it were refused for naming
+    # an applied version. B9 -- the licensor landing batch -- became impossible
+    # to apply by ANY allowlist string.
+    #
+    # THIS DOES NOT WEAKEN THE RULE, AND THE DIFFERENCE MATTERS. An APPLIED fix
+    # satisfies the rule because the property the rule protects -- production
+    # must never hold the create without the fix -- is already true and stays
+    # true. A MISSING fix (neither applied nor in the allowlist) still REFUSES,
+    # because that is exactly the exposed state. Do not collapse those two
+    # cases; there are tests for both, plus one for the missing-and-unapplied
+    # case, and they are what tells you what you broke.
     chosen = set(values)
     for create, fixes, why in CO_PRESENCE_RULES:
         if create not in chosen:
             continue
-        missing = sorted(fixes - chosen)
+        already = fixes & set(remote)
+        missing = sorted((fixes - already) - chosen)
         if missing:
+            satisfied = (
+                f" (Already applied on production, so not required here: "
+                f"{', '.join(sorted(already))}.)"
+                if already
+                else ""
+            )
             raise GuardError(
                 f"co-presence rule: {create} may not be promoted without "
-                f"{', '.join(missing)}. {why} Add the missing version(s) to the "
+                f"{', '.join(missing)}.{satisfied} {why} Add the missing version(s) to the "
                 "allowlist. (This rule is one-directional on purpose: promoting "
                 f"{', '.join(sorted(fixes))} WITHOUT {create} is allowed, because "
                 "that is the only legal way to recover a run that died between "
@@ -1078,8 +1118,8 @@ def preflight_batch(
 
 
 def preflight(repo: Path, raw_allowlist: str, ledger: Path) -> None:
-    allowlist = parse_allowlist(raw_allowlist)
     remote = parse_remote_versions(ledger)
+    allowlist = parse_allowlist(raw_allowlist, remote)
     migrations = local_migrations(repo)
     validate_candidates(migrations, allowlist, remote)
     preflight_batch(migrations, allowlist, remote)
@@ -1091,8 +1131,8 @@ def preflight(repo: Path, raw_allowlist: str, ledger: Path) -> None:
 
 
 def prepare(repo: Path, output: Path, commit_sha: str, raw_allowlist: str, ledger: Path) -> None:
-    allowlist = parse_allowlist(raw_allowlist)
     remote = parse_remote_versions(ledger)
+    allowlist = parse_allowlist(raw_allowlist, remote)
     migrations = local_migrations(repo)
     validate_candidates(migrations, allowlist, remote)
     # AGENTS.md section 6.8: the whole batch must be proven runnable end to end
@@ -1124,8 +1164,8 @@ def assert_bounded(directory: Path, raw_allowlist: str, ledger: Path) -> None:
     so this re-checks the invariant at the point of use rather than trusting a
     result computed earlier in the job.
     """
-    allowlist = parse_allowlist(raw_allowlist)
     remote = parse_remote_versions(ledger)
+    allowlist = parse_allowlist(raw_allowlist, remote)
     # Re-prove atomicity at the point of use too, for the same reason this
     # function re-proves boundedness: `prepare` and the push are separate steps.
     assert_atomic_batches(allowlist, remote)
@@ -1145,8 +1185,14 @@ def assert_bounded(directory: Path, raw_allowlist: str, ledger: Path) -> None:
     )
 
 
-def verify_dry_run(path: Path, raw_allowlist: str) -> None:
-    allowlist = parse_allowlist(raw_allowlist)
+def verify_dry_run(path: Path, raw_allowlist: str, ledger: Path | None = None) -> None:
+    # `ledger` is OPTIONAL and only feeds the ledger-aware co-presence rule.
+    # Omitting it keeps the stricter ledger-blind behaviour, which fails closed.
+    # The lane workflow passes it so an already-applied required fix does not
+    # deadlock this step after `prepare` and `preflight` have already accepted
+    # the same allowlist.
+    remote = parse_remote_versions(ledger) if ledger is not None else frozenset()
+    allowlist = parse_allowlist(raw_allowlist, remote)
     raw = path.read_text(encoding="utf-8")
     marker = "Would push these migrations:"
     if marker not in raw:
@@ -1181,6 +1227,14 @@ def main() -> int:
     bounded.add_argument("--remote-ledger", type=Path, required=True)
     verify = subs.add_parser("verify-dry-run")
     verify.add_argument("--dry-run-output", type=Path, required=True)
+    # REQUIRED on the CLI even though the Python function's `ledger` is
+    # optional. The function stays optional for `production_catalog_verification`
+    # and other direct callers; the LANE must never be able to omit it, because
+    # an omitted ledger silently restores the exact B9 deadlock this flag exists
+    # to remove (a loud refusal, but at the last gate, after everything else has
+    # already passed). All four workflow call sites pass it; there is a test
+    # asserting they always will.
+    verify.add_argument("--remote-ledger", type=Path, required=True)
     verify.add_argument("--allowlist", required=True)
     args = parser.parse_args()
     try:
@@ -1199,7 +1253,7 @@ def main() -> int:
                 args.directory.resolve(), args.allowlist, args.remote_ledger
             )
         else:
-            verify_dry_run(args.dry_run_output, args.allowlist)
+            verify_dry_run(args.dry_run_output, args.allowlist, args.remote_ledger)
     except (GuardError, OSError, subprocess.CalledProcessError) as exc:
         print(f"BLOCKED: {exc}", file=sys.stderr)
         return 1
