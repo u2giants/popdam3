@@ -266,8 +266,214 @@ CO_PRESENCE_RULES: tuple[tuple[str, frozenset[str], str], ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# ATOMIC BATCHES (added 2026-08-11)
+#
+# docs/production-promotion-app-tolerance-contract.md declares FOUR of its nine
+# promotion batches ATOMIC -- B1, B3, B7 and B9 (contract section 5 table, and
+# section 10: "B1, B3, B7 and B9 are atomic. Do not split them, whatever a
+# description implies"). Until today that was PROSE ONLY. The guard encoded
+# fragments of it -- BUNDLE_20260804 covers four of B1's eleven files, and the
+# CO_PRESENCE_RULES cover four of B9's fourteen -- and nothing at all for B3 or
+# B7.
+#
+# The hole was not theoretical. `20260810050000` sits inside atomic B9 and
+# appeared in NO HARD_BLOCKED entry, NO bundle and NO co-presence rule, so a
+# single-file allowlist of `20260810050000` alone PASSED this guard while
+# violating the contract. That is the exact shortcut that would let issue #729
+# ship early and leave production at rest inside the Warner window (contract
+# section 6: eight tables of confidential STARLABS data readable by every
+# authenticated account). A guard that reads as strict and behaves as permissive
+# is worse than no guard, because people trust it.
+#
+# WHY A NEW CONSTANT RATHER THAN AN EXISTING MECHANISM. The shape needed here is
+# ALL-OR-NONE over a named set -- exactly BUNDLE_20260804's shape, and NOT
+# CO_PRESENCE_RULES' shape (which is one-directional create-implies-fix, and must
+# stay that way; see its header). So this generalises the BUNDLE mechanism to N
+# named sets instead of inventing a parallel system. BUNDLE_20260804 is kept
+# where it is: it is a SUBSET of B1 with its own independent provenance
+# (AGENTS.md section 6.8, an owner ruling about unblocking, not about batching),
+# it is enforced ledger-blind in `parse_allowlist` so no subcommand can route
+# around it, and deleting it would lose that ruling. The two checks agree; the
+# stricter one wins, which is the safe direction.
+#
+# ****** THE CHECK IS LEDGER-AWARE, AND THAT IS DELIBERATE. ******
+#
+# Read this before you "simplify" it into a plain all-or-none set check.
+#
+# `validate_candidates()` REFUSES any allowlist containing a version that is
+# already applied on production. So consider the scenario this lane must survive:
+# a bounded apply of atomic B9 dies at file 13 of 14. Thirteen versions are now
+# in the production ledger. The ONLY legal recovery allowlist is the fourteenth
+# ALONE -- the thirteen cannot be re-listed.
+#
+# A ledger-blind all-or-none rule would REFUSE that recovery. The operator's only
+# way out would be to EDIT THIS SAFETY GUARD, at 2am, while production sat in one
+# of the three exposed states in contract section 6. That is precisely the shape
+# of change that gets made carelessly, and it is the same reasoning that made
+# AGENTS.md 6.5 a co-presence rule instead of a HARD_BLOCKED entry.
+#
+# So the requirement is stated the way the contract actually means it: PRODUCTION
+# MUST NOT COME TO REST INSIDE AN ATOMIC BATCH. Required membership is therefore
+# `members - already_applied`. Completing a batch is always legal; stopping short
+# of finishing one never is. There are explicit tests for the resume case; if you
+# make this ledger-blind and they still pass, you have broken the tests, not
+# proved the change.
+#
+# MEMBERSHIP IS TRANSCRIBED FROM THE CONTRACT, NOT INFERRED. Each set below is
+# the batch's never-rest versions from contract section 6 plus that batch's one
+# legal resting point from the same section, and each count reconciles exactly
+# with the section 5 table (11, 10, 6, 14).
+#
+# B3/B4 OVERLAP, RESOLVED: `20260731150000` and `20260731153000` (PopSG) are
+# recorded on issues #773 and #710 as appearing in both batch definitions. The
+# contract as it stands today does NOT carry that defect -- its section 5
+# correction note ("The two PopSG files therefore belong INSIDE B3, making B3 ten
+# files and B4 two") and its section 6 lists are consistent. The two versions are
+# encoded here as B3 members and B4 is not an atomic batch, so the overlap is not
+# reproduced in the guard.
+ATOMIC_BATCHES: tuple[tuple[str, str, frozenset[str]], ...] = (
+    (
+        "B1",
+        "the ColdLion circuit-breaker batch. It carries the BUNDLE_20260804 "
+        "four AND the sync_coldlion_licensors_properties 2-arg -> 3-arg "
+        "signature change at 20260726030000, whose 2-arg predecessor is created "
+        "by 20260724060000/061000. The breaker is only fully armed and "
+        "gap-closed by 20260728134500.",
+        frozenset(
+            {
+                "20260724060000",
+                "20260724061000",
+                "20260726030000",
+                "20260726031000",
+                "20260726032000",
+                "20260726180000",
+                "20260727221500",
+                "20260727223000",
+                "20260727224500",
+                "20260727230000",
+                "20260728134500",
+            }
+        ),
+    ),
+    (
+        "B3",
+        "the plm.promote_coldlion_source_owned chain. Eight successive bodies of "
+        "the same function, of which only the eighth (20260731200000) is safe to "
+        "rest on. Earlier bodies leave a known ambiguous-column runtime error, "
+        "broken absence detection, no serialization lock, or INCOMPLETE "
+        "PROVENANCE, which is UNRECOVERABLE after the fact. The two PopSG files "
+        "(20260731150000, 20260731153000) sort inside this span, and "
+        "`supabase db push` applies in version order, so they cannot be "
+        "leapfrogged into a later batch.",
+        frozenset(
+            {
+                "20260729230000",
+                "20260729234500",
+                "20260729235500",
+                "20260730000500",
+                "20260731150000",
+                "20260731153000",
+                "20260731163000",
+                "20260731180000",
+                "20260731190000",
+                "20260731200000",
+            }
+        ),
+    ),
+    (
+        "B7",
+        "the Disney OPA batch. 20260807190000 does `drop view if exists "
+        "api.opa_property_reconciliation` followed by a `create view` -- a "
+        "genuine column-set change that `create or replace view` cannot do, so "
+        "there is a window with NO VIEW AT ALL. It is also a security fix, not "
+        "optional polish, and it is the third link of the "
+        "plm.sync_opa_property_character chain (170100 -> 180000 -> 190000). "
+        "Rest only after 20260807200000.",
+        frozenset(
+            {
+                "20260807030000",
+                "20260807170000",
+                "20260807170100",
+                "20260807180000",
+                "20260807190000",
+                "20260807200000",
+            }
+        ),
+    ),
+    (
+        "B9",
+        "the licensor landing batch. It carries all three security co-presence "
+        "pairs (Paramount TRUNCATE, Warner `using (true)`, NBCU direct write -- "
+        "the three worst resting states in the whole backlog), the "
+        "api.dam_order_list security_invoker fix that 20260810010000 needs, and "
+        "both DAM function chains. The contract states there is NO safe internal "
+        "boundary anywhere in it. Resting between 20260810030000 and "
+        "20260810110000 leaves eight tables of confidential Warner STARLABS data "
+        "readable by EVERY authenticated account in the shared project.",
+        frozenset(
+            {
+                "20260810010000",
+                "20260810020000",
+                "20260810030000",
+                "20260810050000",
+                "20260810060000",
+                "20260810070000",
+                "20260810080000",
+                "20260810090000",
+                "20260810100000",
+                "20260810110000",
+                "20260810120000",
+                "20260810130000",
+                "20260810160000",
+                "20260810170000",
+            }
+        ),
+    ),
+)
+
+
 class GuardError(ValueError):
     pass
+
+
+def assert_atomic_batches(allowlist: list[str], remote: set[str]) -> None:
+    """Refuse an allowlist that would leave production resting inside a batch.
+
+    LEDGER-AWARE ON PURPOSE -- see the ATOMIC_BATCHES header. `remote` is the
+    real production ledger, and members already in it are excluded from the
+    requirement, because `validate_candidates` forbids re-listing them and a
+    resume after a mid-batch abort would otherwise be impossible without editing
+    this guard under time pressure.
+    """
+    chosen = set(allowlist)
+    for name, why, members in ATOMIC_BATCHES:
+        present = chosen & members
+        if not present:
+            continue
+        already = members & remote
+        missing = sorted((members - already) - chosen)
+        if not missing:
+            continue
+        resume = (
+            f" (Excluded because production already has them: "
+            f"{', '.join(sorted(already))}.)"
+            if already
+            else ""
+        )
+        raise GuardError(
+            f"batch {name} is ATOMIC and this allowlist would split it. "
+            f"docs/production-promotion-app-tolerance-contract.md section 5 "
+            f"declares {name} atomic: {why}\n"
+            f"  batch {name} has {len(members)} members\n"
+            f"  supplied ({len(present)}): {', '.join(sorted(present))}\n"
+            f"  MISSING ({len(missing)}): {', '.join(missing)}{resume}\n"
+            f"Add every missing version to the allowlist, or remove all "
+            f"{len(present)} {name} version(s) from it. There is no size of "
+            f"subset that makes a partial atomic batch legal -- stopping short "
+            f"leaves production in a state the contract says must never be "
+            f"rested on, and this lane is forward-only with no undo."
+        )
 
 
 def parse_allowlist(raw: str) -> list[str]:
@@ -395,6 +601,13 @@ def validate_candidates(
     applied = [version for version in allowlist if version in remote]
     if applied:
         raise GuardError(f"already applied on production: {', '.join(applied)}")
+    # Contract section 5 / section 10: B1, B3, B7 and B9 are ATOMIC. Enforced
+    # here rather than in `parse_allowlist` because the check needs the real
+    # production ledger to stay resumable (see the ATOMIC_BATCHES header).
+    # `validate_candidates` is called by both `prepare` and `preflight`, and
+    # `assert_bounded` calls `assert_atomic_batches` directly, so no subcommand
+    # that can reach production routes around it.
+    assert_atomic_batches(allowlist, remote)
 
 
 # ---------------------------------------------------------------------------
@@ -912,7 +1125,11 @@ def assert_bounded(directory: Path, raw_allowlist: str, ledger: Path) -> None:
     result computed earlier in the job.
     """
     allowlist = parse_allowlist(raw_allowlist)
-    keep = parse_remote_versions(ledger) | set(allowlist)
+    remote = parse_remote_versions(ledger)
+    # Re-prove atomicity at the point of use too, for the same reason this
+    # function re-proves boundedness: `prepare` and the push are separate steps.
+    assert_atomic_batches(allowlist, remote)
+    keep = remote | set(allowlist)
     on_disk = set(local_migrations(directory))
     if not on_disk:
         raise GuardError(f"no migrations found in bounded checkout: {directory}")

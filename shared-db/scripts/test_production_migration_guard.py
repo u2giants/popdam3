@@ -20,6 +20,8 @@ from production_migration_guard import (  # noqa: E402
     created_objects,
     local_migrations,
     CO_PRESENCE_RULES,
+    ATOMIC_BATCHES,
+    assert_atomic_batches,
     assert_no_archaic_function_body,
     hard_references,
     parse_allowlist,
@@ -1596,6 +1598,218 @@ class LexerFalseAcceptDefects(unittest.TestCase):
                 refused.add(version)
         self.assertEqual(refused, {"20260729120000"})
         self.assertIn("20260729120000", HARD_BLOCKED)
+
+
+BATCHES = {name: members for name, _why, members in ATOMIC_BATCHES}
+
+# Contract section 5's own counts. Asserted rather than derived, so a member
+# quietly added to or dropped from ATOMIC_BATCHES fails here instead of silently
+# changing what "atomic" means.
+CONTRACT_COUNTS = {"B1": 11, "B3": 10, "B7": 6, "B9": 14}
+
+# Contract section 5: batches the contract does NOT declare atomic. A promotion
+# of any part of one of these must be unaffected by the atomicity check.
+B5_MEMBERS = [
+    "20260802140000",
+    "20260802141000",
+    "20260802150000",
+    "20260802160000",
+]
+B6_MEMBERS = [
+    "20260803150000",
+    "20260803200000",
+    "20260803201000",
+    "20260804120000",
+    "20260804120100",
+]
+B8_MEMBERS = [
+    "20260809170000",
+    "20260809170100",
+    "20260809170200",
+    "20260809170300",
+    "20260809170400",
+    "20260809170500",
+]
+
+
+class AtomicBatchTests(unittest.TestCase):
+    """The contract's four atomic batches, mechanically enforced.
+
+    THE REFUSAL CASES ARE THE POINT. Before this check existed, a lone
+    `20260810050000` -- squarely inside atomic B9, and in no HARD_BLOCKED entry,
+    no bundle and no co-presence rule -- passed the whole guard. Every
+    `_is_REFUSED` test below fails against the pre-change guard; the
+    `_is_ACCEPTED` ones pass both before and after, and prove only that the new
+    check did not over-reach.
+    """
+
+    def test_membership_matches_the_contract_counts(self) -> None:
+        self.assertEqual(set(BATCHES), set(CONTRACT_COUNTS))
+        for name, expected in CONTRACT_COUNTS.items():
+            self.assertEqual(len(BATCHES[name]), expected, name)
+
+    def test_batches_do_not_overlap_each_other(self) -> None:
+        """The #773 / #710 B3/B4 defect must not be reproduced here.
+
+        `20260731150000` and `20260731153000` belong to B3 alone. B4 is not
+        atomic, so it has no entry -- but if a future edit adds one carrying
+        those two versions, the overlap becomes a guard that refuses both
+        batches forever. Catch it here.
+        """
+        for left, right in itertools.combinations(sorted(BATCHES), 2):
+            self.assertEqual(
+                BATCHES[left] & BATCHES[right], set(), f"{left}/{right} overlap"
+            )
+        self.assertIn("20260731150000", BATCHES["B3"])
+        self.assertIn("20260731153000", BATCHES["B3"])
+
+    def test_every_member_is_a_real_migration_file(self) -> None:
+        known = set(local_migrations(REPO))
+        for name, members in BATCHES.items():
+            self.assertEqual(members - known, set(), name)
+
+    def test_no_atomic_member_is_hard_blocked_or_FR_held(self) -> None:
+        """A batch that can never be completed would be a permanent refusal."""
+        for name, members in BATCHES.items():
+            self.assertEqual(members & HARD_BLOCKED, set(), name)
+            self.assertEqual(members & FR_HELD_20260803, set(), name)
+
+    # -- the defect this change exists to close ----------------------------
+
+    def test_the_lone_20260810050000_shortcut_is_REFUSED(self) -> None:
+        """The exact allowlist that used to pass. Issue #729's tempting shortcut."""
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(["20260810050000"], set())
+        message = str(ctx.exception)
+        self.assertIn("batch B9 is ATOMIC", message)
+        self.assertIn("supplied (1): 20260810050000", message)
+        self.assertIn("MISSING (13):", message)
+        # The message must NAME the missing members, not merely count them.
+        for version in sorted(BATCHES["B9"] - {"20260810050000"}):
+            self.assertIn(version, message)
+
+    def test_a_partial_B9_allowlist_is_REFUSED(self) -> None:
+        partial = sorted(BATCHES["B9"])[:-1]
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(partial, set())
+        self.assertIn("batch B9 is ATOMIC", str(ctx.exception))
+        self.assertIn("MISSING (1): 20260810170000", str(ctx.exception))
+
+    def test_a_complete_B9_allowlist_is_ACCEPTED(self) -> None:
+        assert_atomic_batches(sorted(BATCHES["B9"]), set())
+
+    def test_a_partial_B1_allowlist_is_REFUSED(self) -> None:
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(["20260724060000"], set())
+        self.assertIn("batch B1 is ATOMIC", str(ctx.exception))
+
+    def test_a_complete_B1_allowlist_is_ACCEPTED(self) -> None:
+        assert_atomic_batches(sorted(BATCHES["B1"]), set())
+
+    def test_a_partial_B3_allowlist_is_REFUSED(self) -> None:
+        """Stopping before 20260731200000 leaves INCOMPLETE PROVENANCE, which the
+        contract records as unrecoverable after the fact."""
+        partial = sorted(BATCHES["B3"] - {"20260731200000"})
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(partial, set())
+        self.assertIn("batch B3 is ATOMIC", str(ctx.exception))
+        self.assertIn("MISSING (1): 20260731200000", str(ctx.exception))
+
+    def test_a_complete_B3_allowlist_is_ACCEPTED(self) -> None:
+        assert_atomic_batches(sorted(BATCHES["B3"]), set())
+
+    def test_a_partial_B7_allowlist_is_REFUSED(self) -> None:
+        """20260807190000 without 20260807200000: the drop-and-recreate window."""
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(["20260807190000"], set())
+        self.assertIn("batch B7 is ATOMIC", str(ctx.exception))
+
+    def test_a_complete_B7_allowlist_is_ACCEPTED(self) -> None:
+        assert_atomic_batches(sorted(BATCHES["B7"]), set())
+
+    def test_every_single_member_alone_is_REFUSED_for_every_atomic_batch(self) -> None:
+        """No size-one subset of any atomic batch is legal. Exhaustive on purpose:
+        `20260810050000` was found by hand, and the next hole should not be."""
+        for name, members in BATCHES.items():
+            for version in sorted(members):
+                with self.subTest(batch=name, version=version):
+                    with self.assertRaises(GuardError) as ctx:
+                        assert_atomic_batches([version], set())
+                    self.assertIn(f"batch {name} is ATOMIC", str(ctx.exception))
+
+    def test_every_proper_subset_missing_one_member_is_REFUSED(self) -> None:
+        for name, members in BATCHES.items():
+            for dropped in sorted(members):
+                with self.subTest(batch=name, dropped=dropped):
+                    with self.assertRaises(GuardError):
+                        assert_atomic_batches(sorted(members - {dropped}), set())
+
+    # -- the batches the contract does NOT declare atomic -------------------
+
+    def test_non_atomic_batches_B5_B6_B8_are_unaffected(self) -> None:
+        for members in (B5_MEMBERS, B6_MEMBERS, B8_MEMBERS):
+            for size in range(1, len(members) + 1):
+                with self.subTest(members=members[:size]):
+                    assert_atomic_batches(members[:size], set())
+
+    def test_the_canary_alone_is_unaffected(self) -> None:
+        """B0, `20260810140000`, goes first and ALONE by contract section 5. It is
+        deliberately NOT a B9 member; if it were, the canary could never run."""
+        assert_atomic_batches(["20260810140000"], set())
+        self.assertNotIn("20260810140000", BATCHES["B9"])
+
+    # -- resumability: the reason the check reads the ledger -----------------
+
+    def test_a_resume_after_a_mid_batch_abort_is_ACCEPTED(self) -> None:
+        """B9 died at file 14 of 14. The only legal recovery allowlist is the
+        fourteenth ALONE, because `validate_candidates` refuses to re-list an
+        applied version. A ledger-blind rule would refuse it and force an edit of
+        this safety guard while production sat exposed."""
+        applied = BATCHES["B9"] - {"20260810170000"}
+        assert_atomic_batches(["20260810170000"], set(applied))
+
+    def test_a_resume_that_is_STILL_partial_is_REFUSED(self) -> None:
+        """Resumability is not an escape hatch: the remainder must be complete."""
+        applied = set(sorted(BATCHES["B9"])[:5])
+        remainder = sorted(BATCHES["B9"] - applied)
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(remainder[:-1], set(applied))
+        message = str(ctx.exception)
+        self.assertIn("batch B9 is ATOMIC", message)
+        self.assertIn("Excluded because production already has them", message)
+
+    def test_a_fully_applied_batch_does_not_block_anything(self) -> None:
+        assert_atomic_batches(B5_MEMBERS, set(BATCHES["B9"]))
+
+    # -- the choke points --------------------------------------------------
+
+    def test_validate_candidates_enforces_atomicity(self) -> None:
+        """`prepare` and `preflight` both funnel through this."""
+        migrations = {v: Path(f"{v}_x.sql") for v in BATCHES["B9"]}
+        with self.assertRaises(GuardError) as ctx:
+            validate_candidates(migrations, ["20260810050000"], set())
+        self.assertIn("batch B9 is ATOMIC", str(ctx.exception))
+
+    def test_assert_bounded_enforces_atomicity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "supabase" / "migrations").mkdir(parents=True)
+            (root / "supabase" / "migrations" / "20260810050000_x.sql").write_text(
+                "select 1;\n", encoding="utf-8"
+            )
+            ledger = root / "ledger.json"
+            ledger.write_text('[{"version": "20260101000000"}]', encoding="utf-8")
+            with self.assertRaises(GuardError) as ctx:
+                assert_bounded(root, "20260810050000", ledger)
+            self.assertIn("batch B9 is ATOMIC", str(ctx.exception))
+
+    def test_the_refusal_message_says_what_to_do(self) -> None:
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(["20260810030000"], set())
+        message = str(ctx.exception)
+        self.assertIn("production-promotion-app-tolerance-contract.md", message)
+        self.assertIn("Add every missing version to the allowlist", message)
+        self.assertIn("no size of subset", message)
 
 
 if __name__ == "__main__":
