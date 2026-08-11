@@ -2,6 +2,15 @@
 -- Contract tests for migration 20260810180000 -- the PostgreSQL 17 MAINTAIN revokes on
 -- the 39 plm landing tables (#664) and the plm schema default-privilege hole (#649).
 --
+-- THE NUMBER 39 IS NOW HISTORICAL PROSE, NOT A CONTRACT. Read it as "the plm landing
+-- tables". It was 23 pmt + 16 nbcu when this file was written; #757 adds a seventeenth
+-- nbcu table (plm.nbcu_asset_ip_family, migration 20260811070000) and #752 adds a
+-- twenty-fourth pmt table, so the live total moves. NOTHING BELOW DEPENDS ON THE
+-- NUMBER: every section enumerates the family from pg_class and then cross-checks the
+-- named arrays, which is precisely so that adding a table cannot make this test pass
+-- vacuously. Update the arrays when a table is added; leave the arithmetic in the prose
+-- alone rather than racing another PR over the same lines.
+--
 -- HOW TO RUN
 --   Against PREVIEW rjyboqwcdzcocqgmsyel ONLY, on the SESSION pooler port 5432, NOT the
 --   transaction pooler port 6543.
@@ -115,7 +124,14 @@ declare
     'nbcu_character','nbcu_style_guide','nbcu_asset','nbcu_asset_metadata_value',
     'nbcu_asset_scope','nbcu_ip_family_property','nbcu_property_character',
     'nbcu_asset_property','nbcu_asset_character','nbcu_asset_style_guide',
-    'nbcu_style_guide_property'];
+    'nbcu_style_guide_property',
+    -- Added by #757 (migration 20260811070000). NOTE THE COUPLING, because it is not
+    -- obvious: this array is read in TWO places -- the mandatory-existence check just
+    -- below, and the nbcu UPDATE/DELETE assertion further down. Naming a table here
+    -- makes it REQUIRED TO EXIST, so this file goes red on any database where
+    -- 20260811070000 has not been applied. That is intended; do not "fix" it by
+    -- removing the name.
+    'nbcu_asset_ip_family'];
   v_found text[];
   v_missing text[];
   t     text;

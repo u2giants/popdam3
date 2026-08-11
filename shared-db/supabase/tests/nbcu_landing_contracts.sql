@@ -1,5 +1,11 @@
 -- =====================================================================================
--- NBCU landing contract tests -- migration 20260810070000, issue #628.
+-- NBCU landing contract tests -- migration 20260810070000, issue #628,
+-- EXTENDED by migration 20260811070000, issue #757 (the Asset-to-Franchise relationship).
+--
+-- THIS FILE NOW REQUIRES 20260811070000. Sections A, B, D, G, H and I all expect
+-- plm.nbcu_asset_ip_family to exist and the NBCU family to be SEVENTEEN tables. Run it
+-- only against a database where that migration has been applied; against a 16-table
+-- database it fails immediately in section A, by design, rather than passing vacuously.
 --
 -- HOW TO RUN
 --   Against PREVIEW rjyboqwcdzcocqgmsyel ONLY, as the migration owner (the Supabase
@@ -31,15 +37,19 @@
 --   been handed UPDATE or DELETE on a snapshot table.
 --
 -- SIDE EFFECTS
---   Creates and then DELETES one synthetic capture and its rows. It writes nothing to
---   core.* or dam.*, and section G asserts exactly that.
+--   Creates and then DELETES synthetic captures and their rows (section G one, section H
+--   two). It writes nothing to core.* or dam.*, and section G asserts exactly that.
 --
 -- LAST RUN: (fill in after the preview rehearsal)
 -- =====================================================================================
 
 
 -- =====================================================================================
--- A. OBJECT EXISTENCE -- 16 tables and 2 functions, read from the catalog.
+-- A. OBJECT EXISTENCE -- 17 tables and 2 functions, read from the catalog.
+--    The seventeenth, plm.nbcu_asset_ip_family, arrives with migration 20260811070000
+--    (issue #757). NOTE FOR WHOEVER SEES THIS FAIL: this file REQUIRES that migration.
+--    Until it is applied to the database under test, section A fails on the missing
+--    table -- that is the intended coupling, not a bug in the test.
 -- =====================================================================================
 do $$
 declare
@@ -51,7 +61,8 @@ begin
     'plm.nbcu_ip_family','plm.nbcu_character','plm.nbcu_style_guide','plm.nbcu_asset',
     'plm.nbcu_asset_metadata_value','plm.nbcu_asset_scope','plm.nbcu_ip_family_property',
     'plm.nbcu_property_character','plm.nbcu_asset_property','plm.nbcu_asset_character',
-    'plm.nbcu_asset_style_guide','plm.nbcu_style_guide_property'
+    'plm.nbcu_asset_style_guide','plm.nbcu_style_guide_property',
+    'plm.nbcu_asset_ip_family'
   ] loop
     if to_regclass(v_name) is null then
       v_fail := v_fail + 1; raise warning 'FAIL table missing: %', v_name;
@@ -107,10 +118,12 @@ begin
       raise warning 'FAIL %: primary key starts with %, not capture_id', r.tbl, r.first_col;
     else v_pass := v_pass + 1; end if;
   end loop;
-  -- 15 of the 16 tables must have been examined. A silent zero here would "pass".
-  if v_pass + v_fail <> 15 then
+  -- 16 of the 17 tables must have been examined (nbcu_capture is keyed on its own id).
+  -- A silent zero here would "pass". Bumped from 15 by #757, which added the
+  -- seventeenth table, plm.nbcu_asset_ip_family.
+  if v_pass + v_fail <> 16 then
     v_fail := v_fail + 1;
-    raise warning 'FAIL examined % capture-scoped tables, expected 15', v_pass + v_fail;
+    raise warning 'FAIL examined % capture-scoped tables, expected 16', v_pass + v_fail;
   end if;
 
   raise notice '=== C. FK ENDPOINTS ARE CAPTURE-SCOPED ===';
@@ -143,8 +156,10 @@ $$;
 -- =====================================================================================
 -- D. RLS IS ON, AND THE GRANTS ARE THE IMMUTABILITY MECHANISM.
 --    anon and authenticated get NOTHING. service_role gets SELECT everywhere,
---    INSERT on the 15 snapshot tables, and MUST NOT hold UPDATE or DELETE anywhere --
+--    INSERT on the 16 snapshot tables, and MUST NOT hold UPDATE or DELETE anywhere --
 --    that absence is what makes a landed row immutable.
+--    (15 -> 16 snapshot tables with #757's plm.nbcu_asset_ip_family; nbcu_capture is
+--    still the one table service_role may not INSERT into directly.)
 -- =====================================================================================
 do $$
 declare
@@ -154,7 +169,7 @@ declare
     'nbcu_character','nbcu_style_guide','nbcu_asset','nbcu_asset_metadata_value',
     'nbcu_asset_scope','nbcu_ip_family_property','nbcu_property_character',
     'nbcu_asset_property','nbcu_asset_character','nbcu_asset_style_guide',
-    'nbcu_style_guide_property'];
+    'nbcu_style_guide_property','nbcu_asset_ip_family'];
   t text;
 begin
   raise notice '=== D. RLS AND SERVICE-ONLY GRANTS ===';
@@ -391,6 +406,7 @@ declare
     'assets',1,'properties',1,'characters',1,'style_guides',1,'scopes',1,
     'ip_family_property',1,'property_character',1,'asset_property',1,
     'asset_character',0,'asset_style_guide',1,'style_guide_property',1,
+    'asset_ip_family',1,
     'excluded_unlicensed_assets',0,'failures',0);
 begin
   raise notice '=== G. FINALIZATION ===';
@@ -467,6 +483,13 @@ begin
   values (v_cap, v_gkey, v_pkey,'ZZTEST Property One','zztest_evidence','zztest', now(),
     'https://portal.example.invalid/e/5','{}'::jsonb);
 
+  -- The Asset-to-Franchise link (#757). ip_family_label must equal the label the
+  -- nbcu_ip_family row actually carries, or finalize's F2 check rejects the capture.
+  insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+    ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+  values (v_cap, v_akey, v_ikey,'ZZTEST Family One','asset_metadata_ip_family','zztest',
+    now(),'https://portal.example.invalid/e/7','{}'::jsonb);
+
   -- nbcu_asset_character stays EMPTY on purpose. This is the explicit expected zero.
 
   -- G1. A cross-capture edge must be impossible.
@@ -513,6 +536,11 @@ begin
   if (v_res -> 'observed_counts' ->> 'asset_character') <> '0' then v_fail := v_fail+1;
     raise warning 'FAIL the explicit zero asset_character count was not observed as 0';
   else v_pass := v_pass+1; end if;
+  -- #757: the new relationship must be OBSERVED, not merely permitted to exist.
+  if (v_res -> 'observed_counts' ->> 'asset_ip_family') <> '1' then v_fail := v_fail+1;
+    raise warning 'FAIL asset_ip_family was observed as %, expected 1',
+      coalesce(v_res -> 'observed_counts' ->> 'asset_ip_family','<absent>');
+  else v_pass := v_pass+1; end if;
   select count(*) into v_n from plm.nbcu_capture
    where id = v_cap and status = 'complete' and load_completed_at is not null;
   if v_n <> 1 then v_fail := v_fail+1;
@@ -537,6 +565,7 @@ begin
 
   -- Clean up every synthetic row. on delete restrict means children go first.
   delete from plm.nbcu_style_guide_property where capture_id = v_cap;
+  delete from plm.nbcu_asset_ip_family      where capture_id = v_cap;
   delete from plm.nbcu_asset_style_guide    where capture_id = v_cap;
   delete from plm.nbcu_asset_property       where capture_id = v_cap;
   delete from plm.nbcu_asset_character      where capture_id = v_cap;
@@ -559,5 +588,354 @@ begin
 
   raise notice 'G: % passed / % failed', v_pass, v_fail;
   if v_fail > 0 then raise exception 'G FAILED (% failures)', v_fail; end if;
+end;
+$$;
+
+
+-- =====================================================================================
+-- H. THE ASSET-TO-FRANCHISE RELATIONSHIP -- plm.nbcu_asset_ip_family (issue #757).
+--
+--    NBCU calls it a Franchise; the schema calls it an IP Family. One row means the
+--    asset metadata EXPLICITLY listed that IP Family for that asset -- nothing else may
+--    ever create one.
+--
+--    EVERY VALUE BELOW IS INVENTED. No NBCU franchise, property, character, asset path,
+--    file name or portal URL appears here. ZZTEST-* and example.invalid are chosen so a
+--    real row could never be mistaken for one of them.
+--
+--    This section is self-contained: it builds its own captures and deletes them, so it
+--    can be re-run and does not depend on section G's fixture surviving.
+-- =====================================================================================
+do $$
+declare
+  v_pass integer := 0; v_fail integer := 0;
+  v_cap uuid; v_cap2 uuid; v_res jsonb; v_n integer; v_first text;
+  v_akey text := 'ZZTEST-H-A1';
+  v_ikey text := 'label-sha256:'||repeat('c',64);
+  v_ikey2 text := 'label-sha256:'||repeat('d',64);
+  v_exp jsonb := jsonb_build_object(
+    'assets',1,'properties',0,'characters',0,'style_guides',0,'scopes',0,
+    'ip_family_property',0,'property_character',0,'asset_property',0,
+    'asset_character',0,'asset_style_guide',0,'style_guide_property',0,
+    'asset_ip_family',1,'excluded_unlicensed_assets',0,'failures',0);
+begin
+  raise notice '=== H. ASSET-TO-FRANCHISE (nbcu_asset_ip_family) ===';
+
+  -- H1. The table exists.
+  if to_regclass('plm.nbcu_asset_ip_family') is null then
+    raise exception 'H1 FAILED: plm.nbcu_asset_ip_family does not exist. Apply 20260811070000.';
+  end if;
+  v_pass := v_pass+1;
+
+  -- H2. Its primary key begins with capture_id, so two snapshots cannot collide.
+  select (select attname from pg_attribute where attrelid = c.oid and attnum = con.conkey[1])
+    into v_first
+    from pg_constraint con join pg_class c on c.oid = con.conrelid
+   where c.relnamespace = 'plm'::regnamespace
+     and c.relname = 'nbcu_asset_ip_family' and con.contype = 'p';
+  if coalesce(v_first,'') <> 'capture_id' then v_fail := v_fail+1;
+    raise warning 'H2 FAIL: primary key begins with %, not capture_id', coalesce(v_first,'<none>');
+  else v_pass := v_pass+1; end if;
+
+  -- H3. BOTH foreign keys are composite and capture-scoped.
+  select count(*) into v_n
+    from pg_constraint con
+    join pg_class c on c.oid = con.conrelid
+    join pg_class f on f.oid = con.confrelid
+   where c.relnamespace = 'plm'::regnamespace
+     and c.relname = 'nbcu_asset_ip_family' and con.contype = 'f'
+     and f.relname in ('nbcu_asset','nbcu_ip_family')
+     and array_length(con.conkey,1) = 2
+     and (select attname from pg_attribute
+           where attrelid = c.oid and attnum = con.conkey[1]) = 'capture_id';
+  if v_n <> 2 then v_fail := v_fail+1;
+    raise warning 'H3 FAIL: % capture-scoped composite FK(s), expected 2', v_n;
+  else v_pass := v_pass+1; end if;
+
+  -- Build the fixture: one capture, one asset, two IP families.
+  v_cap := plm.begin_nbcu_capture('nbcu:ZZTEST-H:'||repeat('5',40),'u2giants/ZZTEST',
+    repeat('5',40), repeat('6',64), 'https://portal.example.invalid/', now(),
+    v_exp, '{}'::jsonb, 'contract-test-H');
+
+  insert into plm.nbcu_ip_family (capture_id, ip_family_key, ip_family_label, source_url, raw)
+  values (v_cap, v_ikey,'ZZTEST Family H1','https://portal.example.invalid/f/h1','{}'::jsonb),
+         (v_cap, v_ikey2,'ZZTEST Family H2','https://portal.example.invalid/f/h2','{}'::jsonb);
+
+  insert into plm.nbcu_asset (capture_id, asset_source_key, asset_path, file_name,
+    studio_labels, ip_family_labels, property_labels, character_labels,
+    restriction_labels, style_guide_natural_keys, scope_paths,
+    source_captured_at, source_url, raw, source_hash)
+  values (v_cap, v_akey,'/zztest/h1.bin','h1.bin',
+    '[]','["ZZTEST Family H1"]','[]','[]','[]','[]','[]',
+    now(),'https://portal.example.invalid/a/h1','{}'::jsonb, repeat('7',64));
+
+  insert into plm.nbcu_asset_metadata_value (capture_id, asset_source_key, field_name,
+    value_ordinal, value_text, value_attributes, raw)
+  values (v_cap, v_akey,'ZZTEST HEADING',0,'ZZTEST value','{}'::jsonb,'{}'::jsonb);
+
+  -- The one legitimate link, from the exact source label.
+  insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+    ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+  values (v_cap, v_akey, v_ikey,'ZZTEST Family H1','asset_metadata_ip_family','zztest',
+    now(),'https://portal.example.invalid/e/h1','{}'::jsonb);
+
+  -- H4. A relationship may not cross two captures. Both endpoints exist -- but in the
+  -- OTHER capture -- which is exactly the corruption capture scoping prevents.
+  v_cap2 := plm.begin_nbcu_capture('nbcu:ZZTEST-H2:'||repeat('8',40),'u2giants/ZZTEST',
+    repeat('8',40), repeat('9',64), 'https://portal.example.invalid/', now(),
+    '{"assets":0}'::jsonb, '{}'::jsonb, 'contract-test-H');
+  begin
+    insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+      ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+    values (v_cap2, v_akey, v_ikey,'ZZTEST Family H1','asset_metadata_ip_family','zztest',
+      now(),'https://portal.example.invalid/e/h2','{}'::jsonb);
+    v_fail := v_fail+1; raise warning 'H4 FAIL: a CROSS-CAPTURE Asset-to-Franchise link was accepted';
+  exception when foreign_key_violation then v_pass := v_pass+1;
+  end;
+
+  -- H5. A missing ASSET endpoint is rejected.
+  begin
+    insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+      ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+    values (v_cap,'ZZTEST-H-NOSUCH', v_ikey,'ZZTEST Family H1','asset_metadata_ip_family',
+      'zztest', now(),'https://portal.example.invalid/e/h3','{}'::jsonb);
+    v_fail := v_fail+1; raise warning 'H5 FAIL: a link to a NONEXISTENT asset was accepted';
+  exception when foreign_key_violation then v_pass := v_pass+1;
+  end;
+
+  -- H6. A missing IP FAMILY endpoint is rejected.
+  begin
+    insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+      ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+    values (v_cap, v_akey,'label-sha256:'||repeat('f',64),'ZZTEST Family H9',
+      'asset_metadata_ip_family','zztest', now(),
+      'https://portal.example.invalid/e/h4','{}'::jsonb);
+    v_fail := v_fail+1; raise warning 'H6 FAIL: a link to a NONEXISTENT IP Family was accepted';
+  exception when foreign_key_violation then v_pass := v_pass+1;
+  end;
+
+  -- H7. A duplicate link is rejected. The loader must be retry-safe WITHOUT creating
+  --     duplicates, and the primary key is what makes that true.
+  begin
+    insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+      ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+    values (v_cap, v_akey, v_ikey,'ZZTEST Family H1','asset_metadata_ip_family','zztest',
+      now(),'https://portal.example.invalid/e/h5','{}'::jsonb);
+    v_fail := v_fail+1; raise warning 'H7 FAIL: a DUPLICATE Asset-to-Franchise link was accepted';
+  exception when unique_violation then v_pass := v_pass+1;
+  end;
+
+  -- H8. Blank label and blank evidence values are rejected.
+  begin
+    insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+      ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+    values (v_cap, v_akey, v_ikey2,'   ','asset_metadata_ip_family','zztest', now(),
+      'https://portal.example.invalid/e/h6','{}'::jsonb);
+    v_fail := v_fail+1; raise warning 'H8 FAIL: a BLANK ip_family_label was accepted';
+  exception when check_violation then v_pass := v_pass+1;
+  end;
+  begin
+    insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+      ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+    values (v_cap, v_akey, v_ikey2,'ZZTEST Family H2','','zztest', now(),
+      'https://portal.example.invalid/e/h7','{}'::jsonb);
+    v_fail := v_fail+1; raise warning 'H8 FAIL: a BLANK evidence_type was accepted';
+  exception when check_violation then v_pass := v_pass+1;
+  end;
+  begin
+    insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+      ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+    values (v_cap, v_akey, v_ikey2,'ZZTEST Family H2','asset_metadata_ip_family','  ', now(),
+      'https://portal.example.invalid/e/h8','{}'::jsonb);
+    v_fail := v_fail+1; raise warning 'H8 FAIL: a BLANK evidence_value was accepted';
+  exception when check_violation then v_pass := v_pass+1;
+  end;
+
+  -- H9. `raw` must be a JSON OBJECT. An array or scalar here is how a source record
+  --     silently degrades into something that cannot be replayed.
+  begin
+    insert into plm.nbcu_asset_ip_family (capture_id, asset_source_key, ip_family_key,
+      ip_family_label, evidence_type, evidence_value, source_captured_at, source_url, raw)
+    values (v_cap, v_akey, v_ikey2,'ZZTEST Family H2','asset_metadata_ip_family','zztest',
+      now(),'https://portal.example.invalid/e/h9','[]'::jsonb);
+    v_fail := v_fail+1; raise warning 'H9 FAIL: a JSON ARRAY was accepted into raw';
+  exception when check_violation then v_pass := v_pass+1;
+  end;
+
+  -- H10. finalize ACCEPTS the correct expected count.
+  v_res := plm.finalize_nbcu_capture(v_cap);
+  if (v_res ->> 'status') <> 'complete' then v_fail := v_fail+1;
+    raise warning 'H10 FAIL: a correct snapshot did not complete: %', v_res::text;
+  else v_pass := v_pass+1; end if;
+  if (v_res -> 'observed_counts' ->> 'asset_ip_family') <> '1' then v_fail := v_fail+1;
+    raise warning 'H10 FAIL: asset_ip_family observed as %, expected 1',
+      coalesce(v_res -> 'observed_counts' ->> 'asset_ip_family','<absent>');
+  else v_pass := v_pass+1; end if;
+
+  -- H11. finalize REJECTS a wrong expected count. Without this the whole gate is
+  --      decoration: a loader could drop links and still publish.
+  update plm.nbcu_capture set status='loading', load_completed_at=null,
+         expected_counts = v_exp || '{"asset_ip_family":99}'::jsonb where id = v_cap;
+  v_res := plm.finalize_nbcu_capture(v_cap);
+  if (v_res ->> 'status') <> 'rejected' then v_fail := v_fail+1;
+    raise warning 'H11 FAIL: a wrong asset_ip_family count returned %', v_res ->> 'status';
+  else v_pass := v_pass+1; end if;
+  if not (v_res -> 'errors') @> '[{"code":"count_mismatch","entity":"asset_ip_family"}]'::jsonb
+  then v_fail := v_fail+1;
+    raise warning 'H11 FAIL: the rejection did not name asset_ip_family: %', (v_res->'errors')::text;
+  else v_pass := v_pass+1; end if;
+
+  -- H11b. An ABSENT expected count must also reject. A loader must not be able to skip
+  --       the relationship simply by omitting its count.
+  update plm.nbcu_capture set status='loading', load_completed_at=null,
+         expected_counts = v_exp - 'asset_ip_family' where id = v_cap;
+  v_res := plm.finalize_nbcu_capture(v_cap);
+  if not (v_res -> 'errors') @> '[{"code":"expected_count_missing","entity":"asset_ip_family"}]'::jsonb
+  then v_fail := v_fail+1;
+    raise warning 'H11b FAIL: an OMITTED asset_ip_family expected count was tolerated';
+  else v_pass := v_pass+1; end if;
+
+  -- H11c. A label that does not match the IP Family row it points at must reject.
+  --       The FK cannot catch this: the key resolves, the LABEL is wrong.
+  update plm.nbcu_capture set status='loading', load_completed_at=null,
+         expected_counts = v_exp where id = v_cap;
+  update plm.nbcu_ip_family set ip_family_label = 'ZZTEST Family H1 RENAMED'
+   where capture_id = v_cap and ip_family_key = v_ikey;
+  v_res := plm.finalize_nbcu_capture(v_cap);
+  if not (v_res -> 'errors') @> '[{"code":"unknown_or_mismatched_ip_family_label"}]'::jsonb
+  then v_fail := v_fail+1;
+    raise warning 'H11c FAIL: a MISMATCHED IP Family label was accepted: %', (v_res->'errors')::text;
+  else v_pass := v_pass+1; end if;
+  update plm.nbcu_ip_family set ip_family_label = 'ZZTEST Family H1'
+   where capture_id = v_cap and ip_family_key = v_ikey;
+
+  -- H12. An EMPTY Asset-to-Franchise set is VALID when the expected count is zero.
+  --      An asset whose source array is empty has zero Franchise links, and that is a
+  --      correct answer -- not a gap for anyone to fill by inference.
+  delete from plm.nbcu_asset_ip_family where capture_id = v_cap;
+  update plm.nbcu_capture set status='loading', load_completed_at=null,
+         expected_counts = v_exp || '{"asset_ip_family":0}'::jsonb where id = v_cap;
+  v_res := plm.finalize_nbcu_capture(v_cap);
+  if (v_res ->> 'status') <> 'complete' then v_fail := v_fail+1;
+    raise warning 'H12 FAIL: an empty Asset-to-Franchise set with expected 0 did not complete: %',
+      v_res::text;
+  else v_pass := v_pass+1; end if;
+  if (v_res -> 'observed_counts' ->> 'asset_ip_family') <> '0' then v_fail := v_fail+1;
+    raise warning 'H12 FAIL: the explicit zero was not observed as 0';
+  else v_pass := v_pass+1; end if;
+
+  -- Clean up. on delete restrict means children first.
+  delete from plm.nbcu_asset_ip_family      where capture_id in (v_cap, v_cap2);
+  delete from plm.nbcu_asset_metadata_value where capture_id in (v_cap, v_cap2);
+  delete from plm.nbcu_asset                where capture_id in (v_cap, v_cap2);
+  delete from plm.nbcu_ip_family            where capture_id in (v_cap, v_cap2);
+  delete from plm.nbcu_capture              where id in (v_cap, v_cap2);
+
+  select count(*) into v_n from plm.nbcu_capture where capture_key like 'nbcu:ZZTEST-H%';
+  if v_n <> 0 then v_fail := v_fail+1;
+    raise warning 'H FAIL: % synthetic capture(s) left behind', v_n;
+  else v_pass := v_pass+1; end if;
+
+  raise notice 'H: % passed / % failed', v_pass, v_fail;
+  if v_fail > 0 then raise exception 'H FAILED (% failures)', v_fail; end if;
+end;
+$$;
+
+
+-- =====================================================================================
+-- I. SECURITY OF THE NEW TABLE, ASSERTED SEPARATELY FROM SECTION D.
+--
+--    D proves the posture across the whole family from information_schema. This section
+--    additionally proves it with has_table_privilege -- which resolves privileges through
+--    role membership, so it cannot be satisfied by a grant that merely looks absent in
+--    one catalog view -- and covers the four PostgreSQL 17 bits that predate the original
+--    revoke migration (REFERENCES, TRIGGER, MAINTAIN, TRUNCATE).
+--
+--    The table must NOT be reachable by the browser roles and must NOT be exposed
+--    through any api.* view or public wrapper function.
+-- =====================================================================================
+do $$
+declare
+  v_pass integer := 0; v_fail integer := 0; v_n integer; p text; r text;
+begin
+  raise notice '=== I. nbcu_asset_ip_family SECURITY POSTURE ===';
+
+  -- I1. service_role holds SELECT and INSERT -- the loader must be able to work.
+  foreach p in array array['SELECT','INSERT'] loop
+    if not has_table_privilege('service_role','plm.nbcu_asset_ip_family',p) then
+      v_fail := v_fail+1;
+      raise warning 'I1 FAIL: service_role LOST % -- the loader cannot write the relationship', p;
+    else v_pass := v_pass+1; end if;
+  end loop;
+
+  -- I2. service_role holds NONE of the mutating or DDL-adjacent privileges. This is the
+  --     immutability mechanism: a landed row cannot be changed by the only role that can
+  --     reach it. MAINTAIN is real on PostgreSQL 17 and is the bit 20260810080000 predates.
+  foreach p in array array['UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN'] loop
+    if has_table_privilege('service_role','plm.nbcu_asset_ip_family',p) then
+      v_fail := v_fail+1;
+      raise warning 'I2 FAIL: service_role holds % on plm.nbcu_asset_ip_family -- rows are NOT immutable', p;
+    else v_pass := v_pass+1; end if;
+  end loop;
+
+  -- I3. anon and authenticated can do NOTHING AT ALL. Licensed NBCU source material is
+  --     not exposed to the browser without an explicit access decision.
+  foreach r in array array['anon','authenticated'] loop
+    foreach p in array array['SELECT','INSERT','UPDATE','DELETE','REFERENCES','TRIGGER','TRUNCATE'] loop
+      if has_table_privilege(r,'plm.nbcu_asset_ip_family',p) then
+        v_fail := v_fail+1;
+        raise warning 'I3 FAIL: % holds % on plm.nbcu_asset_ip_family', r, p;
+      else v_pass := v_pass+1; end if;
+    end loop;
+  end loop;
+
+  select count(*) into v_n from information_schema.role_table_grants
+   where table_schema='plm' and table_name='nbcu_asset_ip_family'
+     and grantee in ('anon','authenticated','PUBLIC');
+  if v_n <> 0 then v_fail := v_fail+1;
+    raise warning 'I3 FAIL: anon/authenticated/PUBLIC hold % grant(s)', v_n;
+  else v_pass := v_pass+1; end if;
+
+  -- I4. RLS is enabled.
+  select count(*) into v_n from pg_class
+   where relnamespace='plm'::regnamespace
+     and relname='nbcu_asset_ip_family' and relrowsecurity;
+  if v_n <> 1 then v_fail := v_fail+1;
+    raise warning 'I4 FAIL: RLS is not enabled on plm.nbcu_asset_ip_family';
+  else v_pass := v_pass+1; end if;
+
+  -- I5. No new api.* view, no public wrapper function, no PostgREST exposure.
+  select count(*) into v_n from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='api' and c.relname like '%nbcu%';
+  if v_n <> 0 then v_fail := v_fail+1;
+    raise warning 'I5 FAIL: % api.* object(s) reference nbcu; this request adds none', v_n;
+  else v_pass := v_pass+1; end if;
+
+  select count(*) into v_n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+   where n.nspname in ('public','api') and p.proname like '%nbcu%';
+  if v_n <> 0 then v_fail := v_fail+1;
+    raise warning 'I5 FAIL: % public/api wrapper function(s) for nbcu exist', v_n;
+  else v_pass := v_pass+1; end if;
+
+  -- I6. No NBCU table gained a broad write grant through the schema default privileges.
+  --     Enumerated from pg_class, so the seventeenth table is covered automatically and
+  --     an eighteenth added later cannot slip past this test.
+  select count(*) into v_n
+    from pg_class c, unnest(array['UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']) q
+   where c.relnamespace='plm'::regnamespace and c.relkind='r' and c.relname like 'nbcu\_%'
+     and has_table_privilege('service_role', c.oid, q);
+  if v_n <> 0 then v_fail := v_fail+1;
+    raise warning 'I6 FAIL: % unwanted service_role privilege(s) across the nbcu family -- '
+      'the plm default privilege hole re-opened', v_n;
+  else v_pass := v_pass+1; end if;
+
+  select count(*) into v_n from pg_class
+   where relnamespace='plm'::regnamespace and relkind='r' and relname like 'nbcu\_%';
+  if v_n <> 17 then v_fail := v_fail+1;
+    raise warning 'I6 FAIL: % plm.nbcu_* tables, expected 17', v_n;
+  else v_pass := v_pass+1; end if;
+
+  raise notice 'I: % passed / % failed', v_pass, v_fail;
+  if v_fail > 0 then raise exception 'I FAILED (% failures)', v_fail; end if;
 end;
 $$;
