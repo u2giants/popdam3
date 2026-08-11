@@ -461,9 +461,32 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(cds, [0], commands)
         self.assertEqual(commands[0], 'cd "$RUNNER_TEMP/bounded-production"')
 
-        # Every other job -- including the real `preview` apply -- must never
-        # carry the flag at all.
-        other_jobs = workflow.split("production-dry-run:", 1)[0]
+        # WIDENED 2026-08-11 (issue #739). This used to read
+        #     other_jobs = workflow.split("production-dry-run:", 1)[0]
+        # with the comment "every other job -- including the real `preview`
+        # apply -- must never carry the flag at all".
+        #
+        # That was TRUE when it was written and is FALSE now, which is the only
+        # reason it moved. It was written when `preview` ran a BARE
+        # `supabase db push` in $GITHUB_WORKSPACE, where `--include-all` really
+        # would have meant "sweep every pending migration" -- the exact danger
+        # this suite exists to prevent. Since #739 the preview job builds the
+        # SAME pruned checkout via `production_migration_guard.py prepare` and
+        # re-proves it with `assert-bounded` at the point of use, so the flag
+        # there is bounded by the filesystem exactly as it is in production.
+        #
+        # The rule is therefore now stated by what it actually protects rather
+        # than by which job it happens to be in: `--include-all` is banned
+        # everywhere EXCEPT a checkout that `prepare` has pruned to
+        # `remote-ledger | allowlist`. The workflow header and the `validate`
+        # job -- everything above `preview:` -- may never carry it, and
+        # `test_include_all_never_runs_in_the_github_workspace` below enforces
+        # the bounded-checkout requirement on all three jobs that may.
+        #
+        # Do NOT narrow this back to a job-name list. If a fourth job ever
+        # wants the flag, it earns it by building a bounded checkout, not by
+        # being added to an allowlist here.
+        other_jobs = workflow.split("\n  preview:", 1)[0]
         self.assertNotIn("--include-all", other_jobs)
 
     def test_run_blocks_do_not_embed_dispatch_inputs(self) -> None:
@@ -1295,14 +1318,26 @@ class ApplyLaneTests(unittest.TestCase):
                 self.assertIn(artifact, job)
 
     def test_include_all_never_runs_in_the_github_workspace(self) -> None:
-        """The bound is the filesystem, not the flag (AGENTS.md 5.1)."""
-        for name in ("production-dry-run", "production-apply"):
+        """The bound is the filesystem, not the flag (AGENTS.md 5.1).
+
+        `preview` joined this list in #739, when it stopped running a bare
+        `db push` in $GITHUB_WORKSPACE and started building the same pruned
+        checkout the production jobs use. This test is now the one that carries
+        the real invariant for every job allowed to use the flag, which is why
+        the blanket job-name ban in
+        `test_include_all_is_bounded_and_dry_run_only` could be widened.
+        """
+        for name, bounded_dir in (
+            ("production-dry-run", "bounded-production"),
+            ("production-apply", "bounded-production"),
+            ("preview", "bounded-preview"),
+        ):
             for step in _steps(_job(name)):
                 if "--include-all" not in step:
                     continue
                 commands = _run_block_commands(step)
                 self.assertIn(
-                    'cd "$RUNNER_TEMP/bounded-production"',
+                    f'cd "$RUNNER_TEMP/{bounded_dir}"',
                     commands,
                     name + ": --include-all must run only in the bounded checkout",
                 )
