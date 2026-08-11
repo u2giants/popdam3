@@ -248,10 +248,11 @@ class TestModelIsConfigurable(EnvSandbox):
     def test_the_default_matches_the_documented_constant(self) -> None:
         """Pinned so a silent edit of the id is a visible test change.
 
-        This asserts the id we verified against the live API on 2026-08-11. It
-        does NOT prove the id still resolves today.
+        This asserts the id we verified against the live API on 2026-08-11 --
+        `claude-opus-5`, the newest Opus in the `/v1/models` listing that day.
+        It does NOT prove the id still resolves today.
         """
-        self.assertEqual(review.DEFAULT_MODEL, "claude-opus-4-5-20251101")
+        self.assertEqual(review.DEFAULT_MODEL, "claude-opus-5")
         self.assertRegex(review.DEFAULT_MODEL, r"^claude-[a-z0-9.-]+$")
         self.assertNotIn("20260514", review.DEFAULT_MODEL)
 

@@ -55,7 +55,13 @@ import urllib.request
 # production apply review died with a bare `HTTP Error 404` that read like a
 # network blip. See `describe_http_error` below -- a 404 from the messages
 # endpoint now names the model it asked for and says the id is wrong.
-DEFAULT_MODEL = "claude-opus-4-5-20251101"
+#
+# The default is the newest, most capable Opus id that the live `/v1/models`
+# listing returns (verified against the API on 2026-08-11: `claude-opus-5` is
+# the newest; `claude-opus-4-5-20251101` is the previous generation). When a
+# newer generation ships, bump this constant -- or set SHARED_DB_REVIEW_MODEL
+# without touching code.
+DEFAULT_MODEL = "claude-opus-5"
 MODEL_ENV_VAR = "SHARED_DB_REVIEW_MODEL"
 API_URL = "https://api.anthropic.com/v1/messages"
 
