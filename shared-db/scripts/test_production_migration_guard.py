@@ -998,6 +998,7 @@ class CoPresenceTests(unittest.TestCase):
         ("20260810070000", "20260810080000"),
         ("20260810070000", "20260810180000"),
         ("20260810030000", "20260810110000"),
+        ("20260810190000", "20260810190100"),
     ]
 
     def test_a_create_without_its_fix_is_refused(self) -> None:
@@ -1016,9 +1017,71 @@ class CoPresenceTests(unittest.TestCase):
             "20260810020000,20260810090000,20260810180000",
             "20260810070000,20260810080000,20260810180000",
             "20260810030000,20260810110000,20260810120000",
+            "20260810190000,20260810190100",
         ):
             with self.subTest(value=value):
                 self.assertEqual(parse_allowlist(value), value.split(","))
+
+    # ---------------- issue #665: the Disney DCP Vault landing pair ----------------
+    def test_dcp_landing_without_its_loader_is_refused(self) -> None:
+        """20260810190000 alone is a half-build, not a shippable state.
+
+        The nine plm.dcp_* tables have no loader and no finalizer without
+        20260810190100: nothing can put a row in them, no crawl can ever reach
+        status 'complete', and the immutability triggers can therefore never
+        arm. The two were authored as one bounded change.
+        """
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260810190000")
+        self.assertIn("20260810190100", str(caught.exception))
+
+    def test_recovery_dcp_loader_alone_is_ALLOWED(self) -> None:
+        """THE reason the DCP rule is stated create-requires-loader and not the reverse.
+
+        The obvious reading of the dependency is "20260810190100 needs
+        20260810190000". Encoded that way it would refuse THIS allowlist -- and
+        this allowlist is the ONLY legal recovery from a batch that died after
+        20260810190000 applied, because validate_candidates refuses any
+        allowlist naming an already-applied version. The operator's only way out
+        would then be to edit this guard while production sat half-built. If
+        someone "fixes the direction for consistency", this test is what tells
+        them what they broke.
+        """
+        self.assertEqual(parse_allowlist("20260810190100"), ["20260810190100"])
+
+    def test_the_real_dcp_dependency_is_left_to_the_preflight(self) -> None:
+        """The loader's need for its tables is ledger-aware, so preflight owns it.
+
+        20260810190100 creates functions over plm.dcp_crawl and friends and a
+        table with a foreign key onto plm.dcp_crawl. Promoting it against a
+        production that lacks them aborts the batch. That is a DEPENDENCY, not a
+        policy: preflight_batch reads the real ledger and stays silent once
+        20260810190000 is applied, which is exactly what the recovery case
+        above requires.
+        """
+        remote = production_ledger_versions()
+        migrations = local_migrations(REPO)
+        with self.assertRaises(GuardError) as caught:
+            preflight_batch(migrations, ["20260810190100"], remote)
+        self.assertIn("20260810190000", str(caught.exception))
+
+        # The ordered pair still needs core.style_guide, which 20260810190000
+        # takes a REAL foreign key onto for its reconciliation pointer. That
+        # table is created by the not-yet-applied 20260727230000, exactly as it
+        # is for NBCU's 20260810070000 (see
+        # test_a_deliberately_incomplete_allowlist_is_still_rejected). The pair
+        # alone must therefore still be REFUSED -- if this ever starts passing,
+        # the preflight has become permissive.
+        with self.assertRaises(GuardError) as caught:
+            preflight_batch(migrations, ["20260810190000", "20260810190100"], remote)
+        self.assertIn("core.style_guide", str(caught.exception))
+
+        # With the creator of core.style_guide in the batch, it runs end to end.
+        preflight_batch(
+            migrations,
+            ["20260727230000", "20260810190000", "20260810190100"],
+            remote,
+        )
 
     # ---------------- issues #664 / #649: the MAINTAIN completion ----------------
     def test_paramount_with_its_own_fix_but_without_180000_is_refused(self) -> None:

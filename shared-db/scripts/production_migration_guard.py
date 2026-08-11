@@ -239,6 +239,30 @@ CO_PRESENCE_RULES: tuple[tuple[str, frozenset[str], str], ...] = (
         "20260810120000 corrects the read claim and revokes the service_role "
         "INSERT. All three land together or not at all.",
     ),
+    (
+        # Disney DCP Vault (issue #665)
+        "20260810190000",
+        frozenset({"20260810190100"}),
+        "20260810190000 creates the nine plm.dcp_* Disney DCP Vault landing tables, the "
+        "frozen row-hash function and the immutability triggers, but NO loader. The only "
+        "path to plm.dcp_crawl.status = 'complete' is plm.finalize_dcp_crawl, and the only "
+        "way to put a row in any of the nine tables is the chunked loader -- both live in "
+        "20260810190100. Promoting the create alone therefore leaves production holding "
+        "nine permanently empty tables that cannot be loaded, cannot be finalized, and "
+        "whose immutability triggers can never arm because no crawl can ever reach "
+        "'complete'. That is a half-build, not a shippable state, and the two were "
+        "authored as one bounded change. "
+        "DIRECTION, DELIBERATE, READ THE HEADER COMMENT BEFORE 'FIXING' IT: the create "
+        "requires the loader, NOT the reverse. Stating it the other way round -- "
+        "'20260810190100 requires 20260810190000' -- would be the obvious reading of the "
+        "dependency and would be WRONG here, because validate_candidates refuses any "
+        "allowlist naming an already-applied version. A batch that died between the two "
+        "can only be recovered by an allowlist of 20260810190100 ALONE, and the reversed "
+        "rule would refuse exactly that recovery and force an edit of this safety guard "
+        "while production sat half-built. The genuine 'the loader needs its tables' "
+        "dependency is ledger-aware and belongs to preflight_batch, which reads the real "
+        "production ledger and stays silent once 20260810190000 is applied.",
+    ),
 )
 
 
