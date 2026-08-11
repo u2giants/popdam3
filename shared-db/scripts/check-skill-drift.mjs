@@ -15,16 +15,18 @@
 // no check could catch it and no reviewer was looking. That gap is the root cause, and it
 // would have recurred.
 //
-// This check closes it from the shared-db side: CI clones nothing, but a developer or
-// an agent running the offline test suite has both repos on disk, so the check runs
-// locally and is wired into the tools-offline test lane, which SKIPS cleanly in CI where
-// the sibling repo is absent. A check that cannot see its input must say so rather than
-// pass silently — that is the false-green pattern this repo keeps rediscovering.
+// This check closes it from the shared-db side. As of #654 the Tools Offline Tests
+// workflow CHECKS OUT the public u2giants/ai-devops repo and runs this with
+// --require-skills, so CI genuinely reads both files — it no longer skips. On a developer
+// or agent machine both repos are already on disk and the flag is unnecessary.
+// A check that cannot see its input must say so rather than pass silently — that is the
+// false-green pattern this repo keeps rediscovering.
 //
 //   node scripts/check-skill-drift.mjs
 //   AI_DEVOPS_DIR=/path/to/ai-devops node scripts/check-skill-drift.mjs
+//   node scripts/check-skill-drift.mjs --require-skills   # absence is a failure (CI)
 //
-// Exit 0 = agrees, or the skills are not reachable (and it says which).
+// Exit 0 = agrees, or the skills are not reachable without --require-skills (and it says which).
 // Exit 1 = a skill contradicts AGENTS.md.
 //
 // Node >= 20. No dependencies, no network.
@@ -74,6 +76,16 @@ const CONTRADICTIONS = [
     why: 'Querying the old label returns EMPTY, and step 0 treats empty as permission to start. That would let a second orchestrator start while one is already live.',
   },
   {
+    id: 'marker-query-without-repo',
+    // Matches a `gh issue list` that filters on one of the coordination labels but never
+    // names the repository, on the same line. The negative lookahead is line-scoped on
+    // purpose: these commands are written on one line, and letting it span newlines would
+    // match a --repo belonging to a DIFFERENT command further down.
+    pattern: /gh issue list(?![^\n]*--repo)[^\n]*--label\s+(orchestrator-marker|db-claim|db-work)/,
+    agents: 'AGENTS.md §2 — the orchestrator marker is an issue in u2giants/shared-db specifically',
+    why: 'These skills load into sessions working in OTHER repositories. Without --repo, gh queries whatever repo you are standing in, EXITS 0, and returns zero markers — indistinguishable from a clear board. The session then opens a SECOND orchestrator while one is live, defeating the single-orchestrator lock. Found 2026-08-11 by an independent Codex review (#530).',
+  },
+  {
     id: 'prune-false',
     // Not preceded by "not" — the skills correctly WARN against this flag, and flagging
     // the warning as the defect is how a drift check turns into noise.
@@ -101,12 +113,26 @@ async function findSkillsDir() {
 async function main() {
   await readFile(AGENTS, 'utf8'); // fail loudly if run from the wrong directory
 
+  // --require-skills (#654): turn "could not look" into a FAILURE. CI now checks out the
+  // public u2giants/ai-devops repo before calling this, so in CI the skills are always
+  // present and "not found" can only mean the checkout broke. A broken checkout that
+  // prints a clean skip is the false-green pattern this file was written to end.
+  const requireSkills = process.argv.includes('--require-skills');
+
   const dir = await findSkillsDir();
   if (!dir) {
+    if (requireSkills) {
+      console.error('FAILED: --require-skills was passed and the ai-devops skills were NOT found.');
+      console.error('  Looked in: ' + CANDIDATE_DIRS.join(', '));
+      console.error('  In CI this means the u2giants/ai-devops checkout step did not produce the');
+      console.error('  expected path. Fix the checkout — do NOT drop the flag to make this green.');
+      process.exitCode = 1;
+      return;
+    }
     // Not a pass and not a failure: it is "could not look". Say so, loudly and specifically.
     console.log('SKIPPED: the ai-devops skills are not on this machine, so nothing was checked.');
     console.log('  Looked in: ' + CANDIDATE_DIRS.join(', '));
-    console.log('  Set AI_DEVOPS_DIR to check them. This is expected in CI, where the sibling repo is absent.');
+    console.log('  Set AI_DEVOPS_DIR to check them, or pass --require-skills to make absence a failure.');
     console.log('  ⚠️ A green run here does NOT mean the skills agree with AGENTS.md — it means they were not read.');
     return;
   }

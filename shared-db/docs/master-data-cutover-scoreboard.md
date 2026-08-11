@@ -10,6 +10,44 @@ Production rows below were verified against `qsllyeztdwjgirsysgai` on **2026-07-
 and Vendor counts refreshed against a live read on **2026-07-31** (see the note under the
 scoreboard table — the 929/529 canonical counts below were stale and have been corrected).
 
+> ### ✅ Re-verified read-only against production `qsllyeztdwjgirsysgai` — 2026-08-11 (#533)
+>
+> **Why this note exists.** [PR #337](https://github.com/u2giants/shared-db/pull/337) merged
+> live row counts into this page from a session that never recorded **which Supabase project it
+> read**. Issue #533 asked for one of two outcomes: re-verify the numbers read-only, or mark
+> them untrusted. They have now been **re-verified**, and the project is named.
+>
+> **Method.** Supabase MCP, bound to production (`get_project_url` returned
+> `https://qsllyeztdwjgirsysgai.supabase.co` — stated before the first query). `SELECT` only.
+> No write of any kind, in any project.
+>
+> **Every count in §2 and §3 below re-measured identical on 2026-08-11:**
+> `plm.erp_customer` 836 · `core.customer` 862 · `plm.erp_vendor` 97 · `core.factory` 93 ·
+> `core.licensor` 26 · `core.property` 256 · `plm.customer_import` 54 ·
+> `plm.licensor_import` 37 · `plm.property_import` 468. The mapping-identity proof also holds
+> exactly: `core.taxonomy_source_ref` is **37 refs → 20 licensor entities** and
+> **468 refs → 256 property entities**, all 505 `source_system = 'designflow_plm'` and
+> **zero `coldlion`** — production is still on DesignFlow, as claimed.
+>
+> **Three things this page had wrong, corrected inline below:**
+>
+> 1. **`plm.erp_licensor` and `plm.erp_property` are NOT preview-only any more.** Both tables
+>    **exist in production** today and both hold **0 rows**. The empty-table state — not the
+>    table's absence — is now what proves production has not cut over. Do not read "the table
+>    exists" as "the cutover happened"; check the row count and
+>    `core.taxonomy_source_ref.source_system`.
+> 2. **`core.licensor` is 26 rows in production, not 20.** The 20 in §3 is the count of
+>    *distinct canonical licensors reachable through `core.taxonomy_source_ref`*, which is a
+>    different measure. Six canonical licensors carry no DesignFlow source ref. §3's heading has
+>    been reworded so the two numbers stop looking like a contradiction.
+> 3. **`plm.customer_import` last imported 2026-07-08, not 2026-07-17.** The freshness table
+>    below has been corrected. It shares its import timestamp with the two other
+>    `*_import` tables, all written by the same 2026-07-08 `plm.import_master_data()` run.
+>
+> The `plm.erp_customer` (2026-07-17) and `plm.erp_vendor` (2026-07-22) freshness dates were
+> confirmed correct and are **unchanged since this page was written — those two ColdLion feeds
+> have not run in three weeks.**
+
 > **Licensor/Property correction — 2026-07-26:** direct ColdLion mirrors now exist on preview
 > `rjyboqwcdzcocqgmsyel`: `plm.erp_licensor` (44) and `plm.erp_property` (516), with 542
 > Albert-approved source links proven against 271 canonical UUIDs. Production remains on
@@ -62,8 +100,8 @@ preview; their presence does not mean production has cut over.
 |---|---|---|---|---|---|---|
 | **Customer** | ✅ **Cut over to ColdLion** | ColdLion `/customers` | `plm.erp_customer` | 836 | `core.customer` | 862 |
 | **Vendor / factory** | ✅ **Cut over to ColdLion** | ColdLion `/vendors` | `plm.erp_vendor` | 97 | `core.factory` | 93 |
-| **Licensor** | ⏳ **Production DesignFlow; preview ColdLion readiness** | DesignFlow PLM API in production | preview `plm.erp_licensor` | 44 | preview `core.licensor` | 26 |
-| **Property** | ⏳ **Production DesignFlow; preview ColdLion readiness** | DesignFlow PLM API in production | preview `plm.erp_property` | 516 | `core.property` | 256 |
+| **Licensor** | ⏳ **Production DesignFlow; preview ColdLion readiness** | DesignFlow PLM API in production | `plm.erp_licensor` — **prod 0**, preview 44 | 0 / 44 | `core.licensor` (prod) | 26 |
+| **Property** | ⏳ **Production DesignFlow; preview ColdLion readiness** | DesignFlow PLM API in production | `plm.erp_property` — **prod 0**, preview 516 | 0 / 516 | `core.property` (prod) | 256 |
 
 The historical production baseline was **505 / 505 `designflow_plm`**, zero ColdLion. A live
 re-check on 2026-07-31 confirmed production is unchanged: still 505/505 `designflow_plm`, zero
@@ -81,13 +119,19 @@ select source_system, count(*) from core.taxonomy_source_ref group by 1;
 |---|---|
 | ColdLion `/customers` → `plm.erp_customer` | 2026-07-17 (14 days stale as of this doc's 2026-07-31 refresh) |
 | ColdLion `/vendors` → `plm.erp_vendor` | 2026-07-22 (9 days stale as of this doc's 2026-07-31 refresh) |
-| `plm.customer_import` (legacy) | 2026-07-17 |
+| `plm.customer_import` (legacy) | 2026-07-08 (corrected 2026-08-11, #533 — the page said 2026-07-17) |
 | `plm.licensor_import` | 2026-07-08 |
 | `plm.property_import` | 2026-07-08 |
 
 ---
 
-## 3. Why `core.licensor` = 20 but `plm.licensor_import` = 37 — this is correct
+## 3. Why 37 licensor source refs collapse to 20 canonical licensors — this is correct
+
+> **Read the two numbers carefully (clarified 2026-08-11, #533).** `core.licensor` holds **26**
+> rows in production. The **20** below is a different measure: the number of *distinct canonical
+> licensors that a DesignFlow source ref points at*. Six canonical licensors have no DesignFlow
+> source ref at all, which is why 26 ≠ 20. This heading previously read "`core.licensor` = 20",
+> which made a correct table look like a broken one.
 
 The canonical row counts are *lower* than the staging counts, which looks like a failed or
 partial promotion. It is not. **The mapping is deliberately many-to-one, and it is exact:**

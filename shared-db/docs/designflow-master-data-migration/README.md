@@ -359,6 +359,54 @@ MG05 is **not** filtered by `is_active` in that API (only MG06 children are). Cl
 
 MG07 is **not** part of the licensors API. Style Guide rows (divisions **01**, **08**) will be added later; only division **09** Art Type data exists in Cloud SQL today. Do not conflate Style Guide taxonomy with `dam.style_guide_file` (DAM file storage).
 
+#### 3.5.1 What to do if MG07 Style Guide ever becomes populated (#534)
+
+**Read this before importing a single MG07 row from division 01 or 08.** The "skip" above is
+correct *only while those divisions are empty*. The moment ColdLion/DesignFlow starts returning
+MG07 rows for division `01` or `08`, the skip becomes wrong and a naive import becomes
+**actively destructive**, because those rows are not new data — they are a **second, independent
+naming of style guides this database already models**.
+
+**The three facts that make this a reconciliation and not an import.**
+
+1. **`core.style_guide` already exists and is the canonical home.** Verified read-only against
+   production `qsllyeztdwjgirsysgai` on 2026-08-11: the table is present with columns
+   `id, licensor_id, property_id, parent_style_guide_id, name, code, status, metadata,
+   created_at, updated_at`, and holds **0 rows** today. It is the destination, not a competitor.
+2. **MG07 has no hierarchy and no active flag in ColdLion.** ColdLion merch groups carry no
+   parent pointer and no `is_active`, so an MG07 row can populate `code`/`name` but can supply
+   **neither `parent_style_guide_id` nor a real `status`**. Both must come from Supabase-curated
+   data, exactly as licensor→property parentage already does (§6 of the cutover scoreboard).
+3. **`mgCode` is unique only per `divisionCode` + `mgTypeCode`.** MG07 code `SG1` in division
+   `01` and `SG1` in division `08` are **different style guides**, and MG07 code `PH` in division
+   `09` is an Art Type that has nothing to do with style guides at all. Any key built from
+   `mgCode` alone will silently merge unrelated rows. The key is the triple.
+
+**The procedure, in order. Do not reorder it.**
+
+1. **Stop and re-read this section.** The first symptom will be a monitoring alert or a count
+   that grew, and the instinct will be "the skip was a bug, import them". It was not a bug.
+2. **Prove the scope.** Count MG07 rows per division. If the new rows are division `09` only,
+   nothing here applies — that is Art Type, already imported, and belongs to `core.art_type`.
+   Only divisions `01` and `08` trigger this procedure.
+3. **Classify every new row against `core.style_guide` before writing anything**, into exactly
+   three buckets, keyed on the `(divisionCode, mgTypeCode, mgCode)` triple:
+   - **Match** — an existing `core.style_guide` row already represents it. Record the ColdLion
+     identity as a source ref; **do not create a second canonical row.**
+   - **New** — genuinely absent from `core.style_guide`. It may be promoted, but it arrives with
+     a null parent and an unresolved status (fact 2).
+   - **Conflict** — the same triple resolves to more than one canonical row, or the same
+     canonical row is claimed by two triples. **These are for a human.** Never auto-resolve.
+4. **Publish the three buckets as a review artifact and get Albert's explicit approval** before
+   any promotion. Bucket sizes alone are not approval; the conflict list must be read.
+5. **Only then** author the change — **in `u2giants/shared-db`, branch + PR, preview first**,
+   like every other shared-database change. An MG07 import is not exempt.
+
+**What this section is really for.** "Nobody has looked at MG07" has surfaced twice as if it were
+a discovery. It is not. MG07 was examined on 2026-07-23, found empty for divisions 01/08, and
+skipped deliberately. This section is the written decision, so the third time the question is
+asked it has an answer instead of a re-investigation.
+
 ### 3.6 Art Source ↔ Artist (MG08 ↔ MG09)
 
 **Canonical source for migration:** `merchGroup` rows — **not** the separate Sequelize `artists` table (use merchGroup MG09 as source of truth).

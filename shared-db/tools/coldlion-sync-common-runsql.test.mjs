@@ -29,7 +29,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
-import { runSql } from "./coldlion-sync-common.mjs";
+import { runSql, SPAWN_TIMEOUT_MS } from "./coldlion-sync-common.mjs";
 import { parseHealthResult, parseComparisonResult } from "./phase6-cli-result-parse.mjs";
 
 // ---------------------------------------------------------------------------------------
@@ -324,4 +324,40 @@ test("a single-column row whose value is a JSON STRING is unwrapped too", () => 
 test("the unwrap stays fail-closed when the inner object has no boolean discriminator", () => {
   assert.equal(parseHealthResult('[{"jsonb_build_object":{"ok":"true"}}]'), null);
   assert.equal(parseHealthResult('[{"jsonb_build_object":{"status":"green"}}]'), null);
+});
+
+// ---------------------------------------------------------------------------------------
+// 6. SPAWN_TIMEOUT_MS — the orphaned-process leak stopper (#550, backlog B12)
+// ---------------------------------------------------------------------------------------
+//
+// Neither spawn had a wall-clock timeout, so a wedged child hung the parent forever and
+// outlived the session that started it. Four to six orphans accumulated across 2026-07-29
+// and 2026-07-31. The asserts below are deliberately on BOTH spawn sites: every asymmetry
+// between the psql branch and the Supabase-CLI branch has so far turned into a defect, and
+// a timeout applied to only one of them would leak exactly as before through the other.
+
+test("SPAWN_TIMEOUT_MS is generous enough that only a wedged child can trip it", () => {
+  assert.equal(typeof SPAWN_TIMEOUT_MS, "number");
+  // A REAL ClickUp importer run took 52 minutes the same day the orphans were found. A
+  // ceiling at or below that would kill legitimate work, which is worse than the leak.
+  assert.ok(
+    SPAWN_TIMEOUT_MS > 52 * 60 * 1000,
+    `must exceed the real 52-minute run; got ${SPAWN_TIMEOUT_MS} ms`,
+  );
+  // And it must still be finite and bounded — "no timeout" and "a timeout of a week" are the
+  // same defect wearing different clothes.
+  assert.ok(Number.isFinite(SPAWN_TIMEOUT_MS) && SPAWN_TIMEOUT_MS <= 4 * 60 * 60 * 1000);
+});
+
+test("BOTH database spawns pass the timeout and a SIGKILL, not just one of them", () => {
+  const src = readFileSync(new URL("./coldlion-sync-common.mjs", import.meta.url), "utf8");
+  const timeoutSites = src.match(/timeout:\s*SPAWN_TIMEOUT_MS/g) ?? [];
+  const killSites = src.match(/killSignal:\s*"SIGKILL"/g) ?? [];
+  assert.equal(timeoutSites.length, 2, "expected the timeout on the psql AND the CLI spawn");
+  assert.equal(killSites.length, 2, "a timeout without a kill signal still leaves the child");
+  // One constant, two uses. A literal at either site is how the two paths drift apart.
+  assert.ok(
+    !/timeout:\s*\d/.test(src),
+    "use SPAWN_TIMEOUT_MS at both sites — never an inline number",
+  );
 });

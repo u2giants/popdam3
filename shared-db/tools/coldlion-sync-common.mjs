@@ -32,6 +32,28 @@ export function readColdlionApiKey() {
  */
 export const SPAWN_MAX_BUFFER_BYTES = 256 * 1024 * 1024;
 
+/**
+ * Wall-clock ceiling for EVERY database child process this module spawns — backlog B12, #550.
+ *
+ * Without it, a `psql` or `supabase db query` child that never returns hangs the parent
+ * FOREVER, and the process outlives the session that started it. Four to six such orphans
+ * accumulated across 2026-07-29 and 2026-07-31 before anyone noticed, and the reason they
+ * were not noticed is the hard part: a stuck process is indistinguishable at a glance from a
+ * legitimate long-running one. A real ClickUp importer run took 52 minutes the same day.
+ *
+ * 90 minutes is therefore deliberately generous — comfortably above that 52-minute run, so
+ * this can only ever fire on something genuinely wedged, never on slow-but-working work.
+ * It is a leak stopper, not a performance budget. Do NOT lower it to "make things fail fast".
+ *
+ * Applied to both spawns from ONE constant, for the same reason SPAWN_MAX_BUFFER_BYTES is:
+ * the two paths do the same job, and every asymmetry between them has so far become a defect.
+ *
+ * On timeout Node returns `error.code === 'ETIMEDOUT'` with `status` null — which
+ * clientSpawnFaultError already classifies as a CLIENT-SIDE tooling fault, so a hung child is
+ * never recorded as a durable database failure.
+ */
+export const SPAWN_TIMEOUT_MS = 90 * 60 * 1000;
+
 export function sqlDollarQuote(tag, value) {
   const text = typeof value === "string" ? value : JSON.stringify(value);
   if (text.includes(`$${tag}$`)) {
@@ -124,6 +146,9 @@ export function runSql(sql, { linked = false } = {}) {
         // PR #362 fix — the two paths do the same job and any asymmetry between them is exactly
         // how this defect survived the first time.
         maxBuffer: SPAWN_MAX_BUFFER_BYTES,
+        // #550 / B12: without this, a wedged psql outlives the session that spawned it.
+        timeout: SPAWN_TIMEOUT_MS,
+        killSignal: "SIGKILL",
       },
     );
     if (!psql.error && psql.status === 0) return psql.stdout;
@@ -150,6 +175,9 @@ export function runSql(sql, { linked = false } = {}) {
       stdio: ["ignore", "pipe", "pipe"],
       // Identical ceiling to the psql branch above — see SPAWN_MAX_BUFFER_BYTES.
       maxBuffer: SPAWN_MAX_BUFFER_BYTES,
+      // Identical wall clock to the psql branch above — see SPAWN_TIMEOUT_MS (#550 / B12).
+      timeout: SPAWN_TIMEOUT_MS,
+      killSignal: "SIGKILL",
     });
     if (result.error) {
       // Never let a spawn-level fault (ENOBUFS, ENOENT, EACCES) masquerade as a SQL failure.
