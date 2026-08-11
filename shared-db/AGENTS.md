@@ -83,6 +83,52 @@ Historical warning: older DesignFlow docs and code may still mention
 `models/db.js` inline migrations. Treat those as legacy implementation history,
 not permission to add new schema changes in app repos.
 
+## 0.0-A OWNER RULING — every application repo may INSPECT this database read-only, with no issue and no dispatch (Albert Hazan, 2026-08-10)
+
+> "Read-only database access is allowed from every application repository … Read-only reviews
+> do not require a GitHub issue or handoff to shared-db." — Albert Hazan, 2026-08-10
+
+**Why.** This database serves many applications. Each one must be able to see the complete
+schema, relationships, functions, policies and structure to judge whether the database fits
+its data. Answering "does this fit?" is impossible without looking, so §0's gatekeeper rule
+has never applied to looking — and this section says so out loud, because sessions have read
+"no database work in app repos" as a blanket that also blocks harmless reads.
+
+**This is global.** It is not limited to Paramount, to any one licensor scraper, or to any
+one application.
+
+**PERMITTED from any application repository, by any AI session, with no GitHub issue, no
+orchestrator dispatch and no handover** — inspection of:
+
+schemas · tables and columns · keys and relationships · indexes and constraints · views ·
+functions and RPCs · triggers · row-security (RLS) policies · migration history · generated
+types · metadata · safe sample data when a review genuinely needs it.
+
+And **comparison** of the live structure against application code, scraper output,
+source-data shapes, expected business rules and proposed features — reporting the gaps.
+
+**STILL FORBIDDEN from an application repository.** A review that mutates anything has
+stopped being a review:
+
+- creating its own shared-database migration (including a Sequelize `models/db.js` startup
+  `ALTER`/`CREATE`)
+- running `ALTER`, `CREATE`, `DROP` or any other structure-changing SQL — psql, MCP or CLI
+- changing shared Supabase data or structure during a review
+- bypassing the preview → branch → pull-request process in this repo
+
+**Every CHANGE is still authored here first** (§0 and §5): schema, tables, columns, views,
+functions/RPCs, triggers, RLS policies, indexes, constraints, seeds, migrations and shared
+data contracts.
+
+**Nothing else is relaxed.** Production and shared-cloud safety rules are unchanged; use the
+approved read-only AI identity wherever one is required, and never use privileged personal
+credentials for agent automation. §0.1-A's Cloud SQL conditions and its "never report row
+contents" rule are unchanged. Licensed-data protection is unchanged: a schema review may read
+private licensor source data inside its approved private repository, but licensed rows must
+never be copied into a public repo, a GitHub issue, logs, prompts sent to outside services,
+commit messages or pull requests. And §4.2 still stands — prove which project you are pointed
+at (`get_project_url` for MCP, `cat supabase/.temp/project-ref` for the CLI) and quote it.
+
 ## 0.1 Database schema ownership is not deployment-secret ownership
 
 `shared-db` is authoritative for shared Supabase schema and cross-app data
