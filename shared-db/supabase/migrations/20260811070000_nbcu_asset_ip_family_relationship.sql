@@ -51,6 +51,31 @@
 -- rows. A missing or ambiguous match must REJECT the capture. It must never be silently
 -- discarded, and it must never be guessed.
 --
+-- WHICH RESOLUTION STEP THAT RULE GOVERNS -- READ THIS BEFORE QUOTING THE SENTENCE ABOVE.
+-- The sentence is #757's wording and it governs EXACTLY ONE step: resolving an
+-- assets.csv ip_family_labels string to a plm.nbcu_ip_family row of the SAME capture.
+-- It does NOT govern, and must never be read as governing, the separate and OPTIONAL
+-- IP-Family-to-Property step.
+--
+--   * plm.nbcu_ip_family is built by the private loader from the UNION of every label in
+--     assets.csv.ip_family_labels and the evidence file. A label therefore ALWAYS has a
+--     family row in its own capture, by construction. "Missing" here means the loader
+--     produced an edge whose key or label does not agree with the family row it landed --
+--     i.e. a loader defect -- not "NBCU published a label we do not recognise".
+--
+--   * Check F2 below is a label-FIDELITY check. It joins plm.nbcu_asset_ip_family to
+--     plm.nbcu_ip_family on (capture_id, ip_family_key) and compares ip_family_label.
+--     It NEVER scans plm.nbcu_asset.ip_family_labels and it never asks whether a label
+--     matched a Property. Nothing in this file rejects a capture for an unmatched label.
+--
+--   * IP Family to Property is a SEPARATE, OPTIONAL relationship
+--     (plm.nbcu_ip_family_property). ZERO edges there is LEGAL. An IP Family that maps to
+--     no Property is a normal source fact, and the scrape session that reported it was
+--     right. That case is outside this rule and outside this migration.
+--
+-- Recorded because the two were read as contradicting each other on 2026-08-11 (#788).
+-- They do not. See docs/licensor-source-shape-decisions (PR #799).
+--
 -- ------------------------------------------------------------------------------------
 -- ORDERING, STATED BECAUSE IT LOOKS RISKIER THAN IT IS
 -- ------------------------------------------------------------------------------------
