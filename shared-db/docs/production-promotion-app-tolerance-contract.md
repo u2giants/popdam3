@@ -29,8 +29,13 @@ which exact version boundaries the database may be left sitting half-promoted wh
 applications keep reading it.
 
 **The one-line answer: yes — in nine batches, at the nine boundaries listed in §5, and at no other
-boundary.** Sub-batching is safe here because the only structural change to a live object across
-the whole backlog is one view rebuild and two function-signature drops, and because there is not a
+boundary.** **Since 2026-08-11 there is also a batch B10 (§5A), in four parts, covering the six
+migrations merged after the nine-batch plan was written. Completing B1–B9 does NOT promote them, and
+B10 may never run before B9 (§5A.5).**
+Sub-batching is safe here because the structural changes to live objects across
+the whole backlog are few and enumerated — **one view rebuild and two function-signature drops in
+B1–B9, plus the five `api.pmt_*` views that B10b (`20260811030000`) drops and recreates in a single
+transaction (§5A.4)** — and because there is not a
 single `ALTER … RENAME` anywhere in the backlog — rename is the failure mode that almost all of the
 application fragility below is about, and it never occurs.
 
@@ -406,11 +411,21 @@ with the independently derived 47-entry apply set in
 | **B9** | `20260810010000` … `20260810170000` (excl. `140000`) | 14 | **ATOMIC — the licensor landing batch.** Carries all three security co-presence pairs (below), the `api.dam_order_list` `security_invoker` fix, and both DAM function chains. There is **no** safe internal boundary anywhere in it. |
 
 > **⚠️ Correction to the earlier batch sketch, and it is load-bearing.** An earlier draft placed
-> `20260731150000` and `20260731153000` (PopSG) in a batch *after* `20260731200000`. **That is not
-> executable.** `supabase db push` applies in version order, and `20260731150000` sorts below
-> `20260731163000`, `180000`, `190000` and `200000`. A batch is a contiguous version-ordered slice
-> of the remaining set; it cannot leapfrog. The two PopSG files therefore belong **inside B3**,
-> making B3 ten files and B4 two. With this correction the batch counts sum to exactly 61.
+> `20260731150000` and `20260731153000` (PopSG) in a batch *after* `20260731200000`. **The two PopSG
+> files belong inside B3**, making B3 ten files and B4 two. With this correction the batch counts sum
+> to exactly 61.
+>
+> **Why — stated correctly, because the original reason given here was wrong (2026-08-11, §5A.5).**
+> This note used to say such a split was "not executable" because `supabase db push` applies in
+> version order and a batch is therefore "a contiguous version-ordered slice that cannot leapfrog".
+> **That reasoning is FALSE for the production lane and has been removed.**
+> `scripts/production_migration_guard.py` `prepare()` computes `keep = remote | set(allowlist)` and
+> **deletes every migration file outside it**, so `supabase db push` never sees the skipped versions
+> and an allowlist need not be contiguous. That is precisely why production's ledger is applied out
+> of order. **The conclusion stands on different grounds:** B3 is **contract policy**, mechanically
+> enforced by the guard's `ATOMIC_BATCHES` entry for B3 — which is what actually refuses a partial
+> B3 allowlist — and the PopSG files sit inside its span. **Nowhere in this document may version
+> order be treated as a mechanism that prevents a bad ordering.** Full consequences: §5A.5.
 
 ### B9's three security co-presence pairs — the reason it cannot be split
 
@@ -463,6 +478,340 @@ it.
 
 ---
 
+## 5A. B10 — the four parts that postdate the nine-batch plan
+
+**Written 2026-08-11 by sub-agent `b10-contract` of orchestrator session `fcc2a1` (marker #793),
+against `origin/main` `685ebf6952edb0ddd259aa09c8fabaf61df7bfb2`.** Unlike §5, **this section IS
+backed by live database calls**: every membership claim below was derived by **per-version set
+membership** against production `qsllyeztdwjgirsysgai`'s `supabase_migrations.schema_migrations`,
+read read-only on 2026-08-11 at ledger count **381**.
+
+> **⚠️ Read this before using any version list in this section, or anywhere else.**
+> Production's ledger is applied **OUT OF ORDER**. At the time of writing, `20260731230000`,
+> `20260802194000`, `20260802194100`, `20260810140000` and `20260810180000` are applied while
+> `20260729230000` — which sorts far below all of them — is not.
+> **Never reason from the maximum applied version.** Re-derive with set membership.
+
+> **⚠️ This section was written while the promotion sequence was RUNNING.** The owner approved
+> running the batches one at a time, and **B3 was being applied to production as this was written**.
+> **B1, B2 and B5 are fully applied** (B5 landed 2026-08-11, ledger 377 → 381), which means §5's own
+> arithmetic — written before any of that — is stale about them. The membership of B10 does **not**
+> change when an earlier batch lands (B10's six sort above every other batch), but **the counts in
+> §5A.2 do**. Re-derive the counts at the moment you act. The six-version B10 list is the durable
+> part; the totals around it are a snapshot.
+
+### 5A.1 Why B10 exists
+
+§5 plans nine batches whose highest member is `20260810170000`. Everything merged to `main` after
+that belongs to **no batch**, so **completing B1–B9 would never promote it**. That is the gap
+[#773](https://github.com/u2giants/shared-db/issues/773) ruled must be closed with a batch B10.
+This section is that ruling made executable. **The contract is the authority for batch membership;
+an issue body never is** (#788 item 3).
+
+### 5A.2 The derived membership — computed, not inherited
+
+Method: `git ls-tree origin/main --name-only supabase/migrations/` (433 files, no duplicate
+versions) minus the production ledger, by set membership.
+
+| Figure | Value | How derived |
+|---|---|---|
+| Migration files on `origin/main` @ `685ebf6` | **433** | `git ls-tree`, no duplicate 14-digit prefixes |
+| Applied on production | **381** | `select count(*) from supabase_migrations.schema_migrations` |
+| **Unapplied** | **52** | set difference; reconciles exactly with 433 − 381, and **every** ledger row corresponds to a file on `main` (zero orphans) |
+| Of those: retired, never apply | **1** | `20260729120000` (§5) |
+| Of those: §6.5 HELD | **2** | `20260802170000`, `20260802171000` |
+| Of those: inside B3, B4, B6, B7, B8, B9 | **43** | 10 + 2 + 5 + 6 + 6 + 14. **B1, B2 and B5 contribute 0 — they are fully applied.** |
+| **Of those: belonging to NO batch — B10** | **6** | 52 − 1 − 2 − 43 |
+
+**The six B10 members, in version order, by full 14-digit version:**
+
+```
+20260810190000   dcp_vault_source_landing
+20260810190100   dcp_vault_chunked_loader
+20260811030000   pmt_lossless_source_ids_and_asset_metadata_value
+20260811050000   dcp_vault_metadata_landing
+20260811060000   dcp_vault_metadata_chunked_loader
+20260811070000   nbcu_asset_ip_family_relationship
+```
+
+**`20260810180000` is NOT a pending B10 member — it is APPLIED.** #773 listed it as B10's first
+file. It was applied to production on 2026-08-11 (ledger 376 → 377), and is still applied at ledger
+381. Naming it in any future
+allowlist is now an **error**: `validate_candidates` refuses any allowlist containing an
+already-applied version. See §5A.3 for why the ruling that put it first still matters.
+
+> **Correction to a figure in circulation.** Dispatch notes describe "ten licensor landing
+> migrations with zero applied" as B10's scope. **That count is wrong for B10.** The ten NBCU /
+> Paramount / Warner landing migrations are already batched — they are **B9** — and B9 is indeed
+> entirely unapplied. B10's own membership is **six**. Do not merge the two sets.
+
+### 5A.3 The `20260810180000` ordering ruling — precondition SATISFIED, with evidence
+
+#773 ruled that `20260810180000` must land **first** inside B10, and the reason is load-bearing:
+until it lands, the `plm` schema's `alter default privileges` gives `service_role` **TRUNCATE** on
+every newly created table at `CREATE TABLE`, before any `GRANT` in the creating migration runs.
+**TRUNCATE fires no row-level triggers**, so one statement voids every immutability guard these
+migrations install.
+
+**That precondition is now SATISFIED.** VERIFIED by live read of `pg_default_acl` on production
+`qsllyeztdwjgirsysgai`, 2026-08-11, and **re-read unchanged at ledger 381**:
+
+| Schema | `defaclacl` for tables | Reading |
+|---|---|---|
+| **`plm`** | `{service_role=arwd/postgres}` | **TRUNCATE (`D`) is gone.** Narrowed by `20260810180000`. |
+| `core` | `{service_role=arwdDxtm/postgres}` | still un-narrowed |
+| `ingest` | `{service_role=arwdDxtm/postgres}` | still un-narrowed |
+| `api` | `{service_role=arwdDxtm/postgres}` | still un-narrowed |
+
+**Every table any B10 member creates is in the `plm` schema** (VERIFIED by reading all six files),
+so the whole of B10 is now born clean. The ruling is not dropped — it is **discharged**.
+
+> **Do not read this as "the hole is closed."** It is closed for `plm` only. `core`, `ingest` and
+> `api` still hand `service_role` all eight bits at `CREATE TABLE`. Any future migration creating a
+> table in those three schemas re-enters the exact state #773 was written about.
+
+### 5A.4 The four parts, and why B10 is divided into them
+
+**To be precise about what is being claimed: all six COULD safely run as one allowlist, in version
+order, after B9.** Nothing here proves a combined B10 unsafe. The four parts exist because six files
+spanning two licensors and two independent DCP builds give the operator **four genuinely coherent
+resting points** instead of one all-or-nothing run — smaller runs, each individually verifiable,
+each stopping somewhere this document has reasoned about. `20260811030000` (Paramount) sorts
+*between* the two DCP builds, so the parts fall out at those seams. **The parts are ordered by version, but note that the
+production lane could technically run them in another order — see the leapfrog correction in §5A.5
+before assuming version order is a guard rail.**
+
+| # | Versions | Count | Atomic? | Why the boundary at the end is safe |
+|---|---|---|---|---|
+| **B10a** | `20260810190000`, `20260810190100` | 2 | **ATOMIC** | Disney DCP Vault source landing + its chunked loader. `20260810190000` creates nine `plm.dcp_*` tables, the frozen row-hash function and the immutability triggers but **no loader**; `20260810190100` supplies the chunked loader, `plm.dcp_chunk_ledger` and `plm.finalize_dcp_crawl` — the only **checked** path to `status='complete'`. **Precisely, because the loose version of this was wrong:** `20260810190000` grants `service_role` `select, insert` on the nine tables and installs **no header INSERT trigger**, so a caller can write rows directly and even insert a `dcp_crawl` row already marked `'complete'`. What is missing between the pair is the **supported, checked, finalizable** path — not the ability to write. See §6. Rest only after `190100`. |
+| **B10b** | `20260811030000` | 1 | single file — **trivially atomic** | Paramount lossless source ids + `plm.pmt_asset_metadata_value`. One file, so there is no internal boundary to rest at. Safe at the end because the five `api.pmt_*` views it drops are recreated inside the same file. |
+| **B10c** | `20260811050000`, `20260811060000` | 2 | **ATOMIC** | DCP Vault metadata landing + its chunked loader. Identical shape to B10a: `050000` creates `plm.dcp_metadata_*`, `dcp_property`, `dcp_character`, `dcp_term` and three observation tables with no loader; `060000` supplies `begin_dcp_metadata_run` / `load_dcp_metadata_chunk` / `finalize_dcp_metadata_run` plus `plm.dcp_metadata_chunk_ledger` and `plm.dcp_metadata_load_exception`. Same precision as B10a: `050000` **does** grant `service_role` `select, insert`, so the gap is the supported loader and finalizer, not raw writability. Rest only after `060000`. |
+| **B10d** | `20260811070000` | 1 | single file — **trivially atomic** | NBCU asset ↔ IP-family relationship: `create table plm.nbcu_asset_ip_family` (the **17th** NBCU table) plus a `create or replace plm.finalize_nbcu_capture`. One file, so no internal boundary. **Its CONCERNS review is DISCHARGED (§5A.7, #800)** — the one real finding became the hard ordering edge in §5A.5. |
+
+**2 + 1 + 2 + 1 = 6.** Reconciles with §5A.2.
+
+### 5A.5 Ordering dependencies, both directions — VERIFIED, not assumed
+
+**B10 is ordered after B9 for all four parts. For B10b and B10d the dependency is HARD (the run
+aborts); for B10a and B10c it is POLICY — see the leapfrog correction below, because the reason is
+not what it looks like.**
+
+> ### ⛔ The hardest edge: **`20260810080000` (B9) MUST apply before `20260811070000` (B10d).**
+> **`20260811070000` can never precede `20260810080000`. Not "should not" — the run aborts.**
+> (Scope note, because the overbroad version of this sentence was wrong: **only B10b and B10d abort**
+> if run before B9. B10a and B10c are held behind B9 by policy, not mechanism — see the leapfrog
+> correction below.)
+>
+> **VERIFIED FROM THE SQL, not inferred.** `20260810080000_nbcu_revoke_default_granted_write_privileges.sql`
+> ends in a `do $$` assertion block that counts `service_role`'s grants on `plm.nbcu_*` and raises
+> on any deviation:
+>
+> ```sql
+> if v_bad <> 16 then
+>   raise exception 'nbcu revoke migration: expected 16 SELECT grants, found %', v_bad;
+> ...
+> if v_bad <> 15 then
+>   raise exception 'nbcu revoke migration: expected 15 INSERT grants, found %', v_bad;
+> ```
+>
+> `20260811070000` does `create table plm.nbcu_asset_ip_family` and then
+> `grant select, insert on plm.nbcu_asset_ip_family to service_role` — the **seventeenth** NBCU
+> table. **If `20260811070000` lands first, `20260810080000` counts 17 against its literal 16, the
+> exception fires, and the whole batch aborts and rolls back.** The counts are hard-coded literals;
+> nothing adapts them.
+>
+> This edge is of the same class as **B4-after-B3** and **B9-after-B8**, and is recorded here as a
+> first-class ordering constraint for the same reason: it is invisible in the file names and it is
+> enforced by nothing in the guard.
+>
+> **⚠️ Do NOT dismiss it with "the timestamps already handle it". THEY DO NOT.** See the leapfrog
+> correction immediately below — the production lane **deletes** every migration outside
+> `applied ∪ allowlist` before running `supabase db push`, so an allowlist naming only B10 really
+> would run B10 with B9 absent. **The timestamps are not a guard rail here; the operator and this
+> document are.** Adjudicated in [#800](https://github.com/u2giants/shared-db/issues/800) item (b);
+> do not re-litigate it, and do not delete this edge.
+
+> ### ⚠️ CORRECTION — "a batch cannot leapfrog" is FALSE for the production lane. Read this before
+> ### relying on version order anywhere in this document.
+>
+> An earlier version of §5's own correction note argued that a batch is necessarily a contiguous
+> version-ordered slice because `supabase db push` applies in version order and "cannot leapfrog".
+> **That is true of a plain checkout and FALSE of the production lane**, and the difference is
+> load-bearing. The sentence has been struck from §5; this box explains why. If you find that
+> reasoning anywhere else in this repo — a doc, an issue, a PR body, a comment — it is wrong.
+>
+> **VERIFIED in `scripts/production_migration_guard.py`, `prepare()`:** the lane builds a *bounded
+> checkout* and then computes `keep = remote | set(allowlist)` and **deletes every migration file
+> not in `keep`**. `supabase db push` therefore never sees the skipped versions at all. It applies
+> the allowlist in version order — but the allowlist need not be contiguous, and the gaps are simply
+> gone. **This is exactly why production's ledger is applied out of order in the first place.**
+>
+> Consequences, stated bluntly because a reader who assumes contiguity will get this wrong:
+>
+> - **B10a (`20260810190000` + `20260810190100`) and B10c (`20260811050000` + `20260811060000`)
+>   CAN technically be run before B9.** They create their own objects and consume nothing B9 makes.
+>   Nothing mechanical stops it.
+> - **B10b (`20260811030000`) and B10d (`20260811070000`) CANNOT** — B10b alters objects only B9
+>   creates, and B10d trips B9's 16/15 assertion. Those are hard.
+> - **B10b is independent of the DCP parts** and may be ordered before or after them.
+>
+> **This document nonetheless mandates B9 first, for all four parts** (§5A.9). That is a *policy*
+> choice, not a mechanical consequence: promoting licensor landing schema out of the planned order
+> multiplies the states an operator has to reason about, and two of the four parts are hard-blocked
+> anyway. **Do not "optimise" B10a or B10c ahead of B9 on the grounds that it is technically
+> possible.** If a future operator has a real reason to, it needs its own owner approval and its own
+> entry here — not a silent reinterpretation of this section.
+
+- `20260811030000` (B10b) **alters** `plm.pmt_*` tables and drops/recreates five `api.pmt_*` views.
+  Those objects are created by `20260810020000` — a **B9** member. **B10b aborts without B9.**
+- `20260811070000` (B10d) **references** `plm.nbcu_*` and does `create or replace
+  plm.finalize_nbcu_capture`. Those come from `20260810070000` — a **B9** member. **B10d aborts
+  without B9.** (This is the CONCERNS finding in #788, and it is **correct**: VERIFIED by reading
+  the file — no B10 member creates any `plm.nbcu_*` table.)
+- B10a and B10c create their own objects and need nothing from B9. **They sort above B9, but that is
+  NOT what keeps them behind it** — the lane could run them alone (see the leapfrog correction).
+  They wait on B9 by the policy stated there, not by mechanism.
+
+**Nothing in B1–B9 depends on anything in B10.** The dependency is one-directional. VERIFIED by
+searching all six files for objects consumed by earlier batches: none.
+
+**Internal to B10:** B10c depends on B10a (`plm.dcp_metadata_asset` references `plm.dcp_asset`).
+B10b is independent of both DCP parts.
+
+**The two dependencies #793 asked to verify rather than assume — both CONFIRMED, one with a
+correction:**
+
+- **"B4 aborts without B3" — CONFIRMED, and the reason is an object, not just version order.**
+  `20260731210000` (B4) references `core.normalize_popsg_property_observation`, which is created by
+  `20260731150000` — a **B3** member (the PopSG file that §5's correction note moved into B3).
+  VERIFIED by grep across `supabase/migrations/`. B4 also depends on `public.approve_licensor_alias`,
+  but that is created by `20260731210000` itself, inside B4.
+- **"`20260810050000` grants access to screens B8 creates" — CONFIRMED as a real dependency, and
+  NOT automatically satisfied.** `20260810050000` is a B9 member; B8 is
+  `20260809170000`…`20260809170500`, which all sort **below** it. An earlier draft of this bullet
+  said version order therefore settles it and "no extra rule is needed". **That was wrong, for the
+  same reason as the leapfrog correction above:** separate allowlists are separate runs, and the
+  bounded checkout deletes everything outside `applied ∪ allowlist`, so **a B9 allowlist can be
+  promoted with B8 still unapplied.** Nothing mechanical stops it. **B8-before-B9 is a rule of this
+  document that the operator must honour**, exactly like B4-after-B3.
+
+### 5A.6 The #790 interaction — B10's risk is the INVERSE of B5–B9's, and that is more dangerous
+
+[#790](https://github.com/u2giants/shared-db/issues/790): the post-apply catalog verifier derives
+its targets with a conservative lexer whose own caveat says objects named through **`alter default
+privileges`**, **`execute format(...)`**, quoted/mixed-case identifiers and search_path-relative
+names are **"NOT listed and NOT checked"**. On `20260810180000` that produced zero targets and a
+correct **red X on a successful apply**.
+
+**No B10 member has that shape.** VERIFIED: none of the six contains an `alter default privileges`
+statement (all matches are inside comments). **So do not expect a red X from B10, and if one
+appears, treat it as a REAL failure, not the #790 false negative.**
+
+**The real B10 exposure is the opposite and it is quieter.** Every one of these six names plenty of
+plain `create table` targets, so the lexer will happily derive targets and the step will go
+**green** — while the privilege, revoke and RLS-policy work it cannot read goes unchecked:
+
+**Per member, and — because the question always gets asked — whether
+[#794](https://github.com/u2giants/shared-db/pull/794) fixes it.** #794 (OPEN at time of writing)
+teaches the verifier to accept a declared no-op for **data-only `do` blocks**. It **deliberately
+does NOT read inside `execute format(...)`**. So for every row below where the privilege work is
+built by `execute format`, **#794 landing changes nothing** — the blind spot survives.
+
+| Version | Shape | Privilege / policy work the verifier cannot read | Still blind after #794? |
+|---|---|---|---|
+| `20260810190000` | create-table + dynamic loop | **All three** of `grant select, insert on plm.%I to service_role`, `grant select on plm.%I to authenticated`, and `revoke update, delete, truncate, references, trigger, maintain on plm.%I from service_role` — every one issued via `execute format`, looped over the nine `plm.dcp_*` tables. **The `service_role` write grant itself is invisible too, not just the revoke.** | **YES — still blind.** `execute format`. |
+| `20260810190100` | create-table + literal grants | Creates `plm.dcp_chunk_ledger` and the loader functions; grants/revokes are **literal and lexer-readable** | **No — already visible.** Least affected. |
+| `20260811030000` | create-table + view rebuild + dynamic loop | `grant select on api.%I to authenticated, service_role` for the **five recreated `api.pmt_*` views**, issued inside a `do $$ … execute format(...)` loop | **YES — still blind**, and this is the sharpest B10 case: five live `api` views are dropped and recreated, and the re-grant that restores app access is the exact statement the verifier cannot see. #794 will not read it. Same blind spot as `20260810120000`. |
+| `20260811050000` | create-table + dynamic grants | **All** table grants are dynamic — `execute format('grant select, insert on plm.%I to service_role', t)` and `grant select … to authenticated` — plus `create policy %I on plm.%I` built in a `do $$` block | **YES for the privileges — but this is a NOTE, not a blocker.** Target derivation still works, because the targets come from its **readable `create table` statements**; only the privilege *expectation* is undrivable. The step will go green having checked existence, not access. |
+| `20260811060000` | create-table + literal grants | Creates `plm.dcp_metadata_chunk_ledger` and `plm.dcp_metadata_load_exception`; grants and revokes are **static** | **No — already visible.** No issue found. |
+| `20260811070000` | create-table + mixed | Static `revoke all … from public/anon/authenticated`, a static `revoke update, delete, truncate, references, trigger, maintain`, and a static `grant select, insert … to service_role` — **all readable**. A trailing `foreach p in array array['UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']` **self-check** loop is not | **Partly — and it does not matter.** The dynamic part is an assertion, not the grant. The grants that decide access are literal. |
+
+**For contrast, and because it is a B9 problem that must not get filed under B10:**
+`20260810120000_wb_correct_read_claim_and_revoke_service_role_insert.sql` performs a **dynamic
+revoke** and is a **real blocker** for the verifier — #794 does not rescue it either. It is a **B9**
+member, not a B10 member. Do not move it.
+
+**None of the six has the `alter default privileges` shape that produced #790's red X.** VERIFIED:
+every `alter default privileges` match across all six files is **inside a comment**. **So do not
+expect a red X from B10 — and if one appears, treat it as a REAL failure, not the #790 false
+negative.**
+
+**Consequence for the operator: a green post-apply step on B10a, B10b, B10c or B10d proves the
+tables exist. It proves NOTHING about who can write to them, and #794 will not change that for
+`20260810190000`, `20260811030000` or `20260811050000`.** **Verify the ACLs by hand** after each
+part: read `relacl` for the created tables and the five recreated `api.pmt_*` views, and confirm
+`service_role` holds no `D` (TRUNCATE), `x`, `t` or `m` bit. Do not accept the green tick as that
+evidence.
+
+### 5A.7 What is BLOCKED, and must not be quietly scheduled
+
+**`20260811070000` (B10d) was HELD. It is now RELEASED — with one finding converted into a permanent
+ordering constraint. Do not re-open this.**
+
+On 2026-08-11 the advisory model review ran end-to-end for the first time in this repo's history and
+returned **VERDICT: CONCERNS** against this exact file (#788). Every finding was adjudicated against
+the actual SQL by a separate agent in [#800](https://github.com/u2giants/shared-db/issues/800), and
+independently confirmed by a second model (Codex, read-only, APPROVE). The outcome:
+
+| # | Concern | Adjudication (#800) |
+|---|---|---|
+| (a) | "depends on `plm.nbcu_*` tables no file in the batch creates" | **Not a defect.** The dependency is real and normal: `20260810070000` (**B9**) creates the sixteen tables and sorts first. Recorded as the B10-after-B9 edge in §5A.5. |
+| (b) | "would break two lower-versioned count gates" | **REAL, and it reduces to ONE gate** — `20260810080000`'s 16/15 assertion. **This is the hard ordering edge in §5A.5.** The other gate (`20260810180000`'s 0-or-16 rule) is moot: it is already applied and cannot re-run. |
+| (c) | "`create or replace finalize_nbcu_capture` tightens the loader contract" | **Real and intentional.** A loader omitting `expected_counts.asset_ip_family` now raises `expected_count_missing`. Production risk is low — **zero `plm.nbcu_*` tables exist there.** The exposure is on preview, where NBCU is already landed. |
+| (d) | "PG17-only `MAINTAIN` syntax" | **NOT REAL.** Both projects run PostgreSQL **17.6**, and `maintain` is the merged repo-wide pattern (`20260810090000`, `20260810180000`, `20260811060000`). Corroborated by `20260810180000` — which uses it — applying cleanly to production. |
+
+**So B10d's only residue is item (b), and it is now a recorded ordering constraint rather than a
+hold.** **Do not re-litigate (a) through (d); cite #800.**
+
+**B10a, B10b and B10c carry no unresolved review finding**, but none of them has had the same
+end-to-end model review B10d got. They must get one before approval, like every other batch.
+
+### 5A.8 What the guard does and does NOT enforce for B10
+
+**Enforced today** — `scripts/production_migration_guard.py` `CO_PRESENCE_RULES` already carries the
+B10a pair (issue #665): `20260810190000` requires `20260810190100`, one-directionally, so an
+allowlist naming the create without the loader is refused. The rule's reversed reading is
+**deliberately absent** — read its header comment before "fixing" it.
+
+**NOT enforced, and this is the gap [#784](https://github.com/u2giants/shared-db/issues/784) is
+about.** `ATOMIC_BATCHES` is the tuple `(B1, B3, B7, B9)` only. **B10a's atomicity is enforced only
+by its co-presence rule; B10c's atomicity is enforced by NOTHING AT ALL.** The guard will accept an
+allowlist of `20260811050000` alone and nothing but the operator prevents that rest. Registering
+B10a and B10c in `ATOMIC_BATCHES` is the correct fix, and it belongs to #784 — **this document does
+not perform it, and until it is done, the never-rest states in §6 for B10c are prose only.**
+
+> **✅ RESOLVED — the guard deadlock that once blocked B9, and therefore all of B10, is FIXED. Any
+> text you find saying "B9 is impossible" or "B9 is un-allowlistable" is STALE; delete it.**
+> The deadlock was real: `CO_PRESENCE_RULES` required `20260810020000` and `20260810070000` to be
+> promoted together with `20260810180000`; `parse_allowlist` applied that rule **ledger-blind** while
+> `validate_candidates` refuses any allowlist naming an already-applied version — and
+> `20260810180000` is applied. Including it was refused as already-applied; omitting it was refused
+> by co-presence. **PR [#798](https://github.com/u2giants/shared-db/pull/798)
+> ("fix(guard): make the co-presence rule ledger-aware so B9 can ship") merged to `main` on
+> 2026-08-11 at `685ebf6`.** `parse_allowlist` now takes the real production ledger and treats an
+> already-applied fix as satisfied, while a fix that is **neither applied nor in the allowlist**
+> still REFUSES. **B9 is allowlistable, and B10 is no longer blocked behind it.**
+>
+> The guard's ledger-awareness **fails closed**: callers with no ledger in hand keep the stricter
+> ledger-blind behaviour. So a B9 allowlist validated without `--remote-ledger` can still be refused.
+> That is correct, not a regression.
+
+### 5A.9 Promotion order
+
+`20260810180000` (**done**) → **B3** (in flight at time of writing) → **B4** → **B6** → **B7** →
+**B8** → **B9** → **B10a** → **B10b** → **B10c** → **B10d**.
+
+**No part of B10 may precede B9.** Two hard reasons, both in §5A.5: `20260811030000` and
+`20260811070000` reference objects that only B9 creates, and `20260810080000`'s 16/15 assertion
+**aborts** if `20260811070000` lands first.
+
+**B10a, B10b and B10c may not be reordered among themselves.** That is a rule of this document, not
+a mechanical impossibility — the lane's bounded checkout would permit it (§5A.5 leapfrog
+correction). B10b is genuinely independent of the DCP parts; the fixed order exists so that every
+run's starting state is one this document has actually reasoned about.
+
+---
+
 ## 6. States that must NEVER be rested on
 
 A flat list. If a run stops here, it is not "paused" — it is **exposed**, and the only correct next
@@ -484,7 +833,34 @@ move is to complete the batch, not to wait.
 20260810010000   20260810020000   20260810030000   20260810050000   20260810060000
 20260810070000   20260810080000   20260810090000   20260810100000   20260810110000
 20260810120000   20260810130000   20260810160000
+20260810190000   20260811050000
 ```
+
+**The two B10 never-rest states, spelled out (added 2026-08-11, §5A):**
+
+- **After `20260810190000`, before `20260810190100`** — nine `plm.dcp_*` tables that **have no
+  supported loader and cannot be safely finalized**. The only *checked* writer is the chunked loader
+  in `20260810190100`, and the only *checked* path to `dcp_crawl.status = 'complete'` is
+  `plm.finalize_dcp_crawl`, also in `190100` — the routine that verifies sections, gaps, membership
+  and counts.
+  **State this accurately, because the overstated version of it was wrong:** `service_role` holds
+  `insert`, and there is **no header INSERT trigger**, so a caller *can* directly insert a
+  `dcp_crawl` row already carrying `status = 'complete'` if it satisfies the row checks — and thereby
+  arm the immutability triggers over data nothing ever validated. **That is worse than "nothing can
+  happen", not better.** The gap is the absence of the supported, checked finalization path, not an
+  inability to reach the status value. A half-build, not a paused promotion. **Enforced by
+  `CO_PRESENCE_RULES`.**
+- **After `20260811050000`, before `20260811060000`** — the same shape for
+  `plm.dcp_metadata_run` / `dcp_metadata_asset` / `dcp_property` / `dcp_character` / `dcp_term` and
+  the three observation tables: created, `service_role`-insertable, ungoverned by any supported
+  loader, triggers unarmed. **Enforced by
+  NOTHING — see §5A.8 and #784.** The guard will accept `20260811050000` alone. Only the operator
+  stands between this list and that state.
+
+**The B10 versions that are single-file parts, and therefore have no internal rest state at all:**
+`20260811030000` (B10b) and `20260811070000` (B10d). Both are **trivially atomic** — one file each,
+so there is nothing to stop halfway through. **B10d is no longer held** (§5A.7, #800); its one real
+finding is the ordering edge in §5A.5.
 
 **The nine (plus the canary) that ARE legal resting points — and the only ones:**
 
@@ -498,8 +874,20 @@ move is to complete the batch, not to wait.
 20260804120100  (B6)
 20260807200000  (B7)
 20260809170500  (B8)
-20260810170000  (B9 — end of backlog)
+20260810170000  (B9 — end of the ORIGINAL nine-batch backlog)
 ```
+
+**Plus the four B10 resting points (added 2026-08-11, §5A) — and no others above `20260810170000`:**
+
+```
+20260810190100  (B10a)
+20260811030000  (B10b)
+20260811060000  (B10c)
+20260811070000  (B10d — end of the whole backlog)
+```
+
+`20260810180000` is not listed here because it is **already applied** (§5A.3), not because it is an
+illegal boundary.
 
 **And one that must never be applied at all, at any time, in any batch:** `20260729120000`.
 
@@ -723,9 +1111,24 @@ Stated honestly, because a summary is a document like any other.
 
 - **Three apps are exposed: PopPIM, PopDAM, PopCRM.** DesignFlow production and monitor are not.
 - **There are no renames in the backlog.** That is why batching works at all.
-- **Ten legal resting points**, listed in §6. Every other version in §6's first block is an exposed
-  state.
-- **B1, B3, B7 and B9 are atomic.** Do not split them, whatever a description implies.
+- **Fourteen legal resting points**, listed in §6 — the original ten, plus B10's four (§5A). Every
+  other version in §6's first block is an exposed state.
+- **B1, B3, B7, B9, B10a and B10c are atomic.** Do not split them, whatever a description implies.
+  **`ATOMIC_BATCHES` covers only the first four**; **B10a is enforced separately, by its
+  `CO_PRESENCE_RULES` pair**; and **B10c is enforced by nothing at all** — see §5A.8 and #784.
+- **There is a batch B10, of six migrations in four parts** (§5A), covering everything merged after
+  `20260810170000`. **Finishing B1–B9 does not promote it.** `20260810180000` is already applied and
+  must never appear in an allowlist again.
+- **"A batch cannot leapfrog" is FALSE for the production lane.** `prepare()` deletes every migration
+  outside `applied ∪ allowlist`, so version order is **not** a guard rail (§5A.5). Anything in this
+  document that relies on ordering relies on the operator.
+- **B10 must NEVER be promoted before B9.** `20260810080000` (B9) asserts **exactly 16 SELECT and 15
+  INSERT** grants on `plm.nbcu_*`; `20260811070000` (B10d) adds the **17th** table. Out of order, the
+  assertion raises and the batch aborts (§5A.5, #800).
+- **B9 is allowlistable again.** The co-presence deadlock over the already-applied `20260810180000`
+  was fixed by PR #798, merged at `685ebf6`. Any note saying B9 is impossible is stale (§5A.8).
+- **B1, B2 and B5 are fully applied**; B3 was in flight when §5A was written. §5's own arithmetic
+  predates all of that — re-derive counts by set membership before acting.
 - **The three worst states to be caught in** are inside B9: Paramount TRUNCATE, Warner
   `using (true)`, NBCU direct write.
 - **Nothing may start until #611 is discharged by a RUN**, except the canary.
