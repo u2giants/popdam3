@@ -1,40 +1,62 @@
 #!/usr/bin/env python3
-"""Post an ADVISORY model verdict on a proposed production apply.
+"""Run a model review of a proposed production apply, and prove that it ran.
 
-****** THIS IS NEVER A GATE. ******
+Two different things live in this script, and keeping them apart is the whole
+design. Read this before changing anything here.
 
-Read this before changing anything here. The value of this script is entirely in
-what it writes for a human to read, and it has exactly zero authority:
+  1. THE REVIEW'S VERDICT IS ADVISORY. A model saying "APPROVE" approves
+     nothing; a model saying "REJECT" blocks nothing. The blocking checks are
+     the deterministic ones in `production_migration_guard.py`, and the gate
+     that actually holds is Albert clicking approve on the `production`
+     environment. Never make the verdict itself fail the run: that would create
+     a lane where a model can wave a production write through (or hold one
+     hostage). A verdict of "concerns found" is therefore reported LOUDLY --
+     a `::warning::` annotation and a CONCERNS banner at the top of the job
+     summary -- but it is not swallowed and it is not blocking.
 
-  * It always exits 0. A model saying "APPROVE" does not approve anything, and a
-    model saying "REJECT" does not block anything. The blocking checks are the
-    deterministic ones in `production_migration_guard.py`, and the gate that
-    actually holds is Albert clicking approve on the `production` environment.
-  * If `ANTHROPIC_API_KEY` is absent, or the API errors, or the network is down,
-    it says so plainly in the summary and still exits 0. A missing model review
-    must never be able to *stop* an approved production change, and it must never
-    be able to *hide* that it did not run.
+  2. THE REVIEW ACTUALLY HAPPENING IS MANDATORY. This is the part that changed
+     (issue: "silent no-op on every production apply"). Previously this script
+     always exited 0 and the workflow step carried `continue-on-error: true`,
+     so a missing `ANTHROPIC_API_KEY` -- which is exactly the state this
+     repository was in -- produced a fully GREEN production-apply-review job
+     that had reviewed nothing. A green tick that stands in for evidence it
+     never gathered is a silent failure, and silent failures are banned.
 
-The one thing it must not do is produce a verdict that looks authoritative. Every
-line it writes is labelled advisory, on purpose.
+     So: missing API key, empty allowlist, API/network error after retries, an
+     empty model response, or a batch too large to send in full now EXIT
+     NON-ZERO with a message naming the cause.
+     The `production-apply-review` job goes red, and because `production-apply`
+     `needs:` it, the approval gate is never even offered.
+
+     There is deliberately NO environment-variable escape hatch. If the review
+     cannot run, fix the review (add the secret) -- do not add a bypass, or you
+     have rebuilt the hole this script was changed to close.
 """
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 from pathlib import Path
+import re
 import sys
+import time
 import urllib.error
 import urllib.request
 
 MODEL = "claude-opus-4-5-20260514"
 API_URL = "https://api.anthropic.com/v1/messages"
 
+ATTEMPTS = 3
+BACKOFF_SECONDS = (5, 15)
+
 BANNER = (
-    "> **ADVISORY ONLY.** This verdict does not gate anything. The blocking "
-    "checks are `production_migration_guard.py`; the approval gate is the "
-    "`production` environment reviewer.\n\n"
+    "> **ADVISORY VERDICT.** The verdict below does not gate anything. The "
+    "blocking checks are `production_migration_guard.py`; the approval gate is "
+    "the `production` environment reviewer. What IS enforced is that this "
+    "review ran at all -- if it could not run, this job is red and you are not "
+    "reading this.\n\n"
 )
 
 PROMPT = """You are reviewing a proposed bounded production database migration \
@@ -55,33 +77,60 @@ concerns, then a bullet list of anything the human approver should check before 
 approving. Be concrete. If you see nothing concerning, say so plainly rather \
 than inventing risk.
 
+Your LAST line must be exactly one of these two, on its own line, with nothing \
+after it:
+VERDICT: CLEAR
+VERDICT: CONCERNS
+
+Use CONCERNS if there is anything at all the human approver should look at \
+before approving. Use CLEAR only if you found nothing.
+
 {sql}
 """
 
 MAX_SQL_CHARS = 400_000
 
+VERDICT_RE = re.compile(r"^VERDICT:\s*(CLEAR|CONCERNS)\s*$", re.MULTILINE)
 
-def collect_sql(repo: Path, versions: list[str]) -> str:
+
+class ReviewNotPerformed(Exception):
+    """The review did not happen. This is fatal; it is never advisory."""
+
+
+def collect_sql(repo: Path, versions: list[str]) -> tuple[str, list[str]]:
+    """Return (payload, unsent) where `unsent` names every version the model
+    will NOT see.
+
+    The caller MUST treat a non-empty `unsent` as fatal. This used to `break`
+    silently at MAX_SQL_CHARS: everything after the cut vanished from the
+    prompt, and the model -- which has no way to know a file was withheld --
+    could still answer VERDICT: CLEAR. That is a clean pass on SQL nobody
+    reviewed, i.e. the exact defect this script was rewritten to remove, and it
+    is not hypothetical: single migrations in this repo are already 161KB,
+    136KB and 123KB, so one batch of landing files crosses the cap on its own.
+    """
     chunks: list[str] = []
+    unsent: list[str] = []
     total = 0
     for version in versions:
         matches = sorted((repo / "supabase" / "migrations").glob(f"{version}_*.sql"))
         if not matches:
-            chunks.append(f"\n===== {version} — FILE NOT FOUND =====\n")
+            # Cannot happen after `production_migration_guard.py preflight`,
+            # which runs earlier in this job and requires every allowlisted file
+            # to exist. Fatal here anyway: a review of a file that was never read
+            # is not a review.
+            unsent.append(f"{version} (file not found)")
             continue
         body = matches[0].read_text(encoding="utf-8", errors="replace")
         if total + len(body) > MAX_SQL_CHARS:
-            chunks.append(
-                f"\n===== {matches[0].name} — TRUNCATED, batch exceeds "
-                f"{MAX_SQL_CHARS} characters =====\n"
-            )
-            break
+            unsent.append(f"{version} ({matches[0].name}, {len(body)} chars)")
+            continue
         total += len(body)
         chunks.append(f"\n===== {matches[0].name} =====\n{body}")
-    return "".join(chunks)
+    return "".join(chunks), unsent
 
 
-def ask_model(prompt: str, api_key: str) -> str:
+def call_api(prompt: str, api_key: str) -> str:
     payload = json.dumps(
         {
             "model": MODEL,
@@ -107,7 +156,54 @@ def ask_model(prompt: str, api_key: str) -> str:
     ).strip()
 
 
-def publish(text: str) -> None:
+def ask_model(prompt: str, api_key: str, sleep=time.sleep) -> str:
+    """Call the API, retrying transient failures, then give up LOUDLY.
+
+    A flaky network must not block a production apply on the first hiccup, but
+    it must not be papered over either: after ATTEMPTS tries this raises, and
+    the caller turns that into a red job.
+    """
+    last: Exception | None = None
+    for attempt in range(ATTEMPTS):
+        try:
+            text = (call_api(prompt, api_key) or "").strip()
+        except (
+            urllib.error.URLError,
+            http.client.HTTPException,
+            OSError,
+            ValueError,
+            KeyError,
+        ) as exc:
+            last = exc
+            if attempt + 1 < ATTEMPTS:
+                sleep(BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)])
+            continue
+        if not text:
+            last = ValueError("the model returned an empty response")
+            if attempt + 1 < ATTEMPTS:
+                sleep(BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)])
+            continue
+        return text
+    raise ReviewNotPerformed(
+        f"the model review could not be completed after {ATTEMPTS} attempts: "
+        f"{type(last).__name__}: {last}"
+    )
+
+
+def read_verdict(text: str) -> str:
+    """CLEAR, CONCERNS, or UNREADABLE. An unreadable verdict is NOT clear."""
+    found = VERDICT_RE.findall(text)
+    if not found:
+        return "UNREADABLE"
+    return found[-1]
+
+
+def annotate(level: str, message: str) -> None:
+    """Emit a GitHub Actions annotation (harmless plain text off-runner)."""
+    print(f"::{level}::{message}")
+
+
+def publish(text: str, heading: str = "Automatic model review") -> None:
     out = BANNER + text + "\n"
     print(out)
     temp = os.environ.get("RUNNER_TEMP")
@@ -116,7 +212,22 @@ def publish(text: str) -> None:
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as handle:
-            handle.write("## Automatic model review (advisory)\n\n" + out)
+            handle.write(f"## {heading}\n\n" + out)
+
+
+def fail(reason: str) -> int:
+    """Record why no review exists, then fail the job."""
+    body = (
+        "**REVIEW DID NOT RUN — THIS JOB IS FAILING ON PURPOSE.**\n\n"
+        f"Cause: {reason}\n\n"
+        "This production apply has NOT been model-reviewed. The lane refuses to "
+        "present a green pre-approval job for a review that never happened. Fix "
+        "the cause above and dispatch again; do not add a bypass."
+    )
+    publish(body, heading="Automatic model review — FAILED TO RUN")
+    annotate("error", f"Production apply model review did not run: {reason}")
+    print(f"MODEL REVIEW NOT PERFORMED: {reason}", file=sys.stderr)
+    return 1
 
 
 def main() -> int:
@@ -128,32 +239,70 @@ def main() -> int:
     sha = os.environ.get("REQUESTED_SHA", "(unknown)")
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not versions:
-        publish("**NOT RUN** — the allowlist was empty.")
-        return 0
-    if not api_key:
-        publish(
-            "**NOT RUN** — `ANTHROPIC_API_KEY` is not configured on this "
-            "repository, so no model review was performed. This is stated "
-            "explicitly rather than silently skipped: approve on the strength "
-            "of the deterministic guard output and your own reading, not on the "
-            "absence of a complaint here."
+        return fail(
+            "the allowlist was empty, so there was nothing to review. A "
+            "production apply with an empty allowlist is itself a bug."
         )
-        return 0
+    if not api_key:
+        return fail(
+            "`ANTHROPIC_API_KEY` is not configured on this repository, so no "
+            "model review could be performed. Add the secret "
+            "(Settings -> Secrets and variables -> Actions) and re-dispatch."
+        )
     repo = Path(os.environ.get("GITHUB_WORKSPACE", ".")).resolve()
+    sql, unsent = collect_sql(repo, versions)
+    # A PARTIAL REVIEW IS NOT A REVIEW. Refuse BEFORE spending the API call: if
+    # any migration could not be put in front of the model, no verdict it
+    # returns -- CLEAR included -- describes this batch. Fail here rather than
+    # let a clean-looking answer be produced about SQL that was never sent.
+    if unsent:
+        return fail(
+            "the batch does not fit in one review, so the model would not have "
+            "seen all of it. These migrations were NOT sent: "
+            + "; ".join(unsent)
+            + f". The payload cap is {MAX_SQL_CHARS} characters. A verdict on a "
+            "partial batch is worthless, so no verdict was requested. Split the "
+            "allowlist into smaller batches and dispatch them one at a time."
+        )
     prompt = PROMPT.format(
         sha=sha,
         count=len(versions),
         versions="\n".join(f"- {version}" for version in versions),
-        sql=collect_sql(repo, versions),
+        sql=sql,
     )
     try:
-        publish(ask_model(prompt, api_key))
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
-        publish(
-            f"**NOT RUN** — the model review failed: `{type(exc).__name__}: "
-            f"{exc}`. It is advisory, so this does not block the run, but no "
-            "technical opinion was produced. Do not read its absence as approval."
+        text = ask_model(prompt, api_key)
+    except ReviewNotPerformed as exc:
+        return fail(str(exc))
+
+    verdict = read_verdict(text)
+    if verdict == "CLEAR":
+        publish(text, heading="Automatic model review (advisory) — CLEAR")
+        return 0
+
+    # CONCERNS, or a verdict line we could not read. Both are surfaced loudly and
+    # neither is blocking: a model may not stop a production apply any more than
+    # it may wave one through. An unreadable verdict is treated as CONCERNS
+    # because "we could not tell" must never round down to "fine".
+    note = (
+        ""
+        if verdict == "CONCERNS"
+        else (
+            "\n\n_(The model did not end with a readable `VERDICT:` line, so "
+            "this is treated as CONCERNS. Read the text above yourself.)_"
         )
+    )
+    publish(
+        "### :warning: MODEL REVIEW RAISED CONCERNS — READ BEFORE APPROVING\n\n"
+        + text
+        + note,
+        heading="Automatic model review (advisory) — CONCERNS",
+    )
+    annotate(
+        "warning",
+        "Production apply model review raised CONCERNS (advisory, not blocking) "
+        "— read the job summary before approving.",
+    )
     return 0
 
 

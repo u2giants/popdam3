@@ -758,10 +758,12 @@ confirmation string fails on the first step, before any credential is used.
    guard chain (`parse_allowlist` → hard blocks, the §6.8 all-four bundle, the §6.5 hold, the
    co-presence rules → `validate_candidates` → whole-batch preflight). This job fails the run.
 2. **An automatic model review** that posts a technical verdict into the job summary.
-   ⚠️ **It is ADVISORY and may never be the only gate.** It cannot fail the run and it cannot
-   approve one; it exists to put a written opinion in front of the human. If `ANTHROPIC_API_KEY`
-   is missing it says so explicitly rather than skipping silently — read its absence as *no
-   opinion*, never as approval.
+   ⚠️ **Its VERDICT is ADVISORY and may never be the only gate.** The verdict cannot fail the run
+   and cannot approve one; it exists to put a written opinion in front of the human, and a
+   "concerns" verdict is surfaced as a warning annotation and a banner rather than blocking.
+   **But the review actually running is MANDATORY:** if `ANTHROPIC_API_KEY` is missing, the
+   allowlist is empty, or the API fails, the step exits non-zero and `production-apply-review`
+   goes **red**, so `production-apply` never reaches the approval gate. There is no bypass.
 3. **`environment: production`, with Albert as required reviewer.** This is the gate that holds.
 
 **Issue #646, also fixed here:** `production-dry-run` is **off** the `production` environment.
