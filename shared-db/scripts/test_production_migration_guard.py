@@ -1422,5 +1422,122 @@ class CanaryTests(unittest.TestCase):
         self.assertEqual(parse_allowlist(self.VERSION), [self.VERSION])
         preflight_batch(migrations, [self.VERSION], remote)
 
+class LexerFalseAcceptDefects(unittest.TestCase):
+    """#609 (F1, F2) and #672 (items 2, 3).
+
+    Every defect below failed in the FALSE-ACCEPT direction: the guard let
+    something through it should have questioned. All had ZERO live exposure when
+    filed, and a differential run of the old and new guard over all 429 files in
+    supabase/migrations/ produced 0 differences in created_objects,
+    hard_references and assert_no_archaic_function_body. These tests exist so the
+    defects cannot silently return.
+    """
+
+    # --- #609 F1: `$$` inside an unquoted identifier ------------------------
+
+    def test_f1_dollars_inside_an_identifier_do_not_open_a_dollar_quote(self) -> None:
+        """A dollar quote opens only at a token boundary.
+
+        `my$$col` used to latch onto the next genuine `$$` and blank everything
+        between, so a real hard reference silently disappeared.
+        """
+        sql = (
+            "create table plm.t (my$$col uuid);\n"
+            "alter table plm.missing_dep add column x uuid;\n"
+            "create function plm.f() returns void as $$ begin end $$ language plpgsql;\n"
+        )
+        self.assertIn("plm.t", created_objects(sql))
+        self.assertIn("plm.f", created_objects(sql))
+        refs = [obj for obj, _reason in hard_references(sql)]
+        self.assertIn("plm.missing_dep", refs)
+
+    def test_f1_a_genuine_dollar_quote_is_still_stripped(self) -> None:
+        """The boundary rule must not stop real dollar bodies being blanked.
+
+        Names inside a function body resolve at CALL time, so they are deferrable
+        and must NOT become batch-ordering dependencies.
+        """
+        sql = (
+            "create function plm.f() returns void as $$ "
+            "select * from plm.inside_body_only; $$ language sql;\n"
+        )
+        refs = [obj for obj, _reason in hard_references(sql)]
+        self.assertNotIn("plm.inside_body_only", refs)
+
+    def test_f1_a_dollar_quote_at_the_very_start_of_a_file_still_opens(self) -> None:
+        """The i > 0 term must not make position 0 a non-boundary."""
+        self.assertNotIn("plm.hidden", strip_sql("$$ select plm.hidden $$"))
+
+    # --- #609 F2 / #672 item 3: the phantom CREATE --------------------------
+
+    def test_f2_create_text_inside_a_regclass_literal_is_not_a_created_object(self) -> None:
+        """A phantom in `available` can satisfy a dependency production cannot meet."""
+        sql = "alter table plm.t alter column id set default nextval('create table plm.ghost'::regclass);\n"
+        self.assertNotIn("plm.ghost", created_objects(sql))
+
+    def test_f2_the_regclass_reference_itself_is_still_found(self) -> None:
+        """Blanking for the CREATE scan must not cost the dependency the exception exists for."""
+        sql = "alter table plm.t alter column id set default nextval('plm.t_id_seq'::regclass);\n"
+        refs = [obj for obj, _reason in hard_references(sql)]
+        self.assertIn("plm.t_id_seq", refs)
+
+    def test_f2_a_real_create_beside_a_regclass_literal_is_still_seen(self) -> None:
+        sql = (
+            "create table plm.real (id uuid);\n"
+            "alter table plm.t alter column id set default nextval('plm.s'::regclass);\n"
+        )
+        self.assertIn("plm.real", created_objects(sql))
+
+    # --- #672 item 2: the bare `do '...'` blind spot -------------------------
+
+    def test_bare_do_with_a_string_body_is_refused(self) -> None:
+        """It matches neither `as '...'` nor a routine header, so it was invisible."""
+        with self.assertRaises(GuardError):
+            assert_no_archaic_function_body("20260811000000", "do 'begin perform 1; end';\n")
+
+    def test_bare_do_with_an_explicit_language_is_refused(self) -> None:
+        with self.assertRaises(GuardError):
+            assert_no_archaic_function_body(
+                "20260811000000", "do language plpgsql 'begin perform 1; end';\n"
+            )
+
+    def test_a_dollar_quoted_do_block_is_accepted(self) -> None:
+        assert_no_archaic_function_body(
+            "20260811000000", "do $$ begin perform 1; end $$;\n"
+        )
+
+    def test_prose_containing_the_words_do_and_a_quote_is_NOT_refused(self) -> None:
+        """The statement-start scoping is load-bearing.
+
+        This scan runs on keep_literals=True text, so a comment's own English is
+        visible to it. An unscoped search would hard-refuse a blameless migration
+        over its prose -- the failure this scoping prevents.
+        """
+        assert_no_archaic_function_body(
+            "20260811000000",
+            "comment on table plm.t is 'we do ''this'' on purpose';\n",
+        )
+
+    def test_no_file_in_the_repo_is_NEWLY_refused(self) -> None:
+        """The whole corpus must be unaffected by all four fixes.
+
+        Exactly ONE file is refused, and it was refused before these fixes too:
+        20260729120000 (`language sql security definer as 'select 1';`), which is
+        RETIRED and permanently HARD_BLOCKED, so no promotable file is affected.
+        Asserting the exact set -- rather than "nothing is refused" -- is what
+        makes this test able to catch a NEW refusal appearing.
+        """
+        refused = set()
+        for version, path in local_migrations(REPO).items():
+            try:
+                assert_no_archaic_function_body(
+                    version, path.read_text(encoding="utf-8", errors="replace")
+                )
+            except GuardError:
+                refused.add(version)
+        self.assertEqual(refused, {"20260729120000"})
+        self.assertIn("20260729120000", HARD_BLOCKED)
+
+
 if __name__ == "__main__":
     unittest.main()

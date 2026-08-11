@@ -37,9 +37,10 @@
 //   `op read "op://vibe_coding/clickup.com API credentials/api token"`.
 // The token is NEVER printed, never written into SQL, and never committed.
 
+import { readLinkedProjectRefSync, repoRootFrom } from "./check-supabase-link-state.mjs";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+
 import { runSql, sqlDollarQuote } from "./coldlion-sync-common.mjs";
 import { extractGoMapText, parseGoMap } from "./phase6-cli-result-parse.mjs";
 
@@ -587,11 +588,12 @@ async function discoverLists(token, workspaceId, fetchImpl = fetch) {
 }
 
 function readLinkedProjectRefSafely() {
-  try {
-    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
-  } catch {
-    return null;
-  }
+  // #593: delegate to the shared reader. Same contract as the single-file read
+  // it replaces -- the CLI-authoritative ref, or null when unlinked -- but a
+  // `project-ref` / `linked-project.json` split is now REPORTED instead of
+  // invisible, and `repoRootFrom` pins it to THIS checkout under the
+  // agent-per-worktree model.
+  return readLinkedProjectRefSync({ root: repoRootFrom(import.meta.url) });
 }
 
 async function main() {

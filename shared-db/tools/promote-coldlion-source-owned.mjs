@@ -90,7 +90,8 @@
 //             4 client-side tooling fault (nothing recorded, breaker untouched),
 //             5 benign mid-read snapshot race (nothing recorded, breaker untouched).
 
-import { readFileSync } from "node:fs";
+import { readLinkedProjectRefSync, repoRootFrom } from "./check-supabase-link-state.mjs";
+
 import { pathToFileURL } from "node:url";
 import {
   buildFailedSyncRunSql,
@@ -528,11 +529,12 @@ export function buildPromotionAlertSql(failedInvariant, detail) {
 }
 
 function readLinkedProjectRef() {
-  try {
-    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
-  } catch {
-    return null;
-  }
+  // #593: delegate to the shared reader. Same contract as the single-file read
+  // it replaces -- the CLI-authoritative ref, or null when unlinked -- but a
+  // `project-ref` / `linked-project.json` split is now REPORTED instead of
+  // invisible, and `repoRootFrom` pins it to THIS checkout under the
+  // agent-per-worktree model.
+  return readLinkedProjectRefSync({ root: repoRootFrom(import.meta.url) });
 }
 
 // =====================================================================================

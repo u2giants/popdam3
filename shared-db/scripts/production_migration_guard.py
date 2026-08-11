@@ -546,6 +546,21 @@ CREATE_ROUTINE_RE = re.compile(
     r"\b(?:create|alter)\s+(?:or\s+replace\s+)?(?:function|procedure)\b"
 )
 
+# #672 item 2. The SAME blind spot reached by a different route. A DO block's
+# body may be a plain string literal instead of a dollar-quoted one:
+#
+#   do 'begin ... end';
+#   do language plpgsql 'begin ... end';
+#
+# Neither matches ARCHAIC_BODY_AS_RE (there is no `as`) nor CREATE_ROUTINE_RE
+# (there is no create/alter function header), so such a body was blanked by
+# `strip_sql` and became invisible to preflight with nothing raised -- exactly
+# the silent condition `assert_no_archaic_function_body` exists to prevent.
+#
+# Latent, not live: a sweep of supabase/migrations/ for `do '` returns ZERO
+# occurrences, so no existing file's result changes.
+BARE_DO_LITERAL_RE = re.compile(r"\bdo\s+(?:language\s+\w+\s+)?'")
+
 
 def assert_no_archaic_function_body(version: str, raw: str) -> None:
     """Refuse a migration whose function body is an old-style string literal.
@@ -579,9 +594,33 @@ def assert_no_archaic_function_body(version: str, raw: str) -> None:
                 f"before promoting it. Do not delete this check to get past it."
             )
 
+    # #672 item 2. A bare `do '...'` reaches the same blind spot without an `as`
+    # and without a routine header, so the loop above cannot see it.
+    #
+    # ⚠️ Scoped to STATEMENT START, and that scoping is load-bearing. This scan
+    # runs on keep_literals=True text, so English prose inside a kept
+    # `comment on ... is '...'` is visible to it -- and a comment reading
+    # `'we do ''this'''` contains the byte sequence `do '`. An unscoped search
+    # would HARD-REFUSE a blameless migration over its own prose. A real DO is a
+    # top-level statement, so nothing but whitespace may precede it since the
+    # last terminator.
+    for match in BARE_DO_LITERAL_RE.finditer(text):
+        if text[: match.start()].rsplit(";", 1)[-1].strip():
+            continue
+        raise GuardError(
+            f"{version} contains a DO block whose body is a single-quoted string "
+            f"(`do '...'`). The preflight scanner blanks string literals, so it "
+            f"cannot read that body and cannot judge what the migration depends "
+            f"on. Rewrite it as `do $$ ... $$` before promoting it. Do not delete "
+            f"this check to get past it."
+        )
+
 
 def strip_sql(
-    raw: str, keep_literals: bool = False, keep_dollar: bool = False
+    raw: str,
+    keep_literals: bool = False,
+    keep_dollar: bool = False,
+    keep_regclass: bool = True,
 ) -> str:
     """Lowercase SQL with comments and dollar-quoted bodies removed.
 
@@ -682,7 +721,7 @@ def strip_sql(
                     j += 1
                     break
                 j += 1
-            if keep_literals or REGCLASS_AHEAD_RE.match(raw, j):
+            if keep_literals or (keep_regclass and REGCLASS_AHEAD_RE.match(raw, j)):
                 out.append(raw[start:j])
             else:
                 # Blank the body but keep the quotes, so an adjacent token cannot
@@ -703,7 +742,22 @@ def strip_sql(
                 j += 1
             out.append(raw[i:j])
             i = j
-        elif ch == "$" and (m := DOLLAR_OPEN_RE.match(raw, i)):
+        elif (
+            ch == "$"
+            and (m := DOLLAR_OPEN_RE.match(raw, i))
+            # #609 F1. A dollar quote opens only at a TOKEN BOUNDARY. Without this
+            # guard, the `$$` inside an unquoted identifier such as `my$$col`
+            # matched, latched onto the next genuine `$$`, and BLANKED EVERYTHING
+            # BETWEEN -- so a real hard reference silently disappeared and the
+            # preflight reported no dependency. That is the false-ACCEPT direction.
+            #
+            #   baseline (mycol):  created={plm.t, plm.f}  refs=[(plm.missing_dep, ...)]
+            #   with    (my$$col): created={plm.t}         refs=[]   <- ref lost
+            #
+            # Measured exposure when filed: the pattern `[A-Za-z0-9_]\$\$` matched
+            # 0 of 411 migration files, so this changes no existing file's result.
+            and not (i > 0 and (raw[i - 1].isalnum() or raw[i - 1] == "_"))
+        ):
             close = raw.find(m.group(0), m.end())
             if close == -1:
                 # Unterminated: not a dollar quote at all (e.g. `$1`-adjacent
@@ -724,7 +778,24 @@ def strip_sql(
 
 
 def created_objects(raw: str) -> set[str]:
-    text = strip_sql(raw)
+    # #609 F2 / #672 item 3 -- THE PHANTOM CREATE.
+    #
+    # `strip_sql` keeps a literal that is cast to `::regclass`, because there the
+    # text really is an apply-time object reference. But the kept text was then
+    # scanned by CREATE_RES as well as REFERENCE_RES, so a literal whose contents
+    # read like `create table a.b` registered an object that IS NEVER CREATED. A
+    # phantom in `available` can satisfy a later file's dependency that production
+    # cannot actually meet -- the false-ACCEPT direction.
+    #
+    # The regclass exception exists for REFERENCES, so only `hard_references`
+    # needs it. Blanking it for the CREATE scan removes the phantom without
+    # touching the dependency the exception was added to find; `hard_references`
+    # below still calls `strip_sql` with the exception intact.
+    #
+    # Measured exposure when filed: 2 of 411 files contain a `'create ...'`
+    # literal, both `command_tag` strings with no `schema.object`, so 0 phantom
+    # objects are produced today and no existing file's result changes.
+    text = strip_sql(raw, keep_regclass=False)
     found: set[str] = set()
     for pattern in CREATE_RES:
         for match in pattern.finditer(text):

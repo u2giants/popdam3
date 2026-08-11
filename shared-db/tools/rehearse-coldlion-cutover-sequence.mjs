@@ -44,6 +44,7 @@
 //   node tools/rehearse-coldlion-cutover-sequence.mjs
 //   node tools/rehearse-coldlion-cutover-sequence.mjs --json
 
+import { readLinkedProjectRefSync, repoRootFrom } from "./check-supabase-link-state.mjs";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -55,11 +56,12 @@ const steps = [];
 let failures = 0;
 
 function readLinkedProjectRef() {
-  try {
-    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
-  } catch {
-    return null;
-  }
+  // #593: delegate to the shared reader. Same contract as the single-file read
+  // it replaces -- the CLI-authoritative ref, or null when unlinked -- but a
+  // `project-ref` / `linked-project.json` split is now REPORTED instead of
+  // invisible, and `repoRootFrom` pins it to THIS checkout under the
+  // agent-per-worktree model.
+  return readLinkedProjectRefSync({ root: repoRootFrom(import.meta.url) });
 }
 
 function record(name, packageRef, ok, detail) {

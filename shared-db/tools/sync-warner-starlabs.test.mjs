@@ -24,6 +24,8 @@ import {
   chainDigest,
   assertPinnedCleanCheckout,
   readPinnedCsv,
+  assertCaptureHeaders,
+  resolvePinnedBlob,
   prepareCaptures,
   summarise,
   resolveRunConfig,
@@ -37,29 +39,67 @@ const REF_B = "zzzzyyyyxxxxwwwwvvvv";
 const SHA_PINNED = "1".repeat(40);
 const SHA_OTHER = "2".repeat(40);
 
-/** A fake `git` that serves invented CSVs from an in-memory tree. */
-function fakeGit({ status = "", head = SHA_PINNED, files = {}, missing = [] } = {}) {
+/** A blob object id per capture file, invented and stable. */
+function oidFor(file) {
+  const n = CAPTURE_FILES.findIndex((c) => c.file === file);
+  return String(n + 3).repeat(40).slice(0, 40);
+}
+
+/**
+ * A minimal but VALID default body for one capture file: the required header
+ * row from CAPTURE_FILES plus a single invented data row. Header names are
+ * structural metadata, not Warner data.
+ */
+function defaultBody(file) {
+  const header = CAPTURE_FILES.find((c) => c.file === file).requiredHeaders;
+  return `${header.join(",")}\n${header.map((_, i) => `v${i + 1}`).join(",")}\n`;
+}
+
+/**
+ * A fake `git` that serves invented CSVs from an in-memory tree.
+ *
+ * It models `ls-tree` and `cat-file` rather than `show`, because the loader now
+ * resolves the MODE before reading the content -- see resolvePinnedBlob.
+ * `modes` overrides one file's tree mode so the symlink/tree/gitlink refusals
+ * can be exercised.
+ */
+function fakeGit({ status = "", head = SHA_PINNED, files = {}, missing = [], modes = {} } = {}) {
   const calls = [];
+  const byOid = new Map();
+  for (const { file } of CAPTURE_FILES) {
+    byOid.set(oidFor(file), files[file] ?? defaultBody(file));
+  }
   return {
     calls,
     run: async (repoDir, args) => {
       calls.push(args.join(" "));
       if (args[0] === "status") return status;
       if (args[0] === "rev-parse") return `${head}\n`;
-      if (args[0] === "show") {
-        const m = /^([0-9a-f]{40}):warner-bros\/(.+)$/.exec(args[1]);
-        assert.ok(m, "git show must address a pinned commit and a warner-bros/ path");
-        const [, commit, file] = m;
+      if (args[0] === "ls-tree") {
+        const [, , commit, dashdash, path] = args;
         assert.equal(commit, SHA_PINNED, "must read at the pinned commit, never HEAD");
-        if (missing.includes(file)) {
-          throw new Error(`fatal: path 'warner-bros/${file}' does not exist in '${commit}'`);
-        }
-        return Buffer.from(files[file] ?? "col_a,col_b\nv1,v2\n", "utf8");
+        assert.equal(dashdash, "--", "the path must be given after -- so it cannot read as a rev");
+        const m = /^warner-bros\/(.+)$/.exec(path);
+        assert.ok(m, "ls-tree must address a warner-bros/ path");
+        const file = m[1];
+        if (missing.includes(file)) return "";
+        const mode = modes[file] ?? "100644";
+        const type = mode === "040000" ? "tree" : mode === "160000" ? "commit" : "blob";
+        return `${mode} ${type} ${oidFor(file)}\t${path}\0`;
+      }
+      if (args[0] === "cat-file") {
+        assert.equal(args[1], "blob", "content must be read as a blob, by object id");
+        const body = byOid.get(args[2]);
+        assert.ok(body !== undefined, `unexpected object id ${args[2]}`);
+        return Buffer.from(body, "utf8");
       }
       throw new Error(`unexpected git call: ${args.join(" ")}`);
     },
   };
 }
+
+/** Swallows the drift NOTE so a test's expected stderr stays empty. */
+const quiet = () => {};
 
 const baseEnv = {
   WB_SOURCE_REPO: "/invented/checkout",
@@ -125,7 +165,10 @@ test("a missing capture file is a loud failure, never a silent zero", async () =
 });
 
 test("an empty capture file is refused rather than treated as an empty population", async () => {
-  const g = fakeGit({ files: { "characters.csv": "col_a,col_b\n" } });
+  // A header-only file: correctly SHAPED, so it gets past the header refusal
+  // and must then be caught as an empty population.
+  const header = CAPTURE_FILES.find((c) => c.file === "characters.csv").requiredHeaders.join(",");
+  const g = fakeGit({ files: { "characters.csv": `${header}\n` } });
   await assert.rejects(prepareCaptures(resolveRunConfig(baseEnv), { git: g.run }), /parsed to ZERO rows/);
 });
 
@@ -170,9 +213,104 @@ test("a clean checkout at the pinned commit is accepted and returns HEAD", async
 test("every CSV is read from the pinned commit, never from the filesystem", async () => {
   const g = fakeGit();
   await prepareCaptures(resolveRunConfig(baseEnv), { git: g.run });
-  const shows = g.calls.filter((c) => c.startsWith("show "));
-  assert.equal(shows.length, 8);
-  for (const c of shows) assert.match(c, new RegExp(`^show ${SHA_PINNED}:warner-bros/`));
+  const lookups = g.calls.filter((c) => c.startsWith("ls-tree "));
+  const reads = g.calls.filter((c) => c.startsWith("cat-file "));
+  assert.equal(lookups.length, 8);
+  assert.equal(reads.length, 8);
+  for (const c of lookups) assert.match(c, new RegExp(`^ls-tree -z ${SHA_PINNED} -- warner-bros/`));
+  // `git show` renders symlinks, trees and gitlinks as text. It must not come back.
+  assert.equal(g.calls.filter((c) => c.startsWith("show ")).length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// REFUSAL 0 -- column identity and object type (issue #671)
+// ---------------------------------------------------------------------------
+test("every capture file declares a non-empty required-header list", () => {
+  assert.equal(CAPTURE_FILES.length, 8);
+  for (const c of CAPTURE_FILES) {
+    assert.ok(Array.isArray(c.requiredHeaders) && c.requiredHeaders.length > 0, c.file);
+    assert.equal(new Set(c.requiredHeaders).size, c.requiredHeaders.length, `${c.file} dupes`);
+  }
+});
+
+test("a renamed column is refused, naming the column and the file", () => {
+  assert.throws(
+    () => assertCaptureHeaders("characters.csv", ["source_term", "name", "captured_date", "source_url"], quiet),
+    (e) => {
+      assert.match(e.message, /REFUSING TO LOAD/);
+      assert.match(e.message, /characters\.csv/);
+      assert.match(e.message, /missing required column\(s\) \[label\]/);
+      return true;
+    }
+  );
+});
+
+test("a duplicated column is refused, because only the last one survives", () => {
+  const cols = ["source_term", "label", "label", "captured_date", "source_url"];
+  assert.throws(() => assertCaptureHeaders("characters.csv", cols, quiet), /duplicated column name\(s\) \[label\]/);
+});
+
+test("a blank column name is refused", () => {
+  const cols = ["source_term", "label", "", "captured_date", "source_url"];
+  assert.throws(() => assertCaptureHeaders("characters.csv", cols, quiet), /1 blank column name\(s\)/);
+});
+
+test("column ORDER is not a refusal, because rows are keyed by name", () => {
+  const cols = ["source_url", "captured_date", "label", "source_term"];
+  assert.deepEqual(assertCaptureHeaders("characters.csv", cols, quiet).unknown, []);
+});
+
+test("an unknown extra column is reported but not refused", () => {
+  const warnings = [];
+  const cols = ["source_term", "label", "captured_date", "source_url", "brand_new"];
+  const res = assertCaptureHeaders("characters.csv", cols, (m) => warnings.push(m));
+  assert.deepEqual(res.unknown, ["brand_new"]);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /brand_new/);
+});
+
+test("a BOM on the first column name does not break header matching", () => {
+  const cols = ["﻿source_term", "label", "captured_date", "source_url"];
+  assert.deepEqual(assertCaptureHeaders("characters.csv", cols, quiet).unknown, []);
+});
+
+test("a symlink entry is refused, not rendered as its target text", async () => {
+  const g = fakeGit({ modes: { "characters.csv": "120000" } });
+  await assert.rejects(
+    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters.csv", g.run, quiet),
+    (e) => {
+      assert.match(e.message, /is mode 120000 \(blob\)/);
+      assert.match(e.message, /only a regular-file blob \(100644\)/);
+      return true;
+    }
+  );
+  // It must refuse BEFORE reading any content.
+  assert.equal(g.calls.filter((c) => c.startsWith("cat-file")).length, 0);
+});
+
+test("a gitlink entry is refused, not rendered as a commit", async () => {
+  const g = fakeGit({ modes: { "characters.csv": "160000" } });
+  await assert.rejects(
+    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters.csv", g.run, quiet),
+    /is mode 160000 \(commit\)/
+  );
+});
+
+test("a path that resolves to no tree entry is a loud failure, never a silent zero", async () => {
+  const g = fakeGit({ missing: ["characters.csv"] });
+  await assert.rejects(
+    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters.csv", g.run, quiet),
+    /resolves to 0 tree entries .* exactly 1 is required/s
+  );
+});
+
+test("a file whose header is another capture file's header is refused", async () => {
+  const wrong = CAPTURE_FILES.find((c) => c.file === "assets.csv").requiredHeaders.join(",");
+  const g = fakeGit({ files: { "characters.csv": `${wrong}\nx,x,x,x,x,x,x,x\n` } });
+  await assert.rejects(
+    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters.csv", g.run, quiet),
+    /missing required column\(s\)/
+  );
 });
 
 // ---------------------------------------------------------------------------

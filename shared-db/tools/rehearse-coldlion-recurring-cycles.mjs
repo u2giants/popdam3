@@ -20,8 +20,9 @@
 //
 // Usage:  node tools/rehearse-coldlion-recurring-cycles.mjs [--json]
 
+import { readLinkedProjectRefSync, repoRootFrom } from "./check-supabase-link-state.mjs";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PREVIEW_PROJECT_REF, PRODUCTION_PROJECT_REF } from "./phase6-preview-guards.mjs";
@@ -159,13 +160,7 @@ function protectedFieldTriggeredBy(table, mutation) {
 // Guards
 // ---------------------------------------------------------------------------
 
-const linkedRef = (() => {
-  try {
-    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
-  } catch {
-    return null;
-  }
-})();
+const linkedRef = readLinkedProjectRefSync({ root: repoRootFrom(import.meta.url) });
 
 if (linkedRef !== PREVIEW_PROJECT_REF) {
   process.stderr.write(

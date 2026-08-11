@@ -120,17 +120,196 @@ const FULL_SHA = /^[0-9a-f]{40}$/;
  *
  * Order matters only for readability; each target is loaded as its own
  * independent capture, so a failure in one does not half-load another.
+ *
+ * ============================================================================
+ * WHY EACH ENTRY CARRIES A requiredHeaders LIST
+ * ============================================================================
+ * `csvToObjects` keys every row by whatever row 0 says, and those keys are
+ * passed to the database UNCHANGED. Before 2026-08-11 nothing checked row 0 at
+ * all: the only shape check in the whole loader was `if (!rows.length)`. A file
+ * whose columns had been RENAMED, DROPPED, DUPLICATED or swapped for another
+ * file's columns therefore parsed happily into objects with the wrong keys.
+ *
+ * Truncation was already covered (the database asserts exact row totals, and an
+ * LFS pointer fails on row count), but COLUMN IDENTITY was not covered by
+ * anything, at any layer, until the row reached the database -- where the G6
+ * required-field check would report "N rows malformed", which reads as bad DATA
+ * rather than as a wrong-SHAPED file. That is a diagnosability failure on a
+ * loader whose stated contract is "never a silent partial".
+ *
+ * The lists below are NOT invented here. Each one is exactly the set of keys
+ * the matching `plm.sync_wb_*` loader's G6 block requires to be non-blank, in
+ * `supabase/migrations/20260810030000_warner_starlabs_source_landing.sql`. If a
+ * migration ever changes a loader's required fields, change the list here in
+ * the same pull request -- the two are one contract expressed twice, and
+ * `sync-warner-starlabs.test.mjs` asserts every entry has a non-empty list.
  */
 export const CAPTURE_FILES = Object.freeze([
-  { file: "franchise-properties.csv", target: "wb_franchise_property" },
-  { file: "style-guides.csv", target: "wb_style_guide" },
-  { file: "characters.csv", target: "wb_character" },
-  { file: "assets.csv", target: "wb_asset" },
-  { file: "links-asset-style-guide.csv", target: "wb_asset_style_guide" },
-  { file: "links-asset-franchise-property.csv", target: "wb_asset_franchise_property" },
-  { file: "links-asset-character.csv", target: "wb_asset_character" },
-  { file: "links-property-character.csv", target: "wb_property_character" },
+  {
+    file: "franchise-properties.csv",
+    target: "wb_franchise_property",
+    requiredHeaders: Object.freeze(["source_term", "label", "captured_date", "source_url"]),
+  },
+  {
+    file: "style-guides.csv",
+    target: "wb_style_guide",
+    requiredHeaders: Object.freeze(["source_term", "label", "captured_date", "source_url"]),
+  },
+  {
+    file: "characters.csv",
+    target: "wb_character",
+    requiredHeaders: Object.freeze(["source_term", "label", "captured_date", "source_url"]),
+  },
+  {
+    file: "assets.csv",
+    target: "wb_asset",
+    requiredHeaders: Object.freeze([
+      "asset_source_id",
+      "file_name",
+      "source_path",
+      "property_labels",
+      "franchise_labels",
+      "character_labels",
+      "captured_date",
+      "source_url",
+    ]),
+  },
+  {
+    file: "links-asset-style-guide.csv",
+    target: "wb_asset_style_guide",
+    requiredHeaders: Object.freeze([
+      "asset_source_id",
+      "style_guide_natural_key",
+      "file_name",
+      "captured_date",
+      "source_url",
+    ]),
+  },
+  {
+    file: "links-asset-franchise-property.csv",
+    target: "wb_asset_franchise_property",
+    requiredHeaders: Object.freeze([
+      "asset_source_id",
+      "franchise_property_label",
+      "file_name",
+      "captured_date",
+      "source_url",
+    ]),
+  },
+  {
+    file: "links-asset-character.csv",
+    target: "wb_asset_character",
+    requiredHeaders: Object.freeze([
+      "asset_source_id",
+      "character_source_id",
+      "character_label",
+      "file_name",
+      "captured_date",
+      "source_url",
+    ]),
+  },
+  {
+    file: "links-property-character.csv",
+    target: "wb_property_character",
+    requiredHeaders: Object.freeze([
+      "property_source_id",
+      "property_label",
+      "character_source_id",
+      "character_label",
+      "id_fallback",
+      "captured_at",
+      "source_url",
+    ]),
+  },
 ]);
+
+/** The required-header list for one capture file, or null if the file is unknown. */
+export function requiredHeadersFor(file) {
+  const entry = CAPTURE_FILES.find((c) => c.file === file);
+  return entry ? entry.requiredHeaders : null;
+}
+
+/**
+ * REFUSAL 0. Prove the file's COLUMN IDENTITY before a single row is built.
+ *
+ * Three conditions are hard refusals, because each one silently produces rows
+ * with the wrong keys:
+ *
+ *   - a BLANK header name    -> every value in that column lands under the key ""
+ *   - a DUPLICATED header    -> the later column wins and the earlier is lost
+ *   - a MISSING required one -> the database sees the field as absent, which its
+ *                               G6 check reports as malformed DATA, not as a
+ *                               wrong-shaped FILE
+ *
+ * Column ORDER is deliberately NOT checked: rows are keyed by name, so a
+ * reordered file is genuinely equivalent. An UNKNOWN extra column is likewise
+ * not a refusal -- the loaders keep the whole row in `raw`, so a new column
+ * added upstream is additive and blocking it would strand a valid capture --
+ * but it IS reported on stderr, because a column appearing without anyone
+ * deciding to add it is exactly the drift this repo keeps rediscovering late.
+ *
+ * Header NAMES are structural metadata, not licensed Warner data, so unlike row
+ * values they are safe to print. No row value is ever echoed.
+ *
+ * @param {string} file  one of CAPTURE_FILES[].file
+ * @param {string[]} header  row 0, verbatim
+ * @param {(msg: string) => void} [warn]  injected for tests
+ */
+export function assertCaptureHeaders(file, header, warn = (m) => console.error(m)) {
+  const required = requiredHeadersFor(file);
+  if (!required) {
+    throw new Error(
+      `REFUSING TO LOAD. ${file} is not one of the eight capture files. The file list is a ` +
+        "fact about the capture, not an observation of a directory."
+    );
+  }
+  const cols = (header ?? []).map((h) => String(h).replace(/^﻿/, "").trim());
+
+  const blanks = cols.reduce((n, h) => (h === "" ? n + 1 : n), 0);
+  if (blanks > 0) {
+    throw new Error(
+      `REFUSING TO LOAD. warner-bros/${file} has ${blanks} blank column name(s) in its header ` +
+        "row. Every value in a blank-named column would be keyed by the empty string and " +
+        "silently discarded by the loader."
+    );
+  }
+
+  const seen = new Set();
+  const dupes = [];
+  for (const h of cols) {
+    if (seen.has(h)) dupes.push(h);
+    seen.add(h);
+  }
+  if (dupes.length) {
+    throw new Error(
+      `REFUSING TO LOAD. warner-bros/${file} has duplicated column name(s) ` +
+        `[${[...new Set(dupes)].join(", ")}]. Only the LAST column of a duplicated pair ` +
+        "survives into the row object, so the earlier one is lost with no error."
+    );
+  }
+
+  const missing = required.filter((h) => !seen.has(h));
+  if (missing.length) {
+    throw new Error(
+      `REFUSING TO LOAD. warner-bros/${file} is missing required column(s) ` +
+        `[${missing.join(", ")}]. Expected at least [${required.join(", ")}]; the header row ` +
+        `reads [${cols.join(", ")}]. A renamed or reordered-away column loads as rows with ` +
+        "the WRONG KEYS, which the database reports as malformed data rather than as a " +
+        "wrong-shaped file."
+    );
+  }
+
+  const unknown = cols.filter((h) => !required.includes(h));
+  if (unknown.length) {
+    warn(
+      `NOTE: warner-bros/${file} carries column(s) not in this loader's required set ` +
+        `[${unknown.join(", ")}]. These are kept verbatim in the row's raw payload and are ` +
+        "not an error, but a column that appeared without anyone deciding to add it is drift."
+    );
+  }
+
+  return { columns: cols, unknown };
+}
 
 /**
  * Rows per chunk.
@@ -218,7 +397,11 @@ export function parseCsv(text) {
  * is the correct outcome, and the reason no renaming is attempted.
  */
 export function csvToObjects(text) {
-  const rows = parseCsv(text);
+  return rowsToObjects(parseCsv(text));
+}
+
+/** The keying half of `csvToObjects`, split out so the header can be checked first. */
+export function rowsToObjects(rows) {
   if (!rows.length) return [];
   const header = rows[0];
   return rows.slice(1).map((r) => {
@@ -270,11 +453,23 @@ export function resolveTarget({ databaseUrl, expectedRef }) {
   return expectedRef;
 }
 
-/** Run git in the private checkout. Buffer is generous: assets.csv is ~62 MB. */
+/**
+ * Run git in the private checkout. Buffer is generous: assets.csv is ~62 MB.
+ *
+ * GIT_NO_REPLACE_OBJECTS=1 is not decoration. `git show` and `git cat-file`
+ * both HONOUR `refs/replace/*`, and a replace ref is invisible to every check
+ * this loader makes: neither `git rev-parse HEAD` nor `git status --porcelain`
+ * reveals one. So a replaced object would let the pinned commit resolve to
+ * different content while every refusal in this file still reported "clean
+ * checkout, pinned commit". The threat model is narrow (it needs write access
+ * to the private capture repo), but the cost of closing it is one env var and
+ * the failure it prevents is the one this loader exists to prevent.
+ */
 async function git(repoDir, args, { encoding = "utf8" } = {}) {
   const { stdout } = await execFileAsync("git", ["-C", repoDir, ...args], {
     encoding: encoding === "buffer" ? "buffer" : "utf8",
     maxBuffer: 512 * 1024 * 1024,
+    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
   });
   return stdout;
 }
@@ -321,21 +516,84 @@ export async function assertPinnedCleanCheckout(repoDir, pinnedCommit, runGit = 
  * Read ONE capture file out of the pinned commit. Never touches the filesystem
  * copy: `git show <commit>:<path>` reads the committed object.
  */
-export async function readPinnedCsv(repoDir, pinnedCommit, file, runGit = git) {
+export async function readPinnedCsv(repoDir, pinnedCommit, file, runGit = git, warn) {
+  const oid = await resolvePinnedBlob(repoDir, pinnedCommit, file, runGit);
+
   let raw;
   try {
-    raw = await runGit(repoDir, ["show", `${pinnedCommit}:warner-bros/${file}`], {
-      encoding: "buffer",
-    });
+    raw = await runGit(repoDir, ["cat-file", "blob", oid], { encoding: "buffer" });
   } catch (err) {
     throw new Error(
-      `REFUSING TO LOAD. warner-bros/${file} could not be read from pinned commit ` +
-        `${pinnedCommit}. The eight capture files are a fact about the capture, not an ` +
-        "observation of a directory, so a missing one is a hard failure and never a " +
-        `silent zero. Underlying error: ${String(err.message).split("\n")[0]}`
+      `REFUSING TO LOAD. warner-bros/${file} resolved to object ${oid} at pinned commit ` +
+        `${pinnedCommit} but that object could not be read. The eight capture files are a ` +
+        "fact about the capture, not an observation of a directory, so this is a hard " +
+        `failure and never a silent zero. Underlying error: ${String(err.message).split("\n")[0]}`
     );
   }
-  return csvToObjects(decodeUtf8Strict(raw));
+
+  const rows = parseCsv(decodeUtf8Strict(raw));
+  assertCaptureHeaders(file, rows[0] ?? [], warn ?? ((m) => console.error(m)));
+  return rowsToObjects(rows);
+}
+
+/**
+ * Resolve one capture path at the pinned commit to a REGULAR FILE blob, or refuse.
+ *
+ * WHY THIS IS NOT `git show <commit>:<path>` ANY MORE. `git show` renders
+ * whatever the path points at, and three of those renderings parse as CSV
+ * rather than failing:
+ *
+ *   - mode 120000 (symlink) prints the LINK TARGET TEXT -- one short line, which
+ *     `parseCsv` happily returns as a header row
+ *   - a TREE prints a directory listing
+ *   - mode 160000 (gitlink / submodule) prints a commit rendering
+ *
+ * Any of those could reach the database as rows. `git ls-tree` is the only way
+ * to see the MODE, so the mode is checked first and the content is then read by
+ * object id with `git cat-file blob`, which cannot re-resolve to anything else.
+ *
+ * The clean-status and pinned-HEAD refusals are NOT load-bearing here: content
+ * comes from the committed tree regardless of what the worktree looks like.
+ */
+export async function resolvePinnedBlob(repoDir, pinnedCommit, file, runGit = git) {
+  const path = `warner-bros/${file}`;
+  let listing;
+  try {
+    listing = await runGit(repoDir, ["ls-tree", "-z", pinnedCommit, "--", path]);
+  } catch (err) {
+    throw new Error(
+      `REFUSING TO LOAD. warner-bros/${file} could not be looked up in pinned commit ` +
+        `${pinnedCommit}. Underlying error: ${String(err.message).split("\n")[0]}`
+    );
+  }
+
+  const entries = String(listing).split("\0").filter((e) => e !== "");
+  if (entries.length !== 1) {
+    throw new Error(
+      `REFUSING TO LOAD. warner-bros/${file} resolves to ${entries.length} tree entries at ` +
+        `pinned commit ${pinnedCommit}; exactly 1 is required. The eight capture files are a ` +
+        "fact about the capture, not an observation of a directory, so a missing one is a " +
+        "hard failure and never a silent zero."
+    );
+  }
+
+  const m = /^(\d{6}) (\w+) ([0-9a-f]{40,64})\t/.exec(entries[0]);
+  if (!m) {
+    throw new Error(
+      `REFUSING TO LOAD. the tree entry for warner-bros/${file} at ${pinnedCommit} could not ` +
+        "be parsed. Refusing rather than guessing its type."
+    );
+  }
+  const [, mode, type, oid] = m;
+  if (type !== "blob" || mode !== "100644") {
+    throw new Error(
+      `REFUSING TO LOAD. warner-bros/${file} is mode ${mode} (${type}) at pinned commit ` +
+        `${pinnedCommit}; only a regular-file blob (100644) may be loaded. A symlink renders ` +
+        "as its target text, a tree as a directory listing and a gitlink as a commit -- each " +
+        "of which can parse as CSV and reach the database as rows."
+    );
+  }
+  return oid;
 }
 
 /**
@@ -369,7 +627,9 @@ export function buildChunks(rows, { maxRows = MAX_CHUNK_ROWS, maxBytes = MAX_CHU
   };
 
   for (const row of rows) {
-    const size = JSON.stringify(row).length + 1;
+    // Buffer.byteLength, NOT .length: `.length` counts UTF-16 code units, so a
+    // non-ASCII licensor or character name UNDERCOUNTS against a byte budget.
+    const size = Buffer.byteLength(JSON.stringify(row), "utf8") + 1;
     if (batch.length >= maxRows || (batch.length && bytes + size > maxBytes)) flush();
     batch.push(row);
     bytes += size;

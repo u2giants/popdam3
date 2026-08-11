@@ -21,7 +21,8 @@
 // With none of those flags the behaviour is byte-for-byte the previous preview-only
 // behaviour, so every existing guard test still means what it meant before.
 
-import { readFileSync } from "node:fs";
+import { readLinkedProjectRefSync, repoRootFrom } from "./check-supabase-link-state.mjs";
+
 import { pathToFileURL } from "node:url";
 import { runSql, sqlDollarQuote } from "./coldlion-sync-common.mjs";
 import {
@@ -57,11 +58,12 @@ export function buildHealthSql({ maxSuccessAge = "36 hours", forceFail = false }
 }
 
 function readLinkedProjectRef() {
-  try {
-    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
-  } catch {
-    return null;
-  }
+  // #593: delegate to the shared reader. Same contract as the single-file read
+  // it replaces -- the CLI-authoritative ref, or null when unlinked -- but a
+  // `project-ref` / `linked-project.json` split is now REPORTED instead of
+  // invisible, and `repoRootFrom` pins it to THIS checkout under the
+  // agent-per-worktree model.
+  return readLinkedProjectRefSync({ root: repoRootFrom(import.meta.url) });
 }
 
 function main(argv = process.argv.slice(2), env = process.env) {

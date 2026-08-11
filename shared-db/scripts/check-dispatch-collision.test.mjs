@@ -10,8 +10,10 @@ import { test } from 'node:test'
 
 import {
   bodyFromClaimCommand,
+  claimBody,
   claimCommand,
   encodeRepoPath,
+  localVersionSource,
   findDispatchConflicts,
   formatReport,
   gatherOpenPrObjects,
@@ -418,4 +420,76 @@ test('encodeRepoPath encodes # and spaces but keeps the path separators', () => 
     'supabase/migrations/20260806_a%20b%23c.sql',
   )
   assert.equal(encodeRepoPath('a/b/c.sql'), 'a/b/c.sql')
+})
+
+// --- #670: versions already on disk are a comparison source ----------------
+
+test('#670 localVersionSource turns the on-disk versions into an in-flight source', () => {
+  const source = localVersionSource(['20260810130000', '20260810140000', '20260810130000'])
+  assert.equal(source.length, 1)
+  // De-duplicated and sorted, so the report cannot list the same stamp twice.
+  assert.deepEqual(source[0].versions, ['20260810130000', '20260810140000'])
+  // It claims NO objects: the object axis is covered by the PR/claim sources,
+  // and asserting objects here would over-block every dispatch in the repo.
+  assert.deepEqual(source[0].objects, [])
+  assert.match(source[0].label, /this checkout/)
+})
+
+test('#670 an empty migrations directory contributes NO source, not an empty one', () => {
+  // An empty source would make formatReport say "checked against 1 in-flight
+  // item", which reads as evidence gathered when none was.
+  assert.deepEqual(localVersionSource([]), [])
+})
+
+test('#670 a version already on disk is now a CONFLICT, not a clear', () => {
+  // The 2026-08-10 near-miss: two agents both chose 20260810130000. Before this,
+  // main compared only against open claims and open PRs, so a stamp already
+  // written in this checkout came back clear.
+  const result = findDispatchConflicts(
+    { objects: [], version: '20260810130000' },
+    localVersionSource(['20260810130000']),
+  )
+  assert.equal(result.overlapFound, true)
+  assert.equal(result.versionConflicts.length, 1)
+  assert.equal(result.versionConflicts[0].version, '20260810130000')
+})
+
+test('#670 a free version is still clear against a populated migrations directory', () => {
+  const result = findDispatchConflicts(
+    { objects: [], version: '20260811090000' },
+    localVersionSource(['20260810130000', '20260810140000']),
+  )
+  assert.equal(result.overlapFound, false)
+})
+
+// --- #669: a claim body that cannot lose its fence -------------------------
+
+test('#669 claimBody round-trips through parseClaimBlock', () => {
+  // Claim #666 was filed with the right label and a sensible body but WITHOUT
+  // the fenced block, which made gatherClaims throw UNKNOWN and jammed the gate
+  // for every later dispatch. A file-based body cannot lose the fence to a
+  // shell quoting rule the way the bash heredoc did on PowerShell.
+  const proposed = { task: 'rewrite promotion fn', objects: ['function plm.foo'], version: '20260811090000' }
+  const parsed = parseClaimBlock(claimBody(proposed))
+  assert.notEqual(parsed, null)
+  assert.equal(parsed.version, '20260811090000')
+  assert.deepEqual(parsed.objects, ['function plm.foo'])
+})
+
+test('#669 a read-only claim (no objects) still parses', () => {
+  const parsed = parseClaimBlock(claimBody({ task: 'read-only audit', objects: [], version: null }))
+  assert.notEqual(parsed, null)
+  assert.deepEqual(parsed.objects, [])
+})
+
+test('#669 the heredoc command and the body file are byte-identical', () => {
+  // Two filing routes that drift produce two different claim shapes, and the
+  // gate only understands one of them.
+  const proposed = { task: 't', objects: ['table core.licensor'], version: '20260811090000' }
+  assert.equal(bodyFromClaimCommand(claimCommand(proposed)), claimBody(proposed))
+})
+
+test('#669 the printed recipe points PowerShell users at --claim-body-file', () => {
+  const command = claimCommand({ task: 't', objects: ['table core.licensor'], version: null })
+  assert.match(command, /--claim-body-file/)
 })

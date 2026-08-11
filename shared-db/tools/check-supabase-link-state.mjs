@@ -101,6 +101,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { readFileSync as readFileSyncNode } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve as resolvePath, join as joinPath, dirname } from "node:path";
 
@@ -412,6 +413,100 @@ export async function runCli({ argv = [], env = {}, log = console.log, moduleUrl
   );
 
   return result;
+}
+
+/**
+ * ============================================================================
+ * THE SHARED READER FOR EVERY TOOL THAT ONLY WANTS "WHICH PROJECT AM I LINKED TO"
+ * ============================================================================
+ * Issue #593. Eleven tools each carried their own copy of this:
+ *
+ *     try { return readFileSync(".../supabase/.temp/project-ref").trim() }
+ *     catch { return null }
+ *
+ * That is not WRONG about the CLI -- three measured experiments established that
+ * `project-ref` is the file the CLI follows. The hazard it cannot see is
+ * CROSS-TOOL: `supabase/.temp/linked-project.json` is written by a DIFFERENT
+ * tool (the Supabase MCP / editor extension) and `supabase link` never writes or
+ * refreshes it, so no re-link can ever correct it. On a real checkout measured
+ * 2026-08-07, `project-ref` said PREVIEW while `linked-project.json` said
+ * PRODUCTION. A single-file reader reports "preview" with total confidence and
+ * says nothing about the other half of the machine pointing at production.
+ *
+ * This function keeps every caller's existing CONTRACT exactly -- the
+ * CLI-authoritative ref, or null when the checkout is not linked -- while making
+ * the split LOUD instead of invisible. It is deliberately non-throwing, because
+ * the eleven callers all read tolerantly on purpose: an absent link file must
+ * not crash a tool before it can report its own, better error. Everything it
+ * cannot make sense of becomes a warning, never a silent null.
+ *
+ * ⚠️ It never echoes the pooler URL or any part of it -- that file can carry the
+ * database password and this repository is PUBLIC. Only refs are printed.
+ *
+ * For a GATE (must equal an expected ref, exit non-zero otherwise) use the CLI
+ * or `evaluateLinkState` instead. This is the reader, not the gate.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.root]  checkout to inspect; defaults to this script's checkout
+ * @param {(msg: string) => void} [opts.warn]
+ * @param {(path: string, enc: string) => string} [opts.read]  injected for tests
+ * @returns {string|null}
+ */
+export function readLinkedProjectRefSync({
+  root,
+  warn = (msg) => console.error(msg),
+  read = readFileSyncNode,
+} = {}) {
+  const base = resolveRoot({ rootArg: root, moduleUrl: import.meta.url });
+
+  const slurp = (rel) => {
+    try {
+      return read(joinPath(base, rel), "utf8");
+    } catch (err) {
+      if (err && err.code === "ENOENT") return null;
+      warn(`WARNING: ${rel} could not be read in ${base}: ${err && err.message}`);
+      return null;
+    }
+  };
+
+  const parseOrWarn = (parse, raw, rel) => {
+    try {
+      return parse(raw);
+    } catch (err) {
+      warn(`WARNING: ${rel} is unusable in ${base}: ${err && err.message}`);
+      return null;
+    }
+  };
+
+  const cliRef = parseOrWarn(parseProjectRefFile, slurp(PROJECT_REF_FILE), PROJECT_REF_FILE);
+  const jsonRef = parseOrWarn(parseLinkedProjectFile, slurp(LINKED_PROJECT_FILE), LINKED_PROJECT_FILE);
+  const poolerRef = parseOrWarn(parsePoolerUrlRef, slurp(POOLER_URL_FILE), POOLER_URL_FILE);
+
+  if (cliRef && jsonRef && jsonRef !== cliRef) {
+    warn(
+      `WARNING: this checkout (${base}) is SPLIT ACROSS TWO PROJECTS. The Supabase CLI ` +
+        `follows ${PROJECT_REF_FILE}, which names ${cliRef}, but ${LINKED_PROJECT_FILE} ` +
+        `names ${jsonRef} and is what the Supabase MCP / editor extension reads. ` +
+        "`supabase link` never writes that file, so RE-LINKING CANNOT FIX THIS: delete " +
+        "supabase/.temp/ and re-link, then confirm both files agree."
+    );
+  }
+  if (cliRef && poolerRef && poolerRef !== cliRef) {
+    warn(
+      `WARNING: ${POOLER_URL_FILE} in ${base} names project ${poolerRef} but ` +
+        `${PROJECT_REF_FILE} names ${cliRef}. (The URL itself is never printed: it can ` +
+        "carry the database password.) Delete supabase/.temp/ and re-link."
+    );
+  }
+  if (!cliRef && (jsonRef || poolerRef)) {
+    warn(
+      `WARNING: ${base} has supabase/.temp/ leftovers naming a project, but no valid ` +
+        `${PROJECT_REF_FILE}. That is NOT a link — the CLI is unlinked here — yet other ` +
+        "tools reading the leftovers will believe it is linked."
+    );
+  }
+
+  return cliRef;
 }
 
 async function main() {

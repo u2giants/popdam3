@@ -69,7 +69,7 @@
 // It needs no database credentials and must never be given any.
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -275,16 +275,9 @@ export function formatReport({ proposed, inFlight, result }) {
  * and this script is otherwise read-only.
  */
 export function claimCommand(proposed) {
-  const body = [
-    '```db-claim',
-    `version: ${proposed.version || 'none'}`,
-    'objects:',
-    ...(proposed.objects.length ? proposed.objects.map((o) => `  - ${o}`) : ['  # none — read-only task']),
-    '```',
-    '',
-    'Close this issue when the work merges or is abandoned. An open claim blocks',
-    'other agents from being dispatched onto the same objects.',
-  ].join('\n')
+  // Single source of truth with `--claim-body-file`, so the two filing routes can
+  // never drift into producing different claim bodies.
+  const body = claimBody(proposed)
 
   // A heredoc, NOT a JSON-escaped string. `--body "…\n…"` would put the two
   // literal characters backslash-n into the issue, and parseClaimBlock would
@@ -295,9 +288,12 @@ export function claimCommand(proposed) {
     '  ⚠️ THIS RECIPE IS BASH-ONLY AND DOES NOT WORK IN POWERSHELL. Pasting it',
     '     into pwsh mangles the body, and this is a PowerShell-first machine —',
     '     which is part of why zero claims have ever been filed. Run it in Git',
-    '     Bash, or write the block to a file and use `gh issue create',
-    '     --body-file <path>`. Plan step 5 removes this recipe entirely: the',
-    '     tool will acquire the claim itself as an atomic git ref.',
+    '     Bash. On PowerShell use the shell-independent route instead: re-run',
+    '     this command adding `--claim-body-file claim.md`, which writes the body',
+    '     to a file and prints a one-line `gh issue create --body-file` command',
+    '     that behaves identically in bash, PowerShell and cmd (#669).',
+    '     Plan step 5 removes this recipe entirely: the tool will acquire the',
+    '     claim itself as an atomic git ref.',
     '',
     `  gh issue create --label ${CLAIM_LABEL} \\`,
     `    --title ${JSON.stringify(proposed.task || 'db claim')} \\`,
@@ -455,12 +451,79 @@ export function versionsOnDisk() {
   }
 }
 
+/**
+ * The versions already written in THIS CHECKOUT, as an in-flight source.
+ *
+ * ⚠️ #670. `versionsOnDisk()` existed and was EXPORTED but was never called by
+ * `main`, so the version check only ever compared against OPEN PULL REQUESTS and
+ * OPEN CLAIMS. A version already sitting in `supabase/migrations/` — merged, or
+ * written on this branch and not yet pushed — was invisible, and
+ * `--version <stamp>` returned a confident clear for it.
+ *
+ * That is the exact axis of the 2026-08-10 near-miss: two agents both landed on
+ * 20260810130000, and it was caught only because a human read a PR file list.
+ * Supabase keys its ledger on the 14-digit version ALONE, so two files sharing a
+ * version means one is NEVER APPLIED while the ledger reports success — it has
+ * already happened twice (20260722220000, 20260728160000).
+ *
+ * This does NOT make allocation atomic, and must not be described as if it did.
+ * Nothing is reserved between this read and anyone writing the file, so two
+ * agents checking in the same minute still both get a clear. The atomic
+ * reservation is still open work on #670. What this closes is the far more
+ * common case: the version is ALREADY TAKEN and nothing said so.
+ */
+export function localVersionSource(versions = versionsOnDisk()) {
+  if (versions.length === 0) return []
+  return [
+    {
+      label: `${MIGRATIONS_DIR}/ in this checkout (${versions.length} migration file(s))`,
+      url: null,
+      objects: [],
+      versions: [...new Set(versions)].sort(),
+    },
+  ]
+}
+
+/**
+ * The claim body alone, for `gh issue create --body-file`.
+ *
+ * ⚠️ #669. `claimCommand` prints a BASH HEREDOC. These are PowerShell-first
+ * machines, so dispatchers routinely re-typed the claim by hand and lost the
+ * fenced ```db-claim block — which is exactly what happened to claim #666, and a
+ * claim without the block makes `gatherClaims` throw UNKNOWN and renders the gate
+ * unusable for EVERY subsequent dispatch until someone hand-edits the issue.
+ *
+ * A file cannot lose the fence to a shell quoting rule. `--claim-body-file <path>`
+ * writes this and prints a one-line `gh` command that is identical in bash,
+ * PowerShell and cmd.
+ */
+export function claimBody(proposed) {
+  return [
+    '```db-claim',
+    `version: ${proposed.version || 'none'}`,
+    'objects:',
+    ...(proposed.objects.length ? proposed.objects.map((o) => `  - ${o}`) : ['  # none — read-only task']),
+    '```',
+    '',
+    'Close this issue when the work merges or is abandoned. An open claim blocks',
+    'other agents from being dispatched onto the same objects.',
+  ].join('\n')
+}
+
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const options = { objects: [], task: '', version: null, sql: null, json: false, allocate: false }
+  const options = {
+    objects: [],
+    task: '',
+    version: null,
+    sql: null,
+    json: false,
+    allocate: false,
+    claimBodyFile: null,
+  }
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     const next = () => argv[(i += 1)]
@@ -469,6 +532,7 @@ function parseArgs(argv) {
     else if (arg === '--version') options.version = next()
     else if (arg === '--sql') options.sql = next()
     else if (arg === '--allocate-version') options.allocate = true
+    else if (arg === '--claim-body-file') options.claimBodyFile = next()
     else if (arg === '--json') options.json = true
     else if (arg === '--help' || arg === '-h') options.help = true
     else throw new Unknown(`unknown argument: ${arg}`)
@@ -489,7 +553,15 @@ Options:
   --objects <list>     Comma-separated objects it will WRITE, e.g.
                        "function plm.foo,table core.licensor". Repeatable.
   --sql <path>         Parse a draft migration instead of listing objects.
-  --version <stamp>    The 14-digit migration version you intend to use.
+  --version <stamp>    The 14-digit migration version you intend to use. Checked
+                       against open claims, open pull requests AND the migration
+                       files already in this checkout (#670).
+  --claim-body-file <path>
+                       On a clear result, write the fenced db-claim block to <path>
+                       and print a "gh issue create --body-file" command. Use
+                       this on PowerShell: the heredoc recipe is bash-only, and
+                       hand-retyping a claim is how #666 lost its fenced block
+                       and jammed the gate for every later dispatch (#669).
   --allocate-version   WITHDRAWN — it reserved nothing. Exits 2. See below.
   --json               Machine-readable output.
 
@@ -551,7 +623,11 @@ function main(argv) {
 
   let inFlight
   try {
-    inFlight = [...gatherClaims(repo), ...gatherOpenPrObjects(repo)]
+    // #670: the migrations already on disk are a version source too. Without
+    // them, `--version` compared only against open claims and open PRs, so a
+    // stamp already merged into main — or already written on this very branch —
+    // came back clear.
+    inFlight = [...gatherClaims(repo), ...gatherOpenPrObjects(repo), ...localVersionSource()]
   } catch (error) {
     if (!(error instanceof Unknown)) throw error
     console.error(`UNKNOWN: ${error.message}`)
@@ -570,6 +646,28 @@ function main(argv) {
     console.log(formatReport({ proposed, inFlight, result }))
     if (!result.overlapFound) console.log('\n' + claimCommand(proposed))
   }
+
+  // Written only on a CLEAR result: a body file for a dispatch that must not
+  // happen would be an invitation to file the claim anyway.
+  if (options.claimBodyFile && !result.overlapFound) {
+    try {
+      writeFileSync(options.claimBodyFile, `${claimBody(proposed)}\n`, 'utf8')
+    } catch (error) {
+      // Loud, and fail-closed: silently not writing the file sends the dispatcher
+      // straight back to hand-retyping the block, which is the #669 defect.
+      console.error(`UNKNOWN: could not write --claim-body-file ${options.claimBodyFile}: ${error.message}`)
+      return 2
+    }
+    console.log('')
+    console.log(`Claim body written to ${options.claimBodyFile}. File it with (any shell):`)
+    console.log('')
+    console.log(
+      `  gh issue create --label ${CLAIM_LABEL} ` +
+        `--title ${JSON.stringify(proposed.task || 'db claim')} ` +
+        `--body-file ${options.claimBodyFile}`,
+    )
+  }
+
   return result.overlapFound ? 1 : 0
 }
 

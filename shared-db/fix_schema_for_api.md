@@ -6,6 +6,26 @@
 
 ---
 
+> ## ⛔ PARTIALLY SUPERSEDED — the raw/bronze layer is NOT immutable (#540)
+>
+> **Owner ruling, Albert Hazan, 2026-07-31, recorded in `AGENTS.md` §6.3: ColdLion
+> ERP data is CANONICAL — follow it.** This document predates that ruling and still
+> describes the raw/landing layer as append-only and immutable in two places
+> (§2's layer table and §3 item 3, both flagged inline below).
+>
+> A future session acting on this document as written would refuse a correction
+> that the ruling requires. Where this document and §6.3 disagree, **§6.3 wins.**
+>
+> Everything else here — the three-layer shape, the schema relocation, the natural
+> key, the phase plan — is unaffected and still current.
+>
+> ⚠️ **Do NOT "fix" this by editing the two applied migrations that carry the same
+> stale comments (`20260722171500`, `20260722213000`).** Editing an applied
+> migration changes nothing in the database and desynchronises the file from the
+> ledger. That omission is deliberate.
+
+---
+
 ## 0. TL;DR for the implementing developer
 
 The Coldlion ERP data (items + production orders) is pulled from an external API and mirrored into
@@ -38,6 +58,12 @@ The industry-standard shape for exactly this situation has three layers:
 | Layer | Job | Standard name |
 |---|---|---|
 | **Raw / landing** | Store the exact API payload, untouched, append-only, one row per pull. Enables replay + audit. | "bronze" / staging |
+
+⛔ **"untouched, append-only" is SUPERSEDED by `AGENTS.md` §6.3 (#540).** ColdLion is
+canonical and the raw layer may be corrected to follow it. Treat this row as
+describing the layer's PURPOSE (replay and audit), not as a prohibition on
+correcting it.
+
 | **Current / typed mirror** | The de-duplicated "latest version per source id", with typed columns apps can query. | "silver" / import table |
 | **Serving** | Stable views/RPCs the frontends read, decoupled from physical tables. | "gold" / API contract |
 
@@ -156,8 +182,12 @@ Do not throw the current design away wholesale — its **bones are right**. Pres
    medallion shape; we are relocating it, not redesigning it.
 2. **Natural key is preserved.** `external_id` = the Coldlion id, and dedupe is keyed on it. This is
    exactly right and must survive the move (it becomes `source_id`).
-3. **Raw is append-only and keeps full history** (300k raw rows for 17k items ≈ 18 versions each). That
+3. **Raw keeps full history** (300k raw rows for 17k items ≈ 18 versions each). That
    audit/replay trail is a feature, not bloat.
+   ⛔ **This item previously read "Raw is append-only". SUPERSEDED by `AGENTS.md`
+   §6.3 (#540):** ColdLion ERP data is canonical, so the raw layer is not immutable
+   and may be corrected to follow it. Keeping the history is still right; refusing a
+   correction on immutability grounds is not.
 4. **Sync-run tracking exists** (`erp_sync_runs` with counts, status, error samples, running-lock index).
    Observability and idempotency are already designed in.
 5. **RLS is enabled on every table** and the browser has no direct grants — the security posture is sound.

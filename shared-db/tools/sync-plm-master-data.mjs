@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
+import { readLinkedProjectRefSync, repoRootFrom } from "./check-supabase-link-state.mjs";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -224,11 +225,12 @@ function recordFailedSyncRun(stage, error) {
 }
 
 function readLinkedProjectRef() {
-  try {
-    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
-  } catch {
-    return null;
-  }
+  // #593: delegate to the shared reader. Same contract as the single-file read
+  // it replaces -- the CLI-authoritative ref, or null when unlinked -- but a
+  // `project-ref` / `linked-project.json` split is now REPORTED instead of
+  // invisible, and `repoRootFrom` pins it to THIS checkout under the
+  // agent-per-worktree model.
+  return readLinkedProjectRefSync({ root: repoRootFrom(import.meta.url) });
 }
 
 /**
