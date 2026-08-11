@@ -105,7 +105,11 @@ declare
     'pmt_asset_character','pmt_asset_collection','pmt_asset_brand',
     'pmt_property_character','pmt_property_collection','pmt_property_franchise_evidence',
     'pmt_authorized_property_asset','pmt_relationship_anomaly','pmt_property_capture_log',
-    'pmt_shrink_override'];
+    'pmt_shrink_override',
+    -- Added by 20260811030000 (PR #752, the lossless repeated-metadata table). It is a
+    -- pmt landing table like every other name here, so it keeps service_role's documented
+    -- INSERT/UPDATE/DELETE and must hold none of TRUNCATE/REFERENCES/TRIGGER/MAINTAIN.
+    'pmt_asset_metadata_value'];
   v_nbcu text[] := array[
     'nbcu_capture','nbcu_right','nbcu_scope','nbcu_property','nbcu_ip_family',
     'nbcu_character','nbcu_style_guide','nbcu_asset','nbcu_asset_metadata_value',
