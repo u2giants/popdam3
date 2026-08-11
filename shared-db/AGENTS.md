@@ -612,6 +612,55 @@ production, and it is not proof that preview is gone. Use `supabase branches lis
 `list_branches` if you need to see it, and use the checks above to establish where you
 actually are.
 
+## 4.3 OWNER RULING — issues, handovers and plans point at the LIVE reading, never at a number (Albert Hazan, 2026-08-11)
+
+> "Create a standing rule that issues point at the live reading."
+> — Albert Hazan, 2026-08-11
+
+`HANDOFF.md` already says no document wins by name or by date — re-derive from `git`/`gh`.
+That was never written down for **issues**, which is where sessions actually pick up work,
+and the cost showed up in one day: #773 said production was **53** migrations behind when a
+live read the same day said **57** of 433 files; #712 said "63 behind, now 53" and both
+numbers were already wrong; #712's out-of-order example named **one** version pair when the
+live read found **48**; #736 claimed to index every open owner decision and was stale by
+~14 hours, missing at least four newer issues; and #710/#773 carried a **B3/B4 overlap** —
+two versions listed in both batches — that only a live read caught.
+
+**The rule: state the COMMAND that yields the figure, not the figure.**
+
+**What counts as a live figure** — anything `git`, `gh` or a database query can answer right
+now: migration file counts; applied and unapplied counts; ledger position; row counts; batch
+membership; open issue and PR lists; branch, worktree and SHA state; "max applied version".
+If a number would change without anyone editing the document, it is a live figure.
+
+**Quote these commands instead** (these are the ones proven correct):
+
+```bash
+git ls-tree origin/main --name-only supabase/migrations/   # migration files on main
+gh issue list --repo u2giants/shared-db --label db-work    # open db work
+gh pr list --state open                                    # open PRs
+```
+
+⚠️ **Never `ls supabase/migrations/`.** The shared checkout is usually parked on another
+branch, so `ls` silently reports that branch's files as if they were `main`'s. This exact
+error was made on 2026-08-11. Always `git ls-tree origin/main`, after a `git fetch`.
+
+⚠️ **The production ledger is applied OUT OF ORDER.** The highest applied version implies
+NOTHING about what is applied beneath it — on 2026-08-11, 48 unapplied versions sorted below
+the max applied one. **Any document that reasons from a high-water mark is wrong.** Compare
+the two full lists, never the two maxima.
+
+**When a number genuinely must appear** — for human readability, or because it is a decision
+input — stamp it and mark it as perishable:
+
+```text
+57 of 433 unapplied [SNAPSHOT 2026-08-11T14:20Z — `git ls-tree origin/main --name-only
+supabase/migrations/` + `supabase migration list` on production. RE-DERIVE BEFORE ACTING.]
+```
+
+A snapshot without the timestamp, the source command and the re-derive marker is a defect —
+fix it when you see it. And no session may act on a snapshot it did not re-derive itself.
+
 ## 5. The `shared-db` merge protocol (the checklist the AI runs)
 
 Merge a `shared-db` PR **only when every item is true**:
