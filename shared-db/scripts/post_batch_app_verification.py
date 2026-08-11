@@ -785,10 +785,14 @@ POPDAM = AppSpec(
             READ,
             ("name", "status"),
             why="StylesPage.tsx:760 fetchSizeOptions. THE B8 OBJECT. On ANY error "
-            "this call falls through to a hardcoded list and reports nothing "
-            "(contract §3.2, §7.2 B8). CONFIRMED ABSENT on production 2026-08-10, "
-            "which means PopDAM's size picker is running on COMMON_SIZE_OPTIONS "
-            "right now and has never said so.",
+            "this call falls through to `public.style_groups.size_name`, and only "
+            "if THAT also errors to the hardcoded COMMON_SIZE_OPTIONS. No tier "
+            "alerts (contract §3.2, §7.2 B8). CONFIRMED ABSENT on production "
+            "2026-08-10, so PopDAM's size picker is running on TIER 2 right now -- "
+            "316 distinct free-text style_groups values, NOT the hardcoded list -- "
+            "and has never said so. This is why the §7.2/B8 eyeball test ('does it "
+            "look like a short generic list?') cannot detect the failure: 316 "
+            "plausible values do not look generic. Cross-check against the seed.",
             arrives_in="B8",
         ),
         Relation(
@@ -968,8 +972,13 @@ OUT_OF_SCOPE = {
 # Recorded rather than dropped, because a silent divergence between the contract
 # and the check is exactly how a check drifts into proving nothing.
 MANIFEST_DRIFT = (
-    "Contract drift is tracked in issue #721; the PopPIM privilege gap below is "
-    "issue #720. Neither is fixed here.",
+    "RESOLVED 2026-08-10 (issue #721): the three contract claims below were "
+    "re-derived from popdam3 origin/main a56715a9 AND from a live catalog read of "
+    "qsllyeztdwjgirsysgai. All three notes REPRODUCED -- this module was already "
+    "right and NO assertion changed. The CONTRACT was corrected to match it "
+    "(docs/production-promotion-app-tolerance-contract.md §3.2, §7.2). These notes "
+    "are kept as the audit trail, not as open drift. The PopPIM privilege gap "
+    "below is issue #720 and is still open.",
     "Contract §3.2 and §7.2/B8 say StylesPage.tsx reads `core.product_material` "
     "and falls back to COMMON_PRODUCT_MATERIAL_OPTIONS. On origin/main as of "
     "2026-08-10 there is NO such read: `product_material` survives only as an "

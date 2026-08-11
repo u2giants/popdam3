@@ -9,6 +9,17 @@ same day by other sessions; this document is written from repository files and a
 code only. Everything below is marked VERIFIED (I opened the file and read the line) or UNVERIFIED
 (inherited from an earlier session's database read, and it is labelled so).
 
+**Revision 2026-08-10 (issue [#721](https://github.com/u2giants/shared-db/issues/721), sub-agent of
+orchestrator `d152a272`, marker #739).** Three §3.2 claims were re-derived from `origin/main` of
+`u2giants/popdam3` (`a56715a9`) **and** from a live read-only catalog read of production
+`qsllyeztdwjgirsysgai` — so, unlike the original draft, the corrected claims below **are** backed by
+database calls. Corrected: (1) the size-picker fallback is **already live**, and it rests on
+`style_groups.size_name`, not on the hardcoded list; (2) `core.product_material` has **no reader**;
+(3) `dam_character_catalog` is **`public`**, not `api`. Each correction is marked inline in §3.2 and
+§7.2. `scripts/post_batch_app_verification.py` already encoded all three correctly and needed no
+assertion change. **If you edit §3.2, re-check that script's `APP_MANIFEST` and `MANIFEST_DRIFT` in
+the same commit** — nothing mechanically enforces that today (issue #721 item 4).
+
 ---
 
 ## 1. What this document decides, and the one-line answer
@@ -184,8 +195,8 @@ That message actively reassures the user that the page is fine. It is imported b
 ### 3.2 PopDAM (`popdam3`) — the largest surface, with two invisible failure paths
 
 VERIFIED against `origin/main`: **23 distinct RPC names** (all unqualified, i.e. `public`);
-**14 `.schema("core")` call sites**; **4 `.schema("api")` call sites**, reaching
-`api.dam_customer_list`, `api.dam_factory_list` and `api.dam_character_catalog`; **9
+**14 `.schema("core")` call sites**; **3 `.schema("api")` call sites**, reaching
+`api.dam_customer_list` and `api.dam_factory_list`; **9
 `postgres_changes` realtime subscriptions**; **4 `select("*")` calls**; **4 `.eq("status","active")`
 filters** in `src/pages/StylesPage.tsx` (lines 636, 674, 744, 762).
 
@@ -205,21 +216,48 @@ ones.)*
 | **A lookup value going inactive** | **BREAKS — silently.** Four `.eq("status","active")` filters mean the value *and* the column are contractual; flip a `core` lookup row to inactive and it vanishes from a picker with no error | silent |
 | **An object renamed** | **BREAKS — silently for realtime, loudly for queries.** The 9 `postgres_changes` subscriptions bind to table names as strings; a renamed table makes the subscription simply never fire. The grid stops updating and looks idle | silent |
 
-**The two invisible paths — this is the part to actually worry about.** `src/pages/StylesPage.tsx`
-(VERIFIED):
+**The invisible path — this is the part to actually worry about, and it is ALREADY OPEN.**
+`src/pages/StylesPage.tsx`, `fetchSizeOptions` (VERIFIED 2026-08-10 against `origin/main`
+`a56715a9`, lines 757–776):
 
 ```
-771:  if (error) return compactStringOptions(COMMON_PRODUCT_MATERIAL_OPTIONS, 500);
-783:  if (!coreSize.error) return compactPickerOptions(coreSize.data);
-790:  if (styleGroupSizes.error) return compactStringOptions(COMMON_SIZE_OPTIONS, 500);
+757: async function fetchSizeOptions() {
+760:    .from("product_size")          // .schema("core"), .eq("status","active")
+765:  if (!coreSize.error) return compactPickerOptions(coreSize.data);
+769:    .from("style_groups").select("size_name")   // tier 2
+772:  if (styleGroupSizes.error) return compactStringOptions(COMMON_SIZE_OPTIONS, 500);  // tier 3
 ```
 
-`fetchProductMaterialOptions` reads `core.product_material`; on **any** error it silently returns a
-hardcoded list. `fetchSizeOptions` reads `core.product_size`; on error it falls through to
-`style_groups.size_name`, then to a hardcoded list. **Batch 8 of this promotion creates and seeds
-`core.product_size` and `core.product_depth`.** If anything in that batch is wrong, PopDAM will show
-plausible-looking hardcoded sizes and materials and report nothing. Nobody will notice for weeks.
-This is the single most important thing to check by hand after B8, and §7 says how.
+`fetchSizeOptions` reads `core.product_size`; on **any** error it falls through to
+`public.style_groups.size_name`, and only if *that* also errors to the hardcoded `COMMON_SIZE_OPTIONS`.
+No tier alerts. **Batch 8 of this promotion creates and seeds `core.product_size` and
+`core.product_depth`.** If anything in that batch is wrong, PopDAM will show a plausible-looking size
+picker and report nothing. Nobody will notice for weeks. This is the single most important thing to
+check by hand after B8, and §7 says how.
+
+**This fallback is live on production RIGHT NOW, and has been all along.** VERIFIED by catalog read
+of `qsllyeztdwjgirsysgai`, 2026-08-10: `core.product_size` **does not exist**. So tier 1 errors on
+every load and the picker is served by **tier 2**, `public.style_groups.size_name` — **316 distinct
+values across 8,327 rows** (verified by count). It is *not* on the hardcoded list. That distinction
+is load-bearing: 316 free-text values do **not** "look like a short generic list", so the naive
+eyeball test cannot detect this state. See the corrected B8 manual check in §7.2.
+
+**Correction (issue #721): `core.product_material` has NO reader.** An earlier revision of this
+section claimed `fetchProductMaterialOptions` reads `core.product_material` and falls back to
+`COMMON_PRODUCT_MATERIAL_OPTIONS`. That function **no longer exists on `origin/main`**. VERIFIED: the
+only surviving `product_material` references in `src/` are an array **column** on the assets facet
+(`src/hooks/useAssets.ts:179,357`) and generated types — no `core.product_material` read anywhere.
+Note the two situations this used to merge: `core.product_material` is an **existing** table on
+production today with **no reader**, whereas `core.product_depth` is a **future** table (B8) with
+**no reader**. Neither is an application dependency; neither belongs in the PopDAM manifest.
+
+**Correction (issue #721): `dam_character_catalog` is `public`, not `api`.** VERIFIED two ways.
+Code: every read is unqualified (`client.from("dam_character_catalog")` in
+`apps/worker/src/handlers/ai-tagging-shared.ts` and `ai-tag-bakeoff.ts`), i.e. `public`, and
+`src/components/settings/ApisTab.tsx:283` passes the schema explicitly as the literal `"public"`.
+Catalog: `public.dam_character_catalog` exists as a **view**, and **no `api.dam_character_catalog`
+exists at all** — the `api` schema holds only `dam_asset_library`, `dam_customer_list` and
+`dam_factory_list`. The old `api.` reference named an object that has never existed.
 
 Several `.single()` calls will throw on zero rows rather than return null — relevant when a table
 exists but has not been populated yet.
@@ -364,7 +402,7 @@ with the independently derived 47-entry apply set in
 | **B5** | `20260802140000` … `20260802160000` | 4 | Taxonomy alert acknowledgement RPC and its three corrections. Rest at the end because `160000` fixes the effective-role check. The two §6.5-held files sort just above `160000` and are absent from the pruned checkout. |
 | **B6** | `20260803150000` … `20260804120100` | 5 | Item identity/UPC contract, temp status watch, taxonomy baseline pins. `20260804120100` drops the 8-arg `trip_taxonomy_circuit_breaker` and re-creates it — resting before it leaves the pin table without its environment/provenance columns. |
 | **B7** | `20260807030000` … `20260807200000` | 6 | **ATOMIC.** Contains the `api.opa_property_reconciliation` **drop-and-recreate** at `20260807190000` (a genuine column-set change; `create or replace view` was insufficient, so there is a window with **no view at all**) and the three-version `plm.sync_opa_property_character` chain (`170100` → `180000` → `190000`). `190000` is also a security fix, not an optional polish. Rest only after `200000`. |
-| **B8** | `20260809170000` … `20260809170500` | 6 | `core.product_size` / `core.product_depth` foundation, both seeds, the guarded importer, the `api` pickers, and the DB Data Admin mutations. Rest at the end because a half-seeded `core.product_size` is exactly what PopDAM swallows silently (§3.2). |
+| **B8** | `20260809170000` … `20260809170500` | 6 | `core.product_size` / `core.product_depth` foundation, both seeds, the guarded importer, the `api` pickers, and the DB Data Admin mutations. Rest at the end because a half-seeded `core.product_size` is exactly what PopDAM swallows silently — into the `style_groups.size_name` fallback, which looks plausible (§3.2). |
 | **B9** | `20260810010000` … `20260810170000` (excl. `140000`) | 14 | **ATOMIC — the licensor landing batch.** Carries all three security co-presence pairs (below), the `api.dam_order_list` `security_invoker` fix, and both DAM function chains. There is **no** safe internal boundary anywhere in it. |
 
 > **⚠️ Correction to the earlier batch sketch, and it is load-bearing.** An earlier draft placed
@@ -527,7 +565,7 @@ Do these in order. Each one is a screen a person can open.
 | **B5** taxonomy alert ack | Acknowledge one taxonomy alert as a non-administrator and confirm the effective-role check accepts it. |
 | **B6** item identity, status watch, baseline pins | PopPIM product pages (UPC/identity contract). Confirm nothing calls the old 8-argument `trip_taxonomy_circuit_breaker`. |
 | **B7** Disney OPA | `api.opa_property_reconciliation` is read by no deployed app, so the drop-recreate window is invisible. **Confirm the view exists after the batch** — this is the one place a rebuild could leave nothing behind. |
-| **B8** `core.product_size` / `core.product_depth` | **The most important manual check in this document.** Open PopDAM Styles, open a size picker and a material picker. If the values look like a short generic list, PopDAM has silently fallen back to `COMMON_SIZE_OPTIONS` / `COMMON_PRODUCT_MATERIAL_OPTIONS` and is hiding an error (§3.2, `StylesPage.tsx:771,783,790`). **Cross-check the picker contents against what B8 seeded.** A plausible-looking list is not evidence of success. |
+| **B8** `core.product_size` / `core.product_depth` | **The most important manual check in this document.** Open PopDAM Styles and open the **size** picker (there is no material picker — §3.2, issue #721). **Do not judge it by whether the list "looks generic".** That test is broken: before B8 the picker is served by fallback **tier 2**, `style_groups.size_name`, whose 316 free-text values look entirely plausible (§3.2, `StylesPage.tsx:757–776`). The only valid check is a **count-and-content cross-check against what B8 seeded** — expect the seeded active identities, and confirm at least one value that exists **only** in `core.product_size` and not in `style_groups.size_name`. The automated equivalent is `core_product_size_*_matches_the_seed` in `scripts/post_batch_app_verification.py`; prefer it. A plausible-looking list is not evidence of success. |
 | **B9** licensor landing | Confirm all three co-presence pairs completed. Spot-check that a *non*-administrator, non-`sales`, non-`licensing` account **cannot** read `plm.wb_*`. Confirm `api.dam_order_list` reports `security_invoker = true`. Note that `20260810170000` widens `plm.item` SELECT to every authenticated account by owner ruling — confirm that is still what the owner wants on the day. |
 
 ### 7.3 The one thing most likely to abort, and it is in B2
