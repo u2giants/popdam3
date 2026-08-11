@@ -28,13 +28,17 @@ from production_catalog_verification import (  # noqa: E402
     ALWAYS_PROBED_ROLES,
     BASE_PRIVILEGES,
     MAINTAIN_PRIVILEGE,
+    PrivilegeExpectation,
     Targets,
+    _objtype_array,
+    assert_privileges,
     build_catalog_sql,
     build_row_count_sql,
     derive_targets,
     extract_report,
     render_report,
     split_statements,
+    verify,
 )
 from production_migration_guard import GuardError, strip_sql  # noqa: E402
 
@@ -607,6 +611,487 @@ class SplitStatementTests(unittest.TestCase):
         heads = [s.strip().split()[0] for s in split_statements(strip_sql(raw))]
         self.assertEqual(heads.count("create"), 3)
         self.assertIn("comment", heads)
+
+
+class PrivilegeDerivationTests(unittest.TestCase):
+    """Issue #790 point 1: privilege-shaped migrations must derive targets."""
+
+    def test_alter_default_privileges_is_derived(self):
+        t = targets_for(
+            "alter default privileges for role postgres in schema plm\n"
+            "  revoke truncate, references, trigger, maintain on tables "
+            "from service_role;"
+        )
+        self.assertFalse(t.is_empty(), "the #790 migration shape derived nothing")
+        self.assertEqual(t.default_acls, [("plm", "postgres", "r")])
+        self.assertEqual(len(t.privileges), 1)
+        expectation = t.privileges[0]
+        self.assertEqual(expectation.kind, "default_acl")
+        self.assertEqual(expectation.grantee, "service_role")
+        self.assertFalse(expectation.expect_held)
+        self.assertEqual(
+            expectation.privileges, ("MAINTAIN", "REFERENCES", "TRIGGER", "TRUNCATE")
+        )
+
+    def test_the_real_migration_that_failed_now_derives_an_assertion(self):
+        """20260810180000 is the file whose CORRECT apply went red."""
+        from production_migration_guard import local_migrations
+
+        t = derive_targets(local_migrations(REPO), ["20260810180000"])
+        self.assertFalse(t.is_empty())
+        self.assertIn(("plm", "postgres", "r"), t.default_acls)
+
+    def test_default_privileges_without_for_role_is_recorded_not_guessed(self):
+        t = targets_for(
+            "alter default privileges in schema plm grant select on tables to anon;"
+        )
+        self.assertEqual(t.privileges, [])
+        self.assertTrue(any("for role" in n for n in t.notes))
+
+    def test_default_privileges_without_schema_is_recorded_not_guessed(self):
+        t = targets_for(
+            "alter default privileges for role postgres grant select on tables "
+            "to anon;"
+        )
+        self.assertEqual(t.privileges, [])
+        self.assertTrue(any("in schema" in n for n in t.notes))
+
+    def test_grant_on_table_is_derived(self):
+        t = targets_for("grant select, insert on plm.widget to anon;")
+        self.assertEqual(len(t.privileges), 1)
+        e = t.privileges[0]
+        self.assertEqual((e.kind, e.target, e.grantee), ("relation", "plm.widget", "anon"))
+        self.assertTrue(e.expect_held)
+        self.assertIn("plm.widget", t.tables)
+
+    def test_revoke_on_function_is_derived_and_the_routine_is_required(self):
+        t = targets_for(
+            "revoke all on function plm.load_pmt_capture_chunk(bigint, jsonb) "
+            "from public, anon, authenticated;"
+        )
+        self.assertIn("plm.load_pmt_capture_chunk", t.functions)
+        grantees = {e.grantee for e in t.privileges}
+        self.assertEqual(grantees, {"PUBLIC", "anon", "authenticated"})
+        self.assertTrue(all(e.kind == "function" for e in t.privileges))
+        self.assertTrue(all(not e.expect_held for e in t.privileges))
+
+    def test_all_tables_in_schema_is_recorded_not_invented(self):
+        t = targets_for("grant select on all tables in schema plm to anon;")
+        self.assertEqual(t.privileges, [])
+        self.assertTrue(any("not modelled" in n for n in t.notes))
+
+    def test_column_level_grant_is_recorded_not_guessed(self):
+        t = targets_for("grant select (a, b) on plm.widget to anon;")
+        self.assertEqual(t.privileges, [])
+        self.assertTrue(any("column-level" in n for n in t.notes))
+
+    def test_all_expands_per_object_type(self):
+        table = PrivilegeExpectation("relation", "plm.w", "anon", ("ALL",), False, "v")
+        self.assertIn("TRUNCATE", table.expand(maintain_probed=False))
+        self.assertNotIn("MAINTAIN", table.expand(maintain_probed=False))
+        self.assertIn("MAINTAIN", table.expand(maintain_probed=True))
+        fn = PrivilegeExpectation("function", "plm.f", "anon", ("ALL",), False, "v", "f")
+        self.assertEqual(fn.expand(maintain_probed=True), ("EXECUTE",))
+
+    def test_default_acl_targets_reach_the_sql(self):
+        t = targets_for(
+            "alter default privileges for role postgres in schema plm "
+            "revoke truncate on tables from service_role;"
+        )
+        sql = build_catalog_sql(t)
+        self.assertIn("pg_default_acl", sql)
+        self.assertIn("'plm'", sql)
+        self.assertIn("'postgres'", sql)
+        self.assertIn("'r'", sql)
+        self.assertEqual(sql.count(";"), 0)
+
+    def test_objtype_array_refuses_an_unknown_code(self):
+        with self.assertRaises(GuardError):
+            _objtype_array(["r; drop table x"])
+
+
+class PrivilegeAssertionTests(unittest.TestCase):
+    """Issue #790 point 2: assert the end state, do not merely print an ACL."""
+
+    def assert_for(self, sql, catalog):
+        return assert_privileges(targets_for(sql), catalog)
+
+    DEFACL_SQL = (
+        "alter default privileges for role postgres in schema plm "
+        "revoke truncate, references, trigger, maintain on tables "
+        "from service_role;"
+    )
+
+    def defacl_catalog(self, privileges, row_exists=True, objtype="r"):
+        return {
+            "maintain_probed": True,
+            "probe_roles": ["anon", "authenticated", "public", "service_role"],
+            "default_acl": [
+                {
+                    "schema": "plm",
+                    "defacl_role": "postgres",
+                    "objtype": objtype,
+                    "role_exists": True,
+                    "row_exists": row_exists,
+                    "acl_text": "{...}",
+                    "acl": [
+                        {"grantee": "service_role", "privilege": p}
+                        for p in privileges
+                    ],
+                }
+            ],
+        }
+
+    def test_the_production_end_state_passes(self):
+        """`{service_role=arwd/postgres}` — the state the apply actually left."""
+        rows, failures = self.assert_for(
+            self.DEFACL_SQL,
+            self.defacl_catalog(["INSERT", "SELECT", "UPDATE", "DELETE"]),
+        )
+        self.assertEqual(failures, [])
+        self.assertEqual([r[1] for r in rows], ["PASS"])
+
+    def test_the_pre_apply_state_fails(self):
+        """`{service_role=arwdDxtm/postgres}` — the revoke did NOT take."""
+        rows, failures = self.assert_for(
+            self.DEFACL_SQL,
+            self.defacl_catalog(
+                [
+                    "INSERT",
+                    "SELECT",
+                    "UPDATE",
+                    "DELETE",
+                    "TRUNCATE",
+                    "REFERENCES",
+                    "TRIGGER",
+                    "MAINTAIN",
+                ]
+            ),
+        )
+        self.assertEqual([r[1] for r in rows], ["FAIL"])
+        self.assertIn("STILL in the default privileges", failures[0])
+
+    def test_a_public_default_grant_defeats_a_role_revoke(self):
+        catalog = self.defacl_catalog(["SELECT"])
+        catalog["default_acl"][0]["acl"].append(
+            {"grantee": "PUBLIC", "privilege": "TRUNCATE"}
+        )
+        _, failures = self.assert_for(self.DEFACL_SQL, catalog)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("TRUNCATE", failures[0])
+
+    def test_missing_default_acl_row_for_functions_is_execute_to_public(self):
+        """#790 point 4, the default-privilege half of the blind spot."""
+        _, failures = self.assert_for(
+            "alter default privileges for role postgres in schema plm "
+            "revoke execute on functions from public;",
+            self.defacl_catalog([], row_exists=False, objtype="f"),
+        )
+        self.assertEqual(len(failures), 1)
+        self.assertIn("BUILT-IN default", failures[0])
+
+    def test_missing_default_acl_row_for_tables_is_owner_only(self):
+        _, failures = self.assert_for(
+            self.DEFACL_SQL, self.defacl_catalog([], row_exists=False)
+        )
+        self.assertEqual(failures, [])
+
+    def test_a_default_acl_row_that_could_not_be_read_is_a_failure(self):
+        _, failures = self.assert_for(
+            self.DEFACL_SQL, {"maintain_probed": True, "default_acl": []}
+        )
+        self.assertEqual(len(failures), 1)
+        self.assertIn("not read back", failures[0])
+
+    # -- relations ---------------------------------------------------------
+    def relation_catalog(self, held, owner="postgres"):
+        return {
+            "maintain_probed": True,
+            "probe_roles": ["anon", "authenticated", "public", "service_role"],
+            "relations": [
+                {
+                    "name": "plm.widget",
+                    "to_regclass": "plm.widget",
+                    "owner": owner,
+                }
+            ],
+            "effective_privileges": [
+                {"name": "plm.widget", "role": "service_role", "privilege": p}
+                for p in held
+            ],
+        }
+
+    def test_relation_revoke_that_took_passes(self):
+        _, failures = self.assert_for(
+            "revoke truncate on plm.widget from service_role;",
+            self.relation_catalog(["SELECT"]),
+        )
+        self.assertEqual(failures, [])
+
+    def test_relation_revoke_that_did_not_take_fails(self):
+        _, failures = self.assert_for(
+            "revoke truncate on plm.widget from service_role;",
+            self.relation_catalog(["SELECT", "TRUNCATE"]),
+        )
+        self.assertEqual(len(failures), 1)
+        self.assertIn("STILL HELD", failures[0])
+
+    def test_relation_grant_that_did_not_take_fails(self):
+        _, failures = self.assert_for(
+            "grant select on plm.widget to service_role;",
+            self.relation_catalog([]),
+        )
+        self.assertEqual(len(failures), 1)
+        self.assertIn("not held after the apply", failures[0])
+
+    def public_relation_catalog(self, held_by_public):
+        """PUBLIC's effective privileges as the SQL actually reports them.
+
+        The `probe_roles` CTE probes the pseudo-role under its literal lowercase
+        name `public`, so `effective_privileges` rows carry `role = 'public'`.
+        `PrivilegeExpectation` normalises the grantee to `PUBLIC`. If the lookup
+        does not fold the two together, PUBLIC matches nothing and every revoke
+        reads green while every grant reads red.
+        """
+        catalog = self.relation_catalog([])
+        catalog["effective_privileges"] = [
+            {"name": "plm.widget", "role": "public", "privilege": p}
+            for p in held_by_public
+        ]
+        return catalog
+
+    def test_public_revoke_that_did_not_take_fails(self):
+        """The silent-pass direction: PUBLIC still holds it, and it must FAIL."""
+        rows, failures = self.assert_for(
+            "revoke truncate on plm.widget from public;",
+            self.public_relation_catalog(["SELECT", "TRUNCATE"]),
+        )
+        self.assertEqual([r[1] for r in rows], ["FAIL"])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("STILL HELD", failures[0])
+        self.assertIn("TRUNCATE", failures[0])
+
+    def test_public_grant_that_took_passes(self):
+        """The false-negative direction: a correct apply must not be blocked."""
+        rows, failures = self.assert_for(
+            "grant select on plm.widget to public;",
+            self.public_relation_catalog(["SELECT"]),
+        )
+        self.assertEqual(failures, [])
+        self.assertEqual([r[1] for r in rows], ["PASS"])
+
+    def test_owner_is_recorded_with_a_reason_not_failed(self):
+        rows, failures = self.assert_for(
+            "revoke truncate on plm.widget from service_role;",
+            self.relation_catalog(["TRUNCATE"], owner="service_role"),
+        )
+        self.assertEqual(failures, [])
+        self.assertEqual(rows[0][1], "RECORD")
+        self.assertIn("OWNS", rows[0][2])
+
+    # -- functions ---------------------------------------------------------
+    def function_catalog(self, overloads):
+        return {
+            "maintain_probed": True,
+            "probe_roles": ["anon", "authenticated", "public", "service_role"],
+            "functions": [{"name": "plm.f", "overloads": overloads}],
+        }
+
+    def test_null_proacl_is_execute_to_public_not_no_grants(self):
+        """ISSUE #790 POINT 4 — the whole point: NULL must not read as safe."""
+        rows, failures = self.assert_for(
+            "revoke all on function plm.f(bigint) from public;",
+            self.function_catalog(
+                [
+                    {
+                        "identity": "plm.f(bigint)",
+                        "owner": "postgres",
+                        "acl_is_default": True,
+                        "acl": [],
+                        "execute_held_by": [],
+                    }
+                ]
+            ),
+        )
+        self.assertEqual(rows[0][1], "FAIL")
+        self.assertIn("EXECUTE TO PUBLIC", failures[0])
+
+    def test_a_function_revoke_that_took_passes(self):
+        _, failures = self.assert_for(
+            "revoke all on function plm.f(bigint) from public;",
+            self.function_catalog(
+                [
+                    {
+                        "identity": "plm.f(bigint)",
+                        "owner": "postgres",
+                        "acl_is_default": False,
+                        "acl": [{"grantee": "postgres", "privilege": "EXECUTE"}],
+                        "execute_held_by": ["service_role"],
+                    }
+                ]
+            ),
+        )
+        self.assertEqual(failures, [])
+
+    def test_a_role_that_still_holds_execute_fails(self):
+        _, failures = self.assert_for(
+            "revoke all on function plm.f(bigint) from anon;",
+            self.function_catalog(
+                [
+                    {
+                        "identity": "plm.f(bigint)",
+                        "owner": "postgres",
+                        "acl_is_default": False,
+                        "acl": [{"grantee": "anon", "privilege": "EXECUTE"}],
+                        "execute_held_by": ["anon"],
+                    }
+                ]
+            ),
+        )
+        self.assertEqual(len(failures), 1)
+        self.assertIn("STILL holds EXECUTE", failures[0])
+
+    def test_ambiguous_overloads_record_a_grant_with_the_reason(self):
+        rows, failures = self.assert_for(
+            "grant execute on function plm.f(bigint) to anon;",
+            self.function_catalog(
+                [
+                    {"identity": "plm.f(bigint)", "acl_is_default": False,
+                     "acl": [], "execute_held_by": ["anon"]},
+                    {"identity": "plm.f(text)", "acl_is_default": False,
+                     "acl": [], "execute_held_by": []},
+                ]
+            ),
+        )
+        self.assertEqual(failures, [])
+        self.assertEqual(rows[0][1], "RECORD")
+        self.assertIn("overloads", rows[0][2])
+
+
+class PrivilegeOrderTests(unittest.TestCase):
+    """A batch may grant then revoke. Only the LAST statement is the end state."""
+
+    SQL = (
+        "grant truncate on plm.widget to service_role;\n"
+        "revoke truncate on plm.widget from service_role;\n"
+    )
+
+    def catalog(self, held):
+        return {
+            "maintain_probed": True,
+            "probe_roles": ["service_role"],
+            "relations": [
+                {"name": "plm.widget", "to_regclass": "plm.widget", "owner": "postgres"}
+            ],
+            "effective_privileges": [
+                {"name": "plm.widget", "role": "service_role", "privilege": p}
+                for p in held
+            ],
+        }
+
+    def test_derivation_keeps_statement_order(self):
+        t = targets_for(self.SQL)
+        self.assertEqual([e.expect_held for e in t.privileges], [True, False])
+
+    def test_the_later_revoke_wins_and_the_run_is_green(self):
+        rows, failures = assert_privileges(targets_for(self.SQL), self.catalog([]))
+        self.assertEqual(failures, [])
+        self.assertIn("RECORD", [r[1] for r in rows])
+        self.assertIn("PASS", [r[1] for r in rows])
+
+    def test_the_later_revoke_is_still_asserted(self):
+        _, failures = assert_privileges(
+            targets_for(self.SQL), self.catalog(["TRUNCATE"])
+        )
+        self.assertEqual(len(failures), 1)
+        self.assertIn("STILL HELD", failures[0])
+
+
+class NoopDeclarationTests(unittest.TestCase):
+    """Issue #790 point 3: a genuine no-op needs a recorded, CHECKED reason."""
+
+    DATA_ONLY = (
+        "-- catalog-verification: no-op corrects three mistyped rows only, "
+        "touches no catalog object\n"
+        "update plm.widget set name = 'x' where id = 1;\n"
+        "delete from plm.widget where id = 2;\n"
+    )
+
+    def render(self, sql):
+        targets = targets_for(sql)
+        return targets, render_report(
+            ["20260810140000"], targets, {"relations": []}, None, [], True
+        )
+
+    def test_an_undeclared_empty_migration_still_fails(self):
+        targets, (markdown, failures) = self.render("update plm.widget set a = 1;")
+        self.assertTrue(targets.is_empty())
+        self.assertEqual(len(failures), 1)
+        self.assertIn("proved nothing", failures[0])
+
+    def test_a_declared_and_checked_no_op_passes_with_its_reason_recorded(self):
+        targets, (markdown, failures) = self.render(self.DATA_ONLY)
+        self.assertEqual(failures, [])
+        self.assertTrue(targets.noop_declaration["accepted"])
+        self.assertIn("Declared no-op", markdown)
+        self.assertIn("mistyped rows", markdown)
+
+    def test_the_declaration_cannot_excuse_a_privilege_migration(self):
+        """The escape hatch is CHECKED, so it is not a bypass flag."""
+        sql = (
+            "-- catalog-verification: no-op this file changes nothing at all, "
+            "honestly\n"
+            "alter default privileges for role postgres in schema plm "
+            "revoke truncate on tables from service_role;\n"
+        )
+        targets = targets_for(sql)
+        self.assertFalse(targets.noop_declaration["accepted"])
+        self.assertFalse(targets.is_empty())
+        _, failures = render_report(
+            ["20260810140000"], targets, {"relations": []}, None, [], True
+        )
+        self.assertTrue(any("claim is false" in f for f in failures))
+
+    def test_a_declaration_over_ddl_is_rejected_and_the_run_still_fails(self):
+        sql = (
+            "-- catalog-verification: no-op nothing to see here at all, move along\n"
+            "do $$ begin perform 1; end $$;\n"
+        )
+        targets, (_, failures) = self.render(sql)
+        self.assertTrue(targets.is_empty())
+        self.assertFalse(targets.noop_declaration["accepted"])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("REJECTED", failures[0])
+
+    def test_a_reasonless_declaration_is_rejected(self):
+        targets = targets_for(
+            "-- catalog-verification: no-op meh\nupdate plm.widget set a = 1;"
+        )
+        self.assertFalse(targets.noop_declaration["accepted"])
+
+    def test_verify_records_the_reason_in_the_json_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            migrations = root / "supabase" / "migrations"
+            migrations.mkdir(parents=True)
+            (migrations / "20260810140000_data.sql").write_text(
+                self.DATA_ONLY, encoding="utf-8"
+            )
+            out = root / "out"
+            code = verify(
+                root,
+                "20260810140000",
+                out,
+                "abc123",
+                "token-value",
+                enforcing=True,
+            )
+            payload = json.loads(
+                (out / "production-catalog-verification.json").read_text("utf-8")
+            )
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["noop_declaration"]["accepted"])
+        self.assertTrue(any("DECLARES itself" in e for e in payload["errors"]))
 
 
 if __name__ == "__main__":

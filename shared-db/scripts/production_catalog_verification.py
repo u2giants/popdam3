@@ -58,7 +58,21 @@ KNOWS the expected answer; RECORD where it does not.
     opened about, and reproducing it inside the fix would be absurd.
   * HARD FAIL -- the derivation found NOTHING to check. A run in which this step
     proved nothing must not report itself green, for the same reason.
-  * RECORD ONLY -- privileges (relation AND function), RLS flags, policy counts,
+  * HARD FAIL -- a PRIVILEGE ASSERTION that did not hold (issue #790). A
+    `grant`, a `revoke` or an `alter default privileges` states an expected end
+    state, and that state is a catalog fact: `relacl`, `proacl`,
+    `pg_default_acl`. Before this the lane printed the ACL and left a human to
+    read it; 20260810180000 asserts its own outcome internally, and the lane can
+    now make the same assertion externally. Where the catalog cannot answer --
+    an owner, who holds everything regardless of ACL; a grant that cannot be
+    attributed to one of several overloads -- the row is RECORDed WITH ITS
+    REASON, never silently dropped.
+  * HARD FAIL -- a routine whose `proacl` IS NULL where a revoke was expected.
+    NULL is the DEFAULT acl, and for a function the default is EXECUTE TO
+    PUBLIC. It is the state a MISSING revoke leaves behind; reading it as "no
+    grants, therefore safe" is the inversion #790 point 4 names. The same trap
+    applies to an ABSENT `pg_default_acl` row for object type `f`.
+  * RECORD ONLY -- privileges nobody named, RLS flags, policy counts,
     function definitions, reloptions, row counts. The lane has no expected value for these. A grant may be
     intended; a policy count of 3 may be exactly right. Inventing an expectation
     here would manufacture FALSE POSITIVES that block correct promotions, and a
@@ -76,10 +90,12 @@ WHAT THIS CANNOT PROVE -- read this before trusting it
   * The derivation is a LEXER over SQL text, and lexer bugs have twice been the
     cause of guard failures in this repo. It therefore UNDER-CLAIMS on purpose:
     only plainly-written `schema.object` identifiers are picked up. Anything
-    reached through `execute format(...)`, a quoted or mixed-case identifier, a
-    search_path-relative name, or `alter default privileges` is NOT in the target
-    list and is NOT checked. A short target list is not a clean bill of health,
-    and the report says so in its own text.
+    reached through `execute format(...)`, a quoted or mixed-case identifier or
+    a search_path-relative name is NOT in the target list and is NOT checked.
+    A short target list is not a clean bill of health, and the report says so in
+    its own text. `alter default privileges` and plain `grant`/`revoke` ARE read
+    (issue #790); a privilege statement the lexer cannot read is listed under
+    `unassertable_statements` with its reason rather than dropped.
   * It observes the state AFTER the apply. It does not attribute that state to
     the apply, and it cannot distinguish an object this batch created from one
     that already existed.
@@ -185,6 +201,201 @@ GRANT_OBJECT_RE = re.compile(
 )
 GRANT_ROLES_RE = re.compile(r"\b(?:to|from)\s+([a-z0-9_,\s]+?)(?:\bwith\b|$)")
 
+# ---------------------------------------------------------------------------
+# PRIVILEGE-SHAPED MIGRATIONS (issue #790)
+#
+# `20260810180000` is `alter default privileges` plus conditional revokes, so
+# the lexer above derived NOTHING from it and the step correctly refused to
+# report green on zero evidence -- failing a CORRECT apply. The remedy is not to
+# soften the gate; it is to make the derivation able to read this shape. Every
+# batch from B3 to B10 carries grant/revoke-only files that hit the same wall.
+#
+# The catalog already holds the evidence: `pg_default_acl.defaclacl` for default
+# privileges, `pg_class.relacl` for relations, `pg_proc.proacl` for routines. So
+# these statements now produce ASSERTIONS -- an expected end state with a
+# pass/fail -- rather than an ACL string for a human to squint at.
+# ---------------------------------------------------------------------------
+
+# `alter default privileges [for role r] [in schema s] {grant|revoke} <privs>
+#  on {tables|sequences|functions|routines|types|schemas} {to|from} <roles>`
+ALTER_DEFAULT_PRIVILEGES_RE = re.compile(r"^\s*alter\s+default\s+privileges\b")
+ADP_FOR_ROLE_RE = re.compile(r"\bfor\s+(?:role|user)\s+([a-z0-9_,\s]+?)\s+(?=in\s+schema\b|grant\b|revoke\b)")
+ADP_IN_SCHEMA_RE = re.compile(r"\bin\s+schema\s+([a-z0-9_,\s]+?)\s+(?=grant\b|revoke\b)")
+ADP_ACTION_RE = re.compile(
+    r"\b(grant|revoke)\s+(?:grant\s+option\s+for\s+)?(.*?)\s+on\s+"
+    r"(tables|sequences|functions|routines|types|schemas)\b\s+(to|from)\s+(.*)$"
+)
+# A whole GRANT/REVOKE statement, split into privileges / object list / roles.
+GRANT_STATEMENT_RE = re.compile(
+    r"^\s*(grant|revoke)\s+(?:grant\s+option\s+for\s+)?(.*?)\s+on\s+(.*?)\s+(to|from)\s+(.*)$"
+)
+ROUTINE_OBJECT_RE = re.compile(r"^\s*(?:function|procedure|routine)\s+(.*)$")
+ROUTINE_NAME_RE = re.compile(rf"{QUALIFIED}\s*(\([^)]*\))?")
+PLAIN_OBJECT_RE = re.compile(rf"^\s*(?:table\s+|view\s+)?{QUALIFIED}\s*$")
+
+# `alter default privileges ... on <what>` -> the pg_default_acl `defaclobjtype`
+# code, and the privileges `all` expands to for that object type.
+DEFACL_OBJTYPES = {
+    "tables": "r",
+    "sequences": "S",
+    "functions": "f",
+    "routines": "f",
+    "types": "T",
+    "schemas": "n",
+}
+SEQUENCE_PRIVILEGES = ("USAGE", "SELECT", "UPDATE")
+ALL_PRIVILEGES_BY_OBJTYPE = {
+    "r": BASE_PRIVILEGES,          # MAINTAIN added at assert time, PG >= 17 only
+    "S": SEQUENCE_PRIVILEGES,
+    "f": ("EXECUTE",),
+    "T": ("USAGE",),
+    "n": ("USAGE", "CREATE"),
+}
+# What a NEW object gets when pg_default_acl holds NO row for it -- i.e. the
+# built-in Postgres default. For a FUNCTION that is `EXECUTE to PUBLIC`, which is
+# the exact trap issue #790 point 4 names: the absence of a row reads as "no
+# grants" and is nothing of the sort.
+BUILTIN_DEFAULT_ACL = {
+    "r": {},
+    "S": {},
+    "f": {"PUBLIC": {"EXECUTE"}},
+    "T": {"PUBLIC": {"USAGE"}},
+    "n": {},
+}
+
+# A migration that genuinely names no catalog object must SAY SO, in itself, and
+# the claim is then CHECKED -- it is not taken on trust and it is not a bypass
+# flag on this script. See `noop_declaration` below.
+NOOP_DECLARATION_RE = re.compile(
+    r"^\s*--\s*catalog-verification:\s*no-op\s*[-—:]*\s*(?P<reason>.+?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+# Statement heads a pure-DATA migration is allowed to contain. Anything else --
+# any DDL, any `do $$` block, any grant -- means the file is NOT a no-op and the
+# declaration is rejected.
+DATA_STATEMENT_RE = re.compile(
+    r"^\s*(insert|update|delete|merge|with|select|values|set|reset|analyze)\b"
+)
+
+
+class PrivilegeExpectation:
+    """One assertable statement about the end state of a privilege.
+
+    `expect_held=False` is a REVOKE: the grantee must NOT hold the privilege
+    afterwards. `expect_held=True` is a GRANT: it must. This is the difference
+    between issue #790's "assert" and the old "print an ACL string and let a
+    human read it".
+    """
+
+    KINDS = ("relation", "function", "default_acl")
+
+    def __init__(
+        self,
+        kind: str,
+        target: str,
+        grantee: str,
+        privileges: tuple[str, ...],
+        expect_held: bool,
+        source: str,
+        objtype: str = "r",
+    ) -> None:
+        if kind not in self.KINDS:
+            raise GuardError(f"unknown privilege expectation kind: {kind}")
+        self.kind = kind
+        self.target = target
+        # `public` is a pseudo-role; `aclexplode` renders it as the literal
+        # PUBLIC, so it is normalised once here rather than at every comparison.
+        self.grantee = "PUBLIC" if grantee.lower() == "public" else grantee
+        self.privileges = tuple(sorted(set(privileges)))
+        self.expect_held = expect_held
+        self.source = source
+        self.objtype = objtype
+
+    @property
+    def key(self) -> tuple:
+        return (
+            self.kind,
+            self.target,
+            self.objtype,
+            self.grantee,
+            self.privileges,
+            self.expect_held,
+        )
+
+    def expand(self, maintain_probed: bool) -> tuple[str, ...]:
+        """`ALL` -> the concrete privilege list for this object type.
+
+        MAINTAIN is included only when the server actually has it (PG >= 17).
+        Asserting a privilege the server does not know would fail every correct
+        apply on an older target -- the same false-negative class as #790.
+        """
+        if "ALL" not in self.privileges:
+            return self.privileges
+        base = list(ALL_PRIVILEGES_BY_OBJTYPE.get(self.objtype, ()))
+        if self.objtype == "r" and maintain_probed:
+            base.append(MAINTAIN_PRIVILEGE)
+        rest = [p for p in self.privileges if p != "ALL"]
+        return tuple(sorted(set(base) | set(rest)))
+
+    def as_dict(self) -> dict:
+        return {
+            "kind": self.kind,
+            "target": self.target,
+            "objtype": self.objtype,
+            "grantee": self.grantee,
+            "privileges": list(self.privileges),
+            "expect_held": self.expect_held,
+            "source": self.source,
+        }
+
+    def describe(self) -> str:
+        verb = "must HOLD" if self.expect_held else "must NOT hold"
+        return (
+            f"{self.grantee} {verb} {', '.join(self.privileges)} on "
+            f"{self.kind} {self.target}"
+        )
+
+
+def _split_privileges(raw: str) -> tuple[tuple[str, ...], str | None]:
+    """Parse the privilege list of a GRANT/REVOKE. Returns (privs, note).
+
+    A column-level grant (`select (col_a, col_b)`) is NOT modelled: column ACLs
+    live in `pg_attribute.attacl`, which this module does not read, and guessing
+    would be the mis-parse it refuses to make. It returns a NOTE instead, so the
+    statement is recorded as unassertable rather than silently dropped.
+    """
+    text = raw.strip()
+    if "(" in text:
+        return (), f"column-level privileges are not modelled: `{text}`"
+    privileges: list[str] = []
+    for token in text.split(","):
+        name = " ".join(token.split()).upper()
+        if name in ("ALL", "ALL PRIVILEGES"):
+            privileges.append("ALL")
+        elif re.fullmatch(r"[A-Z ]+", name or "x"):
+            privileges.append(name)
+        else:
+            return (), f"unparseable privilege list: `{text}`"
+    if not privileges:
+        return (), f"empty privilege list: `{text}`"
+    return tuple(privileges), None
+
+
+def _split_grantees(raw: str) -> set[str]:
+    """Roles named after TO / FROM, with the trailing clauses removed."""
+    text = raw
+    for tail in (
+        "with grant option",
+        "with admin option",
+        "granted by",
+        "cascade",
+        "restrict",
+    ):
+        index = text.find(tail)
+        if index != -1:
+            text = text[:index]
+    return _roles_in(f"to {text}")
+
 
 class Targets:
     """The objects a batch of migration files says it touches.
@@ -202,7 +413,23 @@ class Targets:
         roles: set[str],
         seeded: set[str],
         optional: set[str] | None = None,
+        privileges: list[PrivilegeExpectation] | None = None,
+        notes: list[str] | None = None,
+        noop_declaration: dict | None = None,
     ) -> None:
+        # ORDER IS LOAD-BEARING and must be the order the statements appear in,
+        # not sorted: a batch may `grant` a privilege and then `revoke` it, and
+        # only the LAST statement describes the end state. Sorting these would
+        # make one of the two contradict production and fail a correct apply --
+        # the very false-negative class issue #790 is about. Exact duplicates are
+        # collapsed, which keeps the artifact stable without reordering anything.
+        deduped: dict[tuple, PrivilegeExpectation] = {}
+        for expectation in privileges or []:
+            deduped.pop(expectation.key, None)
+            deduped[expectation.key] = expectation
+        self.privileges = list(deduped.values())
+        self.notes = sorted(set(notes or []))
+        self.noop_declaration = noop_declaration
         self.tables = sorted(tables)
         self.views = sorted(views)
         self.rls_relations = sorted(rls_relations)
@@ -223,9 +450,23 @@ class Targets:
         """Everything to run `to_regclass` over, required or not."""
         return sorted(set(self.required_relations) | set(self.optional))
 
+    @property
+    def default_acls(self) -> list[tuple[str, str, str]]:
+        """The distinct (schema, defacl role, objtype) rows to read."""
+        found = {
+            tuple(e.target.split("|")) + (e.objtype,)
+            for e in self.privileges
+            if e.kind == "default_acl"
+        }
+        return sorted(found)  # type: ignore[arg-type]
+
     def is_empty(self) -> bool:
         return not (
-            self.relations or self.functions or self.seeded or self.rls_relations
+            self.relations
+            or self.functions
+            or self.seeded
+            or self.rls_relations
+            or self.privileges
         )
 
     def as_dict(self) -> dict[str, list[str]]:
@@ -237,6 +478,8 @@ class Targets:
             "functions": self.functions,
             "roles": self.roles,
             "seeded": self.seeded,
+            "privilege_assertions": [e.describe() for e in self.privileges],
+            "unassertable_statements": self.notes,
         }
 
 
@@ -268,6 +511,205 @@ def _roles_in(statement: str) -> set[str]:
     return found
 
 
+def parse_default_privileges(
+    statement: str, source: str
+) -> tuple[list[PrivilegeExpectation], list[str]]:
+    """`alter default privileges` -> expectations against `pg_default_acl`.
+
+    CONSERVATIVE IN TWO PLACES, both load-bearing:
+
+      * No `for role` -> the rule is keyed on the EXECUTING role, which this
+        script cannot know from the text. Recorded as unassertable, never
+        guessed. (20260810180000 states `for role postgres` explicitly, for the
+        same reason its own header gives.)
+      * No `in schema` -> the rule is database-wide across every schema the role
+        creates in. Also recorded, not guessed.
+    """
+    notes: list[str] = []
+    match = ADP_ACTION_RE.search(statement)
+    if not match:
+        return [], [f"unparseable `alter default privileges`: `{statement.strip()}`"]
+    action, raw_privs, what, _direction, raw_roles = match.groups()
+
+    role_match = ADP_FOR_ROLE_RE.search(statement)
+    schema_match = ADP_IN_SCHEMA_RE.search(statement)
+    if not role_match:
+        return [], [
+            "`alter default privileges` without `for role` names the EXECUTING "
+            "role, which cannot be read from the file: "
+            f"`{statement.strip()}`"
+        ]
+    if not schema_match:
+        return [], [
+            "`alter default privileges` without `in schema` applies across every "
+            f"schema and is not modelled: `{statement.strip()}`"
+        ]
+
+    privileges, priv_note = _split_privileges(raw_privs)
+    if priv_note:
+        return [], [priv_note]
+    grantees = _split_grantees(raw_roles)
+    if not grantees:
+        return [], [f"no readable grantee in: `{statement.strip()}`"]
+
+    objtype = DEFACL_OBJTYPES[what]
+    expectations: list[PrivilegeExpectation] = []
+    for defacl_role in sorted(_roles_in(f"to {role_match.group(1)}")):
+        for schema in sorted(_roles_in(f"to {schema_match.group(1)}")):
+            for grantee in sorted(grantees):
+                expectations.append(
+                    PrivilegeExpectation(
+                        kind="default_acl",
+                        target=f"{schema}|{defacl_role}",
+                        grantee=grantee,
+                        privileges=privileges,
+                        expect_held=action == "grant",
+                        source=source,
+                        objtype=objtype,
+                    )
+                )
+    if not expectations:
+        notes.append(f"no readable role/schema in: `{statement.strip()}`")
+    return expectations, notes
+
+
+def parse_grant_statement(
+    statement: str, source: str
+) -> tuple[list[PrivilegeExpectation], set[str], set[str], list[str]]:
+    """`grant`/`revoke` -> expectations, plus the relations and functions named.
+
+    Returns (expectations, relations, functions, notes). `all tables in schema`,
+    `on schema`, `on database` and sequences are NOT modelled: each names
+    something whose membership or ACL this module does not read, and inventing
+    it is the mis-parse that costs a correct apply a red tick.
+    """
+    notes: list[str] = []
+    match = GRANT_STATEMENT_RE.match(statement)
+    if not match:
+        return [], set(), set(), [f"unparseable grant/revoke: `{statement.strip()}`"]
+    action, raw_privs, raw_objects, _direction, raw_roles = match.groups()
+
+    privileges, priv_note = _split_privileges(raw_privs)
+    if priv_note:
+        notes.append(priv_note)
+    grantees = _split_grantees(raw_roles)
+    if not grantees:
+        notes.append(f"no readable grantee in: `{statement.strip()}`")
+
+    relations: set[str] = set()
+    functions: set[str] = set()
+    expectations: list[PrivilegeExpectation] = []
+    objects = raw_objects.strip()
+
+    routine_match = ROUTINE_OBJECT_RE.match(objects)
+    if routine_match:
+        names = [
+            f"{m.group(1)}.{m.group(2)}"
+            for m in ROUTINE_NAME_RE.finditer(routine_match.group(1))
+        ]
+        if not names:
+            notes.append(f"unreadable routine name in: `{statement.strip()}`")
+        functions |= set(names)
+        kind, objtype = "function", "f"
+        targets = names
+    elif re.match(r"^\s*all\s+", objects) or re.match(
+        r"^\s*(schema|database|sequence|foreign|large|tablespace|domain|type|language)\b",
+        objects,
+    ):
+        return (
+            [],
+            set(),
+            set(),
+            notes
+            + [
+                "object class not modelled by this lexer, so it is recorded and "
+                f"NOT asserted: `{statement.strip()}`"
+            ],
+        )
+    else:
+        targets = []
+        for part in objects.split(","):
+            plain = PLAIN_OBJECT_RE.match(part)
+            if not plain:
+                notes.append(
+                    f"unreadable object `{part.strip()}` in: `{statement.strip()}`"
+                )
+                continue
+            targets.append(f"{plain.group(1)}.{plain.group(2)}")
+        relations |= set(targets)
+        kind, objtype = "relation", "r"
+
+    if privileges and grantees:
+        for target in targets:
+            for grantee in sorted(grantees):
+                expectations.append(
+                    PrivilegeExpectation(
+                        kind=kind,
+                        target=target,
+                        grantee=grantee,
+                        privileges=privileges,
+                        expect_held=action == "grant",
+                        source=source,
+                        objtype=objtype,
+                    )
+                )
+    return expectations, relations, functions, notes
+
+
+def read_noop_declaration(raw: str, version: str) -> dict | None:
+    """The one honest way a migration says "I name no catalog object".
+
+    ISSUE #790 POINT 3. A pure-data migration really does touch nothing this
+    module can read, and a silent pass there would rebuild the exact failure
+    class the enforcing gate exists to remove. So the migration DECLARES it, in
+    its own text, in the pull request where a human reviews it:
+
+        -- catalog-verification: no-op <reason, at least 20 characters>
+
+    THE DECLARATION IS NOT TAKEN ON TRUST. Every statement in the file must then
+    be data-shaped; one `create`, one `grant`, one `do $$` block and the claim is
+    REJECTED and the run still fails. It is therefore not a bypass flag: it
+    cannot excuse a privilege migration, and it cannot be aimed at a migration id
+    from outside the file.
+    """
+    match = NOOP_DECLARATION_RE.search(raw)
+    if not match:
+        return None
+    reason = match.group("reason").strip()
+    statements = split_statements(strip_sql(raw))
+    offenders = [
+        " ".join(s.split())[:120]
+        for s in statements
+        if not DATA_STATEMENT_RE.match(s)
+    ]
+    if len(reason) < 20:
+        return {
+            "version": version,
+            "reason": reason,
+            "accepted": False,
+            "rejected_because": (
+                "the declared reason is shorter than 20 characters, so it is not "
+                "a reason a reviewer can act on"
+            ),
+        }
+    if offenders:
+        return {
+            "version": version,
+            "reason": reason,
+            "accepted": False,
+            "rejected_because": (
+                "the file declares itself a pure-data no-op but contains "
+                f"{len(offenders)} non-data statement(s): {offenders}"
+            ),
+        }
+    return {
+        "version": version,
+        "reason": reason,
+        "accepted": True,
+        "statements_checked": len(statements),
+    }
+
+
 def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets:
     """Read the allowlisted migration files and list what to go and look at.
 
@@ -284,13 +726,25 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     roles: set[str] = set(ALWAYS_PROBED_ROLES)
     seeded: set[str] = set()
     optional: set[str] = set()
+    privileges: list[PrivilegeExpectation] = []
+    notes: list[str] = []
+    noop: dict | None = None
 
     for version in allowlist:
         path = migrations.get(version)
         if path is None:
             raise GuardError(f"unknown migration version: {version}")
-        text = strip_sql(path.read_text(encoding="utf-8"))
+        raw = path.read_text(encoding="utf-8")
+        declaration = read_noop_declaration(raw, version)
+        if declaration is not None and (noop is None or not declaration["accepted"]):
+            noop = declaration
+        text = strip_sql(raw)
         for statement in split_statements(text):
+            if ALTER_DEFAULT_PRIVILEGES_RE.match(statement):
+                found, adp_notes = parse_default_privileges(statement, version)
+                privileges.extend(found)
+                notes.extend(adp_notes)
+                continue
             if match := CREATE_TABLE_RE.match(statement):
                 tables.add(f"{match.group(1)}.{match.group(2)}")
                 continue
@@ -330,6 +784,16 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                 roles |= _roles_in(statement)
                 if match := GRANT_OBJECT_RE.search(statement):
                     tables.add(f"{match.group(1)}.{match.group(2)}")
+                found, rels, fns, grant_notes = parse_grant_statement(
+                    statement, version
+                )
+                privileges.extend(found)
+                tables |= rels
+                functions |= fns
+                notes.extend(grant_notes)
+                for expectation in found:
+                    if expectation.grantee != "PUBLIC":
+                        roles.add(expectation.grantee)
 
     # A view that also matched a table-shaped rule stays a view; `to_regclass`
     # covers both, and `relkind` in the report says which it really is.
@@ -337,7 +801,18 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     # Every relation is worth an RLS reading -- RLS-on-with-zero-policies was the
     # single check the canary run could not confirm at all.
     rls |= tables
-    return Targets(tables, views, rls, functions, roles, seeded, optional)
+    return Targets(
+        tables,
+        views,
+        rls,
+        functions,
+        roles,
+        seeded,
+        optional,
+        privileges=privileges,
+        notes=notes,
+        noop_declaration=noop,
+    )
 
 
 def _sql_array(values: list[str]) -> str:
@@ -355,6 +830,22 @@ def _sql_array(values: list[str]) -> str:
     return f"array[{inner}]::text[]"
 
 
+def _objtype_array(values: list[str]) -> str:
+    """`pg_default_acl.defaclobjtype` codes. Uppercase `S` cannot use _sql_array.
+
+    Checked against the closed set rather than a character class, for the same
+    reason `_sql_array` re-asserts its identifiers: this string is interpolated
+    into SQL.
+    """
+    allowed = set(DEFACL_OBJTYPES.values())
+    for value in values:
+        if value not in allowed:
+            raise GuardError(f"refusing to interpolate unknown objtype: {value!r}")
+    if not values:
+        return "array[]::text[]"
+    return "array[" + ", ".join(f"'{v}'" for v in values) + "]::text[]"
+
+
 def build_catalog_sql(targets: Targets) -> str:
     """One read-only statement returning the whole catalog reading as JSON.
 
@@ -366,8 +857,16 @@ def build_catalog_sql(targets: Targets) -> str:
     rls_relations = _sql_array(targets.rls_relations)
     roles = _sql_array(targets.roles)
     functions = _sql_array(targets.functions)
+    defacl = targets.default_acls
+    defacl_schemas = _sql_array([row[0] for row in defacl])
+    defacl_roles = _sql_array([row[1] for row in defacl])
+    defacl_objtypes = _objtype_array([row[2] for row in defacl])
     return f"""
-with rel as (
+with defacl_target as (
+  select * from unnest({defacl_schemas}, {defacl_roles}, {defacl_objtypes})
+    as t(nspname, rolname, objtype)
+),
+rel as (
   select n as name, to_regclass(n) as oid from unnest({relations}) as n
 ),
 rls as (
@@ -389,11 +888,52 @@ select jsonb_build_object(
   'server_version', current_setting('server_version'),
   'maintain_probed', current_setting('server_version_num')::int >= 170000,
   'checked_at', now(),
+  -- Which probed roles actually EXIST. Without this, a grant expectation naming
+  -- a role that is not there reads exactly like a role that holds nothing, and
+  -- the two need different verdicts.
+  'probe_roles', coalesce((
+    select jsonb_agg(probe_roles.role order by probe_roles.role) from probe_roles
+  ), '[]'::jsonb),
+  -- DEFAULT PRIVILEGES (issue #790). `alter default privileges` names no
+  -- relation, so nothing above can see it. `pg_default_acl` is where its effect
+  -- lands and is therefore where it is asserted.
+  -- A MISSING ROW IS NOT "NO GRANTS": with no row, Postgres's built-in default
+  -- applies, and for FUNCTIONS that is EXECUTE to PUBLIC. `row_exists` is
+  -- reported so the assertion can tell those two states apart.
+  'default_acl', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'schema', t.nspname,
+      'defacl_role', t.rolname,
+      'objtype', t.objtype,
+      'role_exists', exists (select 1 from pg_roles r where r.rolname = t.rolname),
+      'row_exists', d.defaclacl is not null,
+      'acl_text', d.defaclacl::text,
+      'acl', coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'grantee', case when a.grantee = 0 then 'PUBLIC'
+                          else a.grantee::regrole::text end,
+          'privilege', a.privilege_type,
+          'grantor', case when a.grantor = 0 then 'PUBLIC'
+                          else a.grantor::regrole::text end
+        ) order by a.grantee, a.privilege_type)
+        from aclexplode(d.defaclacl) a), '[]'::jsonb)
+    ) order by t.nspname, t.rolname, t.objtype)
+    from defacl_target t
+    left join pg_namespace n on n.nspname = t.nspname
+    left join pg_default_acl d
+      on d.defaclnamespace = n.oid
+     and d.defaclobjtype::text = t.objtype
+     and d.defaclrole = (select r.oid from pg_roles r where r.rolname = t.rolname)
+  ), '[]'::jsonb),
   'relations', coalesce((
     select jsonb_agg(jsonb_build_object(
       'name', rel.name,
       'to_regclass', rel.oid::text,
       'relkind', (select c.relkind::text from pg_class c where c.oid = rel.oid),
+      -- The OWNER always holds every privilege on its own relation, whatever the
+      -- ACL says. A revoke aimed at the owner is a no-op in effect, so asserting
+      -- it would fail every correct apply.
+      'owner', (select pg_get_userbyid(c.relowner) from pg_class c where c.oid = rel.oid),
       'reloptions', (select to_jsonb(c.reloptions) from pg_class c where c.oid = rel.oid)
     ) order by rel.name) from rel), '[]'::jsonb),
   'row_security', coalesce((
@@ -436,6 +976,7 @@ select jsonb_build_object(
         select coalesce(jsonb_agg(jsonb_build_object(
           'identity', p.oid::regprocedure::text,
           'prokind', p.prokind::text,
+          'owner', pg_get_userbyid(p.proowner),
           'has_definition', pg_get_functiondef(p.oid) is not null,
           -- FUNCTION PRIVILEGES (issue #697 review, H1). Without these the
           -- report showed a function existing with a readable definition and
@@ -572,6 +1113,339 @@ def extract_report(payload: object) -> object:
     return first["report"]
 
 
+def _acl_by_grantee(acl: list) -> dict[str, set[str]]:
+    held: dict[str, set[str]] = {}
+    for entry in acl or []:
+        grantee = entry.get("grantee")
+        if grantee is None:
+            continue
+        held.setdefault(str(grantee), set()).add(str(entry.get("privilege")).upper())
+    return held
+
+
+def _effective_for(held: dict[str, set[str]], grantee: str) -> set[str]:
+    """What `grantee` ends up with, PUBLIC included.
+
+    A privilege granted to PUBLIC is held by every role, so a revoke aimed at one
+    role that leaves the PUBLIC grant standing has NOT achieved its end state.
+    Folding PUBLIC in here is what makes that visible instead of passing.
+    """
+    return set(held.get(grantee, set())) | set(held.get("PUBLIC", set()))
+
+
+def assert_privileges(
+    targets: Targets, data: dict
+) -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Turn each derived expectation into a PASS / FAIL / RECORD verdict.
+
+    ISSUE #790 POINTS 1, 2 AND 4. Before this, privileges were EVIDENCE ONLY --
+    the report printed an ACL string and left a human to decide. For a
+    grant/revoke/default-privilege migration the expected end state is knowable
+    (20260810180000 asserts it internally in its own D2 block), so the lane
+    asserts it externally too.
+
+    RECORD, never FAIL, in exactly the places where the catalog cannot answer the
+    question asked: an owner (who holds everything regardless of ACL), an
+    ambiguous grant across multiple overloads, and an object the lexer did not
+    read. Those are recorded WITH THEIR REASON; none of them is silent.
+    """
+    rows: list[tuple[str, str, str]] = []
+    failures: list[str] = []
+    maintain = bool(data.get("maintain_probed"))
+    probe_roles = {str(r) for r in (data.get("probe_roles") or [])} | {"PUBLIC"}
+
+    relations = {row.get("name"): row for row in (data.get("relations") or [])}
+    functions = {row.get("name"): row for row in (data.get("functions") or [])}
+    effective: dict[tuple[str, str], set[str]] = {}
+    for row in data.get("effective_privileges") or []:
+        # `probe_roles` probes the pseudo-role under its literal lowercase name
+        # `public`, while `PrivilegeExpectation` normalises the grantee to
+        # `PUBLIC`. Normalise here too, or the two keys never meet: a revoke
+        # from PUBLIC that did NOT take reads PASS, and a grant to PUBLIC that
+        # DID take reads FAIL.
+        role = str(row.get("role"))
+        key = (
+            str(row.get("name")),
+            "PUBLIC" if role.lower() == "public" else role,
+        )
+        effective.setdefault(key, set()).add(str(row.get("privilege")).upper())
+    defacl = {
+        (str(r.get("schema")), str(r.get("defacl_role")), str(r.get("objtype"))): r
+        for r in (data.get("default_acl") or [])
+    }
+
+    def verdict(expectation, status: str, detail: str) -> None:
+        rows.append((expectation.describe(), status, detail))
+        if status == "FAIL":
+            failures.append(f"{expectation.describe()} — {detail}")
+
+    # LAST STATEMENT WINS, per single privilege. A batch may grant a privilege in
+    # one file and revoke it in a later one; only the last statement describes
+    # the end state, and asserting the earlier one would fail a correct apply.
+    winner: dict[tuple[str, str, str, str, str], int] = {}
+    for index, expectation in enumerate(targets.privileges):
+        for privilege in expectation.expand(maintain):
+            winner[
+                (
+                    expectation.kind,
+                    expectation.target,
+                    expectation.objtype,
+                    expectation.grantee,
+                    privilege,
+                )
+            ] = index
+
+    for index, expectation in enumerate(targets.privileges):
+        wanted = {
+            privilege
+            for privilege in expectation.expand(maintain)
+            if winner[
+                (
+                    expectation.kind,
+                    expectation.target,
+                    expectation.objtype,
+                    expectation.grantee,
+                    privilege,
+                )
+            ]
+            == index
+        }
+        if not wanted:
+            rows.append(
+                (
+                    expectation.describe(),
+                    "RECORD",
+                    "every privilege here is restated by a LATER statement in the "
+                    "same batch, which is the one that describes the end state",
+                )
+            )
+            continue
+
+        if expectation.kind == "relation":
+            row = relations.get(expectation.target)
+            if row is None or row.get("to_regclass") is None:
+                verdict(
+                    expectation,
+                    "RECORD",
+                    "the relation is not in the catalog; the missing-relation "
+                    "check above owns that failure",
+                )
+                continue
+            if row.get("owner") == expectation.grantee:
+                verdict(
+                    expectation,
+                    "RECORD",
+                    f"`{expectation.grantee}` OWNS this relation and therefore "
+                    "holds every privilege on it regardless of the ACL",
+                )
+                continue
+            if expectation.grantee not in probe_roles:
+                if expectation.expect_held:
+                    verdict(
+                        expectation,
+                        "FAIL",
+                        f"role `{expectation.grantee}` does not exist, so it "
+                        "cannot hold the granted privilege",
+                    )
+                else:
+                    verdict(
+                        expectation,
+                        "PASS",
+                        f"role `{expectation.grantee}` does not exist, so it "
+                        "holds nothing",
+                    )
+                continue
+            held = effective.get((expectation.target, expectation.grantee), set())
+            if expectation.expect_held:
+                missing = sorted(wanted - held)
+                if missing:
+                    verdict(
+                        expectation,
+                        "FAIL",
+                        f"not held after the apply: {', '.join(missing)} "
+                        "(has_table_privilege)",
+                    )
+                else:
+                    verdict(expectation, "PASS", "held (has_table_privilege)")
+            else:
+                still = sorted(wanted & held)
+                if still:
+                    verdict(
+                        expectation,
+                        "FAIL",
+                        f"STILL HELD after the revoke: {', '.join(still)} "
+                        "(has_table_privilege) — the revoke did not take, or a "
+                        "PUBLIC grant or role membership re-supplies it",
+                    )
+                else:
+                    verdict(expectation, "PASS", "not held (has_table_privilege)")
+            continue
+
+        if expectation.kind == "function":
+            row = functions.get(expectation.target)
+            overloads = (row or {}).get("overloads") or []
+            if not overloads:
+                verdict(
+                    expectation,
+                    "RECORD",
+                    "no overload of that routine exists; the missing-function "
+                    "check above owns that failure",
+                )
+                continue
+            if len(overloads) > 1 and expectation.expect_held:
+                verdict(
+                    expectation,
+                    "RECORD",
+                    f"{len(overloads)} overloads share this name and the grant "
+                    "cannot be attributed to one of them without resolving "
+                    "argument types, which this module does not do",
+                )
+                continue
+            for overload in overloads:
+                identity = overload.get("identity")
+                described = f"{expectation.describe()} [{identity}]"
+
+                def overload_verdict(status: str, detail: str) -> None:
+                    rows.append((described, status, detail))
+                    if status == "FAIL":
+                        failures.append(f"{described} — {detail}")
+
+                if overload.get("owner") == expectation.grantee:
+                    overload_verdict(
+                        "RECORD",
+                        f"`{expectation.grantee}` OWNS this routine and holds "
+                        "EXECUTE on it regardless of the ACL",
+                    )
+                    continue
+                holders = {str(r) for r in (overload.get("execute_held_by") or [])}
+                if "EXECUTE" not in wanted:
+                    overload_verdict(
+                        "RECORD",
+                        "only EXECUTE is assertable on a routine; "
+                        f"{', '.join(sorted(wanted))} is not",
+                    )
+                    continue
+                if not expectation.expect_held:
+                    # ISSUE #790 POINT 4. `proacl IS NULL` is the DEFAULT ACL,
+                    # and for a function the default is EXECUTE TO PUBLIC. It is
+                    # precisely the state a MISSING revoke leaves behind, so it
+                    # must never read as "no grants, therefore safe".
+                    if overload.get("acl_is_default"):
+                        overload_verdict(
+                            "FAIL",
+                            "proacl IS NULL, i.e. the DEFAULT ACL, which for a "
+                            "routine is EXECUTE TO PUBLIC. That is the state a "
+                            "MISSING revoke leaves behind, not an absence of "
+                            "grants — the revoke did not take",
+                        )
+                        continue
+                    if expectation.grantee == "PUBLIC":
+                        still_public = "PUBLIC" in _acl_by_grantee(
+                            overload.get("acl") or []
+                        )
+                        if still_public:
+                            overload_verdict(
+                                "FAIL",
+                                "PUBLIC still holds an explicit ACL entry after "
+                                "the revoke",
+                            )
+                        else:
+                            overload_verdict("PASS", "PUBLIC holds no ACL entry")
+                        continue
+                    if expectation.grantee not in probe_roles:
+                        overload_verdict(
+                            "PASS",
+                            f"role `{expectation.grantee}` does not exist, so it "
+                            "holds nothing",
+                        )
+                        continue
+                    if expectation.grantee in holders:
+                        overload_verdict(
+                            "FAIL",
+                            "STILL holds EXECUTE after the revoke "
+                            "(has_function_privilege) — the revoke did not take, "
+                            "or a PUBLIC grant or role membership re-supplies it",
+                        )
+                    else:
+                        overload_verdict(
+                            "PASS", "does not hold EXECUTE (has_function_privilege)"
+                        )
+                    continue
+                if expectation.grantee not in probe_roles:
+                    overload_verdict(
+                        "FAIL",
+                        f"role `{expectation.grantee}` does not exist, so it "
+                        "cannot hold the granted EXECUTE",
+                    )
+                elif expectation.grantee in holders or (
+                    expectation.grantee == "PUBLIC" and overload.get("acl_is_default")
+                ):
+                    overload_verdict("PASS", "holds EXECUTE (has_function_privilege)")
+                else:
+                    overload_verdict(
+                        "FAIL", "does NOT hold EXECUTE after the grant"
+                    )
+            continue
+
+        # default_acl
+        schema, defacl_role = expectation.target.split("|")
+        row = defacl.get((schema, defacl_role, expectation.objtype))
+        if row is None:
+            verdict(
+                expectation,
+                "FAIL",
+                "the default-privilege rule was not read back from "
+                "pg_default_acl, so nothing was proved about it",
+            )
+            continue
+        if not row.get("role_exists"):
+            verdict(
+                expectation,
+                "FAIL",
+                f"role `{defacl_role}` does not exist, so no default-privilege "
+                "rule can be keyed on it",
+            )
+            continue
+        if row.get("row_exists"):
+            held_map = _acl_by_grantee(row.get("acl") or [])
+            source = f"pg_default_acl = `{row.get('acl_text')}`"
+        else:
+            # NO ROW IS NOT "NO GRANTS". Postgres's built-in default applies, and
+            # for functions and types that default hands PUBLIC a privilege.
+            held_map = {
+                k: set(v)
+                for k, v in BUILTIN_DEFAULT_ACL.get(expectation.objtype, {}).items()
+            }
+            source = (
+                "there is NO pg_default_acl row, so Postgres's BUILT-IN default "
+                f"applies: {held_map or 'owner only'}"
+            )
+        held = _effective_for(held_map, expectation.grantee)
+        if expectation.expect_held:
+            missing = sorted(wanted - held)
+            if missing:
+                verdict(
+                    expectation,
+                    "FAIL",
+                    f"not in the default privileges: {', '.join(missing)} — {source}",
+                )
+            else:
+                verdict(expectation, "PASS", source)
+        else:
+            still = sorted(wanted & held)
+            if still:
+                verdict(
+                    expectation,
+                    "FAIL",
+                    f"STILL in the default privileges: {', '.join(still)} — the "
+                    f"revoke did not take. {source}",
+                )
+            else:
+                verdict(expectation, "PASS", source)
+
+    return rows, failures
+
+
 def render_report(
     allowlist: list[str],
     targets: Targets,
@@ -611,13 +1485,18 @@ def render_report(
     add(
         "- The target list is derived by a conservative LEXER over the migration "
         "text. Objects named only through `execute format(...)`, quoted or "
-        "mixed-case identifiers, search_path-relative names, or `alter default "
-        "privileges` are NOT listed and NOT checked. **A short list is not a "
-        "clean bill of health.**"
+        "mixed-case identifiers, or search_path-relative names are NOT listed "
+        "and NOT checked. **A short list is not a clean bill of health.** "
+        "`alter default privileges` and plain `grant`/`revoke` ARE now read "
+        "(issue #790); every statement the lexer could not read is listed under "
+        "**unassertable_statements** above rather than dropped."
     )
     add(
-        "- Privileges, RLS flags, policy counts and row counts are EVIDENCE, not "
-        "assertions. The lane has no expected value for them; a human reads them."
+        "- Privileges named by a `grant`, a `revoke` or an `alter default "
+        "privileges` are now ASSERTED — see _Privilege assertions_ below. "
+        "Privileges nobody named, RLS flags, policy counts and row counts remain "
+        "EVIDENCE ONLY: the lane has no expected value for them, and inventing "
+        "one would block correct promotions."
     )
     add(
         "- **Function privileges are the raw `proacl` plus an `EXECUTE` probe of "
@@ -641,7 +1520,34 @@ def render_report(
             add(f"- {error}")
         add("")
 
-    if targets.is_empty():
+    declaration = targets.noop_declaration
+    if declaration is not None:
+        add("## Declared no-op")
+        add("")
+        add(
+            f"- Migration `{declaration['version']}` declares itself a pure-data "
+            "no-op via a `-- catalog-verification: no-op` line."
+        )
+        add(f"- Recorded reason: **{declaration['reason']}**")
+        if declaration["accepted"]:
+            add(
+                "- The claim was CHECKED: all "
+                f"{declaration.get('statements_checked')} statement(s) in the "
+                "file are data statements. No catalog object is expected, so "
+                "there is nothing to verify."
+            )
+        else:
+            add(f"- **The claim was REJECTED**: {declaration['rejected_because']}")
+        add("")
+
+    if targets.is_empty() and declaration is not None and declaration["accepted"]:
+        # ISSUE #790 POINT 3. A pure-data migration genuinely names no catalog
+        # object. That is allowed to pass -- but only with the reason written
+        # down in the file, reviewed in the pull request, and reproduced in this
+        # artifact, and only after every statement in the file was checked to be
+        # data. It is never a silent pass and never a flag on this script.
+        pass
+    elif targets.is_empty():
         # ISSUE #697 EXISTS BECAUSE A GREEN TICK WAS MISTAKEN FOR EVIDENCE.
         # A run where this step proved nothing must therefore not end green in
         # enforcing mode. `20260810110000` lands exactly here: its only
@@ -649,11 +1555,32 @@ def render_report(
         # review fix even that derived nothing. The remedy for a genuinely
         # unverifiable migration is to say so on the issue, not to let the lane
         # report a verification it did not perform.
+        detail = (
+            f" The file's own no-op declaration was REJECTED: "
+            f"{declaration['rejected_because']}."
+            if declaration is not None
+            else ""
+        )
         failures.append(
             "the allowlisted migrations named NO catalog object this lexer can "
-            "read, so this step proved nothing. That may be legitimate (a "
-            "pure-data migration), but a run that verified nothing must not "
-            "report itself green. Record the reason on the issue."
+            "read, so this step proved nothing. A run that verified nothing must "
+            "not report itself green. If the migration really is a pure-data "
+            "no-op, say so IN THE MIGRATION with a "
+            "`-- catalog-verification: no-op <reason>` line, which is checked "
+            "(every statement in the file must be a data statement) and "
+            "reproduced in this artifact." + detail
+        )
+
+    if (
+        declaration is not None
+        and not declaration["accepted"]
+        and not targets.is_empty()
+    ):
+        # A file that CLAIMS to be a no-op and is not is a defect in its own
+        # right, whatever else the run proved.
+        failures.append(
+            f"{declaration['version']} declares itself a catalog-verification "
+            f"no-op and that claim is false: {declaration['rejected_because']}"
         )
 
     if catalog is None:
@@ -673,6 +1600,46 @@ def render_report(
         f"Server: `{data.get('server_version')}` — MAINTAIN probed: "
         f"`{data.get('maintain_probed')}` — read at `{data.get('checked_at')}`"
     )
+    add("")
+
+    # ---- ISSUE #790: assertions, not just evidence -------------------------
+    assertion_rows, assertion_failures = assert_privileges(targets, data)
+    failures.extend(assertion_failures)
+    add("## Privilege assertions")
+    add("")
+    add(
+        "Derived from the `grant`, `revoke` and `alter default privileges` "
+        "statements in the allowlisted files, and asserted against "
+        "`relacl` / `proacl` / `pg_default_acl`. **FAIL fails the job in "
+        "enforcing mode.** RECORD means the catalog cannot answer the question "
+        "asked — the reason is stated in the row, never left blank."
+    )
+    add("")
+    add("| expectation | verdict | detail |")
+    add("| --- | --- | --- |")
+    if assertion_rows:
+        for expectation, status, detail in assertion_rows:
+            add(f"| {expectation} | **{status}** | {detail} |")
+    else:
+        add("| _no grant/revoke/default-privilege statement was derived_ | | |")
+    add("")
+
+    add("## Default privileges (`pg_default_acl`)")
+    add("")
+    add(
+        "**A missing row is NOT \"no grants\".** With no row, Postgres's built-in "
+        "default applies, and for FUNCTIONS that default is `EXECUTE` to "
+        "`PUBLIC` — exactly the state a missing revoke leaves behind."
+    )
+    add("")
+    add("| schema | for role | objtype | row exists | acl |")
+    add("| --- | --- | --- | --- | --- |")
+    for row in data.get("default_acl") or []:
+        add(
+            f"| `{row.get('schema')}` | `{row.get('defacl_role')}` | "
+            f"`{row.get('objtype')}` | {row.get('row_exists')} | "
+            f"`{row.get('acl_text') or 'NULL'}` |"
+        )
     add("")
 
     add("## Relations (`to_regclass`)")
@@ -823,12 +1790,24 @@ def verify(
     catalog: object = None
     row_counts: object = None
 
-    if targets.is_empty():
+    declaration = targets.noop_declaration
+    if targets.is_empty() and declaration is not None and declaration["accepted"]:
+        # ISSUE #790 POINT 3. Not silence: the reason travels into the artifact,
+        # the job log and the JSON payload, and it was CHECKED before it counted.
+        errors.append(
+            "the allowlisted migrations named no catalog object, and "
+            f"{declaration['version']} DECLARES itself a pure-data no-op: "
+            f"\"{declaration['reason']}\". Every statement in that file was "
+            "checked to be a data statement, so there is nothing to verify."
+        )
+    elif targets.is_empty():
         errors.append(
             "the allowlisted migrations named no catalog object this lexer can "
             "read. That may be legal (a pure-data migration), but it means THIS "
             "STEP PROVED NOTHING, so enforcing mode fails rather than letting a "
-            "green tick stand in for evidence it never gathered."
+            "green tick stand in for evidence it never gathered. A genuine "
+            "no-op declares itself in the migration with a "
+            "`-- catalog-verification: no-op <reason>` line."
         )
     else:
         try:
@@ -854,6 +1833,8 @@ def verify(
             {
                 "allowlist": allowlist,
                 "targets": targets.as_dict(),
+                "privilege_expectations": [e.as_dict() for e in targets.privileges],
+                "noop_declaration": targets.noop_declaration,
                 "catalog": catalog,
                 "row_counts": row_counts,
                 "errors": errors,
