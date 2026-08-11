@@ -183,9 +183,17 @@ begin
       v_bad := v_bad + 1;
     end if;
 
-    -- dcp_chunk_ledger is written only by SECURITY DEFINER functions and deliberately
-    -- grants service_role no INSERT; the nine landing tables keep it.
-    if t <> 'dcp_chunk_ledger'
+    -- The CHUNK LEDGERS are written only by SECURITY DEFINER functions and deliberately
+    -- grant service_role no INSERT; every landing table keeps it.
+    --
+    -- dcp_metadata_chunk_ledger (migration 20260811060000, the Phase-2 loader) was added
+    -- to this carve-out because this section enumerates plm.dcp_* FROM pg_class rather
+    -- than from a fixed list -- which is the design working exactly as intended. A new DCP
+    -- table appeared and this assertion caught it on the first CI run rather than letting
+    -- it escape. It belongs here for the same reason its Phase-1 sibling does: its rows
+    -- are written solely by definer functions, so granting service_role INSERT would hand
+    -- out a privilege nothing uses and let a ledger row be forged outside the loader.
+    if t not in ('dcp_chunk_ledger', 'dcp_metadata_chunk_ledger')
        and not has_table_privilege('service_role', 'plm.' || t, 'INSERT') then
       raise warning 'B: service_role LOST INSERT on plm.%', t;
       v_bad := v_bad + 1;
