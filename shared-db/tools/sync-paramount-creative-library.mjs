@@ -316,6 +316,27 @@ export async function readCapture(sourceDir) {
   const readText = async (rel) => decodeUtf8Strict(await readFile(join(sourceDir, rel)));
   const readJson = async (rel) => JSON.parse(await readText(rel));
   const readCsv = async (rel) => csvToObjects(await readText(rel));
+  /**
+   * Line-oriented JSON, one metadata value per line. NOT one giant JSON array: the metadata
+   * population is roughly six times the asset count, and an array forces the whole capture
+   * through a single JSON.parse and a single peak allocation. A blank line is skipped; a
+   * malformed line THROWS with its line number and never with its contents (public repo).
+   */
+  const readJsonl = async (rel) => {
+    const out = [];
+    const text = await readText(rel);
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line === "") continue;
+      try {
+        out.push(JSON.parse(line));
+      } catch {
+        throw new Error(`${rel} line ${i + 1}: not valid JSON. (Line contents withheld: this repository is public.)`);
+      }
+    }
+    return out;
+  };
 
   const manifestRaw = await readFile(join(sourceDir, "capture-summary.json"));
   const manifestSha256 = sha256(manifestRaw);
@@ -356,7 +377,61 @@ export async function readCapture(sourceDir) {
     linkPropertyCollection: await readCsv("links-property-collection.csv"),
     linkPropertyFranchise: await readCsv("links-property-franchise.csv"),
     linkAuthorizedContext: await readCsv("links-authorized-property-context.csv"),
+    // The lossless repeated-metadata population, written by the PRIVATE builder
+    // (paramount/scripts/build-normalized.mjs). Required, not optional: a capture that
+    // cannot produce it is not a lossless capture, and letting it default to [] would load
+    // a hollow capture that reconciles against a missing expectation and looks complete.
+    assetMetadataValues: await readJsonl("asset-metadata-values.jsonl"),
   };
+}
+
+/**
+ * EXACT source-ID handling. Read this before touching any `*_source_id` field.
+ *
+ * Paramount's Property/Franchise/Character/Collection/Brand IDs look numeric and are NOT
+ * numbers -- they are opaque identities. Passing one through `Number()` breaks it in two
+ * ways that BOTH succeed silently:
+ *
+ *   1. Leading zeroes vanish.   Number('007')  ->  7      -- '007' and '7' become one row.
+ *   2. Precision is lost above 2^53.
+ *      Number('9007199254740993') -> 9007199254740992     -- off by one, no error, no warning.
+ *
+ * Neither throws. Both produce a wrong row that looks right, and the database can no longer
+ * tell it happened. So this validator NEVER converts: it checks the characters of the string
+ * and returns the ORIGINAL string untouched.
+ *
+ * It is deliberately strict rather than forgiving. `^[0-9]+$` is the format proven against
+ * the capture; if Paramount ever emits an alphanumeric ID this THROWS instead of guessing,
+ * and widening the format becomes a reviewed change. Refusing loudly is the whole point --
+ * a loader that quietly coerces an unexpected identity is how the original bug shipped.
+ *
+ * @param {unknown} value      the raw CSV cell
+ * @param {string}  fieldName  e.g. 'pmt_asset_property.property_source_id' -- named in the
+ *                             error so a failure says WHICH field, without printing a row
+ * @returns {string} the exact original string
+ */
+export function exactSourceId(value, fieldName) {
+  // No row content in any message below: the field name and a character-class description
+  // are enough to debug, and this repository is PUBLIC.
+  if (typeof value !== "string") {
+    throw new Error(
+      `${fieldName}: source ID must be a string, got ${value === null ? "null" : typeof value}. ` +
+        `Source IDs are identities and must never arrive as JavaScript numbers -- by the time ` +
+        `a number reaches here its leading zeroes and its precision above 2^53 are already gone.`
+    );
+  }
+  if (value === "") {
+    throw new Error(`${fieldName}: source ID is empty. An absent identity is never loadable.`);
+  }
+  if (!/^[0-9]+$/.test(value)) {
+    throw new Error(
+      `${fieldName}: source ID does not match the proven source format ^[0-9]+$ ` +
+        `(length ${value.length}). Refusing rather than guessing. If Paramount has genuinely ` +
+        `started emitting a new ID format, widen BOTH this check and the matching CHECK ` +
+        `constraint in a reviewed migration -- never only one of the two.`
+    );
+  }
+  return value; // exact, unconverted, leading zeroes and full length intact
 }
 
 /** Map the manifest's nested shape onto the flat population names the database expects. */
@@ -382,6 +457,12 @@ export function manifestExpectations(m) {
     property_franchise_asset_cooccurrence: m.relationships.property_franchise_asset_cooccurrence,
     authorized_property_context: m.relationships.authorized_property_context,
     malformed_explicit_pairs: m.malformed_explicit_pairs,
+    // NEW: the lossless repeated-metadata population. The private builder writes this count
+    // into capture-summary.json alongside the others. If it is absent the value is undefined,
+    // the expectation row is refused by the database's not-null column, and the capture fails
+    // loudly -- which is correct: a capture that cannot state how many metadata values it
+    // holds cannot be shown to be lossless.
+    asset_metadata_values: m.asset_metadata_values,
   };
 }
 
@@ -411,6 +492,9 @@ export const LOAD_ORDER = [
   "pmt_authorized_property_asset",
   "pmt_property_capture_log",
   "pmt_relationship_anomaly",
+  // LAST, and it must be last: every metadata row is bound to an asset in the same capture
+  // by a composite foreign key, so pmt_asset has to be loaded before any of these can land.
+  "pmt_asset_metadata_value",
 ];
 
 /** Build every target's row array from the parsed capture. No database contact. */
@@ -434,23 +518,27 @@ export function buildPayloads(cap) {
     })),
 
     pmt_property: cap.properties.map((r) => ({
-      property_source_id: num(r.source_id),
+      property_source_id: exactSourceId(r.source_id, 'pmt_property.property_source_id'),
       property_name: r.name,
       is_licensed_selection: licensedPropertyIds.has(String(r.source_id)),
     })),
 
     pmt_franchise: cap.franchises.map((r) => ({
-      franchise_source_id: num(r.source_id), franchise_name: r.name,
+      franchise_source_id: exactSourceId(r.source_id, 'pmt_franchise.franchise_source_id'),
+      franchise_name: r.name,
     })),
     pmt_character: cap.characters.map((r) => ({
-      character_source_id: num(r.source_id), character_name: r.name,
+      character_source_id: exactSourceId(r.source_id, 'pmt_character.character_source_id'),
+      character_name: r.name,
     })),
     pmt_collection: cap.collections.map((r) => ({
-      collection_source_id: num(r.source_id), collection_name: r.name,
+      collection_source_id: exactSourceId(r.source_id, 'pmt_collection.collection_source_id'),
+      collection_name: r.name,
       paramount_term: r.paramount_term || "Collection",
     })),
     pmt_brand: cap.brands.map((r) => ({
-      brand_source_id: num(r.source_id), brand_name: r.name,
+      brand_source_id: exactSourceId(r.source_id, 'pmt_brand.brand_source_id'),
+      brand_name: r.name,
     })),
 
     pmt_asset: cap.assets.map((r) => ({
@@ -468,7 +556,7 @@ export function buildPayloads(cap) {
       .filter((r) => r.property_id)
       .map((r) => ({
         authorized_title_key: r.licensed_business_title,
-        property_source_id: num(r.property_id),
+        property_source_id: exactSourceId(r.property_id, 'pmt_authorized_title_property.property_source_id'),
         paramount_property_name: r.paramount_property_name,
         reported_asset_count: num(r.reported_asset_count) ?? 0,
         mapping_status: r.capture_status,
@@ -476,45 +564,51 @@ export function buildPayloads(cap) {
       })),
 
     pmt_asset_property: cap.linkAssetProperty.map((r) => ({
-      asset_id: r.asset_id, property_source_id: num(r.property_id),
+      asset_id: r.asset_id,
+      property_source_id: exactSourceId(r.property_id, 'pmt_asset_property.property_source_id'),
     })),
     pmt_asset_franchise: cap.linkAssetFranchise.map((r) => ({
-      asset_id: r.asset_id, franchise_source_id: num(r.franchise_id),
+      asset_id: r.asset_id,
+      franchise_source_id: exactSourceId(r.franchise_id, 'pmt_asset_franchise.franchise_source_id'),
     })),
     pmt_asset_character: cap.linkAssetCharacter.map((r) => ({
-      asset_id: r.asset_id, character_source_id: num(r.character_id),
+      asset_id: r.asset_id,
+      character_source_id: exactSourceId(r.character_id, 'pmt_asset_character.character_source_id'),
     })),
     pmt_asset_collection: cap.linkAssetCollection.map((r) => ({
-      asset_id: r.asset_id, collection_source_id: num(r.style_guide_id),
+      asset_id: r.asset_id,
+      collection_source_id: exactSourceId(r.style_guide_id, 'pmt_asset_collection.collection_source_id'),
     })),
     pmt_asset_brand: cap.linkAssetBrand.map((r) => ({
-      asset_id: r.asset_id, brand_source_id: num(r.brand_id),
+      asset_id: r.asset_id,
+      brand_source_id: exactSourceId(r.brand_id, 'pmt_asset_brand.brand_source_id'),
     })),
 
     pmt_property_character: cap.linkPropertyCharacter.map((r) => ({
-      property_source_id: num(r.property_id),
-      character_source_id: num(r.character_id),
+      property_source_id: exactSourceId(r.property_id, 'pmt_property_character.property_source_id'),
+      character_source_id: exactSourceId(r.character_id, 'pmt_property_character.character_source_id'),
       evidence_asset_count: num(r.evidence_asset_count) ?? 0,
     })),
     pmt_property_collection: cap.linkPropertyCollection.map((r) => ({
-      property_source_id: num(r.property_id),
-      collection_source_id: num(r.collection_id),
+      property_source_id: exactSourceId(r.property_id, 'pmt_property_collection.property_source_id'),
+      collection_source_id: exactSourceId(r.collection_id, 'pmt_property_collection.collection_source_id'),
       evidence_asset_count: num(r.evidence_asset_count) ?? 0,
     })),
     // is_direct_source_relationship and evidence_kind are deliberately NOT sent.
     // The database pins both; sending them would imply they are ours to choose.
     pmt_property_franchise_evidence: cap.linkPropertyFranchise.map((r) => ({
-      property_source_id: num(r.property_id),
-      franchise_source_id: num(r.franchise_id),
+      property_source_id: exactSourceId(r.property_id, 'pmt_property_franchise_evidence.property_source_id'),
+      franchise_source_id: exactSourceId(r.franchise_id, 'pmt_property_franchise_evidence.franchise_source_id'),
       evidence_asset_count: num(r.evidence_asset_count) ?? 0,
     })),
 
     pmt_authorized_property_asset: cap.linkAuthorizedContext.map((r) => ({
-      licensed_property_source_id: num(r.licensed_property_id), asset_id: r.asset_id,
+      licensed_property_source_id: exactSourceId(r.licensed_property_id, 'pmt_authorized_property_asset.licensed_property_source_id'),
+      asset_id: r.asset_id,
     })),
 
     pmt_property_capture_log: cap.captureLog.map((r) => ({
-      property_source_id: num(r.property_id),
+      property_source_id: exactSourceId(r.property_id, 'pmt_property_capture_log.property_source_id'),
       property_name: r.property_name,
       reported_asset_count: num(r.reported_asset_count) ?? 0,
       captured_asset_count: num(r.captured_asset_count) ?? 0,
@@ -530,6 +624,57 @@ export function buildPayloads(cap) {
       action: r.action,
       details: null,
     })),
+
+    /**
+     * The lossless repeated-metadata rows, passed through with as little handling as
+     * possible. Three rules are load-bearing here:
+     *
+     *  1. `value_ordinal` is taken FROM THE ROW, never from the array index. Array position
+     *     is an artefact of how this file happened to be read; the builder recorded the
+     *     source's own order and that is the fact being preserved.
+     *  2. A missing optional field becomes `null`, never the STRING "undefined". `undefined`
+     *     is what JavaScript prints for an absent property, and letting it through would
+     *     turn "the source did not say" into "the source said the word undefined". The
+     *     database refuses it too (pmt_amv_not_undefined_chk) -- both, deliberately.
+     *  3. No numeric conversion anywhere. `source_value` is kept as TEXT even when the
+     *     source emitted a JSON number, because which of the two it was is itself recorded
+     *     in `data_type`. Re-parsing it here is exactly the bug this migration removes.
+     */
+    pmt_asset_metadata_value: cap.assetMetadataValues.map((r, i) => {
+      const opt = (v) => (v === undefined || v === null || v === "undefined" ? null : v);
+      if (typeof r.value_ordinal !== "number" || !Number.isInteger(r.value_ordinal) || r.value_ordinal < 0) {
+        throw new Error(
+          `asset-metadata-values.jsonl row ${i + 1}: value_ordinal must be a non-negative ` +
+            `integer supplied by the builder. It records the SOURCE's order and must never ` +
+            `be inferred from this file's line order.`
+        );
+      }
+      if (typeof r.metadata_element_id !== "string" || r.metadata_element_id.trim() === "") {
+        throw new Error(`asset-metadata-values.jsonl row ${i + 1}: metadata_element_id is required.`);
+      }
+      if (typeof r.asset_id !== "string" || !ASSET_ID.test(r.asset_id)) {
+        throw new Error(
+          `asset-metadata-values.jsonl row ${i + 1}: asset_id must be 40 lowercase hex characters.`
+        );
+      }
+      return {
+        asset_id: r.asset_id,
+        metadata_element_id: r.metadata_element_id,
+        metadata_element_name: opt(r.metadata_element_name),
+        metadata_category_id: opt(r.metadata_category_id),
+        metadata_category_name: opt(r.metadata_category_name),
+        domain_id: opt(r.domain_id),
+        source_table_name: opt(r.source_table_name),
+        source_column_name: opt(r.source_column_name),
+        data_type: opt(r.data_type),
+        value_ordinal: r.value_ordinal,
+        source_value: opt(r.source_value),
+        display_value: opt(r.display_value),
+        language: opt(r.language),
+        source_path: opt(r.source_path),
+        raw_value: opt(r.raw_value),
+      };
+    }),
   };
 }
 

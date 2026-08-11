@@ -22,6 +22,7 @@ import {
   chunk,
   buildBatchRows,
   buildPayloads,
+  exactSourceId,
   summarise,
   manifestExpectations,
   assertAssetIds,
@@ -256,6 +257,7 @@ const fixtureCapture = {
       property_franchise_asset_cooccurrence: 1, authorized_property_context: 2,
     },
     malformed_explicit_pairs: 1,
+    asset_metadata_values: 4,
   },
   manifestSha256: "0".repeat(64),
   authorizedAssetIds: [A1, A2],
@@ -303,6 +305,21 @@ const fixtureCapture = {
   linkPropertyFranchise: [{ property_id: "9001", franchise_id: "6001", evidence_asset_count: "1" }],
   linkAuthorizedContext: [{ asset_id: A1, licensed_property_id: "9001" },
                           { asset_id: A2, licensed_property_id: "9001" }],
+  // SYNTHETIC ONLY. Four values, chosen to exercise the four things the shape must survive:
+  //   ordinals 0/1/2 under ONE element  -> repetition with order
+  //   ordinal 1 and ordinal 2 share the display text "Fixture Shared Label" under DIFFERENT
+  //     elements                        -> equal display values must NOT merge
+  //   FUTURE_UNKNOWN_ELEMENT            -> an element nobody has modelled still loads
+  assetMetadataValues: [
+    { asset_id: A1, metadata_element_id: "FIXTURE_ELEMENT_A", value_ordinal: 0,
+      data_type: "string", source_value: "fx-a-0", display_value: "Fixture Label Zero" },
+    { asset_id: A1, metadata_element_id: "FIXTURE_ELEMENT_A", value_ordinal: 1,
+      data_type: "string", source_value: "fx-a-1", display_value: "Fixture Shared Label" },
+    { asset_id: A1, metadata_element_id: "FIXTURE_ELEMENT_A", value_ordinal: 2,
+      data_type: "string", source_value: "fx-a-2", display_value: "Fixture Label Two" },
+    { asset_id: A2, metadata_element_id: "FUTURE_UNKNOWN_ELEMENT", value_ordinal: 0,
+      data_type: "number", source_value: "12345", display_value: "Fixture Shared Label" },
+  ],
 };
 
 test("buildPayloads produces a row array for every load target", () => {
@@ -312,8 +329,9 @@ test("buildPayloads produces a row array for every load target", () => {
 
 test("is_licensed_selection is TRUE only for properties an exact Property search selected", () => {
   const p = buildPayloads(fixtureCapture);
-  assert.equal(p.pmt_property.find((r) => r.property_source_id === 9001).is_licensed_selection, true);
-  assert.equal(p.pmt_property.find((r) => r.property_source_id === 9002).is_licensed_selection, false);
+  // NOTE === "9001", a STRING. Source IDs are identities and are no longer numbers.
+  assert.equal(p.pmt_property.find((r) => r.property_source_id === "9001").is_licensed_selection, true);
+  assert.equal(p.pmt_property.find((r) => r.property_source_id === "9002").is_licensed_selection, false);
 });
 
 test("POSITIVE: a portal-unavailable title is KEPT with zero counts, never filtered out", () => {
@@ -331,7 +349,7 @@ test("POSITIVE: a portal-unavailable title is KEPT with zero counts, never filte
 test("a title with no resolved property produces no title-property mapping row", () => {
   const p = buildPayloads(fixtureCapture);
   assert.equal(p.pmt_authorized_title_property.length, 1);
-  assert.equal(p.pmt_authorized_title_property[0].property_source_id, 9001);
+  assert.equal(p.pmt_authorized_title_property[0].property_source_id, "9001");
 });
 
 test("POSITIVE: the franchise payload NEVER carries a direct-relationship claim", () => {
@@ -375,6 +393,7 @@ test("manifestExpectations flattens every declared population the database check
     "asset_character", "asset_style_guide", "asset_brand", "property_character_explicit",
     "property_style_guide_explicit", "property_franchise_asset_cooccurrence",
     "authorized_property_context", "malformed_explicit_pairs", "captured_properties",
+    "asset_metadata_values",
   ]) {
     assert.equal(typeof e[k], "number", `${k} must be a number`);
   }
@@ -391,13 +410,14 @@ test("every built payload count matches the manifest it will be validated agains
   assert.equal(p.pmt_relationship_anomaly.length, e.malformed_explicit_pairs);
   assert.equal(p.pmt_authorized_property_asset.length, e.authorized_property_context);
   assert.equal(p.pmt_capture_batch.length, e.metadata_batches);
+  assert.equal(p.pmt_asset_metadata_value.length, e.asset_metadata_values);
 });
 
 test("LOAD_ORDER puts every parent strictly before the links that reference it", () => {
   const at = (t) => LOAD_ORDER.indexOf(t);
   for (const link of ["pmt_asset_property", "pmt_asset_character", "pmt_asset_collection",
                       "pmt_asset_brand", "pmt_asset_franchise", "pmt_authorized_property_asset",
-                      "pmt_relationship_anomaly"]) {
+                      "pmt_relationship_anomaly", "pmt_asset_metadata_value"]) {
     assert.ok(at("pmt_asset") < at(link), `pmt_asset must load before ${link}`);
   }
   assert.ok(at("pmt_property") < at("pmt_asset_property"));
@@ -407,6 +427,142 @@ test("LOAD_ORDER puts every parent strictly before the links that reference it",
   assert.ok(at("pmt_franchise") < at("pmt_asset_franchise"));
   assert.ok(at("pmt_authorized_title") < at("pmt_authorized_title_property"));
   assert.ok(at("pmt_property") < at("pmt_property_capture_log"));
+});
+
+// ---------------------------------------------------------------------------
+// EXACT SOURCE IDENTITIES (spec section 9, cases 1-5).
+//
+// Every ID below is SYNTHETIC. No real Paramount value appears in this public repository.
+//
+// These tests exist because the old bug was SILENT. num('007') returned 7 and
+// num('9007199254740993') returned 9007199254740992, neither raised anything, and the wrong
+// row looked exactly like a right one. So each case asserts the exact string identity, not
+// merely that "it worked".
+// ---------------------------------------------------------------------------
+test("LEADING ZEROES survive: '007' stays '007' and never becomes 7", () => {
+  assert.equal(exactSourceId("007", "fixture.field"), "007");
+  // The precise failure being guarded: Number('007') === 7, so '007' and '7' would collapse
+  // into one row and one of the two identities would be gone with no error anywhere.
+  assert.notEqual(exactSourceId("007", "fixture.field"), String(Number("007")));
+  assert.notEqual(exactSourceId("007", "fixture.field"), exactSourceId("7", "fixture.field"));
+});
+
+test("BEYOND 2^53 survives exactly: a 16-digit ID is not rounded", () => {
+  const big = "9007199254740993"; // Number.MAX_SAFE_INTEGER + 2, synthetic
+  assert.equal(exactSourceId(big, "fixture.field"), big);
+  // Proof the hazard is real and that this validator avoids it.
+  assert.equal(String(Number(big)), "9007199254740992");
+  assert.notEqual(exactSourceId(big, "fixture.field"), String(Number(big)));
+});
+
+test("an EMPTY source ID is rejected, never loaded as an absent identity", () => {
+  assert.throws(() => exactSourceId("", "fixture.field"), /empty/i);
+});
+
+test("a NON-STRING source ID is rejected BEFORE loading", () => {
+  // A number arriving here has already lost its leading zeroes and its precision, so it is
+  // refused rather than accepted and stringified -- stringifying would launder the damage.
+  assert.throws(() => exactSourceId(9001, "fixture.field"), /must be a string/i);
+  assert.throws(() => exactSourceId(null, "fixture.field"), /must be a string/i);
+  assert.throws(() => exactSourceId(undefined, "fixture.field"), /must be a string/i);
+});
+
+test("an ID outside the proven format is REFUSED, not guessed at", () => {
+  assert.throws(() => exactSourceId("90a1", "fixture.field"), /proven source format/i);
+  assert.throws(() => exactSourceId("90 01", "fixture.field"), /proven source format/i);
+});
+
+test("the source-ID error names the FIELD and never the row value", () => {
+  try {
+    exactSourceId("not-an-id", "pmt_asset_property.property_source_id");
+    assert.fail("must throw");
+  } catch (e) {
+    assert.match(e.message, /pmt_asset_property\.property_source_id/);
+    assert.ok(!e.message.includes("not-an-id"),
+      "a public-repo error must never echo a source value back into CI logs");
+  }
+});
+
+test("every source ID the loader emits is a STRING, never a number", () => {
+  const p = buildPayloads(fixtureCapture);
+  for (const t of LOAD_ORDER) {
+    for (const row of p[t]) {
+      for (const [k, v] of Object.entries(row)) {
+        if (!k.endsWith("_source_id")) continue;
+        assert.equal(typeof v, "string", `${t}.${k} must stay text, got ${typeof v}`);
+      }
+    }
+  }
+});
+
+test("asset IDs still require 40 lowercase hex characters", () => {
+  assert.throws(() => assertAssetIds(["ABCDEF"]));
+  assert.throws(() => assertAssetIds(["A".repeat(40)]), /hex|40/i);
+});
+
+// ---------------------------------------------------------------------------
+// LOSSLESS REPEATED METADATA (spec section 9, cases 6-10).
+// ---------------------------------------------------------------------------
+test("REPEATED values keep their source ORDER, taken from the row and not the array index", () => {
+  const p = buildPayloads(fixtureCapture);
+  const a = p.pmt_asset_metadata_value.filter((r) => r.metadata_element_id === "FIXTURE_ELEMENT_A");
+  assert.equal(a.length, 3, "three values under one element must be three rows, not one");
+  assert.deepEqual(a.map((r) => r.value_ordinal), [0, 1, 2]);
+  assert.deepEqual(a.map((r) => r.source_value), ["fx-a-0", "fx-a-1", "fx-a-2"]);
+});
+
+test("EQUAL display values under DIFFERENT elements do NOT merge", () => {
+  const p = buildPayloads(fixtureCapture);
+  const shared = p.pmt_asset_metadata_value.filter((r) => r.display_value === "Fixture Shared Label");
+  assert.equal(shared.length, 2, "identical display text is not identity; both rows must survive");
+  assert.notEqual(shared[0].metadata_element_id, shared[1].metadata_element_id);
+});
+
+test("an UNKNOWN FUTURE metadata element loads with no schema change", () => {
+  const p = buildPayloads(fixtureCapture);
+  const future = p.pmt_asset_metadata_value.find(
+    (r) => r.metadata_element_id === "FUTURE_UNKNOWN_ELEMENT"
+  );
+  assert.ok(future, "an element nobody modelled must still land");
+  assert.equal(future.source_value, "12345");
+  assert.equal(typeof future.source_value, "string",
+    "a source-emitted JSON number is kept as TEXT; data_type records what it was");
+  assert.equal(future.data_type, "number");
+});
+
+test("a MISSING metadata field becomes null and never the string 'undefined'", () => {
+  const p = buildPayloads(fixtureCapture);
+  for (const row of p.pmt_asset_metadata_value) {
+    for (const [k, v] of Object.entries(row)) {
+      assert.notEqual(v, "undefined", `${k} turned an absent value into the WORD undefined`);
+      assert.notEqual(v, undefined, `${k} must be an explicit null, not undefined`);
+    }
+    assert.equal(row.language, null);
+    assert.equal(row.metadata_category_id, null);
+  }
+});
+
+test("a metadata row without a builder-supplied ordinal is REFUSED", () => {
+  const bad = { ...fixtureCapture, assetMetadataValues: [
+    { asset_id: A1, metadata_element_id: "FIXTURE_ELEMENT_A", source_value: "x" },
+  ]};
+  assert.throws(() => buildPayloads(bad), /value_ordinal/);
+});
+
+test("a metadata row with no element id, or a bad asset id, is REFUSED", () => {
+  assert.throws(() => buildPayloads({ ...fixtureCapture, assetMetadataValues: [
+    { asset_id: A1, metadata_element_id: "", value_ordinal: 0, source_value: "x" }] }),
+    /metadata_element_id/);
+  assert.throws(() => buildPayloads({ ...fixtureCapture, assetMetadataValues: [
+    { asset_id: "NOT-A-HEX-ID", metadata_element_id: "E", value_ordinal: 0, source_value: "x" }] }),
+    /asset_id/);
+});
+
+test("summarise still reports COUNTS only for the metadata population", () => {
+  const s = summarise(buildPayloads(fixtureCapture));
+  assert.equal(s.pmt_asset_metadata_value, 4);
+  const text = JSON.stringify(s);
+  assert.ok(!text.includes("Fixture Shared Label"), "summaries must never carry a value");
 });
 
 test("sha256 is stable, so the manifest hash gate is deterministic", () => {
