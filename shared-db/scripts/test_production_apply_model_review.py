@@ -8,6 +8,7 @@ happen must FAIL, and a review that happened must PASS regardless of the
 model's opinion.
 """
 
+import json
 from pathlib import Path
 import re
 import sys
@@ -217,8 +218,131 @@ class TestVerdictStaysAdvisory(EnvSandbox):
         self.assertIn("VERDICT: CONCERNS", review.PROMPT)
 
 
+class TestModelIsConfigurable(EnvSandbox):
+    """WHAT THIS CAN AND CANNOT CATCH.
+
+    CAN (offline, no network, no key): that the model id is read from
+    configuration with a default; that the default is exactly the documented
+    constant and is shaped like a real Anthropic id; that the id actually
+    reaches the request body; and that an HTTP 404 produces a message naming
+    the model and calling it a configuration problem, without retrying.
+
+    CANNOT: whether the default id is a model the live API will serve. Nothing
+    offline can know that -- the id that broke this lane
+    (`claude-opus-4-5-20260514`) passes every structural check here. Only a live
+    call proves an id is real; see the recommendation in the PR body.
+    """
+
+    def test_default_is_used_when_the_env_var_is_unset(self) -> None:
+        with patch.dict("os.environ", {review.MODEL_ENV_VAR: ""}):
+            self.assertEqual(review.resolve_model(), review.DEFAULT_MODEL)
+
+    def test_env_var_overrides_the_default(self) -> None:
+        with patch.dict("os.environ", {review.MODEL_ENV_VAR: "claude-sonnet-4-6"}):
+            self.assertEqual(review.resolve_model(), "claude-sonnet-4-6")
+
+    def test_whitespace_only_env_var_falls_back_to_the_default(self) -> None:
+        with patch.dict("os.environ", {review.MODEL_ENV_VAR: "   "}):
+            self.assertEqual(review.resolve_model(), review.DEFAULT_MODEL)
+
+    def test_the_default_matches_the_documented_constant(self) -> None:
+        """Pinned so a silent edit of the id is a visible test change.
+
+        This asserts the id we verified against the live API on 2026-08-11. It
+        does NOT prove the id still resolves today.
+        """
+        self.assertEqual(review.DEFAULT_MODEL, "claude-opus-4-5-20251101")
+        self.assertRegex(review.DEFAULT_MODEL, r"^claude-[a-z0-9.-]+$")
+        self.assertNotIn("20260514", review.DEFAULT_MODEL)
+
+    def test_the_model_id_reaches_the_request_body(self) -> None:
+        seen = {}
+
+        class FakeResponse:
+            def read(self):
+                return b'{"content": [{"type": "text", "text": "ok"}]}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def fake_urlopen(request, timeout=None):
+            seen["body"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse()
+
+        with patch.dict(
+            "os.environ", {review.MODEL_ENV_VAR: "claude-configured-model"}
+        ), patch.object(review.urllib.request, "urlopen", fake_urlopen):
+            review.call_api("prompt", "key")
+        self.assertEqual(seen["body"]["model"], "claude-configured-model")
+
+    def test_a_404_names_the_model_and_does_not_retry(self) -> None:
+        """The defect this whole change exists for: a wrong id used to read as
+        `HTTP Error 404`, i.e. as a network blip rather than a config error."""
+        calls = []
+
+        def not_found(request, timeout=None):
+            calls.append(1)
+            raise review.urllib.error.HTTPError(
+                review.API_URL, 404, "Not Found", {}, None
+            )
+
+        with patch.dict(
+            "os.environ", {review.MODEL_ENV_VAR: "claude-does-not-exist"}
+        ), patch.object(
+            review.urllib.request, "urlopen", not_found
+        ), patch.object(review.time, "sleep", lambda _s: None):
+            self.assertEqual(review.main(), 1)
+        text = self.summary_text()
+        self.assertIn("REVIEW DID NOT RUN", text)
+        self.assertIn("claude-does-not-exist", text)
+        self.assertIn("does not exist", text)
+        self.assertIn("CONFIGURATION problem", text)
+        self.assertIn(review.MODEL_ENV_VAR, text)
+        # A 404 will never fix itself; burning the retry budget on it only
+        # delays the red job.
+        self.assertEqual(len(calls), 1)
+
+    def test_a_500_is_still_retried_as_transient(self) -> None:
+        calls = []
+
+        def boom(request, timeout=None):
+            calls.append(1)
+            raise review.urllib.error.HTTPError(
+                review.API_URL, 500, "Server Error", {}, None
+            )
+
+        with patch.object(
+            review.urllib.request, "urlopen", boom
+        ), patch.object(review.time, "sleep", lambda _s: None):
+            self.assertEqual(review.main(), 1)
+        self.assertEqual(len(calls), review.ATTEMPTS)
+
+    def test_the_evidence_records_which_model_reviewed(self) -> None:
+        with patch.dict(
+            "os.environ", {review.MODEL_ENV_VAR: "claude-recorded-model"}
+        ), patch.object(review, "call_api", lambda p, k: "Nothing.\nVERDICT: CLEAR"):
+            self.assertEqual(review.main(), 0)
+        self.assertIn("claude-recorded-model", self.summary_text())
+
+
 class TestWorkflowWiring(unittest.TestCase):
     """The script can only fail the job if the step is allowed to fail."""
+
+    def test_the_model_is_wired_as_configuration_not_code(self) -> None:
+        """The workflow must pass the model env var through, so the id can be
+        changed without a code change (and without a bypass)."""
+        workflow = (
+            Path(__file__).resolve().parents[1]
+            / ".github"
+            / "workflows"
+            / "shared-supabase-migrations.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("SHARED_DB_REVIEW_MODEL: ${{ vars.SHARED_DB_REVIEW_MODEL }}", workflow)
+        # And the dead id never comes back.
+        self.assertNotIn("claude-opus-4-5-20260514", workflow)
 
     def test_model_review_step_has_no_continue_on_error(self) -> None:
         workflow = (

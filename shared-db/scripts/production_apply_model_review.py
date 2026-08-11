@@ -45,7 +45,18 @@ import time
 import urllib.error
 import urllib.request
 
-MODEL = "claude-opus-4-5-20260514"
+# The model id used for the review. NOTHING here should be hard-coded that an
+# operator may need to change without a code change (Albert's standing rule
+# calls out AI model choices by name), so this is read from the environment with
+# a working default. `DEFAULT_MODEL` is the documented constant the tests pin.
+#
+# It is also the exact value that broke this lane once already: the file used to
+# pin `claude-opus-4-5-20260514`, which is not a real model id, so every
+# production apply review died with a bare `HTTP Error 404` that read like a
+# network blip. See `describe_http_error` below -- a 404 from the messages
+# endpoint now names the model it asked for and says the id is wrong.
+DEFAULT_MODEL = "claude-opus-4-5-20251101"
+MODEL_ENV_VAR = "SHARED_DB_REVIEW_MODEL"
 API_URL = "https://api.anthropic.com/v1/messages"
 
 ATTEMPTS = 3
@@ -130,10 +141,47 @@ def collect_sql(repo: Path, versions: list[str]) -> tuple[str, list[str]]:
     return "".join(chunks), unsent
 
 
+def resolve_model() -> str:
+    """The model id to review with: `SHARED_DB_REVIEW_MODEL`, else the default.
+
+    Read at CALL time, not import time, so the workflow (or an operator running
+    this locally) can change the model without editing this file, and so tests
+    can exercise both paths.
+    """
+    return os.environ.get(MODEL_ENV_VAR, "").strip() or DEFAULT_MODEL
+
+
+def describe_http_error(exc: urllib.error.HTTPError, model: str) -> str:
+    """Turn an HTTP failure into a message an operator can act on.
+
+    A wrong model id surfaces from this endpoint as a bare `HTTP Error 404`,
+    which reads like the network is down when in fact the configuration is
+    wrong. That mislabelling cost a day: the id `claude-opus-4-5-20260514` was
+    pinned in this file, did not exist, and the lane just said 404. So a 404 is
+    reported as what it is -- an unknown or unavailable model -- and it names
+    the id that was asked for and where that id came from.
+    """
+    source = (
+        f"the {MODEL_ENV_VAR} environment variable"
+        if os.environ.get(MODEL_ENV_VAR, "").strip()
+        else f"the built-in default (DEFAULT_MODEL in {Path(__file__).name})"
+    )
+    if exc.code == 404:
+        return (
+            f"the Anthropic API returned HTTP 404 for model id {model!r}: that "
+            "model does not exist or is not available to this API key. This is "
+            "a CONFIGURATION problem, not a network problem. The id came from "
+            f"{source}. Fix the id (or set {MODEL_ENV_VAR} to a model this key "
+            "can use) and dispatch again."
+        )
+    return f"the Anthropic API returned HTTP {exc.code} for model id {model!r}: {exc.reason}"
+
+
 def call_api(prompt: str, api_key: str) -> str:
+    model = resolve_model()
     payload = json.dumps(
         {
-            "model": MODEL,
+            "model": model,
             "max_tokens": 4000,
             "messages": [{"role": "user", "content": prompt}],
         }
@@ -147,8 +195,17 @@ def call_api(prompt: str, api_key: str) -> str:
             "x-api-key": api_key,
         },
     )
-    with urllib.request.urlopen(request, timeout=300) as response:
-        body = json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=300) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # A 4xx is a configuration error: retrying it three times only delays a
+        # failure that will never fix itself. Raise ReviewNotPerformed, which
+        # `ask_model` does not catch, so it goes straight to `fail()` with a
+        # message that names the model id.
+        if 400 <= exc.code < 500:
+            raise ReviewNotPerformed(describe_http_error(exc, model)) from exc
+        raise
     return "".join(
         block.get("text", "")
         for block in body.get("content", [])
@@ -204,7 +261,10 @@ def annotate(level: str, message: str) -> None:
 
 
 def publish(text: str, heading: str = "Automatic model review") -> None:
-    out = BANNER + text + "\n"
+    # Name the model in the evidence. Which model produced a verdict is part of
+    # the verdict; it also makes a wrong/changed id visible in the artifact
+    # rather than only in a stack trace.
+    out = BANNER + text + f"\n\n_Model: `{resolve_model()}`_\n"
     print(out)
     temp = os.environ.get("RUNNER_TEMP")
     if temp:
