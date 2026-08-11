@@ -1,3 +1,27 @@
+-- =====================================================================================
+-- THIS FILE PERMANENTLY DOES NOT BELONG IN THE FROM-EMPTY CI LANE. THIS IS A DECISION,
+-- NOT A BACKLOG ITEM. (issue #754)
+-- =====================================================================================
+-- It is listed in supabase/tests/ci-quarantine.txt and it is expected to stay there.
+--
+-- Issue #754 supplied a captured pre-adoption baseline and a synthetic fixture seed so
+-- that the contract tests could run against the ephemeral database in CI. Those two
+-- artifacts fixed the tests that were only missing OBJECTS or missing ROWS. This file is
+-- neither of those cases.
+--
+-- What it asserts is WHICH BASELINE IS ACTIVATED ON THE TARGET DATABASE, and that the
+-- production-safety gate refuses correctly when none is. Activation is a deployment ACT
+-- performed against a named, long-lived database after the migrations land -- it is not a
+-- property of the repository, and no artifact committed to the repository can make it
+-- true. Seeding an activation to satisfy the test would delete the only thing it proves:
+-- the gate would then be asserting a fact this file had just invented.
+--
+-- SO IT IS NOT AN UNFINISHED JOB, AND NOBODY SHOULD TRY TO "FIX" IT. It is run by hand
+-- against preview after the post-apply steps, before a production promotion, exactly as
+-- the header below describes. If you delete its quarantine line to make CI stricter, you
+-- will get a red job that no change to this repository can turn green.
+-- =====================================================================================
+
 -- Rollback-safe contract tests for
 --   20260804120000_taxonomy_baseline_pins_table.sql
 --   20260804120100_taxonomy_breaker_environment_and_provenance.sql

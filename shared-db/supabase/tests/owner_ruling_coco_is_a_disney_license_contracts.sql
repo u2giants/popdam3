@@ -1,3 +1,27 @@
+-- =====================================================================================
+-- THIS FILE PERMANENTLY DOES NOT BELONG IN THE FROM-EMPTY CI LANE. THIS IS A DECISION,
+-- NOT A BACKLOG ITEM. (issue #754)
+-- =====================================================================================
+-- It is listed in supabase/tests/ci-quarantine.txt and it is expected to stay there.
+--
+-- Issue #754 supplied a captured pre-adoption baseline and a synthetic fixture seed so
+-- that the contract tests could run against the ephemeral database in CI. Those fixed the
+-- tests that were only missing OBJECTS or missing ROWS. This file is neither of those.
+--
+-- Sections A-D and H assert the state of SPECIFIC REAL TAXONOMY ROWS -- the COCO property
+-- and the licensor it was ruled to belong to, identified by their actual production
+-- identifiers. Only a deployed database that has actually taken the ruling holds them.
+--
+-- AND THEY CANNOT BE SEEDED. The CI fixture seed is synthetic by rule: no real licensor
+-- or property name may be committed to this repository. A fixture built to satisfy this
+-- file would have to carry the very rows the rule forbids -- and even if it did, the test
+-- would then be checking rows the fixture had just written, which proves nothing about
+-- whether the ruling actually landed.
+--
+-- SO IT IS NOT AN UNFINISHED JOB. It is run by hand against preview after the migration
+-- is applied, before a production promotion, exactly as the header below describes.
+-- =====================================================================================
+
 -- Contract tests for 20260807030000_owner_ruling_coco_is_a_disney_license.sql
 --
 -- HOW TO RUN -- this file is psql-only and will NOT work through a generic SQL client.
@@ -9,7 +33,7 @@
 -- migration is applied. The whole file runs in one transaction and ends in ROLLBACK, so
 -- nothing it does survives. Do not run it as a long-lived production session.
 --
--- WHY psql SPECIFICALLY: line 40 uses psql's backtick substitution to read the REAL
+-- WHY psql SPECIFICALLY: the `\set` below uses psql's backtick substitution to read the REAL
 -- migration file off disk into a variable. Sections E and F then execute THAT TEXT -- the
 -- actual shipped migration, byte for byte -- against deliberately broken fixtures. There
 -- is no second copy of the guard logic in this file, so these tests cannot drift away from

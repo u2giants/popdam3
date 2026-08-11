@@ -13,51 +13,63 @@
 #
 # Every line is `<filename>  # <reason>`. A line with no reason is not valid.
 #
-# WHY SO MANY, AND WHAT IT MEANS (measured 2026-08-11, the first execution ever)
-# -----------------------------------------------------------------------------
-# Replaying all 429 migrations into an empty Supabase database applies 363 and FAILS 66.
-# The repository's migration history is NOT self-contained: it was adopted on top of an
-# already-populated database, so objects such as `public.assets`, the legacy popdam
-# tables and the `dflow.*` mirrors exist in preview and production without any migration
-# here having created them. Everything downstream of those 66 is therefore missing from
-# the ephemeral schema, and a second group of tests needs seeded reference data
-# (authenticated profiles, Customers, Vendors, real Licensor rows) that an empty
-# database has none of by definition.
+# WHERE THE NUMBER STANDS (measured 2026-08-11, run 31500417400)
+# --------------------------------------------------------------
+# The first execution of this suite (PR #741) quarantined 26 of the 40 files: replaying
+# all 429 migrations into an empty database applied 363 and FAILED 66, because this
+# repository was adopted on top of an already-populated database and its history is not
+# self-contained.
 #
-# So this lane proves the subset of the contract that is provable from the repository
-# alone. THAT IS NOT THE WHOLE CONTRACT. The quarantined files below still have to be
-# run against preview by hand before a production promotion; making CI run them for real
-# needs a captured pre-adoption baseline migration and a test-fixture seed, neither of
-# which exists yet. Nothing here should be read as "these have passed".
+# Issue #754 supplied the two missing artifacts, both in supabase/ci-bootstrap/ and
+# NEITHER a migration:
+#   010_pre_adoption_baseline.sql  -- schema only, captured read-only from production:
+#     every relation, function, trigger, policy and grant that exists there and that no
+#     migration here creates. No rows.
+#   020_test_fixture_seed.sql      -- the handful of reference rows the db_data_admin
+#     suite and its siblings need. Entirely invented.
+#
+# MEASURED RESULT: pass-1 replay failures 66 -> 10 after the baseline, and 15 of the 26
+# files below now PASS and have been removed from this list. ELEVEN REMAIN, and each one
+# now carries the ACTUAL error it fails with rather than a guess about what it needs.
+#
+# READ THE REMAINING ELEVEN HONESTLY. They are not one problem:
+#   * FOUR are pinned to a specific deployed database or to owner-approved deployment
+#     acts. No artifact committed to this repository can make them true, and seeding
+#     them would delete the only thing they prove. These are DECISIONS. Two of them say
+#     so at the top of the file itself.
+#   * FOUR are downstream of a migration that correctly REFUSES on an empty database
+#     because its precondition is real licensed data -- a specific Licensor, an
+#     authoritative row count in a legacy mirror. The refusals are the guards working.
+#     They cannot be fixed by a synthetic seed, because a synthetic seed may not carry a
+#     real licensor or property name.
+#   * THREE are tests whose OWN fixtures contradict the current schema or the current
+#     grants. These were invisible while the schema was too thin for the test to reach
+#     that line. They are the most interesting entries in this file: they are candidate
+#     REAL DEFECTS, and they are recorded here rather than edited into passing.
+#
+# So this lane still does not prove the whole contract, and it is much closer than it
+# was. The remaining files must still be run against preview by hand before a production
+# promotion.
 
-# --- Depend on objects no migration in this repository creates -------------------------
-app_serving_status_contracts.sql                              # api.dam_customer_list comes from a DAM migration that cannot replay from empty
-coldlion_licensor_property_phase6_contracts.sql               # phase4 baseline pins live in deployed data, not in any migration
-core_licensor_alias_contracts.sql                             # 20260731210000_core_licensor_alias did not replay: needs seeded core.licensor rows
-dam_customer_hub_wiring.sql                                   # style_groups.customer_id comes from the legacy popdam tables
-dam_order_list_contract.sql                                   # plm.production_order_source_ref is downstream of a non-replaying DAM migration
-dam_order_list_item_columns_contract.sql                      # api.dam_order_list is created by 20260810110000, which did not replay
-dflow_sample_shipment_item_restore.sql                        # dflow.* mirrors are not created by any migration here
-licensor_status_durability_and_owner_ruling.sql               # core.taxonomy_owner_ruling is downstream of a non-replaying migration
-product_size_depth_phase1_contracts.sql                       # needs the ColdLion landing rows; the seed migrations refuse on an empty database, correctly
-sample_tracking_completion_semantics.sql                      # dflow.sample does not exist from empty
-sample_tracking_office_inventory_withdrawal.sql               # dflow.sample does not exist from empty
-sample_tracking_quantity_contract.sql                         # dflow.sample does not exist from empty
-wb_grants_rls_and_dam_order_list_invoker.sql                  # asserts grants on objects that are downstream of non-replaying migrations
+# --- Pinned to a specific deployed environment, or to an owner-approved act ------------
+# NOT unfinished work. Do not try to "fix" these; a from-empty lane cannot reach them.
+taxonomy_baseline_pin_and_breaker_environment_contracts.sql   # by name and by design: asserts which baseline is ACTIVATED on the target database. Activation is a deployment act, not a repository fact. The file says so at the top.
+owner_ruling_coco_is_a_disney_license_contracts.sql           # asserts specific real taxonomy rows by their production identifiers. They cannot be seeded: the fixture seed is synthetic by rule, and a fixture that wrote them would only be checking its own writes. The file says so at the top.
+coldlion_licensor_property_phase6_contracts.sql               # "phase4 baseline pins missing from observation function" -- the pins are activated on a deployed database, like the file above.
+product_size_depth_phase1_contracts.sql                       # "coldlion product size import refused: landing holds 0 rows" -- the ColdLion landing rows are licensed source data and the seed migrations refuse without them, correctly.
 
-# --- Need seeded reference data an empty database cannot have --------------------------
-coldlion_licensor_property_readiness_breaker_contracts.sql    # fixture requires at least one canonical Licensor and Property
-dam_picker_read_contracts.sql                                 # fixture requires an existing profile for its rollback-only access test
-db_data_admin_contract_errata.sql                             # fixture requires two active authenticated profiles
-db_data_admin_extensions.sql                                  # fixture requires a Customer, a Vendor and an active profile
-db_data_admin_foundation.sql                                  # fixture requires one active authenticated profile
-db_data_admin_licensor_property_tree.sql                      # fixture requires three active authenticated profiles
-db_data_admin_merge_coverage.sql                              # asserts FK coverage over tables that did not replay
-db_data_admin_merge_preview_moving_detail.sql                 # fixture requires seeded profiles (user_role.profile_id NOT NULL)
-db_data_admin_merge_workflow.sql                              # fixture requires seeded profiles (user_role.profile_id NOT NULL)
-db_data_admin_read_contracts.sql                              # fixture requires four active authenticated profiles
-db_data_admin_single_record_updates.sql                       # fixture requires three active authenticated profiles
+# --- Downstream of a migration that correctly refuses without real licensed data -------
+# The migration is not broken. It is a guard doing its job on a database that genuinely
+# does not hold that data, and the data may not be synthesised into this repository.
+core_licensor_alias_contracts.sql                             # core.licensor_alias does not exist: 20260731210000 refuses because Licensor "NBC" resolves to 0 rows. A synthetic seed may not carry a real licensor name.
+licensor_status_durability_and_owner_ruling.sql               # core.taxonomy_owner_ruling does not exist: 20260802171000 refuses because core.licensor (code=FR) is absent. Same rule, same reason.
+dam_customer_hub_wiring.sql                                   # "get_dam_customer_facets returned empty/non-array" -- the facets are computed from deployed DAM assets and style groups; an empty database has none and none may be invented.
+dam_order_list_item_columns_contract.sql                      # "permission denied for table style_tracker_item_bridge" -- the read grant this asserts is made against the deployed database, not by any migration here.
 
-# --- Asserts a property of a specific deployed environment -----------------------------
-taxonomy_baseline_pin_and_breaker_environment_contracts.sql   # by name and by design: it asserts which baseline is ACTIVATED on the target database
-owner_ruling_coco_is_a_disney_license_contracts.sql             # asserts a specific real core.property row (COCO) that only a deployed database holds
+# --- The test's own fixture contradicts the current schema or grants -------------------
+# CANDIDATE REAL DEFECTS, recorded rather than edited into passing. Each was invisible
+# until the baseline made the schema complete enough for the test to reach the line.
+# Whoever owns these tests should look; do NOT weaken the assertion to clear the entry.
+db_data_admin_read_contracts.sql                              # the test inserts a deliberate ORPHAN property with licensor_id = null to prove orphans are reported loudly -- but core.property.licensor_id is NOT NULL on the current schema, so the fixture can no longer be built. The test and the schema disagree; that is a finding, not a from-empty artefact.
+dam_order_list_contract.sql                                   # "SKU dupsku1 (licensed) resolves to 2 Master Data rows; ambiguity must be reviewed, not guessed" -- raised by the engine against the test's OWN fixture. The refusal looks correct and the fixture looks wrong.
+wb_grants_rls_and_dam_order_list_invoker.sql                  # "new row for relation wb_capture violates check constraint wb_capture_header_shape_chk" -- again the test's own fixture, against a constraint that is now present.
