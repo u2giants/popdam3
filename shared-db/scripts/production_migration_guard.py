@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -651,6 +652,127 @@ def local_migrations(repo: Path) -> dict[str, Path]:
     return migrations
 
 
+# ---------------------------------------------------------------------------
+# FILE-CONTENT DIGEST PINNING (issue #617)
+#
+# `prepare` prunes a bounded checkout down to exactly `remote-ledger | allowlist`
+# and `assert_bounded` re-proves that set immediately before the push. That
+# proves the SET of files but not their BYTES: nothing here watched whether a
+# file's contents drifted between `prepare` and the push (an editor, a line-
+# ending rewrite, a partial write), or whether the record of what was prepared
+# was hand-edited. A bounded checkout whose membership is correct but whose
+# contents have moved is still untrustworthy, so `prepare` now pins the byte
+# content of every file that survived pruning and `assert_bounded` re-proves it.
+#
+# The manifest is a JSON object mapping version -> sha256 hex digest of the
+# migration file's raw bytes, keys sorted for determinism. It lives INSIDE the
+# bounded checkout (a sibling of `migrations/`, never inside it), so the two
+# functions stay self-contained: `prepare` writes `<output>/supabase/<name>`
+# and `assert_bounded` reads `<directory>/supabase/<name>` with no extra state.
+#
+# WHAT THE PIN IS AND IS NOT. It is a byte-for-byte tamper seal between two
+# steps of the same job. It is not a defence against an actor who can write
+# both the migration files and the manifest at once -- such an actor could
+# re-pin whatever they liked. It defends against the realistic failure for this
+# lane: a process or person changes a file (or the manifest) AFTER `prepare`
+# committed the bounded set and BEFORE the push, where the change is invisible
+# to the membership check. Every divergence fails CLOSED.
+#
+# NO VERSION/TABLE SPECIAL CASES. Every file on disk is hashed unconditionally;
+# nothing here keys on a particular version or object. The pin is generic.
+# ---------------------------------------------------------------------------
+
+MANIFEST_FILENAME = "migration-content-manifest.json"
+
+
+def manifest_path(directory: Path) -> Path:
+    """Where ``prepare`` writes the content manifest inside a bounded checkout.
+
+    A sibling of ``migrations/`` rather than inside it, so the Supabase CLI's
+    ``supabase/migrations/*.sql`` glob (and every member check here) never sees
+    it and it cannot be mistaken for a migration.
+    """
+    return directory / "supabase" / MANIFEST_FILENAME
+
+
+def compute_content_manifest(directory: Path) -> dict[str, str]:
+    """SHA-256 digest of every migration file on disk, keyed by version.
+
+    Keyed by the 14-digit version because that is the identity the ledger, the
+    allowlist and every file-set check already use; the digest pins the bytes.
+    Reads raw bytes so a line-ending or encoding change registers as drift.
+    """
+    return {
+        version: hashlib.sha256(path.read_bytes()).hexdigest()
+        for version, path in local_migrations(directory).items()
+    }
+
+
+def write_content_manifest(directory: Path) -> Path:
+    """Pin the current byte content of every migration file in ``directory``.
+
+    Called by ``prepare`` once the bounded set is final, so the manifest records
+    exactly the files that survived pruning. Deterministic output (sorted keys)
+    so a byte-identical re-pin is text-identical too.
+    """
+    path = manifest_path(directory)
+    path.write_text(
+        json.dumps(compute_content_manifest(directory), indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def assert_content_manifest(directory: Path) -> None:
+    """Fail closed unless the on-disk bytes still match what ``prepare`` pinned.
+
+    Every branch refuses: a missing manifest (never prepared, or deleted), a
+    corrupt/unreadable manifest, a shape that is not the expected object, a file
+    added or removed since the pin, and any byte drift -- which is also exactly
+    what a hand-edited manifest digest looks like, so manifest tampering and
+    content drift are the same comparison and both fail the same way.
+    """
+    path = manifest_path(directory)
+    if not path.is_file():
+        raise GuardError(
+            f"content manifest missing: {path}. `prepare` must write one before "
+            "the checkout is pushed; a missing manifest means the byte content "
+            "of the bounded files was never pinned and cannot be trusted."
+        )
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GuardError(
+            f"content manifest at {path} is unreadable/corrupt ({exc}); treat "
+            "the bounded checkout as untrusted."
+        )
+    if not isinstance(stored, dict):
+        raise GuardError(f"content manifest at {path} is not a JSON object")
+    recomputed = compute_content_manifest(directory)
+    if recomputed == stored:
+        return
+    missing = sorted(set(stored) - set(recomputed))
+    added = sorted(set(recomputed) - set(stored))
+    drifted = sorted(
+        version
+        for version in (set(stored) & set(recomputed))
+        if stored[version] != recomputed[version]
+    )
+    details: list[str] = []
+    if missing:
+        details.append(f"removed from disk: {missing}")
+    if added:
+        details.append(f"added to disk: {added}")
+    if drifted:
+        details.append(f"byte drift / manifest tamper: {drifted}")
+    raise GuardError(
+        "bounded checkout content manifest mismatch -- the files on disk no "
+        f"longer match what `prepare` pinned ({'; '.join(details)}). Refusing "
+        "to push. Re-run `prepare` to re-pin, or investigate the drift."
+    )
+
+
 def validate_candidates(
     migrations: dict[str, Path], allowlist: list[str], remote: set[str]
 ) -> None:
@@ -1172,6 +1294,11 @@ def prepare(repo: Path, output: Path, commit_sha: str, raw_allowlist: str, ledge
     expected = set(migrations) & keep
     if remaining != expected:
         raise GuardError("bounded checkout does not match the approved file set")
+    # Pin the exact byte content of every file that survived pruning, so the
+    # later `assert_bounded` can refuse any drift between this step and the
+    # push. Written last, after the file-set check, so it reflects the final
+    # bounded state and nothing after it mutates the checkout.
+    write_content_manifest(output)
 
 
 def assert_bounded(directory: Path, raw_allowlist: str, ledger: Path) -> None:
@@ -1198,9 +1325,16 @@ def assert_bounded(directory: Path, raw_allowlist: str, ledger: Path) -> None:
             "bounded checkout is NOT bounded -- --include-all would sweep "
             f"unapproved migrations: {extra}"
         )
+    # Re-prove the BYTE CONTENT too, not just the file set. The membership check
+    # above cannot see a file whose contents drifted (or whose pinned digest was
+    # hand-edited) between `prepare` and this push; this comparison can, and it
+    # fails closed on every form of divergence. Run AFTER the file-set checks so
+    # an added file still produces the existing, named-membership message.
+    assert_content_manifest(directory)
     print(
         f"BOUNDED OK: {len(on_disk)} migration files on disk, all within "
-        f"remote-ledger | allowlist ({len(allowlist)} allowlisted)."
+        f"remote-ledger | allowlist ({len(allowlist)} allowlisted), content "
+        "manifest verified."
     )
 
 

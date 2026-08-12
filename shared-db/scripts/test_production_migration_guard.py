@@ -16,13 +16,17 @@ from production_migration_guard import (  # noqa: E402
     BUNDLE_20260804,
     FR_HELD_20260803,
     FR_REMOVAL_VERSIONS,
+    MANIFEST_FILENAME,
     GuardError,
     assert_bounded,
+    compute_content_manifest,
     created_objects,
     local_migrations,
+    manifest_path,
     CO_PRESENCE_RULES,
     ATOMIC_BATCHES,
     assert_atomic_batches,
+    assert_content_manifest,
     assert_no_archaic_function_body,
     hard_references,
     parse_allowlist,
@@ -32,6 +36,7 @@ from production_migration_guard import (  # noqa: E402
     prepare,
     validate_candidates,
     verify_dry_run,
+    write_content_manifest,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -569,6 +574,10 @@ class AssertBoundedTests(unittest.TestCase):
             "Local | Remote | Time\n20260727010000 | 20260727010000 | x\n",
             encoding="utf-8",
         )
+        # `prepare` pins byte content, so a realistic fixture does too. Tests
+        # that want to simulate drift/tamper mutate the files or the manifest
+        # AFTER this point.
+        write_content_manifest(root)
         return root, ledger
 
     def test_accepts_a_checkout_of_exactly_remote_union_allowlist(self) -> None:
@@ -598,6 +607,240 @@ class AssertBoundedTests(unittest.TestCase):
             root, ledger = self._fixture(Path(directory), ())
             with self.assertRaises(GuardError):
                 assert_bounded(root, "20260727020000", ledger)
+
+
+# ===========================================================================
+# FILE-CONTENT DIGEST PINNING (issue #617)
+#
+# `prepare` now writes a SHA-256 manifest of the bounded files and
+# `assert_bounded` re-proves it. The membership checks above (and in `prepare`)
+# still gate the SET of files; these tests gate the BYTES. Every divergence --
+# content drift, a hand-edited manifest digest, a file added or removed after
+# the pin, or no manifest at all -- must fail CLOSED. No test here special-cases
+# a version or table: the pin is generic.
+# ===========================================================================
+class ContentManifestTests(unittest.TestCase):
+    def _prepared(
+        self, root: Path, names: tuple[str, ...], body: str = "select 1;\n"
+    ) -> Path:
+        """A bounded checkout exactly as `prepare` leaves it: files + manifest."""
+        migrations = root / "supabase" / "migrations"
+        migrations.mkdir(parents=True)
+        for name in names:
+            (migrations / name).write_text(body, encoding="utf-8")
+        write_content_manifest(root)
+        return root
+
+    def _ledger(self, root: Path) -> Path:
+        ledger = root / "ledger.txt"
+        ledger.write_text(
+            "Local | Remote | Time\n20260727010000 | 20260727010000 | x\n",
+            encoding="utf-8",
+        )
+        return ledger
+
+    def test_a_stable_pinned_checkout_passes(self) -> None:
+        """The happy path: nothing changed between prepare and the push."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(
+                root,
+                ("20260727010000_applied.sql", "20260727020000_approved.sql"),
+            )
+            ledger = self._ledger(root)
+            assert_bounded(root, "20260727020000", ledger)
+
+    def test_prepare_writes_a_manifest_for_the_bounded_set(self) -> None:
+        # `prepare` is the producer of the pin. It must leave a manifest whose
+        # entries are exactly the bounded file versions, each a real sha256.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo = root / "repo"
+            output = root / "bounded"
+            mig = repo / "supabase" / "migrations"
+            mig.mkdir(parents=True)
+            for name in (
+                "20260727010000_applied.sql",
+                "20260727020000_approved.sql",
+                "20260727030000_unapproved.sql",
+            ):
+                (mig / name).write_text("select 1;\n", encoding="utf-8")
+            ledger = self._ledger(root)
+
+            def fake_worktree(*_args, **_kwargs):
+                import shutil
+
+                shutil.copytree(repo, output)
+
+            with patch(
+                "production_migration_guard.subprocess.run",
+                side_effect=fake_worktree,
+            ):
+                prepare(repo, output, "a" * 40, "20260727020000", ledger)
+
+            mpath = manifest_path(output)
+            self.assertTrue(mpath.is_file(), "prepare must write the manifest")
+            import hashlib
+
+            stored = json.loads(mpath.read_text(encoding="utf-8"))
+            # The pruned set is the applied + the one allowlisted file.
+            self.assertEqual(
+                set(stored),
+                {"20260727010000", "20260727020000"},
+            )
+            for version, digest in stored.items():
+                self.assertEqual(len(digest), 64)
+                fname = (
+                    "20260727010000_applied.sql"
+                    if version == "20260727010000"
+                    else "20260727020000_approved.sql"
+                )
+                self.assertEqual(
+                    digest,
+                    hashlib.sha256(
+                        (output / "supabase" / "migrations" / fname).read_bytes()
+                    ).hexdigest(),
+                )
+            # The manifest is a sibling of migrations/, never inside it, so it
+            # cannot be mistaken for a migration by the CLI or by local_migrations.
+            self.assertEqual(mpath.name, MANIFEST_FILENAME)
+            self.assertEqual(mpath.parent.name, "supabase")
+
+    def test_byte_drift_after_prepare_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(
+                root,
+                ("20260727010000_applied.sql", "20260727020000_approved.sql"),
+            )
+            ledger = self._ledger(root)
+            # Mutate ONE file's bytes after the pin. The membership set is
+            # unchanged, so only the content pin can catch this.
+            (root / "supabase" / "migrations" / "20260727020000_approved.sql").write_text(
+                "select 2;\n", encoding="utf-8"
+            )
+            with self.assertRaises(GuardError) as caught:
+                assert_bounded(root, "20260727020000", ledger)
+            message = str(caught.exception)
+            self.assertIn("manifest mismatch", message)
+            self.assertIn("byte drift", message)
+            self.assertIn("20260727020000", message)
+
+    def test_a_tampered_manifest_digest_is_refused(self) -> None:
+        # Hand-editing a pinned digest is indistinguishable from content drift
+        # to the recompute-and-compare check, and must fail the same way.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(
+                root,
+                ("20260727010000_applied.sql", "20260727020000_approved.sql"),
+            )
+            ledger = self._ledger(root)
+            mpath = manifest_path(root)
+            tampered = json.loads(mpath.read_text(encoding="utf-8"))
+            tampered["20260727020000"] = "0" * 64
+            mpath.write_text(json.dumps(tampered), encoding="utf-8")
+            with self.assertRaises(GuardError) as caught:
+                assert_bounded(root, "20260727020000", ledger)
+            message = str(caught.exception)
+            self.assertIn("manifest mismatch", message)
+            self.assertIn("20260727020000", message)
+
+    def test_a_file_removed_after_prepare_is_refused(self) -> None:
+        # The old membership check only flagged EXTRA files; a removed
+        # allowlisted file slipped through it. The manifest pin catches it.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(
+                root,
+                ("20260727010000_applied.sql", "20260727020000_approved.sql"),
+            )
+            ledger = self._ledger(root)
+            (root / "supabase" / "migrations" / "20260727020000_approved.sql").unlink()
+            with self.assertRaises(GuardError) as caught:
+                assert_bounded(root, "20260727020000", ledger)
+            message = str(caught.exception)
+            self.assertIn("manifest mismatch", message)
+            self.assertIn("removed from disk", message)
+            self.assertIn("20260727020000", message)
+
+    def test_a_file_added_after_prepare_is_refused_by_membership_first(self) -> None:
+        # An added file is caught by BOTH the membership check and the manifest.
+        # Membership fires first, preserving the existing named failure message.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(
+                root,
+                ("20260727010000_applied.sql", "20260727020000_approved.sql"),
+            )
+            ledger = self._ledger(root)
+            (root / "supabase" / "migrations" / "20260727030000_sneaky.sql").write_text(
+                "select 3;\n", encoding="utf-8"
+            )
+            with self.assertRaises(GuardError) as caught:
+                assert_bounded(root, "20260727020000", ledger)
+            message = str(caught.exception)
+            self.assertIn("NOT bounded", message)
+            self.assertIn("20260727030000", message)
+
+    def test_a_missing_manifest_fails_closed(self) -> None:
+        # No pin at all -- prepare never ran, or the manifest was deleted.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(
+                root,
+                ("20260727010000_applied.sql", "20260727020000_approved.sql"),
+            )
+            ledger = self._ledger(root)
+            manifest_path(root).unlink()
+            with self.assertRaises(GuardError) as caught:
+                assert_bounded(root, "20260727020000", ledger)
+            self.assertIn("content manifest missing", str(caught.exception))
+
+    def test_a_corrupt_manifest_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(
+                root,
+                ("20260727010000_applied.sql", "20260727020000_approved.sql"),
+            )
+            ledger = self._ledger(root)
+            manifest_path(root).write_text("{not json", encoding="utf-8")
+            with self.assertRaises(GuardError) as caught:
+                assert_bounded(root, "20260727020000", ledger)
+            self.assertIn("unreadable/corrupt", str(caught.exception))
+
+    def test_compute_content_manifest_is_byte_precise(self) -> None:
+        # A line-ending change is real byte drift and must register as one.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(root, ("20260727010000_applied.sql",), body="select 1;\n")
+            before = compute_content_manifest(root)
+            (root / "supabase" / "migrations" / "20260727010000_applied.sql").write_text(
+                "select 1;\r\n", encoding="utf-8"
+            )
+            after = compute_content_manifest(root)
+            self.assertNotEqual(
+                before["20260727010000"],
+                after["20260727010000"],
+            )
+
+    def test_assert_content_manifest_unit_passes_and_fails(self) -> None:
+        # The content check in isolation: a freshly pinned checkout passes, and
+        # any post-pin drift fails closed -- the same contract `assert_bounded`
+        # relies on, exercised at the unit boundary.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._prepared(
+                root,
+                ("20260727010000_applied.sql", "20260727020000_approved.sql"),
+            )
+            assert_content_manifest(root)  # pinned -> OK
+            (root / "supabase" / "migrations" / "20260727020000_approved.sql").write_text(
+                "select 9;\n", encoding="utf-8"
+            )
+            with self.assertRaises(GuardError):
+                assert_content_manifest(root)
 
 
 class PreflightNegativeTests(unittest.TestCase):
@@ -1522,6 +1765,21 @@ class ApplyLaneTests(unittest.TestCase):
         ):
             with self.subTest(artifact=artifact):
                 self.assertIn(artifact, job)
+
+    def test_the_content_manifest_is_in_every_pushing_jobs_evidence(self) -> None:
+        """`prepare` pins byte content; the evidence of a push must carry the pin.
+
+        The manifest lives inside the bounded checkout, so each job that runs
+        `prepare` -> `assert-bounded` -> push must upload
+        `<bounded>/supabase/migration-content-manifest.json` alongside its other
+        evidence. Without it, a post-hoc reviewer cannot tell whether the bytes
+        that were pushed were the bytes that were pinned. The dry-run, preview
+        and apply jobs all qualify.
+        """
+        manifest = "supabase/migration-content-manifest.json"
+        for name in ("preview", "production-dry-run", "production-apply"):
+            with self.subTest(job=name):
+                self.assertIn(manifest, _job(name))
 
     def test_include_all_never_runs_in_the_github_workspace(self) -> None:
         """The bound is the filesystem, not the flag (AGENTS.md 5.1).
