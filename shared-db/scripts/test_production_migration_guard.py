@@ -1782,10 +1782,16 @@ class LexerFalseAcceptDefects(unittest.TestCase):
 
 BATCHES = {name: members for name, _why, members in ATOMIC_BATCHES}
 
-# Contract section 5's own counts. Asserted rather than derived, so a member
+# The guard's own member counts. Asserted rather than derived, so a member
 # quietly added to or dropped from ATOMIC_BATCHES fails here instead of silently
 # changing what "atomic" means.
-CONTRACT_COUNTS = {"B1": 11, "B3": 10, "B7": 6, "B9": 14}
+#
+# B3 is 11, NOT the contract section-5 functional count of 10: the guard carries
+# one SECURITY appendage the contract predates -- 20260812020000 (issue #822,
+# service_role TRUNCATE revoke on three append-only tables plus core.property_alias). The contract's
+# ten are a strict subset of the guard's eleven. See the B3 entry in
+# production_migration_guard.py and test_b3_requires_the_truncate_fix below.
+CONTRACT_COUNTS = {"B1": 11, "B3": 11, "B7": 6, "B9": 14}
 
 # Contract section 5: batches the contract does NOT declare atomic. A promotion
 # of any part of one of these must be unaffected by the atomicity check.
@@ -1990,6 +1996,88 @@ class AtomicBatchTests(unittest.TestCase):
         self.assertIn("production-promotion-app-tolerance-contract.md", message)
         self.assertIn("Add every missing version to the allowlist", message)
         self.assertIn("no size of subset", message)
+
+
+class B3TruncateFixCoPresenceTest(unittest.TestCase):
+    """Issue #822: the service_role TRUNCATE revoke (20260812020000) is a B3 member.
+
+    B3's creates `grant all` (including TRUNCATE) to service_role on three
+    append-only evidence/decision tables plus core.property_alias (controlled
+    shared alias truth whose writes go through public.promote_property_alias_batch()).
+    For the three append-only tables, TRUNCATE does not fire the BEFORE UPDATE OR
+    DELETE row triggers that enforce append-only semantics, so B3 without the fix
+    leaves service_role one statement away from silently wiping them; for
+    core.property_alias the revoke is defense in depth. The guard therefore lists
+    20260812020000 in the B3 ATOMIC_BATCHES set,
+    so it cannot be omitted from a B3 promotion. These tests pin that property
+    and the ledger-aware recovery shape (the fix ALONE is legal once B3 lands).
+    The exhaustive AtomicBatchTests already prove the basic cases (every member
+    alone is refused; every proper subset is refused); this class adds the
+    intent, the recovery direction, the end-to-end choke point, and a tie
+    between the guard's membership and the migration's actual contents.
+    """
+
+    FIX = "20260812020000"
+    FOUR_TABLES = (
+        "plm.coldlion_promotion_audit",
+        "plm.coldlion_promotion_quarantine",
+        "core.property_alias",
+        "dam.popsg_property_resolution",
+    )
+
+    def setUp(self) -> None:
+        self.assertIn(self.FIX, BATCHES["B3"])
+        self.functional = BATCHES["B3"] - {self.FIX}  # the contract's ten
+
+    def test_the_fix_is_a_real_migration_file(self) -> None:
+        self.assertIn(self.FIX, local_migrations(REPO))
+
+    def test_b3_without_the_fix_is_refused_and_names_it(self) -> None:
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(sorted(self.functional), set())
+        message = str(ctx.exception)
+        self.assertIn("batch B3 is ATOMIC", message)
+        self.assertIn(f"MISSING (1): {self.FIX}", message)
+
+    def test_b3_with_the_fix_is_accepted(self) -> None:
+        assert_atomic_batches(sorted(BATCHES["B3"]), set())
+
+    def test_the_fix_alone_is_refused_before_b3_lands(self) -> None:
+        """The revoke depends on tables B3 creates, so it cannot run first."""
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches([self.FIX], set())
+        self.assertIn("batch B3 is ATOMIC", str(ctx.exception))
+
+    def test_the_fix_alone_is_ALLOWED_once_b3_has_landed(self) -> None:
+        """Ledger-aware recovery: a run that died before the fix resumes with the
+        fix ALONE, because validate_candidates refuses to re-list applied
+        versions. This is the property that makes the rule an atomic member
+        rather than a HARD_BLOCKED entry -- a symmetric rule would refuse this
+        recovery and force an edit of the safety guard under pressure."""
+        applied = set(self.functional)  # the other ten already in production
+        assert_atomic_batches([self.FIX], applied)
+
+    def test_validate_candidates_refuses_b3_without_the_fix(self) -> None:
+        """The choke point `prepare`/`preflight` both funnel through."""
+        migrations = {v: Path(f"{v}_x.sql") for v in BATCHES["B3"]}
+        with self.assertRaises(GuardError) as ctx:
+            validate_candidates(migrations, sorted(self.functional), set())
+        message = str(ctx.exception)
+        self.assertIn("batch B3 is ATOMIC", message)
+        self.assertIn(self.FIX, message)
+
+    def test_the_migration_actually_revokes_truncate_on_the_four_tables(self) -> None:
+        """The guard points B3 at a file that does what the comment claims. If the
+        migration stopped revoking TRUNCATE on any of the four tables, the guard's
+        co-presence rule would be enforcing nothing, so tie the two together."""
+        raw = local_migrations(REPO)[self.FIX].read_text(encoding="utf-8")
+        lowered = raw.lower()
+        for table in self.FOUR_TABLES:
+            self.assertIn(table, lowered)
+        # revokes the TRUNCATE bypass + DDL-adjacent bits from service_role...
+        self.assertIn("revoke truncate, references, trigger, maintain", lowered)
+        # ...and asserts the outcome via has_table_privilege (the behaviour probe).
+        self.assertIn("has_table_privilege", lowered)
 
 
 if __name__ == "__main__":
