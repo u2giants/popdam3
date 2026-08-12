@@ -33,10 +33,12 @@ from production_catalog_verification import (  # noqa: E402
     _objtype_array,
     assert_privileges,
     build_catalog_sql,
+    build_behavior_sql,
     build_row_count_sql,
     derive_targets,
     extract_report,
     parse_dynamic_acl,
+    load_behavior_sidecars,
     render_report,
     split_statements,
     verify,
@@ -1093,6 +1095,167 @@ class NoopDeclarationTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(payload["noop_declaration"]["accepted"])
         self.assertTrue(any("DECLARES itself" in e for e in payload["errors"]))
+
+
+class BehavioralSidecarTests(unittest.TestCase):
+    VERSION = "20260101000000"
+    SQL = "do $$ begin update core.property set name = 'x'; end $$;\n"
+
+    def fixture(self, sidecar_changes=None, sql=None):
+        temp = tempfile.TemporaryDirectory()
+        root = Path(temp.name)
+        migrations = root / "supabase" / "migrations"
+        sidecars = root / "scripts" / "production-verification-sidecars"
+        migrations.mkdir(parents=True)
+        sidecars.mkdir(parents=True)
+        migration = migrations / f"{self.VERSION}_data.sql"
+        migration.write_text(sql or self.SQL, encoding="utf-8")
+        import hashlib
+        sidecar = {
+            "schema_version": 1,
+            "migration_version": self.VERSION,
+            "migration_sha256": hashlib.sha256(
+                migration.read_bytes().replace(b"\r\n", b"\n")
+            ).hexdigest(),
+            "checks": [{
+                "id": "property_has_expected_parent",
+                "kind": "exact_row_count",
+                "relation": "core.property",
+                "filters": [
+                    {"column": "id", "type": "uuid",
+                     "equals": "5c03fc46-5a02-4da1-bcac-8969e74bbd8f"},
+                    {"column": "name", "type": "text", "equals": "O'Reilly"},
+                ],
+                "expected_count": 1,
+            }],
+        }
+        if sidecar_changes:
+            sidecar_changes(sidecar)
+        (sidecars / f"{self.VERSION}.json").write_text(
+            json.dumps(sidecar), encoding="utf-8"
+        )
+        return temp, root, migration
+
+    def load(self, root, migration):
+        return load_behavior_sidecars(
+            root, {self.VERSION: migration}, [self.VERSION]
+        )
+
+    def test_positive_sidecar_is_hash_bound_and_builds_select_only(self):
+        temp, root, migration = self.fixture()
+        with temp:
+            checks = self.load(root, migration)
+            sql = build_behavior_sql(checks)
+        self.assertTrue(sql.lower().startswith("select "))
+        self.assertNotIn(";", sql[:-1])
+        self.assertIn("from core.property", sql)
+        self.assertIn("O''Reilly", sql)
+        self.assertNotIn("do $$", sql.lower())
+
+    def test_changed_migration_invalidates_the_sidecar_hash(self):
+        temp, root, migration = self.fixture()
+        with temp:
+            migration.write_text(self.SQL + "-- changed\n", encoding="utf-8")
+            with self.assertRaisesRegex(GuardError, "hash mismatch"):
+                self.load(root, migration)
+
+    def test_crlf_and_lf_have_the_same_canonical_hash(self):
+        temp, root, migration = self.fixture()
+        with temp:
+            sidecar_path = (
+                root / "scripts" / "production-verification-sidecars"
+                / f"{self.VERSION}.json"
+            )
+            expected = json.loads(sidecar_path.read_text("utf-8"))["migration_sha256"]
+            migration.write_bytes(migration.read_bytes().replace(b"\r\n", b"\n"))
+            checks = self.load(root, migration)
+        self.assertEqual(checks[0]["migration_sha256"], expected)
+
+    def test_unknown_sidecar_field_fails_closed(self):
+        temp, root, migration = self.fixture(lambda s: s.update({"sql": "select 1"}))
+        with temp, self.assertRaisesRegex(GuardError, "unknown=.*sql"):
+            self.load(root, migration)
+
+    def test_arbitrary_sql_cannot_be_supplied_as_a_check_kind(self):
+        def change(sidecar):
+            sidecar["checks"][0]["kind"] = "sql"
+        temp, root, migration = self.fixture(change)
+        with temp, self.assertRaisesRegex(GuardError, "unsupported check kind"):
+            self.load(root, migration)
+
+    def test_unsafe_relation_and_column_identifiers_fail_closed(self):
+        def relation(sidecar):
+            sidecar["checks"][0]["relation"] = "core.property; drop table x"
+        temp, root, migration = self.fixture(relation)
+        with temp, self.assertRaisesRegex(GuardError, "invalid relation"):
+            self.load(root, migration)
+
+        def column(sidecar):
+            sidecar["checks"][0]["filters"][0]["column"] = "id) or true --"
+        temp, root, migration = self.fixture(column)
+        with temp, self.assertRaisesRegex(GuardError, "invalid column"):
+            self.load(root, migration)
+
+    def test_wrong_value_type_fails_closed(self):
+        def change(sidecar):
+            sidecar["checks"][0]["filters"][0]["equals"] = "not-a-uuid"
+        temp, root, migration = self.fixture(change)
+        with temp, self.assertRaisesRegex(GuardError, "invalid UUID"):
+            self.load(root, migration)
+
+    def test_missing_and_wrong_behavior_results_fail(self):
+        temp, root, migration = self.fixture()
+        with temp:
+            checks = self.load(root, migration)
+            targets = derive_targets({self.VERSION: migration}, [self.VERSION])
+            _, missing = render_report(
+                [self.VERSION], targets, None, None, [], True,
+                behavior_checks=checks, behavior_results=None,
+            )
+            _, wrong = render_report(
+                [self.VERSION], targets, None, None, [], True,
+                behavior_checks=checks,
+                behavior_results={"behavior_checks": [{
+                    "id": checks[0]["id"], "actual_count": 0,
+                    "expected_count": 1,
+                }]},
+            )
+        self.assertTrue(any("received None" in f for f in missing))
+        self.assertTrue(any("received 0" in f for f in wrong))
+
+    def test_matching_behavior_result_passes_data_only_migration(self):
+        temp, root, migration = self.fixture()
+        with temp:
+            checks = self.load(root, migration)
+            targets = derive_targets({self.VERSION: migration}, [self.VERSION])
+            markdown, failures = render_report(
+                [self.VERSION], targets, None, None, [], True,
+                behavior_checks=checks,
+                behavior_results={"behavior_checks": [{
+                    "id": checks[0]["id"], "actual_count": 1,
+                    "expected_count": 1,
+                }]},
+            )
+        self.assertEqual(failures, [])
+        self.assertIn("**PASS**", markdown)
+
+    def test_real_b7_sidecar_preserves_every_sibling_catalog_target(self):
+        versions = [
+            "20260807030000", "20260807170000", "20260807170100",
+            "20260807180000", "20260807190000", "20260807200000",
+        ]
+        migrations = {
+            path.name[:14]: path
+            for path in (REPO / "supabase" / "migrations").glob("*.sql")
+        }
+        checks = load_behavior_sidecars(REPO, migrations, versions)
+        full = derive_targets(migrations, versions)
+        siblings = derive_targets(migrations, versions[1:])
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(full.as_dict(), siblings.as_dict())
+        self.assertFalse(full.is_empty())
+        self.assertIn("api.opa_property_reconciliation", full.views)
+        self.assertIn("plm.sync_opa_property_character", full.functions)
 
 
 class NetAclTests(unittest.TestCase):

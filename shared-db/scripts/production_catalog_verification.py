@@ -111,6 +111,7 @@ WHAT THIS CANNOT PROVE -- read this before trusting it
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -118,6 +119,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -276,6 +278,14 @@ NOOP_DECLARATION_RE = re.compile(
 DATA_STATEMENT_RE = re.compile(
     r"^\s*(insert|update|delete|merge|with|select|values|set|reset|analyze)\b"
 )
+
+BEHAVIOR_SIDECAR_DIR = Path("scripts/production-verification-sidecars")
+BEHAVIOR_SIDECAR_KEYS = {
+    "schema_version", "migration_version", "migration_sha256", "checks"
+}
+BEHAVIOR_CHECK_KEYS = {"id", "kind", "relation", "filters", "expected_count"}
+BEHAVIOR_FILTER_KEYS = {"column", "type", "equals"}
+BEHAVIOR_TYPES = {"uuid", "text", "integer", "boolean"}
 
 # DYNAMIC ACL EXTRACTION (issue #822 / production run 31558201593).
 #
@@ -509,6 +519,175 @@ class Targets:
             "privilege_assertions": [e.describe() for e in self.privileges],
             "unassertable_statements": self.notes,
         }
+
+
+def _strict_keys(value: object, allowed: set[str], label: str) -> dict:
+    if not isinstance(value, dict):
+        raise GuardError(f"{label} must be a JSON object")
+    unknown = set(value) - allowed
+    missing = allowed - set(value)
+    if unknown or missing:
+        raise GuardError(
+            f"{label} has invalid keys; missing={sorted(missing)}, "
+            f"unknown={sorted(unknown)}"
+        )
+    return value
+
+
+def load_behavior_sidecars(
+    repo: Path, migrations: dict[str, Path], allowlist: list[str]
+) -> list[dict]:
+    """Load exact-hash-bound, typed post-apply checks for allowlisted files.
+
+    A sidecar is data, never SQL. Unknown fields and types fail closed. Its
+    migration hash makes a reviewed assertion invalid as soon as the migration
+    text changes, instead of silently applying an old claim to new behavior.
+    """
+    sidecars: list[dict] = []
+    seen_ids: set[str] = set()
+    for version in allowlist:
+        path = repo / BEHAVIOR_SIDECAR_DIR / f"{version}.json"
+        if not path.exists():
+            continue
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise GuardError(f"invalid behavioral sidecar {path}: {exc}") from exc
+        item = _strict_keys(raw, BEHAVIOR_SIDECAR_KEYS, str(path))
+        if item["schema_version"] != 1:
+            raise GuardError(f"{path}: schema_version must be exactly 1")
+        if item["migration_version"] != version:
+            raise GuardError(f"{path}: migration_version must equal {version}")
+        migration = migrations[version]
+        # Git stores text with LF, while a Windows checkout may materialise
+        # CRLF. Bind to canonical text bytes so the same reviewed file has the
+        # same hash on Windows and the Linux GitHub runner.
+        canonical_bytes = migration.read_bytes().replace(b"\r\n", b"\n")
+        actual_hash = hashlib.sha256(canonical_bytes).hexdigest()
+        expected_hash = item["migration_sha256"]
+        if not isinstance(expected_hash, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", expected_hash
+        ):
+            raise GuardError(f"{path}: migration_sha256 must be lowercase SHA-256")
+        if actual_hash != expected_hash:
+            raise GuardError(
+                f"{path}: migration hash mismatch; expected {expected_hash}, "
+                f"found {actual_hash}"
+            )
+        checks = item["checks"]
+        if not isinstance(checks, list) or not checks:
+            raise GuardError(f"{path}: checks must be a non-empty array")
+        checked: list[dict] = []
+        for index, value in enumerate(checks):
+            check = _strict_keys(value, BEHAVIOR_CHECK_KEYS, f"{path} check {index}")
+            check_id = check["id"]
+            if not isinstance(check_id, str) or not re.fullmatch(
+                r"[a-z][a-z0-9_]{2,63}", check_id
+            ):
+                raise GuardError(f"{path}: invalid check id {check_id!r}")
+            if check_id in seen_ids:
+                raise GuardError(f"duplicate behavioral check id: {check_id}")
+            seen_ids.add(check_id)
+            if check["kind"] != "exact_row_count":
+                raise GuardError(f"{path}: unsupported check kind {check['kind']!r}")
+            relation = check["relation"]
+            if not isinstance(relation, str) or not re.fullmatch(
+                r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*", relation
+            ):
+                raise GuardError(f"{path}: invalid relation {relation!r}")
+            expected_count = check["expected_count"]
+            if (
+                isinstance(expected_count, bool)
+                or not isinstance(expected_count, int)
+                or expected_count < 0
+            ):
+                raise GuardError(f"{path}: expected_count must be a non-negative integer")
+            filters = check["filters"]
+            if not isinstance(filters, list) or not filters:
+                raise GuardError(f"{path}: filters must be a non-empty array")
+            parsed_filters: list[dict] = []
+            seen_columns: set[str] = set()
+            for filter_index, filter_value in enumerate(filters):
+                filt = _strict_keys(
+                    filter_value,
+                    BEHAVIOR_FILTER_KEYS,
+                    f"{path} check {index} filter {filter_index}",
+                )
+                column = filt["column"]
+                if not isinstance(column, str) or not ROLE_RE.fullmatch(column):
+                    raise GuardError(f"{path}: invalid column {column!r}")
+                if column in seen_columns:
+                    raise GuardError(f"{path}: duplicate filter column {column}")
+                seen_columns.add(column)
+                scalar_type = filt["type"]
+                if scalar_type not in BEHAVIOR_TYPES:
+                    raise GuardError(f"{path}: unsupported scalar type {scalar_type!r}")
+                scalar = filt["equals"]
+                if scalar_type in {"uuid", "text"} and not isinstance(scalar, str):
+                    raise GuardError(f"{path}: {scalar_type} value must be a string")
+                if scalar_type == "uuid":
+                    try:
+                        uuid.UUID(scalar)
+                    except (ValueError, AttributeError) as exc:
+                        raise GuardError(f"{path}: invalid UUID value") from exc
+                if scalar_type == "integer" and (
+                    isinstance(scalar, bool) or not isinstance(scalar, int)
+                ):
+                    raise GuardError(f"{path}: integer value must be an integer")
+                if scalar_type == "boolean" and not isinstance(scalar, bool):
+                    raise GuardError(f"{path}: boolean value must be true or false")
+                parsed_filters.append(dict(filt))
+            parsed = dict(check)
+            parsed["filters"] = parsed_filters
+            parsed["migration_version"] = version
+            parsed["migration_sha256"] = actual_hash
+            checked.append(parsed)
+        sidecars.extend(checked)
+    return sidecars
+
+
+def _typed_sql_literal(value: object, scalar_type: str) -> str:
+    if scalar_type == "uuid":
+        return "'" + str(value) + "'::uuid"
+    if scalar_type == "text":
+        return "'" + str(value).replace("'", "''") + "'::text"
+    if scalar_type == "integer":
+        return str(value)
+    if scalar_type == "boolean":
+        return "true" if value else "false"
+    raise GuardError(f"unsupported behavioral scalar type: {scalar_type!r}")
+
+
+def build_behavior_sql(checks: list[dict]) -> str:
+    """Build one SELECT from typed assertions. Sidecars cannot supply SQL."""
+    if not checks:
+        raise GuardError("cannot build behavioral SQL without checks")
+    rows: list[str] = []
+    for check in checks:
+        relation = check["relation"]
+        if not re.fullmatch(r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*", relation):
+            raise GuardError(f"refusing unsafe behavioral relation: {relation!r}")
+        predicates: list[str] = []
+        for filt in check["filters"]:
+            column = filt["column"]
+            if not ROLE_RE.fullmatch(column):
+                raise GuardError(f"refusing unsafe behavioral column: {column!r}")
+            predicates.append(
+                f'{column} = {_typed_sql_literal(filt["equals"], filt["type"])}'
+            )
+        check_id = check["id"].replace("'", "''")
+        expected = check["expected_count"]
+        rows.append(
+            "select '" + check_id + "'::text as id, count(*)::bigint as actual_count, "
+            + str(expected) + "::bigint as expected_count from " + relation
+            + " where " + " and ".join(predicates)
+        )
+    return (
+        "select jsonb_build_object('behavior_checks', coalesce(jsonb_agg("
+        "jsonb_build_object('id', q.id, 'actual_count', q.actual_count, "
+        "'expected_count', q.expected_count) order by q.id), '[]'::jsonb)) as report "
+        "from (" + " union all ".join(rows) + ") q;"
+    )
 
 
 def split_statements(text: str) -> list[str]:
@@ -1726,6 +1905,8 @@ def render_report(
     row_counts: object,
     errors: list[str],
     enforcing: bool,
+    behavior_checks: list[dict] | None = None,
+    behavior_results: object = None,
 ) -> tuple[str, list[str]]:
     """Render the Markdown artifact and return the HARD FAILURES it found.
 
@@ -1737,6 +1918,54 @@ def render_report(
     lines: list[str] = []
     add = lines.append
     add("# Production catalog verification")
+    add("")
+
+    checks = behavior_checks or []
+    add("## Behavioral assertions")
+    add("")
+    add(
+        "These checks come from strict JSON sidecars bound to the SHA-256 of "
+        "the migration file. The sidecars contain no SQL; this verifier builds "
+        "one read-only SELECT from typed equality filters."
+    )
+    add("")
+    add("| check | migration | relation | expected rows | actual rows | verdict |")
+    add("| --- | --- | --- | --- | --- | --- |")
+    result_rows = {}
+    if isinstance(behavior_results, dict):
+        raw_rows = behavior_results.get("behavior_checks")
+        if isinstance(raw_rows, list):
+            for row in raw_rows:
+                if isinstance(row, dict) and isinstance(row.get("id"), str):
+                    if row["id"] in result_rows:
+                        failures.append(f"duplicate behavioral result id: {row['id']}")
+                    result_rows[row["id"]] = row
+    for check in checks:
+        row = result_rows.pop(check["id"], None)
+        actual = row.get("actual_count") if isinstance(row, dict) else None
+        returned_expected = row.get("expected_count") if isinstance(row, dict) else None
+        expected = check["expected_count"]
+        passed = (
+            isinstance(actual, int)
+            and not isinstance(actual, bool)
+            and returned_expected == expected
+            and actual == expected
+        )
+        add(
+            f"| `{check['id']}` | `{check['migration_version']}` | "
+            f"`{check['relation']}` | {expected} | "
+            f"{actual if actual is not None else 'MISSING'} | "
+            f"**{'PASS' if passed else 'FAIL'}** |"
+        )
+        if not passed:
+            failures.append(
+                f"behavioral check {check['id']} expected {expected} row(s) "
+                f"but received {actual!r}"
+            )
+    for unexpected in sorted(result_rows):
+        failures.append(f"unexpected behavioral result id: {unexpected}")
+    if not checks:
+        add("| _no behavioral sidecar for this allowlist_ | | | | | |")
     add("")
     add(f"Allowlist: `{', '.join(allowlist)}`")
     add("")
@@ -1813,7 +2042,12 @@ def render_report(
             add(f"- **The claim was REJECTED**: {declaration['rejected_because']}")
         add("")
 
-    if targets.is_empty() and declaration is not None and declaration["accepted"]:
+    if checks:
+        # A hash-bound behavioral assertion is real evidence for a data-only
+        # migration. Catalog targets from sibling migrations remain intact and
+        # are still checked below.
+        pass
+    elif targets.is_empty() and declaration is not None and declaration["accepted"]:
         # ISSUE #790 POINT 3. A pure-data migration genuinely names no catalog
         # object. That is allowed to pass -- but only with the reason written
         # down in the file, reviewed in the pull request, and reproduced in this
@@ -2057,14 +2291,32 @@ def verify(
     api: str = MANAGEMENT_API,
 ) -> int:
     allowlist = parse_allowlist(raw_allowlist)
-    targets = derive_targets(local_migrations(repo), allowlist)
+    migrations = local_migrations(repo)
+    targets = derive_targets(migrations, allowlist)
+    behavior_checks = load_behavior_sidecars(repo, migrations, allowlist)
 
     errors: list[str] = []
     catalog: object = None
     row_counts: object = None
+    behavior_results: object = None
 
     declaration = targets.noop_declaration
-    if targets.is_empty() and declaration is not None and declaration["accepted"]:
+    if behavior_checks:
+        try:
+            behavior_results = extract_report(
+                run_query(
+                    project_ref, token, build_behavior_sql(behavior_checks), api
+                )
+            )
+        except (urllib.error.URLError, GuardError, ValueError, OSError) as exc:
+            errors.append(f"behavioral query failed: {exc}")
+
+    if targets.is_empty() and behavior_checks:
+        errors.append(
+            "the allowlisted migrations named no catalog object, but supplied "
+            f"{len(behavior_checks)} hash-bound behavioral assertion(s)."
+        )
+    elif targets.is_empty() and declaration is not None and declaration["accepted"]:
         # ISSUE #790 POINT 3. Not silence: the reason travels into the artifact,
         # the job log and the JSON payload, and it was CHECKED before it counted.
         errors.append(
@@ -2110,6 +2362,8 @@ def verify(
                 "noop_declaration": targets.noop_declaration,
                 "catalog": catalog,
                 "row_counts": row_counts,
+                "behavior_checks": behavior_checks,
+                "behavior_results": behavior_results,
                 "errors": errors,
                 "enforcing": enforcing,
             },
@@ -2120,7 +2374,14 @@ def verify(
         encoding="utf-8",
     )
     markdown, failures = render_report(
-        allowlist, targets, catalog, row_counts, errors, enforcing
+        allowlist,
+        targets,
+        catalog,
+        row_counts,
+        errors,
+        enforcing,
+        behavior_checks=behavior_checks,
+        behavior_results=behavior_results,
     )
     (output_dir / "production-catalog-verification.md").write_text(
         markdown, encoding="utf-8"

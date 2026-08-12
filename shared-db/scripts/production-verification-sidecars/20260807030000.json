@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260807030000",
+  "migration_sha256": "44749ef2e9e7568a96fc828a48c93267f1e53cda3c92d50f6a4284214e2ac84d",
+  "checks": [
+    {
+      "id": "coco_property_is_parented_to_disney",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "5c03fc46-5a02-4da1-bcac-8969e74bbd8f"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "7d141a6f-e229-46a2-b3f5-0ba0c97dd820"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}
