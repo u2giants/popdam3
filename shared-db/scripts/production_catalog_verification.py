@@ -127,6 +127,7 @@ from production_migration_guard import (  # noqa: E402
     GuardError,
     local_migrations,
     parse_allowlist,
+    parse_remote_versions,
     strip_sql,
 )
 
@@ -2289,8 +2290,14 @@ def verify(
     token: str,
     enforcing: bool,
     api: str = MANAGEMENT_API,
+    remote_ledger: Path | None = None,
 ) -> int:
-    allowlist = parse_allowlist(raw_allowlist)
+    remote = (
+        parse_remote_versions(remote_ledger)
+        if remote_ledger is not None
+        else frozenset()
+    )
+    allowlist = parse_allowlist(raw_allowlist, remote)
     migrations = local_migrations(repo)
     targets = derive_targets(migrations, allowlist)
     behavior_checks = load_behavior_sidecars(repo, migrations, allowlist)
@@ -2409,6 +2416,12 @@ def main() -> int:
     parser.add_argument("--allowlist", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--project-ref", required=True)
+    parser.add_argument(
+        "--remote-ledger",
+        type=Path,
+        required=True,
+        help="production ledger captured before apply, for co-presence rules",
+    )
     # The token comes from the ENVIRONMENT, never argv. Process arguments are
     # visible in OS process listings, and the rest of this lane already passes
     # SUPABASE_ACCESS_TOKEN by env.
@@ -2440,6 +2453,7 @@ def main() -> int:
             args.project_ref,
             token,
             enforcing=args.mode == "enforce",
+            remote_ledger=args.remote_ledger,
         )
     except (GuardError, OSError) as exc:
         print(f"CATALOG VERIFICATION BLOCKED: {exc}", file=sys.stderr)
