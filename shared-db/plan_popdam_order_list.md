@@ -5,15 +5,15 @@
 | Step | Status | Last updated | Evidence / next action |
 |---|---|---|---|
 | 0. Confirm the legacy source and field contract | ✅ done | 2026-08-09 | Formula audit plus full row profile, item-match census, 48-column map, assortment rules, and source-identity proof: [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md). |
-| 1. Add the shared database contract | ⬜ open | 2026-08-06 | Create a dedicated `shared-db` branch only after the collision check is clear. |
-| 2. Rehearse and verify the database contract on preview | ⬜ open | 2026-08-06 | Apply only to preview `rjyboqwcdzcocqgmsyel`; do not promote yet. |
+| 1. Add the shared database contract | ✅ complete | 2026-08-12 | Contract landed through PR #663. Migrations `20260810010000`, `20260810060000`, and `20260810100000` are on `main`; atomic B9 later applied them to production in run `31620553795` and captured all three in the post-push ledger. |
+| 2. Rehearse and verify the database contract on preview | ✅ complete | 2026-08-12 | Preview `rjyboqwcdzcocqgmsyel` passed 86 object assertions and 38 behavior assertions. Issue #727 then proved the contract with the accepted workbook import and a zero-change second run. |
 | 3. Import the legacy OrderList data into preview | ✅ complete | 2026-08-12 | **Preview only (`rjyboqwcdzcocqgmsyel`); production NOT touched.** Owner-accepted `OrderList.xlsx` (SHA-256 `68c9b03a0ec183e08b3a8f2344397e1bc4f61e73457849e7bf8c0cf7fb2409fe`, issue #727), 12,354 populated rows. Column-AR Style#-mirror root-cause fix (`sub_sku_mirrors_style`) plus 89 focused tests merged to `main` in PR #827 (`070acc5`). Preview write inserted **3,212 orders** and **24,010 lines**; a second identical run changed **0 business rows** (idempotent). **All 10 balance checks PASS (overall BALANCED).** Safe reconciliation report (counts only, no row text): `docs/verification/popdam-order-list-preview-2026-08-12/README.md`. Follow-on: `plm.item` still empty, so `item_id` stays NULL where `resolution = unique` (fix_schema_for_api.md Phase 4). |
 | 4. Build the PopDAM OrderList page | ⬜ open | 2026-08-06 | Implement in `u2giants/popdam3` `main` after the preview contract is verified. |
 | 5. Test the full workflow against preview | ⬜ open | 2026-08-06 | Include authenticated visual checks and import reconciliation. |
 | 6. Land shared-db, seed production, then deploy PopDAM | ⬜ open | 2026-08-06 | Shared-db PR is merged by the AI; PopDAM commits directly to `main`. |
 | 7. Verify production and update durable docs | ⬜ open | 2026-08-06 | Verify the live build SHA and sampled linked records. |
 
-**Fresh-session starting point:** Step 1, but only after coordinating with the active ERP relocation plan. Do not repeat Step 0. Re-read this STATUS table, both OrderList audit documents, then Sections 1, 8, 9, 11, and 13 before changing SQL. Update this table whenever a step changes state.
+**Fresh-session starting point:** Step 4, while coordinating the still-open item relocation dependency in `fix_schema_for_api.md`. Do not repeat Steps 0–3. Before any production data import, read the exact approval package in [`docs/verification/popdam-order-list-production-approval-2026-08-12/README.md`](docs/verification/popdam-order-list-production-approval-2026-08-12/README.md). The current importer is preview-only, so no production import is approved or executable yet.
 
 ## 1. The ultimate goal
 
