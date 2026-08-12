@@ -15,7 +15,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
-from production_migration_guard import GuardError, parse_allowlist
+from production_review_allowlist import ReviewAllowlistError, normalize_review_allowlist
 
 REPOSITORY = "u2giants/shared-db"
 WORKFLOW_PATH = ".github/workflows/production-apply-review-evidence.yml"
@@ -79,8 +79,8 @@ def validate_request(run_id: str, digest: str, sha: str, allowlist: str) -> list
     if not SHA_RE.fullmatch(sha):
         raise EvidenceError("requested main SHA must be exactly 40 lowercase hex characters")
     try:
-        return parse_allowlist(allowlist)
-    except GuardError as exc:
+        return normalize_review_allowlist(allowlist)
+    except ReviewAllowlistError as exc:
         raise EvidenceError(f"invalid production allowlist: {exc}") from exc
 
 

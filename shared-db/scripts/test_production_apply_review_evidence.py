@@ -16,6 +16,12 @@ import production_apply_review_evidence as gate  # noqa: E402
 
 SHA = "0f42555c9dca23574a23fc6fe992cd0a716c5991"
 ALLOWLIST = "20260812020000"
+B9_ALLOWLIST = (
+    "20260810010000,20260810020000,20260810030000,20260810050000,"
+    "20260810060000,20260810070000,20260810080000,20260810090000,"
+    "20260810100000,20260810110000,20260810120000,20260810130000,"
+    "20260810160000,20260810170000"
+)
 RUN_ID = 123456789
 ACTOR = "reviewer-login"
 
@@ -96,11 +102,18 @@ class EvidenceTests(unittest.TestCase):
             ("1", "sha256:" + "A" * 64, SHA, ALLOWLIST),
             ("1", "sha256:" + "a" * 64, "abc", ALLOWLIST),
             ("1", "sha256:" + "a" * 64, SHA, f"{ALLOWLIST},{ALLOWLIST}"),
-            ("1", "sha256:" + "a" * 64, SHA, "20260812020000,20260811070000"),
+            ("1", "sha256:" + "a" * 64, SHA, "20260812020000,not-a-version"),
         ]
         for args in bad:
             with self.subTest(args=args), self.assertRaises(gate.EvidenceError):
                 gate.validate_request(*args)
+
+    def test_b9_evidence_accepts_missing_already_applied_dependency(self):
+        self.assertEqual(
+            gate.validate_request("1", "sha256:" + "a" * 64, SHA, B9_ALLOWLIST),
+            B9_ALLOWLIST.split(","),
+        )
+        self.assertNotIn("20260810180000", B9_ALLOWLIST)
 
     def test_run_metadata_and_artifact_selection_fail_closed(self):
         run = {
@@ -173,13 +186,17 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertIn("environment: production", self.apply)
 
     def test_review_workflow_is_non_writing_and_provider_neutral(self):
-        self.assertIn("production_migration_guard import parse_allowlist", self.review)
+        self.assertIn("production_review_allowlist import normalize_review_allowlist", self.review)
         self.assertIn("github.actor", self.review)
         self.assertIn('Path(os.environ["RUNNER_TEMP"]', self.review)
         self.assertIn("actions/upload-artifact@v4", self.review)
         self.assertIn('"reviewer_actor"', self.review)
         self.assertIn('"reviewer_label"', self.review)
         self.assertNotRegex(self.review, r"supabase|db push|psql")
+
+    def test_production_lane_keeps_ledger_aware_guard(self):
+        self.assertIn("production_migration_guard.py preflight", self.apply)
+        self.assertIn("--remote-ledger", self.apply)
 
 
 if __name__ == "__main__":
