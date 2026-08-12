@@ -36,6 +36,7 @@ from production_catalog_verification import (  # noqa: E402
     build_row_count_sql,
     derive_targets,
     extract_report,
+    parse_dynamic_acl,
     render_report,
     split_statements,
     verify,
@@ -1092,6 +1093,330 @@ class NoopDeclarationTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(payload["noop_declaration"]["accepted"])
         self.assertTrue(any("DECLARES itself" in e for e in payload["errors"]))
+
+
+class NetAclTests(unittest.TestCase):
+    """GRANT ALL followed by a later partial REVOKE: the net ACL must be modeled.
+
+    These are the five regression requirements from the task. Each uses TWO
+    migration files in version order so cross-migration ordering is exercised
+    alongside within-file ordering. The earlier migration grants ALL; the later
+    one revokes a subset. Only the NET end state is the expectation.
+    """
+
+    GRANT_ALL_SQL = "grant all on plm.widget to service_role;\n"
+    REVOKE_PARTIAL_SQL = (
+        "revoke truncate, references, trigger, maintain "
+        "on plm.widget from service_role;\n"
+    )
+
+    def derive_two(self, first_sql, second_sql):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mig = root / "supabase" / "migrations"
+            mig.mkdir(parents=True)
+            (mig / "20260101000000_first.sql").write_text(first_sql, encoding="utf-8")
+            (mig / "20260102000000_second.sql").write_text(second_sql, encoding="utf-8")
+            return derive_targets(
+                {
+                    "20260101000000": mig / "20260101000000_first.sql",
+                    "20260102000000": mig / "20260102000000_second.sql",
+                },
+                ["20260101000000", "20260102000000"],
+            )
+
+    def catalog(self, held, name="plm.widget"):
+        return {
+            "maintain_probed": True,
+            "probe_roles": ["service_role"],
+            "relations": [
+                {"name": name, "to_regclass": name, "owner": "postgres"}
+            ],
+            "effective_privileges": [
+                {"name": name, "role": "service_role", "privilege": p}
+                for p in held
+            ],
+        }
+
+    DML = ["SELECT", "INSERT", "UPDATE", "DELETE"]
+    DDL = ["TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN"]
+
+    # 1. The intended final state passes.
+    def test_intended_final_state_passes(self):
+        t = self.derive_two(self.GRANT_ALL_SQL, self.REVOKE_PARTIAL_SQL)
+        _, failures = assert_privileges(t, self.catalog(self.DML))
+        self.assertEqual(failures, [])
+
+    # 2. A required retained privilege missing still fails.
+    def test_missing_retained_privilege_fails(self):
+        t = self.derive_two(self.GRANT_ALL_SQL, self.REVOKE_PARTIAL_SQL)
+        # service_role lost INSERT (over-revoke or mis-grant).
+        _, failures = assert_privileges(
+            t, self.catalog(["SELECT", "UPDATE", "DELETE"])
+        )
+        self.assertEqual(len(failures), 1)
+        self.assertIn("INSERT", failures[0])
+        self.assertIn("not held", failures[0])
+
+    # 3. A forbidden revoked privilege retained still fails.
+    def test_retained_revoked_privilege_fails(self):
+        t = self.derive_two(self.GRANT_ALL_SQL, self.REVOKE_PARTIAL_SQL)
+        # TRUNCATE was revoked but service_role still holds it.
+        _, failures = assert_privileges(
+            t, self.catalog(self.DML + ["TRUNCATE"])
+        )
+        self.assertEqual(len(failures), 1)
+        self.assertIn("TRUNCATE", failures[0])
+        self.assertIn("STILL HELD", failures[0])
+
+    # 4. Unrelated object/grantee assertions remain independent.
+    def test_unrelated_assertions_are_independent(self):
+        sql = (
+            "grant all on plm.widget to service_role;\n"
+            "revoke truncate, references, trigger, maintain "
+            "on plm.widget from service_role;\n"
+            "grant select on plm.other to authenticated;\n"
+        )
+        t = targets_for(sql)
+        # service_role has arwd on widget; authenticated has SELECT on other.
+        catalog = self.catalog(self.DML)
+        catalog["relations"].append(
+            {"name": "plm.other", "to_regclass": "plm.other", "owner": "postgres"}
+        )
+        catalog["effective_privileges"].append(
+            {"name": "plm.other", "role": "authenticated", "privilege": "SELECT"}
+        )
+        catalog["probe_roles"] = ["service_role", "authenticated"]
+        _, failures = assert_privileges(t, catalog)
+        self.assertEqual(failures, [])
+        # If authenticated LOSES select on other, that fails independently.
+        catalog2 = self.catalog(self.DML)
+        catalog2["relations"].append(
+            {"name": "plm.other", "to_regclass": "plm.other", "owner": "postgres"}
+        )
+        catalog2["probe_roles"] = ["service_role", "authenticated"]
+        _, failures2 = assert_privileges(t, catalog2)
+        auth_fails = [f for f in failures2 if "authenticated" in f]
+        self.assertEqual(len(auth_fails), 1)
+        self.assertIn("SELECT", auth_fails[0])
+
+    # 5. Migration ordering determines the final expectation.
+    def test_ordering_grant_after_revoke_keeps_all(self):
+        """If the GRANT ALL comes AFTER the REVOKE, ALL wins: every privilege
+        must be held, including the ones the earlier revoke removed."""
+        t = self.derive_two(self.REVOKE_PARTIAL_SQL, self.GRANT_ALL_SQL)
+        _, failures = assert_privileges(t, self.catalog(self.DML + self.DDL))
+        self.assertEqual(failures, [])
+        # And holding only the DML set now FAILS (the later GRANT ALL requires all 8).
+        _, failures2 = assert_privileges(t, self.catalog(self.DML))
+        self.assertTrue(
+            any("MAINTAIN" in f or "TRUNCATE" in f for f in failures2),
+            f"later GRANT ALL must require the full set: {failures2}",
+        )
+
+
+class DynamicAclExtractionTests(unittest.TestCase):
+    """execute format('grant/revoke ...') inside do-blocks must be visible.
+
+    strip_sql removes dollar-quoted bodies, so a revoke issued dynamically
+    through execute format(...) is invisible to the plain pass. The dynamic-ACL
+    reader extracts it by resolving the foreach loop variable to its array
+    literal, so the net-ACL logic can reduce an earlier GRANT ALL.
+    """
+
+    # The B3 shape: named array + foreach + execute format with %s.
+    B3_SHAPE = (
+        "do $$\n"
+        "declare\n"
+        "  t text;\n"
+        "  v_tables text[] := array[\n"
+        "    'plm.coldlion_promotion_audit',\n"
+        "    'plm.coldlion_promotion_quarantine'\n"
+        "  ];\n"
+        "begin\n"
+        "  foreach t in array v_tables loop\n"
+        "    execute format(\n"
+        "      'revoke truncate, references, trigger, maintain on %s "
+        "from service_role', t);\n"
+        "  end loop;\n"
+        "end;\n"
+        "$$;\n"
+    )
+
+    def test_named_array_foreach_is_resolved(self):
+        exps, rels, fns, notes = parse_dynamic_acl(self.B3_SHAPE, "v")
+        self.assertEqual(len(notes), 0)
+        self.assertEqual(
+            sorted(rels),
+            ["plm.coldlion_promotion_audit", "plm.coldlion_promotion_quarantine"],
+        )
+        grantees = {e.grantee for e in exps}
+        self.assertEqual(grantees, {"service_role"})
+        for e in exps:
+            self.assertFalse(e.expect_held)
+            self.assertEqual(
+                e.privileges,
+                ("MAINTAIN", "REFERENCES", "TRIGGER", "TRUNCATE"),
+            )
+
+    def test_inline_array_foreach_is_resolved(self):
+        sql = (
+            "do $$\n"
+            "declare t text;\n"
+            "begin\n"
+            "  foreach t in array array['alpha', 'beta'] loop\n"
+            "    execute format('revoke all on plm.%I from public', t);\n"
+            "  end loop;\n"
+            "end;\n"
+            "$$;\n"
+        )
+        exps, rels, _fns, notes = parse_dynamic_acl(sql, "v")
+        self.assertEqual(len(notes), 0)
+        self.assertEqual(sorted(rels), ["plm.alpha", "plm.beta"])
+        self.assertTrue(all(e.grantee == "PUBLIC" for e in exps))
+        self.assertTrue(all("ALL" in e.privileges for e in exps))
+
+    def test_concatenated_arrays_are_resolved(self):
+        sql = (
+            "do $$\n"
+            "declare\n"
+            "  t text;\n"
+            "  v_a text[] := array['plm.one'];\n"
+            "  v_b text[] := array['plm.two'];\n"
+            "begin\n"
+            "  foreach t in array (v_a || v_b) loop\n"
+            "    execute format('revoke truncate on %s from service_role', t);\n"
+            "  end loop;\n"
+            "end;\n"
+            "$$;\n"
+        )
+        exps, rels, _fns, notes = parse_dynamic_acl(sql, "v")
+        self.assertEqual(len(notes), 0)
+        self.assertEqual(sorted(rels), ["plm.one", "plm.two"])
+
+    def test_unresolvable_argument_is_recorded_not_guessed(self):
+        sql = (
+            "do $$\n"
+            "declare r record;\n"
+            "begin\n"
+            "  for r in select * from pg_tables loop\n"
+            "    execute format('revoke all on %s from public', r.schemaname);\n"
+            "  end loop;\n"
+            "end;\n"
+            "$$;\n"
+        )
+        exps, rels, _fns, notes = parse_dynamic_acl(sql, "v")
+        self.assertEqual(exps, [])
+        self.assertEqual(rels, set())
+        self.assertTrue(any("could not be resolved" in n for n in notes))
+
+    def test_non_grant_format_is_ignored(self):
+        sql = (
+            "do $$\n"
+            "begin\n"
+            "  execute format('drop table if exists %s', 'plm.temp');\n"
+            "end;\n"
+            "$$;\n"
+        )
+        exps, rels, _fns, notes = parse_dynamic_acl(sql, "v")
+        self.assertEqual(exps, [])
+        self.assertEqual(notes, [])
+
+    def test_full_b3_batch_passes_correct_state(self):
+        """The exact scenario from production run 31558201593: GRANT ALL in one
+        migration, REVOKE via execute format in a later one. The correct end
+        state (arwd only) must pass."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mig = root / "supabase" / "migrations"
+            mig.mkdir(parents=True)
+            (mig / "20260101000000_grant.sql").write_text(
+                "grant all on plm.evidence to service_role;\n", encoding="utf-8"
+            )
+            (mig / "20260102000000_revoke.sql").write_text(
+                "do $$\n"
+                "declare t text;\n"
+                "begin\n"
+                "  foreach t in array array['plm.evidence'] loop\n"
+                "    execute format(\n"
+                "      'revoke truncate, references, trigger, maintain "
+                "on %s from service_role', t);\n"
+                "  end loop;\n"
+                "end;\n"
+                "$$;\n",
+                encoding="utf-8",
+            )
+            t = derive_targets(
+                {
+                    "20260101000000": mig / "20260101000000_grant.sql",
+                    "20260102000000": mig / "20260102000000_revoke.sql",
+                },
+                ["20260101000000", "20260102000000"],
+            )
+        dml = ["SELECT", "INSERT", "UPDATE", "DELETE"]
+        catalog = {
+            "maintain_probed": True,
+            "probe_roles": ["service_role"],
+            "relations": [
+                {"name": "plm.evidence", "to_regclass": "plm.evidence",
+                 "owner": "postgres"}
+            ],
+            "effective_privileges": [
+                {"name": "plm.evidence", "role": "service_role", "privilege": p}
+                for p in dml
+            ],
+        }
+        _, failures = assert_privileges(t, catalog)
+        self.assertEqual(failures, [])
+
+    def test_full_b3_batch_fails_when_revoke_did_not_take(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mig = root / "supabase" / "migrations"
+            mig.mkdir(parents=True)
+            (mig / "20260101000000_grant.sql").write_text(
+                "grant all on plm.evidence to service_role;\n", encoding="utf-8"
+            )
+            (mig / "20260102000000_revoke.sql").write_text(
+                "do $$\n"
+                "declare t text;\n"
+                "begin\n"
+                "  foreach t in array array['plm.evidence'] loop\n"
+                "    execute format(\n"
+                "      'revoke truncate, references, trigger, maintain "
+                "on %s from service_role', t);\n"
+                "  end loop;\n"
+                "end;\n"
+                "$$;\n",
+                encoding="utf-8",
+            )
+            t = derive_targets(
+                {
+                    "20260101000000": mig / "20260101000000_grant.sql",
+                    "20260102000000": mig / "20260102000000_revoke.sql",
+                },
+                ["20260101000000", "20260102000000"],
+            )
+        # Revoke did NOT take: all 8 still held.
+        all8 = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE",
+                "REFERENCES", "TRIGGER", "MAINTAIN"]
+        catalog = {
+            "maintain_probed": True,
+            "probe_roles": ["service_role"],
+            "relations": [
+                {"name": "plm.evidence", "to_regclass": "plm.evidence",
+                 "owner": "postgres"}
+            ],
+            "effective_privileges": [
+                {"name": "plm.evidence", "role": "service_role", "privilege": p}
+                for p in all8
+            ],
+        }
+        _, failures = assert_privileges(t, catalog)
+        self.assertTrue(
+            any("STILL HELD" in f and "TRUNCATE" in f for f in failures),
+            f"expected TRUNCATE still-held failure: {failures}",
+        )
 
 
 if __name__ == "__main__":

@@ -277,6 +277,34 @@ DATA_STATEMENT_RE = re.compile(
     r"^\s*(insert|update|delete|merge|with|select|values|set|reset|analyze)\b"
 )
 
+# DYNAMIC ACL EXTRACTION (issue #822 / production run 31558201593).
+#
+# A grant/revoke issued through `execute format(...)` inside a do-block is a
+# real, assertable catalog change at apply time, but strip_sql removes the
+# whole dollar-quoted body, so the plain-statement pass never sees it. When a
+# batch grants ALL in one migration and revokes a subset in a later one that
+# uses this pattern (B3: 20260729230000 grants ALL, 20260812020000 revokes four
+# bits via execute format), the verifier sees only the GRANT ALL and demands
+# every privilege -- failing a correct apply.
+#
+# The fix is GENERAL, not B3-specific. parse_dynamic_acl reads any
+# execute-format grant/revoke inside a do-block, resolves the format argument
+# to concrete values from the array literal feeding its foreach loop, and feeds
+# the substituted statements into the same privilege pipeline. The "last
+# statement wins" net-ACL logic in assert_privileges then reduces the earlier
+# GRANT ALL by the later REVOKE. Unresolvable sources are recorded, not guessed.
+DYNAMIC_DO_BODY_RE = re.compile(r"\bdo\s+\$(\w*)\$(.*?)\$\1\$", re.IGNORECASE | re.DOTALL)
+DYNAMIC_EXEC_FMT_RE = re.compile(r"\bexecute\s+format\s*\(\s*", re.IGNORECASE)
+DYNAMIC_GRANT_HEAD_RE = re.compile(r"^\s*(grant|revoke)\b", re.IGNORECASE)
+DYNAMIC_PLACEHOLDER_RE = re.compile(r"%(?:s|I)")
+DYNAMIC_ARRAY_TYPED_RE = re.compile(
+    r"(\w+)\s+\w+\s*\[\s*\]\s*:=\s*array\s*\[", re.IGNORECASE
+)
+DYNAMIC_ARRAY_BARE_RE = re.compile(r"(\w+)\s*:=\s*array\s*\[", re.IGNORECASE)
+DYNAMIC_FOREACH_RE = re.compile(
+    r"foreach\s+(\w+)\s+in\s+array\s+(.+?)\s+loop", re.IGNORECASE | re.DOTALL
+)
+
 
 class PrivilegeExpectation:
     """One assertable statement about the end state of a privilege.
@@ -710,6 +738,234 @@ def read_noop_declaration(raw: str, version: str) -> dict | None:
     }
 
 
+def _strip_sql_comments(raw: str) -> str:
+    """Remove line (--) and block comment markers, preserving single-quoted
+    string literals and dollar-quoted bodies.
+
+    Used ONLY for dynamic-ACL extraction (which reads raw text that strip_sql
+    would blank). It does NOT blank string literals (the format strings ARE
+    string literals) and does NOT remove dollar-quoted bodies. Comment removal
+    prevents a stray keyword inside a comment from masquerading as a do-block
+    boundary -- the same trap that bit strip_sql.
+    """
+    result: list[str] = []
+    i, n = 0, len(raw)
+    in_str = False
+    while i < n:
+        c = raw[i]
+        if in_str:
+            result.append(c)
+            if c == "'":
+                if i + 1 < n and raw[i + 1] == "'":
+                    result.append(c)
+                    i += 2
+                    continue
+                in_str = False
+            i += 1
+        elif c == "'":
+            in_str = True
+            result.append(c)
+            i += 1
+        elif c == "-" and i + 1 < n and raw[i + 1] == "-":
+            while i < n and raw[i] != "\n":
+                i += 1
+        elif c == "/" and i + 1 < n and raw[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (raw[i] == "*" and raw[i + 1] == "/"):
+                i += 1
+            i += 2
+        else:
+            result.append(c)
+            i += 1
+    return "".join(result)
+
+
+def _read_single_quoted(text: str, pos: int) -> tuple[str, int] | None:
+    """Read a single-quoted string literal starting at text[pos].
+
+    Handles doubled quotes. Returns (content, pos_after) or None.
+    """
+    n = len(text)
+    if pos >= n or text[pos] != "'":
+        return None
+    pos += 1
+    chars: list[str] = []
+    while pos < n:
+        if text[pos] == "'":
+            if pos + 1 < n and text[pos + 1] == "'":
+                chars.append("'")
+                pos += 2
+                continue
+            return "".join(chars), pos + 1
+        chars.append(text[pos])
+        pos += 1
+    return None
+
+
+def _collect_array_literals(text: str) -> list[str]:
+    """Collect single-quoted string values from array-literal content.
+
+    text starts immediately after 'array['. Reading stops at ']'.
+    Non-string tokens are skipped; only string literals become values.
+    """
+    values: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        while i < n and text[i] in " \t\n\r,":
+            i += 1
+        if i >= n or text[i] == "]":
+            break
+        if text[i] == "'":
+            parsed = _read_single_quoted(text, i)
+            if parsed is None:
+                break
+            values.append(parsed[0])
+            i = parsed[1]
+        else:
+            i += 1
+    return values
+
+
+def _resolve_foreach_arrays(body: str) -> dict[str, list[str]]:
+    """Map PL/pgSQL variables in a do-block to concrete string values.
+
+    Recognises array assignments (name := array[...]) and foreach loops
+    (foreach var in array <source> loop). Sources may be named variables,
+    inline array[...] literals, or concatenations (a || b) of resolved arrays.
+    Query-driven or unrecognised sources are simply absent from the map.
+    """
+    known: dict[str, list[str]] = {}
+
+    def resolve_source(source: str) -> list[str] | None:
+        source = source.strip()
+        inline = re.match(r"array\s*\[", source, re.IGNORECASE)
+        if inline:
+            return _collect_array_literals(source[inline.end():])
+        if source.lower() in known:
+            return known[source.lower()]
+        concat = re.match(r"\(?\s*(\w+)\s*\|\|\s*(\w+)\s*\)?$", source)
+        if concat:
+            a = known.get(concat.group(1).lower())
+            b = known.get(concat.group(2).lower())
+            if a is not None and b is not None:
+                return a + b
+        return None
+
+    for match in DYNAMIC_ARRAY_TYPED_RE.finditer(body):
+        name = match.group(1).lower()
+        vals = _collect_array_literals(body[match.end():])
+        if vals:
+            known[name] = vals
+    for match in DYNAMIC_ARRAY_BARE_RE.finditer(body):
+        name = match.group(1).lower()
+        if name in known:
+            continue
+        vals = _collect_array_literals(body[match.end():])
+        if vals:
+            known[name] = vals
+    for match in DYNAMIC_FOREACH_RE.finditer(body):
+        var = match.group(1).lower()
+        resolved = resolve_source(match.group(2))
+        if resolved is not None:
+            known[var] = resolved
+    return known
+
+
+def parse_dynamic_acl(
+    raw: str, source: str
+) -> tuple[list[PrivilegeExpectation], set[str], set[str], list[str]]:
+    """Read grant/revoke issued dynamically via execute format(...) inside
+    do-blocks.
+
+    strip_sql removes dollar-quoted bodies, so a privilege change living inside
+    a do-block is invisible to the plain-statement pass. This function reads the
+    RAW text, finds execute-format grant/revoke calls, resolves the format
+    argument to concrete values from the array literal feeding its foreach loop,
+    and returns the same shape as parse_grant_statement for drop-in integration.
+
+    CONSERVATIVE -- three refusal points:
+      * The format string must be a grant/revoke with at most one placeholder.
+      * The placeholder argument must trace to a static array literal.
+      * The substituted statement is parsed by the SAME parse_grant_statement,
+        inheriting every guard there.
+    """
+    expectations: list[PrivilegeExpectation] = []
+    relations: set[str] = set()
+    functions: set[str] = set()
+    notes: list[str] = []
+
+    cleaned = _strip_sql_comments(raw)
+    for body_match in DYNAMIC_DO_BODY_RE.finditer(cleaned):
+        body = body_match.group(2)
+        var_values = _resolve_foreach_arrays(body)
+
+        for fmt_head in DYNAMIC_EXEC_FMT_RE.finditer(body):
+            pos = fmt_head.end()
+            parsed = _read_single_quoted(body, pos)
+            if parsed is None:
+                continue
+            fmt, pos = parsed
+            fmt_text = fmt.strip()
+            if not DYNAMIC_GRANT_HEAD_RE.match(fmt_text):
+                continue
+
+            while pos < len(body) and body[pos] in " \t\n\r":
+                pos += 1
+            if pos < len(body) and body[pos] == ",":
+                pos += 1
+            arg_start = pos
+            depth = 0
+            while pos < len(body):
+                if body[pos] == "(":
+                    depth += 1
+                elif body[pos] == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                pos += 1
+            args_text = body[arg_start:pos].strip()
+            args = [a.strip() for a in args_text.split(",") if a.strip()]
+            n_placeholders = len(DYNAMIC_PLACEHOLDER_RE.findall(fmt))
+
+            if n_placeholders == 0:
+                found, rels, fns, grant_notes = parse_grant_statement(
+                    fmt_text, source
+                )
+                expectations.extend(found)
+                relations |= rels
+                functions |= fns
+                notes.extend(grant_notes)
+                continue
+
+            if n_placeholders == 1 and len(args) == 1:
+                values = var_values.get(args[0].lower())
+                if values is None:
+                    notes.append(
+                        f"dynamic grant/revoke in a do-block: the format "
+                        f"argument `{args[0]}` could not be resolved to "
+                        f"concrete values, so it is recorded and NOT asserted: "
+                        f"`execute format('{fmt_text}', {args_text})`"
+                    )
+                    continue
+                for val in values:
+                    substituted = fmt.replace("%s", val).replace("%I", val)
+                    found, rels, fns, grant_notes = parse_grant_statement(
+                        substituted.strip(), source
+                    )
+                    expectations.extend(found)
+                    relations |= rels
+                    functions |= fns
+                    notes.extend(grant_notes)
+            else:
+                notes.append(
+                    f"dynamic grant/revoke with {n_placeholders} format "
+                    f"placeholder(s) and {len(args)} argument(s) is not "
+                    f"modelled: `execute format('{fmt_text}', {args_text})`"
+                )
+
+    return expectations, relations, functions, notes
+
+
 def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets:
     """Read the allowlisted migration files and list what to go and look at.
 
@@ -794,6 +1050,23 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                 for expectation in found:
                     if expectation.grantee != "PUBLIC":
                         roles.add(expectation.grantee)
+
+        # DYNAMIC ACL (issue #822): grant/revoke issued through execute
+        # format(...) inside do-blocks is invisible to strip_sql, which removes
+        # dollar-quoted bodies. Read it from the raw text so a later REVOKE
+        # (B3: 20260812020000) can reduce an earlier GRANT ALL
+        # (B3: 20260729230000). The substituted statements go through the SAME
+        # parse_grant_statement as the plain pass. Processed AFTER the plain
+        # statements of this file because do-blocks conventionally follow the
+        # plain SQL; across files the allowlist order is authoritative.
+        dyn_found, dyn_rels, dyn_fns, dyn_notes = parse_dynamic_acl(raw, version)
+        privileges.extend(dyn_found)
+        tables |= dyn_rels
+        functions |= dyn_fns
+        notes.extend(dyn_notes)
+        for expectation in dyn_found:
+            if expectation.grantee != "PUBLIC":
+                roles.add(expectation.grantee)
 
     # A view that also matched a table-shaped rule stays a view; `to_regclass`
     # covers both, and `relkind` in the report says which it really is.
