@@ -1,0 +1,222 @@
+
+========== STALE HISTORICAL CAPTURE ==========
+This output predates the exact-parity corrections and does not verify the
+current migration text. Rerun preview verification before approval.
+
+========== TARGET ==========
+db=postgres user=postgres (preview ref in URL = rjyboqwcdzcocqgmsyel)
+
+========== LEDGER + OBJECTS + GRANTS ==========
+ledger: [ { version: '20260812130000' } ]
+objects: [
+  { proname: 'crm_overview_counts', secdef: true, vol: 's' },
+  { proname: 'crm_overview_email_counts', secdef: true, vol: 's' },
+  { proname: 'crm_overview_email_volume', secdef: true, vol: 's' },
+  { proname: 'crm_overview_pending_approvals', secdef: true, vol: 's' },
+  { proname: 'crm_overview_pipeline_stages', secdef: true, vol: 's' },
+  { proname: 'crm_overview_recent_meetings', secdef: true, vol: 's' },
+  { proname: 'crm_overview_recent_unrouted', secdef: true, vol: 's' }
+]
+grants: [
+  {
+    routine_name: 'crm_overview_counts',
+    privilege_type: 'EXECUTE',
+    grantee: 'authenticated'
+  },
+  {
+    routine_name: 'crm_overview_counts',
+    privilege_type: 'EXECUTE',
+    grantee: 'postgres'
+  },
+  {
+    routine_name: 'crm_overview_email_counts',
+    privilege_type: 'EXECUTE',
+    grantee: 'authenticated'
+  },
+  {
+    routine_name: 'crm_overview_email_counts',
+    privilege_type: 'EXECUTE',
+    grantee: 'postgres'
+  },
+  {
+    routine_name: 'crm_overview_email_volume',
+    privilege_type: 'EXECUTE',
+    grantee: 'authenticated'
+  },
+  {
+    routine_name: 'crm_overview_email_volume',
+    privilege_type: 'EXECUTE',
+    grantee: 'postgres'
+  },
+  {
+    routine_name: 'crm_overview_pending_approvals',
+    privilege_type: 'EXECUTE',
+    grantee: 'authenticated'
+  },
+  {
+    routine_name: 'crm_overview_pending_approvals',
+    privilege_type: 'EXECUTE',
+    grantee: 'postgres'
+  },
+  {
+    routine_name: 'crm_overview_pipeline_stages',
+    privilege_type: 'EXECUTE',
+    grantee: 'authenticated'
+  },
+  {
+    routine_name: 'crm_overview_pipeline_stages',
+    privilege_type: 'EXECUTE',
+    grantee: 'postgres'
+  },
+  {
+    routine_name: 'crm_overview_recent_meetings',
+    privilege_type: 'EXECUTE',
+    grantee: 'authenticated'
+  },
+  {
+    routine_name: 'crm_overview_recent_meetings',
+    privilege_type: 'EXECUTE',
+    grantee: 'postgres'
+  },
+  {
+    routine_name: 'crm_overview_recent_unrouted',
+    privilege_type: 'EXECUTE',
+    grantee: 'authenticated'
+  },
+  {
+    routine_name: 'crm_overview_recent_unrouted',
+    privilege_type: 'EXECUTE',
+    grantee: 'postgres'
+  }
+]
+
+========== PROFILE CANDIDATES (UUID-only, no PII) ==========
+CRM profile sub present: true | real non-CRM profile found: false
+
+========== ACCESS CONTROL ==========
+CRM user -> crm_overview_counts: ALLOWED ({"customers":"66","contacts":"271","open_opportunities":"0","meetings":"27","open_tasks":"0","pending_approvals":"0"})
+non-CRM user -> crm_overview_counts: DENIED 42501 (crm: not authorized)
+non-CRM user -> crm_overview_recent_unrouted: DENIED 42501
+
+========== COUNT COMPARISON: direct (fixture) vs RPC (CRM user) ==========
+  customers: direct=66 rpc=66 MATCH
+  contacts: direct=271 rpc=271 MATCH
+  open_opportunities: direct=0 rpc=0 MATCH
+  meetings: direct=27 rpc=27 MATCH
+  open_tasks: direct=0 rpc=0 MATCH
+  pending_approvals: direct=0 rpc=0 MATCH
+
+========== COUNT COMPARISON: email counts direct vs RPC ==========
+  email.total: direct=13729 rpc=13729 MATCH
+  email.needs_routing: direct=9729 rpc=9729 MATCH
+  email.routed: direct=0 rpc=0 MATCH
+  bucket audit: sum(routed+skipped+company_only+company_dept+unrouted+no_company+other)=13729 total=13729 MATCH
+
+========== COUNT COMPARISON: pipeline stages direct vs RPC ==========
+  DIRECTIVE_RECEIVED: direct=0 rpc=0 MATCH
+  DESIGN_IN_PROGRESS: direct=0 rpc=0 MATCH
+  BUYER_REVIEW: direct=0 rpc=0 MATCH
+  PRICING_AND_SAMPLING: direct=0 rpc=0 MATCH
+  AWAITING_SALES_ORDER: direct=0 rpc=0 MATCH
+  IN_PRODUCTION: direct=0 rpc=0 MATCH
+  SHIPPED: direct=0 rpc=0 MATCH
+  CLOSED: direct=0 rpc=0 MATCH
+
+========== BOUNDED PANELS (row count + determinism) as CRM user ==========
+  recent_unrouted: rows=6 (<=6) OK
+    columns: [id, subject, sender, routing_status]
+  recent_meetings: rows=6 (<=6) OK
+    columns: [id, name, company_id, company_name, date]
+  pending_approvals: rows=0 (<=6) OK
+    columns: [n/a]
+  email_volume: rows=12 (<=12) OK
+
+========== EXPLAIN (ANALYZE, BUFFERS) — contacts count (lateral) ==========
+Aggregate  (cost=43725.72..43725.73 rows=1 width=8) (actual time=37.058..37.060 rows=1 loops=1)
+  Buffers: shared hit=20363
+  ->  Nested Loop  (cost=5.29..43704.08 rows=8654 width=0) (actual time=0.148..37.013 rows=271 loops=1)
+        Buffers: shared hit=20363
+        ->  Index Only Scan using contact_pkey on contact ct  (cost=0.29..195.00 rows=8654 width=16) (actual time=0.012..1.895 rows=8655 loops=1)
+              Heap Fetches: 41
+              Buffers: shared hit=61
+        ->  Subquery Scan on cc  (cost=5.00..5.02 rows=1 width=0) (actual time=0.004..0.004 rows=0 loops=8655)
+              Filter: (cc.s = ANY ('{ACTIVE_CUSTOMER,POTENTIAL_CUSTOMER}'::text[]))
+              Rows Removed by Filter: 0
+              Buffers: shared hit=20302
+              ->  Limit  (cost=5.00..5.01 rows=1 width=35) (actual time=0.003..0.003 rows=0 loops=8655)
+                    Buffers: shared hit=20302
+                    ->  Sort  (cost=5.00..5.01 rows=1 width=35) (actual time=0.003..0.003 rows=0 loops=8655)
+                          Sort Key: x.is_primary DESC NULLS LAST, x.id
+                          Sort Method: quicksort  Memory: 25kB
+                          Buffers: shared hit=20302
+                          ->  Nested Loop  (cost=0.55..4.99 rows=1 width=35) (actual time=0.002..0.002 rows=0 loops=8655)
+                                Buffers: shared hit=20302
+                                ->  Index Scan using contact_company_contact_id_company_id_relationship_type_key on contact_company x  (cost=0.28..2.49 rows=1 width=33) (actual time=0.001..0.001 rows=0 loops=8655)
+                                      Index Cond: (contact_id = ct.id)
+                                      Buffers: shared hit=18058
+                                ->  Index Scan using company_pkey on customer comp  (cost=0.28..2.49 rows=1 width=34) (actual time=0.002..0.002 rows=1 loops=748)
+                                      Index Cond: (id = x.company_id)
+                                      Buffers: shared hit=2244
+Planning:
+  Buffers: shared hit=14
+Planning Time: 0.331 ms
+Execution Time: 37.103 ms
+
+========== EXPLAIN (ANALYZE, BUFFERS) — email counts (single pass) ==========
+Aggregate  (cost=440.75..440.75 rows=1 width=24) (actual time=5.833..5.834 rows=1 loops=1)
+  Buffers: shared hit=810
+  ->  Index Only Scan using crm_email_message_routing_status_idx on email_message  (cost=0.29..238.66 rows=13472 width=10) (actual time=0.014..2.653 rows=13729 loops=1)
+        Heap Fetches: 2002
+        Buffers: shared hit=810
+Planning Time: 0.105 ms
+Execution Time: 5.868 ms
+
+========== EXPLAIN (ANALYZE, BUFFERS) — email volume 12-week (range + group) ==========
+Sort  (cost=62320.55..62321.05 rows=200 width=28) (actual time=5.066..5.068 rows=12 loops=1)
+  Sort Key: gs.gs
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=2717
+  ->  HashAggregate  (cost=62310.40..62312.90 rows=200 width=28) (actual time=5.052..5.058 rows=12 loops=1)
+        Group Key: gs.gs
+        Batches: 1  Memory Usage: 40kB
+        Buffers: shared hit=2717
+        ->  Nested Loop Left Join  (cost=0.30..47341.51 rows=1496889 width=34) (actual time=0.029..4.089 rows=3347 loops=1)
+              Buffers: shared hit=2717
+              ->  Function Scan on generate_series gs  (cost=0.02..10.02 rows=1000 width=8) (actual time=0.014..0.017 rows=12 loops=1)
+              ->  Index Scan using crm_email_message_received_at_idx on email_message e  (cost=0.29..32.36 rows=1497 width=34) (actual time=0.009..0.216 rows=279 loops=12)
+                    Index Cond: ((received_at >= gs.gs) AND (received_at < (gs.gs + '7 days'::interval)))
+                    Buffers: shared hit=2717
+Planning Time: 0.182 ms
+Execution Time: 5.120 ms
+
+========== EXPLAIN (ANALYZE, BUFFERS) — recent_unrouted top-6 ==========
+Limit  (cost=2275.42..2275.43 rows=6 width=97) (actual time=12.853..12.856 rows=6 loops=1)
+  Buffers: shared hit=1904
+  ->  Sort  (cost=2275.42..2299.03 rows=9447 width=97) (actual time=12.852..12.854 rows=6 loops=1)
+        Sort Key: received_at DESC NULLS LAST, id
+        Sort Method: top-N heapsort  Memory: 26kB
+        Buffers: shared hit=1904
+        ->  Seq Scan on email_message e  (cost=0.00..2106.08 rows=9447 width=97) (actual time=0.011..9.695 rows=9729 loops=1)
+              Filter: ((NULLIF(routing_status, ''::text) IS NOT NULL) AND (routing_status <> ALL ('{ROUTED,SKIPPED}'::text[])))
+              Rows Removed by Filter: 4000
+              Buffers: shared hit=1904
+Planning Time: 0.092 ms
+Execution Time: 12.883 ms
+
+========== EXPLAIN (ANALYZE, BUFFERS) — pending_approvals (regex filter) ==========
+Limit  (cost=27.65..27.67 rows=6 width=164) (actual time=0.010..0.012 rows=0 loops=1)
+  ->  Sort  (cost=27.65..28.08 rows=170 width=164) (actual time=0.010..0.011 rows=0 loops=1)
+        Sort Key: a.submitted_date DESC NULLS LAST, a.id
+        Sort Method: quicksort  Memory: 25kB
+        ->  Hash Left Join  (cost=12.03..24.61 rows=170 width=164) (actual time=0.005..0.006 rows=0 loops=1)
+              Hash Cond: (a.opportunity_id = o.id)
+              ->  Seq Scan on licensor_approval_thread a  (cost=0.00..12.12 rows=170 width=132) (actual time=0.005..0.005 rows=0 loops=1)
+                    Filter: (COALESCE(stage, ''::text) !~* '(approv|reject|declin|denied|complete|closed|signed)'::text)
+              ->  Hash  (cost=10.90..10.90 rows=90 width=48) (never executed)
+                    ->  Seq Scan on opportunity o  (cost=0.00..10.90 rows=90 width=48) (never executed)
+Planning:
+  Buffers: shared hit=6
+Planning Time: 0.180 ms
+Execution Time: 0.043 ms
+
+========== VERIFY DONE ==========
