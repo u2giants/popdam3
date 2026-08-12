@@ -750,33 +750,33 @@ never run at all — which is why four licensor features queued up behind it.
 
 **To promote, dispatch the workflow with:** `target: production`, `mode: apply`, the exact
 `origin/main` SHA, the comma-separated allowlist, `confirmation: APPLY <sha>`, and
-`review_reference` (see gate 2). A wrong confirmation string fails on the first step, before any
-credential is used.
+the successful review-evidence workflow run ID plus its `sha256:` artifact digest (see gate 2).
+A wrong confirmation string fails on the first step, before any credential is used.
 
 **Three gates, and NONE of them is sufficient alone:**
 
 1. **`production-apply-review`** — deterministic. The typed string, the exact SHA, and the whole
    guard chain (`parse_allowlist` → hard blocks, the §6.8 all-four bundle, the §6.5 hold, the
    co-presence rules → `validate_candidates` → whole-batch preflight). This job fails the run.
-2. **A RECORDED REVIEW REFERENCE.** ⚠️ **Code review for shared-db is done in Claude Code, not by
-   this workflow** (owner decision, 2026-08-11). Review the batch there, then dispatch with
-   `review_reference` set to the **https URL** of the review comment (PR review, issue comment,
-   commit comment) or a **path under `.ai/reviews/`** that exists at the applied commit **and
-   names this apply** (the short SHA or one of the allowlisted versions — so last month's review
-   of a different batch cannot satisfy today's run).
-   **The reference is MANDATORY:** `scripts/production_apply_review_reference.py` fails closed on
-   an empty, whitespace, placeholder (`n/a`, `none`, `TBD`, `-`, …) or implausible value, so
-   `production-apply-review` goes **red** and `production-apply` never reaches the approval gate.
-   There is no bypass — no default on the input, no env var, no `continue-on-error`. The accepted
-   reference is echoed into the job summary and into **both** evidence artifacts.
-   **What it proves:** that a reference was recorded — *not* that the review behind it was good.
-   That judgement belongs to the approver in gate 3, who should open the link before approving.
-   **History:** until 2026-08-11 this step made a paid Anthropic API call on every attempt. In its
-   whole life it produced one substantive verdict (B10d, #788) and none of its findings survived
-   adjudication (#800), while every real defect found that day came from an agent in Claude Code
-   reproducing behaviour. Do not restore it, and never make a machine verdict able to approve a
-   production write.
-3. **`environment: production`, with Albert as required reviewer.** This is the gate that holds.
+2. **IMMUTABLE REVIEW EVIDENCE.** Dispatch the non-writing
+   `production-apply-review-evidence.yml` workflow with the exact current 40-character main SHA,
+   exact ordered allowlist, and verdict. GitHub records the authenticated reviewer actor and
+   uploads strict canonical JSON. Only `APPROVE` succeeds. The apply dispatch must pin that run by
+   its decimal run ID and canonical `sha256:` artifact digest. The verifier rejects URLs, paths,
+   stale or failed runs, another repository/workflow/SHA, altered or expired artifacts, unknown
+   JSON fields, a non-APPROVE verdict, a different actor, and any missing, duplicate, reordered,
+   subset or superset allowlist. It runs both before and after the environment wait. Because
+   GitHub artifacts expire, the second check copies the verified JSON into the final apply
+   evidence. This contract is provider- and model-neutral. Never add a provider or model name.
+3. **`environment: production`.** Keep this binding. It remains the deployment boundary even
+   after its separate manual-reviewer rule is removed.
+
+**OWNER RULING, 2026-08-12:** permanently remove Albert's required-reviewer click only after this
+repo-side evidence gate merges and passes CI/read-only proof. Albert does not review code, so the
+click adds no technical safety. Removing it is not permission to weaken any exact-SHA,
+confirmation, dependency, preview, fresh-ledger, bounded-checkout, dry-run, apply, post-ledger,
+catalog-verification, or artifact gate. The GitHub environment change is a separate phase and is
+not made by this repository patch.
 
 **Issue #646, also fixed here:** `production-dry-run` is **off** the `production` environment.
 It used to sit on it, so Albert was asked to approve every practice run — and a gate that fires

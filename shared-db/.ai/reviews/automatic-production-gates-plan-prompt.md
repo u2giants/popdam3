@@ -1,0 +1,9 @@
+Audit and design implementation for this permanent owner ruling (2026-08-12): remove the Albert/u2giants manual required-reviewer click from the shared-db production workflow because the owner does not review code and the click adds no technical safety. Replace it with enforceable automatic gates, never a bypass.
+
+Use local repository files only; do not use web search or external directories. Read AGENTS.md, .github/workflows/shared-supabase-migrations.yml, production guard/catalog verifier/review-reference scripts and tests, current production contract and relevant handoffs.
+
+Current GitHub environment read-only evidence: environment `production` has exactly one protection rule `required_reviewers`, reviewer user `u2giants` id 55610577, prevent_self_review=false, no deployment_branch_policy shown.
+
+Required future gates: exact origin/main SHA; clean/current PR state where applicable; required CI on exact SHA; independent GLM 5.2 review reference and explicit APPROVE verdict; exact allowlist/dependencies; preview evidence where required; fresh production ledger preflight; bounded dry-run/apply; post-apply exact-version/object/behavior verification; loud failure. No Supabase production changes in this task.
+
+The ruling must be durable in AGENTS.md or canonical workflow docs. Determine exact repo files/tests and exact narrow GitHub Environment API update needed after merge to remove only required reviewers while preserving other protections/settings. Identify any current gates that are merely string-plausibility checks and design stronger enforceable evidence without pretending GitHub can call GLM directly if it cannot. Do not modify files. Return APPROVE/REQUEST CHANGES plan, exact acceptance tests, safe sequencing, before/after API payload, rollback, and stop conditions.

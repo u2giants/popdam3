@@ -1671,26 +1671,10 @@ class ApplyLaneTests(unittest.TestCase):
         steps = _steps(_job("production-apply-review"))
         self.assertIn("Check exact confirmation", steps[0])
 
-    def test_a_review_must_be_recorded_and_the_step_cannot_be_shrugged_off(
+    def test_immutable_review_evidence_cannot_be_shrugged_off(
         self,
     ) -> None:
-        """The review gate survived losing its paid model call.
-
-        HISTORY, because this assertion has been wrong twice. It first asserted
-        `continue-on-error: true` and that the review script could never return
-        1. That encoded a silent failure: the API key was never configured, so
-        the step printed "NOT RUN" and the job went GREEN on every production
-        apply, presenting an unreviewed batch to the approver as a completed
-        pre-approval gate.
-
-        On 2026-08-11 the owner removed the paid model call entirely -- review
-        for shared-db is done in Claude Code -- but kept the property that
-        mattered: an apply cannot proceed without a review, and nobody can
-        silently skip one. So the step is now a string check on a REQUIRED
-        `review_reference` input, and what must hold is unchanged in substance:
-        no `continue-on-error`, and a real failure path. Detailed behaviour
-        lives in scripts/test_production_apply_review_reference.py.
-        """
+        """The pointer-only gate is replaced by pinned, verified evidence."""
         job = _job("production-apply-review")
         # A real step-level key, not the word inside the explanatory comment.
         offenders = [
@@ -1699,18 +1683,18 @@ class ApplyLaneTests(unittest.TestCase):
             if re.match(r"^\s*continue-on-error\s*:", line)
         ]
         self.assertEqual(offenders, [], f"continue-on-error is back: {offenders}")
-        self.assertIn("production_apply_review_reference.py", job)
-        # The paid call must not creep back into this lane.
+        self.assertIn("production_apply_review_evidence.py", job)
+        self.assertIn("--review-run-id", job)
+        self.assertIn("--expected-artifact-digest", job)
         self.assertNotIn("production_apply_model_review.py", job)
         self.assertNotIn("ANTHROPIC_API_KEY", job)
-        script = (REPO / "scripts" / "production_apply_review_reference.py").read_text(
+        script = (REPO / "scripts" / "production_apply_review_evidence.py").read_text(
             encoding="utf-8"
         )
-        # The failure path must exist and must be reachable.
-        self.assertIn("return fail(", script)
+        self.assertIn("return 1", script)
 
     def test_the_recorded_review_is_not_the_only_gate(self) -> None:
-        """Belt and braces: a human gate AND a deterministic gate must exist."""
+        """Belt and braces: the environment and deterministic gates remain."""
         self.assertIn("environment: production", _job("production-apply"))
         self.assertIn(
             "production_migration_guard.py preflight", _job("production-apply-review")
