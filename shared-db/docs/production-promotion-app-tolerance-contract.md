@@ -748,6 +748,12 @@ evidence.
 **`20260811070000` (B10d) was HELD. It is now RELEASED — with one finding converted into a permanent
 ordering constraint. Do not re-open this.**
 
+> **The automated model review described below NO LONGER EXISTS.** On 2026-08-11 the owner removed
+> the paid pre-apply model call from the production lane; **code review for shared-db is done in
+> Claude Code**, and the workflow now requires a `review_reference` input recording where that
+> review happened (`AGENTS.md` §5.1-A gate 2). The paragraph below is kept as the HISTORY of the
+> one verdict that lane ever produced, and of what became of it. Do not read it as a live process.
+
 On 2026-08-11 the advisory model review ran end-to-end for the first time in this repo's history and
 returned **VERDICT: CONCERNS** against this exact file (#788). Every finding was adjudicated against
 the actual SQL by a separate agent in [#800](https://github.com/u2giants/shared-db/issues/800), and
@@ -763,8 +769,10 @@ independently confirmed by a second model (Codex, read-only, APPROVE). The outco
 **So B10d's only residue is item (b), and it is now a recorded ordering constraint rather than a
 hold.** **Do not re-litigate (a) through (d); cite #800.**
 
-**B10a, B10b and B10c carry no unresolved review finding**, but none of them has had the same
-end-to-end model review B10d got. They must get one before approval, like every other batch.
+**B10a, B10b and B10c carry no unresolved review finding**, but none of them has been reviewed as
+closely as B10d was. **Each must be reviewed in Claude Code before approval, like every other
+batch**, and the dispatch must carry the `review_reference` for that review — the lane refuses to
+run without one.
 
 ### 5A.8 What the guard does and does NOT enforce for B10
 

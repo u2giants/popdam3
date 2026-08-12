@@ -402,7 +402,7 @@ class GuardTests(unittest.TestCase):
         # Gate 2: the only writing job sits behind the `production` environment.
         self.assertIn("environment: production", workflow)
         # Gate 3: a typed confirmation, and a deterministic guard preflight that
-        # is independent of the advisory model review.
+        # is independent of the recorded review reference.
         self.assertIn('= "APPLY $REQUESTED_SHA"', workflow)
         self.assertIn("production_migration_guard.py preflight", workflow)
 
@@ -1428,19 +1428,25 @@ class ApplyLaneTests(unittest.TestCase):
         steps = _steps(_job("production-apply-review"))
         self.assertIn("Check exact confirmation", steps[0])
 
-    def test_the_model_verdict_is_advisory_but_the_review_must_run(self) -> None:
-        """Two halves, and they are not the same thing.
+    def test_a_review_must_be_recorded_and_the_step_cannot_be_shrugged_off(
+        self,
+    ) -> None:
+        """The review gate survived losing its paid model call.
 
-        This test used to assert `continue-on-error: true` and that the script
-        could never return 1. That encoded a silent failure: ANTHROPIC_API_KEY
-        was never configured, so the step printed "NOT RUN" and the job went
-        GREEN on every production apply, presenting an unreviewed batch to the
-        approver as a completed pre-approval gate.
+        HISTORY, because this assertion has been wrong twice. It first asserted
+        `continue-on-error: true` and that the review script could never return
+        1. That encoded a silent failure: the API key was never configured, so
+        the step printed "NOT RUN" and the job went GREEN on every production
+        apply, presenting an unreviewed batch to the approver as a completed
+        pre-approval gate.
 
-        What must hold now: the model's OPINION still cannot block or approve
-        (no verdict string is wired to an exit code), but a review that did not
-        HAPPEN fails the job. Detailed behaviour lives in
-        scripts/test_production_apply_model_review.py.
+        On 2026-08-11 the owner removed the paid model call entirely -- review
+        for shared-db is done in Claude Code -- but kept the property that
+        mattered: an apply cannot proceed without a review, and nobody can
+        silently skip one. So the step is now a string check on a REQUIRED
+        `review_reference` input, and what must hold is unchanged in substance:
+        no `continue-on-error`, and a real failure path. Detailed behaviour
+        lives in scripts/test_production_apply_review_reference.py.
         """
         job = _job("production-apply-review")
         # A real step-level key, not the word inside the explanatory comment.
@@ -1450,19 +1456,17 @@ class ApplyLaneTests(unittest.TestCase):
             if re.match(r"^\s*continue-on-error\s*:", line)
         ]
         self.assertEqual(offenders, [], f"continue-on-error is back: {offenders}")
-        self.assertIn("advisory", job.lower())
-        script = (REPO / "scripts" / "production_apply_model_review.py").read_text(
+        self.assertIn("production_apply_review_reference.py", job)
+        # The paid call must not creep back into this lane.
+        self.assertNotIn("production_apply_model_review.py", job)
+        self.assertNotIn("ANTHROPIC_API_KEY", job)
+        script = (REPO / "scripts" / "production_apply_review_reference.py").read_text(
             encoding="utf-8"
         )
-        # The failure path must exist...
+        # The failure path must exist and must be reachable.
         self.assertIn("return fail(", script)
-        # ...but must never be reachable from the model's verdict.
-        for verdict in ("CLEAR", "CONCERNS"):
-            for line in script.splitlines():
-                if verdict in line and "fail(" in line:
-                    self.fail(f"the {verdict} verdict must not reach fail(): {line}")
 
-    def test_the_model_review_is_not_the_only_gate(self) -> None:
+    def test_the_recorded_review_is_not_the_only_gate(self) -> None:
         """Belt and braces: a human gate AND a deterministic gate must exist."""
         self.assertIn("environment: production", _job("production-apply"))
         self.assertIn(
