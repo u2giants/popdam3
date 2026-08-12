@@ -272,6 +272,8 @@ node --test tools/resolve-character-identity.test.mjs
 | `property-decisions-for-owner.csv` | the 36 characters needing a human property decision |
 | `cross-licensor-validation-failures.csv` | the 5 style-guide property answers that fail cross-licensor validation |
 | `authorized-licensing-corrections.csv` | the owner-authorized `MU` → `MV` correction, with date and reason |
+| `round3-licensing-answers.csv` | the 8 round-3 `ref` → `answer` rulings returned 2026-08-06, dated and attributed |
+| `round3-licensing-answers.md` | what that file holds, what was deliberately left out of it, and the one #526 step still outstanding |
 | `bridge-metadata-sample.csv` | 200 real `core.style_guide_character.metadata` payloads |
 | `style-guide-property-decisions-335.csv` | the regenerated 335-row style-guide → property decision set used as input |
 | `summary.json` | every count in this README, machine-readable |

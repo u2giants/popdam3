@@ -120,8 +120,37 @@ is not urgent and it is DesignFlow app work, not shared-db work." That moves blo
 critical path** and into phase 5. It also means the "five different roles are writing parents today"
 sentence at `HANDOFF.d/…:308-309` should not be repeated; it is not supported.
 
-**Recommended forward correction:** the stale-sweep agent that owns `COORDINATOR_INTAKE.md` and
-`HANDOFF.md` should correct the citation there. This agent owns neither file and did not edit them.
+### 2.1 Where the wrong wording still survives — and why it is not edited out
+
+*Updated 2026-08-12 (issue #518). The original "recommended forward correction" here told a
+stale-sweep agent to fix the citation in `COORDINATOR_INTAKE.md`. That instruction is dead:
+`COORDINATOR_INTAKE.md` was retired on 2026-08-07 and is now a 38-line pointer that no longer
+contains the blocker-8 text at all.*
+
+Every editable document in this repository now either states blocker 8 correctly or points here.
+Re-verified 2026-08-12: the mis-statement survives in exactly **one** file —
+
+| File | Lines |
+|---|---|
+| `HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md` | 307, 308-309, 548, 874 |
+
+(The later `HANDOFF.d/2026-08-06T0330Z-al8960ofc-coordinator-session-handover.md` already carries
+the correction at its lines 268-272 and 344-346. It is not a source of the error.)
+
+That file is a **write-once session record.** `AGENTS.md` forbids one session editing another's
+`HANDOFF.d/` file, and rewriting a historical record to say something it did not say is the wrong
+repair in any case. **This section is the correction of record**, together with issue #518.
+
+**If you arrived from that file:** the endpoint it cites —
+`designflow-item-master\services\item_library.service.js:71-138` — is a **READ** endpoint. The real
+writer is `PATCH /api/admin/updateMerchGroup` at `designflow-backend/routes/admin.router.js:87`, and
+its defect is **type-blindness** (§2(d)), not unvalidated routine parent-writing. The sentence
+*"five different roles are writing parents today"* is **not supported** — do not repeat it.
+
+**The endpoint fix itself is NOT shared-db work.** It lives in `designflow-backend`, a repo in the
+`popcre` org, and follows the dflow process: branch `sandbox-albert`, PR to `develop`, never `main`,
+never self-merged. It is sequenced at the DesignFlow cutover (phase 5, table row 4(a)), not on the
+critical path. Nothing in this repository can close it.
 
 ---
 
@@ -668,7 +697,7 @@ in the PR.
 | 5 | `import_master_data()` overwrites `licensor_id`, forces `status='active'` | **Live in production.** Scoped proposal at `…import-authority-20260803.md:286-366`; nothing implemented. `20260802170000` is merged but absent from production. | Phase 2.1–2.2. | Production window only. | Deliberately-set `licensor_id` and `status` survive two importer runs. |
 | 6 | Three further overwrite paths | §2.6 `confidence` force-set (structural, all 505 rows already `verified`, nothing destroyed today); §2.8 duplicate INSERT (**latent and closer than it looks — 6 of 26 `core.licensor` rows have no `designflow_plm` ref**); §2.9 `lower(name)` false match. | Phase 2.3–2.5, shipped with 2.2. | Choice between the two `name` options — recommend normalized-equivalent. | Each of the three has a preview test that fails against the old function and passes against the new. |
 | 7 | 9 properties under the wrong licensor | **One-line stub only** (`COORDINATOR_INTAKE.md:1837-1860`). No evidence gathered, no correct parent identified. Wording is ambiguous: 34 and 38 are product counts. | Phase 4.1, after evidence-gathering (parallelisable now). | **Yes** — decision 4. | The 9 rows point at the ruled licensor; each has an audit row with named decider and evidence; product counts under DISNEY drop by 34 and 38. |
-| 8 | Unvalidated write endpoint open to 5 roles | **Mis-stated everywhere — see §2.** Correct citation `designflow-backend/routes/admin.router.js:87`. The endpoint is type-blind and reachable, but is **not proven** to be the writer of the 503 edges; its own source doc marks that NOT VERIFIED. | Phase 5.4(a), DesignFlow app work. Plus a documentation correction owned by the stale-sweep agent. **Residual risk after the feed is revived (4.4):** because phase 2 makes `licensor_id` INSERT-only, this path can no longer re-parent an **existing** shared row — a disagreement quarantines instead. What survives is that a **new** property's *first* parent can still enter the shared copy unaudited via Cloud SQL. Mitigate by tagging feed-originated INSERTs `source_channel = 'plm_feed_insert'`, not by blocking the revive. | No. | A direct API call passing an MG06 as `productSubType` returns a rejection. |
+| 8 | Unvalidated write endpoint open to 5 roles | **Mis-stated everywhere — see §2.** Correct citation `designflow-backend/routes/admin.router.js:87`. The endpoint is type-blind and reachable, but is **not proven** to be the writer of the 503 edges; its own source doc marks that NOT VERIFIED. | Phase 5.4(a), DesignFlow app work in the `designflow-backend` repo — **nothing in shared-db can close it.** The documentation half is DONE: §2.1 is the correction of record (issue #518). **Residual risk after the feed is revived (4.4):** because phase 2 makes `licensor_id` INSERT-only, this path can no longer re-parent an **existing** shared row — a disagreement quarantines instead. What survives is that a **new** property's *first* parent can still enter the shared copy unaudited via Cloud SQL. Mitigate by tagging feed-originated INSERTs `source_channel = 'plm_feed_insert'`, not by blocking the revive. | No. | A direct API call passing an MG06 as `productSubType` returns a rejection. |
 | 9 | Promotion lane aborts at file 3 of 14 | Designed in full, not implemented. Aborts **after** applying and recording files 1 and 2 — a partial production database. | Phase 1.1–1.2. | **Yes** — decision 1. | The lane applies an approved list end to end, and every object is verified to exist by `to_regclass` / `pg_proc`, not by the ledger. |
 
 ---

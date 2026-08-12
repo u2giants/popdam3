@@ -59,6 +59,33 @@ def targets_for(sql: str) -> Targets:
         return derive_targets({"20260810140000": path}, ["20260810140000"])
 
 
+def collapse_ws(sql: str) -> str:
+    """Collapse every run of whitespace to one space.
+
+    ISSUE #702 POINT 1. The two SQL lines the whole function-privilege
+    verification rests on were pinned only by loose substring assertions, so an
+    edit that changed the PREDICATE to something wrong still passed green. The
+    fix is to assert the exact predicate -- but the exact predicate is indented
+    differently in each ACL block, and re-indenting the SQL is not a defect.
+    Normalising whitespace first is what makes an exact-text assertion both
+    strict about semantics and tolerant of reformatting.
+    """
+    return " ".join(sql.split())
+
+
+# ISSUE #702 POINT 1. `case when a.grantee = 0 then 'PUBLIC' ...` is the line
+# that makes a grant-to-everyone searchable by name instead of rendering as a
+# bare `-`. It appears once in EACH of the three ACL blocks the catalog query
+# builds, and that is exactly why a bare `assertIn` proved nothing: break the
+# copy in one block and the other two keep the substring alive. Pinning the
+# COUNT is what makes each block's copy individually load-bearing. If a fourth
+# ACL block is ever added, raise this deliberately -- do not loosen the check.
+PUBLIC_GRANTEE_EXPR = (
+    "'grantee', case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end"
+)
+PUBLIC_GRANTEE_BLOCKS = 3
+
+
 class DeriveTargetsTests(unittest.TestCase):
     def test_create_table_is_found(self):
         t = targets_for("create table if not exists plm.widget (id bigint);")
@@ -301,15 +328,69 @@ class SqlBuildTests(unittest.TestCase):
         )
         self.assertIn("aclexplode(p.proacl)", sql)
         self.assertIn("has_function_privilege", sql)
-        self.assertIn("acl_is_default", sql)
+
+        # ISSUE #702 POINT 1. `assertIn("acl_is_default", sql)` only proved the
+        # LABEL was present, never the predicate behind it. `proacl is null`
+        # means DEFAULT privileges, and for a function the default is EXECUTE
+        # to PUBLIC -- exactly the state a missing `revoke` leaves behind. Get
+        # the polarity or the column wrong and a Paramount promotion whose
+        # revoke silently failed produces a report that reads clean. So assert
+        # the whole predicate including the trailing comma, which pins the
+        # column, the polarity and the field it is bound to. The inverted form
+        # is asserted absent as well: it is the one wrong edit a reviewer is
+        # most likely to wave through, and it reverses the meaning of every
+        # HARD FAIL downstream.
+        normalised = collapse_ws(sql)
+        self.assertIn("'acl_is_default', p.proacl is null,", normalised)
+        self.assertNotIn("'acl_is_default', p.proacl is not null", normalised)
+
+        # The label and the predicate must stay welded to the function ACL
+        # block: a correct predicate reported under the wrong object is the
+        # same misread with extra steps.
+        self.assertIn(
+            "'acl_is_default', p.proacl is null, 'acl', coalesce(( select jsonb_agg(jsonb_build_object( "
+            + PUBLIC_GRANTEE_EXPR,
+            normalised,
+        )
 
     def test_public_grantee_is_named_not_rendered_as_a_dash(self):
         # aclexplode returns OID 0 for PUBLIC, never NULL, and 0::regrole::text
         # renders as a bare `-`. A grant to PUBLIC is the drift class of
         # #664/#649 and must be searchable by name in the artifact.
         sql = build_catalog_sql(targets_for("create table plm.widget (id int);"))
-        self.assertIn("a.grantee = 0 then 'PUBLIC'", sql)
+        normalised = collapse_ws(sql)
+
+        # ISSUE #702 POINT 1. The old assertion was `assertIn("a.grantee = 0
+        # then 'PUBLIC'", sql)`. Three other copies of that literal live in the
+        # same query, so breaking any ONE block's copy left the substring alive
+        # and all tests green. Assert the FULL expression -- including the
+        # `else` branch that does the regrole lookup, which is the half that
+        # actually renders a named role -- and assert it appears once per ACL
+        # block, so each copy is individually load-bearing.
+        self.assertEqual(
+            normalised.count(PUBLIC_GRANTEE_EXPR),
+            PUBLIC_GRANTEE_BLOCKS,
+            "the PUBLIC grantee expression must appear intact in every ACL "
+            "block; a changed count means a block lost it, gained a variant, "
+            "or a new ACL block was added without pinning it here",
+        )
+
+        # The grantor side renders from the same aclexplode OID space and has
+        # the same bare-dash failure, so it is pinned identically.
+        self.assertEqual(
+            normalised.count(
+                "'grantor', case when a.grantor = 0 then 'PUBLIC' "
+                "else a.grantor::regrole::text end"
+            ),
+            PUBLIC_GRANTEE_BLOCKS,
+            "the PUBLIC grantor expression must appear intact in every ACL block",
+        )
+
+        # The rejected shape: `coalesce` cannot rescue this, because aclexplode
+        # returns OID 0 for PUBLIC and never NULL, so the coalesce never fires
+        # and PUBLIC renders as a bare `-`.
         self.assertNotIn("coalesce(a.grantee::regrole::text", sql)
+        self.assertNotIn("coalesce(a.grantor::regrole::text", sql)
 
     def test_reloptions_are_read(self):
         # So `security_invoker` on an altered view is observable.

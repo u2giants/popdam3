@@ -46,6 +46,15 @@
 --   plm.style_tracker_item_bridge, plm.production_order[_line] and their source refs,
 --   and rolls every one of them back. Preview carries a production data clone, so this
 --   file must never be converted to `commit`.
+--   Part 3: no new rows. It re-reads Part 2's two saved-view fixtures under two
+--   different authenticated identities, inside the SAME transaction, and is rolled
+--   back with it. It switches role and always switches back.
+--
+--   On raising: a raised exception ABORTS the transaction, and an aborted transaction
+--   is rolled back by the server -- preview stays clean either way. Parts 1, 2 and 3
+--   all raise on failure by design. The commented anon checks at the bottom are left
+--   commented for a different reason: they would abort the run before the later parts
+--   had a chance to report, not because aborting is unsafe.
 --
 -- LAST RUN: preview rjyboqwcdzcocqgmsyel, see docs/app-migration-notes/popdam-order-list.md.
 -- =====================================================================================
@@ -754,28 +763,102 @@ begin
 end;
 $$;
 
+-- =========== PART 3 -- SAVED-VIEW RLS ISOLATION. ROLE-SCOPED, AND IT RAISES ==========
+--
+-- ISSUE #655. This was two bare `select case when ... 'FAIL ...' end` statements.
+-- psql prints a result row either way, so a REAL LEAK BETWEEN USERS PRINTED `FAIL`
+-- AND THE SCRIPT STILL EXITED 0. A green run did not prove isolation -- it proved
+-- only that two queries ran. That is the one thing an RLS test exists to prove, so
+-- it was the worst possible place in this file for a silent failure.
+--
+-- The old comment claimed a real role switch "cannot happen inside the do block".
+-- That is not true, and it is the assumption that produced the defect:
+--   * `set local role` runs inside PL/pgSQL via EXECUTE, used below;
+--   * `set_config('request.jwt.claims', ..., true)` already runs inside the PART 2
+--     do block at the `create_dam_order` and `void` checks above;
+--   * scripts/poppim-audit-remediation/verify-saved-view-crud.sql has done exactly
+--     this -- role switch inside a do block -- since 2026-07-27.
+--
+-- So the checks move inside a do block that RAISES, matching PART 1 and PART 2.
+-- A raised exception aborts the transaction, and an aborted transaction is rolled
+-- back by the server, so preview stays clean exactly as the `rollback` below intends.
 -- ---------------------------------------------------------------------------------
--- Role-scoped checks. These need a real role switch, which cannot happen inside the
--- do block above, so they run as their own statements in the same rolled-back
--- transaction.
--- ---------------------------------------------------------------------------------
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated"}';
+do $$
+declare
+  v_user_a  uuid := '11111111-1111-4111-8111-111111111111';
+  v_user_b  uuid := '22222222-2222-4222-8222-222222222222';
+  v_n       integer;
+  v_leaked  integer;
+  v_pass    integer := 0;
+  v_fail    integer := 0;
+begin
+  raise notice '=== I. SAVED-VIEW RLS ISOLATION (role-scoped) ===';
 
--- User A sees exactly one saved view: their own. Expect 1.
-select case when count(*) = 1 then 'PASS saved views isolated for user A'
-            else 'FAIL saved views leaked to user A: ' || count(*)::text end
-  from public.order_list_user_views;
+  -- PART 2 seeded exactly one saved view for A and one for B. Assert that from the
+  -- owner role FIRST: if the seed is not two rows, a later count of 1 per user would
+  -- be "isolated" for the wrong reason and the test would pass while proving nothing.
+  select count(*) into v_n from public.order_list_user_views
+   where user_id in (v_user_a, v_user_b);
+  if v_n = 2 then v_pass := v_pass + 1;
+  else
+    v_fail := v_fail + 1;
+    raise notice 'FAIL precondition: expected 2 seeded saved views, found %', v_n;
+  end if;
 
-reset role;
-set local request.jwt.claims = '{"sub":"22222222-2222-4222-8222-222222222222","role":"authenticated"}';
-set local role authenticated;
+  -- ---- User A ----
+  perform set_config('request.jwt.claims',
+                     json_build_object('sub', v_user_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
 
-select case when count(*) = 1 then 'PASS saved views isolated for user B'
-            else 'FAIL saved views leaked to user B: ' || count(*)::text end
-  from public.order_list_user_views;
+  select count(*) into v_n from public.order_list_user_views;
+  select count(*) into v_leaked from public.order_list_user_views where user_id <> v_user_a;
 
-reset role;
+  execute 'reset role';
+
+  if v_n = 1 and v_leaked = 0 then v_pass := v_pass + 1;
+  else
+    v_fail := v_fail + 1;
+    raise notice 'FAIL saved views leaked to user A: sees % row(s), % belonging to someone else',
+      v_n, v_leaked;
+  end if;
+
+  -- ---- User B ----
+  perform set_config('request.jwt.claims',
+                     json_build_object('sub', v_user_b, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+
+  select count(*) into v_n from public.order_list_user_views;
+  select count(*) into v_leaked from public.order_list_user_views where user_id <> v_user_b;
+
+  execute 'reset role';
+
+  if v_n = 1 and v_leaked = 0 then v_pass := v_pass + 1;
+  else
+    v_fail := v_fail + 1;
+    raise notice 'FAIL saved views leaked to user B: sees % row(s), % belonging to someone else',
+      v_n, v_leaked;
+  end if;
+
+  -- A `using (user_id = auth.uid())` policy that is never actually consulted -- RLS
+  -- disabled, or the role BYPASSRLS -- would make both counts above 2, not 1, so the
+  -- checks already catch it. This asserts the mechanism directly rather than by
+  -- inference, because "the policy was bypassed" and "the policy is wrong" need
+  -- different fixes and the counts alone cannot tell them apart.
+  if (select relrowsecurity from pg_class where oid = 'public.order_list_user_views'::regclass)
+     and not (select rolbypassrls from pg_roles where rolname = 'authenticated')
+  then v_pass := v_pass + 1;
+  else
+    v_fail := v_fail + 1;
+    raise notice 'FAIL isolation above is not attributable to RLS: relrowsecurity or authenticated BYPASSRLS is wrong';
+  end if;
+
+  insert into dam_order_list_contract_result (part, passed, failed) values ('part3', v_pass, v_fail);
+  raise notice 'PART 3: % passed / % failed', v_pass, v_fail;
+  if v_fail > 0 then
+    raise exception 'PART 3 FAILED: % assertion(s)', v_fail;
+  end if;
+end;
+$$;
 
 -- Anon must be refused by grants alone. Each of these must raise permission denied;
 -- run them one at a time and confirm the error.
@@ -785,6 +868,19 @@ reset role;
 -- They are left commented because a raised error aborts this transaction and would
 -- skip the rollback below. Part 1 section H proves the same thing from the catalog.
 
-select * from dam_order_list_contract_result where part = 'part2';
+-- ISSUE #655. Deleting PART 3, or having it silently not run, must not read as a
+-- clean run. Assert it recorded a result before printing the scoreboard.
+do $$
+declare
+  v_n integer;
+begin
+  select count(*) into v_n from dam_order_list_contract_result where part = 'part3';
+  if v_n <> 1 then
+    raise exception 'PART 3 did not run: expected 1 result row, found %. The saved-view RLS isolation checks are the point of this file -- a run without them is not a pass.', v_n;
+  end if;
+end;
+$$;
+
+select * from dam_order_list_contract_result where part in ('part2', 'part3') order by part;
 
 rollback;

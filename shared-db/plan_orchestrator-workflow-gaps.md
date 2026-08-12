@@ -285,6 +285,39 @@ A needs. If it is still accurate, item A must not propose making that workflow r
 
 ## B. Make the single-orchestrator rule mechanical
 
+> ### ✅ B1, B1a, B1b, B2 — BUILT 2026-08-12 (issue #619)
+>
+> - `scripts/check-orchestrator-marker.mjs` — the guard. Three outcomes: OK (0 or 1
+>   marker), FAIL (2+, or the retired label alive), **UNKNOWN** (gh errored, returned no
+>   JSON, or returned an EMPTY body). UNKNOWN exits **2** and says in those words that it
+>   is not "none open".
+> - `scripts/check-orchestrator-marker.test.mjs` — 13 tests, B2's four required cases plus
+>   the three recorded lies. All pass.
+> - `.github/workflows/orchestrator-marker-guard.yml` — no `paths:` filter, unique
+>   check-run name, tests run first in the same job, **plus a 2-hourly schedule** with a
+>   **throttled, deduplicated** alarm issue (one open at a time).
+>
+> **B1's live evidence, folded in as #619 directs.** On 2026-08-09
+> `gh issue list --label orchestrator-marker` printed EMPTY OUTPUT while the marker
+> existed; only the JSON form showed it. It is now one of three recorded ways this question
+> has been answered wrongly, all documented at the top of the script:
+> the **renamed label**, the **eventually-consistent server-side label filter**
+> (2026-08-07: empty for an issue that provably carried the label, correct five seconds
+> later), and the **empty `gh` output**. The guard therefore **never uses a server-side
+> label filter** — it enumerates every open issue and matches labels client-side, the only
+> method this repo has recorded as reliable — and never treats a non-answer as zero.
+>
+> **Live run 2026-08-12:** found marker **#855**, one open, exit 0. The retired
+> `coordinator-marker` label does **not** exist in the repo, so B1a's second leg is
+> currently clean.
+>
+> ### ⛔ STILL OPEN — an admin must do this; no agent session can
+>
+> **`Orchestrator marker guard` is NOT yet a required status check.** Branch protection
+> cannot be edited from a workflow or by an agent. Until an admin adds the context, this is
+> advisory — and an advisory check that detects a collision nobody notices is the same
+> class of defect it was built to fix. **B1 is not finished until that is done.**
+
 Today the marker is an honour-system GitHub issue. A session that misreads it, queries the
 **old** `coordinator-marker` label and sees an empty list, or simply skips step 0, just
 carries on. Two orchestrators dispatching at once is how this repo produced four competing
@@ -318,6 +351,38 @@ must pass, one must pass.
 ---
 
 ## C. Reach a session that is already running
+
+> ### 2026-08-12 (issue #619) — C2 BUILT, C1 partly, C3 out of this repo
+>
+> - **C2 — built.** `scripts/check-cancelled-work.mjs` +
+>   `scripts/check-cancelled-work.test.mjs` (16 tests, all pass) +
+>   `.github/workflows/cancelled-work-guard.yml`. Seeded with the two known
+>   cancellations: the **R-SEC-1 git-history scrub** and **making the repo private**.
+>
+>   Both mandatory mitigations are present, as the plan requires:
+>   1. **The table lives only in the script**, where the check consumes it. There is no
+>      second copy in prose — including here. This paragraph names the two rows; it does
+>      not restate them.
+>   2. **The rot valve** fails the check if the table is empty, or if any row lacks a
+>      reason, a ruling reference, an id, or an `unless` escape.
+>
+>   The `check-skill-drift` false-positive budget was taken seriously: its three first-run
+>   false positives all came from line-scoped patterns where the correction wrapped onto
+>   the next line, so `unless` is evaluated against the line joined with its neighbours,
+>   and there is a test for exactly that shape. Run live against this branch: clean.
+>
+> - **C1 — the convention is enforced only in the direction C2 covers.** A PR that
+>   *reintroduces* cancelled work now fails. A ruling's PR *closing the issues it
+>   invalidates* is still done by hand and nothing checks it. Naming that plainly rather
+>   than claiming C1.
+>
+> - **C3 — cannot be done in this repository.** It is a change to the handover skill, which
+>   lives in the `ai-devops` hub, not here. Same as D3.
+>
+> ### ⛔ STILL OPEN — an admin must do this
+>
+> **`Cancelled work guard` is NOT yet a required status check.** Same limitation as B1:
+> branch protection cannot be edited by an agent session.
 
 **Proven twice on 2026-08-07.** Albert ruled the Disney extract is not sensitive at ~17:00.
 At 22:26 a live session filed issue #578 asking for the git-history scrub that ruling had
@@ -357,6 +422,22 @@ its own start time.
 ---
 
 ## D. Give 71 issues an order
+
+> ### 2026-08-12 (issue #619) — D1 labels CREATED, D2 declined, D3 out of this repo
+>
+> - **D1 — done, halfway, deliberately.** The two labels now exist on
+>   `u2giants/shared-db`: **`now`** (red) and **`next`** (yellow). Their descriptions say
+>   *"Owner-set priority. Only the owner adds or removes it."* **They are on ZERO issues,
+>   and that is correct** — creating the labels executes the owner's stated decision
+>   ("`now` and `next`, two labels"); deciding WHICH issues are `now` is a prioritisation
+>   only the owner can make. Owner gate 3 below (two labels or three?) is unchanged.
+> - **D2 — NOT BUILT, as recommended.** No `THE BOARD` issue. `gh issue list --label now`
+>   is the board. A rendered copy of a query is a cache, and a stale cache here is the exact
+>   failure being fixed.
+> - **D3 — cannot be done in this repository.** The orchestrator skill does not live here;
+>   there is no `.claude/skills` directory in `shared-db`. Adding the "read `--label now`
+>   first" session-start step is a change to the skill in the `ai-devops` hub. Same for
+>   **C3**, which is a handover-skill change.
 
 The old file had a top; the issue list does not. Losing "what is next" was a real
 regression and should be named as one.
