@@ -26,7 +26,8 @@ startup through a non-cached `/config.js`; they are not baked into the image.
 - Coolify project: `DB Data Admin` (`x433rsji7hlmgpysautjpa1e`)
 - Environment: `production` (`ly7550eqjkwyto8ehzo08hkh`)
 - Application: `db-data-admin-production` (`zeoy8qfjqffu8ym533cc7dl4`)
-- Domain: **none attached yet** — intended `https://data.designflow.app`
+- Domain: attached by the launch workflow as `https://data.designflow.app` — none is
+  attached until a production launch (see "Production launch trigger" below)
 - Health endpoint: `/health` on container port `80`
 - Image: `ghcr.io/u2giants/db-data-admin:sha-<commit>`
 - Database: production Supabase `qsllyeztdwjgirsysgai`
@@ -75,21 +76,53 @@ publicly live is attaching the fqdn `https://data.designflow.app` to the product
 Coolify application; Let's Encrypt then issues the certificate over the HTTP challenge.
 There is no wildcard record on `designflow.app`.
 
-### Trigger, and why merging alone does nothing
+### Production launch trigger (dispatch only)
 
-`deploy-production` in `.github/workflows/db-data-admin.yml` runs only on a push to
-`main`, only after `verify` and `container` succeed, and only when **both** gates open:
+`deploy-production` in `.github/workflows/db-data-admin.yml` is **dispatch-only**. It
+never runs on an ordinary push to `main`, so merging the workflow (or any code) can
+never by itself publish the admin tool. A launch is a deliberate
+`workflow_dispatch` from `main` with two typed inputs:
 
-1. the repository variable `COOLIFY_PROD_APP_UUID` is non-empty — it stays empty until
-   the production Coolify application exists, and an empty value fails the job loudly
-   and visibly rather than deploying an unknown target or quietly doing nothing;
-2. the GitHub environment `production` approves the run — its required reviewer is the
-   owner, so every production release waits on a human click in the Actions UI.
+- `project_ref` — must be exactly `qsllyeztdwjgirsysgai`;
+- `confirmation` — must be exactly `launch-data-designflow-app`.
 
-The job then PATCHes the application to the exact `sha-<commit>` tag, triggers the
-Coolify deployment, and polls `https://data.designflow.app/health` and the live
-`<meta name="build-sha">` until both match the deployed commit. It fails, and tells you
-to roll back, rather than reporting a green deploy it did not observe.
+After `verify` and `container` build and publish the `sha-<commit>` image on the same
+dispatch SHA, the job checks out that SHA, fetches `origin/main`, and **fails unless
+the checked-out SHA equals the current tip of `origin/main`** before any exposure — a
+commit that is not the tip of `main` cannot be launched.
+
+It then runs a **read-only** Supabase evidence query (Management API
+`/v1/projects/qsllyeztdwjgirsysgai/database/query` with `read_only:true`, using
+`SUPABASE_ACCESS_TOKEN`) and fails closed unless ALL of the following hold:
+
+- migration-ledger membership for batch **B8** (`20260809170000`–`20260809170500`)
+  and batch **B9** (`20260810010000`–`20260810170000`; the exact version set is
+  enumerated in the workflow and in `scripts/check-data-admin-launch-readiness.mjs`);
+- `core.product_size` and `core.product_depth` exist;
+- the Product Depth picker/mutation functions exist —
+  `api.db_data_admin_product_depth_list`, `api.db_data_admin_upsert_product_depth`,
+  `api.db_data_admin_set_product_depth_status`, and the
+  `app.require_db_data_admin_product_depth_access` guard;
+- at least one active `app.app_access` row for app `admin` (someone can administer it).
+
+The evidence query returns counts and object names only — never row identities or
+values. The gate (`scripts/check-data-admin-launch-readiness.mjs`, with offline tests
+under `scripts/tests/`) also requires the Coolify application uuid to be exactly
+`zeoy8qfjqffu8ym533cc7dl4`, and records the prior `sha-<commit>` image tag for
+rollback.
+
+Only then does it PATCH the application to attach **exactly**
+`https://data.designflow.app` and set the exact `sha-<commit>` image. It re-reads the
+application and **rejects** any extra or `sslip.io` domain (Coolify auto-assigns an
+`sslip.io` host on creation; the launch refuses to deploy if one is present), deploys
+through Coolify, then polls `https://data.designflow.app/health` for `200` and the
+live `<meta name="build-sha">` until both equal the deployed commit. It fails — and
+tells you to roll back — rather than reporting a green deploy it did not observe.
+
+The GitHub `production` environment is retained for audit and deployment history, but
+launch safety does **not** depend on a manual reviewer: the typed confirmation plus
+the read-only evidence gate are the control.
+
 
 ### Rollback
 
