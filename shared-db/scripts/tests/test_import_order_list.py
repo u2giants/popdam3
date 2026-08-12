@@ -222,6 +222,47 @@ class RowShapeTests(unittest.TestCase):
         self.assertEqual(importer.classify_row_shape(row), importer.ROW_SHAPE_NEITHER)
 
 
+class SubSkuStyleMirrorTests(unittest.TestCase):
+    """Column AR ("Sub SKU") mirroring the Style# is a 2026-08-11 workbook artifact, not
+    an assortment. sub_sku_mirrors_style() must recognise it narrowly (issue #727)."""
+
+    def test_ar_equals_style_single_line_is_direct(self):
+        row = make_row(30, B="D1", P="NCV3SP1", AR="NCV3SP1")
+        self.assertTrue(importer.sub_sku_mirrors_style(row))
+        self.assertEqual(importer.classify_row_shape(row), importer.ROW_SHAPE_DIRECT)
+
+    def test_ar_equals_style_after_whitespace_and_case_is_direct(self):
+        # normalize_sku is trim + case-fold, so "  ncv3sp1 " mirrors "NCV3SP1".
+        row = make_row(31, B="D1", P="NCV3SP1", AR="  ncv3sp1 ")
+        self.assertTrue(importer.sub_sku_mirrors_style(row))
+        self.assertEqual(importer.classify_row_shape(row), importer.ROW_SHAPE_DIRECT)
+
+    def test_ar_different_from_style_is_both(self):
+        row = make_row(32, B="D1", P="NCV3SP1", AR="BFC02GABB")
+        self.assertFalse(importer.sub_sku_mirrors_style(row))
+        self.assertEqual(importer.classify_row_shape(row), importer.ROW_SHAPE_BOTH)
+
+    def test_ar_multiline_including_style_is_both(self):
+        # A real component list, even one whose first line equals the Style#, is NOT a
+        # mirror: the newline separator is the tell.
+        row = make_row(33, B="D1", P="NCV3SP1", AR="NCV3SP1\nBFC02GABB")
+        self.assertFalse(importer.sub_sku_mirrors_style(row))
+        self.assertEqual(importer.classify_row_shape(row), importer.ROW_SHAPE_BOTH)
+
+    def test_ar_without_direct_style_is_assortment(self):
+        row = make_row(34, B="D1", AR="A1\nA2", AM="Disney\nGeneric")
+        self.assertFalse(importer.sub_sku_mirrors_style(row))
+        self.assertEqual(importer.classify_row_shape(row), importer.ROW_SHAPE_ASSORTMENT)
+
+    def test_mirror_row_preserves_raw_ar_evidence(self):
+        row = make_row(35, B="D1", P="NCV3SP1", AR="NCV3SP1", AM="Disney")
+        plan = importer.build_plan([row], importer.MasterDataCatalog())
+        self.assertEqual(len(plan.lines), 1)
+        snapshot = plan.lines[0].metadata["order_list_snapshot"]
+        self.assertEqual(snapshot["sub_sku_raw"], "NCV3SP1")
+        self.assertTrue(snapshot["sub_sku_is_style_mirror"])
+
+
 # =====================================================================================
 # 5. Assortment expansion
 # =====================================================================================
@@ -654,9 +695,10 @@ class PayloadComparisonTests(unittest.TestCase):
 # =====================================================================================
 class ChecksumGateTests(unittest.TestCase):
     def test_approved_constant_matches_the_documented_export(self):
+        # Owner-accepted 2026-08-11 export (issue #727, "accept today's sheet").
         self.assertEqual(
             importer.APPROVED_SOURCE_SHA256,
-            "4958b4b7b783a46b968a0d5c9438364216303ad8b856b9b7e9aebbdffc6abbe4",
+            "68c9b03a0ec183e08b3a8f2344397e1bc4f61e73457849e7bf8c0cf7fb2409fe",
         )
 
     def test_matching_checksum_passes(self):
@@ -718,10 +760,15 @@ class TargetProofTests(unittest.TestCase):
 # =====================================================================================
 class ReconciliationTests(unittest.TestCase):
     def test_baseline_row_shapes_balance(self):
+        # Honest re-profile of the owner-accepted 2026-08-11 workbook (issue #727).
         self.assertTrue(importer.BASELINE.row_shapes_balance())
-        self.assertEqual(importer.BASELINE.populated_rows, 12_328)
-        self.assertEqual(importer.BASELINE.assortment_components, 15_816)
-        self.assertEqual(importer.BASELINE.ambiguous_matches, 449)
+        self.assertEqual(importer.BASELINE.populated_rows, 12_354)
+        self.assertEqual(importer.BASELINE.assortment_components, 15_713)
+        # Corrected column-AR logic: the Style# mirror is not an assortment signal, so the
+        # direct rows classify as direct again. Only the 3 rows that also carry an
+        # Assortment ID (column O) remain both-shape.
+        self.assertEqual(importer.BASELINE.direct_only_rows, 8_438)
+        self.assertEqual(importer.BASELINE.both_shape_rows, 3)
 
     def test_synthetic_run_balances_its_own_arithmetic(self):
         plan = importer.build_plan(realistic_rows(), LICENSED_CATALOG)
@@ -792,6 +839,118 @@ class ReconciliationTests(unittest.TestCase):
         self.assertIn("the second identical run changed 0 business rows", report)
         self.assertIn("PASS.", report)
         self.assertIn("BALANCED", report)
+
+
+# =====================================================================================
+# 11a. Anti-"hash-only update" guard.
+#
+# The eight conditional baseline assertions fire ONLY when the workbook SHA-256 matches
+# APPROVED_SOURCE_SHA256. So the dangerous change is bumping the hash for a new workbook
+# while forgetting to re-derive the baseline: the run then re-arms against STALE numbers
+# and either fails confusingly or (if someone also blanks them) checks nothing. These
+# tests prove every one of the eight is still wired to a live BASELINE field, so a
+# hash-only edit cannot silently disable or strand them.
+# =====================================================================================
+class BaselineArmingGuardTests(unittest.TestCase):
+    #: field name on ReconciliationBaseline -> the plan counter key it is asserted against
+    FIELD_TO_COUNTER = {
+        "populated_rows": "staged_rows",
+        "direct_only_rows": f"rows_{importer.ROW_SHAPE_DIRECT}",
+        "assortment_only_rows": f"rows_{importer.ROW_SHAPE_ASSORTMENT}",
+        "both_shape_rows": f"rows_{importer.ROW_SHAPE_BOTH}",
+        "neither_shape_rows": f"rows_{importer.ROW_SHAPE_NEITHER}",
+        "assortment_components": "assortment_components",
+        "blank_po_rows": "blank_po_rows",
+        "normalized_po_numbers": "normalized_po_numbers",
+    }
+
+    def _counters_equal_to_baseline(self) -> dict:
+        """A counter set that exactly reproduces BASELINE, so every check passes."""
+        b = importer.BASELINE
+        return {
+            "staged_rows": b.populated_rows,
+            f"rows_{importer.ROW_SHAPE_DIRECT}": b.direct_only_rows,
+            f"rows_{importer.ROW_SHAPE_ASSORTMENT}": b.assortment_only_rows,
+            f"rows_{importer.ROW_SHAPE_BOTH}": b.both_shape_rows,
+            f"rows_{importer.ROW_SHAPE_NEITHER}": b.neither_shape_rows,
+            "assortment_components": b.assortment_components,
+            "blank_po_rows": b.blank_po_rows,
+            "normalized_po_numbers": b.normalized_po_numbers,
+            "planned_lines": b.assortment_components,
+            f"match_{importer.MATCH_UNMATCHED}": b.assortment_components,
+        }
+
+    def test_baseline_is_internally_consistent(self):
+        self.assertTrue(
+            importer.BASELINE.row_shapes_balance(),
+            "row shapes must sum to populated_rows or the baseline is stale/mistyped",
+        )
+
+    def test_exactly_eight_conditional_checks_exist(self):
+        rec_off = importer.Reconciliation(
+            counters=self._counters_equal_to_baseline(),
+            apply_result=importer.ApplyResult(),
+            checksum_matched_approved_source=False,
+        )
+        rec_on = importer.Reconciliation(
+            counters=self._counters_equal_to_baseline(),
+            apply_result=importer.ApplyResult(),
+            checksum_matched_approved_source=True,
+        )
+        self.assertEqual(len(rec_off.balance_checks()), 2)
+        self.assertEqual(
+            len(rec_on.balance_checks()), 10, "2 always-on + 8 baseline conditionals"
+        )
+
+    def test_counters_equal_to_baseline_pass_all_checks(self):
+        rec = importer.Reconciliation(
+            counters=self._counters_equal_to_baseline(),
+            apply_result=importer.ApplyResult(),
+            checksum_matched_approved_source=True,
+        )
+        self.assertTrue(
+            rec.balanced(),
+            [c for c in rec.balance_checks() if not c[1]],
+        )
+
+    def test_every_baseline_field_is_actively_asserted(self):
+        """Perturb each field's counter by one; the run MUST break.
+
+        If a field could be perturbed with the run still balanced, that assertion is
+        disabled or stale — exactly the hash-only-update failure this guards against.
+        """
+        for field, counter_key in self.FIELD_TO_COUNTER.items():
+            with self.subTest(field=field):
+                counters = self._counters_equal_to_baseline()
+                counters[counter_key] = counters.get(counter_key, 0) + 1
+                rec = importer.Reconciliation(
+                    counters=counters,
+                    apply_result=importer.ApplyResult(),
+                    checksum_matched_approved_source=True,
+                )
+                self.assertFalse(
+                    rec.balanced(),
+                    f"baseline field {field!r} is not armed: bumping {counter_key!r} "
+                    "left the run balanced",
+                )
+
+    def test_approved_hash_and_baseline_were_updated_together(self):
+        """A hash bump that forgets the baseline (or vice versa) trips here.
+
+        These two literals are re-derived from the SAME workbook. If a future edit moves
+        the hash to a new export without re-profiling, this pins the pairing so the drift
+        is caught in CI rather than at import time.
+        """
+        self.assertEqual(
+            importer.APPROVED_SOURCE_SHA256,
+            "68c9b03a0ec183e08b3a8f2344397e1bc4f61e73457849e7bf8c0cf7fb2409fe",
+        )
+        self.assertEqual(importer.BASELINE.populated_rows, 12_354)
+        self.assertNotEqual(
+            importer.BASELINE.populated_rows,
+            12_328,
+            "12,328 was the superseded 2026-08-09 profile; a stale baseline slipped in",
+        )
 
 
 # =====================================================================================

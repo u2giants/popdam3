@@ -65,10 +65,20 @@ SOURCE_TAB_NAME = "Order"
 SOURCE_TAB_GID = 0
 SOURCE_SYSTEM = "google_order_list"
 
-#: SHA-256 of the approved 2026-08-09 read-only export, from
-#: docs/app-migration-notes/popdam-order-list.md "Source evidence".
+#: SHA-256 of the owner-accepted 2026-08-11 read-only export
+#: (``C:\\Users\\ahazan2\\Downloads\\OrderList.xlsx``), ruled authoritative by Albert on
+#: 2026-08-11 (issue #727, "accept today's sheet"), superseding the 2026-08-09 export
+#: (``4958b4b7...``). Re-profiled honestly on 2026-08-12; see
+#: docs/app-migration-notes/popdam-order-list.md "Re-profile 2026-08-12".
+#:
+#: Column-AR note (root-caused, fixed): this workbook fills column AR ("Sub SKU") with a
+#: copy of column P ("Style#") on every direct-order row. That is a spreadsheet artifact,
+#: not an assortment component list, so sub_sku_mirrors_style() excludes an AR that
+#: exactly equals the Style# and carries no newline from the assortment signal. Genuine
+#: multiline assortments are unaffected. The baseline below is derived from that corrected
+#: logic; the eight conditional assertions stay armed against the new SHA.
 APPROVED_SOURCE_SHA256 = (
-    "4958b4b7b783a46b968a0d5c9438364216303ad8b856b9b7e9aebbdffc6abbe4"
+    "68c9b03a0ec183e08b3a8f2344397e1bc4f61e73457849e7bf8c0cf7fb2409fe"
 )
 
 PREVIEW_PROJECT_REF = "rjyboqwcdzcocqgmsyel"
@@ -84,18 +94,33 @@ DEFAULT_BATCH_SIZE = 500
 # =====================================================================================
 @dataclass(frozen=True)
 class ReconciliationBaseline:
-    """Counts proven by the Phase 0 profile, for the approved workbook only."""
+    """Counts proven by the Phase 0 profile, for the approved workbook only.
 
-    populated_rows: int = 12_328
-    direct_only_rows: int = 8_412
+    Re-derived honestly on 2026-08-12 from the owner-accepted 2026-08-11 export by
+    running build_plan() over the real ``Order`` tab with an empty catalog through the
+    corrected classify_row_shape()/sub_sku_mirrors_style() logic (see the private profiler
+    artifact under the run's temp dir). These are the TRUE counts of that workbook.
+
+    The workbook mirrors the Style# into column AR on direct rows; sub_sku_mirrors_style()
+    excludes that artifact from the assortment signal, so the 8,438 direct rows classify as
+    ROW_SHAPE_DIRECT (only the 3 rows that ALSO carry an Assortment ID in column O remain
+    both-shape). Under the pre-fix logic these read as direct_only=0 / both_shape=8,441.
+    """
+
+    populated_rows: int = 12_354
+    direct_only_rows: int = 8_438
     assortment_only_rows: int = 3_899
     both_shape_rows: int = 3
     neither_shape_rows: int = 14
-    assortment_components: int = 15_816
-    structurally_invalid_assortment_rows: int = 10
+    assortment_components: int = 15_713
+    structurally_invalid_assortment_rows: int = 28
+    #: Catalog-dependent, NOT derivable from the workbook alone (needs live Master Data
+    #: duplicate SKUs). Re-derived at import time against the real catalog; the 2026-08-09
+    #: profile counted 449. Not one of the eight conditional assertions and not used in
+    #: row_shapes_balance(); left as a documented prior figure, re-confirm on the real run.
     ambiguous_matches: int = 449
-    normalized_po_numbers: int = 3_083
-    blank_po_rows: int = 130
+    normalized_po_numbers: int = 3_087
+    blank_po_rows: int = 138
 
     def row_shapes_balance(self) -> bool:
         return self.populated_rows == (
@@ -474,12 +499,49 @@ class SourceRow:
         return any(raw_text(value) is not None for value in self.values)
 
 
+_COMPONENT_SEPARATOR = re.compile(r"[\r\n]")
+
+
+def sub_sku_mirrors_style(row: SourceRow) -> bool:
+    """True when column AR is just a copy of the direct Style# (column P), not a list.
+
+    The owner-accepted 2026-08-11 workbook (issue #727) fills column AR ("Sub SKU") with
+    the row's own Style# on every direct-order row. That is a spreadsheet artifact, not an
+    assortment component list, so it must NOT be read as an assortment signal — otherwise
+    every direct row would classify as ROW_SHAPE_BOTH and be rejected.
+
+    The mirror is recognised narrowly, so a genuine assortment is never mistaken for one:
+
+    * AR must be present and hold NO component separator (a real assortment list is
+      newline-separated; any ``\\r``/``\\n`` disqualifies the shortcut), and
+    * AR must equal the direct Style# under the importer's own SKU normalization
+      (``normalize_sku`` = trim + case-fold, byte-identical to ``sku_normalized``).
+
+    A multiline AR (even one whose first line equals the Style#), an AR that differs from
+    the Style#, or an AR on a row with no direct Style# is left as a true assortment
+    signal. The raw AR text is preserved as evidence by the callers; nothing is discarded.
+    """
+    ar_raw = row.raw(COL_SUB_SKU)
+    if ar_raw is None or _COMPONENT_SEPARATOR.search(ar_raw):
+        return False
+    style_normalized = normalize_sku(row.cell(COL_STYLE))
+    sub_sku_normalized = normalize_sku(row.cell(COL_SUB_SKU))
+    return (
+        style_normalized is not None
+        and sub_sku_normalized is not None
+        and style_normalized == sub_sku_normalized
+    )
+
+
 def classify_row_shape(row: SourceRow) -> str:
     """Direct SKU row, assortment row, both (quarantine) or neither (reject)."""
     has_direct = row.text(COL_STYLE) is not None
-    has_assortment = (
-        row.text(COL_SUB_SKU) is not None or row.text(COL_ASSORTMENT_ID) is not None
+    # Column AR only signals an assortment when it is a genuine component list, not a
+    # Style# mirror (see sub_sku_mirrors_style). Column O (Assortment ID) still counts.
+    has_component_list = (
+        row.text(COL_SUB_SKU) is not None and not sub_sku_mirrors_style(row)
     )
+    has_assortment = has_component_list or row.text(COL_ASSORTMENT_ID) is not None
     if has_direct and has_assortment:
         return ROW_SHAPE_BOTH
     if has_direct:
@@ -945,6 +1007,11 @@ def _plan_direct_line(
         "license_status": row.text(COL_LICENSE_STATUS),
         "licensor_or_generic_raw": row.raw(COL_LICENSOR_OR_GENERIC),
         "quantity_raw": quantity_raw,
+        # Preserve the raw AR ("Sub SKU") cell as evidence. On the 2026-08-11 workbook this
+        # is a Style# mirror (see sub_sku_mirrors_style); recording it keeps the source
+        # observable rather than discarding it just because it did not drive the shape.
+        "sub_sku_raw": row.raw(COL_SUB_SKU),
+        "sub_sku_is_style_mirror": sub_sku_mirrors_style(row),
     }
     _apply_match(payload, metadata, resolve_match(normalize_sku(sku), style_type, catalog), plan)
     return PlannedLine(

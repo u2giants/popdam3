@@ -28,6 +28,72 @@ Albert ruled on 2026-08-07 that:
 
 The sheet was read only. No Google file was changed.
 
+## Re-profile 2026-08-12 — owner-accepted 2026-08-11 workbook (issue #727)
+
+Albert ruled on 2026-08-11 ("accept today's sheet") that the export at
+`C:\Users\ahazan2\Downloads\OrderList.xlsx` is authoritative, superseding the 2026-08-09
+export above. It was re-profiled honestly on 2026-08-12 by running the importer's own
+`read_workbook_rows` + `build_plan` over the real `Order` tab with an empty catalog. The
+2026-08-09 numbers above are kept as history; the numbers below are current.
+
+| Property | Value |
+|---|---|
+| XLSX SHA-256 | `68C9B03A0EC183E08B3A8F2344397E1BC4F61E73457849E7BF8C0CF7FB2409FE` |
+| Size | 10,679,199 bytes |
+| Physical rows read (`Order` tab) | 12,924 |
+| Populated business/data rows | **12,354** |
+
+Row shapes (they balance: 8,438 + 3,899 + 3 + 14 = 12,354), read through the corrected
+column-AR logic described below:
+
+| Shape | Rows (2026-08-09) | Rows (2026-08-12) |
+|---|---:|---:|
+| Direct SKU only | 8,412 | 8,438 |
+| Assortment only | 3,899 | 3,899 |
+| Both SKU and assortment | 3 | 3 |
+| Neither SKU nor assortment | 14 | 14 |
+
+The **eight conditional reconciliation assertions** (the ones that fire only when the
+workbook SHA-256 matches the approved constant) are: populated rows **12,354**; direct-only
+rows **8,438**; assortment-only rows **3,899**; both-shape rows **3**; neither-shape rows
+**14**; assortment components **15,713**; blank-PO rows **138**; normalized PO numbers
+**3,087**. All eight are re-derived from the corrected logic and armed against the new
+SHA-256.
+
+Separately (not one of the eight assertions), structurally-invalid assortment rows number
+**28**, and `ambiguous_matches` is catalog-dependent (449 in the 2026-08-09 profile) and is
+re-confirmed against live Master Data at import time rather than asserted here.
+
+### Column AR now mirrors column P — root-caused and fixed
+
+In this workbook column `AR` ("Sub SKU") is populated on 12,338 of 12,354 rows, and on all
+8,441 direct-SKU rows its normalized value **exactly equals** column `P` ("Style#") — 8,441
+exact matches, zero exceptions, none containing a newline. In the approved 2026-08-09 export
+`AR` was blank on direct rows. This is a spreadsheet fill artifact (AR copies the Style# on
+direct rows), not a real assortment component list.
+
+**The rule (`sub_sku_mirrors_style` in `scripts/import-order-list-xlsx.py`):** column `AR`
+is treated as an assortment signal *except* when it exactly equals the direct `Style#` under
+the importer's own SKU normalization (trim + case-fold) **and** contains no component
+separator (`\r`/`\n`). A genuine assortment list is newline-separated, so any multiline `AR`
+— even one whose first line equals the `Style#` — stays an assortment, as does any `AR` that
+differs from the `Style#` or appears on a row with no direct `Style#`. Column `O`
+("Assortment ID") still counts as an assortment signal on its own, which is why 3 rows
+(direct `Style#` plus a populated `O`) remain both-shape. The raw `AR` cell is preserved in
+each direct line's staged metadata (`sub_sku_raw`, `sub_sku_is_style_mirror`); no source
+evidence is discarded.
+
+Before this fix the pre-fix logic read every mirrored `AR` as an assortment, so the same
+file profiled as direct-only = 0 / both-shape = 8,441 and a real import would have created
+zero direct-SKU lines. With the fix the 8,438 direct rows load as direct lines again.
+
+**On the "12,323" figure.** Earlier issue comments cited 12,323 populated rows for this
+sheet lineage. That is not the importer's populated definition (any mapped cell non-empty),
+which counts **12,354**; column `A` ("PO Status") or the any-core definition give 12,349.
+The 12,323 came from a narrower manual count, so it was never the number the reconciliation
+asserts against. No owner decision remains open: the workbook is accepted and the loader
+handles its column-AR shape correctly.
+
 ## What one Google row means
 
 There are two materially different row shapes:
