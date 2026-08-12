@@ -1,5 +1,24 @@
 # Production promotion — the application tolerance contract
 
+> **Current status, 2026-08-12:** batches **B4, B6, B7, B8 and B9 are fully
+> applied to production**. B1, B2, B3 and B5 were already complete, so all of
+> B1 through B9 are now complete. The B9 run applied its exact 14-version
+> allowlist. Its workflow ended red only because the old post-apply verifier
+> treated those newly applied versions as forbidden; PR #843 corrected that
+> ledger-aware check. Production was then re-read and all 14 B9 versions were
+> present. Issue #841 is closed after Albert verified both password and Microsoft
+> login. Sections below preserve the plan and point-in-time evidence used during
+> the promotion. Any wording there that calls B4 through B9 pending or unapplied
+> is historical, not the current production state. **B10 is separate and remains
+> outside this completion statement.**
+
+The production runs were B4
+[#31618636290](https://github.com/u2giants/shared-db/actions/runs/31618636290),
+B6 [#31618794952](https://github.com/u2giants/shared-db/actions/runs/31618794952),
+B7 [#31619609226](https://github.com/u2giants/shared-db/actions/runs/31619609226),
+B8 [#31619789959](https://github.com/u2giants/shared-db/actions/runs/31619789959),
+and B9 [#31620553795](https://github.com/u2giants/shared-db/actions/runs/31620553795).
+
 **Issue:** [#612](https://github.com/u2giants/shared-db/issues/612) — "Declare a safe intermediate-state
 contract for the five apps before any batch promotion."
 **Written:** 2026-08-10, against `main` tip `53e1e47`, by sub-agent `contract-612` of orchestrator

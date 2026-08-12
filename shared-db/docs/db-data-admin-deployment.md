@@ -26,10 +26,9 @@ startup through a non-cached `/config.js`; they are not baked into the image.
 - Coolify project: `DB Data Admin` (`x433rsji7hlmgpysautjpa1e`)
 - Environment: `production` (`ly7550eqjkwyto8ehzo08hkh`)
 - Application: `db-data-admin-production` (`zeoy8qfjqffu8ym533cc7dl4`)
-- Domain: attached by the launch workflow as `https://data.designflow.app` — none is
-  attached until a production launch (see "Production launch trigger" below)
+- Domain: `https://data.designflow.app`
 - Health endpoint: `/health` on container port `80`
-- Image: `ghcr.io/u2giants/db-data-admin:sha-<commit>`
+- Image at launch: `ghcr.io/u2giants/db-data-admin:sha-991ecbea7b1ef8a8590e77d1746773ee25690d84`
 - Database: production Supabase `qsllyeztdwjgirsysgai`
 
 Coolify owns the same four runtime values it owns in development —
@@ -40,13 +39,14 @@ renders an unset variable as the empty string, which `readConfig()` treats as
 disabled, so production stays Microsoft SSO-only. Setting it to `true` would put an
 email + password form on a public admin tool; never set it here.
 
-### The production application exists but is deliberately not routable
+### Production is live
 
-`db-data-admin-production` (`zeoy8qfjqffu8ym533cc7dl4`) exists in the production
-environment with **no fqdn**. Traefik routes by hostname, so an application with no
-domain has no route and is not reachable from the internet at all. It carries the real
-GHCR image and the real production runtime config, which makes it a genuine staging
-proof, and deleting the application reverses it completely.
+`db-data-admin-production` (`zeoy8qfjqffu8ym533cc7dl4`) was launched on 2026-08-12.
+The launch workflow run
+[#31622123286](https://github.com/u2giants/shared-db/actions/runs/31622123286)
+completed successfully. `https://data.designflow.app/health` returned HTTP 200 and
+the live page reported build SHA
+`991ecbea7b1ef8a8590e77d1746773ee25690d84`.
 
 Two things to know if you touch it:
 
@@ -61,19 +61,15 @@ Two things to know if you touch it:
   `key` and `value`, and always re-read `/envs` afterwards instead of trusting the status
   code.
 
-The production application intentionally has only three variables —
+The production application intentionally has only three variables:
 `DB_DATA_ADMIN_SUPABASE_URL`, `DB_DATA_ADMIN_SUPABASE_ANON_KEY`,
 `DB_DATA_ADMIN_AUTH_REDIRECT_URL`. `DB_DATA_ADMIN_ALLOW_PASSWORD_LOGIN` is absent, which
 is what keeps production SSO-only.
 
 ### DNS is already in place
 
-`data.designflow.app` already resolves to the Coolify VPS `178.156.180.212`, the same
-A record as `data-dev`. Before the production application exists, Traefik has no route
-for that hostname and the site answers `503 no available server`. **No DNS change is
-required to launch, and none should be made.** The single act that makes the site
-publicly live is attaching the fqdn `https://data.designflow.app` to the production
-Coolify application; Let's Encrypt then issues the certificate over the HTTP challenge.
+`data.designflow.app` resolves to the Coolify VPS `178.156.180.212`, the same A record as
+`data-dev`. The production application now owns that route and its TLS certificate.
 There is no wildcard record on `designflow.app`.
 
 ### Production launch trigger (dispatch only)
@@ -132,6 +128,12 @@ previous tag is an exact rebuild-free restore. Never run containers directly on 
 and never edit the VPS to roll back.
 
 ## Microsoft SSO
+
+Production Microsoft login and password login were both owner-verified on 2026-08-12
+after B9 restored the missing DesignFlow user columns. Issue
+[#841](https://github.com/u2giants/shared-db/issues/841) is closed. DB Data Admin
+production remains Microsoft SSO-only because its password-login setting is absent;
+the password check applied to the DesignFlow login incident, not this admin screen.
 
 The Azure app registration `POP CRM — Supabase Auth` uses the Supabase callback,
 not the application domain, as its OAuth redirect URI. Both callbacks are registered:
