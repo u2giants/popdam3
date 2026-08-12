@@ -389,6 +389,38 @@ code, manage branches, or merge pull requests. Therefore:
 | **DesignFlow app repo** (`popcre/designflow-*`) | Work on **`sandbox-albert`**, push, and open/update a PR to **`develop`**. Do not merge it yourself. | DesignFlow work is reviewed by Uma. Keep schema changes out of these repos; use `shared-db` first. |
 | **This repo** (`shared-db`) | **Branch + PR, and the AI merges it** once the §5 checklist passes. | All apps read these tables. A bad change breaks everyone at once. The PR is a safety checkpoint and an undo button — not paperwork for the owner. |
 
+## 2.1-W WORKTREE-ONLY — no session works directly in the shared `shared-db` checkout (standing rule, added 2026-08-12, issue #513)
+
+**The rule.** In this repository, **every session — the orchestrator included — does its work in
+its own `git worktree` cut from `origin/main`.** The shared checkout (`C:\repos\shared-db` on the
+Windows boxes, and its equivalent elsewhere) is for reading and for `git fetch`. Nobody branches
+in it, commits in it, or leaves it checked out on a working branch.
+
+```bash
+git -C <shared-checkout> fetch origin --prune
+git -C <shared-checkout> worktree add <shared-checkout>/.claude/worktrees/<slug> -b <branch> origin/main
+```
+
+**Why it is a rule and not a preference.** Several sessions run this repo concurrently and they
+all share one working copy. Observed, dated damage:
+
+- **2026-08-06** — mid-session another session switched the shared checkout off the branch the
+  first session was on, onto `docs/plan-dispatch-collision-hardening`, and committed on top. A
+  commit landed on the **wrong branch and was pushed there** before anyone noticed. Recovery was
+  non-destructive (cherry-pick to the right branch through a temporary worktree; no branch was
+  rewritten, reverted, or force-pushed) but it cost a session.
+- The same event left PR #467 carrying four files belonging to PR #466, because #467's branch was
+  cut from the polluted checkout. The clean fix there was to **merge the earlier PR first** so the
+  files drop out of the later diff by themselves — never a rebase or force-push of someone else's
+  branch.
+- §5.1's own step-2 recipe already says to do sensitive git work in a dedicated worktree. This
+  section makes that the general rule rather than one recipe's footnote.
+
+**If you find the shared checkout on a working branch**, do not "fix" it by switching it back —
+another live agent may be mid-task on it. Leave it, work in your own worktree, and say so in your
+handoff. Remove your own worktree when your branch has merged; never remove one that is dirty,
+locked, or held by a live agent.
+
 ## 2.1 Host/server boundary
 
 This repo owns shared database schema, Supabase migrations, PLM import code, and the `systemd/plm-sync.*` templates. Durable host/OS changes on `hetz` are owned by the canonical Ansible repo at `/worksp/ansible` / [`u2giants/ansible`](https://github.com/u2giants/ansible), then applied by GitHub Actions.
@@ -679,9 +711,20 @@ change) need just items 1 and "it reads correctly" — merge them promptly.
 
 ### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` on the full repo set, ALWAYS inside the pruned temp checkout (learned 2026-07-23; recipe corrected 2026-07-27; wording made self-consistent 2026-08-09)
 
-> ⚠️ **Before you promote anything, read the #611 HARD GATE in §5.1-A.** The canary
-> `20260810140000` may go now; **no licensor batch may go** until
-> `scripts/experiment_611_db_push_atomicity.sh` has been RUN on Supabase CLI **2.105.0**.
+> ✅ **The #611 gate is DISCHARGED — corrected 2026-08-12.** It **RAN** on 2026-08-10 against
+> `main` tip `bc29d36` on the pinned **Supabase CLI 2.105.0**
+> ([`scripts/experiment_611_db_push_atomicity.sh`](scripts/experiment_611_db_push_atomicity.sh);
+> full result in
+> [`docs/verification/issue-611-db-push-atomicity-20260810.md`](docs/verification/issue-611-db-push-atomicity-20260810.md)).
+> **Licensor batches are no longer blocked by #611.** This block previously still read *"no
+> licensor batch may go until … has been RUN"*, directly contradicting §5.1-A two hundred lines
+> below, which has recorded the gate as discharged since 2026-08-10. A reader following the old
+> wording would have blocked a promotion that is in fact cleared.
+>
+> ⚠️ **The gate REOPENS on any Supabase CLI version bump** — the result is pinned to **2.105.0**.
+> If you are not on 2.105.0, re-run the script and re-record before promoting. **Read §5.1-A in
+> full before you promote anything**: everything else it says still binds, in particular that
+> `db push` is atomic **per FILE, not per batch**, and that **"PREFLIGHT OK" is not an approval**.
 
 Production almost always has **pending migrations from other workstreams that sit *before* your
 own** (e.g. DB Data Admin write paths, DAM taxonomy cutover, PopSG — several deliberately
@@ -937,6 +980,26 @@ context.)*
 
 **The stale-verdict trap itself is NOT retired.** Everything above about reading the run's SHA
 before believing a red X still applies, to every `paths:`-filtered workflow in this repo.
+
+### 5.2-A A SECOND flavour of false red: the job never ran at all (hosted-runner starvation, added 2026-08-12, issue #513)
+
+Dated evidence: on **2026-08-06**, `Cross-PR object collision` on **PR #466** went **red after 44
+minutes without ever executing a step**. The job annotation read:
+
+> *"The job was not acquired by Runner of type hosted even after multiple attempts."*
+
+That is **GitHub hosted-runner starvation, not a collision**, and not a fault in your PR.
+`gh run rerun --failed <run-id>` cleared it.
+
+**Before you believe any red required check, read the job annotations**, not just the red X:
+
+```bash
+gh run view <run-id> --log-failed
+gh api repos/u2giants/shared-db/actions/runs/<run-id>/jobs --jq '.jobs[] | {name, conclusion, steps: [.steps[].conclusion]}'
+```
+
+A job whose steps are all `null`/empty never ran. Re-run it; do not go looking for a code defect,
+and above all do not "fix" a guard that never executed.
 
 ## 6. How to tell if a change is already in flight
 
@@ -1487,8 +1550,17 @@ Albert turned branch protection **ON** for `main` on 2026-08-04. This is a stand
 by the owner. **It is settled — do not re-ask it, do not treat it as an AI's preference, and do not
 weaken it.**
 
-**The verified fact, not a claim.** Read back live at **2026-08-06 16:00 UTC** with
-`gh api repos/u2giants/shared-db/branches/main/protection`:
+**The verified fact, not a claim.** Read back live and **RE-DERIVED on 2026-08-12** (previous
+re-derivation 2026-08-06 16:00 UTC) with:
+
+```bash
+gh api repos/u2giants/shared-db/branches/main/protection
+```
+
+The 2026-08-12 read matched every row below exactly — six contexts including `Intake pointer
+guard` and **not** `Backlog / queue sync`, `strict: true`, `enforce_admins: true`,
+`allow_force_pushes: false`, `allow_deletions: false`. **The table is accurate as of that date —
+and you must still run the command rather than trust it.**
 
 | Setting | Value |
 | --- | --- |
@@ -1506,11 +1578,16 @@ weaken it.**
 > check and both merge, silently erasing one another. That is the 2026-07-31 four-way
 > incident's exact mechanism. **Do not turn it back off.**
 >
-> ⚠️ **This table was stale for two days** — it still read `strict: false` and four
+> ⚠️ **This table was stale for two days once already** — it read `strict: false` and four
 > contexts after both had changed. A reviewing model (Grok 4.5, 2026-08-06) read it and
-> concluded a *correct* document was wrong. **Verify branch protection with the `gh api`
-> command above rather than trusting this table**, and re-read it back whenever you change
-> it. Prose asserting mutable state goes stale; the command does not.
+> concluded a *correct* document was wrong.
+>
+> **STANDING INSTRUCTION: never quote this table as fact. Run the `gh api` command above and
+> quote the live output**, in any issue, handover, review, or PR description that turns on
+> branch protection — and re-read it back whenever you change protection, stamping the new date
+> here. This follows §4.3 (point at the live reading, never at a number). Prose asserting mutable
+> state goes stale; the command does not. Two rows are **owner rulings you may never weaken to
+> make a check pass**: `strict` stays `true` and `enforce_admins` stays `true`.
 
 **The rule.**
 
@@ -2317,6 +2394,48 @@ have already happened in this repo, more than once.
     `HANDOFF.d/2026-08-06T0149Z-al8960ofc-orchestrator-skill-repair.md` §4. **Do
     not sweep or remove any worktree on the strength of a number in a document**,
     and never remove one that is dirty, locked, or held by a live agent (B2.3).
+
+### 12.1 Four more standing facts, added after the relocation (2026-08-12, issue #772)
+
+> The ten rules above are a **frozen, byte-identical relocation** from the retired
+> `COORDINATOR_INTAKE.md` and must not be tidied. These four are **new** and are recorded here
+> instead. Each one has already misled at least one session. Numbering continues from 10.
+
+11. **Preview and production have diverged IN BOTH DIRECTIONS. Neither predicts the other.**
+    Verified by object on **2026-08-11**: preview `rjyboqwcdzcocqgmsyel` holds **all 23
+    `plm.pmt_*` tables**, with both prerequisite migrations genuinely applied, and production
+    `qsllyeztdwjgirsysgai` holds **ZERO** of them. In the other direction,
+    `20260810140000_production_lane_canary` **is applied on production and is NOT applied on
+    preview**. Both ledgers are also applied **out of order**, in different ways, so a high max
+    applied version does **not** mean everything below it is applied. Any claim of the shape
+    *"preview is production minus N migrations"* is wrong. A passing preview rehearsal means
+    *"this behaved correctly on preview"* and never *"this will behave correctly in production"* —
+    **post-apply verification against production objects and behaviour is not optional.** This has
+    misled at least three sessions.
+
+12. **The advisory model review in the production apply is a permanent silent no-op.** The step
+    *"Production apply review (advisory model verdict + hard guards)"* reports **"NOT RUN —
+    `ANTHROPIC_API_KEY` is not configured on this repository"** and is `continue-on-error`. No HTTP
+    request is made. **A green production apply run does NOT mean a model reviewed the
+    migrations.** The hard guards in that same job are real; the model verdict is not. Tracked as
+    #709 and #737.
+
+13. **The migration history is not self-contained — do not expect a clean replay.** Replaying all
+    429 migrations into an empty database **applies 363 and fails 66**, because this repo was
+    adopted on top of an already-populated database: `public.assets`, the legacy popdam tables and
+    the `dflow.*` mirrors exist in preview and production with **no migration here creating
+    them**. A CI bootstrap (PR #759) closes most of the gap — quarantined contract files 26 → 11,
+    passing tests 14 → 29, replay failures 66 → 10. It lives at `supabase/ci-bootstrap/` and is
+    **deliberately not a migration**: a file inserted at the front of an already-applied sequence
+    can never re-run, and a back-dated version is exactly what Guard B exists to stop. See also
+    §10.1.
+
+14. **Freeze merges before every production apply.** The production apply is pinned to an exact
+    `origin/main` SHA. On **2026-08-11** that pin refused **two separately approved runs**, each
+    because PRs merged between staging and the owner's click. Nothing was written either time —
+    the guard worked — but two owner approvals were wasted, and the third only landed under a
+    deliberate merge freeze. **Announce a freeze, hold every merge from staging until the run
+    finishes, then release it.** This is standard practice, not an improvisation.
 
 ---
 

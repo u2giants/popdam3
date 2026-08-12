@@ -21,10 +21,17 @@
 > the wrong one. Strip the punctuation from the date-time portion and compare the
 > parsed instants.
 >
-> **What this file IS still authoritative for:** the **`## BACKLOG`** section
-> (items **B1–B14**) and the long-form history — the five defects, the chip
-> incident, the Supabase-MCP-is-production warning. **What it is NOT:** the
-> current handover, or a current inventory of anything.
+> **What this file IS still authoritative for:** the **long-form history** — the five defects,
+> the chip incident, the Supabase-MCP-is-production warning, and the written-up reasoning behind
+> each `B<n>`.
+>
+> **What it is NOT:** the current handover, a current inventory of anything, **or the backlog
+> tracker.** ⛔ **The `## BACKLOG` section is a POINTER, not a queue** (ruled 2026-08-09; see the
+> banner at the head of that section). **The one list of open work is GitHub Issues:**
+> `gh issue list --repo u2giants/shared-db --label db-work`. The `B<n>` write-ups here remain the
+> best explanation of *why* each item exists, and issues link back to them — but their **state**
+> is whatever the issue says, never what a heading here says. Corrected 2026-08-12: this
+> paragraph previously called the backlog section authoritative, which contradicted that ruling.
 >
 > Standing rule (was `COORDINATOR_INTAKE.md` §B2.0, retired 2026-08-07): **no document wins by name or by date.**
 > Where `HANDOFF.d/`, this file, and `COORDINATOR_INTAKE.md` disagree,
@@ -1562,7 +1569,12 @@ yet.** Until it lands, these tests are not enforced by CI on pull requests.
 
 ---
 
-## BACKLOG — repository-level improvements, NOT STARTED (recorded 2026-07-31)
+## BACKLOG — repository-level improvements, B1–B14 (recorded 2026-07-31; **state is tracked in GitHub Issues, not here**)
+
+> **Heading corrected 2026-08-12.** It read *"NOT STARTED"*, which contradicted the pointer table
+> immediately below — that table records **six of the fourteen items as closed or retired** (B2,
+> B4, B7, B10, B13, B14), and B6 and B8 have since shipped too. Nothing in this section may be
+> read as a statement of current state. Read the table, then the issue.
 
 > ⛔ **OBSOLETE 2026-08-07 — DO NOT DO THIS.** This used to require every `B<n>` to ALSO appear
 > as an entry in the `## REQUEST QUEUE` of `COORDINATOR_INTAKE.md`. **That file is retired and
@@ -1618,6 +1630,12 @@ yet.** Until it lands, these tests are not enforced by CI on pull requests.
 
 <details>
 <summary><strong>Original B1–B14 backlog text, kept verbatim for the record. It is HISTORY, not a queue — do not add to it and do not act from it without checking the issue above.</strong></summary>
+
+> ⚠️ **The next sentence was true on 2026-07-31 and is FALSE today (corrected 2026-08-12).** Much
+> of B1–B14 has since been implemented or retired — see the re-derived table above, and note that
+> **B6's guard is built and required** and **B8's test exists** (PR #358). The sentence is left in
+> place because this block is a verbatim historical record. **Never take an implementation state
+> from this block.**
 
 **Status: documentation only. Nothing in this section has been implemented.** It was written by
 a planning session that was explicitly forbidden from changing anything except this file — no
@@ -1825,7 +1843,51 @@ mode is silent data-logic loss.
 
 ---
 
-### B6 — Cross-PR object collision guard (HIGH — recorded 2026-07-31, NOT implemented)
+### B6 — Cross-PR object collision guard (recorded 2026-07-31 — guard now BUILT and REQUIRED; still tracked as issue #529. Evidence folded in 2026-08-12)
+
+> ### The dated evidence B6 was waiting for — four worktrees, one migration version
+>
+> The worktree sweep in **PR #455** (2026-08-06) found **four separate worktrees each carrying a
+> migration numbered `20260731170000`, all `CREATE OR REPLACE`-ing the same database function.**
+> Because each was a **new file**, git produced **no textual conflict** — a three-way merge could
+> not see the collision at all, and the outcome would have been **last-writer-wins**, silently.
+>
+> They were renumbered before any merge, to `20260731180000` / `190000` / `200000` / `210000`.
+> Re-verified on **2026-08-12**: all four are present in `supabase/migrations/` on `origin/main`.
+> Nothing was lost. This is the concrete incident shape B6 exists to stop.
+>
+> ### Re-assessment: would the guard catch this shape today?
+>
+> **The guard is built.** [`.github/workflows/pr-object-collision.yml`](.github/workflows/pr-object-collision.yml)
+> exists, its check-run name is **`Cross-PR object collision`**, and it is one of the six required
+> contexts on `main` (`AGENTS.md` §6.7). The original "not yet built" wording below is stale.
+>
+> **On the shape above — the object collision — yes.** The guard parses the objects a PR
+> creates-or-replaces out of its new migration files and fails when another **open** PR replaces
+> the same object. Four PRs replacing one function is exactly its detection case, and the shared
+> version number is not what it keys on.
+>
+> **Two limits that are still real, and the second one is now closed:**
+>
+> 1. **Work that never becomes an open PR is invisible to it.** The 2026-08-06 evidence was found
+>    in **worktrees**, not in PRs. A guard that queries `gh pr list` cannot see a branch nobody has
+>    opened a PR for. The mitigation is procedural, not CI: one orchestrator, one schema change in
+>    flight, and `AGENTS.md` §2.1-W (worktree-only, with the worktrees enumerated at handover).
+> 2. **The "last member of a colliding set" hole is CLOSED.** The workflow's own header says it
+>    cannot re-run when a *sibling* PR appears later, so under `strict: false` two PRs could both
+>    pass and both merge. Branch protection now has **`strict: true`** (verified live 2026-08-12),
+>    which forces every PR to be current with `main` before merging and therefore re-runs the check
+>    on the later member. **Do not turn `strict` off** — doing so re-opens precisely the 2026-07-31
+>    four-way mechanism.
+>
+> **What is left in B6, and why issue #529 stays open:** part 2 below — the explicit rule that a
+> migration containing `create or replace function` must be rebased onto current `origin/main`
+> immediately before merge — is now enforced *structurally* by `strict: true` rather than by the
+> checker itself. Whether to also assert it inside the checker (belt and braces, and a clearer
+> failure message than "branch is out of date") is the open question. Nothing here is a
+> regression; nothing here is urgent.
+
+*Original 2026-07-31 text, kept for the record. It says "not yet built" — that part is history.*
 
 **The problem.** `scripts/check-sql.sh` cannot see a sibling **open** PR, so two PRs that both
 `create or replace` the same database object both pass CI, and whichever merges second silently
@@ -1882,7 +1944,27 @@ merge (which would close the practical hole), and if it does not, either enable 
 the comparison to `<=`. **Verify before changing — do not edit `scripts/check-sql.sh` as a
 drive-by.**
 
-### B8 — `tools/emit-coldlion-rollback-sql.mjs` has NO unit test (HIGH — recorded 2026-07-31, NOT implemented)
+### B8 — `tools/emit-coldlion-rollback-sql.mjs` had NO unit test (recorded 2026-07-31 — ✅ **DONE**, closed by PR #358; heading corrected 2026-08-12, issue #520)
+
+> ✅ **IMPLEMENTED — do not re-do this work.** `tools/emit-coldlion-rollback-sql.test.mjs`
+> **exists on `main`**, added by commit `d266ecb` (PR #358). Re-verified on **2026-08-12** in a
+> worktree cut from `origin/main`:
+>
+> ```bash
+> ls tools/emit-coldlion-rollback-sql.test.mjs
+> git log --oneline -1 -- tools/emit-coldlion-rollback-sql.test.mjs   # d266ecb @ (#358)
+> ```
+>
+> The body below is the **original 2026-07-31 wording, kept as history**. Its first sentence
+> ("No … test.mjs exists") and the old heading ("HIGH … NOT implemented") were **both wrong from
+> 2026-08-06 onward** and misled at least one session into planning the work again. The entry is
+> kept, rather than deleted, so B8 stays visible by B-number. Issue #520 tracked this correction
+> and may be closed with this change.
+>
+> If you are auditing coverage, read the test file itself — not the checklist below — for what is
+> actually asserted.
+
+*Original 2026-07-31 text, kept for the record:*
 
 **No `tools/emit-coldlion-rollback-sql.test.mjs` exists** (verified by listing `tools/`). Every
 other Step 7A tool has one, and `.github/workflows/tools-offline-tests.yml` would pick a new test
