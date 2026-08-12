@@ -18,6 +18,14 @@ The only approved source is:
 - SHA-256: `68c9b03a0ec183e08b3a8f2344397e1bc4f61e73457849e7bf8c0cf7fb2409fe`;
 - populated rows: 12,354.
 
+The 12,354 populated-row count is the owner-approved figure (ruling 2026-08-12). An earlier
+figure of 12,323 appears in older notes. That question is **closed by decision**: the owner does
+not require the five-row difference itemised. Record the history honestly rather than the tidy
+version — the earlier "it was purely a counting-definition change" explanation is **incomplete**.
+12,323 was measured on two different workbook files, neither of which is the approved
+`68c9b03a…` workbook, so the sheet genuinely changed between measurements. This is provenance,
+not an open approval gate.
+
 The preview proof in `docs/verification/popdam-order-list-preview-2026-08-12/README.md` is the production comparison baseline:
 
 | Measure | Required result |
@@ -45,18 +53,65 @@ The contract landed through PR #663 and consists of these migrations:
 2. `20260810060000_popdam_order_list_source_pair_nulls_distinct.sql`
 3. `20260810100000_link_dam_order_line_cross_item_ambiguity.sql`
 
-They were rehearsed on preview with 86 object assertions and 38 behavior assertions. Production run `31620553795`, at exact reviewed commit `71ab704240ab73a51676a4c38d373cf625e144fe`, applied all 14 migrations in atomic B9. Its post-push ledger recorded all three OrderList versions. The run's final result was red only because the post-apply verifier incorrectly demanded already-applied companion migration `20260810180000`; PR #843 fixed that ledger-aware verifier after the database push. The successful push and after-ledger are the production evidence.
+A fourth migration is load-bearing for OrderList and belongs in this package on its own merit:
 
-Do not run another migration for this import. Do not promote the three versions separately from B9.
+4. `20260810110000_warner_grants_rls_and_dam_order_list_invoker.sql`
+
+It is **not** an "OrderList companion". It is a split migration that serves Warner grants/RLS
+**and** sets `api.dam_order_list` to `security_invoker`. The `security_invoker` half is the
+OrderList part.
+
+### Test evidence (corrected)
+
+An earlier version of this document claimed a preview rehearsal of "86 object assertions and 38
+behavior assertions". **That run does not exist.** No artifact, no run ID and no date for it
+appears anywhere in the repository. The claim is struck, not softened. The only primary source is
+`HANDOFF.d/2026-08-10T0030Z-al8960ofc-claude-orchestrator-nine-agent-fan-out.md:436`, which says
+**86 object tests and 33 behaviour tests** — 33, not 38 — and describes tests *written in PR #635
+on 2026-08-10*, not a preview rehearsal on 2026-08-12.
+
+The real, checkable evidence is:
+
+- the Step 3 preview import: 3,212 orders and 24,010 lines inserted, a second run changing
+  **0** business rows, and **10 of 10** balance checks PASS (baseline table above);
+- the committed contract tests `supabase/tests/dam_order_list_contract.sql` and
+  `supabase/tests/dam_order_list_item_columns_contract.sql`.
+
+### Production apply evidence (corrected)
+
+Production run `31620553795`, at exact reviewed commit
+`71ab704240ab73a51676a4c38d373cf625e144fe`, applied all 14 migrations in atomic B9. Verified at
+job `94194285193`: step 9 "Fresh dry-run, then apply" **succeeded** and applied all 14
+migrations, step 10 captured the after-ledger, and only step 11 "Post-apply catalog verification"
+failed. The successful push and after-ledger are the production evidence.
+
+That failure had **no OrderList cause**. The verifier's co-presence demand for
+`20260810180000` was triggered by `20260810020000` (Paramount landing), not by any OrderList
+migration. `20260810180000` was already applied before the run, so the demand was genuinely
+false. PR #843 (merge commit `d451d6e`) fixed it by passing `--remote-ledger` to the post-apply
+step, which the pre-apply guards already had.
+
+Do not run another migration for this import. Do not promote these versions separately from B9.
+
+### Preview vs production object comparison
+
+Preview and production are **behaviourally identical** on every OrderList object: the three RPC
+bodies, the view definition, `security_invoker`, all four NULLS-DISTINCT unique indexes (checked
+at `pg_index.indnullsnotdistinct` level) and all 12 RLS policies — compared by md5, zero
+differences.
 
 ## Required importer change before an approval can be exact
 
 `scripts/import-order-list-xlsx.py` currently has no production mode. It requires `--preview`, proves project ref `rjyboqwcdzcocqgmsyel`, and refuses other real writes. This is a safety feature, not a command-line detail to bypass.
 
-Before production import approval, a shared-db PR must add a fail-closed production path that:
+That production path is written and under review as **PR #860**, which is **OPEN and not yet
+merged** as of this document's date. The import cannot run until PR #860 merges, and the
+operator must then be checked out at that exact merge commit with **no modified tracked files**.
+
+The PR must add a fail-closed production path that:
 
 1. requires an explicit `--production` flag that is mutually exclusive with `--preview` and `--replace-source`;
-2. requires project ref `qsllyeztdwjgirsysgai` immediately before opening the transaction and again before every batch;
+2. requires project ref `qsllyeztdwjgirsysgai` immediately before opening the transaction, and re-proves the **live server identity** before every batch. (PR #860 corrected this: re-reading the ref file per batch detected nothing, because the connection is opened once and a later `supabase link` cannot move an open socket. The check is now `current_database()`, `inet_server_addr()` and `pg_postmaster_start_time()`.)
 3. requires the exact workbook hash above;
 4. requires an exact confirmation bound to the reviewed git SHA, source hash, and project ref;
 5. keeps `--replace-source` impossible in production;
@@ -71,8 +126,8 @@ No manual SQL, altered local script, relaxed checksum, or direct database workar
 The final approval package must substitute the merged importer commit SHA into the command and confirmation. Until then, the sequence is fixed but intentionally non-executable:
 
 1. Confirm a clean checkout at the reviewed SHA and verify the workbook SHA-256.
-2. Capture a fresh read-only production ledger and object proof for the three migrations and `api.dam_order_list` as `security_invoker`.
-3. Capture safe counts showing whether any `google_order_list` source references already exist. An unexpected nonzero count stops the run.
+2. Capture a fresh read-only production ledger and object proof for the four migrations above and `api.dam_order_list` as `security_invoker`.
+3. Capture safe counts showing whether any `google_order_list` source references already exist. An unexpected nonzero count stops the run. **Already satisfied at this document's date:** production holds **zero** rows in all four `plm.production_order*` tables and **zero** `google_order_list` source refs. Re-verify at run time, because this is a live fact and not a permanent one.
 4. Run the importer in `--dry-run` mode. It must reproduce every baseline count above and write nothing.
 5. Obtain Albert's approval of the exact SHA-bound wording below.
 6. Run once in production mode with the reviewed SHA, exact hash, exact production ref, bounded batch size 500, and no replace flag.
@@ -106,14 +161,41 @@ Therefore:
 
 ## Rollback and disable boundary
 
-Before import, failure means no write and no rollback. During import, each 500-row batch is transactional; a failed batch rolls back as a unit and a later run safely resumes committed source refs.
+**The import is one single transaction.** PR #860 removed per-batch commits. Batches are now only
+the cadence of the target-drift check, not a commit boundary. There is therefore no partial
+state to resume, and a resume attempt would be actively **refused** by
+`assert_no_existing_source_refs`.
+
+The boundary has **three** states, and all three must be understood before approving:
+
+1. **Before the commit** — nothing is written. A failure at any point rolls back the *entire*
+   import and leaves **zero** rows.
+2. **Commit succeeded** — everything is written: all 3,212 orders and all 24,010 lines.
+3. **Commit outcome UNKNOWN** — the single `COMMIT` did not return successfully, so the run
+   cannot say whether the rows are durable. This is genuinely indeterminate: a lost network
+   acknowledgement looks identical whether or not the server committed. Establish the real state
+   before doing anything else. **Do not rerun blindly.** The importer raises a distinct
+   `CommitOutcomeUnknown` and reports this state in its own wording rather than falsely claiming
+   a rollback.
 
 After a successful production import, do not hard-delete imported rows. If the seed must be withdrawn before staff editing, keep `/orders` disabled and use a separately reviewed, target-proved corrective migration or RPC to mark the imported `google_order_list` records void/inactive. Any destructive removal needs its own explicit approval.
 
+## Closed by owner ruling — do not re-raise
+
+Both of these were decided on 2026-08-12. They are recorded here so a future session does not
+reopen them as unresolved findings.
+
+1. **Populated-row count = 12,354.** The "why did the sheet shrink by five rows" question is
+   closed by decision. The owner does not require the five rows itemised. See the provenance note
+   in "Immutable source and preview baseline" above.
+2. **The four `USING (true)` OrderList read policies are ACCEPTED AS-IS.** Every authenticated
+   user being able to read the full order list is accepted, and it is **not** a blocker on the
+   import. This is not an open security finding.
+
 ## Genuine blockers
 
-1. The repository has no production-capable OrderList importer.
-2. The exact production command and commit-bound confirmation cannot exist until that guarded change merges.
+1. The production-capable OrderList importer is not merged. PR #860 is open, not merged.
+2. The exact production command and commit-bound confirmation cannot exist until PR #860 merges, because both are bound to its merge commit SHA.
 3. `/orders` is not built or authenticated-preview-tested.
 4. `plm.item` population and the style-item bridge Phase 4 cutover are incomplete.
 
