@@ -221,6 +221,17 @@ export const CAPTURE_FILES = Object.freeze([
       "source_url",
     ]),
   },
+  { file: "franchises-normalized.csv", target: "wb_franchise", requiredHeaders: Object.freeze(["source_namespace", "label", "identity_method", "source_url"]) },
+  { file: "properties-normalized.csv", target: "wb_property", requiredHeaders: Object.freeze(["source_namespace", "label", "identity_method", "source_url"]) },
+  { file: "characters-normalized.csv", target: "wb_character_normalized", requiredHeaders: Object.freeze(["source_namespace", "label", "identity_method", "source_url"]) },
+  { file: "style-guides-normalized.csv", target: "wb_style_guide_normalized", requiredHeaders: Object.freeze(["source_namespace", "label", "identity_method", "source_url"]) },
+  { file: "assets-normalized.csv", target: "wb_asset_normalized", requiredHeaders: Object.freeze(["source_namespace", "source_id", "file_name", "source_path", "source_url"]) },
+  { file: "links-asset-franchise-normalized.csv", target: "wb_asset_franchise", requiredHeaders: Object.freeze(["asset_namespace", "asset_source_id", "franchise_namespace", "source_url"]) },
+  { file: "links-asset-property-normalized.csv", target: "wb_asset_property", requiredHeaders: Object.freeze(["asset_namespace", "asset_source_id", "property_namespace", "source_url"]) },
+  { file: "links-asset-character-normalized.csv", target: "wb_asset_character_normalized", requiredHeaders: Object.freeze(["asset_namespace", "asset_source_id", "character_namespace", "source_url"]) },
+  { file: "links-asset-style-guide-normalized.csv", target: "wb_asset_style_guide_normalized", requiredHeaders: Object.freeze(["asset_namespace", "asset_source_id", "style_guide_namespace", "source_url"]) },
+  { file: "links-property-character-normalized.csv", target: "wb_property_character_normalized", requiredHeaders: Object.freeze(["property_namespace", "character_namespace", "property_label", "character_label", "source_url"]) },
+  { file: "links-franchise-property-evidence.csv", target: "wb_franchise_property_evidence", requiredHeaders: Object.freeze(["franchise_namespace", "property_namespace", "evidence_source", "source_url"]) },
 ]);
 
 /** The required-header list for one capture file, or null if the file is unknown. */

@@ -17,10 +17,10 @@ This plan contains structure and object names only. It contains no licensed Warn
 | Phase | State | Evidence or blocker |
 |---|---|---|
 | 1. Evidence and plan | COMPLETE | Repository, consumer, ledger, and production catalog checks completed read-only on 2026-08-13. |
-| 2. Additive migration | BLOCKED | Disney issue #812 owns the migration writer lane. Allocate versions only after that work lands and the collision gate is rerun. |
-| 3. Synthetic tests | NOT STARTED | Starts with Phase 2. Public tests must use invented values only. |
+| 2. Additive migration | COMPLETE ON BRANCH | Claim #928 holds versions `20260813230000` and `20260813231000`; collision gate and static SQL checks passed. |
+| 3. Synthetic tests | COMPLETE ON BRANCH | Catalog, identity, namespace, FK action, loader inventory, routing, grants, and Node stream tests use invented values only. |
 | 4. Preview rehearsal | NOT STARTED | Requires reviewed migration and an exclusive preview lane. |
-| 5. Pull request and approval package | NOT STARTED | Requires green preview and CI. |
+| 5. Pull request and approval package | IN PROGRESS | Implementation branch is ready for CI and independent review; preview remains a separate bounded gate. |
 | 6. Production promotion | BLOCKED BY OWNER | Albert must approve the exact migration after preview and PR checks pass. |
 | 7. Legacy retirement | OUT OF SCOPE | No legacy Warner object is dropped in this workstream. |
 
@@ -113,6 +113,20 @@ Clean searches excluded `.git`, packages, builds, worktrees, and mirrored `share
 There are no unexplained active code references. Historical migrations and documentation are explained dependencies, not active app readers.
 
 ## Target object model
+
+### Locked physical contract (approved 2026-08-13)
+
+All nine legacy Warner tables and all legacy functions remain unchanged. The two combined legacy tables receive deprecation comments only. The normalized physical tables and capture target strings are exactly:
+
+`wb_franchise`, `wb_property`, `wb_character_normalized`, `wb_style_guide_normalized`, `wb_asset_normalized`, `wb_asset_franchise`, `wb_asset_property`, `wb_asset_character_normalized`, `wb_asset_style_guide_normalized`, `wb_property_character_normalized`, and `wb_franchise_property_evidence`.
+
+Those strings must match byte-for-byte in table names, capture validation, database loaders, public wrappers, and Node `STREAMS`. Legacy targets route only to legacy loaders.
+
+Every normalized identity uses a nonblank namespace and exactly one of a nonblank source ID or an exact nonblank fallback key. `identity_method` must agree with that choice. Partial unique indexes enforce namespace plus source ID or namespace plus fallback key. Labels never participate in identity. Property namespace is restricted to `warner_product_catalogue` or `warner_art_assets`. Assets require a real source ID and have no fallback.
+
+All normalized relationship and capture/evidence foreign keys use `ON DELETE RESTRICT`. Tests inspect both endpoint type and delete action.
+
+The 2026-08-13 implementation ruling clarifies capture compatibility: the existing `wb_capture` target check and the definitions of `plm.begin_wb_capture` and `plm.finalize_wb_capture` may be extended in place. All eight legacy target strings and routes must retain their existing behavior. Each of the 11 normalized targets must be accepted and route exactly once. No second capture table or protocol may be created.
 
 The migration author must confirm naming with the collision gate, then create these normalized objects:
 

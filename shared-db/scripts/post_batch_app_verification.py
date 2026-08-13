@@ -1037,6 +1037,17 @@ WARNER_TABLES = (
     "wb_asset_franchise_property",
     "wb_asset_character",
     "wb_property_character",
+    "wb_franchise",
+    "wb_property",
+    "wb_character_normalized",
+    "wb_style_guide_normalized",
+    "wb_asset_normalized",
+    "wb_asset_franchise",
+    "wb_asset_property",
+    "wb_asset_character_normalized",
+    "wb_asset_style_guide_normalized",
+    "wb_property_character_normalized",
+    "wb_franchise_property_evidence",
 )
 
 # 20260810090000 header: "TRUNCATE and TRIGGER revoked from service_role on the

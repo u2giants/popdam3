@@ -116,12 +116,10 @@ const baseEnv = {
 // ---------------------------------------------------------------------------
 // The hard-coded file list. This is the defect the whole design exists to stop.
 // ---------------------------------------------------------------------------
-test("the eight capture files are hard-coded, frozen, and cover the eight mirrors", () => {
-  assert.equal(CAPTURE_FILES.length, 8);
+test("the legacy and normalized capture files are hard-coded, frozen, and distinct", () => {
+  assert.equal(CAPTURE_FILES.length, 19);
   assert.ok(Object.isFrozen(CAPTURE_FILES));
-  assert.deepEqual(
-    CAPTURE_FILES.map((c) => c.target).sort(),
-    [
+  const legacyTargets = [
       "wb_asset",
       "wb_asset_character",
       "wb_asset_franchise_property",
@@ -130,11 +128,12 @@ test("the eight capture files are hard-coded, frozen, and cover the eight mirror
       "wb_franchise_property",
       "wb_property_character",
       "wb_style_guide",
-    ]
-  );
+    ];
+  const normalizedTargets = ["wb_franchise","wb_property","wb_character_normalized","wb_style_guide_normalized","wb_asset_normalized","wb_asset_franchise","wb_asset_property","wb_asset_character_normalized","wb_asset_style_guide_normalized","wb_property_character_normalized","wb_franchise_property_evidence"];
+  assert.deepEqual(CAPTURE_FILES.map((c) => c.target).sort(), [...legacyTargets, ...normalizedTargets].sort());
   // Every target is distinct: two files must never feed one mirror.
-  assert.equal(new Set(CAPTURE_FILES.map((c) => c.target)).size, 8);
-  assert.equal(new Set(CAPTURE_FILES.map((c) => c.file)).size, 8);
+  assert.equal(new Set(CAPTURE_FILES.map((c) => c.target)).size, 19);
+  assert.equal(new Set(CAPTURE_FILES.map((c) => c.file)).size, 19);
 });
 
 test("the loader source contains no readdir and no glob", async () => {
@@ -215,8 +214,8 @@ test("every CSV is read from the pinned commit, never from the filesystem", asyn
   await prepareCaptures(resolveRunConfig(baseEnv), { git: g.run });
   const lookups = g.calls.filter((c) => c.startsWith("ls-tree "));
   const reads = g.calls.filter((c) => c.startsWith("cat-file "));
-  assert.equal(lookups.length, 8);
-  assert.equal(reads.length, 8);
+  assert.equal(lookups.length, 19);
+  assert.equal(reads.length, 19);
   for (const c of lookups) assert.match(c, new RegExp(`^ls-tree -z ${SHA_PINNED} -- warner-bros/`));
   // `git show` renders symlinks, trees and gitlinks as text. It must not come back.
   assert.equal(g.calls.filter((c) => c.startsWith("show ")).length, 0);
@@ -226,7 +225,7 @@ test("every CSV is read from the pinned commit, never from the filesystem", asyn
 // REFUSAL 0 -- column identity and object type (issue #671)
 // ---------------------------------------------------------------------------
 test("every capture file declares a non-empty required-header list", () => {
-  assert.equal(CAPTURE_FILES.length, 8);
+  assert.equal(CAPTURE_FILES.length, 19);
   for (const c of CAPTURE_FILES) {
     assert.ok(Array.isArray(c.requiredHeaders) && c.requiredHeaders.length > 0, c.file);
     assert.equal(new Set(c.requiredHeaders).size, c.requiredHeaders.length, `${c.file} dupes`);
@@ -515,7 +514,7 @@ test("the summary reports counts only and never a row", async () => {
   const g = fakeGit();
   const captures = await prepareCaptures(resolveRunConfig(baseEnv), { git: g.run });
   const s = summarise(captures);
-  assert.equal(s.length, 8);
+  assert.equal(s.length, 19);
   for (const row of s) {
     assert.deepEqual(Object.keys(row).sort(), ["bytes", "chunks", "file", "rows", "target"]);
     assert.equal(typeof row.rows, "number");
