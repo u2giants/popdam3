@@ -89,6 +89,139 @@ begin
 end;
 $$;
 
+-- A1. PROPERTY SOURCE KIND IS OPEN TO REVIEWED VALUES BUT NEVER BLANK.
+-- All labels and identifiers below are synthetic public test tokens.
+do $$
+declare
+  v_cap uuid;
+  v_kind text;
+  v_n integer;
+begin
+  if exists (
+    select 1
+      from pg_constraint
+     where conrelid = 'plm.nbcu_property'::regclass
+       and conname = 'nbcu_property_source_kind_chk'
+  ) then
+    raise exception 'A1 FAILED: the retired closed-list source_kind check still exists';
+  end if;
+
+  if not exists (
+    select 1
+     from pg_constraint
+     where conrelid = 'plm.nbcu_property'::regclass
+       and conname = 'nbcu_property_source_kind_nonblank_chk'
+       and pg_get_constraintdef(oid) like '%source_kind ~%[^[:space:]]%'
+  ) then
+    raise exception 'A1 FAILED: the nonblank source_kind check is missing or malformed';
+  end if;
+
+  v_cap := plm.begin_nbcu_capture(
+    'nbcu:ZZTEST-J:' || repeat('7', 40),
+    'u2giants/ZZTEST',
+    repeat('7', 40),
+    repeat('8', 64),
+    'https://portal.example.invalid/',
+    now(),
+    '{"properties":4}'::jsonb,
+    '{}'::jsonb,
+    'contract-test-A1'
+  );
+
+  foreach v_kind in array array[
+    'property',
+    'franchise_asset',
+    'asset_metadata_label',
+    'future_reviewed_kind'
+  ] loop
+    insert into plm.nbcu_property (
+      capture_id, property_key, property_source_id, property_label,
+      source_kind, source_url, source_captured_at, raw
+    ) values (
+      v_cap, 'source-id:ZZTEST-J-' || v_kind, 'ZZTEST-J-' || v_kind,
+      'ZZTEST Source Kind', v_kind,
+      'https://portal.example.invalid/source-kind', now(), '{}'::jsonb
+    );
+  end loop;
+
+  select count(*) into v_n
+    from plm.nbcu_property
+   where capture_id = v_cap;
+  if v_n <> 4 then
+    raise exception 'A1 FAILED: expected four accepted synthetic source kinds, got %', v_n;
+  end if;
+
+  begin
+    insert into plm.nbcu_property (
+      capture_id, property_key, property_source_id, property_label,
+      source_kind, source_url, source_captured_at, raw
+    ) values (
+      v_cap, 'source-id:ZZTEST-J-empty', 'ZZTEST-J-empty',
+      'ZZTEST Source Kind', '',
+      'https://portal.example.invalid/source-kind', now(), '{}'::jsonb
+    );
+    raise exception 'A1 FAILED: empty source_kind was accepted';
+  exception when check_violation then null;
+  end;
+
+  begin
+    insert into plm.nbcu_property (
+      capture_id, property_key, property_source_id, property_label,
+      source_kind, source_url, source_captured_at, raw
+    ) values (
+      v_cap, 'source-id:ZZTEST-J-tab', 'ZZTEST-J-tab',
+      'ZZTEST Source Kind', E'\t\t',
+      'https://portal.example.invalid/source-kind', now(), '{}'::jsonb
+    );
+    raise exception 'A1 FAILED: tab-only source_kind was accepted';
+  exception when check_violation then null;
+  end;
+
+  begin
+    insert into plm.nbcu_property (
+      capture_id, property_key, property_source_id, property_label,
+      source_kind, source_url, source_captured_at, raw
+    ) values (
+      v_cap, 'source-id:ZZTEST-J-newline', 'ZZTEST-J-newline',
+      'ZZTEST Source Kind', E'\r\n',
+      'https://portal.example.invalid/source-kind', now(), '{}'::jsonb
+    );
+    raise exception 'A1 FAILED: line-break-only source_kind was accepted';
+  exception when check_violation then null;
+  end;
+
+  begin
+    insert into plm.nbcu_property (
+      capture_id, property_key, property_source_id, property_label,
+      source_kind, source_url, source_captured_at, raw
+    ) values (
+      v_cap, 'source-id:ZZTEST-J-space', 'ZZTEST-J-space',
+      'ZZTEST Source Kind', '   ',
+      'https://portal.example.invalid/source-kind', now(), '{}'::jsonb
+    );
+    raise exception 'A1 FAILED: whitespace-only source_kind was accepted';
+  exception when check_violation then null;
+  end;
+
+  begin
+    insert into plm.nbcu_property (
+      capture_id, property_key, property_source_id, property_label,
+      source_kind, source_url, source_captured_at, raw
+    ) values (
+      v_cap, 'source-id:ZZTEST-J-null', 'ZZTEST-J-null',
+      'ZZTEST Source Kind', null,
+      'https://portal.example.invalid/source-kind', now(), '{}'::jsonb
+    );
+    raise exception 'A1 FAILED: NULL source_kind was accepted';
+  exception when not_null_violation then null;
+  end;
+
+  delete from plm.nbcu_property where capture_id = v_cap;
+  delete from plm.nbcu_capture where id = v_cap;
+  raise notice 'A1: source_kind open-value and nonblank contract passed';
+end;
+$$;
+
 
 -- =====================================================================================
 -- B. EVERY SOURCE TABLE'S PRIMARY KEY STARTS WITH capture_id (nbcu_capture excepted).
