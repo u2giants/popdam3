@@ -7,7 +7,7 @@
 | Phase | State | Evidence / blocker |
 |---|---|---|
 | 1. Dependency audit | COMPLETE for the named canonical local checkouts and production catalog | This document. No unexplained code reference to an old table remains in the scanned checkouts. |
-| 2. Measure and classify data | IN PROGRESS: count-only baseline complete | Production counts and a mutually exclusive classification framework are below. Assigning destinations is blocked on Albert's first decision and private evidence review. |
+| 2. Measure and classify data | IN PROGRESS: baseline and review design complete | Albert chose `core.property` as the property seed and individual review for all 500 old parent rows. Licensed-value review and classification execution remain private follow-on work. |
 | 3. Target schema design | BLOCKED | Must follow Phase 2 evidence and Albert's answers. |
 | 4. Additive schema | NOT STARTED | No schema file may be written before the design is approved. |
 | 5-10. Migration, apps, rehearsal, production, retirement | NOT STARTED | Depend on prior phases and exact production approval. |
@@ -62,11 +62,16 @@ The code search found old-table dependencies only in shared-db's immutable migra
 
 Live catalog inspection found no matching non-internal trigger, view, or function definition in the bounded search. It did find the foreign keys listed above. A release-time catalog recheck remains mandatory because the database and migration ledger can change after this audit.
 
+## Owner decisions
+
+- **2026-08-13: `core.property` is the starting canonical property master.** Preserve its UUIDs and existing app links. Old mixed rows may propose additions or mappings but cannot replace this seed.
+- **2026-08-13: review every one of the 500 old mixed-table `PROPERTY` rows individually.** Do not bulk-label them as style guides, licensed properties, or any other entity type.
+
 ## Decisions that remain Albert's
 
 The schema and code cannot prove which business population Albert wants as the starting canonical property list, how the 500 misleading `PROPERTY` rows should be treated, how mixed licensor rows map, how agreements map to licensors, whether reviewed imports may create masters, which app owns review, whether compatibility views are required, or the production window. Ask one question at a time before the affected design is fixed.
 
-### First question to ask
+### Answered question 1
 
 Which table should be the starting property master?
 
@@ -74,7 +79,7 @@ Which table should be the starting property master?
 - Use the 500 `PROPERTY` rows from the mixed table. This risks treating style-guide or licensed-group records as true properties.
 - Start a new empty property list. This gives the cleanest slate but breaks existing IDs and creates the largest review and app-migration burden.
 
-Recommendation: use `core.property` as the seed because it preserves the widest existing cross-app contract while keeping uncertain mixed rows out of the master until review.
+**Answer:** use `core.property` as the seed because it preserves the widest existing cross-app contract while keeping uncertain mixed rows out of the master until review.
 
 ## Phase 2 count-only baseline
 
@@ -127,6 +132,40 @@ Every old row receives exactly one current-state category. Destination is record
 
 Precedence is deliberate: orphan/conflict forces review; active dependency forces compatibility retention even when a destination is known; only reviewed source identity can make migration automatic. The migration ledger must record the old table, old safe ID, proposed entity type, target ID if any, category, evidence method, review state, and timestamps.
 
+### Individual review queue for the 500 old parent rows
+
+The private review queue must contain one row per old integer ID and no licensed display values in public output. Required fields:
+
+- old schema/table and old integer ID
+- source system, source entity type, and source ID presence flags
+- source snapshot or evidence reference held only in the approved private repository
+- child-link count, item-link count, and whether the row is still read or written
+- candidate entity type: property, style guide, franchise/licensed grouping, invalid duplicate, or unresolved
+- candidate canonical ID, if any, plus match method and confidence
+- evidence class: direct source statement, approved human ruling, durable source ID, structural clue, label-only clue, or conflict
+- review state: pending, approved, rejected, superseded, or needs more evidence
+- reviewer, decision time, reason code, and private evidence pointer
+- compatibility-retention flag and retirement gate
+
+Each of the 500 IDs must appear exactly once in the queue. A row may have several candidates, but it can have only one approved disposition at a time. Reversing an approval closes the prior decision and adds a new history row; it never overwrites the old decision.
+
+### Abstention rules
+
+The classifier must return `requires_human_review` and make no canonical proposal when any of these is true:
+
+1. entity type is not directly stated by an approved source or human ruling;
+2. source ID is blank, reused across conflicting source shapes, or disagrees with a prior decision;
+3. more than one canonical record is plausible;
+4. the only match is label, punctuation, spacing, abbreviation, or fuzzy similarity;
+5. the only relationship evidence is co-occurrence on an asset or membership under the old mixed parent;
+6. a proposed endpoint is missing or has the wrong business type;
+7. an old item link would lose its meaning under the proposed destination;
+8. private source evidence is unavailable or cannot be cited safely;
+9. a later source snapshot omits the row; omission is never deletion evidence; or
+10. a prior human decision exists and the new run would change it without a new approval.
+
+No confidence score can override these rules.
+
 ## Phase 2 query and test contract
 
 The executable audit must use aggregate SQL or safe internal keys only and must assert:
@@ -144,6 +183,30 @@ The executable audit must use aggregate SQL or safe internal keys only and must 
 
 The count query set must cover row totals by old type; distinct and blank source IDs; normalized-label collisions across distinct source IDs; orphan/self/wrong-type/duplicate links; item references by endpoint type; canonical/source-ref counts; and symmetric differences between the core and dflow copies. Before any later write, the runtime tool must independently prove its database target and refuse a broad migration batch.
 
+### Counts-only review validation
+
+Public validation may report only totals by review state, proposed entity type, evidence class, and failure reason. It must also report: 500 queued old parents; zero missing and zero duplicate old IDs; total approved plus pending plus rejected plus superseded equals 500 under the current-state view; zero label-only approvals; zero ambiguous approvals; zero approved links with unresolved endpoints; all 80 item-linked old nodes explicitly mapped or retained; and zero published licensed values. Safe old integer IDs may appear only in a private reviewer artifact, never in a public issue or pull request when they can be joined back to licensed labels.
+
+## Evidence for the next owner decision
+
+The next design question is how to handle current `core.licensor` rows that may actually be brands or franchises.
+
+Production count-only evidence:
+
+- `core.licensor` has 26 rows; 20 have at least one source reference and 17 have more than one.
+- Legacy `core."licenseList"` has 19 rows; 18 carry royalty terms and there are 10 distinct royalty-rate shapes, supporting its treatment as agreements rather than a licensor master.
+- Comparing normalized code/title to canonical licensor code/name yields 10 unique exact candidates, one ambiguous candidate, and eight with no exact candidate. Exact text is candidate evidence only and does not approve a business identity.
+
+### Next single question to ask
+
+How should the 26 current `core.licensor` rows be handled while separating true licensors from brands and franchises?
+
+- **Review all 26 individually and keep each current UUID until its business type is approved. Recommended.** True licensors stay in `core.licensor`; brands/franchises move through explicit mappings without breaking current app links during the transition.
+- Treat every current row as a true licensor. This is fastest but preserves the known mixed meaning.
+- Rebuild the licensor list from the 19 agreement rows. This wrongly treats contracts as companies and leaves unmatched or ambiguous rows unresolved.
+
+Recommendation: review all 26 individually. The source-reference and exact-match counts show useful evidence exists, but neither source count nor matching text proves legal licensor identity.
+
 ## Next gate
 
-After Albert answers the first question, update STATUS and ask the next evidence-dependent question. Do not write schema SQL until all eight decisions are settled and the target design names one canonical table for every business record type.
+After Albert answers the licensor-review question, update STATUS and prepare the next evidence-dependent question. Do not write schema SQL until all required decisions are settled and the target design names one canonical table for every business record type.
