@@ -30,6 +30,43 @@ property that ColdLion does **not** carry is set **inactive**. The mapping
 function is exposed as a screen on `https://data.designflow.app`, and
 `app.profile` `8f383a14-f303-4890-90a2-80306a2d4665` is granted access to operate it.
 
+## 1a. Scrapes win. Owner ruling, 2026-08-13.
+
+**A licensor-portal scrape is canonical. It comes straight from the source.**
+
+When a scrape and an internal system disagree about what a property is called,
+which characters belong to it, which style guides or assets exist for it, or which
+licensor owns it, **the scrape is right and the internal record is corrected to
+match**. DesignFlow and ColdLion are our own bookkeeping; Disney, NBCUniversal,
+Paramount and Warner are the licensors themselves. A code typed into an ERP years
+ago does not outrank the licensor's own portal.
+
+Practical consequences:
+
+- A scrape-sourced name replaces an ERP-sourced name on conflict, and the ERP
+  spelling is kept as an alias, never as the canonical value.
+- A scrape-sourced property -> licensor attribution replaces a DesignFlow
+  `parent_id` attribution on conflict. DesignFlow seeds the edge only where no
+  scrape covers it.
+- Characters, style guides and assets have **no** internal authority to compete
+  with: they exist only in the portals, so the scrape is the only source.
+- Where the two agree, nothing changes and no review is needed.
+
+**The limits of the rule.** It settles *identity and relationships*, not *what we
+transact*. Whether a property is `active` still comes from the ColdLion mapping
+(§4), because no portal knows what Edge Home currently sells. And a scrape only
+carries authority for its own licensor's properties — the Warner scrape says
+nothing about a Disney title.
+
+**This rule is only as good as scrape coverage, which is currently partial.**
+Measured 2026-08-13: Paramount 254 properties / 228 characters and NBCU 249 / 190
+have landed; **Warner and Disney have landed zero rows** (`plm.wb_property`,
+`plm.dcp_property`, `plm.wb_character`, `plm.dcp_character` are all empty), and
+`core.style_guide` and `dam.asset` are empty. Until Warner and Disney land, the
+majority of the canonical catalogue has no scrape to defer to and the DesignFlow
+seed remains the best available source for those rows. Do not read this rule as
+"the scrapes have already corrected everything".
+
 ## 2. Why this shape
 
 - The portals are the **authority on what a property IS** — its real name, its
@@ -141,7 +178,21 @@ simply not wired to anything in DB Data Admin. The wiring needed:
 4. An `app_access` value for the licensing surface, so a licensing manager never
    needs the blanket `admin` grant.
 
-Every grant is recorded in the DB Data Admin audit store.
+**Status: SHIPPED to production 2026-08-13.** Migration
+`20260814000000_licensing_manager_gate.sql` added
+`app.require_licensing_manager_access()` and re-gated
+`api.db_data_admin_licensor_property_tree` onto it. Application access is accepted
+from `admin` (administrators keep working with no regrant) or `plm`; no new
+`app_name` enum value was needed. Customers, Vendors, all merge RPCs and all
+product-depth RPCs are unchanged on the administrator gate. No front-end change
+was required — DB Data Admin already scopes a denial to the panel, so a licensing
+manager opening Customers gets the existing Access denied panel from the server
+gate, which is the real boundary.
+
+Profile `8f383a14-f303-4890-90a2-80306a2d4665` was granted the `Licensing` role and
+`plm` application access on production the same day. It was **not** granted
+`administrator` or `admin`. Every grant is recorded in the DB Data Admin audit
+store.
 
 ## 5a. Settled questions — read this before re-deriving any of them
 
@@ -248,9 +299,28 @@ mirror suggested:
 four properties can be linked, because `licensor_id` is `NOT NULL`.
 
 One disagreement, unchanged from the mirror: `CC` (COCO) — canonical `DY`
-(DISNEY), live DesignFlow `ZZ` (DTR - NO LICENSE). COCO is a Disney/Pixar title,
-so canonical looks like the deliberate curated correction and `ZZ` looks like the
-ERP placeholder. **Needs an owner decision; do not flip it to force agreement.**
+(DISNEY), live DesignFlow `ZZ` (DTR - NO LICENSE).
+
+**Checked 2026-08-13: it is NOT a duplicate.** Live DesignFlow holds exactly one
+COCO per licensed division (`mg_id` 1728 in CW001, 1966 in SP001), both active and
+both parented to `ZZ`. There is no second, Disney-parented COCO anywhere in
+DesignFlow, and `core.property` holds exactly one COCO row. So this is a single
+real property whose ERP parent is `DTR - NO LICENSE` — either a deliberate
+commercial statement or a long-standing mis-parenting, not a stray duplicate to
+delete. COCO is a Disney/Pixar title, so canonical `DY` looks like the curated
+correction. **Needs an owner decision; do not flip it to force agreement.** Note
+also that the Disney scrape has landed zero rows (§1a), so there is no scrape to
+settle it under the scrapes-win rule yet.
+
+Incidental illustration of the composite-key rule (§5a.5): in the same division,
+`CC` is *both* a licensor code (COCA COLA, inactive) and a property code (COCO,
+active). Only the type component keeps them apart.
+
+`DMC` is real and current on both sides: live DesignFlow carries it as an **active**
+licensor in both licensed divisions with 4 children each, and the live ColdLion
+pull returns it as a licensor (`MILLER / COORS - DESPERATE`, `mgTypeCode` 05) in
+both divisions along with all four of its properties. It is missing from
+`core.licensor` only because the June snapshot predates it.
 
 No canonical property is missing from live DesignFlow, and there are no orphans.
 
