@@ -119,9 +119,30 @@ requires **both**:
 - explicit `admin` application access (`app.app_access`, `revoked_at is null`).
 
 As of 2026-08-13 that profile is active with the `Designer` role and `crm` access
-only, so both grants are outstanding. Granting an administrator role is a
-privilege change: it is performed only on Albert's explicit instruction in the
-session that performs it, and it is recorded in the audit store.
+only, so both grants are outstanding.
+
+**Owner ruling, 2026-08-13: do not grant that profile `administrator`.** The person
+who runs the mapping screen is a licensing manager, not a company-wide
+administrator. Administrator carries the whole DB Data Admin surface — Customers,
+Vendors, merges, product depth — and every other screen gated on
+`app.has_role('administrator')`.
+
+The `licensing` role already exists in `app.role` and in the `app_role` enum; it is
+simply not wired to anything in DB Data Admin. The wiring needed:
+
+1. A narrower gate — `app.require_licensing_manager_access()` — satisfied by either
+   `administrator` **or** `licensing`, plus explicit application access.
+2. The mapping and Licensor/Property read RPCs gated on that narrower function
+   instead of `app.require_db_data_admin_access()`. Customers, Vendors, merge and
+   product-depth RPCs keep the administrator gate unchanged.
+3. The DB Data Admin tab strip showing only the permitted tabs for a licensing
+   manager, with the server gate remaining the real boundary — a hidden tab is not
+   a permission.
+4. An `app_access` value for the licensing surface, so a licensing manager never
+   needs the blanket `admin` grant.
+
+Tracked as a `db-work` issue; the gate function is structure and goes through the
+orchestrator. Every grant is recorded in the DB Data Admin audit store.
 
 ## 6. Current state, measured 2026-08-13
 
@@ -160,6 +181,44 @@ missing 5 properties (`CHR`, `EX`, `GW`, `LB`, `SGT`) and disagrees on one
 4. Build the mapping function and its review queue. Structure plus app work.
 5. Expose it in DB Data Admin and grant `app.profile` `8f383a14-f303-4890-90a2-80306a2d4665`.
 6. Turn on ColdLion-driven deactivation, proposed-list-first.
+
+## 7a. What a ColdLion refresh is allowed to touch (owner ruling, 2026-08-13)
+
+A ColdLion pull is **additive and column-scoped**. It is not a replacement of the
+canonical tables, and reading it as one has already produced one over-stated risk
+assessment.
+
+| Column | ColdLion refresh |
+|---|---|
+| `name`, `code`, source/division context | **may write** — ColdLion is the authority |
+| `licensor_id` (parent edge) | **never touched** — curated, seeded from DesignFlow |
+| `status` (active/inactive) | **never touched by the pull** — curated; only the reviewed deactivation pass in §4 may change it |
+| existing rows absent from ColdLion | **never deleted, never auto-deactivated by the pull** |
+| new rows present only in ColdLion | inserted, landing in a review state, never silently `active` |
+
+Consequences worth stating plainly, because each was previously described as a
+loss:
+
+- **The parent edge survives every future pull.** It lives in
+  `core.property.licensor_id`, seeded once from DesignFlow's `parent_id`. ColdLion
+  not supplying it is a reason it must never be overwritten, not a reason it
+  disappears.
+- **Active/inactive survives every future pull**, for the same reason.
+- **Canonical-only licensors and properties survive.** Rows ColdLion does not carry
+  (for example `FRIENDS TV`, `NFL`, `NCAA`, `ADVENTURE TIME`) stay exactly as they
+  are. Additive means additive.
+- **ColdLion rows we did not previously carry are correct data**, including the
+  advertising/automotive `- DESPERATE` merch groups. They are real merch groups and
+  belong in the canonical set.
+
+**Key discipline.** Match on the full composite key
+`companyCode/divisionCode/mgTypeCode/mgCode`, never on `mgCode` alone. With the type
+component included, ColdLion's reuse of a short code across a licensor and a
+property is harmless: `FR` as a licensor and `FR` as a property are two different
+keys and can never collide. Note that `mgCode2` and `itemNoCode` are **not** better
+keys — measured live 2026-08-13, `mgCode2` has only 264 distinct values across 300
+property rows, because it is a legacy two-character code that several rows share
+(`AM1` and `AM2` both carry `AM`).
 
 ## 8. What this document does NOT change
 
