@@ -141,8 +141,56 @@ simply not wired to anything in DB Data Admin. The wiring needed:
 4. An `app_access` value for the licensing surface, so a licensing manager never
    needs the blanket `admin` grant.
 
-Tracked as a `db-work` issue; the gate function is structure and goes through the
-orchestrator. Every grant is recorded in the DB Data Admin audit store.
+Every grant is recorded in the DB Data Admin audit store.
+
+## 5a. Settled questions — read this before re-deriving any of them
+
+Six conclusions reached with the owner on 2026-08-13, each after a wrong or
+overstated first answer from an AI session. They are settled. Do not re-open them,
+and do not repeat the mistaken framing.
+
+**1. The parent edge is not lost when ColdLion becomes the source.** It lives in
+`core.property.licensor_id`, seeded once from DesignFlow and never written by a
+ColdLion pull. ColdLion not transmitting a parent field is the reason that column
+must be protected, not evidence that the relationship disappears. Nothing new has
+to be built to make it persistent — the column already exists and is already
+populated for every row.
+
+**2. Active/inactive is not lost either**, for the same reason: `status` is its own
+curated column and the pull does not write it. The one genuine care point is a
+**new** ColdLion row, which arrives with no status of its own. It must land in a
+review state and must never default to `active`, or lapsed licenses (NASA, ZAG,
+FRIDA KAHLO — all still returned by the live API with no end marker) silently
+reappear as live.
+
+**3. ColdLion's extra merch groups are correct data.** The advertising and
+automotive `- DESPERATE` groups (Budweiser, Camaro, Corvette, Pabst, Miller Light
+and the rest) are real merch groups and belong in the canonical set. An earlier
+session described them as noise. They are not.
+
+**4. A ColdLion pull adds; it never removes.** Canonical licensors and properties
+ColdLion does not carry — `FRIENDS TV`, `NFL`, `NCAA`, `ADVENTURE TIME` and the
+rest — stay exactly as they are. "Losing" them was only ever a risk of building the
+sync as a replace, which §7a now forbids in writing.
+
+**5. Short-code reuse is not a hazard, because the key is not the short code.**
+The match key is `companyCode/divisionCode/mgTypeCode/mgCode`. Type is part of it,
+so `FR` as a licensor and `FR` as a property are two distinct keys that cannot
+collide. And there is no better code field available: ColdLion also sends
+`mgCode2` and `itemNoCode`, but both are a legacy two-character code that is
+**less** unique than `mgCode` — measured live 2026-08-13, 300 property rows carry
+only 264 distinct `mgCode2` values, because for example `AM1` and `AM2` both
+carry `AM`.
+
+**6. Seed the edge from LIVE DesignFlow, never from the Supabase copy of it.**
+The `dflow.*` schema in Supabase is a mirror whose newest row changed
+**2026-06-26** — one day after the canonical tables were built, and seven weeks
+stale. Seeding from it would rebuild the exact staleness this programme exists to
+fix. Read DesignFlow production directly: Google Cloud SQL instance
+`creatiflow-database` in GCP project `lithe-breaker-323913`, database `postgres`,
+**schema `designflow`** (not `dflow` — that is the Supabase-side name and querying
+it there fails), read-only user `albert_read_only`, credentials in 1Password.
+Access is IP-allowlisted.
 
 ## 6. Current state, measured 2026-08-13
 
@@ -164,14 +212,54 @@ Licensors and Properties tabs therefore serve a one-time June 2026 snapshot.
 Gap between live ColdLion and canonical: 48 ColdLion properties absent from
 `core.property` (42 of them created in ColdLion after the canonical load), 9
 ColdLion licensors absent, 7 canonical licensors and 4 canonical properties
-absent from ColdLion. Against the DesignFlow mirror the canonical edge set is
-missing 5 properties (`CHR`, `EX`, `GW`, `LB`, `SGT`) and disagrees on one
-(`CC`: canonical `DY`, DesignFlow `ZZ`).
+absent from ColdLion.
+
+**Live DesignFlow production** (Cloud SQL `creatiflow-database`, schema
+`designflow`, read 2026-08-13; newest row 2026-08-11, so genuinely current):
+
+| Fact | Value |
+|---|---|
+| Parent edges (`merchGroup` type 06 -> type 05) | 513 |
+| Distinct properties carrying an edge | 266 |
+| Properties with two different licensors | **0** |
+
+The zero is the important number, and it holds on live data, not just on the
+stale mirror: the licensor -> property relationship is a true one-to-many, so
+`core.property.licensor_id` as a single foreign key is the correct model and a
+junction table would be wrong.
+
+Canonical is missing **10** of those 266 edges, not the 5 the stale Supabase
+mirror suggested:
+
+| Property | Live parent | Note |
+|---|---|---|
+| `CHR` CHEERS | `VM` | also in live ColdLion |
+| `EX` THE EXORCIST | `WB` | also in live ColdLion |
+| `LB` THE LOST BOYS | `WB` | also in live ColdLion |
+| `SGT` SUPERGIRL THEATRICAL 2026 | `WB` | also in live ColdLion |
+| `MY` THE MUMMY | `NB` | also in live ColdLion |
+| `DCR` COORS - DESPERATE | `DMC` | licensor `DMC` is itself absent from `core.licensor` |
+| `DHM` HAMMS - DESPERATE | `DMC` | same |
+| `DMT` MILLER LIGHT - DESPERATE | `DMC` | same |
+| `DPB` PABST BLUE RIBBON - DESPERATE | `DMC` | same |
+| `GW` OVER THE GARDEN WALL | `WB` | **not a new property** — canonical already holds this title under code `OGW`. Live DesignFlow carries both `GW` and `OGW` pointing at `WB`. Treat as a duplicate-code merge, not an insert. |
+
+`DMC` (MILLER / COORS - DESPERATE) must be created in `core.licensor` before its
+four properties can be linked, because `licensor_id` is `NOT NULL`.
+
+One disagreement, unchanged from the mirror: `CC` (COCO) — canonical `DY`
+(DISNEY), live DesignFlow `ZZ` (DTR - NO LICENSE). COCO is a Disney/Pixar title,
+so canonical looks like the deliberate curated correction and `ZZ` looks like the
+ERP placeholder. **Needs an owner decision; do not flip it to force agreement.**
+
+No canonical property is missing from live DesignFlow, and there are no orphans.
 
 ## 7. Sequence
 
-1. Reconcile the canonical licensor -> property edge against the DesignFlow
-   mirror (5 additions, 1 disagreement). Curated Master Data — §6.4 gate.
+1. Reconcile the canonical licensor -> property edge against **live** DesignFlow
+   (9 additions, 1 duplicate-code merge, 1 new licensor, 1 disagreement awaiting
+   an owner decision — see §6). Curated Master Data — §6.4 gate. Read live Cloud
+   SQL for this, not the Supabase `dflow.*` mirror (§5a.6).
 2. Complete the ColdLion source cutover already planned in
    [`fix_coldlion_licensor_property_cutover.md`](../fix_coldlion_licensor_property_cutover.md)
    and [`plan_coldlion_licensor_property_accelerated_cutover.md`](../plan_coldlion_licensor_property_accelerated_cutover.md).
