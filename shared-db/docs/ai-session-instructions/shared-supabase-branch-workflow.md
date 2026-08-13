@@ -17,7 +17,7 @@ Do not create app-specific Supabase projects for CRM or PM. Use the shared proje
 | PM/PIM frontend rewrite | `u2giants/poppim-web` |
 | Existing live DAM data/project | Supabase project `qsllyeztdwjgirsysgai` |
 
-The app repos may contain generated client types and frontend code, but any database change belongs in `shared-db/supabase/migrations`.
+The app repos may contain generated client types and frontend code, but any database **structure** change belongs in `shared-db/supabase/migrations`. Data is different: the rows an application creates, edits, or deletes in the normal course of its work belong to that application's own session, with no issue and no dispatch — owner ruling 2026-08-13, [`AGENTS.md` §0.0-B](../../AGENTS.md). The one exception is bulk or ad-hoc loading of outside-sourced content into curated Master Data (`core.licensor`, `core.property`, `core.character`, `core.customer`, `core.factory`, `*_ext`), which stays gated under §6.4. §4.2's connection-target proof applies to every data write either way.
 
 ## Supabase Targets
 

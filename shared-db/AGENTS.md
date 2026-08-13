@@ -21,7 +21,13 @@ AI sessions from breaking each other through the one database they all depend on
 
 > **Started in `shared-db` and you are not the orchestrator? Stop and hand over.**
 > This repo runs **one orchestrator session**, which dispatches every task to
-> sub-agents in isolated worktrees. **Any other session opens a GitHub issue and stops:**
+> sub-agents in isolated worktrees.
+> **Scope: STRUCTURE, not data (§0.0-B, owner ruling 2026-08-13).** This repo and its
+> orchestrator govern the *shape* of the database — schema, tables, columns, views, functions,
+> triggers, RLS, indexes, migrations. An application session changing its own *rows* does not
+> belong here and must not open an issue for it. The one exception is curated Master Data
+> under §6.4.
+> **Any other session with a STRUCTURE change opens a GitHub issue and stops:**
 > `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
 > ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07) and is now a short pointer file.
 > **It stays on disk on purpose — retired means "pointer plus guard", not "deleted".** The
@@ -68,6 +74,11 @@ AI sessions from breaking each other through the one database they all depend on
 `shared-db` is the gatekeeper for every database schema change in the shared
 Supabase project, including DesignFlow PLM tables that still appear in app repos
 as Sequelize models or legacy inline startup migrations.
+
+**Scope reminder: this is a STRUCTURE rule, not a data rule.** Ordinary
+application row writes belong to the application session that owns the feature —
+see §0.0-B, which is the controlling statement of what this repo governs and
+what it does not. §0 governs the shape of the database; §0.0-B draws the line.
 
 Consumer repos must not author schema changes locally. That means no app-repo
 inline migrations, no direct SQL runbooks, no dashboard edits, and no model-only
@@ -134,9 +145,11 @@ stopped being a review:
 - changing shared Supabase data or structure during a review
 - bypassing the preview → branch → pull-request process in this repo
 
-**Every CHANGE is still authored here first** (§0 and §5): schema, tables, columns, views,
-functions/RPCs, triggers, RLS policies, indexes, constraints, seeds, migrations and shared
-data contracts.
+**Every STRUCTURAL change is still authored here first** (§0 and §5): schema, tables, columns,
+views, functions/RPCs, triggers, RLS policies, indexes, constraints, structural seeds shipped as
+migrations, migrations and shared data contracts. **Ordinary application data writes are not on
+this list** — see §0.0-B, which supersedes any reading of this paragraph that would route
+routine row changes through this repo.
 
 **Nothing else is relaxed.** Production and shared-cloud safety rules are unchanged; use the
 approved read-only AI identity wherever one is required, and never use privileged personal
@@ -146,6 +159,79 @@ private licensor source data inside its approved private repository, but license
 never be copied into a public repo, a GitHub issue, logs, prompts sent to outside services,
 commit messages or pull requests. And §4.2 still stands — prove which project you are pointed
 at (`get_project_url` for MCP, `cat supabase/.temp/project-ref` for the CLI) and quote it.
+
+## 0.0-B OWNER RULING — this repo and its orchestrator govern STRUCTURE, not DATA (Albert Hazan, 2026-08-13)
+
+> "shared-db orchestrator is for creating, changing, or deleting the STRUCTURE or schema or
+> design of the database, not for creating, changing, or deleting the data inside the database.
+> That should be done by the sessions working on the actual application."
+> — Albert Hazan, 2026-08-13
+
+**This is the controlling statement of scope.** Where any other section of this document, any
+skill, any memory file, any consumer-repo doc, or any global instruction block reads as though
+routine row writes must be routed through this repo or its orchestrator, **this section wins**
+and that reading is wrong. It resolves a real ambiguity: the earlier rules listed "seeds" and
+"data fixes" in the same breath as tables and columns, and several sessions correctly concluded
+from that wording that any `INSERT` put them under the orchestrator. That was never the intent.
+
+### What the orchestrator governs — STRUCTURE
+
+Authored here first, on a branch, preview-first, merged by pull request:
+
+schemas · tables · columns · types and enums · views · materialised views · functions and RPCs ·
+triggers · row-security (RLS) policies · grants and privileges · indexes · constraints ·
+extensions · realtime publications · storage policies · migrations · **structural seed data that
+ships as a migration** (lookup/enum/reference rows the schema itself depends on) · shared data
+contracts between applications.
+
+### What the orchestrator does NOT govern — DATA
+
+The rows an application creates, edits, or removes in the normal course of doing its job. The
+session working on that application owns those writes outright. **No GitHub issue, no
+orchestrator dispatch, no handover, no branch, and no migration.** Concretely, and non-exhaustively:
+
+- a feature or bug fix writing, updating, or deleting its own application rows
+- a scraper, importer, or sync job writing into the ingest/staging tables it owns
+- backfilling, correcting, or cleaning up application data the app itself produced
+- test, demo, or fixture data in preview
+- operational data: job runs, queue rows, cache entries, audit and log rows
+
+Calling one of these "database work" and refusing it is a mistake. Routing one of them through
+an issue and the orchestrator is also a mistake — it wastes the queue and delays the app.
+
+### The one carve-out — CURATED MASTER DATA stays gated
+
+**§6.4 and its 2026-08-03 correction survive this ruling in full and are not relaxed.** Bulk or
+ad-hoc loading of outside-sourced content into curated Master Data — `core.licensor`,
+`core.property`, `core.character`, `core.customer`, `core.factory` and their `*_ext` tables —
+remains gated, still binds the AI session doing the typing, and still carries the matched-row
+abstention rule. That gate was bought with an incident: a spreadsheet dump can silently supersede
+hand-curated rulings, and nothing in this database records which fields a human set, so an
+ad-hoc session cannot tell curated from untouched.
+
+The carve-out is narrow and it is about **provenance and target**, not about volume or verb. It
+applies when outside-sourced content (a spreadsheet, CSV, export, pasted rows, screenshot, chat
+message, or API pull) is written into those Master Data tables. It does **not** turn an
+application's own row writes elsewhere in the database into orchestrator work.
+
+### What is unchanged everywhere
+
+- **§4.2 applies to data writes exactly as before.** Owning your rows does not relax proving your
+  connection target. Before any `INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`, in preview or production,
+  prove which database you are pointed at and quote the proof in your report. §4.2 is a safety
+  rule about *where the statement lands*; §0.0-B is a routing rule about *who decides it*. They
+  are independent and both bind.
+- **Production and shared-cloud safety rules**, the read-only AI identity requirement, and
+  licensed-data protection are unchanged.
+- **Read-only inspection** stays wide open per §0.0-A.
+- **The single-orchestrator rule (§12.1) still governs structure work.** A session that needs a
+  schema change in `shared-db` still stops, opens an issue, and hands over.
+
+### The test, in one line
+
+*Am I changing the shape of the database, or the contents of it?* Shape → this repo, orchestrator,
+branch, preview, PR. Contents → your own application session, with §4.2 proof, unless the target
+is curated Master Data.
 
 ## 0.1 Database schema ownership is not deployment-secret ownership
 
@@ -623,7 +709,9 @@ rule closes that evidence gap, not a mistake.
    proof covers everything submitted in the same tool call as the check or in the
    immediately following tool call (a batch, a migration file, a `db push`); it never
    carries further.** Preview being "the safe one" is not an exemption: the proof
-   requirement is unconditional.
+   requirement is unconditional. **§0.0-B does not narrow this.** An application session
+   that owns its own data writes still owes the proof on every one of them: §0.0-B decides
+   *who authorises* a statement, §4.2 decides *that you know where it lands*. Both bind.
 2. **"Prove" means an explicit check of the live connection target, executed immediately
    before the statement.** It is not an assumption, not a memory, not a check made earlier in
    the session, not a `.sql` filename, not a branch name, not a doc, not a plan that said
@@ -1346,6 +1434,14 @@ that does not exist and never will.
    submission, and any tool call, reconnect, or turn boundary in between invalidates it. Quote that
    proof in your report. A spreadsheet dump aimed at preview that lands on production
    `qsllyeztdwjgirsysgai` is unrecoverable in exactly the way §4.2 describes.
+
+**Relationship to §0.0-B (2026-08-13).** §0.0-B hands ordinary application data writes back to the
+application sessions, and **explicitly preserves this subsection as its one carve-out**. Nothing
+here is relaxed. The scope is unchanged and is defined by **provenance and target**: outside-sourced
+content written into curated Master Data (`core.licensor`, `core.property`, `core.character`,
+`core.customer`, `core.factory` and their `*_ext` tables). Do not read §0.0-B's "app sessions own
+their data" as an exemption from §6.4 — it names §6.4 as the exception to itself. Equally, do not
+read §6.4 as reaching an application's own rows in its own tables; it does not, and never did.
 
 **What has NOT changed.** §6.4's three parts, its two loopholes, the production violation warning
 (`plm.import_master_data` still force-sets curated status on production; `20260802170000` is merged
@@ -2421,11 +2517,11 @@ have already happened in this repo, more than once.
     not sweep or remove any worktree on the strength of a number in a document**,
     and never remove one that is dirty, locked, or held by a live agent (B2.3).
 
-### 12.1 Four more standing facts, added after the relocation (2026-08-12, issue #772)
+### 12.1 More standing facts, added after the relocation (2026-08-12, issue #772; item 15 added 2026-08-13)
 
 > The ten rules above are a **frozen, byte-identical relocation** from the retired
-> `COORDINATOR_INTAKE.md` and must not be tidied. These four are **new** and are recorded here
-> instead. Each one has already misled at least one session. Numbering continues from 10.
+> `COORDINATOR_INTAKE.md` and must not be tidied. The items below are **new** and are recorded
+> here instead. Each one has already misled at least one session. Numbering continues from 10.
 
 11. **Preview and production have diverged IN BOTH DIRECTIONS. Neither predicts the other.**
     Verified by object on **2026-08-11**: preview `rjyboqwcdzcocqgmsyel` holds **all 23
@@ -2462,6 +2558,13 @@ have already happened in this repo, more than once.
     the guard worked — but two owner approvals were wasted, and the third only landed under a
     deliberate merge freeze. **Announce a freeze, hold every merge from staging until the run
     finishes, then release it.** This is standard practice, not an improvisation.
+
+15. **The single-orchestrator rule is scoped to STRUCTURE (owner ruling §0.0-B, 2026-08-13).**
+    Rules 1 and 2 above ("one orchestrator", "one schema change in flight") govern changes to the
+    *shape* of the database. They do **not** make an application session's ordinary row writes
+    into orchestrator work, and a session must not open an issue or hand over merely because its
+    feature writes data. The single exception is curated Master Data under §6.4, which stays
+    gated. §4.2's connection-target proof still applies to every data write regardless.
 
 ---
 

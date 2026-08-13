@@ -29,6 +29,15 @@ All database schema changes for the shared Supabase project start in this repo.
 That includes DesignFlow PLM tables even when a consumer repo has Sequelize
 models, old inline startup migrations, or local docs that mention `models/db.js`.
 
+**This is a structure rule, not a data rule.** This repo and its orchestrator
+govern the *shape* of the database. The rows an application creates, edits, or
+deletes in the normal course of its work belong to the session working on that
+application — no issue, no dispatch, no migration. The one exception is curated
+Master Data (`core.licensor`, `core.property`, `core.character`, `core.customer`,
+`core.factory` and their `*_ext` tables), where bulk or ad-hoc loading of
+outside-sourced content stays gated. Owner ruling 2026-08-13; full text in
+[`AGENTS.md` §0.0-B](AGENTS.md).
+
 For future sessions with no chat context: do not add columns, tables, indexes,
 RLS policies, triggers, functions, views, enums, storage policies, realtime
 publication changes, or extension changes inside a consumer repo. Create a new
