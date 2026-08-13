@@ -2059,6 +2059,54 @@ class LexerFalseAcceptDefects(unittest.TestCase):
             {"plm.a", "plm.b"},
         )
 
+    def test_f5_function_argument_types_are_not_recorded_as_dropped_objects(self) -> None:
+        """Issue #881: the object list ends when the signature starts."""
+        self.assertEqual(
+            dropped_objects("drop function plm.f(plm.mytype);\n"),
+            {"plm.f"},
+        )
+
+    def test_f5_procedure_signature_with_qualified_types_stays_bounded(self) -> None:
+        self.assertEqual(
+            dropped_objects("drop procedure if exists plm.p(core.a, core.b);\n"),
+            {"plm.p"},
+        )
+
+    def test_f5_multi_function_drop_reads_past_each_balanced_signature(self) -> None:
+        self.assertEqual(
+            dropped_objects(
+                "drop function plm.f(integer), plm.g(core.kind, numeric(10, 2));\n"
+            ),
+            {"plm.f", "plm.g"},
+        )
+
+    def test_f5_multi_procedure_drop_reads_past_each_balanced_signature(self) -> None:
+        self.assertEqual(
+            dropped_objects(
+                "drop procedure if exists plm.p(core.a), plm.q(text, core.b) cascade;\n"
+            ),
+            {"plm.p", "plm.q"},
+        )
+
+    def test_f5_routine_names_may_start_with_drop_modifier_words(self) -> None:
+        self.assertEqual(
+            dropped_objects(
+                "drop function plm.cascade_worker(integer), "
+                "plm.restrict_worker(text);\n"
+            ),
+            {"plm.cascade_worker", "plm.restrict_worker"},
+        )
+
+    def test_f5_true_trailing_drop_modifiers_end_routine_lists(self) -> None:
+        self.assertEqual(
+            dropped_objects("drop function plm.f(integer) cascade;\n"),
+            {"plm.f"},
+        )
+        self.assertEqual(
+            dropped_objects("drop procedure plm.p(text) restrict;\n"),
+            {"plm.p"},
+        )
+
     def test_f5_a_rename_removes_the_OLD_name_and_adds_the_NEW_one(self) -> None:
         events = dict(
             (obj, created) for _pos, obj, created in

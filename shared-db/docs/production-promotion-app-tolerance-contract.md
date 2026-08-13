@@ -505,6 +505,13 @@ backed by live database calls**: every membership claim below was derived by **p
 membership** against production `qsllyeztdwjgirsysgai`'s `supabase_migrations.schema_migrations`,
 read read-only on 2026-08-11 at ledger count **381**.
 
+> **Evidence corrections from #882.** There was no preview rehearsal of “86 object assertions and
+> 38 behavior assertions”: the primary source records 86 object tests and 33 behaviour tests
+> written in PR #635 on 2026-08-10, not a 2026-08-12 rehearsal. Issue #788's “no batch” premise is
+> superseded by B10 below. Paramount's bigint-to-text work is lossless forward-proofing, not a fix
+> for observed data loss; the B10b row records the measured source scan. Do not turn repeated prose
+> into independent evidence.
+
 > **⚠️ Read this before using any version list in this section, or anywhere else.**
 > Production's ledger is applied **OUT OF ORDER**. At the time of writing, `20260731230000`,
 > `20260802194000`, `20260802194100`, `20260810140000` and `20260810180000` are applied while
@@ -521,8 +528,10 @@ read read-only on 2026-08-11 at ledger count **381**.
 
 ### 5A.1 Why B10 exists
 
-§5 plans nine batches whose highest member is `20260810170000`. Everything merged to `main` after
-that belongs to **no batch**, so **completing B1–B9 would never promote it**. That is the gap
+§5 originally planned nine batches whose highest member is `20260810170000`. Before this §5A was
+added, everything merged to `main` after that belonged to **no batch**, so **completing B1–B9
+would never have promoted it**. B10 now closes that gap. Issue #788's older claim that the four
+later migrations still sit in no batch is stale; item 3 is complete. This was the gap
 [#773](https://github.com/u2giants/shared-db/issues/773) ruled must be closed with a batch B10.
 This section is that ruling made executable. **The contract is the authority for batch membership;
 an issue body never is** (#788 item 3).
@@ -603,7 +612,7 @@ before assuming version order is a guard rail.**
 | # | Versions | Count | Atomic? | Why the boundary at the end is safe |
 |---|---|---|---|---|
 | **B10a** | `20260810190000`, `20260810190100` | 2 | **ATOMIC** | Disney DCP Vault source landing + its chunked loader. `20260810190000` creates nine `plm.dcp_*` tables, the frozen row-hash function and the immutability triggers but **no loader**; `20260810190100` supplies the chunked loader, `plm.dcp_chunk_ledger` and `plm.finalize_dcp_crawl` — the only **checked** path to `status='complete'`. **Precisely, because the loose version of this was wrong:** `20260810190000` grants `service_role` `select, insert` on the nine tables and installs **no header INSERT trigger**, so a caller can write rows directly and even insert a `dcp_crawl` row already marked `'complete'`. What is missing between the pair is the **supported, checked, finalizable** path — not the ability to write. See §6. Rest only after `190100`. |
-| **B10b** | `20260811030000` | 1 | single file — **trivially atomic** | Paramount lossless source ids + `plm.pmt_asset_metadata_value`. One file, so there is no internal boundary to rest at. Safe at the end because the five `api.pmt_*` views it drops are recreated inside the same file. |
+| **B10b** | `20260811030000` | 1 | single file — **trivially atomic** | Paramount source IDs become lossless text + `plm.pmt_asset_metadata_value`. This is forward-proofing, not repair of observed corruption: the full 22-CSV scan found zero leading-zero IDs, zero numeric IDs above 2^53, and the only non-numeric IDs were already text. One file, so there is no internal boundary to rest at. Safe at the end because the five `api.pmt_*` views it drops are recreated inside the same file. |
 | **B10c** | `20260811050000`, `20260811060000` | 2 | **ATOMIC** | DCP Vault metadata landing + its chunked loader. Identical shape to B10a: `050000` creates `plm.dcp_metadata_*`, `dcp_property`, `dcp_character`, `dcp_term` and three observation tables with no loader; `060000` supplies `begin_dcp_metadata_run` / `load_dcp_metadata_chunk` / `finalize_dcp_metadata_run` plus `plm.dcp_metadata_chunk_ledger` and `plm.dcp_metadata_load_exception`. Same precision as B10a: `050000` **does** grant `service_role` `select, insert`, so the gap is the supported loader and finalizer, not raw writability. Rest only after `060000`. |
 | **B10d** | `20260811070000` | 1 | single file — **trivially atomic** | NBCU asset ↔ IP-family relationship: `create table plm.nbcu_asset_ip_family` (the **17th** NBCU table) plus a `create or replace plm.finalize_nbcu_capture`. One file, so no internal boundary. **Its CONCERNS review is DISCHARGED (§5A.7, #800)** — the one real finding became the hard ordering edge in §5A.5. |
 
@@ -799,12 +808,10 @@ B10a pair (issue #665): `20260810190000` requires `20260810190100`, one-directio
 allowlist naming the create without the loader is refused. The rule's reversed reading is
 **deliberately absent** — read its header comment before "fixing" it.
 
-**NOT enforced, and this is the gap [#784](https://github.com/u2giants/shared-db/issues/784) is
-about.** `ATOMIC_BATCHES` is the tuple `(B1, B3, B7, B9)` only. **B10a's atomicity is enforced only
-by its co-presence rule; B10c's atomicity is enforced by NOTHING AT ALL.** The guard will accept an
-allowlist of `20260811050000` alone and nothing but the operator prevents that rest. Registering
-B10a and B10c in `ATOMIC_BATCHES` is the correct fix, and it belongs to #784 — **this document does
-not perform it, and until it is done, the never-rest states in §6 for B10c are prose only.**
+**Enforced since PR #869.** `ATOMIC_BATCHES` now registers B10a and B10c, as well as the section 6
+never-rest batches covered by #784. A partial B10c allowlist such as `20260811050000` alone is
+refused. B10a still also has its one-directional co-presence rule; the two checks agree, and the
+stricter result wins. #784 and the B10c enforcement gap are closed.
 
 > **✅ RESOLVED — the guard deadlock that once blocked B9, and therefore all of B10, is FIXED. Any
 > text you find saying "B9 is impossible" or "B9 is un-allowlistable" is STALE; delete it.**
@@ -879,9 +886,8 @@ move is to complete the batch, not to wait.
 - **After `20260811050000`, before `20260811060000`** — the same shape for
   `plm.dcp_metadata_run` / `dcp_metadata_asset` / `dcp_property` / `dcp_character` / `dcp_term` and
   the three observation tables: created, `service_role`-insertable, ungoverned by any supported
-  loader, triggers unarmed. **Enforced by
-  NOTHING — see §5A.8 and #784.** The guard will accept `20260811050000` alone. Only the operator
-  stands between this list and that state.
+  loader, triggers unarmed. **Enforced by `ATOMIC_BATCHES` since PR #869.** The guard refuses
+  `20260811050000` alone and requires completion through `20260811060000`.
 
 **The B10 versions that are single-file parts, and therefore have no internal rest state at all:**
 `20260811030000` (B10b) and `20260811070000` (B10d). Both are **trivially atomic** — one file each,
@@ -1140,8 +1146,8 @@ Stated honestly, because a summary is a document like any other.
 - **Fourteen legal resting points**, listed in §6 — the original ten, plus B10's four (§5A). Every
   other version in §6's first block is an exposed state.
 - **B1, B3, B7, B9, B10a and B10c are atomic.** Do not split them, whatever a description implies.
-  **`ATOMIC_BATCHES` covers only the first four**; **B10a is enforced separately, by its
-  `CO_PRESENCE_RULES` pair**; and **B10c is enforced by nothing at all** — see §5A.8 and #784.
+  `ATOMIC_BATCHES` enforces all six since PR #869; B10a also has its one-directional
+  `CO_PRESENCE_RULES` pair. Section 6's other never-rest batches are enforced by the same mechanism.
 - **There is a batch B10, of six migrations in four parts** (§5A), covering everything merged after
   `20260810170000`. **Finishing B1–B9 does not promote it.** `20260810180000` is already applied and
   must never appear in an allowlist again.
