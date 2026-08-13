@@ -7,7 +7,7 @@
 | Phase | State | Evidence / blocker |
 |---|---|---|
 | 1. Dependency audit | COMPLETE for the named canonical local checkouts and production catalog | This document. No unexplained code reference to an old table remains in the scanned checkouts. |
-| 2. Measure and classify data | BLOCKED | Requires the owner decisions listed below, then a separately approved row-count-only audit. |
+| 2. Measure and classify data | IN PROGRESS: count-only baseline complete | Production counts and a mutually exclusive classification framework are below. Assigning destinations is blocked on Albert's first decision and private evidence review. |
 | 3. Target schema design | BLOCKED | Must follow Phase 2 evidence and Albert's answers. |
 | 4. Additive schema | NOT STARTED | No schema file may be written before the design is approved. |
 | 5-10. Migration, apps, rehearsal, production, retirement | NOT STARTED | Depend on prior phases and exact production approval. |
@@ -75,6 +75,74 @@ Which table should be the starting property master?
 - Start a new empty property list. This gives the cleanest slate but breaks existing IDs and creates the largest review and app-migration burden.
 
 Recommendation: use `core.property` as the seed because it preserves the widest existing cross-app contract while keeping uncertain mixed rows out of the master until review.
+
+## Phase 2 count-only baseline
+
+Measured read-only on production `qsllyeztdwjgirsysgai` on 2026-08-13. The target was proved immediately before each query. Results contain counts only, never licensed names or source values.
+
+The ledger was rechecked against Phase 2's `origin/main` (`e448594fbec57ac03ba839ff4aac9c021c964bff`). It then had five merged-but-not-applied migrations: the three recorded in Phase 1 plus `20260813190000` and `20260813200000`. Neither new migration changes the normalized licensing objects measured here.
+
+| Measure | Count | Meaning |
+|---|---:|---|
+| Mixed rows | 10,122 | 500 rows labeled `PROPERTY`; 9,622 labeled `CHARACTER`. |
+| Normalized character labels | 8,275 | Punctuation/case/spacing normalization only. This is not an identity count. |
+| Character rows whose normalized label repeats | 2,037 | Name-only deduplication would be unsafe. |
+| Normalized labels attached to multiple source character IDs | 513 | Direct proof that equal labels cannot auto-merge. |
+| Source character IDs attached to multiple normalized labels | 58 | A source ID also needs source-contract review; labels can drift or the ID grain may differ. |
+| Character rows with blank character source ID | 0 | All current character appearances retain a source character ID. |
+| Character rows with blank licensed-property source ID | 604 | Parent source context is incomplete on part of the population. |
+| `PROPERTY` rows with blank licensed-property source ID | 2 | These cannot auto-map by source identity. |
+| Distinct source property IDs on 500 `PROPERTY` rows | 497 | At least one source-ID collision exists; the 500 rows are not 500 proven identities. |
+| Old property-character links | 9,622 | Every character appearance has exactly one old parent; none has two or zero. |
+| Old parents with linked characters | 335 | 165 old parents have no character link. |
+| Orphan, self, duplicate, or wrong-type old links | 0 | The links are structurally consistent with their old labels, though those labels are not canonical business meaning. |
+| DesignFlow item links | 1,924 items, 80 distinct mixed nodes | 1,099 links point to 58 `CHARACTER` nodes; 825 point to 22 `PROPERTY` nodes. |
+| Orphan item links | 0 | All current item links resolve in the mixed table. |
+| Canonical property / character / style-guide rows | 256 / 0 / 0 | The typed foundation exists, but only property is populated. |
+| Canonical property-character / style-guide-character links | 0 / 0 | No normalized character relationships are live. |
+| Canonical licensor / legacy license-list rows | 26 / 19 | These are different grains; 18 of 19 legacy rows contain royalty terms. |
+| Canonical source refs | 505 | 468 property and 37 licensor refs; zero blank source IDs and zero source identity keys mapped to multiple canonical IDs. |
+| Core versus dflow copies | 0 differences | Mixed rows, old links, legacy license rows, and item links are exact copies for the compared business fields. |
+
+### Immediate conclusions
+
+1. No current mixed row may be silently discarded. The old associations are complete and 1,924 current item-link rows depend on 80 old nodes.
+2. A label is candidate evidence only. The 513 same-label/different-source-ID groups prove that name deduplication would merge records the source distinguishes.
+3. `core.property` is the least disruptive possible property seed, but that is still an owner choice. It already has broad live foreign-key use while `core.character` and `core.style_guide` are empty.
+4. Item links need a separate bridge. A direct FK swap is impossible because 825 links currently target old rows labeled `PROPERTY`, not character rows.
+5. The identical `core` and `dflow` copies need one migration mapping, not two independently inferred mappings.
+6. The 500 old parent rows cannot yet be divided into true property versus style-guide candidates using public structural evidence alone. Their source IDs, old parent role, and presence of children are classification inputs, not proof of business type.
+
+## Phase 2 row-category framework
+
+Every old row receives exactly one current-state category. Destination is recorded separately, so an uncertain business destination never causes a row to disappear.
+
+| Category | Exact rule | Allowed next action |
+|---|---|---|
+| Safe automatic migration | Unique nonblank source identity, approved entity-type contract, one unambiguous canonical target, and no conflicting prior review | Create or reuse one crosswalk entry; never merge by label alone. |
+| Requires human review | Missing source key, conflicting source evidence, label-only candidate, uncertain entity type, or more than one plausible target | Create a review task with safe internal keys and counts. No canonical promotion. |
+| Invalid duplicate | Same source-system/entity/source-ID is proven to be the same source record and duplicates are byte/grain equivalent under the source contract | Retain one target plus reversible mappings from every old ID. Never infer this from name. |
+| Orphan requiring repair | Missing endpoint, wrong endpoint type, or source relationship whose endpoint cannot be resolved | Block relationship promotion; keep the old row and report safe keys privately. |
+| Retained for compatibility | Still read or written by an application, report, FK, job, or rollback path | Keep read-only compatibility until usage is proven zero. |
+
+Precedence is deliberate: orphan/conflict forces review; active dependency forces compatibility retention even when a destination is known; only reviewed source identity can make migration automatic. The migration ledger must record the old table, old safe ID, proposed entity type, target ID if any, category, evidence method, review state, and timestamps.
+
+## Phase 2 query and test contract
+
+The executable audit must use aggregate SQL or safe internal keys only and must assert:
+
+1. `count(categories) = count(old rows)` and each old key appears once.
+2. Category sets do not overlap.
+3. Every old link has a categorized source and endpoint.
+4. Same normalized label with different source IDs never enters automatic migration.
+5. Blank source IDs never enter automatic migration.
+6. A source identity maps to at most one active canonical ID per entity type.
+7. Every item-linked old node is either mapped or explicitly retained for compatibility.
+8. A second classification run produces the same categories and zero new canonical proposals.
+9. Core and dflow copies map to the same canonical IDs rather than creating duplicates.
+10. Output errors contain counts and safe internal IDs only, with no licensed label, source payload, path, or contract text.
+
+The count query set must cover row totals by old type; distinct and blank source IDs; normalized-label collisions across distinct source IDs; orphan/self/wrong-type/duplicate links; item references by endpoint type; canonical/source-ref counts; and symmetric differences between the core and dflow copies. Before any later write, the runtime tool must independently prove its database target and refuse a broad migration batch.
 
 ## Next gate
 
