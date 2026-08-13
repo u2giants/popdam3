@@ -235,6 +235,100 @@ test("offline contract tests must pass in the gate before any production write",
   assert.doesNotMatch(gateBlock, /SUPABASE_DB_PASSWORD_PRODUCTION/);
 });
 
+// ---------------------------------------------------------------------------------
+// #548 ARMED BUT READ-ONLY. Before this lane existed, the only way to run the
+// read-only `readiness` check against production was to set the feed's enable
+// variable — which simultaneously armed the 06:00 snapshot, the 06:30 promotion
+// (a WRITE), the 07:00 comparison and the hourly health lane. These tests pin the
+// separation: the preflight lane must prove what the feed WOULD do while remaining
+// structurally incapable of doing it.
+// ---------------------------------------------------------------------------------
+
+const PREFLIGHT_VARIABLE = "COLDLION_LICENSOR_PROPERTY_PRODUCTION_ARMED_READONLY";
+const preflightJob = workflow.slice(workflow.indexOf("\n  preflight:"));
+const preflightFolded = preflightJob.replace(/\\\r?\n\s*/g, " ");
+
+test("#548: the preflight lane exists, is dispatch-only, and is on its OWN variable", () => {
+  assert.ok(preflightJob.length > 0, "the preflight job must exist");
+  assert.match(preflightJob, new RegExp(`vars\\.${PREFLIGHT_VARIABLE}\\s*\\}\\}"\\s*=\\s*"true"`));
+  // Dispatch only. If it ever appeared in the cron list it would become a background
+  // job against production, which is exactly what it exists to avoid.
+  assert.match(preflightJob, /if: github\.event_name == 'workflow_dispatch' && inputs\.job == 'preflight'/);
+  const crons = [...workflow.matchAll(/- cron: "([^"]+)" # (\w+)/g)].map((m) => m[2]);
+  assert.ok(!crons.includes("preflight"), "preflight must never be scheduled");
+  // And it must be an offered dispatch choice, or an operator cannot reach it.
+  assert.match(workflow, /^\s+- preflight$/m);
+});
+
+test("#548: arming the preflight does NOT arm the feed, and vice versa", () => {
+  // The preflight gate must NOT read the feed's enable variable as its permission.
+  const armStep = preflightJob.slice(
+    preflightJob.indexOf("Arm gate"),
+    preflightJob.indexOf("actions/setup-node"),
+  );
+  assert.match(armStep, new RegExp(PREFLIGHT_VARIABLE));
+  assert.doesNotMatch(
+    armStep,
+    /vars\.COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED/,
+    "the preflight must not be gated on the feed's enable variable — that is the whole bug",
+  );
+  // And it must say so out loud, so nobody mistakes arming it for switching the feed on.
+  assert.match(preflightJob, /does NOT enable the production feed/);
+});
+
+test("#548: the preflight can never enter the job that holds the production credential", () => {
+  assert.match(workflow, /needs\.gate\.outputs\.job != 'preflight'/);
+  // The preflight job itself holds no production environment and no DB password.
+  assert.doesNotMatch(preflightJob, /^\s+environment: production$/m);
+  assert.doesNotMatch(preflightJob, /secrets\.SUPABASE_DB_PASSWORD_PRODUCTION/);
+  // It never links a Supabase project, so no runner in it has a session to write through.
+  assert.doesNotMatch(preflightJob, /supabase link/);
+  // Runtime belt-and-braces on top of the static facts above.
+  assert.match(preflightJob, /must hold NO production database password/);
+  assert.match(preflightJob, /must not be linked to any Supabase project/);
+});
+
+test("#548: NO preflight runner may be given --apply or --linked", () => {
+  const calls = parseCalls(preflightFolded).filter((c) => !isReadOnlyGuard(c));
+  assert.ok(calls.length >= 6, `expected all five lanes plus the alert dispatcher, got ${calls.length}`);
+  for (const call of calls) {
+    assert.doesNotMatch(call.raw, /--apply\b/, `preflight must never apply: ${call.raw}`);
+    assert.doesNotMatch(call.raw, /--linked\b/, `preflight must never link: ${call.raw}`);
+    // It is ARMED: it still resolves the real production target, so the plan it prints
+    // is the production plan and not a preview one.
+    assert.match(call.raw, /--production\b/, `preflight must resolve production: ${call.raw}`);
+    assert.match(call.raw, /--project-ref "\$PRODUCTION_PROJECT_REF"/, `preflight must name production: ${call.raw}`);
+  }
+});
+
+test("#548: the live ERP preflight receives its API key without gaining a database write path", () => {
+  const snapshotStep = preflightJob.slice(
+    preflightJob.indexOf("name: coldlion"),
+    preflightJob.indexOf("name: promote"),
+  );
+  assert.match(snapshotStep, /COLDLION_API_KEY:\s*\$\{\{ secrets\.COLDLION_API_KEY \}\}/);
+  assert.doesNotMatch(snapshotStep, /SUPABASE_DB_PASSWORD/);
+  assert.doesNotMatch(snapshotStep, /--apply\b|--linked\b|supabase link/);
+  assert.match(preflightJob, /DOES contact\s+#?\s*the live ColdLion ERP|DOES contact[\s\S]*live ColdLion ERP/);
+  assert.doesNotMatch(preflightJob, /Nothing connects\./);
+});
+
+test("#548: the preflight covers EVERY lane the enable variable would arm", () => {
+  // A preflight that silently skipped a lane would be worse than none: it would give
+  // false confidence about the exact lane nobody checked.
+  const scripts = new Set(parseCalls(preflightFolded).map((c) => c.script));
+  for (const runner of [
+    "sync-coldlion-licensors-properties.mjs",
+    "promote-coldlion-source-owned.mjs",
+    "compare-coldlion-designflow-daily.mjs",
+    "check-coldlion-designflow-sync-health.mjs",
+    "evaluate-coldlion-licensor-property-cutover-readiness.mjs",
+    "dispatch-coldlion-taxonomy-alerts.mjs",
+  ]) {
+    assert.ok(scripts.has(runner), `the preflight does not cover ${runner}`);
+  }
+});
+
 test("the preview ref appears only in refusals, never as a target", () => {
   const lines = workflow.split("\n").filter((l) => l.includes(PREVIEW_REF));
   for (const line of lines) {

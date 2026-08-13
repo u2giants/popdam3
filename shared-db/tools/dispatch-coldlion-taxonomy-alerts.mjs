@@ -26,10 +26,41 @@
 //   node tools/dispatch-coldlion-taxonomy-alerts.mjs --apply --linked
 //   node tools/dispatch-coldlion-taxonomy-alerts.mjs --apply --linked --out alerts.json
 //
-// Exit codes: 0 nothing outstanding, 1 undelivered alert(s) found (loud failure),
-//             2 unparseable result (fail closed).
+// DEDUPLICATION (issue #551, added 2026-08-12)
+// -------------------------------------------
+// This dispatcher used to hand the workflow a title and a body and nothing else, and
+// the workflow ran `gh issue create` UNCONDITIONALLY. There was no duplicate detection
+// of any kind, so the same still-unacknowledged alert set produced a brand-new issue
+// every 10 minutes. That is how issues #361-#394 happened: 46 issues, all the same
+// alert, which buried every real issue in the tracker.
+//
+// The fix is a content-addressed dedupe key over the alert set, embedded as an HTML
+// comment marker in the delivered issue body. Before delivering, the dispatcher reads
+// the repository's OPEN issues and looks for that marker. Already reported -> do not
+// create a second issue (but STILL fail the run red, because the alert is still
+// outstanding). A new or changed alert set produces a different key and is always
+// delivered.
+//
+// THE DEDUPE MUST NEVER SWALLOW AN ALERT. A dedupe that loses a genuine new alert is
+// far worse than the duplicates it prevents, so the three outcomes are kept strictly
+// apart and only ONE of them suppresses anything:
+//   * "already reported"  -> proven by a marker match on an open issue -> suppress.
+//   * "failed to check"   -> the lookup errored, returned junk, or could not be proven
+//                            exhaustive -> DELIVER ANYWAY and shout. Never suppress on
+//                            a failed check.
+//   * "dedupe disabled"   -> deliver, and say so.
+//
+// Exit codes: 0 nothing outstanding,
+//             1 undelivered alert(s) found, deliver a NEW issue (loud failure),
+//             2 unparseable probe result (fail closed),
+//             3 undelivered alert(s) found but ALREADY REPORTED on an open issue —
+//               do not create a duplicate; the run still fails red,
+//             4 undelivered alert(s) found and the dedupe check FAILED — deliver
+//               anyway and report the dedupe failure loudly.
 
 import { readLinkedProjectRefSync, repoRootFrom } from "./check-supabase-link-state.mjs";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 import { pathToFileURL } from "node:url";
@@ -53,6 +84,211 @@ import {
 
 export const HUMAN_RESPONSE_OWNER = "Albert Hazan";
 export const ALERT_DELIVERY_TARGET_MINUTES = 15;
+
+// ---------------------------------------------------------------------------------
+// Dedupe configuration. Nothing here is hard-coded that an operator could reasonably
+// need to change: every value has a documented environment variable, and every default
+// is the safe one.
+// ---------------------------------------------------------------------------------
+export const DEDUPE_MARKER_PREFIX = "coldlion-alert-dedupe";
+export const DEDUPE_ENABLED_VARIABLE = "COLDLION_ALERT_DEDUPE_ENABLED";
+export const DEDUPE_LOOKUP_LIMIT_VARIABLE = "COLDLION_ALERT_DEDUPE_LOOKUP_LIMIT";
+export const DEDUPE_REPO_VARIABLE = "COLDLION_ALERT_ISSUE_REPO";
+export const DEDUPE_GH_BIN_VARIABLE = "COLDLION_ALERT_DEDUPE_GH_BIN";
+// Keep enough headroom above the repository's normal open-issue count that the
+// fail-closed truncation alarm is exceptional, not permanently noisy. Operators can
+// still override this, and a full page is still treated as an unverified lookup.
+export const DEDUPE_DEFAULT_LOOKUP_LIMIT = 500;
+
+export const EXIT_ALL_CLEAR = 0;
+export const EXIT_DELIVER_NEW = 1;
+export const EXIT_UNPARSEABLE = 2;
+export const EXIT_ALREADY_REPORTED = 3;
+export const EXIT_DEDUPE_CHECK_FAILED = 4;
+
+/**
+ * Content-addressed identity of an alert SET. Pure.
+ *
+ * Keyed on the alert row ids (sorted, so ordering churn cannot fabricate a new key)
+ * plus the drill flag (a drill and a real alert over the same rows are genuinely
+ * different things and must never suppress each other). Deliberately NOT keyed on
+ * age_minutes, checked_at or the breaker state — those change every single run, which
+ * would give every run a fresh key and rebuild the exact flood this exists to stop.
+ */
+export function buildDedupeKey(alerts = []) {
+  const ids = alerts
+    .map((a) => String(a?.id ?? ""))
+    .filter((id) => id.length > 0)
+    .sort();
+  const drill = alerts.some((a) => a?.is_drill === true) ? "drill" : "real";
+  if (ids.length === 0) return null;
+  return createHash("sha256").update(`${drill}\n${ids.join("\n")}`).digest("hex").slice(0, 32);
+}
+
+/** The marker embedded in a delivered issue body; how a later run recognises its own work. */
+export function renderDedupeMarker(key) {
+  return `<!-- ${DEDUPE_MARKER_PREFIX}: ${key} -->`;
+}
+
+/** Read a marker back out of an issue body. Returns the key, or null. */
+export function parseDedupeMarker(body) {
+  const m = new RegExp(`<!--\\s*${DEDUPE_MARKER_PREFIX}:\\s*([0-9a-f]{8,64})\\s*-->`).exec(
+    String(body ?? ""),
+  );
+  return m ? m[1] : null;
+}
+
+function dedupeEnabled(env = {}) {
+  // Default ON. Only the exact string "false" disables it, so a typo cannot silently
+  // switch the protection off.
+  return String(env[DEDUPE_ENABLED_VARIABLE] ?? "true") !== "false";
+}
+
+function dedupeLookupLimit(env = {}) {
+  const raw = Number(env[DEDUPE_LOOKUP_LIMIT_VARIABLE] ?? DEDUPE_DEFAULT_LOOKUP_LIMIT);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEDUPE_DEFAULT_LOOKUP_LIMIT;
+}
+
+/**
+ * Read the repository's OPEN issues so a marker match can be proven client-side.
+ *
+ * Deliberately NOT a label filter and NOT a GitHub search query:
+ *   * the delivering workflow falls back to creating the issue WITHOUT the
+ *     `coldlion-taxonomy-alert` label when that label does not exist, so a
+ *     label-filtered lookup would miss exactly the issues it must find;
+ *   * GitHub's `in:body` code/issue search is asynchronously indexed and routinely
+ *     lags minutes behind issue creation — on a 10-minute cron that lag IS the flood.
+ * Listing open issues and matching the marker locally has neither failure mode.
+ *
+ * Returns a result object; it never throws. `ok:false` means "failed to check", which
+ * the caller must treat as DELIVER + shout, never as "already reported".
+ */
+export function lookupExistingAlertIssues({
+  env = {},
+  exec = execFileSync,
+} = {}) {
+  const repo = env[DEDUPE_REPO_VARIABLE] || env.GITHUB_REPOSITORY || null;
+  if (!repo) {
+    return {
+      ok: false,
+      issues: [],
+      exhaustive: false,
+      error: `cannot look up existing alert issues: neither ${DEDUPE_REPO_VARIABLE} nor GITHUB_REPOSITORY is set`,
+    };
+  }
+  const limit = dedupeLookupLimit(env);
+  const bin = env[DEDUPE_GH_BIN_VARIABLE] || "gh";
+  let raw;
+  try {
+    raw = exec(
+      bin,
+      [
+        "issue",
+        "list",
+        "--repo",
+        repo,
+        "--state",
+        "open",
+        "--limit",
+        String(limit),
+        "--json",
+        "number,title,body,author",
+      ],
+      { encoding: "utf8" },
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      issues: [],
+      exhaustive: false,
+      error: `\`${bin} issue list\` failed for ${repo}: ${err?.message ?? err}`,
+    };
+  }
+  let issues;
+  try {
+    issues = JSON.parse(String(raw));
+  } catch (err) {
+    return {
+      ok: false,
+      issues: [],
+      exhaustive: false,
+      error: `\`${bin} issue list\` returned unparseable JSON for ${repo}: ${err?.message ?? err}`,
+    };
+  }
+  if (!Array.isArray(issues)) {
+    return {
+      ok: false,
+      issues: [],
+      exhaustive: false,
+      error: `\`${bin} issue list\` returned ${typeof issues}, not an array of issues`,
+    };
+  }
+  // A full page means the listing was TRUNCATED: the match may be on the page we never
+  // saw. That is "failed to check", not "no match" — reporting no-match here would
+  // suppress nothing today but would silently mis-report tomorrow.
+  return { ok: true, issues, exhaustive: issues.length < limit, limit, repo };
+}
+
+/**
+ * Decide what to do with a delivery plan given a lookup result. Pure.
+ *
+ * @returns {{action: "create"|"suppress"|"deliver_unverified", matched_issue: number|null, reason: string, exit_code: number}}
+ */
+export function resolveDedupeDecision({ key, lookup, env = {} } = {}) {
+  if (!dedupeEnabled(env)) {
+    return {
+      action: "deliver_unverified",
+      matched_issue: null,
+      exit_code: EXIT_DELIVER_NEW,
+      reason: `dedupe is switched off via ${DEDUPE_ENABLED_VARIABLE}=false; delivering without a duplicate check`,
+    };
+  }
+  if (!key) {
+    return {
+      action: "deliver_unverified",
+      matched_issue: null,
+      exit_code: EXIT_DEDUPE_CHECK_FAILED,
+      reason:
+        "no dedupe key could be built from the alert set (no usable alert ids); delivering anyway and reporting the dedupe failure",
+    };
+  }
+  if (!lookup || lookup.ok !== true) {
+    return {
+      action: "deliver_unverified",
+      matched_issue: null,
+      exit_code: EXIT_DEDUPE_CHECK_FAILED,
+      reason: `could not verify whether this alert was already reported (${lookup?.error ?? "no lookup result"}); delivering anyway rather than risking a swallowed alert`,
+    };
+  }
+  // Only this workflow's durable issues may suppress a delivery. Handover/review issues
+  // routinely quote workflow output verbatim; allowing any author to suppress on a
+  // quoted marker would lose the real alert's durable surface.
+  const match = (lookup.issues ?? []).find(
+    (i) => i?.author?.login === "github-actions[bot]" && parseDedupeMarker(i?.body) === key,
+  );
+  if (match) {
+    return {
+      action: "suppress",
+      matched_issue: match.number ?? null,
+      exit_code: EXIT_ALREADY_REPORTED,
+      reason: `this exact alert set is already reported on open issue #${match.number}; not creating a duplicate. The run still fails because the alert is still outstanding.`,
+    };
+  }
+  if (lookup.exhaustive !== true) {
+    return {
+      action: "deliver_unverified",
+      matched_issue: null,
+      exit_code: EXIT_DEDUPE_CHECK_FAILED,
+      reason: `the open-issue listing hit its limit of ${lookup.limit} rows, so "no duplicate found" is not proven; delivering anyway. Raise ${DEDUPE_LOOKUP_LIMIT_VARIABLE} or close stale issues.`,
+    };
+  }
+  return {
+    action: "create",
+    matched_issue: null,
+    exit_code: EXIT_DELIVER_NEW,
+    reason: "no open issue carries this alert set's dedupe marker; delivering a new issue",
+  };
+}
 
 export function buildAlertQuerySql({ lookbackHours = 48 } = {}) {
   return `select jsonb_build_object(
@@ -99,11 +335,13 @@ export function buildDeliveryPlan(probe) {
   const alerts = probe.alerts;
   const critical = alerts.filter((a) => a.severity === "critical");
   const breakerState = probe.circuit_breaker?.state ?? "unknown";
+  const dedupeKey = buildDedupeKey(alerts);
 
   return {
     parseable: true,
     deliver: alerts.length > 0,
     alerts,
+    dedupe_key: dedupeKey,
     critical_count: critical.length,
     drill_count: alerts.filter((a) => a.is_drill === true).length,
     circuit_breaker_state: breakerState,
@@ -111,13 +349,20 @@ export function buildDeliveryPlan(probe) {
     title: alerts.length
       ? `${alerts.some((a) => a.is_drill) ? "[DRILL] " : ""}ColdLion taxonomy alert — ${alerts.length} undelivered (breaker: ${breakerState})`
       : null,
-    body: alerts.length ? renderIssueBody(probe, alerts) : null,
+    body: alerts.length ? renderIssueBody(probe, alerts, dedupeKey) : null,
     blocking_reason: null,
   };
 }
 
-function renderIssueBody(probe, alerts) {
+function renderIssueBody(probe, alerts, dedupeKey = null) {
   const lines = [];
+  // The marker goes FIRST and is never omitted: it is what stops the next run from
+  // filing this same alert again. An issue delivered without it is invisible to the
+  // dedupe and will be duplicated forever.
+  if (dedupeKey) {
+    lines.push(renderDedupeMarker(dedupeKey));
+    lines.push("");
+  }
   lines.push(`**Human response owner: ${HUMAN_RESPONSE_OWNER}.**`);
   lines.push("");
   lines.push(
@@ -157,7 +402,7 @@ function readLinkedProjectRef() {
   return readLinkedProjectRefSync({ root: repoRootFrom(import.meta.url) });
 }
 
-export function main(argv = process.argv.slice(2), env = process.env) {
+export function main(argv = process.argv.slice(2), env = process.env, { exec = execFileSync } = {}) {
   const auth = resolveProductionAuthorization(argv, env);
   if (!auth.requested) assertNoProductionEnv(env);
   const mode = resolveRunMode(argv, env);
@@ -203,21 +448,49 @@ export function main(argv = process.argv.slice(2), env = process.env) {
 
   if (!plan.parseable) {
     process.stderr.write(`ALERT DISPATCH UNPARSEABLE: ${plan.blocking_reason}\n`);
-    return 2;
+    return EXIT_UNPARSEABLE;
   }
-
-  if (outPath) writeFileSync(outPath, JSON.stringify(plan, null, 2), "utf8");
-  process.stdout.write(`${JSON.stringify({ ...plan, body: undefined }, null, 2)}\n`);
 
   if (!plan.deliver) {
+    if (outPath) writeFileSync(outPath, JSON.stringify(plan, null, 2), "utf8");
+    process.stdout.write(`${JSON.stringify({ ...plan, body: undefined }, null, 2)}\n`);
     process.stdout.write("ALERT DISPATCH: no undelivered ColdLion taxonomy alerts\n");
-    return 0;
+    return EXIT_ALL_CLEAR;
   }
+
+  // #551: an alert IS outstanding. Decide whether it has already been reported before
+  // handing the workflow another `gh issue create`.
+  const decision = resolveDedupeDecision({
+    key: plan.dedupe_key,
+    lookup: dedupeEnabled(env) ? lookupExistingAlertIssues({ env, exec }) : null,
+    env,
+  });
+  const decided = {
+    ...plan,
+    dedupe_action: decision.action,
+    dedupe_matched_issue: decision.matched_issue,
+    dedupe_reason: decision.reason,
+  };
+
+  if (outPath) writeFileSync(outPath, JSON.stringify(decided, null, 2), "utf8");
+  process.stdout.write(`${JSON.stringify({ ...decided, body: undefined }, null, 2)}\n`);
 
   process.stderr.write(
     `ALERT DISPATCH: ${plan.alerts.length} undelivered alert(s); human response owner ${HUMAN_RESPONSE_OWNER}\n`,
   );
-  return 1;
+
+  if (decision.action === "suppress") {
+    process.stderr.write(`ALERT DISPATCH DEDUPE: ${decision.reason}\n`);
+    return EXIT_ALREADY_REPORTED;
+  }
+  if (decision.exit_code === EXIT_DEDUPE_CHECK_FAILED) {
+    // "Failed to check" is NEVER allowed to look like "already reported". It delivers,
+    // and it says loudly that the dedupe itself is broken.
+    process.stderr.write(`ALERT DISPATCH DEDUPE CHECK FAILED: ${decision.reason}\n`);
+    return EXIT_DEDUPE_CHECK_FAILED;
+  }
+  process.stderr.write(`ALERT DISPATCH DEDUPE: ${decision.reason}\n`);
+  return EXIT_DELIVER_NEW;
 }
 
 const invokedDirectly =
