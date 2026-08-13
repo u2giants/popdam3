@@ -29,10 +29,14 @@ const REAL_WRITER = "designflow-backend/routes/admin.router.js:87";
 /** The READ endpoint the handover wrongly cited as the writer. */
 const READ_ENDPOINT = "item_library.service.js";
 /**
- * The one file still carrying the original wrong claim. It is a write-once
- * session record and is deliberately NOT edited -- see §2.1.
+ * No file carries the original wrong claim any more. The last one --
+ * HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md --
+ * was retired whole (not edited) on 2026-08-13 in the HANDOFF.d cleanup once
+ * its work was proven done. See §2.1. Do NOT add entries here to make a
+ * failure go away: a new offender means someone copied the wrong wording
+ * forward, and the new file is what must be fixed.
  */
-const KNOWN_STALE = "HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md";
+const KNOWN_STALE = [];
 
 function plan() {
   return readFileSync(PLAN, "utf8");
@@ -82,11 +86,9 @@ test("the dead COORDINATOR_INTAKE.md instruction has not come back", () => {
   );
 });
 
-test("exactly one file still carries the original mis-statement, and it is the known one", () => {
-  // If this fails with MORE files, someone copied the wrong wording forward
-  // again -- fix the new file, do not extend this list. If it fails with
-  // FEWER, the write-once record was edited, which AGENTS.md forbids; in that
-  // case update §2.1's table to match reality.
+test("no file still carries the original mis-statement", () => {
+  // If this fails, someone copied the wrong wording forward again -- fix the
+  // new file, do not extend KNOWN_STALE.
   const offenders = [];
   for (const file of allMarkdown()) {
     const rel = path.relative(REPO, file).split(path.sep).join("/");
@@ -99,5 +101,5 @@ test("exactly one file still carries the original mis-statement, and it is the k
       .some((line) => line.includes(READ_ENDPOINT) && /open to 5 roles/i.test(line));
     if (bad) offenders.push(rel);
   }
-  assert.deepEqual(offenders, [KNOWN_STALE]);
+  assert.deepEqual(offenders, KNOWN_STALE);
 });

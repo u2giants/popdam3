@@ -128,18 +128,14 @@ stale-sweep agent to fix the citation in `COORDINATOR_INTAKE.md`. That instructi
 contains the blocker-8 text at all.*
 
 Every editable document in this repository now either states blocker 8 correctly or points here.
-Re-verified 2026-08-12: the mis-statement survives in exactly **one** file —
+*Updated 2026-08-13 (PR #930, issue #658): the one file that still carried the mis-statement —
+`HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md` — was **retired** in the
+HANDOFF.d cleanup, because its work was finished. It was never edited; it was removed whole, which
+`AGENTS.md` permits once a handover's work is proven done. **The mis-statement now survives in zero
+files**, and the offline guard `tools/blocker8-correction.test.mjs` enforces that.*
 
-| File | Lines |
-|---|---|
-| `HANDOFF.d/2026-08-03T2359Z-t16-coordinator-licensor-property-priority.md` | 307, 308-309, 548, 874 |
-
-(The later `HANDOFF.d/2026-08-06T0330Z-al8960ofc-coordinator-session-handover.md` already carries
-the correction at its lines 268-272 and 344-346. It is not a source of the error.)
-
-That file is a **write-once session record.** `AGENTS.md` forbids one session editing another's
-`HANDOFF.d/` file, and rewriting a historical record to say something it did not say is the wrong
-repair in any case. **This section is the correction of record**, together with issue #518.
+**This section is the correction of record**, together with issue #518. Anything that reintroduces
+the wrong wording in a new file is a regression and the guard will fail on it.
 
 **If you arrived from that file:** the endpoint it cites —
 `designflow-item-master\services\item_library.service.js:71-138` — is a **READ** endpoint. The real
