@@ -45,6 +45,24 @@ AI sessions from breaking each other through the one database they all depend on
 > `shared-db-orchestrator` to run a orchestrator session, `shared-db-handover` to
 > close one out.
 
+> ## ⚠️ Before you conclude "this schema object does not exist"
+>
+> **The live catalog is NOT proof that work was never done.** It is proof of what is
+> APPLIED. A migration that is merged to `main` but never applied is invisible in
+> `information_schema` and looks exactly like work nobody ever wrote. On 2026-08-13 that
+> is precisely what happened: 17 Disney landing tables were reported to the owner as
+> "missing" when they existed as reviewed, merged SQL that had never been switched on
+> (issue #892).
+>
+> **Always check the ledger against `main` before reporting a schema gap:**
+>
+>     SUPABASE_ACCESS_TOKEN=… node scripts/check-migration-ledger-drift.mjs --target production
+>
+> It reports both directions — merged-but-not-applied, and applied-but-not-on-`main`.
+> Exit 0 = no drift, 1 = drift, **2 = could not check, which is never "no drift"**. It also
+> runs on every push to `main`, daily, and on demand: workflow `Migration Ledger Drift`
+> ([`.github/workflows/migration-ledger-drift.yml`](.github/workflows/migration-ledger-drift.yml)).
+
 ## 0. Shared-db gatekeeper rule for consumer repos
 
 `shared-db` is the gatekeeper for every database schema change in the shared
