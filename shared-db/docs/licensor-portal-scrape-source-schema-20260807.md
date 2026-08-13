@@ -34,14 +34,32 @@ history permanently, and history cannot be un-published.
 
 ## 1. Scope of this contract
 
+> ⚠️ **SUPERSEDED IN PART, 2026-08-13.** This table listed Disney as **OPA only** and
+> omitted **DCP Vault** entirely, so it read as though Disney had one landing table where
+> the other licensors had a full set. That was never true — the DCP Vault migrations
+> landed 2026-08-10/11 and this table was not updated. They are now **applied to
+> production** and Disney has **20 `plm.dcp_*` tables**. The corrected row is below.
+> An orchestrator misread the omission as a schema gap and reported it to the owner as
+> missing work; see issue #892. **"One licensor, one namespace" is also wrong for Disney:
+> Disney is TWO portals with two namespaces.**
+
 | Licensor | Portal | Landing namespace | Status |
 | --- | --- | --- | --- |
 | Disney | OPA (`opa.disney.com`) | `plm.opa_*` | built, migrations `20260807170000` / `20260807170100` |
+| **Disney** | **DCP Vault (`dcpvault.disney.com`)** | **`plm.dcp_*`** | **built and APPLIED to production 2026-08-13; migrations `20260810190000`, `20260810190100`, `20260811050000`, `20260811060000` — 20 tables** |
 | Warner Bros. | STARLABS | `plm.wb_*` | built by this contract, migration `20260810030000` |
-| Paramount | Creative Library | `plm.pmt_*` | held pending an owner ruling |
-| NBCU | — | `plm.nbcu_*` | separate workstream |
+| Paramount | Creative Library | `plm.pmt_*` | built and applied; `20260811030000` added lossless source IDs + `pmt_asset_metadata_value` |
+| NBCU | — | `plm.nbcu_*` | built and applied; `20260811070000` added `nbcu_asset_ip_family` |
 
-One licensor, one `plm.<prefix>_*` namespace. Prefixes are never shared and never reused.
+One licensor, one `plm.<prefix>_*` namespace — **except Disney, which has two portals and
+therefore two namespaces (`plm.opa_*` and `plm.dcp_*`)**. Prefixes are never shared and
+never reused.
+
+⚠️ **Every one of these landing tables currently holds ZERO rows.** The schema is complete;
+the loaders were never written. See issue #900.
+
+⚠️ **DCP Vault's `properties[]` must NEVER be paired with its `character[]`** — that
+relationship is valid only from OPA.
 
 ---
 
