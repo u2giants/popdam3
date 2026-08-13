@@ -11,6 +11,7 @@
 ## Active implementation plan
 
 - PopDAM OrderList linked to Master Data: [`plan_popdam_order_list.md`](plan_popdam_order_list.md). Read its STATUS table first. Do not re-derive or re-plan completed steps.
+- **Master-data destination (read before proposing any licensor/property/character/asset/style-guide change):** [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md). Owner ruling 2026-08-13 — consolidated portal scrapes land in `core.property` / `core.character` / `core.style_guide` / canonical asset; ColdLion supplies only the operational subset and is mapped onto those rows (automated, then manual); canonical properties absent from ColdLion go `inactive`. The licensor -> property edge stays a single foreign key, never a junction table. The mapping screen lives in DB Data Admin.
 - OrderList source contract: [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md), with formula detail in [`docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md`](docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md). Owner ruling: Google OrderList and future Coldlion rows are the same orders; `plm.item` is the ultimate item list. One canonical order/line must retain separate Google and Coldlion source refs.
 
 This is the operating contract for **every AI session working on any app that

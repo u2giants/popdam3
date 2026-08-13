@@ -14,6 +14,13 @@ Production URL: **`https://data.designflow.app`**
 > deployment relationship to this application. See
 > [`docs/db-data-admin-domain-ownership.md`](docs/db-data-admin-domain-ownership.md).
 
+> **Where this screen is heading:** the Licensors and Properties tabs are the first
+> two surfaces of a larger destination — consolidated portal scrapes as the canonical
+> `core.*` master data, with ColdLion mapped onto it and a mapping/review screen hosted
+> here. Read [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md)
+> before extending either tab. It also records the outstanding access grant for
+> `app.profile` `8f383a14-f303-4890-90a2-80306a2d4665` and the two grants DB Data Admin requires.
+
 This is the cold-start specification for a developer with no prior context. It incorporates
 the useful database inventory, curation workflows, safety checks, traps, and acceptance
 criteria from [`fix_impl_visual_admin_page.md`](fix_impl_visual_admin_page.md), while replacing
