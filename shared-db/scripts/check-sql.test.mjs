@@ -186,3 +186,181 @@ test('the real supabase/migrations directory passes both guards', () => {
   const { status, stderr } = runGuards(null)
   assert.equal(status, 0, `check-sql.sh failed on the real repo:\n${stderr}`)
 })
+
+// --- Guard B2: backdated against a LIVE LEDGER (#651) ----------------------
+//
+// Guard B compares a branch only against the BASE BRANCH, and `main` is not
+// what the databases have actually run. Measured live on 2026-08-12:
+//   preview    (rjyboqwcdzcocqgmsyel): 430 applied, newest 20260812211000
+//   production (qsllyeztdwjgirsysgai): 426 applied, newest 20260812020000
+//   repository:                        437 migration files
+//
+// PREVIEW IS NOT A SUPERSET OF PRODUCTION -- 20260810140000 and 20260810180000
+// are applied on production but not on preview -- so these tests deliberately
+// drive the two ledgers to DIFFERENT verdicts for the SAME added version. A
+// guard that took a merged or assumed-ahead view would pass them both and
+// would be wrong.
+
+/** A ledger file: one 14-digit version per line, as `select version ...` emits. */
+function makeLedger(versions) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'check-sql-ledger-'))
+  const file = path.join(dir, 'ledger.txt')
+  writeFileSync(file, versions.join('\n') + '\n')
+  return file
+}
+
+/** Guard B2 needs the base VERSION SET, not just the base maximum. */
+function makeBaseVersions(versions) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'check-sql-base-'))
+  const file = path.join(dir, 'base.txt')
+  writeFileSync(file, versions.join('\n') + '\n')
+  return file
+}
+
+const baseEnv = () => ({ CHECK_SQL_BASE_VERSIONS: toBashPath(makeBaseVersions(['20260101000000'])) })
+
+test('Guard B2 passes a migration timestamped after everything the ledger holds', () => {
+  const dir = makeFixture(['20260101000000_base.sql', '20260899000000_new.sql'])
+  const result = runGuards(dir, {
+    env: {
+      ...baseEnv(),
+      CHECK_SQL_PREVIEW_LEDGER: toBashPath(makeLedger(['20260812200000', '20260812211000'])),
+    },
+  })
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /Guard B2: no added migration is behind or duplicated in preview/)
+  assert.match(result.stdout, /2 applied, newest 20260812211000/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('Guard B2 CATCHES THE #651 BLIND SPOT: passes Guard B, behind the live ledger', () => {
+  // The whole point of the issue. 20260812100000 sorts AFTER the base branch's
+  // newest (20260101000000), so Guard B clears it -- and it is behind what
+  // preview has already applied, so it would apply out of order or be skipped.
+  const dir = makeFixture(['20260101000000_base.sql', '20260812100000_new.sql'])
+  const result = runGuards(dir, {
+    env: {
+      ...baseEnv(),
+      CHECK_SQL_PREVIEW_LEDGER: toBashPath(makeLedger(['20260812200000', '20260812211000'])),
+    },
+  })
+  assert.match(result.stdout, /Guard B: no migration sorts before/, 'Guard B must CLEAR it')
+  assert.equal(result.status, 1, 'Guard B2 must fail it')
+  assert.match(result.stderr, /sort BEFORE what preview has already applied/)
+  assert.match(result.stderr, /20260812100000/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('Guard B2 evaluates EACH ledger independently -- preview is not a superset of production', () => {
+  // Same added version, two live environments, two different correct answers.
+  // 20260812100000 is behind preview's newest (20260812211000) but ahead of
+  // production's (20260812020000). Merging the ledgers, or trusting whichever
+  // looks ahead, would lose one of these verdicts.
+  const dir = makeFixture(['20260101000000_base.sql', '20260812100000_new.sql'])
+  const result = runGuards(dir, {
+    env: {
+      ...baseEnv(),
+      CHECK_SQL_PREVIEW_LEDGER: toBashPath(makeLedger(['20260812200000', '20260812211000'])),
+      // The two versions production has and preview does not are REAL.
+      CHECK_SQL_PRODUCTION_LEDGER: toBashPath(
+        makeLedger(['20260810140000', '20260810180000', '20260812020000']),
+      ),
+    },
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /sort BEFORE what preview has already applied/)
+  assert.match(result.stdout, /no added migration is behind or duplicated in production/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('Guard B2 fails a version that is ALREADY IN the ledger', () => {
+  // The silent-skip class: the version is in supabase_migrations already, so
+  // the file never runs and the push still reports success.
+  const dir = makeFixture(['20260101000000_base.sql', '20260812211000_dup.sql'])
+  const result = runGuards(dir, {
+    env: {
+      ...baseEnv(),
+      CHECK_SQL_PREVIEW_LEDGER: toBashPath(makeLedger(['20260812200000', '20260812211000'])),
+    },
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /ALREADY APPLIED in preview/)
+  assert.match(result.stderr, /SILENTLY SKIPPED/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('Guard B2 ignores versions the branch did not add', () => {
+  // Seven files already on main (20260810140000 ... 20260811070000) are pending
+  // in preview and ALL sort below preview's newest. Checking every local file
+  // rather than only the added ones would fail this guard on main itself, and
+  // a guard that is red on an untouched branch gets switched off.
+  const dir = makeFixture(['20260101000000_base.sql', '20260810140000_already_on_main.sql'])
+  const result = runGuards(dir, {
+    env: {
+      CHECK_SQL_BASE_VERSIONS: toBashPath(makeBaseVersions(['20260101000000', '20260810140000'])),
+      CHECK_SQL_PREVIEW_LEDGER: toBashPath(makeLedger(['20260812211000'])),
+    },
+  })
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /Guard B2: no added migration is behind or duplicated in preview/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('Guard B2 REFUSES to read an unparseable ledger as an empty one', () => {
+  // NO SILENT FAILURES. An empty read would make every added version look new
+  // and clear the guard -- the false-clear shape this repository keeps hitting.
+  const dir = makeFixture(['20260101000000_base.sql', '20260899000000_new.sql'])
+  const ledgerDir = mkdtempSync(path.join(tmpdir(), 'check-sql-ledger-'))
+  const ledger = path.join(ledgerDir, 'garbage.txt')
+  writeFileSync(ledger, 'ERROR: connection refused\n')
+  const result = runGuards(dir, {
+    env: { ...baseEnv(), CHECK_SQL_PREVIEW_LEDGER: toBashPath(ledger) },
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /contains no 14-digit versions/)
+  assert.match(result.stderr, /Refusing to treat an unreadable ledger as an empty one/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('Guard B2 fails when a ledger file is NAMED but absent', () => {
+  // Naming a file that is not there is a wiring fault, not an absence, and
+  // must not degrade to the "not configured" warning path.
+  const dir = makeFixture(['20260101000000_base.sql', '20260899000000_new.sql'])
+  const result = runGuards(dir, {
+    env: { ...baseEnv(), CHECK_SQL_PREVIEW_LEDGER: '/nonexistent/ledger.txt' },
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /ledger file \/nonexistent\/ledger\.txt does not exist/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('Guard B2 WARNS LOUDLY when unconfigured, and fails under CHECK_SQL_REQUIRE_LEDGER', () => {
+  // Doing nothing quietly is precisely the #651 defect, so the unconfigured
+  // path is never silent. CI, where the credentials exist, sets the strict
+  // variable so the absence is fatal rather than advisory.
+  const dir = makeFixture(['20260101000000_base.sql', '20260899000000_new.sql'])
+
+  const lenient = runGuards(dir, { env: baseEnv() })
+  assert.equal(lenient.status, 0, lenient.stderr)
+  assert.match(lenient.stderr, /Guard B2 \(backdated against a LIVE LEDGER\) did not run/)
+  assert.match(lenient.stderr, /CHECK_SQL_PREVIEW_DB_URL/)
+
+  const strict = runGuards(dir, { env: { ...baseEnv(), CHECK_SQL_REQUIRE_LEDGER: '1' } })
+  assert.equal(strict.status, 1)
+  assert.match(strict.stderr, /is set, so this is an ERROR rather than a warning/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('Guard B2 refuses to run when the ADDED set cannot be determined', () => {
+  // Without the base ref there is no way to tell which versions this branch
+  // adds, and checking every local file would fail on main. Configuring a
+  // ledger and then silently checking nothing is the failure being fixed.
+  const dir = makeFixture(['20260101000000_base.sql', '20260899000000_new.sql'])
+  const result = runGuards(dir, {
+    mainNewest: '20260101000000',
+    env: { CHECK_SQL_PREVIEW_LEDGER: toBashPath(makeLedger(['20260812211000'])) },
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /could not be determined/)
+  rmSync(dir, { recursive: true, force: true })
+})

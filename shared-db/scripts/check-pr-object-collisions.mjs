@@ -295,6 +295,533 @@ export function extractObjects(sql) {
   return [...found].sort()
 }
 
+// ---------------------------------------------------------------------------
+// BROAD EXTRACTION FOR THE DISPATCH POLICY (plan step 3b).
+//
+// ONE PARSER FILE, TWO POLICIES — and the split matters more than it looks.
+//
+//   `PATTERNS` / `extractObjects` above model WHOLE-OBJECT REPLACEMENT, and the
+//   merge guard's failure messages are written in those terms ("one of these
+//   bodies would be silently overwritten"). Widening `PATTERNS` would make that
+//   guard's own explanations false, and it is a REQUIRED check on `main`, so a
+//   noisier version of it is the alarm-fatigue disease this workstream exists
+//   to cure (plan step 3a).
+//
+//   So NOTHING above this line changed. `DISPATCH_PATTERNS` is the broader policy used
+//   ONLY by the dispatch-time check, whose policy is deliberately broader: any
+//   write to the same target collides. It over-blocks, which fails safe, and it
+//   costs a coordinator a conversation rather than an agent a whole session.
+//
+//   Because the merge guard's inputs are untouched, step 3a's acceptance rule
+//   ("if >20% of historical concurrent sets produce a new NOISY merge-guard
+//   failure, the merge guard keeps its narrow policy") is satisfied BY
+//   CONSTRUCTION: the merge guard cannot produce ANY new failure, noisy or
+//   otherwise. See docs/verification/dispatch-parser-noise-gate-20260812.md.
+//
+// The blind spot being closed: `alter table`, `create table`, `create index`,
+// `grant`, `comment on` and `create type` were invisible to the dispatch check.
+// A migration doing nothing but `alter table core.licensor add column ...`
+// reported as touching NO OBJECTS, which read as a clear.
+// ---------------------------------------------------------------------------
+
+/**
+ * Split a possibly-qualified raw identifier into canonical dotted parts.
+ * Quoted identifiers keep their case and any internal whitespace.
+ */
+function canonicalParts(raw) {
+  const parts = String(raw).match(/"[^"]*"|[^.\s]+/g) ?? []
+  return parts.map((part) => (part.startsWith('"') ? part.slice(1, -1) : part.toLowerCase()))
+}
+
+/** `core.t.c` -> { table: 'core.t', column: 'core.t.c' }; unqualified -> null table. */
+function splitColumnTarget(raw) {
+  const parts = canonicalParts(raw)
+  if (parts.length < 2) return { table: null, column: parts.join('.') }
+  return { table: parts.slice(0, -1).join('.'), column: parts.join('.') }
+}
+
+const NOT_ON = String.raw`(?!on\s)`
+
+/**
+ * Every DDL shape the DISPATCH policy understands. Each entry produces zero or
+ * more `{ action, kind, target }` operations from one regex match.
+ *
+ * `kinds` is declared per entry rather than inferred, so `describeDispatchCoverage()`
+ * can derive CHECKED/NOT CHECKED from this list alone and can never go stale.
+ */
+const DISPATCH_PATTERNS = [
+  // --- tables -------------------------------------------------------------
+  {
+    kinds: ['table'],
+    re: new RegExp(
+      String.raw`\bcreate\s+(?:global\s+|local\s+|unlogged\s+)*table\s+(?:if\s+not\s+exists\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'create', kind: 'table', target: canonical(m[1]) }],
+  },
+  // NOTE the deliberate absence of `temp`/`temporary` above. A TEMP table is
+  // session-local scratch space living inside a function body — this repo's
+  // promotion functions all create one called `coldlion_promote_rows`. It is
+  // not a shared object, so two agents "sharing" one is not a collision, and
+  // emitting it would have flagged half the coldlion migrations against each
+  // other. Excluding it is the difference between a signal and alarm fatigue.
+  {
+    kinds: ['table'],
+    re: new RegExp(
+      String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'drop', kind: 'table', target: canonical(m[1]) }],
+  },
+  {
+    // `alter table` in ALL its forms. Per plan D9 this is TABLE-level: every
+    // alter on a table yields the same key regardless of which column it
+    // touches. Two agents altering different columns of one table are blocked.
+    // That over-blocks on purpose — column-level identity would let the far
+    // worse case (both rewriting the same column) slip through on a typo.
+    kinds: ['table'],
+    re: new RegExp(
+      String.raw`\balter\s+(?:foreign\s+)?table\s+(?:if\s+exists\s+)?(?:only\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'alter', kind: 'table', target: canonical(m[1]) }],
+  },
+  {
+    // RENAME and SET SCHEMA carry TWO identities. Emitting only the old one
+    // lets a second agent claim the new name and collide invisibly.
+    kinds: ['table'],
+    re: new RegExp(
+      String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${QUALIFIED})\s+rename\s+to\s+(${IDENT})`,
+      'gi',
+    ),
+    map: (m) => {
+      const from = canonicalParts(m[1])
+      const to = canonicalParts(m[2])
+      const schema = from.length > 1 ? from.slice(0, -1).join('.') : null
+      return [{ action: 'rename', kind: 'table', target: schema ? `${schema}.${to.join('.')}` : to.join('.') }]
+    },
+  },
+  {
+    kinds: ['table'],
+    re: new RegExp(
+      String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${QUALIFIED})\s+set\s+schema\s+(${IDENT})`,
+      'gi',
+    ),
+    map: (m) => {
+      const name = canonicalParts(m[1]).slice(-1).join('.')
+      return [{ action: 'set_schema', kind: 'table', target: `${canonicalParts(m[2]).join('.')}.${name}` }]
+    },
+  },
+
+  // --- indexes ------------------------------------------------------------
+  {
+    // Emits BOTH the index and its owning table: an index is a write to the
+    // table (it takes a lock and changes its plan), and two agents adding
+    // differently-named indexes to one table is still work worth serializing.
+    kinds: ['index', 'table'],
+    re: new RegExp(
+      String.raw`\bcreate\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?(${NOT_ON}${IDENT}\s+)?on\s+(?:only\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => {
+      const ops = [{ action: 'create', kind: 'table', target: canonical(m[2]) }]
+      if (m[1]) ops.push({ action: 'create', kind: 'index', target: canonical(m[1].trim()) })
+      return ops
+    },
+  },
+  {
+    // `drop index x` usually CANNOT recover the owning table from the SQL
+    // alone, so the index is all that is emitted. Said out loud rather than
+    // guessed at: a guessed table would be a false collision, and an assumed
+    // absence would be a false clear.
+    kinds: ['index'],
+    re: new RegExp(
+      String.raw`\bdrop\s+index\s+(?:concurrently\s+)?(?:if\s+exists\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'drop', kind: 'index', target: canonical(m[1]) }],
+  },
+
+  {
+    // Real in this repo (3 statements). The noun-based check in
+    // `inventoryDdlVerbs` would have called `alter index` modelled merely
+    // because `index` is a known kind, so without this pattern the inventory
+    // reported a blind spot as covered.
+    kinds: ['index'],
+    re: new RegExp(String.raw`\balter\s+index\s+(?:if\s+exists\s+)?(${QUALIFIED})`, 'gi'),
+    map: (m) => [{ action: 'alter', kind: 'index', target: canonical(m[1]) }],
+  },
+
+  // --- privileges ---------------------------------------------------------
+  {
+    // `grant`/`revoke` do NOT always target a table (plan step 3b, Codex's
+    // note). The object-type keyword is optional in Postgres and defaults to
+    // TABLE, so its absence means table -- but `on schema`, `on sequence`,
+    // `on function` must keep their own kind or a grant on a schema would
+    // collide with a table of the same name.
+    kinds: ['grant', 'table', 'sequence', 'schema', 'function', 'procedure', 'type'],
+    re: new RegExp(
+      // The two negative lookaheads are both real defects found by replaying
+      // this parser over 400 merged pull requests:
+      //   `(?!all\s)`  — `on all tables in schema s` extracted a table named
+      //                  "all". Its own pattern below handles that form.
+      //   `(?!(?:tables|sequences|functions|routines|procedures)\s)` — the
+      //                  `alter default privileges … grant all ON TABLES to r`
+      //                  form has no object name at all; without this it
+      //                  extracted a table literally named "tables", which
+      //                  appeared in 5 migrations.
+      String.raw`\b(?:grant|revoke)\b[^;]*?\son\s+(?!all\s)(?!(?:tables|sequences|functions|routines|procedures)\s)(?:(table|sequence|schema|function|procedure|routine|type|domain)\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => {
+      const target = canonical(m[2])
+      // PRECISION RULE, not a swallowed failure: when the object-type keyword is
+      // absent the target must be SCHEMA-QUALIFIED to be believed. English prose
+      // reaches this pattern whenever a `comment on … is '…'` string cannot be
+      // stripped cleanly (one migration says "roles do not grant read on their
+      // own", yielding a table named "their"). Every real grant in this repo's
+      // 437 migrations is schema-qualified, so requiring the dot costs nothing
+      // and removes the last phantom. An EXPLICIT keyword is still trusted
+      // unqualified, because `grant usage on schema plm` is unambiguous.
+      if (!m[1] && !target.includes('.')) return []
+      const raw = (m[1] || 'table').toLowerCase()
+      // `routine` is Postgres's umbrella for function+procedure; a grant
+      // written either way must collide with the other.
+      const kinds = raw === 'routine' ? ['function', 'procedure'] : [raw === 'domain' ? 'type' : raw]
+      return kinds.map((kind) => ({ action: 'grant', kind, target }))
+    },
+  },
+  {
+    // `grant ... on all tables in schema s` touches every table in the schema.
+    // Modelled as a write to the SCHEMA: enumerating the tables would need the
+    // live database, which this tool must never contact.
+    kinds: ['grant', 'schema'],
+    re: new RegExp(
+      String.raw`\b(?:grant|revoke)\b[^;]*?\son\s+all\s+(?:tables|sequences|functions|procedures|routines)\s+in\s+schema\s+(${IDENT})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'grant', kind: 'schema', target: canonical(m[1]) }],
+  },
+  {
+    kinds: ['schema'],
+    re: new RegExp(
+      String.raw`\balter\s+default\s+privileges\b[^;]*?\sin\s+schema\s+(${IDENT})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'alter', kind: 'schema', target: canonical(m[1]) }],
+  },
+
+  // --- comments -----------------------------------------------------------
+  {
+    // `comment on column core.t.c` must ALSO collide with work on `core.t`
+    // (plan step 3b). The column key alone would let a table rewrite and a
+    // column comment run concurrently and lose one.
+    kinds: ['comment', 'column', 'table'],
+    re: new RegExp(String.raw`\bcomment\s+on\s+column\s+(${QUALIFIED}(?:\s*\.\s*${IDENT})?)`, 'gi'),
+    map: (m) => {
+      const { table, column } = splitColumnTarget(m[1])
+      const ops = [{ action: 'comment', kind: 'column', target: column }]
+      if (table) ops.push({ action: 'comment', kind: 'table', target: table })
+      return ops
+    },
+  },
+  {
+    kinds: ['comment', 'table', 'view', 'materialized view', 'function', 'procedure', 'type', 'schema', 'index', 'sequence'],
+    re: new RegExp(
+      String.raw`\bcomment\s+on\s+(table|view|materialized\s+view|function|procedure|type|domain|schema|index|sequence)\s+(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => {
+      const raw = m[1].toLowerCase().replace(/\s+/g, ' ')
+      return [{ action: 'comment', kind: raw === 'domain' ? 'type' : raw, target: canonical(m[2]) }]
+    },
+  },
+
+  // --- types, sequences, schemas -----------------------------------------
+  {
+    kinds: ['type'],
+    re: new RegExp(
+      String.raw`\b(?:create|alter|drop)\s+(?:type|domain)\s+(?:if\s+exists\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'write', kind: 'type', target: canonical(m[1]) }],
+  },
+  {
+    kinds: ['sequence'],
+    re: new RegExp(
+      String.raw`\b(?:create|alter|drop)\s+(?:temp\s+|temporary\s+)*sequence\s+(?:if\s+not\s+exists\s+|if\s+exists\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'write', kind: 'sequence', target: canonical(m[1]) }],
+  },
+  {
+    kinds: ['schema'],
+    re: new RegExp(
+      String.raw`\b(?:create|drop)\s+schema\s+(?:if\s+not\s+exists\s+|if\s+exists\s+)?(${IDENT})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'write', kind: 'schema', target: canonical(m[1]) }],
+  },
+
+  // --- alter forms of the classes the merge guard already models ----------
+  {
+    kinds: ['function'],
+    re: new RegExp(String.raw`\balter\s+function\s+(${QUALIFIED})`, 'gi'),
+    map: (m) => [{ action: 'alter', kind: 'function', target: canonical(m[1]) }],
+  },
+  {
+    kinds: ['procedure'],
+    re: new RegExp(String.raw`\balter\s+procedure\s+(${QUALIFIED})`, 'gi'),
+    map: (m) => [{ action: 'alter', kind: 'procedure', target: canonical(m[1]) }],
+  },
+  {
+    kinds: ['view'],
+    re: new RegExp(String.raw`\balter\s+view\s+(${QUALIFIED})`, 'gi'),
+    map: (m) => [{ action: 'alter', kind: 'view', target: canonical(m[1]) }],
+  },
+  {
+    kinds: ['materialized view'],
+    re: new RegExp(String.raw`\balter\s+materialized\s+view\s+(${QUALIFIED})`, 'gi'),
+    map: (m) => [{ action: 'alter', kind: 'materialized view', target: canonical(m[1]) }],
+  },
+  {
+    kinds: ['view'],
+    re: new RegExp(
+      String.raw`\bcreate\s+(?:or\s+replace\s+)?view\s+(?:if\s+not\s+exists\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+    map: (m) => [{ action: 'create', kind: 'view', target: canonical(m[1]) }],
+  },
+  {
+    // `alter policy n on t` needs BOTH identities (plan step 3b).
+    kinds: ['policy', 'table'],
+    re: new RegExp(String.raw`\balter\s+policy\s+(${IDENT})\s+on\s+(${QUALIFIED})`, 'gi'),
+    map: (m) => [
+      { action: 'alter', kind: 'policy', target: `${canonical(m[1])} on ${canonical(m[2])}` },
+      { action: 'alter', kind: 'table', target: canonical(m[2]) },
+    ],
+  },
+  {
+    kinds: ['trigger', 'table'],
+    re: new RegExp(String.raw`\balter\s+trigger\s+(${IDENT})\s+on\s+(${QUALIFIED})`, 'gi'),
+    map: (m) => [
+      { action: 'alter', kind: 'trigger', target: `${canonical(m[1])} on ${canonical(m[2])}` },
+      { action: 'alter', kind: 'table', target: canonical(m[2]) },
+    ],
+  },
+]
+
+/** PostgreSQL accepts both `DO $$...$$` and `DO LANGUAGE plpgsql $tag$...$tag$`. */
+function dollarQuoteStartsDo(source, offset) {
+  return /\bdo(?:\s+language\s+[a-z_][a-z0-9_$]*)?\s*$/i.test(source.slice(0, offset))
+}
+
+/**
+ * The DISPATCH-policy view of a migration: structured operations rather than
+ * flat strings, so a consumer can reason about `action` and `kind` separately.
+ *
+ * Combines the merge guard's whole-object patterns with the broader dispatch
+ * patterns. The two policies overlap, but neither result is promised to be a
+ * strict superset of the other because dispatch deliberately ignores dynamic
+ * function-body SQL while retaining literal DDL inside `DO` blocks.
+ *
+ * @returns {{action: string, kind: string, target: string}[]}
+ */
+export function extractOperations(sql) {
+  // DOLLAR-QUOTED BODIES AND STRING LITERALS ARE STRIPPED FIRST, in that order,
+  // and this is load-bearing rather than tidying. Every phantom target found
+  // while replaying this parser over 400 merged pull requests came from text
+  // that only LOOKS like DDL:
+  //
+  //   `execute 'alter table if exists %s enable row level security'` -> table if
+  //   the literal 'CREATE TABLE AS' used as a comparison value       -> table as
+  //   'create trigger %I ... on plm.%I'                              -> table plm
+  //   prose: '... do not grant read on their own ...'                -> table their
+  //
+  // The order matters. Stripping single quotes alone left these behind, because
+  // apostrophes inside `$$ … $$` function bodies unbalance quote pairing across
+  // the whole file and shift every pair after them. Bodies go first.
+  //
+  // Function bodies remain excluded, but a top-level `DO $$ ... $$` block is
+  // different: this repository uses literal DDL inside those blocks as its
+  // normal idempotent migration form. Keep the body so those writes are seen.
+  const text = normalizeSql(sql)
+    .replace(/\$([A-Za-z_]*)\$([\s\S]*?)\$\1\$/g, (whole, _tag, body, offset, source) =>
+      dollarQuoteStartsDo(source, offset) ? body : ' ')
+    .replace(/'(?:[^']|'')*'/g, " '' ")
+  const seen = new Map()
+  // Bare SQL keywords are never object names. They appear when an upstream
+  // regex over-reaches across statement boundaries, and emitting `table table`
+  // would let two unrelated pull requests "collide" on a keyword.
+  const KEYWORDS = new Set(['table', 'tables', 'function', 'functions', 'routine', 'routines',
+    'sequence', 'sequences', 'view', 'schema', 'index', 'if', 'as', 'only', 'exists', 'all'])
+  const add = (op) => {
+    if (!op.target) return
+    if (KEYWORDS.has(op.target)) return
+    seen.set(`${op.action}|${op.kind}|${op.target}`, op)
+  }
+
+  // The narrow, whole-object-replacement classes, reusing the SAME regexes the
+  // merge guard uses so the two can never disagree about them.
+  for (const { kind, re } of PATTERNS) {
+    re.lastIndex = 0
+    let m
+    while ((m = re.exec(text)) !== null) {
+      if (kind === 'trigger' || kind === 'policy') {
+        add({ action: 'replace', kind, target: `${canonical(m[1])} on ${canonical(m[2])}` })
+        // The table is part of that object's identity, so work on the table
+        // collides with work on its trigger or policy.
+        add({ action: 'replace', kind: 'table', target: canonical(m[2]) })
+      } else {
+        add({ action: 'replace', kind, target: canonical(m[1]) })
+      }
+    }
+  }
+
+  for (const { re, map } of DISPATCH_PATTERNS) {
+    re.lastIndex = 0
+    let m
+    while ((m = re.exec(text)) !== null) for (const op of map(m)) add(op)
+  }
+
+  return [...seen.values()].sort((a, b) =>
+    `${a.kind} ${a.target} ${a.action}`.localeCompare(`${b.kind} ${b.target} ${b.action}`),
+  )
+}
+
+/**
+ * The dispatch policy's comparison keys: `"<kind> <target>"`, the same shape a
+ * coordinator hand-types into `--objects` and into a `db-claim` block.
+ *
+ * The ACTION is deliberately dropped here. Under the dispatch policy any write
+ * to a target collides with any other write to it, so `alter table core.x` and
+ * `create table core.x` must produce the identical key `table core.x`.
+ */
+export function dispatchObjectKeys(sql) {
+  return [...new Set(extractOperations(sql).map((op) => `${op.kind} ${op.target}`))].sort()
+}
+
+/**
+ * Coverage for the DISPATCH policy, derived from `DISPATCH_PATTERNS` + `PATTERNS`
+ * so it cannot drift from what the code actually reads.
+ *
+ * @returns {{checked: string[], notChecked: string[], alterModelled: boolean}}
+ */
+export function describeDispatchCoverage() {
+  const checked = new Set(PATTERNS.map((p) => p.kind))
+  for (const entry of DISPATCH_PATTERNS) for (const kind of entry.kinds) checked.add(kind)
+  return {
+    checked: [...checked].sort(),
+    notChecked: KNOWN_DDL_CLASSES.filter((kind) => !checked.has(kind)).sort(),
+    alterModelled: DISPATCH_PATTERNS.some((p) => /alter/i.test(p.re.source)),
+  }
+}
+
+/**
+ * Leading DDL verbs found across a body of migration SQL, and whether the
+ * DISPATCH parser models each one.
+ *
+ * THIS IS THE ANTI-REGRESSION MEASUREMENT. Nothing in this repo would have
+ * noticed a NEW large blind class appearing — that is how a parser blind to
+ * `alter table` shipped behind a green build for weeks. The sibling test walks
+ * every file in supabase/migrations/ through this and fails if an unmodelled
+ * verb exceeds its threshold.
+ *
+ * @returns {{verb: string, count: number, modelled: boolean}[]} busiest first
+ */
+export function inventoryDdlVerbs(sqlTexts) {
+  const counts = new Map()
+  for (const sql of sqlTexts) {
+    // STATEMENT-LEADING verbs only. Scanning the whole text for the word "drop"
+    // counted English prose inside `raise notice '… values drop beyond
+    // threshold'` as DDL and produced junk classes like "drop beyond" — noise
+    // that would have made this measurement useless, and useless measurements
+    // get deleted. String literals and `$$ … $$` bodies go first for the same
+    // reason: DDL nested inside a function body is not the axis two agents
+    // collide on, and its prose is pure noise here. Literal DDL inside a
+    // top-level DO block is retained because it changes shared objects.
+    const text = normalizeSql(sql)
+      .replace(/\$([A-Za-z_]*)\$([\s\S]*?)\$\1\$/g, (whole, _tag, body, offset, source) =>
+        dollarQuoteStartsDo(source, offset) ? body : ' ')
+      .replace(/'(?:[^']|'')*'/g, ' ')
+    for (const statement of text.split(';')) {
+      const m = /(?:^|\bbegin\s+|\bthen\s+)\s*(create|alter|drop|grant|revoke|comment)\s+((?:or\s+replace\s+|if\s+(?:not\s+)?exists\s+|unique\s+|concurrently\s+|only\s+|materialized\s+|recursive\s+|temp\s+|temporary\s+|global\s+|local\s+|unlogged\s+|foreign\s+|constraint\s+|default\s+)*)([a-z_]+)/i.exec(
+        statement,
+      )
+      if (!m) continue
+      // `materialized view` and `default privileges` are two-word object names;
+      // the modifier group swallowed the first word, so put it back.
+      const modifiers = m[2].toLowerCase()
+      let noun = m[3].toLowerCase()
+      if (/\bmaterialized\s+$/.test(modifiers)) noun = `materialized ${noun}`
+      if (/\bdefault\s+$/.test(modifiers)) noun = `default ${noun}`
+      const verb = `${m[1].toLowerCase()} ${noun}`
+      counts.set(verb, (counts.get(verb) ?? 0) + 1)
+    }
+  }
+
+  const modelledKinds = new Set(describeDispatchCoverage().checked)
+  return [...counts.entries()]
+    .map(([verb, count]) => {
+      const noun = verb.slice(verb.indexOf(' ') + 1)
+      const modelled =
+        modelledKinds.has(noun) ||
+        // `grant`/`revoke` name a privilege, and `comment on <kind>` names its
+        // kind after the `on`; both are resolved by the patterns above rather
+        // than by the noun this crude scan sees.
+        /^(grant|revoke|comment)\b/.test(verb) ||
+        DISPATCH_MODELLED_EXTRA_FORMS.has(verb)
+      return {
+        verb,
+        count,
+        modelled,
+        acknowledged: modelled || Object.prototype.hasOwnProperty.call(DISPATCH_UNMODELLED_FORMS, verb),
+      }
+    })
+    .sort((a, b) => b.count - a.count)
+}
+
+/** Statement forms the patterns above DO handle but whose noun is not a kind name. */
+const DISPATCH_MODELLED_EXTRA_FORMS = new Set(['alter default privileges'])
+
+/**
+ * Statement forms this parser knowingly does NOT model, each with the reason.
+ *
+ * THIS IS NOT AN ALLOWLIST FOR CONVENIENCE. The sibling test fails on any DDL
+ * form found in `supabase/migrations/` that is neither modelled nor listed
+ * here, so a NEW blind class cannot appear silently — which is exactly how the
+ * `alter table` blind spot survived behind a green build. Adding an entry here
+ * is a deliberate, reviewed decision that this form is not a collision axis,
+ * and it must carry a reason.
+ */
+export const DISPATCH_UNMODELLED_FORMS = {
+  'create extension':
+    'Extensions are database-global and idempotent (`if not exists`). Two agents ' +
+    'enabling the same extension is a no-op, not a lost overwrite.',
+  'drop extension':
+    'Database-global like `create extension`, and not a schema object two agents ' +
+    'can each author a body for. Nothing here to overwrite.',
+  'alter publication':
+    'Supabase realtime publication membership. A genuine shared resource, but it is ' +
+    'ADDITIVE (`add table`) rather than whole-object replacement, so two agents adding ' +
+    'different tables do not overwrite each other. Revisit if a migration ever does ' +
+    '`set table`, which IS destructive.',
+  'create publication':
+    'Database-global Supabase realtime plumbing, created once. Two agents creating ' +
+    'the same publication is a hard error at apply time, not a silent overwrite.',
+  'alter role':
+    'Roles are cluster-global and managed by Supabase, not by this repo. A migration ' +
+    'touching one is already outside the object model this tool compares.',
+  'create role':
+    'Roles are cluster-global and provisioned by Supabase, not owned by this repo. ' +
+    'A migration creating one is outside the schema-object model compared here.',
+  'create event': 'Event triggers are database-global, not schema objects.',
+  'drop event':
+    'Event triggers are database-global rather than schema objects, and the two in ' +
+    'this repo are dropped and recreated as a pair inside one migration.',
+  'alter database': 'Database-level settings, not a schema object.',
+}
+
 /**
  * @param {{label: string, files: {path: string, sql: string}[]}[]} sources
  *   One entry per pull request (plus, optionally, one for the base branch).
