@@ -711,6 +711,14 @@ supabase/migrations/` + `supabase migration list` on production. RE-DERIVE BEFOR
 A snapshot without the timestamp, the source command and the re-derive marker is a defect —
 fix it when you see it. And no session may act on a snapshot it did not re-derive itself.
 
+⛔ **Do not propose a CI check that compares documents to GitHub issues.** It has been
+proposed twice, built once (B13) and deleted once, and three models re-reviewed it on
+2026-08-13 and rejected every variant. The reasoning, the verified false-positive rates and
+the one narrower check that could earn its place later are in
+[`docs/artifact-consistency-checker-rejected-20260813.md`](docs/artifact-consistency-checker-rejected-20260813.md).
+The mitigation for unsourced figures is this section plus the plan standard's rule that a
+status row marked done must cite an artifact, never a bare number.
+
 ## 5. The `shared-db` merge protocol (the checklist the AI runs)
 
 Merge a `shared-db` PR **only when every item is true**:

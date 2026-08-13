@@ -30,6 +30,13 @@ __pycache__/
 *.pyc
 .ai-review*.txt
 
+# Delegate-model review reports (ai-glm, ai-grok-review, ai-deepseek-agent).
+# The wrappers refuse to write a report unless this path is ignored, because a
+# review is session scratch and must never be committable.
+.ai/reviews/
+.ai/runs/
+.ai/tmp/
+
 # A PAUSED marker is worktree state, not repository content (#549).
 # See docs/worktree-pause-protocol.md. It must never reach a pull request.
 PAUSED
