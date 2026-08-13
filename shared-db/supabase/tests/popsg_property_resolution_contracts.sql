@@ -234,6 +234,14 @@ begin
       raise notice 'C2. PASS - an active decision must name who activated it and when';
   end;
 
+  -- C3/C4/C7 call the authority-guarded RPCs. Until 20260813030000 they reached the
+  -- post-guard validations from a session with NO JWT claims, because the old guard
+  -- shape `if not (app.has_role(...) or auth.role() = 'service_role')` evaluated to
+  -- NULL under a NULL auth.role() and skipped its own raise (issue #861). That is
+  -- exactly the defect, and this suite was silently relying on it. Declare an
+  -- authorised caller so these three assertions test what they say they test.
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
   -- C3. The activation RPC refuses a batch whose pending row count is not exactly
   -- what the owner approved. This is the "someone edited a proposal after approval"
   -- guard.
@@ -299,6 +307,9 @@ begin
     when check_violation then
       raise notice 'C7. PASS - uncertified shared-alias promotion refused';
   end;
+
+  -- Drop back to an unauthenticated session for the rest of the suite.
+  perform set_config('request.jwt.claims', null, true);
 
   -- ==========================================================================
   -- D. Append-only history: no silent loss

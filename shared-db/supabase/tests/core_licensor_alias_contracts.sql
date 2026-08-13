@@ -314,6 +314,13 @@ begin
     when check_violation then raise notice 'D4. PASS - approval_status is constrained';
   end;
 
+  -- D5/D6 call public.approve_licensor_alias, which is authority-guarded. Until
+  -- 20260813030000 they reached its validations from a session with NO JWT claims,
+  -- because the old guard shape evaluated to NULL under a NULL auth.role() and
+  -- skipped its own raise (issue #861). Declare an authorised caller so these two
+  -- assertions test what they say they test.
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
   -- D5. The RPC refuses to approve anonymously.
   begin
     perform public.approve_licensor_alias('Paramount', '', 'some memo');
@@ -338,6 +345,9 @@ begin
     raise exception 'D6. FAIL - approval did not record a complete audit trail';
   end if;
   raise notice 'D6. PASS - approval RPC promotes with a full audit trail';
+
+  -- Drop back to an unauthenticated session for the rest of the suite.
+  perform set_config('request.jwt.claims', null, true);
 
   -- ==========================================================================
   -- E2. Dormancy requires evidence
