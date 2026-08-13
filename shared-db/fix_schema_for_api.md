@@ -335,7 +335,32 @@ moved.**
    across 15,509 bridge rows).
 **Reversible:** drop the view, revert the reader. **Risk: very low.** **Actual outcome: no behavior change.**
 
-### Phase 2 — Stand up the ingest + import tables (still no cutover)
+### Phase 2 — Stand up the ingest + import tables (still no cutover) ✅ ALREADY SHIPPED 2026-07-20
+
+> ⛔ **This phase is DONE — do not author a migration for it.** Verified 2026-08-12 against
+> production `qsllyeztdwjgirsysgai` and preview `rjyboqwcdzcocqgmsyel`: `plm.item_import`,
+> `plm.item_import_staging` and `plm.import_item_master_data()` all exist in BOTH, shipped by
+> the *item-taxonomy* workstream (`fix_item_taxonomy_wiring.md`) via migrations
+> `20260720120000_item_taxonomy_phase2a_foundation.sql` and
+> `20260720121000_item_taxonomy_phase2b_resolver.sql`. Both versions are in both ledgers.
+> Because it landed under a different workstream, this section was never updated — which
+> already cost one session a wasted migration.
+>
+> **The shipped shape DIVERGES from items 1 and 4 below.** The mirror is keyed on
+> `(company_code, division_code, item_no)`, not `(source_system, source_id)`; there is no
+> `sync_run_id` column (the sync linkage lives in `ingest.sync_run` / `ingest.raw_record`,
+> written by the resolver); and the resolver signature is `(import_payload jsonb)`, not
+> `(p_sync_run_id uuid)`. Item 2 (`plm.production_order_import`) is the ONE part of this
+> phase still genuinely unbuilt.
+>
+> That divergence is not cosmetic: the resolver builds
+> `plm.item.source_id = companyCode|divisionCode|itemNo`, while
+> `public.erp_items_current.external_id` is a bare item number (0 of 17,703 contain a `|`),
+> so the two key spaces cannot be joined directly. **Read
+> [`docs/plm-item-phase3-4-execution-plan.md`](docs/plm-item-phase3-4-execution-plan.md)
+> before attempting Phase 3.** Deployed behaviour is pinned by
+> `supabase/tests/plm_item_import_phase2_contracts.sql` (preview, 2026-08-12: 28 passed / 0 failed).
+
 1. Add `plm.item_import` (typed, columns per §2.2 + `source_system`, `source_id`, `raw`, `imported_at`,
    `sync_run_id`), modeled field-for-field on `plm.customer_import`.
 2. Add `plm.production_order_import` similarly.
