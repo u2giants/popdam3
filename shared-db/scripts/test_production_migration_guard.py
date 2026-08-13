@@ -24,6 +24,8 @@ from production_migration_guard import (  # noqa: E402
     local_migrations,
     manifest_path,
     CO_PRESENCE_RULES,
+    dropped_objects,
+    object_events,
     ATOMIC_BATCHES,
     assert_atomic_batches,
     assert_content_manifest,
@@ -1580,12 +1582,68 @@ class CoPresenceIsLedgerAwareTest(unittest.TestCase):
                 with self.subTest(fix=fix, ledger=sorted(ledger)):
                     self.assertEqual(parse_allowlist(fix, ledger), [fix])
 
-    def test_an_applied_CREATE_does_not_trigger_the_rule_at_all(self) -> None:
-        """Sanity: the rule only fires on a create that is IN the allowlist."""
+    def test_an_applied_CREATE_STILL_COMPELS_every_outstanding_fix(self) -> None:
+        """ISSUE #672 ITEM 1 -- A DELIBERATE BEHAVIOUR CHANGE. THIS USED TO PASS.
+
+        Before this change the rule was gated on `create in chosen` alone, so an
+        applied create silenced it completely and this exact allowlist was
+        ACCEPTED -- leaving `20260810180000` unapplied while production already
+        held the 23 Paramount tables. The rule's claim is "production must never
+        hold the create without the fixes"; a half-finished repair violates it
+        just as hard as a half-finished first promotion.
+
+        If you are here because this test failed after an edit: you have
+        reinstated the hole, not simplified the guard.
+        """
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260810090000", {"20260810020000"})
+        message = str(caught.exception)
+        self.assertIn("20260810020000 is ALREADY APPLIED", message)
+        self.assertIn("20260810180000", message)
+        # It must tell the operator NOT to re-list the applied create, because
+        # `validate_candidates` refuses that outright -- otherwise the obvious
+        # next move produces a second, more confusing refusal.
+        self.assertIn("Do NOT add 20260810020000 back", message)
+
+    def test_the_warner_half_repair_from_issue_672_is_REFUSED(self) -> None:
+        """The concrete case issue #672 item 1 names.
+
+        Warner's create `20260810030000` is applied; the operator lists only
+        `20260810110000`. That leaves `20260810120000` unapplied, so production
+        keeps the wrong read claim and `service_role` keeps INSERT. Refused.
+        """
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260810110000", {"20260810030000"})
+        message = str(caught.exception)
+        self.assertIn("20260810030000 is ALREADY APPLIED", message)
+        self.assertIn("20260810120000", message)
+
+    def test_the_COMPLETE_warner_repair_is_ACCEPTED(self) -> None:
+        """Finishing the repair is always legal -- that is what keeps the
+        one-directional recovery design intact. Only stopping short is refused."""
         self.assertEqual(
-            parse_allowlist("20260810090000", {"20260810020000"}),
-            ["20260810090000"],
+            parse_allowlist("20260810110000,20260810120000", {"20260810030000"}),
+            ["20260810110000", "20260810120000"],
         )
+
+    def test_an_applied_CREATE_whose_fixes_are_all_applied_is_SILENT(self) -> None:
+        """A fully repaired production must not block unrelated promotions."""
+        applied = {"20260810030000", "20260810110000", "20260810120000"}
+        self.assertEqual(parse_allowlist("20260810140000", applied), ["20260810140000"])
+
+    def test_the_rule_never_demands_the_APPLIED_CREATE_itself(self) -> None:
+        """One-directional still holds: the rule demands fixes, never the create.
+
+        Proven by construction -- for every rule, the allowlist of ALL its
+        outstanding fixes is accepted with the create applied and nothing else
+        in the ledger, so no refusal can be escaped only by naming the create.
+        """
+        for create, fixes, _why in CO_PRESENCE_RULES:
+            with self.subTest(create=create):
+                allowlist = ",".join(sorted(fixes))
+                self.assertEqual(
+                    parse_allowlist(allowlist, {create}), sorted(fixes)
+                )
 
     def test_the_error_message_names_what_the_ledger_already_covers(self) -> None:
         """An operator reading the refusal must see which fix was excused."""
@@ -1971,6 +2029,181 @@ class LexerFalseAcceptDefects(unittest.TestCase):
         )
         self.assertIn("plm.real", created_objects(sql))
 
+    # --- #609 F5: `available` never shrank on DROP/RENAME --------------------
+
+    def test_f5_a_dropped_object_is_reported_as_dropped(self) -> None:
+        """The defect, exactly as #609 states it: `drop table plm.old` yielded
+        `created_objects == {}` and removed nothing, so a later
+        `alter table plm.old` was still satisfied from the ledger."""
+        self.assertEqual(dropped_objects("drop table plm.old;\n"), {"plm.old"})
+
+    def test_f5_drop_then_recreate_in_one_file_leaves_the_object_AVAILABLE(self) -> None:
+        """The normal way to change a view's column set. Contract section 5's B7
+        (`api.opa_property_reconciliation`) and B10b both do it. Treating it as a
+        removal would turn one false-ACCEPT into a wave of false REJECTs."""
+        sql = (
+            "drop view if exists api.x;\n"
+            "create view api.x as select 1 as a;\n"
+        )
+        self.assertEqual(dropped_objects(sql), set())
+        self.assertIn("api.x", created_objects(sql))
+
+    def test_f5_create_then_drop_in_one_file_leaves_the_object_GONE(self) -> None:
+        """Last event wins in both directions, not just the convenient one."""
+        sql = "create table plm.tmp (id uuid);\ndrop table plm.tmp;\n"
+        self.assertEqual(dropped_objects(sql), {"plm.tmp"})
+
+    def test_f5_a_multi_object_drop_removes_every_name(self) -> None:
+        self.assertEqual(
+            dropped_objects("drop table plm.a, plm.b cascade;\n"),
+            {"plm.a", "plm.b"},
+        )
+
+    def test_f5_a_rename_removes_the_OLD_name_and_adds_the_NEW_one(self) -> None:
+        events = dict(
+            (obj, created) for _pos, obj, created in
+            object_events("alter table plm.old rename to fresh;\n")
+        )
+        self.assertEqual(events, {"plm.old": False, "plm.fresh": True})
+
+    def test_f5_rename_COLUMN_is_not_a_rename_of_the_table(self) -> None:
+        """`rename column y to z` carries a noun between `rename` and `to`. If
+        this ever matched, every column rename in the backlog would delete its
+        own table from `available` and reject the batch."""
+        self.assertEqual(
+            dropped_objects("alter table plm.t rename column a to b;\n"), set()
+        )
+
+    def test_f5_rename_CONSTRAINT_is_not_a_rename_of_the_table(self) -> None:
+        self.assertEqual(
+            dropped_objects("alter table plm.t rename constraint a to b;\n"), set()
+        )
+
+    def test_f5_set_schema_moves_the_qualified_name(self) -> None:
+        events = dict(
+            (obj, created) for _pos, obj, created in
+            object_events("alter table plm.t set schema core;\n")
+        )
+        self.assertEqual(events, {"plm.t": False, "core.t": True})
+
+    def test_f5_drop_TRIGGER_on_a_table_does_not_drop_the_table(self) -> None:
+        """`drop trigger x on plm.t` names a table it does not remove. The
+        reference regexes already read this position; the drop regexes must not."""
+        self.assertEqual(
+            dropped_objects("drop trigger x on plm.t;\n"), set()
+        )
+
+    def test_f5_drop_POLICY_and_INDEX_do_not_drop_their_target(self) -> None:
+        self.assertEqual(dropped_objects("drop policy p on plm.t;\n"), set())
+        self.assertEqual(dropped_objects("drop index plm.idx;\n"), set())
+
+    def test_f5_a_batch_referencing_a_DROPPED_object_is_REFUSED(self) -> None:
+        """End to end. Before this, the ledger still 'provided' plm.old and the
+        batch passed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "supabase" / "migrations"
+            root.mkdir(parents=True)
+            (root / "20260101000000_a.sql").write_text(
+                "create table plm.old (id uuid);\n", encoding="utf-8"
+            )
+            (root / "20260102000000_b.sql").write_text(
+                "drop table plm.old;\n", encoding="utf-8"
+            )
+            (root / "20260103000000_c.sql").write_text(
+                "alter table plm.old add column x uuid;\n", encoding="utf-8"
+            )
+            migrations = local_migrations(Path(tmp))
+            with self.assertRaises(GuardError) as ctx:
+                preflight_batch(
+                    migrations,
+                    ["20260102000000", "20260103000000"],
+                    {"20260101000000"},
+                )
+            message = str(ctx.exception)
+            self.assertIn("plm.old", message)
+            self.assertIn("DROPPED (or renamed away) by 20260102000000", message)
+            # The advice must be the OPPOSITE of the "created by X" case: no
+            # allowlist can bring a dropped object back.
+            self.assertIn("Adding versions to the allowlist cannot fix this", message)
+
+    def test_f5_a_drop_in_the_APPLIED_LEDGER_is_honoured_too(self) -> None:
+        """The removal need not be in the batch. If production already dropped
+        it, the batch still aborts."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "supabase" / "migrations"
+            root.mkdir(parents=True)
+            (root / "20260101000000_a.sql").write_text(
+                "create table plm.old (id uuid);\n", encoding="utf-8"
+            )
+            (root / "20260102000000_b.sql").write_text(
+                "drop table plm.old;\n", encoding="utf-8"
+            )
+            (root / "20260103000000_c.sql").write_text(
+                "alter table plm.old add column x uuid;\n", encoding="utf-8"
+            )
+            migrations = local_migrations(Path(tmp))
+            with self.assertRaises(GuardError) as ctx:
+                preflight_batch(
+                    migrations,
+                    ["20260103000000"],
+                    {"20260101000000", "20260102000000"},
+                )
+            self.assertIn("DROPPED (or renamed away) by 20260102000000", str(ctx.exception))
+
+    def test_f5_a_recreated_object_is_available_again(self) -> None:
+        """Dropping then re-creating across FILES must not leave a permanent
+        hole -- otherwise every drop-and-recreate split over two migrations
+        becomes an unsatisfiable refusal."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "supabase" / "migrations"
+            root.mkdir(parents=True)
+            (root / "20260101000000_a.sql").write_text(
+                "create table plm.old (id uuid);\n", encoding="utf-8"
+            )
+            (root / "20260102000000_b.sql").write_text(
+                "drop table plm.old;\n", encoding="utf-8"
+            )
+            (root / "20260103000000_c.sql").write_text(
+                "create table plm.old (id uuid);\n", encoding="utf-8"
+            )
+            (root / "20260104000000_d.sql").write_text(
+                "alter table plm.old add column x uuid;\n", encoding="utf-8"
+            )
+            migrations = local_migrations(Path(tmp))
+            preflight_batch(
+                migrations,
+                ["20260102000000", "20260103000000", "20260104000000"],
+                {"20260101000000"},
+            )
+
+    def test_f5_no_existing_migration_becomes_a_new_rejection(self) -> None:
+        """MEASURED EXPOSURE, re-measured on every run rather than quoted.
+
+        Walk every migration in version order, applying creates and net drops,
+        and assert that no file hard-references an object an earlier file
+        removed. When this was written it held across all 437 files with 8 net
+        drop events. If a future migration breaks it, that is a REAL finding --
+        do not delete this test to get past it, and do not assume the lexer is
+        at fault before checking the migration.
+        """
+        migrations = local_migrations(REPO)
+        available: set[str] = set()
+        removed: dict[str, str] = {}
+        offenders: list[str] = []
+        for version in sorted(migrations):
+            raw = migrations[version].read_text(encoding="utf-8")
+            for obj, reason in hard_references(raw):
+                if obj in removed:
+                    offenders.append(f"{version} -> {obj} ({reason}), dropped by {removed[obj]}")
+            created, dropped = created_objects(raw), dropped_objects(raw)
+            available |= created
+            available -= dropped
+            for obj in created:
+                removed.pop(obj, None)
+            for obj in dropped:
+                removed[obj] = version
+        self.assertEqual(offenders, [])
+
     # --- #672 item 2: the bare `do '...'` blind spot -------------------------
 
     def test_bare_do_with_a_string_body_is_refused(self) -> None:
@@ -2022,42 +2255,97 @@ class LexerFalseAcceptDefects(unittest.TestCase):
         self.assertIn("20260729120000", HARD_BLOCKED)
 
 
-BATCHES = {name: members for name, _why, members in ATOMIC_BATCHES}
+BATCHES = {name: members for name, _basis, _why, members in ATOMIC_BATCHES}
+BASES = {name: basis for name, basis, _why, _members in ATOMIC_BATCHES}
 
-# The guard's own member counts. Asserted rather than derived, so a member
-# quietly added to or dropped from ATOMIC_BATCHES fails here instead of silently
-# changing what "atomic" means.
+# The guard's EXACT membership, version by version. Issue #784 item 2: this used
+# to assert COUNTS only, and the exact membership had been reconciled BY HAND
+# during the #781 review with nothing pinning it afterwards -- so a future edit
+# could swap one version for another and every test would still pass. Batch
+# membership drift is not hypothetical in this repo: on 2026-08-11 the lists
+# carried in issue text (#710, #773) were found to contain a B3/B4 overlap the
+# contract did not have.
+#
+# TRANSCRIBED FROM docs/production-promotion-app-tolerance-contract.md, section 5
+# (and 5A.4 for B10), NOT from any issue body. AGENTS.md 4.3: the contract is the
+# authority for batch membership, never an issue.
 #
 # B3 is 11, NOT the contract section-5 functional count of 10: the guard carries
 # one SECURITY appendage the contract predates -- 20260812020000 (issue #822,
-# service_role TRUNCATE revoke on three append-only tables plus core.property_alias). The contract's
-# ten are a strict subset of the guard's eleven. See the B3 entry in
-# production_migration_guard.py and test_b3_requires_the_truncate_fix below.
-CONTRACT_COUNTS = {"B1": 11, "B3": 11, "B7": 6, "B9": 14}
+# service_role TRUNCATE revoke on three append-only tables plus
+# core.property_alias). The contract's ten are a strict subset of the guard's
+# eleven. See the B3 entry in production_migration_guard.py and
+# B3TruncateFixCoPresenceTest below.
+CONTRACT_MEMBERSHIP = {
+    "B1": frozenset({
+        "20260724060000", "20260724061000", "20260726030000", "20260726031000",
+        "20260726032000", "20260726180000", "20260727221500", "20260727223000",
+        "20260727224500", "20260727230000", "20260728134500",
+    }),
+    "B2": frozenset({
+        "20260728171500", "20260728174500", "20260728181500",
+    }),
+    "B3": frozenset({
+        "20260729230000", "20260729234500", "20260729235500", "20260730000500",
+        "20260731150000", "20260731153000", "20260731163000", "20260731180000",
+        "20260731190000", "20260731200000",
+        "20260812020000",  # the post-contract #822 security appendage
+    }),
+    "B4": frozenset({
+        "20260731210000", "20260731220000",
+    }),
+    "B5": frozenset({
+        "20260802140000", "20260802141000", "20260802150000", "20260802160000",
+    }),
+    "B6": frozenset({
+        "20260803150000", "20260803200000", "20260803201000", "20260804120000",
+        "20260804120100",
+    }),
+    "B7": frozenset({
+        "20260807030000", "20260807170000", "20260807170100", "20260807180000",
+        "20260807190000", "20260807200000",
+    }),
+    "B8": frozenset({
+        "20260809170000", "20260809170100", "20260809170200", "20260809170300",
+        "20260809170400", "20260809170500",
+    }),
+    "B9": frozenset({
+        "20260810010000", "20260810020000", "20260810030000", "20260810050000",
+        "20260810060000", "20260810070000", "20260810080000", "20260810090000",
+        "20260810100000", "20260810110000", "20260810120000", "20260810130000",
+        "20260810160000", "20260810170000",
+    }),
+    # Contract section 5A.4. B10b (20260811030000) and B10d (20260811070000) are
+    # single files -- trivially atomic, nothing to stop halfway through -- so
+    # they have no entry and must not gain one.
+    "B10a": frozenset({
+        "20260810190000", "20260810190100",
+    }),
+    "B10c": frozenset({
+        "20260811050000", "20260811060000",
+    }),
+}
+CONTRACT_COUNTS = {name: len(members) for name, members in CONTRACT_MEMBERSHIP.items()}
 
-# Contract section 5: batches the contract does NOT declare atomic. A promotion
-# of any part of one of these must be unaffected by the atomicity check.
-B5_MEMBERS = [
-    "20260802140000",
-    "20260802141000",
-    "20260802150000",
-    "20260802160000",
-]
-B6_MEMBERS = [
-    "20260803150000",
-    "20260803200000",
-    "20260803201000",
-    "20260804120000",
-    "20260804120100",
-]
-B8_MEMBERS = [
-    "20260809170000",
-    "20260809170100",
-    "20260809170200",
-    "20260809170300",
-    "20260809170400",
-    "20260809170500",
-]
+# Which entries the contract DECLARES atomic (section 5 / 5A.4) versus which are
+# DERIVED from its section 6 never-rest list. The guard states this in each
+# entry's `basis` field and the refusal message quotes the right section, so a
+# mislabelled entry would cite a contract sentence that does not exist.
+CONTRACT_BASES = {
+    "B1": "ATOMIC",
+    "B2": "NEVER-REST",
+    "B3": "ATOMIC",
+    "B4": "NEVER-REST",
+    "B5": "NEVER-REST",
+    "B6": "NEVER-REST",
+    "B7": "ATOMIC",
+    "B8": "NEVER-REST",
+    "B9": "ATOMIC",
+    "B10a": "ATOMIC",
+    "B10c": "ATOMIC",
+}
+
+CONTRACT_PATH = REPO / "docs" / "production-promotion-app-tolerance-contract.md"
 
 
 class AtomicBatchTests(unittest.TestCase):
@@ -2071,10 +2359,83 @@ class AtomicBatchTests(unittest.TestCase):
     check did not over-reach.
     """
 
-    def test_membership_matches_the_contract_counts(self) -> None:
-        self.assertEqual(set(BATCHES), set(CONTRACT_COUNTS))
+    def test_membership_matches_the_contract_EXACTLY(self) -> None:
+        """#784 item 2. EXACT frozensets, not counts.
+
+        The count-only version of this test would pass while a member was
+        swapped for an entirely different version. It is what let the B3/B4
+        overlap in #710/#773 go unnoticed for as long as it did.
+        """
+        self.assertEqual(set(BATCHES), set(CONTRACT_MEMBERSHIP))
+        for name, expected in CONTRACT_MEMBERSHIP.items():
+            self.assertEqual(BATCHES[name], expected, name)
+
+    def test_membership_counts_still_reconcile_with_the_contract(self) -> None:
         for name, expected in CONTRACT_COUNTS.items():
             self.assertEqual(len(BATCHES[name]), expected, name)
+
+    def test_every_entry_declares_the_right_basis(self) -> None:
+        """ATOMIC entries cite contract section 5; NEVER-REST entries cite
+        section 6. A mislabelled entry would quote a sentence that is not
+        there."""
+        self.assertEqual(BASES, CONTRACT_BASES)
+        for basis in BASES.values():
+            self.assertIn(basis, {"ATOMIC", "NEVER-REST"})
+
+    # -- #784: the prose in contract section 6 is now enforced --------------
+
+    def _section_6_never_rest_versions(self) -> set[str]:
+        """The contract's OWN never-rest list, parsed from the file.
+
+        Deliberately read from the contract rather than transcribed, so a
+        never-rest state added to the document and enforced by nothing fails
+        here. That is the exact defect #784 was filed about.
+        """
+        text = CONTRACT_PATH.read_text(encoding="utf-8")
+        body = text.split("## 6. States that must NEVER be rested on", 1)[1]
+        body = body.split("**The two B10 never-rest states", 1)[0]
+        block = body.split("```", 2)[1]
+        return set(re.findall(r"\b\d{14}\b", block))
+
+    def test_the_section_6_list_is_parseable_and_not_empty(self) -> None:
+        """If the contract's heading or fence shape changes, the coverage test
+        below would silently pass over an empty set. Fail loudly instead."""
+        versions = self._section_6_never_rest_versions()
+        self.assertGreaterEqual(len(versions), 50, sorted(versions))
+
+    def test_every_section_6_never_rest_version_is_ENFORCED(self) -> None:
+        """THE POINT OF #784.
+
+        Every version the contract forbids resting on must belong to a
+        registered batch, and must not be that batch's terminal member -- so
+        an allowlist that stops at it is refused by `assert_atomic_batches`.
+        Before this change, B2/B4/B5/B6/B8's 15 never-rest versions belonged to
+        no entry at all and the guard accepted resting on any of them.
+        """
+        unenforced: list[str] = []
+        for version in sorted(self._section_6_never_rest_versions()):
+            owner = [n for n, m in BATCHES.items() if version in m]
+            if not owner:
+                unenforced.append(f"{version}: in no registered batch")
+                continue
+            name = owner[0]
+            if version == max(BATCHES[name]):
+                unenforced.append(
+                    f"{version}: is {name}'s terminal member, so resting on it "
+                    "is accepted"
+                )
+        self.assertEqual(unenforced, [])
+
+    def test_resting_on_any_section_6_version_is_REFUSED(self) -> None:
+        """End to end, one allowlist per never-rest version: an allowlist whose
+        highest version is a forbidden resting state must be refused."""
+        for version in sorted(self._section_6_never_rest_versions()):
+            name = next(n for n, m in BATCHES.items() if version in m)
+            stopping_here = sorted(v for v in BATCHES[name] if v <= version)
+            with self.subTest(version=version, batch=name):
+                with self.assertRaises(GuardError) as ctx:
+                    assert_atomic_batches(stopping_here, set())
+                self.assertIn(f"batch {name} is", str(ctx.exception))
 
     def test_batches_do_not_overlap_each_other(self) -> None:
         """The #773 / #710 B3/B4 defect must not be reproduced here.
@@ -2163,7 +2524,9 @@ class AtomicBatchTests(unittest.TestCase):
                 with self.subTest(batch=name, version=version):
                     with self.assertRaises(GuardError) as ctx:
                         assert_atomic_batches([version], set())
-                    self.assertIn(f"batch {name} is ATOMIC", str(ctx.exception))
+                    self.assertIn(
+                        f"batch {name} is {BASES[name]}", str(ctx.exception)
+                    )
 
     def test_every_proper_subset_missing_one_member_is_REFUSED(self) -> None:
         for name, members in BATCHES.items():
@@ -2174,11 +2537,45 @@ class AtomicBatchTests(unittest.TestCase):
 
     # -- the batches the contract does NOT declare atomic -------------------
 
-    def test_non_atomic_batches_B5_B6_B8_are_unaffected(self) -> None:
-        for members in (B5_MEMBERS, B6_MEMBERS, B8_MEMBERS):
-            for size in range(1, len(members) + 1):
-                with self.subTest(members=members[:size]):
-                    assert_atomic_batches(members[:size], set())
+    def test_the_NEVER_REST_batches_are_now_ENFORCED(self) -> None:
+        """ISSUE #784 -- A DELIBERATE BEHAVIOUR CHANGE. EVERY ONE OF THESE
+        PARTIAL ALLOWLISTS USED TO PASS.
+
+        The predecessor of this test asserted the OPPOSITE: that a partial
+        B5/B6/B8 allowlist was "unaffected" by the check. It was faithful to the
+        guard as it stood, and the guard was wrong -- contract section 6 forbids
+        resting inside these batches and nothing enforced it. A partial B2
+        allowlist would have shipped the known-defective ClickUp importer.
+        """
+        for name in ("B2", "B4", "B5", "B6", "B8"):
+            members = sorted(BATCHES[name])
+            for size in range(1, len(members)):
+                with self.subTest(batch=name, members=members[:size]):
+                    with self.assertRaises(GuardError) as ctx:
+                        assert_atomic_batches(members[:size], set())
+                    self.assertIn(f"batch {name} is NEVER-REST", str(ctx.exception))
+
+    def test_a_complete_NEVER_REST_batch_is_ACCEPTED(self) -> None:
+        """The check must compel completion, never forbid it."""
+        for name in ("B2", "B4", "B5", "B6", "B8"):
+            with self.subTest(batch=name):
+                assert_atomic_batches(sorted(BATCHES[name]), set())
+
+    def test_a_NEVER_REST_refusal_cites_contract_section_6(self) -> None:
+        """An ATOMIC refusal cites section 5; these must cite section 6, because
+        that is the sentence the operator has to go and read."""
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(["20260728174500"], set())
+        message = str(ctx.exception)
+        self.assertIn("batch B2 is NEVER-REST", message)
+        self.assertIn("section 6 forbids resting on every member of B2", message)
+        self.assertIn("20260728181500", message)
+
+    def test_a_NEVER_REST_batch_resumes_after_a_mid_batch_abort(self) -> None:
+        """Ledger-awareness applies to these entries exactly as it does to the
+        atomic ones: the remainder ALONE is the only legal recovery."""
+        applied = BATCHES["B8"] - {"20260809170500"}
+        assert_atomic_batches(["20260809170500"], set(applied))
 
     def test_the_canary_alone_is_unaffected(self) -> None:
         """B0, `20260810140000`, goes first and ALONE by contract section 5. It is
@@ -2207,7 +2604,7 @@ class AtomicBatchTests(unittest.TestCase):
         self.assertIn("Excluded because production already has them", message)
 
     def test_a_fully_applied_batch_does_not_block_anything(self) -> None:
-        assert_atomic_batches(B5_MEMBERS, set(BATCHES["B9"]))
+        assert_atomic_batches(sorted(BATCHES["B5"]), set(BATCHES["B9"]))
 
     # -- the choke points --------------------------------------------------
 
@@ -2230,6 +2627,57 @@ class AtomicBatchTests(unittest.TestCase):
             with self.assertRaises(GuardError) as ctx:
                 assert_bounded(root, "20260810050000", ledger)
             self.assertIn("batch B9 is ATOMIC", str(ctx.exception))
+
+    # -- #819: B10a and B10c -----------------------------------------------
+
+    def test_the_lone_20260811050000_shortcut_is_REFUSED(self) -> None:
+        """ISSUE #819 -- A DELIBERATE BEHAVIOUR CHANGE. THIS USED TO PASS.
+
+        B10c is declared ATOMIC by contract section 5A.4 and was enforced by
+        nothing: not by ATOMIC_BATCHES and, unlike B10a, not by any co-presence
+        rule either. `20260811050000` alone leaves plm.dcp_metadata_* created,
+        service_role-insertable, with no supported loader or finalizer.
+        """
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(["20260811050000"], set())
+        message = str(ctx.exception)
+        self.assertIn("batch B10c is ATOMIC", message)
+        self.assertIn("MISSING (1): 20260811060000", message)
+
+    def test_a_complete_B10c_allowlist_is_ACCEPTED(self) -> None:
+        assert_atomic_batches(sorted(BATCHES["B10c"]), set())
+
+    def test_B10c_resumes_with_the_loader_alone_once_the_landing_is_applied(
+        self,
+    ) -> None:
+        """The recovery case. A run that died between the two is repaired by
+        20260811060000 ALONE -- validate_candidates refuses to re-list the
+        applied 20260811050000."""
+        assert_atomic_batches(["20260811060000"], {"20260811050000"})
+
+    def test_B10a_is_enforced_by_BOTH_mechanisms_and_they_agree(self) -> None:
+        """B10a already had a one-directional co-presence rule (#665). The new
+        atomic entry must not contradict it: the create alone is refused by
+        both, and the loader alone is accepted by both once the create is
+        applied."""
+        with self.assertRaises(GuardError):
+            assert_atomic_batches(["20260810190000"], set())
+        with self.assertRaises(GuardError):
+            parse_allowlist("20260810190000", frozenset())
+        assert_atomic_batches(["20260810190100"], {"20260810190000"})
+        self.assertEqual(
+            parse_allowlist("20260810190100", {"20260810190000"}),
+            ["20260810190100"],
+        )
+
+    def test_the_single_file_B10_parts_have_no_entry(self) -> None:
+        """B10b and B10d are one file each, so there is no internal boundary to
+        stop at. Registering them would add a batch that can never be split and
+        a message that can never fire -- and would invite someone to 'complete'
+        it by adding neighbours that are not members."""
+        registered = set().union(*BATCHES.values())
+        self.assertNotIn("20260811030000", registered)
+        self.assertNotIn("20260811070000", registered)
 
     def test_the_refusal_message_says_what_to_do(self) -> None:
         with self.assertRaises(GuardError) as ctx:

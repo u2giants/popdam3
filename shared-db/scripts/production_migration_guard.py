@@ -172,6 +172,18 @@ FR_REMOVAL_VERSIONS: set[str] = set()
 # There are explicit tests for each of those recovery cases; if you change this
 # structure and they still pass, you have broken the tests, not proved the change.
 #
+# ****** ONE-DIRECTIONAL IS NOT THE SAME AS "SILENT ONCE THE CREATE LANDS". ******
+#
+# Issue #672 item 1. The rule fires when the create is in the ALLOWLIST **or**
+# already in the LEDGER. What stays one-directional is which versions it
+# DEMANDS: it demands the outstanding fixes, never the create. So a recovery run
+# after a mid-batch abort is still legal -- it just has to carry EVERY fix that
+# is not yet applied, instead of an arbitrary subset. `20260810110000` ALONE
+# with `20260810030000` already applied is REFUSED, because it leaves
+# `20260810120000` unapplied and production holding the wrong read claim with
+# `service_role` still able to INSERT. `20260810110000` + `20260810120000`
+# together is ACCEPTED in that same state. See `parse_allowlist`.
+#
 # NOT LISTED HERE, ON PURPOSE: `20260810110000` also alters `api.dam_order_list`,
 # which `20260810010000` creates. That is a DEPENDENCY, not a policy, and it is
 # already enforced by `preflight_batch` -- which reads the real production ledger
@@ -270,6 +282,50 @@ CO_PRESENCE_RULES: tuple[tuple[str, frozenset[str], str], ...] = (
 # ---------------------------------------------------------------------------
 # ATOMIC BATCHES (added 2026-08-11)
 #
+# ****** TWO PROVENANCES, ONE MECHANISM (issue #784, added 2026-08-12). ******
+#
+# Read this before deciding an entry is mislabelled. Every entry below states
+# the same enforced property -- PRODUCTION MUST NOT COME TO REST INSIDE THIS SET
+# -- but it is derived from the contract in one of two ways, and the `basis`
+# field says which:
+#
+#   "ATOMIC"     the contract's section 5 table declares the batch atomic in so
+#                many words. B1, B3, B7, B9 (and B10a, B10c in section 5A.4).
+#
+#   "NEVER-REST" the contract does NOT use the word atomic, but its section 6
+#                never-rest list names EVERY member of the batch except the
+#                last, and section 6's legal-resting-point list names that last
+#                member. The set of legal resting states is therefore exactly
+#                {none of it, all of it} -- mechanically identical to atomic,
+#                derived rather than declared. B2, B4, B5, B6, B8.
+#
+# WHY ONE MECHANISM AND NOT TWO. Issue #784 asked for the shape to be decided
+# first, and warned that the non-atomic batches "are not all-or-nothing like the
+# atomic four". They were checked one by one against section 6 and they ARE: for
+# each of B2, B4, B5, B6 and B8 the contract forbids resting on every member but
+# the terminal one, so "an allowlist may not stop at a version section 6 forbids
+# resting on" and "all members or none" describe the same set of accepted
+# allowlists. Inventing a second checker to express an identical rule would give
+# the lane two places to look and two places to drift. If a future batch ever
+# gains a genuine INTERNAL legal resting point, that is when a second shape is
+# warranted -- and it must be added with the contract text quoted beside it,
+# never by weakening this one.
+#
+# B4 IS INCLUDED THOUGH #784 DID NOT NAME IT. #784 listed B2, B5, B6 and B8.
+# Section 6 names `20260731210000` (B4's first of two) as a never-rest state and
+# `20260731220000` as its legal resting point, so B4 is the same gap by the same
+# derivation. Leaving it out because an issue body did not list it would rebuild
+# the exact defect -- a rule that exists only in prose -- for one batch, and
+# AGENTS.md 4.3 is explicit that the CONTRACT is the authority for batch
+# membership, never an issue body. B4 is already applied to production, so the
+# entry is inert today; it is here so the mechanism has no hole in it.
+#
+# THE COVERAGE IS PINNED BY A TEST, NOT BY THIS COMMENT. `test_every_section_6
+# _never_rest_version_is_enforced` parses the contract's own section 6 list and
+# asserts every version in it belongs to a registered batch and is not that
+# batch's terminal member. That is what stops the next never-rest state from
+# being added to the contract and enforced by nothing.
+#
 # docs/production-promotion-app-tolerance-contract.md declares FOUR of its nine
 # promotion batches ATOMIC -- B1, B3, B7 and B9 (contract section 5 table, and
 # section 10: "B1, B3, B7 and B9 are atomic. Do not split them, whatever a
@@ -338,9 +394,10 @@ CO_PRESENCE_RULES: tuple[tuple[str, frozenset[str], str], ...] = (
 # files and B4 two") and its section 6 lists are consistent. The two versions are
 # encoded here as B3 members and B4 is not an atomic batch, so the overlap is not
 # reproduced in the guard.
-ATOMIC_BATCHES: tuple[tuple[str, str, frozenset[str]], ...] = (
+ATOMIC_BATCHES: tuple[tuple[str, str, str, frozenset[str]], ...] = (
     (
         "B1",
+        "ATOMIC",
         "the ColdLion circuit-breaker batch. It carries the BUNDLE_20260804 "
         "four AND the sync_coldlion_licensors_properties 2-arg -> 3-arg "
         "signature change at 20260726030000, whose 2-arg predecessor is created "
@@ -363,7 +420,27 @@ ATOMIC_BATCHES: tuple[tuple[str, str, frozenset[str]], ...] = (
         ),
     ),
     (
+        "B2",
+        "NEVER-REST",
+        "the ClickUp importer batch. Contract section 6 forbids resting after "
+        "20260728171500 and after 20260728174500, and lists 20260728181500 as "
+        "the batch's only legal resting point -- so the legal states are none of "
+        "it or all of it. 20260728174500 creates the ClickUp incremental "
+        "importer and 20260728181500 corrects it: resting between them ships a "
+        "KNOWN-DEFECTIVE importer to production. (Contract section 7.3 also "
+        "records this batch as the one most likely to abort, so a partial "
+        "landing here is not a hypothetical.)",
+        frozenset(
+            {
+                "20260728171500",
+                "20260728174500",
+                "20260728181500",
+            }
+        ),
+    ),
+    (
         "B3",
+        "ATOMIC",
         "the plm.promote_coldlion_source_owned chain. Eight successive bodies of "
         "the same function, of which only the eighth (20260731200000) is safe to "
         "rest on functionally. Earlier bodies leave a known ambiguous-column "
@@ -402,7 +479,65 @@ ATOMIC_BATCHES: tuple[tuple[str, str, frozenset[str]], ...] = (
         ),
     ),
     (
+        "B4",
+        "NEVER-REST",
+        "the core.licensor alias batch. Contract section 6 forbids resting after "
+        "20260731210000 and lists 20260731220000 as the legal resting point, so "
+        "the alias table must not land without the owner-approved remaining five "
+        "aliases that fill it. NOT NAMED BY #784 -- derived from section 6 by "
+        "the same rule as B2/B5/B6/B8; see the header. Already applied to "
+        "production, so this entry is inert today and exists so the mechanism "
+        "has no hole.",
+        frozenset(
+            {
+                "20260731210000",
+                "20260731220000",
+            }
+        ),
+    ),
+    (
+        "B5",
+        "NEVER-REST",
+        "the taxonomy alert acknowledgement RPC and its three corrections. "
+        "Contract section 6 forbids resting after 20260802140000, 20260802141000 "
+        "and 20260802150000, and lists 20260802160000 as the legal resting "
+        "point. 20260802160000 fixes the EFFECTIVE-ROLE CHECK, so every earlier "
+        "resting state leaves the acknowledgement RPC judging the wrong "
+        "principal. NOTE: the two AGENTS.md 6.5 held versions (20260802170000, "
+        "20260802171000) sort just above 20260802160000 and are deliberately NOT "
+        "members -- FR_HELD_20260803 refuses them by a separate, stricter rule.",
+        frozenset(
+            {
+                "20260802140000",
+                "20260802141000",
+                "20260802150000",
+                "20260802160000",
+            }
+        ),
+    ),
+    (
+        "B6",
+        "NEVER-REST",
+        "the item identity/UPC contract, temp status watch and taxonomy baseline "
+        "pins. Contract section 6 forbids resting after 20260803150000, "
+        "20260803200000, 20260803201000 and 20260804120000, and lists "
+        "20260804120100 as the legal resting point. 20260804120100 drops the "
+        "8-arg trip_taxonomy_circuit_breaker and re-creates it, so resting "
+        "before it leaves the pin table without its environment/provenance "
+        "columns.",
+        frozenset(
+            {
+                "20260803150000",
+                "20260803200000",
+                "20260803201000",
+                "20260804120000",
+                "20260804120100",
+            }
+        ),
+    ),
+    (
         "B7",
+        "ATOMIC",
         "the Disney OPA batch. 20260807190000 does `drop view if exists "
         "api.opa_property_reconciliation` followed by a `create view` -- a "
         "genuine column-set change that `create or replace view` cannot do, so "
@@ -422,7 +557,31 @@ ATOMIC_BATCHES: tuple[tuple[str, str, frozenset[str]], ...] = (
         ),
     ),
     (
+        "B8",
+        "NEVER-REST",
+        "the core.product_size / core.product_depth foundation, both seeds, the "
+        "guarded importer, the api pickers and the DB Data Admin mutations. "
+        "Contract section 6 forbids resting after 20260809170000, 20260809170100, "
+        "20260809170200, 20260809170300 and 20260809170400, and lists "
+        "20260809170500 as the legal resting point. A HALF-SEEDED "
+        "core.product_size is the single failure PopDAM swallows SILENTLY -- it "
+        "falls back to style_groups.size_name, which looks plausible and is "
+        "wrong (contract section 3.2). There is no monitoring that would catch "
+        "it, so this batch's partial state is discovered by a user or not at all.",
+        frozenset(
+            {
+                "20260809170000",
+                "20260809170100",
+                "20260809170200",
+                "20260809170300",
+                "20260809170400",
+                "20260809170500",
+            }
+        ),
+    ),
+    (
         "B9",
+        "ATOMIC",
         "the licensor landing batch. It carries all three security co-presence "
         "pairs (Paramount TRUNCATE, Warner `using (true)`, NBCU direct write -- "
         "the three worst resting states in the whole backlog), the "
@@ -450,6 +609,66 @@ ATOMIC_BATCHES: tuple[tuple[str, str, frozenset[str]], ...] = (
             }
         ),
     ),
+    (
+        # Issue #819, contract section 5A.4 and 5A.8.
+        "B10a",
+        "ATOMIC",
+        "the Disney DCP Vault source landing plus its chunked loader. "
+        "20260810190000 creates nine plm.dcp_* tables, the frozen row-hash "
+        "function and the immutability triggers but NO loader; 20260810190100 "
+        "supplies the chunked loader, plm.dcp_chunk_ledger and "
+        "plm.finalize_dcp_crawl -- the only CHECKED path to "
+        "dcp_crawl.status = 'complete'. State the exposure accurately, because "
+        "the loose version of it was wrong: 20260810190000 grants service_role "
+        "select AND insert and installs no header INSERT trigger, so a caller "
+        "CAN write rows directly and can insert a dcp_crawl row already marked "
+        "'complete', arming the immutability triggers over data nothing ever "
+        "validated. That is worse than 'nothing can happen', not better. What "
+        "is missing between the pair is the supported, checked, finalizable "
+        "path -- not the ability to write. "
+        "WHY THIS ENTRY EXISTS ALONGSIDE THE CO-PRESENCE RULE, which already "
+        "covers the pair one-directionally (issue #665): the co-presence rule "
+        "fires on the CREATE, so it is the right tool for 'the create must "
+        "carry its fix'. This entry states the batch property the contract "
+        "actually declares -- B10a is ATOMIC (section 5A.4) -- and section 5A.8 "
+        "names registering B10a and B10c in ATOMIC_BATCHES as the correct fix. "
+        "The two checks agree and the stricter one wins, which is the safe "
+        "direction; neither is redundant, because deleting either would leave a "
+        "claim the contract makes with nothing behind it.",
+        frozenset(
+            {
+                "20260810190000",
+                "20260810190100",
+            }
+        ),
+    ),
+    (
+        # Issue #819. THE GAP THIS ISSUE WAS FILED ABOUT.
+        "B10c",
+        "ATOMIC",
+        "the DCP Vault metadata landing plus its chunked loader. Declared ATOMIC "
+        "by contract section 5A.4 and enforced by NOTHING until now -- not by "
+        "ATOMIC_BATCHES, and (unlike B10a) not by any co-presence rule either, "
+        "so the guard accepted an allowlist of 20260811050000 ALONE and only the "
+        "operator stood between the contract and that state. 20260811050000 "
+        "creates plm.dcp_metadata_*, dcp_property, dcp_character, dcp_term and "
+        "three observation tables with no loader; 20260811060000 supplies "
+        "begin_dcp_metadata_run / load_dcp_metadata_chunk / "
+        "finalize_dcp_metadata_run plus plm.dcp_metadata_chunk_ledger and "
+        "plm.dcp_metadata_load_exception. Identical shape to B10a, including the "
+        "precision: 20260811050000 DOES grant service_role select and insert, so "
+        "the gap is the supported loader and finalizer, not raw writability. "
+        "Rest only after 20260811060000 (contract section 6). "
+        "B10b (20260811030000) and B10d (20260811070000) are single files and "
+        "therefore trivially atomic -- there is no internal boundary to stop at, "
+        "so they get no entry.",
+        frozenset(
+            {
+                "20260811050000",
+                "20260811060000",
+            }
+        ),
+    ),
 )
 
 
@@ -467,7 +686,7 @@ def assert_atomic_batches(allowlist: list[str], remote: set[str]) -> None:
     this guard under time pressure.
     """
     chosen = set(allowlist)
-    for name, why, members in ATOMIC_BATCHES:
+    for name, basis, why, members in ATOMIC_BATCHES:
         present = chosen & members
         if not present:
             continue
@@ -481,10 +700,15 @@ def assert_atomic_batches(allowlist: list[str], remote: set[str]) -> None:
             if already
             else ""
         )
+        citation = (
+            f"section 5 declares {name} atomic"
+            if basis == "ATOMIC"
+            else f"section 6 forbids resting on every member of {name} but the last"
+        )
         raise GuardError(
-            f"batch {name} is ATOMIC and this allowlist would split it. "
-            f"docs/production-promotion-app-tolerance-contract.md section 5 "
-            f"declares {name} atomic: {why}\n"
+            f"batch {name} is {basis} and this allowlist would split it. "
+            f"docs/production-promotion-app-tolerance-contract.md "
+            f"{citation}: {why}\n"
             f"  batch {name} has {len(members)} members\n"
             f"  supplied ({len(present)}): {', '.join(sorted(present))}\n"
             f"  MISSING ({len(missing)}): {', '.join(missing)}{resume}\n"
@@ -586,9 +810,36 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
     # because that is exactly the exposed state. Do not collapse those two
     # cases; there are tests for both, plus one for the missing-and-unapplied
     # case, and they are what tells you what you broke.
+    #
+    # THE RULE ALSO FIRES WHEN THE CREATE IS ALREADY APPLIED (issue #672 item 1,
+    # deliberately deferred by PR #747 because it turns a PASS into a FAIL).
+    #
+    # `create in remote` is the state the rule exists to end, not a state that
+    # excuses it. Before this, the rule was gated on `create in chosen` alone, so
+    # once the CREATE had landed the guard stopped compelling anything: with
+    # Warner's `20260810030000` applied, an allowlist of `20260810110000` ALONE
+    # passed, leaving `20260810120000` unapplied -- production holding the wrong
+    # read claim with `service_role` still able to INSERT. The rule's whole claim
+    # is "production must never hold the create without the fixes", and that
+    # claim is violated exactly as hard by a half-finished repair as by a
+    # half-finished first promotion.
+    #
+    # THIS DOES NOT BREAK RECOVERY, AND THE DISTINCTION IS THE WHOLE DESIGN.
+    # Required membership stays `fixes - already_applied`, so completing the
+    # repair is always legal and re-listing an applied version (which
+    # `validate_candidates` refuses outright) is never required. What is now
+    # refused is stopping short: a repair allowlist that names SOME outstanding
+    # fixes and not all of them. That is the same "you may finish, you may not
+    # rest inside" shape `assert_atomic_batches` already uses, and for the same
+    # reason -- this lane is forward-only with no undo.
+    #
+    # Paramount and NBCU each have two fixes and Warner two, so every rule can
+    # surface this; Warner is where it was found. A rule whose fixes are all
+    # applied is silent, so a fully repaired production stays promotable.
     chosen = set(values)
     for create, fixes, why in CO_PRESENCE_RULES:
-        if create not in chosen:
+        create_applied = create in remote
+        if create not in chosen and not create_applied:
             continue
         already = fixes & set(remote)
         missing = sorted((fixes - already) - chosen)
@@ -599,13 +850,25 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
                 if already
                 else ""
             )
+            if create_applied:
+                raise GuardError(
+                    f"co-presence rule: {create} is ALREADY APPLIED on production "
+                    f"and its fix(es) {', '.join(missing)} are neither applied nor "
+                    f"in this allowlist.{satisfied} Production is sitting in the "
+                    f"exposed state right now, so an allowlist that repairs only "
+                    f"part of it is refused. {why} Add every missing version to "
+                    f"the allowlist. (Do NOT add {create} back -- "
+                    "`validate_candidates` refuses any allowlist naming an "
+                    "already-applied version, and it does not need re-applying.)"
+                )
             raise GuardError(
                 f"co-presence rule: {create} may not be promoted without "
                 f"{', '.join(missing)}.{satisfied} {why} Add the missing version(s) to the "
                 "allowlist. (This rule is one-directional on purpose: promoting "
                 f"{', '.join(sorted(fixes))} WITHOUT {create} is allowed, because "
                 "that is the only legal way to recover a run that died between "
-                "them.)"
+                "them -- but the recovery must carry EVERY outstanding fix, not "
+                "just some of them.)"
             )
     return values
 
@@ -1197,6 +1460,121 @@ def created_objects(raw: str) -> set[str]:
     return found
 
 
+# ---------------------------------------------------------------------------
+# #609 F5 -- `available` NEVER SHRANK.
+#
+# The preflight modelled object CREATION only. `drop table plm.old` in file N
+# produced `created_objects == {}` and removed nothing, so a later
+# `alter table plm.old` was still satisfied from the remote ledger and the batch
+# passed -- the false-ACCEPT direction. The issue records this as an
+# ARCHITECTURAL limit rather than a regex bug, and it is: closing it means the
+# preflight has to model removal as well as creation. That is what this does.
+#
+# LAST EVENT WINS, AND THAT IS THE WHOLE MODEL. Within one file the events are
+# read in TEXT ORDER and only the final one for an object counts, because that
+# is the file's end state -- which is the only thing a later file can observe.
+# So the near-universal `drop view if exists api.x; create view api.x ...`
+# (contract section 5, B7 and B10b both do it) leaves api.x AVAILABLE, and the
+# reverse order leaves it gone. Getting this backwards would turn a
+# false-ACCEPT into a wave of false REJECTs across the whole backlog.
+#
+# `created_objects` IS DELIBERATELY UNCHANGED. It still reports every object the
+# file creates anywhere. `preflight_batch` applies `available |= created` and
+# then `available -= dropped_objects(raw)`, and because `dropped_objects` only
+# reports objects whose LAST event is a removal, the order of those two lines
+# gives the correct end state either way. Leaving `created_objects` alone keeps
+# every existing caller and test meaning exactly what it meant before.
+#
+# WHAT IS AND IS NOT MODELLED. Removals reached only through
+# `execute format(...)` are invisible here for the same reason creations are
+# (module header). A drop this scanner cannot see leaves `available` too large,
+# which is the pre-existing behaviour, not a new hole. This check may REJECT;
+# it is still never an APPROVAL.
+#
+# MEASURED EXPOSURE. Across every file in supabase/migrations/, walked in
+# version order, no object that a migration drops-and-does-not-recreate is
+# hard-referenced by any later migration -- so no existing batch's verdict
+# changes. See test_f5_no_existing_migration_becomes_a_new_rejection.
+# ---------------------------------------------------------------------------
+
+# Object kinds whose removal this models. Deliberately the same five kinds
+# `CREATE_RES` recognises: modelling the removal of something whose creation is
+# invisible would produce refusals nothing could ever satisfy.
+DROP_RES = (
+    re.compile(r"\bdrop\s+(?:unlogged\s+)?table\s+(?:if\s+exists\s+)?"),
+    re.compile(r"\bdrop\s+(?:materialized\s+)?view\s+(?:if\s+exists\s+)?"),
+    re.compile(r"\bdrop\s+(?:function|procedure)\s+(?:if\s+exists\s+)?"),
+    re.compile(r"\bdrop\s+type\s+(?:if\s+exists\s+)?"),
+    re.compile(r"\bdrop\s+sequence\s+(?:if\s+exists\s+)?"),
+)
+# Where a `drop` object list ends. `cascade`/`restrict` are not object names and
+# a `;` ends the statement outright.
+DROP_LIST_END_RE = re.compile(r";|\bcascade\b|\brestrict\b")
+# `alter <kind> [if exists] [only] sch.obj rename to newname` -- the old name
+# STOPS EXISTING and a new one appears in the same schema. `rename column`,
+# `rename constraint` and friends do not match, because they carry the noun
+# between `rename` and `to`.
+RENAME_RE = re.compile(
+    r"\balter\s+(?:table|view|materialized\s+view|sequence|type|function|procedure)\s+"
+    r"(?:if\s+exists\s+)?(?:only\s+)?" + IDENT + r"\s+rename\s+to\s+([a-z_][a-z0-9_]*)"
+)
+# `alter <kind> sch.obj set schema other` -- same object, different qualified
+# name, so the old qualified name stops resolving.
+SET_SCHEMA_RE = re.compile(
+    r"\balter\s+(?:table|view|materialized\s+view|sequence|type|function|procedure)\s+"
+    r"(?:if\s+exists\s+)?(?:only\s+)?" + IDENT + r"\s+set\s+schema\s+([a-z_][a-z0-9_]*)"
+)
+
+
+def object_events(raw: str) -> list[tuple[int, str, bool]]:
+    """Every creation and removal in the file, as ``(position, object, created)``.
+
+    Positions come from the SAME stripped text `created_objects` scans
+    (``keep_regclass=False``), so a `create table a.b` sitting inside a kept
+    ``::regclass`` literal cannot register here either -- the #609 F2 phantom.
+    """
+    text = strip_sql(raw, keep_regclass=False)
+    events: list[tuple[int, str, bool]] = []
+    for pattern in CREATE_RES:
+        for match in pattern.finditer(text):
+            events.append(
+                (match.start(), f"{match.group(1)}.{match.group(2)}", True)
+            )
+    for pattern in DROP_RES:
+        for match in pattern.finditer(text):
+            end = DROP_LIST_END_RE.search(text, match.end())
+            segment = text[match.end() : end.start() if end else len(text)]
+            # `drop table a.b, c.d` removes both.
+            for obj in re.finditer(IDENT, segment):
+                events.append(
+                    (match.start() + obj.start(), f"{obj.group(1)}.{obj.group(2)}", False)
+                )
+    for match in RENAME_RE.finditer(text):
+        schema, old, new = match.group(1), match.group(2), match.group(3)
+        events.append((match.start(), f"{schema}.{old}", False))
+        events.append((match.start() + 1, f"{schema}.{new}", True))
+    for match in SET_SCHEMA_RE.finditer(text):
+        schema, obj, new_schema = match.group(1), match.group(2), match.group(3)
+        events.append((match.start(), f"{schema}.{obj}", False))
+        events.append((match.start() + 1, f"{new_schema}.{obj}", True))
+    events.sort(key=lambda item: item[0])
+    return events
+
+
+def dropped_objects(raw: str) -> set[str]:
+    """Objects this file removes and does NOT put back. Last event wins.
+
+    The complement of `created_objects` for `preflight_batch`'s `available` set.
+    An object dropped and then re-created in the same file is NOT here -- the
+    drop-and-recreate is the normal way to change a view's column set, and
+    treating it as a removal would reject most of B7 and all of B10b.
+    """
+    final: dict[str, bool] = {}
+    for _position, obj, created in object_events(raw):
+        final[obj] = created
+    return {obj for obj, created in final.items() if not created}
+
+
 def hard_references(raw: str) -> list[tuple[str, str]]:
     text = strip_sql(raw)
     found: list[tuple[str, str]] = []
@@ -1219,11 +1597,27 @@ def preflight_batch(
         for obj in created_objects(path.read_text(encoding="utf-8")):
             creators.setdefault(obj, []).append(version)
 
+    # #609 F5. `available` now SHRINKS on a drop/rename, so the ledger prefix has
+    # to be walked in version order -- an unordered union would let a create in a
+    # later applied file be cancelled by a drop in an earlier one, or vice versa.
+    # `removed_by` remembers WHICH version removed an object, so the refusal can
+    # say "dropped by X" instead of the misleading "created by X, which is not
+    # applied" the creation-only model would have printed.
     available: set[str] = set()
+    removed_by: dict[str, str] = {}
     for version in sorted(remote):
         path = migrations.get(version)
-        if path is not None:
-            available |= created_objects(path.read_text(encoding="utf-8"))
+        if path is None:
+            continue
+        raw = path.read_text(encoding="utf-8")
+        created = created_objects(raw)
+        dropped = dropped_objects(raw)
+        available |= created
+        available -= dropped
+        for obj in created:
+            removed_by.pop(obj, None)
+        for obj in dropped:
+            removed_by[obj] = version
 
     problems: list[str] = []
     for version in allowlist:
@@ -1236,9 +1630,32 @@ def preflight_batch(
             assert_no_archaic_function_body(version, raw)
         except GuardError as exc:
             problems.append(str(exc))
-        available |= created_objects(raw)
+        created = created_objects(raw)
+        dropped = dropped_objects(raw)
+        available |= created
+        available -= dropped
+        for obj in created:
+            removed_by.pop(obj, None)
+        for obj in dropped:
+            removed_by[obj] = version
         for obj, reason in hard_references(raw):
             if obj in available:
+                continue
+            # #609 F5. A POSITIVE, RECORDED REMOVAL. This is the one case the
+            # creation-only model could not see at all, and it is reported
+            # separately because the advice is the opposite: the object is not
+            # "coming later", it is GONE, and no amount of adding versions to the
+            # allowlist will bring it back.
+            if obj in removed_by:
+                problems.append(
+                    f"{version} references missing {obj} ({reason}); it was "
+                    f"DROPPED (or renamed away) by {removed_by[obj]} and not "
+                    f"re-created -- would abort the batch (42P01 undefined_table "
+                    f"/ 42883 undefined_function). Adding versions to the "
+                    f"allowlist cannot fix this: either {version} is referencing "
+                    f"the wrong name, or {removed_by[obj]} should not be in this "
+                    f"batch."
+                )
                 continue
             known = sorted(creators.get(obj, []))
             if not known:

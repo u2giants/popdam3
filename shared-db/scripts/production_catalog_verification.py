@@ -280,6 +280,97 @@ DATA_STATEMENT_RE = re.compile(
     r"^\s*(insert|update|delete|merge|with|select|values|set|reset|analyze)\b"
 )
 
+# ---------------------------------------------------------------------------
+# NARROWING THE DATA-STATEMENT ALLOWANCE (issue #805)
+#
+# `DATA_STATEMENT_RE` matches on the HEAD KEYWORD ONLY and never looks at the
+# target, so three shapes passed the no-op claim check while doing exactly what
+# the check exists to forbid:
+#
+#   update pg_class set relacl = null where relname='t';   <- a privilege change
+#   select dblink_exec('revoke all on t from public');     <- a revoke, via a call
+#   set role service_role;                                 <- changes the principal
+#
+# THESE WERE LATENT, NOT EXPLOITABLE, AND THAT IS THE ARGUMENT FOR FIXING THEM
+# RATHER THAN AGAINST IT. Checked read-only against production on 2026-08-11:
+# the migration role is not superuser and cannot UPDATE pg_catalog.pg_class, and
+# dblink is available but NOT INSTALLED (and a migration cannot install it --
+# `create extension` is rejected by this same check). So all three died at apply
+# time. But EVERY ONE of those mitigations is ENVIRONMENTAL: none lives in this
+# repository, none is asserted by a test, and none would announce itself if it
+# changed. Someone installing dblink for an unrelated feature, or a platform
+# change to what the migration role may write, converts a theoretical gap into a
+# real one with no diff and no failing check anywhere here.
+#
+# NOTHING IS WIDENED. Every statement these patterns name was ACCEPTED before
+# and is REJECTED now; no statement that was rejected becomes accepted. The
+# no-op accept path stays fail-closed, which #805 is explicit about.
+# ---------------------------------------------------------------------------
+
+# A statement that changes the EXECUTING PRINCIPAL. `set role` alone creates no
+# catalog object, so declaring it a no-op is not strictly a false claim -- but a
+# file that switches principal is not a "pure data" file in any sense a reviewer
+# would recognise, and the claim is a REVIEWER-FACING promise.
+#
+# `reset role` IS HANDLED WITH IT, which is the half #805 calls out. `reset role`
+# restores the session's ORIGINAL (higher) principal, so treating it differently
+# from `set role` would leave the more privileged direction as the allowed one.
+# `reset all` is included because it resets `role` among everything else.
+PRINCIPAL_CHANGE_RE = re.compile(
+    r"^\s*(?:set|reset)\s+(?:local\s+|session\s+)*"
+    r"(?:role\b|session\s+authorization\b|authorization\b|all\b)"
+)
+
+# Write targets, found ANYWHERE in the statement rather than only at its head --
+# `with x as (...) update pg_class ...` leads with `with`, and a head-only check
+# would wave it through.
+_NOOP_TARGET = r"(?:\"?([a-z_][a-z0-9_$]*)\"?\s*\.\s*)?\"?([a-z_][a-z0-9_$]*)\"?"
+WRITE_TARGET_RE = re.compile(
+    r"\b(?:insert\s+into|update|delete\s+from|merge\s+into)\s+(?:only\s+)?"
+    + _NOOP_TARGET
+)
+# Every system catalog relation is named `pg_*`, and every system catalog schema
+# is `pg_catalog` / `pg_toast` / `pg_temp*`. An UNQUALIFIED `pg_class` resolves
+# through search_path to `pg_catalog.pg_class`, which is exactly the shape #805
+# reproduced, so the unqualified form must be caught too.
+CATALOG_SCHEMAS = {"pg_catalog", "information_schema"}
+
+# A function call that executes arbitrary SQL over a connection is not a data
+# statement, whatever keyword the statement leads with. Matched by name prefix so
+# `dblink_exec`, `dblink_send_query` and `dblink_open` are all covered.
+REMOTE_EXEC_RE = re.compile(r"\bdblink\w*\s*\(")
+
+
+def data_statement_rejection(statement: str) -> str | None:
+    """Why this statement is NOT a pure-data statement, or None if it is.
+
+    Returns a REASON rather than a bool so the refusal names what it found. A
+    rejection that says only "non-data statement" sends the author looking at
+    the wrong keyword.
+    """
+    if not DATA_STATEMENT_RE.match(statement):
+        return "not a data statement"
+    if PRINCIPAL_CHANGE_RE.match(statement):
+        return (
+            "changes the executing principal (set/reset role or session "
+            "authorization), so the file is not pure data"
+        )
+    if REMOTE_EXEC_RE.search(statement):
+        return (
+            "calls a dblink function, which executes arbitrary SQL over a "
+            "connection -- a grant, revoke or DDL can hide inside it"
+        )
+    for match in WRITE_TARGET_RE.finditer(statement):
+        schema, relation = match.group(1), match.group(2)
+        target = f"{schema}.{relation}" if schema else relation
+        if schema:
+            if schema in CATALOG_SCHEMAS or schema.startswith("pg_"):
+                return f"writes to the system catalog ({target})"
+        elif relation.startswith("pg_"):
+            # Unqualified, so it resolves through search_path to pg_catalog.
+            return f"writes to the system catalog ({target})"
+    return None
+
 BEHAVIOR_SIDECAR_DIR = Path("scripts/production-verification-sidecars")
 BEHAVIOR_SIDECAR_KEYS = {
     "schema_version", "migration_version", "migration_sha256", "checks"
@@ -885,11 +976,15 @@ def read_noop_declaration(raw: str, version: str) -> dict | None:
         return None
     reason = match.group("reason").strip()
     statements = split_statements(strip_sql(raw))
-    offenders = [
-        " ".join(s.split())[:120]
-        for s in statements
-        if not DATA_STATEMENT_RE.match(s)
-    ]
+    # Issue #805: the head keyword is necessary but NOT sufficient. A statement
+    # whose head is data-shaped can still write the system catalog, execute SQL
+    # through dblink, or switch the executing principal. Each offender carries
+    # the reason it was rejected, so the refusal names what it found.
+    offenders = []
+    for statement in statements:
+        rejection = data_statement_rejection(statement)
+        if rejection:
+            offenders.append(f"{' '.join(statement.split())[:120]} [{rejection}]")
     if len(reason) < 20:
         return {
             "version": version,
