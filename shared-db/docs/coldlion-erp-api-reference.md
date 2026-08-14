@@ -98,6 +98,14 @@ List endpoints are Spring-paged:
 Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,711**
 (items table is large too).
 
+> ### ⚠️ Exceptions — endpoints that are NOT paged
+> `/merchGroupDetails`, **`/prodHistory`** and **`/orderHistory`** return a **plain JSON array**,
+> not the envelope above. The two history endpoints **silently ignore `page` and `size`**
+> (verified 2026-08-14: `size=5` still returned 265 rows), so a paging loop written against
+> them will re-fetch the same rows forever. Chunk them by **date window** instead, and read
+> [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) before building
+> any loader — it documents a repeated-row trap that double-counts purchases.
+
 > ## ✅ RESOLVED 2026-07-22 — Coldlion swapped `/vendors` to the correct (factory) table
 >
 > `/vendors` now serves **97 records, all active** (verified live 2026-07-22) — the service-providers
@@ -148,6 +156,8 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 | `/proddetails` | Production order detail | companyCode *(req)*, prodOrderNo *(req)* |
 | `/prodtracking` | Production tracking | prodOrderNo, created/modifiedFrom/To |
 | `/order` | **POST** — insert a sales order | body = `OrderHeader` (with `OrderDetail[]`) |
+| `/prodHistory` | **Purchase history** — orders we placed with factories, one row per production-order line × prepack component (132 fields). **Not paged.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, stageCode |
+| `/orderHistory` | **Sales history** — orders customers placed with us, one row per sales-order line × prepack component (59 fields). **Not paged.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, divisionCode, salesOrderNo |
 
 **Read vs write:** all pulls are read-only GET **except** `PUT /itemDetails`, `PUT /itemImages`,
 `PUT /items`, and `POST /order`. The import only needs GETs. Any write path (pushing data

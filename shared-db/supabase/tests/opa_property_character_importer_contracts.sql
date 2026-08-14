@@ -365,9 +365,14 @@ begin
       v_r.distinct_property, v_r.distinct_character;
   end if;
 
-  -- 6a. THE ID-PAIR KEY. Two rows share one name pair; BOTH must be present.
-  select count(*) into v_count from plm.opa_property_character
-    where property_name = 'Fixture Property One' and character_name = 'Fixture Character One';
+  -- 6a. THE ID-PAIR KEY. Two rows share one display-name pair; BOTH entity identities
+  -- and BOTH links must be present. Names live on the normalized entity tables now.
+  select count(*) into v_count
+  from plm.opa_property p
+  join plm.opa_property_character l using (licensed_property_id)
+  join plm.opa_character c using (character_id)
+  where p.property_name = 'Fixture Property One'
+    and c.character_name = 'Fixture Character One';
   if v_count <> 2 then
     raise exception 'ID-pair key regression: expected 2 rows sharing a name pair under '
       'different IDs, got %. Keying on names drops 22 rows of the real extract.', v_count;
@@ -379,12 +384,13 @@ begin
     raise exception 'the negative sentinel row did not land through the importer';
   end if;
 
-  -- 6c. The importer resolves NOTHING.
-  select count(*) into v_count from plm.opa_property_character
-    where licensed_property_id in (910000001, 910000002, -9999)
-      and (resolution_status <> 'unresolved' or property_id is not null
-           or resolved_at is not null or resolved_by is not null
-           or resolution_reason is not null);
+  -- 6c. The importer resolves NOTHING. Resolution now belongs on the entities.
+  select count(*) into v_count
+  from plm.opa_property
+  where licensed_property_id in (910000001, 910000002, -9999)
+    and (resolution_status <> 'unresolved' or core_property_id is not null
+         or resolved_at is not null or resolved_by is not null
+         or resolution_reason is not null);
   if v_count <> 0 then
     raise exception 'the importer set a resolution column on % row(s). Resolution is an '
       'OPEN OWNER GATE and has no code path.', v_count;
@@ -418,9 +424,9 @@ begin
   insert into core.property (licensor_id, name, code)
     values (v_lic, 'Contract Test Property OPA2', 'ZZTESTPROPOPA2') returning id into v_prop;
 
-  update plm.opa_property_character
-     set property_id = v_prop,
-         resolution_status = 'matched',
+  update plm.opa_property
+     set core_property_id = v_prop,
+         resolution_status = 'resolved',
          resolution_reason = 'contract test manual resolution',
          resolved_at = timestamptz '2026-08-06 12:00:00+00',
          resolved_by = 'contract-test'
@@ -433,11 +439,11 @@ begin
       v_r.rows_inserted, v_r.rows_unchanged;
   end if;
 
-  select resolution_status, property_id into v_status, v_propid
-  from plm.opa_property_character where licensed_property_id = 910000001;
+  select resolution_status, core_property_id into v_status, v_propid
+  from plm.opa_property where licensed_property_id = 910000001;
 
-  if v_status is distinct from 'matched' or v_propid is distinct from v_prop then
-    raise exception 'a re-import WIPED a human resolution (status=%, property_id=%). The '
+  if v_status is distinct from 'resolved' or v_propid is distinct from v_prop then
+    raise exception 'a re-import WIPED a human resolution (status=%, core_property_id=%). The '
       'resolution columns must be absent from the upsert SET list.', v_status, v_propid;
   end if;
 
@@ -487,7 +493,7 @@ begin
   select count(*) into v_core_after from core.property_character;
   if v_core_after <> v_core_before then
     raise exception 'the importer wrote % row(s) into core.property_character; it may write '
-      'ONLY plm.opa_property_character', v_core_after - v_core_before;
+      'ONLY the normalized plm.opa_* landing tables', v_core_after - v_core_before;
   end if;
 
   if exists (select 1 from core.character where name like 'Fixture %') then
