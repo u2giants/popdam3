@@ -627,6 +627,11 @@ export function resolveRunConfig(env) {
     );
   }
 
+  const statementTimeoutMs = Number(env.WB_STATEMENT_TIMEOUT_MS ?? "300000");
+  if (!Number.isSafeInteger(statementTimeoutMs) || statementTimeoutMs < 1000 || statementTimeoutMs > 900000) {
+    throw new Error("WB_STATEMENT_TIMEOUT_MS must be a whole number from 1000 through 900000.");
+  }
+
   return {
     repoDir: resolvePath(
       need("WB_SOURCE_REPO", "Point it at the root of the PRIVATE licensor-source-data checkout.")
@@ -641,6 +646,7 @@ export function resolveRunConfig(env) {
     expectedRef: (env.WB_EXPECTED_PROJECT_REF ?? "").trim(),
     databaseUrl: env.DATABASE_URL ?? "",
     maxShrinkFraction: env.WB_MAX_SHRINK_FRACTION ?? null,
+    statementTimeoutMs,
     notes: env.WB_NOTES ?? null,
   };
 }
@@ -760,6 +766,11 @@ export async function loadCapture(client, cfg, capture, log = console.log) {
   }
 }
 
+/** Apply a bounded session timeout after connecting; transaction poolers may ignore URL options. */
+export async function configureDatabaseSession(client, statementTimeoutMs) {
+  await client.query("select set_config('statement_timeout',$1,false)", [String(statementTimeoutMs)]);
+}
+
 /** Load prepared streams while recording truthful optional zero-row streams as skipped. */
 export async function loadPreparedCaptures(client, cfg, captures, log = console.log, load = loadCapture) {
   const results = [];
@@ -814,6 +825,7 @@ async function main() {
   const client = new pg.Client({ connectionString: cfg.databaseUrl });
   await client.connect();
   try {
+    await configureDatabaseSession(client, cfg.statementTimeoutMs);
     await loadPreparedCaptures(client, cfg, captures);
     console.log("  ALL ELEVEN CAPTURES COMPLETE.");
   } finally {

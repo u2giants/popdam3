@@ -31,6 +31,7 @@ import {
   prepareCaptures,
   summarise,
   resolveRunConfig,
+  configureDatabaseSession,
   loadCapture,
   loadPreparedCaptures,
 } from "./sync-warner-starlabs.mjs";
@@ -502,6 +503,35 @@ test("every other required input is required", () => {
   for (const k of ["WB_SOURCE_REPO", "WB_PINNED_COMMIT", "WB_CAPTURED_BY"]) {
     assert.throws(() => resolveRunConfig({ ...baseEnv, [k]: "" }), new RegExp(`${k} is required`));
   }
+});
+
+test("statement timeout defaults to five minutes and is bounded", () => {
+  assert.equal(resolveRunConfig(baseEnv).statementTimeoutMs, 300000);
+  assert.equal(
+    resolveRunConfig({ ...baseEnv, WB_STATEMENT_TIMEOUT_MS: "120000" }).statementTimeoutMs,
+    120000,
+  );
+  for (const value of ["999", "900001", "1.5", "not-a-number"]) {
+    assert.throws(
+      () => resolveRunConfig({ ...baseEnv, WB_STATEMENT_TIMEOUT_MS: value }),
+      /WB_STATEMENT_TIMEOUT_MS/,
+    );
+  }
+});
+
+test("database session timeout is set explicitly after connection", async () => {
+  const client = {
+    queries: [],
+    async query(sql, args) {
+      this.queries.push({ sql, args });
+      return { rows: [] };
+    },
+  };
+  await configureDatabaseSession(client, 300000);
+  assert.deepEqual(client.queries, [{
+    sql: "select set_config('statement_timeout',$1,false)",
+    args: ["300000"],
+  }]);
 });
 
 // ---------------------------------------------------------------------------
