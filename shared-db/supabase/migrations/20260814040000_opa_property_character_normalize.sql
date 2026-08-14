@@ -135,7 +135,9 @@ set core_property_id = src.property_id,
     resolution_reason = src.resolution_reason,
     updated_at = now()
 from (
-  select licensed_property_id, min(property_id) property_id, min(resolved_at) resolved_at,
+  -- min(uuid) does not exist in Postgres, hence the ::text round trip. Any row for a
+  -- given property carries the same property_id, so the choice is arbitrary by design.
+  select licensed_property_id, min(property_id::text)::uuid property_id, min(resolved_at) resolved_at,
          min(resolved_by) resolved_by, min(resolution_reason) resolution_reason
   from plm.opa_property_character
   where property_id is not null
