@@ -634,30 +634,32 @@ four rules below are non-negotiable for any database change.
 
 ## 4. The five anti-collision rules (shared database)
 
-1. **One schema change in flight at a time.** Before starting database work,
-   check whether another change is already in progress (§6). If so, finish or
-   land that one first, or coordinate with the owner. Two simultaneous schema
-   edits are the number-one cause of a broken shared database.
+1. **Up to three unrelated migrations may be authored at once. Preview, merges,
+   and production promotion remain one at a time.** This is Albert's owner ruling
+   of 2026-08-14. Concurrent authors must use isolated worktrees, exact object
+   claims and centrally reserved versions. A fourth author is refused.
 
-   **Do not judge this by reading documents — run the check.** It compares what
-   you intend to write against every open `db-claim` and every open pull request:
+   **Do not open a migration file first.** Acquire an author lane, object claim
+   and unique 14-digit version as one dispatch operation:
 
    ```bash
-   node scripts/check-dispatch-collision.mjs \
-     --task "<what you are about to do>" \
-     --objects "<every object you will WRITE, comma-separated>"
+   node scripts/manage-migration-author-lanes.mjs --claim \
+     --task "<issue and outcome>" --owner "<agent/session>" \
+     --branch "<branch>" --worktree "<absolute isolated worktree>" \
+     --objects "<every exact object written, comma-separated>"
    ```
 
-   Exit `0` means **the check completed and found no overlap in the object
-   classes it can read** — that is evidence, not clearance; read the CHECKED /
-   NOT CHECKED lists it prints and judge the rest yourself. `1` collision
-   (**stop**), `2` undetermined (**stop**, or proceed READ-ONLY).
+   The command fails closed if claims are unreadable, objects overlap, GitHub is
+   unavailable, version reservation fails, or three author lanes are occupied.
+   The created issue body is authoritative and machine-readable. Never hand-edit
+   its fenced blocks. The permanent version ref prevents reuse even after a lease
+   ends; the lease only controls who occupies an author lane.
 
-   ⚠️ **`--allocate-version` was withdrawn on 2026-08-07 and now exits `2`.** It
-   never reserved anything — it read the versions in use and printed a
-   suggestion, so two orchestrators running it in the same minute were handed the
-   same number. Pick a version manually; duplicates are already blocked at merge
-   by the `SQL migration guards` check. An atomic reservation is plan step 6.
+   Audit lanes with `node scripts/manage-migration-author-lanes.mjs --audit`.
+   Close claims immediately after merge or abandonment. Run
+   `node scripts/manage-migration-author-lanes.mjs --cleanup-stale` to close
+   expired leases. This removes stale ownership clutter but never frees a version
+   for reuse, because an abandoned version may already exist in preview's ledger.
 
    **If you cannot list the objects up front, your task is read-only** — and read-only work cannot
    collide. Close your claim when the work merges or is abandoned; an open claim
@@ -667,16 +669,10 @@ four rules below are non-negotiable for any database change.
    backstop AFTER it, and by the time that one fires, somebody's session is
    already wasted — on 2026-07-31, three of four were.
 
-   ⚠️ **KNOWN LIMIT, being fixed — read this before trusting a clear result.**
-   The SQL parser behind both checks models only `function`, `procedure`,
-   `view`, `materialized view`, `trigger` and `policy`. It is **blind to
-   `alter table`, `create table`, `create index`, `grant`, `comment on` and
-   `create type`** — about 1,921 statements in `supabase/migrations/` versus 754
-   it can see. Two agents both running `alter table core.licensor …` are
-   reported as no-overlap. The fix, its reasoning, and the two live experiments
-   that settled the design are in
-   [`plan_dispatch-collision-hardening.md`](plan_dispatch-collision-hardening.md)
-   — **read its STATUS table first; do not re-plan or re-derive it.**
+   Before preview and again before merge, fetch `origin/main`, update the branch
+   from newly merged `main`, and re-run the version/object checks and all existing
+   SQL/cross-PR guards. A clean author lane does not grant access to preview.
+   The orchestrator grants the single preview lane, then the single merge lane.
    **The concrete symptom when this rule is broken:** the preview branch is
    persistent, so its ledger holds every branch that ever ran `db push` —
    including unmerged ones. A `main`-based checkout then cannot dry-run against
@@ -2553,8 +2549,9 @@ have already happened in this repo, more than once.
 
 1. **One orchestrator.** All work is dispatched to sub-agents in isolated
    worktrees. If you were not started as the orchestrator, you are not it.
-2. **One schema change in flight at a time.** Two simultaneous schema edits are
-   the number-one cause of a broken shared database here.
+2. **SUPERSEDED 2026-08-14:** up to three unrelated migrations may be authored
+   concurrently under exact object claims and atomic version reservations.
+   Preview, merges and production promotion remain one at a time. Use §4 rule 1.
 3. **Never edit a migration that has already been applied.** The migration
    ledger already records that version as run, so editing the file changes
    nothing on any database that has seen it — it only makes the repo lie. Fix
@@ -2563,8 +2560,8 @@ have already happened in this repo, more than once.
    the same version prefix: one applies, the other is quietly ignored with no
    error. This has happened twice — `20260722220000` and `20260728160000`. CI
    now blocks duplicate versions and backdated versions, but do not rely on CI
-   to save you; pick a version above the current maximum in
-   `supabase/migrations/`.
+   to save you; reserve the version atomically through
+   `scripts/manage-migration-author-lanes.mjs --claim` before creating the file.
 5. **Never create background task chips for this repo — banned.** Four
    chip-spawned sessions recently authored competing `CREATE OR REPLACE`
    migrations against the *same* database function, three of them sharing
@@ -2654,7 +2651,7 @@ have already happened in this repo, more than once.
     finishes, then release it.** This is standard practice, not an improvisation.
 
 15. **The single-orchestrator rule is scoped to STRUCTURE (owner ruling §0.0-B, 2026-08-13).**
-    Rules 1 and 2 above ("one orchestrator", "one schema change in flight") govern changes to the
+    Rules 1 and 2 above ("one orchestrator", "up to three migration authors") govern changes to the
     *shape* of the database. They do **not** make an application session's ordinary row writes
     into orchestrator work, and a session must not open an issue or hand over merely because its
     feature writes data. The single exception is curated Master Data under §6.4, which stays
