@@ -298,19 +298,22 @@ mirror suggested:
 `DMC` (MILLER / COORS - DESPERATE) must be created in `core.licensor` before its
 four properties can be linked, because `licensor_id` is `NOT NULL`.
 
-One disagreement, unchanged from the mirror: `CC` (COCO) — canonical `DY`
-(DISNEY), live DesignFlow `ZZ` (DTR - NO LICENSE).
+One disagreement: `CC` (COCO) — canonical `DY` (DISNEY), live DesignFlow `ZZ`
+(DTR - NO LICENSE).
 
-**Checked 2026-08-13: it is NOT a duplicate.** Live DesignFlow holds exactly one
-COCO per licensed division (`mg_id` 1728 in CW001, 1966 in SP001), both active and
-both parented to `ZZ`. There is no second, Disney-parented COCO anywhere in
-DesignFlow, and `core.property` holds exactly one COCO row. So this is a single
-real property whose ERP parent is `DTR - NO LICENSE` — either a deliberate
-commercial statement or a long-standing mis-parenting, not a stray duplicate to
-delete. COCO is a Disney/Pixar title, so canonical `DY` looks like the curated
-correction. **Needs an owner decision; do not flip it to force agreement.** Note
-also that the Disney scrape has landed zero rows (§1a), so there is no scrape to
-settle it under the scrapes-win rule yet.
+**RESOLVED — owner ruling, Albert Hazan, 2026-08-13: COCO belongs under DISNEY.
+The `ZZ` parent is a mistake in the upstream record, not a commercial statement.**
+
+Canonical `core.property` is therefore **already correct** and must not be changed.
+No data fix is required on our side; the correction is owed upstream (§6a).
+
+Investigation behind the ruling: it is not a duplicate. Live DesignFlow holds
+exactly one COCO per licensed division (`mg_id` 1728 in CW001, 1966 in SP001),
+both active and both parented to `ZZ`. There is no second, Disney-parented COCO
+anywhere in DesignFlow, and `core.property` holds exactly one COCO row. The
+Disney scrape has landed zero rows (§1a), so no scrape was available to settle it
+under the scrapes-win rule; the ruling stands on the owner's knowledge of the
+title.
 
 Incidental illustration of the composite-key rule (§5a.5): in the same division,
 `CC` is *both* a licensor code (COCA COLA, inactive) and a property code (COCO,
@@ -323,6 +326,67 @@ both divisions along with all four of its properties. It is missing from
 `core.licensor` only because the June snapshot predates it.
 
 No canonical property is missing from live DesignFlow, and there are no orphans.
+
+## 6a. Corrections owed upstream. Owner ruling, 2026-08-13.
+
+**When we establish that a source system is wrong, correcting our canonical row is
+only half the job. A human who can edit that source has to be told, so the error is
+fixed where it originates.** Otherwise every future pull re-presents the same bad
+value, every future reconciliation re-raises the same finding, and the canonical
+correction has to be defended forever.
+
+This is a standing obligation, not a one-off for COCO.
+
+### Which system actually needs correcting — check before you send
+
+**The parent licensor edge is NOT a ColdLion field.** Verified 2026-08-13 against
+the live API: `merchGroupDetails` returns exactly
+`createdTime, createdUser, modTime, modUser, companyCode, divisionCode,
+mgTypeCode, mgCode, mgDesc, itemNoCode, mgCategory, mgCode2` — no parent, no
+licensor reference. The full published endpoint list is `/customers`, `/inventory`,
+`/itemDetails`, `/itemImages`, `/items`, `/merchGroupDetails`,
+`/merchGroupHeaders`, `/order`, `/pickticket`, `/prepackDetail`, `/proddetails`,
+`/prodtracking`, `/receiving`, `/salespersons`, `/seasons`, `/vendors` — **there is
+no relationship, parent or hierarchy endpoint at all.** And
+`designflow-data-syncing` declares `parent_id` on its `merchGroup` model but never
+writes it from any sync path.
+
+So a wrong parent is a **DesignFlow** record and must be corrected in DesignFlow.
+Routing it to whoever maintains ColdLion would be a wasted request. Route by field:
+
+| Wrong value | Correct it in |
+|---|---|
+| Parent licensor of a property | **DesignFlow** |
+| Property or licensor name (`mgDesc`) | **ColdLion** |
+| Merch-group code (`mgCode`), division, type | **ColdLion** |
+| Whether we currently sell it (active/inactive) | **Neither** — curated here (§4) |
+| Characters, style guides, assets | **Neither** — the licensor portal is authoritative (§1a) |
+
+For a ColdLion-side correction, the row's own `createdUser` / `modUser` names the
+person who last touched it and is the best routing hint available. Across the 300
+live CW001 properties those are `JSeguine` (226), `JAshley` (68), `Jcoleman` (5)
+and `SGhosh` (1).
+
+### The register
+
+Each finding is recorded with: the entity and its composite key, the wrong value,
+the value we believe correct, the evidence, **which system owns the fix**, who was
+notified and when, and whether the source has since been corrected. A finding is
+closed only when a fresh pull shows the source agreeing — never when the message
+is sent. `plm.taxonomy_resolution_review` already models the finding itself and
+has a `conflict` status; it has no notification or upstream-fix state, so those
+columns are the schema work this needs. That table is owned by the ColdLion
+cutover workstream, so the change goes through a `db-work` issue rather than being
+added ad hoc.
+
+### Open items
+
+| Entity | Key | Source says | Correct value | Fix belongs in | Notified |
+|---|---|---|---|---|---|
+| Property `CC` COCO | `EDGEHOME/CW001/06/CC` and `.../SP001/06/CC` | parent `ZZ` DTR - NO LICENSE | parent `DY` DISNEY | **DesignFlow** | **not yet — recipient not identified** |
+
+Canonical is already right for this item, so nothing here blocks our own work. The
+outstanding action is purely the upstream notification.
 
 ## 7. Sequence
 
