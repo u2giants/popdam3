@@ -526,6 +526,78 @@ another live agent may be mid-task on it. Leave it, work in your own worktree, a
 handoff. Remove your own worktree when your branch has merged; never remove one that is dirty,
 locked, or held by a live agent.
 
+### 2.1-W.1 Retiring a worktree — and the squash-merge trap that has defeated every attempt
+
+`scripts/reap-merged-worktrees.mjs` does this. Dry run by default; `--apply` to act.
+
+**The trap.** `main` is squash-merged, which rewrites the commit, so **`git branch --merged`
+cannot see a merged feature branch.** Measured 2026-08-13: 74 of 130 branches looked unmerged to
+git while their pull request was merged. Every reaper keyed on git ancestry therefore reports
+live work and cleans nothing, which is why 29 worktrees and 130 branches accumulated here.
+**Ask GitHub whether the PULL REQUEST merged. Never judge by git ancestry alone.**
+
+The script refuses to remove a worktree that is dirty, locked, detached, holds unpushed commits,
+or is the main checkout — it prints those instead. Uncommitted work is unrecoverable, and no
+amount of "its PR merged" makes deleting it safe.
+
+**Branches now delete themselves.** `delete-branch-on-merge` was turned on for this repository on
+2026-08-13, so a merged branch disappears without anybody remembering to sweep it.
+
+## 2.1-H The HANDOFF.d contract — the file's own session retires it (issue #658, owner ruling 2026-08-13)
+
+**There is NO limit on how many files `HANDOFF.d/` holds.** Twenty concurrent workstreams across
+the five applications sharing this database means twenty files, and that is correct. What is
+limited is **stale** files, and the target for those is **zero**.
+
+⛔ **Do not add a check that fails a pull request when the directory exceeds N files.** It was
+proposed on 2026-08-13 and rejected by the owner in the same breath:
+
+> "when the 6th file gets there legitimately, if there are five files already there and some are
+> stale, the legitimate file will get rejected. The sessions that do the work must take care of
+> their own housekeeping. they are better informed than anyone as to whether something is
+> finished or not." — Albert Hazan, 2026-08-13
+
+A count cap bills whoever shows up next for somebody else's mess. Any earlier "threshold of 5"
+wording, here or in a skill, is **superseded** by this section.
+
+**Every `HANDOFF.d/` file opens with a contract block** naming the issue that would prove it
+finished:
+
+```
+---
+issue: 925                            # bare number; the issue that proves this done
+status: OPEN                          # OPEN or BLOCKED — never DONE, see below
+owner: codex/wb-scrape-schema-925     # the branch or session that owns it
+---
+```
+
+**A finished file is DELETED, never marked done.** `status: DONE` is rejected. A file that stays
+behind saying "finished" is the same archaeology problem as one that says nothing.
+
+**One line, and "is this finished?" stops costing an hour.** Without it, answering that question
+for 30 files meant reading all of them against live GitHub — which is why nobody did, and why 27
+finished files sat in this directory for weeks.
+
+**Three checks enforce it, and each can only ever fail the session that owns the file:**
+
+| | What | Where | Blocks? |
+|---|---|---|---|
+| 1 | A handoff file you **add or modify** must carry a valid contract block | `Handoff Contract Guard` on every PR | yes, only your file |
+| 2 | If a file you touched points at a **CLOSED** issue, or this PR **closes** an issue some file points at, retire that file **in this same PR** | same guard | yes, only your file |
+| 3 | Files whose issue is already closed are listed weekly, with the owner named | `Handoff Stale Report`, Mondays | **never** |
+
+Check 3 is the backstop for the only gap the other two cannot close: **a session that dies
+mid-run never comes back to retire its file.** It reports and never deletes — deciding a
+workstream is finished is a judgement, and the report names the file's owner so the ask lands on
+the session that created it rather than on a stranger.
+
+**When you inherit somebody's issue, you inherit their handoff file**, including the duty to
+retire it. That is the whole mechanism: the duty travels with the work, not with the calendar.
+
+**If the owning session is genuinely gone** and you are confident the work is done, any
+orchestrator may retire the file — but say so in the pull request body, with the evidence
+(closed issue, merged PR). Never delete another session's file silently.
+
 ## 2.1 Host/server boundary
 
 This repo owns shared database schema, Supabase migrations, PLM import code, and the `systemd/plm-sync.*` templates. Durable host/OS changes on `hetz` are owned by the canonical Ansible repo at `/worksp/ansible` / [`u2giants/ansible`](https://github.com/u2giants/ansible), then applied by GitHub Actions.

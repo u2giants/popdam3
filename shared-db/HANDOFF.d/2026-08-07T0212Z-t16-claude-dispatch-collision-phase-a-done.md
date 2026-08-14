@@ -1,3 +1,9 @@
+---
+issue: 943
+status: OPEN
+owner: t16/dispatch-collision (session ended; Phase B unassigned)
+---
+
 # Handoff — dispatch-collision hardening: **Phase A is DONE, start at Phase B**
 
 **Written:** 2026-08-07 02:12 UTC · **Machine:** `t16` (hostname `albt16`) · **Agent:** Claude (Opus 5)
