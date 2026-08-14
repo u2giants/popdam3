@@ -118,7 +118,11 @@ declare
     -- Added by 20260811030000 (PR #752, the lossless repeated-metadata table). It is a
     -- pmt landing table like every other name here, so it keeps service_role's documented
     -- INSERT/UPDATE/DELETE and must hold none of TRUNCATE/REFERENCES/TRIGGER/MAINTAIN.
-    'pmt_asset_metadata_value'];
+    'pmt_asset_metadata_value',
+    -- Added by issue #965 (plan_pmt-metadata-element-normalization.md). Same
+    -- mandatory-existence coupling as pmt_asset_metadata_value: naming it here
+    -- makes this file fail on any database that does not yet have the table.
+    'pmt_metadata_element'];
   v_nbcu text[] := array[
     'nbcu_capture','nbcu_right','nbcu_scope','nbcu_property','nbcu_ip_family',
     'nbcu_character','nbcu_style_guide','nbcu_asset','nbcu_asset_metadata_value',

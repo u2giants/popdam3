@@ -37,6 +37,9 @@ __pycache__/
 .ai/runs/
 .ai/tmp/
 
+# Local confidential business-data audits. Never commit licensed item descriptions.
+.private/
+
 # A PAUSED marker is worktree state, not repository content (#549).
 # See docs/worktree-pause-protocol.md. It must never reach a pull request.
 PAUSED

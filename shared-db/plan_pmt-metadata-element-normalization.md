@@ -18,22 +18,21 @@
 
 | # | Step | State | Evidence |
 |---|---|---|---|
-| 0 | Serialization gate: wait for the duplicate-name plan’s first `plm.load_pmt_capture_chunk` rewrite | ⬜ open | — |
-| 1 | Measure headings and `data_type` with NULL-aware queries; record loader shape | ⬜ open | — |
-| 2 | Migration A — create `plm.pmt_metadata_element` with the full Paramount security contract, freeze trigger, and NULL-aware backfill | ⬜ open | — |
-| 3 | Migration B — second `plm.load_pmt_capture_chunk` rewrite plus client `LOAD_ORDER` (after Step 0) | ⬜ open | — |
-| 4 | Tests in `supabase/tests/` and the Paramount loader test file | ⬜ open | — |
-| 5 | Migration C — FK from value rows to the element table, only after the loader writes the parent | ⬜ open | — |
+| 0 | Serialization gate: wait for the duplicate-name plan’s first `plm.load_pmt_capture_chunk` rewrite | ✅ complete | 2026-08-14: #964 merged as PR #981, merge commit `b13b331`; this branch starts from that commit. |
+| 1 | Measure headings and `data_type` with NULL-aware queries; record loader shape | ✅ complete | 2026-08-14 production read-only evidence, target proved immediately before each query by `supabase/.temp/project-ref = qsllyeztdwjgirsysgai`: 565,474 value rows; all six heading columns have 0 non-NULL rows and 0 NULL-aware disagreement groups; 21 distinct `(capture_id, metadata_element_id)` pairs across three captures with values (7 each; capture value-row counts 150,430 / 207,522 / 207,522); 0 element groups mix non-NULL `data_type` values. Current production `plm.load_pmt_capture_chunk` still writes the six headings and preserves its fixed allow-list-before-empty guard. Catalog readers: that loader only; no view. Repo readers outside migrations: this plan, loader, loader tests, and the new contract test only; zero readers in `poppim-web`, `popcrm-web`, or `popdam3`. Counts and object names only; no licensed values read or recorded. |
+| 2 | Migration A — create `plm.pmt_metadata_element` with the full Paramount security contract, freeze trigger, and NULL-aware backfill | ✅ complete | Migration `20260814213043_pmt_metadata_element_normalization.sql`; exact-head ephemeral database test passed. |
+| 3 | Migration B — second `plm.load_pmt_capture_chunk` rewrite plus client `LOAD_ORDER` (after Step 0) | ✅ complete | Migration and `tools/sync-paramount-creative-library.mjs`; #964 omissions retained; 67/67 loader tests passed. |
+| 4 | Tests in `supabase/tests/` and the Paramount loader test file | ✅ complete | SQL contracts, privilege contracts, and loader contracts pass on PR #1006 exact head. |
+| 5 | Migration C — FK from value rows to the element table, only after the loader writes the parent | ✅ complete | Migration creates/backfills the parent before validating the value-row foreign key. |
 | 6 | Preview rehearsal: a real capture reaches `complete` after the FK exists | ⬜ open | — |
-| 7 | Migration D — deprecate the six heading columns (not `data_type`) | ⬜ open | — |
+| 7 | Migration D — deprecate the six heading columns (not `data_type`) | ✅ complete | Migration stops writing the six headings, removes their obsolete checks, and retains per-value `data_type`. |
 | 8 | Migration E — drop the six heading columns, only after a proven preview capture | ⬜ open | — |
 | 9 | Skill + docs update | ⬜ open | — |
 
-**A fresh session starts at Step 0 and Step 1 together.** Step 1 measurement may start now.
-Migrations may not start until Step 0 is satisfied. If Step 1 shows the six heading columns are
-still all NULL and the loader cannot populate them inconsistently, **do not invent a different
-design** — record that finding and continue, because the owner’s 2026-08-14 instruction is to
-remove the possibility. Do not treat that finding as permission to move `data_type`.
+**A fresh session starts at Step 6.** Steps 0 through 5 and Step 7 are implemented on PR #1006.
+Preview must prove the real capture and foreign-key behavior before Step 8 can remove the six
+deprecated heading columns. Production promotion remains out of scope. Do not treat the empty
+heading evidence as permission to move per-value `data_type`.
 
 ---
 

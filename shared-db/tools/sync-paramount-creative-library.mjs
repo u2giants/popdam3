@@ -492,10 +492,52 @@ export const LOAD_ORDER = [
   "pmt_authorized_property_asset",
   "pmt_property_capture_log",
   "pmt_relationship_anomaly",
-  // LAST, and it must be last: every metadata row is bound to an asset in the same capture
-  // by a composite foreign key, so pmt_asset has to be loaded before any of these can land.
+  // After pmt_asset (value rows need the asset FK) and immediately before
+  // pmt_asset_metadata_value (value rows need the element FK after #965).
+  "pmt_metadata_element",
+  // LAST among metadata: every value row is bound to an asset and an element
+  // in the same capture by composite foreign keys.
   "pmt_asset_metadata_value",
 ];
+
+const METADATA_HEADING_KEYS = [
+  "metadata_element_name",
+  "metadata_category_id",
+  "metadata_category_name",
+  "domain_id",
+  "source_table_name",
+  "source_column_name",
+];
+
+/**
+ * One heading row per distinct metadata_element_id. Missing headings become
+ * null. Two values under the same id that disagree on a heading are refused
+ * (never last-write-wins). Does not echo heading text into the error.
+ */
+export function buildMetadataElementRows(values) {
+  const opt = (v) => (v === undefined || v === null || v === "undefined" ? null : v);
+  const byId = new Map();
+  for (const r of values) {
+    if (typeof r.metadata_element_id !== "string" || r.metadata_element_id.trim() === "") {
+      continue;
+    }
+    const next = { metadata_element_id: r.metadata_element_id };
+    for (const key of METADATA_HEADING_KEYS) next[key] = opt(r[key]);
+    const prev = byId.get(r.metadata_element_id);
+    if (!prev) {
+      byId.set(r.metadata_element_id, next);
+      continue;
+    }
+    for (const key of METADATA_HEADING_KEYS) {
+      if (prev[key] !== next[key]) {
+        throw new Error(
+          `asset-metadata-values.jsonl: headings for one metadata_element_id disagree on ${key}`
+        );
+      }
+    }
+  }
+  return [...byId.values()];
+}
 
 /** Build every target's row array from the parsed capture. No database contact. */
 export function buildPayloads(cap) {
@@ -638,6 +680,13 @@ export function buildPayloads(cap) {
     })),
 
     /**
+     * One heading row per distinct metadata_element_id in this capture. The six
+     * headings live here, not on every value row (#965). Disagreement on any
+     * heading for the same id is refused rather than last-write-wins.
+     */
+    pmt_metadata_element: buildMetadataElementRows(cap.assetMetadataValues),
+
+    /**
      * The lossless repeated-metadata rows, passed through with as little handling as
      * possible. Three rules are load-bearing here:
      *
@@ -651,6 +700,9 @@ export function buildPayloads(cap) {
      *  3. No numeric conversion anywhere. `source_value` is kept as TEXT even when the
      *     source emitted a JSON number, because which of the two it was is itself recorded
      *     in `data_type`. Re-parsing it here is exactly the bug this migration removes.
+     *
+     * The six heading keys are NOT sent on value rows. They belong on
+     * pmt_metadata_element. data_type stays: it is the JSON type of this value.
      */
     pmt_asset_metadata_value: cap.assetMetadataValues.map((r, i) => {
       const opt = (v) => (v === undefined || v === null || v === "undefined" ? null : v);
@@ -672,12 +724,6 @@ export function buildPayloads(cap) {
       return {
         asset_id: r.asset_id,
         metadata_element_id: r.metadata_element_id,
-        metadata_element_name: opt(r.metadata_element_name),
-        metadata_category_id: opt(r.metadata_category_id),
-        metadata_category_name: opt(r.metadata_category_name),
-        domain_id: opt(r.domain_id),
-        source_table_name: opt(r.source_table_name),
-        source_column_name: opt(r.source_column_name),
         data_type: opt(r.data_type),
         value_ordinal: r.value_ordinal,
         source_value: opt(r.source_value),
