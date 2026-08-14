@@ -11,6 +11,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   CAPTURE_FILES,
@@ -31,6 +32,32 @@ import {
   resolveRunConfig,
   loadCapture,
 } from "./sync-warner-starlabs.mjs";
+
+const cleanupMigration = readFileSync(
+  new URL("../supabase/migrations/20260814170749_wb_retire_legacy_capture_paths.sql", import.meta.url),
+  "utf8",
+);
+
+test("legacy cleanup serializes with capture starts before checking or dropping", () => {
+  const lock = cleanupMigration.indexOf("pg_advisory_xact_lock");
+  const inFlight = cleanupMigration.indexOf("status in ('loading', 'validating')");
+  const firstDrop = cleanupMigration.indexOf("drop view api.wb_property_character");
+  assert.ok(lock >= 0 && lock < inFlight && inFlight < firstDrop);
+});
+
+test("legacy cleanup refuses populated tables before any destructive statement", () => {
+  const legacyTables = [
+    "wb_asset_style_guide", "wb_asset_franchise_property", "wb_asset_character",
+    "wb_property_character", "wb_asset", "wb_style_guide", "wb_character",
+    "wb_franchise_property",
+  ];
+  const refusal = cleanupMigration.indexOf("legacy row(s) still require reconciliation");
+  const firstDrop = cleanupMigration.indexOf("drop view api.wb_property_character");
+  assert.ok(refusal >= 0 && refusal < firstDrop);
+  for (const table of legacyTables) {
+    assert.match(cleanupMigration, new RegExp(`count\\(\\*\\)::bigint(?: as row_count)? from plm\\.${table}\\b`));
+  }
+});
 
 // Invented project refs. Both are 20 chars; neither is a real project.
 const REF_A = "aaaabbbbccccddddeeee";
@@ -116,24 +143,14 @@ const baseEnv = {
 // ---------------------------------------------------------------------------
 // The hard-coded file list. This is the defect the whole design exists to stop.
 // ---------------------------------------------------------------------------
-test("the legacy and normalized capture files are hard-coded, frozen, and distinct", () => {
-  assert.equal(CAPTURE_FILES.length, 19);
+test("only normalized capture files are hard-coded, frozen, and distinct", () => {
+  assert.equal(CAPTURE_FILES.length, 11);
   assert.ok(Object.isFrozen(CAPTURE_FILES));
-  const legacyTargets = [
-      "wb_asset",
-      "wb_asset_character",
-      "wb_asset_franchise_property",
-      "wb_asset_style_guide",
-      "wb_character",
-      "wb_franchise_property",
-      "wb_property_character",
-      "wb_style_guide",
-    ];
   const normalizedTargets = ["wb_franchise","wb_property","wb_character_normalized","wb_style_guide_normalized","wb_asset_normalized","wb_asset_franchise","wb_asset_property","wb_asset_character_normalized","wb_asset_style_guide_normalized","wb_property_character_normalized","wb_franchise_property_evidence"];
-  assert.deepEqual(CAPTURE_FILES.map((c) => c.target).sort(), [...legacyTargets, ...normalizedTargets].sort());
+  assert.deepEqual(CAPTURE_FILES.map((c) => c.target).sort(), normalizedTargets.sort());
   // Every target is distinct: two files must never feed one mirror.
-  assert.equal(new Set(CAPTURE_FILES.map((c) => c.target)).size, 19);
-  assert.equal(new Set(CAPTURE_FILES.map((c) => c.file)).size, 19);
+  assert.equal(new Set(CAPTURE_FILES.map((c) => c.target)).size, 11);
+  assert.equal(new Set(CAPTURE_FILES.map((c) => c.file)).size, 11);
 });
 
 test("the loader source contains no readdir and no glob", async () => {
@@ -151,12 +168,12 @@ test("a missing capture file is a loud failure, never a silent zero", async () =
   // This is the observed defect: links-property-character.csv had a staged
   // deletion in a live checkout. A directory listing would load zero of those
   // links and report success.
-  const g = fakeGit({ missing: ["links-property-character.csv"] });
+  const g = fakeGit({ missing: ["links-property-character-normalized.csv"] });
   await assert.rejects(
     prepareCaptures(resolveRunConfig(baseEnv), { git: g.run }),
     (e) => {
       assert.match(e.message, /REFUSING TO LOAD/);
-      assert.match(e.message, /links-property-character\.csv/);
+      assert.match(e.message, /links-property-character-normalized\.csv/);
       assert.match(e.message, /never a silent zero/);
       return true;
     }
@@ -166,8 +183,8 @@ test("a missing capture file is a loud failure, never a silent zero", async () =
 test("an empty capture file is refused rather than treated as an empty population", async () => {
   // A header-only file: correctly SHAPED, so it gets past the header refusal
   // and must then be caught as an empty population.
-  const header = CAPTURE_FILES.find((c) => c.file === "characters.csv").requiredHeaders.join(",");
-  const g = fakeGit({ files: { "characters.csv": `${header}\n` } });
+  const header = CAPTURE_FILES.find((c) => c.file === "characters-normalized.csv").requiredHeaders.join(",");
+  const g = fakeGit({ files: { "characters-normalized.csv": `${header}\n` } });
   await assert.rejects(prepareCaptures(resolveRunConfig(baseEnv), { git: g.run }), /parsed to ZERO rows/);
 });
 
@@ -214,8 +231,8 @@ test("every CSV is read from the pinned commit, never from the filesystem", asyn
   await prepareCaptures(resolveRunConfig(baseEnv), { git: g.run });
   const lookups = g.calls.filter((c) => c.startsWith("ls-tree "));
   const reads = g.calls.filter((c) => c.startsWith("cat-file "));
-  assert.equal(lookups.length, 19);
-  assert.equal(reads.length, 19);
+  assert.equal(lookups.length, 11);
+  assert.equal(reads.length, 11);
   for (const c of lookups) assert.match(c, new RegExp(`^ls-tree -z ${SHA_PINNED} -- warner-bros/`));
   // `git show` renders symlinks, trees and gitlinks as text. It must not come back.
   assert.equal(g.calls.filter((c) => c.startsWith("show ")).length, 0);
@@ -225,7 +242,7 @@ test("every CSV is read from the pinned commit, never from the filesystem", asyn
 // REFUSAL 0 -- column identity and object type (issue #671)
 // ---------------------------------------------------------------------------
 test("every capture file declares a non-empty required-header list", () => {
-  assert.equal(CAPTURE_FILES.length, 19);
+  assert.equal(CAPTURE_FILES.length, 11);
   for (const c of CAPTURE_FILES) {
     assert.ok(Array.isArray(c.requiredHeaders) && c.requiredHeaders.length > 0, c.file);
     assert.equal(new Set(c.requiredHeaders).size, c.requiredHeaders.length, `${c.file} dupes`);
@@ -234,10 +251,10 @@ test("every capture file declares a non-empty required-header list", () => {
 
 test("a renamed column is refused, naming the column and the file", () => {
   assert.throws(
-    () => assertCaptureHeaders("characters.csv", ["source_term", "name", "captured_date", "source_url"], quiet),
+    () => assertCaptureHeaders("characters-normalized.csv", ["source_namespace", "name", "identity_method", "source_url"], quiet),
     (e) => {
       assert.match(e.message, /REFUSING TO LOAD/);
-      assert.match(e.message, /characters\.csv/);
+      assert.match(e.message, /characters-normalized\.csv/);
       assert.match(e.message, /missing required column\(s\) \[label\]/);
       return true;
     }
@@ -245,38 +262,38 @@ test("a renamed column is refused, naming the column and the file", () => {
 });
 
 test("a duplicated column is refused, because only the last one survives", () => {
-  const cols = ["source_term", "label", "label", "captured_date", "source_url"];
-  assert.throws(() => assertCaptureHeaders("characters.csv", cols, quiet), /duplicated column name\(s\) \[label\]/);
+  const cols = ["source_namespace", "label", "label", "identity_method", "source_url"];
+  assert.throws(() => assertCaptureHeaders("characters-normalized.csv", cols, quiet), /duplicated column name\(s\) \[label\]/);
 });
 
 test("a blank column name is refused", () => {
-  const cols = ["source_term", "label", "", "captured_date", "source_url"];
-  assert.throws(() => assertCaptureHeaders("characters.csv", cols, quiet), /1 blank column name\(s\)/);
+  const cols = ["source_namespace", "label", "", "identity_method", "source_url"];
+  assert.throws(() => assertCaptureHeaders("characters-normalized.csv", cols, quiet), /1 blank column name\(s\)/);
 });
 
 test("column ORDER is not a refusal, because rows are keyed by name", () => {
-  const cols = ["source_url", "captured_date", "label", "source_term"];
-  assert.deepEqual(assertCaptureHeaders("characters.csv", cols, quiet).unknown, []);
+  const cols = ["source_url", "identity_method", "label", "source_namespace"];
+  assert.deepEqual(assertCaptureHeaders("characters-normalized.csv", cols, quiet).unknown, []);
 });
 
 test("an unknown extra column is reported but not refused", () => {
   const warnings = [];
-  const cols = ["source_term", "label", "captured_date", "source_url", "brand_new"];
-  const res = assertCaptureHeaders("characters.csv", cols, (m) => warnings.push(m));
+  const cols = ["source_namespace", "label", "identity_method", "source_url", "brand_new"];
+  const res = assertCaptureHeaders("characters-normalized.csv", cols, (m) => warnings.push(m));
   assert.deepEqual(res.unknown, ["brand_new"]);
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /brand_new/);
 });
 
 test("a BOM on the first column name does not break header matching", () => {
-  const cols = ["﻿source_term", "label", "captured_date", "source_url"];
-  assert.deepEqual(assertCaptureHeaders("characters.csv", cols, quiet).unknown, []);
+  const cols = ["﻿source_namespace", "label", "identity_method", "source_url"];
+  assert.deepEqual(assertCaptureHeaders("characters-normalized.csv", cols, quiet).unknown, []);
 });
 
 test("a symlink entry is refused, not rendered as its target text", async () => {
-  const g = fakeGit({ modes: { "characters.csv": "120000" } });
+  const g = fakeGit({ modes: { "characters-normalized.csv": "120000" } });
   await assert.rejects(
-    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters.csv", g.run, quiet),
+    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters-normalized.csv", g.run, quiet),
     (e) => {
       assert.match(e.message, /is mode 120000 \(blob\)/);
       assert.match(e.message, /only a regular-file blob \(100644\)/);
@@ -288,26 +305,26 @@ test("a symlink entry is refused, not rendered as its target text", async () => 
 });
 
 test("a gitlink entry is refused, not rendered as a commit", async () => {
-  const g = fakeGit({ modes: { "characters.csv": "160000" } });
+  const g = fakeGit({ modes: { "characters-normalized.csv": "160000" } });
   await assert.rejects(
-    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters.csv", g.run, quiet),
+    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters-normalized.csv", g.run, quiet),
     /is mode 160000 \(commit\)/
   );
 });
 
 test("a path that resolves to no tree entry is a loud failure, never a silent zero", async () => {
-  const g = fakeGit({ missing: ["characters.csv"] });
+  const g = fakeGit({ missing: ["characters-normalized.csv"] });
   await assert.rejects(
-    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters.csv", g.run, quiet),
+    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters-normalized.csv", g.run, quiet),
     /resolves to 0 tree entries .* exactly 1 is required/s
   );
 });
 
 test("a file whose header is another capture file's header is refused", async () => {
-  const wrong = CAPTURE_FILES.find((c) => c.file === "assets.csv").requiredHeaders.join(",");
-  const g = fakeGit({ files: { "characters.csv": `${wrong}\nx,x,x,x,x,x,x,x\n` } });
+  const wrong = CAPTURE_FILES.find((c) => c.file === "assets-normalized.csv").requiredHeaders.join(",");
+  const g = fakeGit({ files: { "characters-normalized.csv": `${wrong}\nx,x,x,x,x,x,x,x\n` } });
   await assert.rejects(
-    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters.csv", g.run, quiet),
+    readPinnedCsv("/invented/checkout", SHA_PINNED, "characters-normalized.csv", g.run, quiet),
     /missing required column\(s\)/
   );
 });
@@ -472,7 +489,7 @@ function fakeClient(overrides = {}) {
 const oneCapture = () => {
   const rows = [{ a: 1 }, { a: 2 }, { a: 3 }];
   const chunks = buildChunks(rows, { maxRows: 2 });
-  return { file: "characters.csv", target: "wb_character", rowCount: 3, chunks, manifestSha256: chainDigest(chunks) };
+  return { file: "characters-normalized.csv", target: "wb_character_normalized", rowCount: 3, chunks, manifestSha256: chainDigest(chunks) };
 };
 
 test("a capture streams begin, every chunk in order, then finalize", async () => {
@@ -514,7 +531,7 @@ test("the summary reports counts only and never a row", async () => {
   const g = fakeGit();
   const captures = await prepareCaptures(resolveRunConfig(baseEnv), { git: g.run });
   const s = summarise(captures);
-  assert.equal(s.length, 19);
+  assert.equal(s.length, 11);
   for (const row of s) {
     assert.deepEqual(Object.keys(row).sort(), ["bytes", "chunks", "file", "rows", "target"]);
     assert.equal(typeof row.rows, "number");

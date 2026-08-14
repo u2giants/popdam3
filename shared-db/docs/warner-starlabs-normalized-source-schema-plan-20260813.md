@@ -1,6 +1,6 @@
 # Warner STARLABS normalized source schema plan
 
-Status date: 2026-08-13
+Status date: 2026-08-14
 
 Workstream: GitHub issue #925
 
@@ -17,12 +17,12 @@ This plan contains structure and object names only. It contains no licensed Warn
 | Phase | State | Evidence or blocker |
 |---|---|---|
 | 1. Evidence and plan | COMPLETE | Repository, consumer, ledger, and production catalog checks completed read-only on 2026-08-13. |
-| 2. Additive migration | COMPLETE ON BRANCH | Claim #928 holds versions `20260813230000` and `20260813231000`; collision gate and static SQL checks passed. |
-| 3. Synthetic tests | COMPLETE ON BRANCH | Catalog, identity, namespace, FK action, loader inventory, routing, grants, and Node stream tests use invented values only. |
-| 4. Preview rehearsal | NOT STARTED | Requires reviewed migration and an exclusive preview lane. |
-| 5. Pull request and approval package | IN PROGRESS | Implementation branch is ready for CI and independent review; preview remains a separate bounded gate. |
-| 6. Production promotion | BLOCKED BY OWNER | Albert must approve the exact migration after preview and PR checks pass. |
-| 7. Legacy retirement | OUT OF SCOPE | No legacy Warner object is dropped in this workstream. |
+| 2. Additive migration | COMPLETE | `20260813230000` and `20260813231000` merged in PR #929. |
+| 3. Synthetic tests | COMPLETE | Catalog, identity, namespace, FK action, loader inventory, routing, grants, and Node stream tests use invented values only. |
+| 4. Preview rehearsal | COMPLETE | Both normalized migrations passed preview before merge. |
+| 5. Pull request and approval package | COMPLETE | PR #929 merged with required checks green. |
+| 6. Production promotion | COMPLETE | Both normalized migrations were applied to production; no Warner source rows were loaded. |
+| 7. Legacy retirement | PREVIEW COMPLETE, PR PENDING, ISSUE #958 | Migration `20260814130000` passed a bounded preview dry-run and apply on `rjyboqwcdzcocqgmsyel`. Read-back proved zero legacy tables, views, functions, or in-flight captures remain; all 11 normalized tables remain and `service_role` has zero direct write grants. The Node loader retains only the 11 normalized files. Historical capture headers remain readable. Production is not part of #958's authorization. |
 
 ## Goal and fixed rules
 

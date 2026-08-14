@@ -514,7 +514,9 @@ export function encodeRepoPath(filename) {
 export function gatherOpenPrObjects(repo, io = defaultIo) {
   const open = io.listPulls(repo)
   const sources = []
-  for (const pr of open) {
+  for (const listed of open) {
+    const pr = io.getPull(repo, listed.number)
+    if (!pr || pr.number !== listed.number) throw new Unknown(`PR #${listed.number} returned unreadable detail metadata`)
     const files = io.listPullFiles(repo, pr.number)
     if (!Array.isArray(files)) throw new Unknown(`PR #${pr.number} returned an unreadable file list`)
     if (!Number.isInteger(pr.changed_files) || pr.changed_files < 0) throw new Unknown(`PR #${pr.number} has no trustworthy changed_files count`)
@@ -563,6 +565,7 @@ export function gatherOpenPrObjects(repo, io = defaultIo) {
  */
 export const defaultIo = {
   listPulls: (repo) => ghJson(['api', '--paginate', `repos/${repo}/pulls?state=open&per_page=100`]),
+  getPull: (repo, number) => ghJson(['api', `repos/${repo}/pulls/${number}`]),
   listPullFiles: (repo, number) =>
     ghJson(['api', '--paginate', `repos/${repo}/pulls/${number}/files?per_page=100`]),
   readFileAtRef: (repo, filename, ref) =>

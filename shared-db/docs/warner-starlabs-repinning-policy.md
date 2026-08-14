@@ -1,7 +1,9 @@
 # Re-pinning the Warner STARLABS baseline counts
 
-**Status: this document DESCRIBES a procedure. It does not implement one, and nothing in
-this repository implements one today.** It was written alongside migration
+**Status: RETIRED for new loads by issue #958.** The eight first-generation loaders and
+their pinned baseline counts are historical context only. New Warner captures use the
+eleven normalized files and targets. Do not reintroduce the old routes or repin these old
+counts. This document was written alongside migration
 `20260810130000` (the chunked capture protocol) so that the next person to hit the wall
 finds a considered answer instead of inventing one under time pressure. Implementing it
 requires its own dispatch and its own owner decision.

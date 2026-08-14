@@ -145,82 +145,6 @@ const FULL_SHA = /^[0-9a-f]{40}$/;
  * `sync-warner-starlabs.test.mjs` asserts every entry has a non-empty list.
  */
 export const CAPTURE_FILES = Object.freeze([
-  {
-    file: "franchise-properties.csv",
-    target: "wb_franchise_property",
-    requiredHeaders: Object.freeze(["source_term", "label", "captured_date", "source_url"]),
-  },
-  {
-    file: "style-guides.csv",
-    target: "wb_style_guide",
-    requiredHeaders: Object.freeze(["source_term", "label", "captured_date", "source_url"]),
-  },
-  {
-    file: "characters.csv",
-    target: "wb_character",
-    requiredHeaders: Object.freeze(["source_term", "label", "captured_date", "source_url"]),
-  },
-  {
-    file: "assets.csv",
-    target: "wb_asset",
-    requiredHeaders: Object.freeze([
-      "asset_source_id",
-      "file_name",
-      "source_path",
-      "property_labels",
-      "franchise_labels",
-      "character_labels",
-      "captured_date",
-      "source_url",
-    ]),
-  },
-  {
-    file: "links-asset-style-guide.csv",
-    target: "wb_asset_style_guide",
-    requiredHeaders: Object.freeze([
-      "asset_source_id",
-      "style_guide_natural_key",
-      "file_name",
-      "captured_date",
-      "source_url",
-    ]),
-  },
-  {
-    file: "links-asset-franchise-property.csv",
-    target: "wb_asset_franchise_property",
-    requiredHeaders: Object.freeze([
-      "asset_source_id",
-      "franchise_property_label",
-      "file_name",
-      "captured_date",
-      "source_url",
-    ]),
-  },
-  {
-    file: "links-asset-character.csv",
-    target: "wb_asset_character",
-    requiredHeaders: Object.freeze([
-      "asset_source_id",
-      "character_source_id",
-      "character_label",
-      "file_name",
-      "captured_date",
-      "source_url",
-    ]),
-  },
-  {
-    file: "links-property-character.csv",
-    target: "wb_property_character",
-    requiredHeaders: Object.freeze([
-      "property_source_id",
-      "property_label",
-      "character_source_id",
-      "character_label",
-      "id_fallback",
-      "captured_at",
-      "source_url",
-    ]),
-  },
   { file: "franchises-normalized.csv", target: "wb_franchise", requiredHeaders: Object.freeze(["source_namespace", "label", "identity_method", "source_url"]) },
   { file: "properties-normalized.csv", target: "wb_property", requiredHeaders: Object.freeze(["source_namespace", "label", "identity_method", "source_url"]) },
   { file: "characters-normalized.csv", target: "wb_character_normalized", requiredHeaders: Object.freeze(["source_namespace", "label", "identity_method", "source_url"]) },
@@ -270,7 +194,7 @@ export function assertCaptureHeaders(file, header, warn = (m) => console.error(m
   const required = requiredHeadersFor(file);
   if (!required) {
     throw new Error(
-      `REFUSING TO LOAD. ${file} is not one of the eight capture files. The file list is a ` +
+      `REFUSING TO LOAD. ${file} is not one of the normalized capture files. The file list is a ` +
         "fact about the capture, not an observation of a directory."
     );
   }

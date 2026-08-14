@@ -1027,16 +1027,8 @@ PRODUCT_SIZE_EXPECTED_ACTIVE = 530
 PRODUCT_SIZE_EXPECTED_INACTIVE = 8
 PRODUCT_DEPTH_EXPECTED_TOTAL = 121
 
-# The eight Warner tables, named in 20260810110000 lines 91-93 and 111-113.
+# The normalized Warner tables. The eight first-generation mirrors were retired by #958.
 WARNER_TABLES = (
-    "wb_franchise_property",
-    "wb_style_guide",
-    "wb_character",
-    "wb_asset",
-    "wb_asset_style_guide",
-    "wb_asset_franchise_property",
-    "wb_asset_character",
-    "wb_property_character",
     "wb_franchise",
     "wb_property",
     "wb_character_normalized",

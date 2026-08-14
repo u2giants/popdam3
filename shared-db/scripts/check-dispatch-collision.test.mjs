@@ -494,7 +494,11 @@ const SQL = 'create or replace function plm.foo() returns void as $$ begin end $
 
 /** A fake GitHub, so the gathering LOGIC is testable without a network call. */
 const fakeIo = (pulls, filesByPr, bodies = {}) => ({
-  listPulls: () => pulls.map((pull) => ({ changed_files: filesByPr[pull.number]?.length ?? 0, ...pull })),
+  listPulls: () => pulls.map(({ changed_files: _omitted, ...pull }) => pull),
+  getPull: (_repo, number) => {
+    const pull = pulls.find((item) => item.number === number)
+    return pull ? { changed_files: filesByPr[number]?.length ?? 0, ...pull } : null
+  },
   listPullFiles: (_repo, number) => filesByPr[number] ?? [],
   readFileAtRef: (_repo, filename) => (filename in bodies ? bodies[filename] : SQL),
 })
@@ -514,6 +518,20 @@ test('open PR coverage refuses a truncated or 3000-file GitHub response', () => 
   const one = [FILE('supabase/migrations/20260806120000_x.sql')]
   assert.throws(() => gatherOpenPrObjects('o/r', fakeIo([PR(1, { changed_files: 2 })], { 1: one })), /returned 1 of 2/)
   assert.throws(() => gatherOpenPrObjects('o/r', fakeIo([PR(1, { changed_files: 3000 })], { 1: one })), /3000-file limit/)
+})
+
+test('open PRs hydrate detail metadata because the list endpoint omits changed_files', () => {
+  let hydrated=0
+  const io=fakeIo([PR(984)],{984:[FILE('supabase/migrations/20260806120000_x.sql')]})
+  const wrapped={...io,getPull:(...args)=>(hydrated++,io.getPull(...args))}
+  const sources=gatherOpenPrObjects('o/r',wrapped)
+  assert.equal(hydrated,1)
+  assert.equal(sources.length,1)
+})
+
+test('open PR gathering fails closed when detail hydration is unreadable', () => {
+  const io=fakeIo([PR(984)],{984:[]});io.getPull=()=>null
+  assert.throws(()=>gatherOpenPrObjects('o/r',io),/unreadable detail metadata/)
 })
 
 test('a DRAFT pull request counts as in flight at dispatch time', () => {

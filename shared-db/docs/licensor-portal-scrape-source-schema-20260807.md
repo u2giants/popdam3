@@ -257,7 +257,12 @@ the portal showed none. It is not a catalogue total. **Do not build logic on it.
 
 ---
 
-## 6. Object inventory — Warner (claim #627)
+## 6. Historical object inventory — Warner (claim #627)
+
+> Retired by issue #958. This section records the first-generation shape for history. The
+> eight tables, their loaders, and the two API views are no longer valid load targets.
+> Current Warner ingestion uses the normalized contract in
+> `docs/warner-starlabs-normalized-source-schema-plan-20260813.md`.
 
 Migration `20260810030000_warner_starlabs_source_landing.sql`. 48 objects.
 

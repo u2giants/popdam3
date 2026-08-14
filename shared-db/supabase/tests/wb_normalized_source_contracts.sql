@@ -13,11 +13,13 @@ begin
  if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='plm' and p.proname=any(array(select 'sync_'||unnest(expected))))<>11 then raise exception 'normalized loader inventory must contain eleven exact targets'; end if;
  if not exists(select 1 from pg_constraint c where c.conrelid='plm.wb_capture'::regclass and pg_get_constraintdef(c.oid) like '%wb_franchise_property_evidence%') then raise exception 'capture target check lacks normalized routes'; end if;
  if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='plm' and p.proname like 'sync_wb_%' and p.proname like '%normalized%' and has_function_privilege('authenticated',p.oid,'execute'))<>0 then raise exception 'authenticated may execute a normalized loader'; end if;
- if position('wb_franchise_property' in pg_get_functiondef('plm.finalize_wb_capture(uuid,text,numeric)'::regprocedure))=0 or position('wb_property_character' in pg_get_functiondef('plm.finalize_wb_capture(uuid,text,numeric)'::regprocedure))=0 then raise exception 'legacy finalize routes were not preserved'; end if;
- if position('finalize_wb_capture_legacy' in pg_get_functiondef('plm.finalize_wb_capture(uuid,text,numeric)'::regprocedure))=0 then raise exception 'legacy finalize authority changed'; end if;
+ if position('finalize_wb_capture_legacy' in pg_get_functiondef('plm.finalize_wb_capture(uuid,text,numeric)'::regprocedure))<>0 then raise exception 'legacy finalize route remains'; end if;
  if (select proconfig from pg_proc where oid='plm.begin_wb_capture(text,date,text,text,integer,text,text,text)'::regprocedure) is distinct from array['search_path=pg_catalog, extensions'] then raise exception 'begin capture search path is unsafe'; end if;
  if (select proconfig from pg_proc where oid='plm.finalize_wb_capture(uuid,text,numeric)'::regprocedure) is distinct from array['search_path=pg_catalog, extensions'] then raise exception 'finalize capture search path is unsafe'; end if;
  if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in('plm','public') and p.proname=any(array(select 'sync_'||unnest(expected))) and has_function_privilege('authenticated',p.oid,'execute'))<>0 then raise exception 'authenticated may execute a normalized wrapper'; end if;
+ if exists(select 1 from unnest(expected) x where has_table_privilege('service_role','plm.'||x,'insert') or has_table_privilege('service_role','plm.'||x,'update') or has_table_privilege('service_role','plm.'||x,'delete') or has_table_privilege('service_role','plm.'||x,'truncate')) then raise exception 'service_role has direct normalized table writes'; end if;
+ if exists(select 1 from unnest(array['wb_franchise_property','wb_style_guide','wb_character','wb_asset','wb_asset_style_guide','wb_asset_franchise_property','wb_asset_character','wb_property_character']) x where to_regclass('plm.'||x) is not null) then raise exception 'a retired Warner table remains'; end if;
+ if to_regprocedure('plm.begin_wb_capture_legacy(text,date,text,text,integer,text,text,text)') is not null or to_regprocedure('plm.finalize_wb_capture_legacy(uuid,text,numeric)') is not null then raise exception 'a retired Warner capture function remains'; end if;
 end $$;
 
 -- NULL manifest fields fail closed with no header write.
@@ -57,97 +59,14 @@ do $$ begin
 end $$;
 rollback;
 
--- A legacy replacement-heavy refresh is refused before changing its table.
-begin;
-do $legacy_shrink$
-declare first_snapshot jsonb; replacement jsonb; before_rows bigint; rejected boolean:=false;
-begin
- first_snapshot:='{"captured_at":"2099-01-10","rows":[{"source_term":"Property","source_id":"shrink-old-1","label":"Synthetic Old One","captured_date":"2099-01-10","source_url":"https://example.invalid"},{"source_term":"Property","source_id":"shrink-old-2","label":"Synthetic Old Two","captured_date":"2099-01-10","source_url":"https://example.invalid"}]}'::jsonb;
- replacement:='{"captured_at":"2099-01-11","rows":[{"source_term":"Property","source_id":"shrink-new","label":"Synthetic New","captured_date":"2099-01-11","source_url":"https://example.invalid"}]}'::jsonb;
- perform * from plm.sync_wb_franchise_property(first_snapshot,'mirror_only',1);
- select count(*) into before_rows from plm.wb_franchise_property;
- begin perform * from plm.sync_wb_franchise_property(replacement,'mirror_only',0);
- exception when sqlstate 'P0001' then rejected:=true; end;
- if not rejected then raise exception 'legacy shrink refusal did not fire'; end if;
- if (select count(*) from plm.wb_franchise_property)<>before_rows or exists(select 1 from plm.wb_franchise_property where source_id='shrink-new') then raise exception 'legacy shrink refusal wrote rows'; end if;
-end
-$legacy_shrink$;
-rollback;
-
--- Representative legacy protocol failures are controlled and leave no landed row.
-begin;
-do $legacy_failures$
-declare c uuid; payload text:='[{"source_term":"Property","source_id":"legacy-failure","label":"Synthetic Failure","captured_date":"2099-01-08","source_url":"https://example.invalid"}]';
- chunk_hash text; manifest_hash text; before_rows bigint; rejected boolean;
-begin
- chunk_hash:=encode(extensions.digest(convert_to(payload,'UTF8'),'sha256'),'hex');
- manifest_hash:=encode(extensions.digest(convert_to(chunk_hash,'UTF8'),'sha256'),'hex');
- select count(*) into before_rows from plm.wb_franchise_property;
- c:=plm.begin_wb_capture('wb_franchise_property',date '2099-01-08','synthetic-failure',manifest_hash,2,'synthetic','https://example.invalid',null);
- rejected:=false;
- begin perform plm.load_wb_chunk(c,1,payload,repeat('0',64));
- exception when sqlstate 'P0001' then rejected:=true; end;
- if not rejected then raise exception 'bad chunk digest passed'; end if;
- perform plm.load_wb_chunk(c,1,payload,chunk_hash);
- rejected:=false;
- begin perform * from plm.finalize_wb_capture(c,manifest_hash,1);
- exception when sqlstate 'P0001' then rejected:=true; end;
- if not rejected then raise exception 'declared count mismatch passed'; end if;
- if (select count(*) from plm.wb_franchise_property)<>before_rows then raise exception 'failed legacy finalize wrote rows'; end if;
- perform plm.fail_wb_capture(c,'synthetic controlled failure');
- if not exists(select 1 from plm.wb_capture where capture_id=c and chunk_number=0 and status='failed') then raise exception 'fail_wb_capture did not fail header'; end if;
- if exists(select 1 from plm.wb_capture wc where wc.capture_id=c and wc.chunk_number=1 and wc.payload is not null) then raise exception 'fail_wb_capture did not clear payload'; end if;
-end
-$legacy_failures$;
-rollback;
-
-begin;
-set local role authenticated;
-do $denied$ declare rejected boolean:=false; begin
- begin perform plm.begin_wb_capture('wb_franchise_property',date '2099-01-08','synthetic',repeat('a',64),1,'synthetic','https://example.invalid',null);
- exception when insufficient_privilege then rejected:=true; when sqlstate 'P0001' then rejected:=true; end;
- if not rejected then raise exception 'authenticated legacy begin passed'; end if;
-end $denied$;
-rollback;
-
--- Every legacy route still completes through the byte-checked canonical protocol.
-begin;
-do $legacy_pipelines$
-declare targets text[]:=array['wb_franchise_property','wb_style_guide','wb_character','wb_asset','wb_asset_style_guide','wb_asset_franchise_property','wb_asset_character','wb_property_character'];
- t text; rowj jsonb; payload text; chunk_hash text; manifest_hash text; c uuid; r record;
-begin
- foreach t in array targets loop
-  rowj:=case t
-   when 'wb_franchise_property' then '{"source_term":"Property","source_id":"legacy-fp","label":"Synthetic Legacy","captured_date":"2099-01-07","source_url":"https://example.invalid"}'::jsonb
-   when 'wb_style_guide' then '{"source_term":"Style Guide","source_id":"","label":"Synthetic Legacy Guide","captured_date":"2099-01-07","source_url":"https://example.invalid"}'::jsonb
-   when 'wb_character' then '{"source_term":"Character","source_id":"legacy-char","label":"Synthetic Legacy Character","captured_date":"2099-01-07","source_url":"https://example.invalid"}'::jsonb
-   when 'wb_asset' then '{"asset_source_id":"legacy-asset","file_name":"synthetic.bin","source_path":"synthetic/path","property_labels":"Synthetic","franchise_labels":"Synthetic","character_labels":"Synthetic","captured_date":"2099-01-07","source_url":"https://example.invalid"}'::jsonb
-   when 'wb_asset_style_guide' then '{"asset_source_id":"legacy-asset","style_guide_natural_key":"Synthetic Legacy Guide","file_name":"synthetic.bin","captured_date":"2099-01-07","source_url":"https://example.invalid"}'::jsonb
-   when 'wb_asset_franchise_property' then '{"asset_source_id":"legacy-asset","franchise_property_label":"Synthetic Legacy","file_name":"synthetic.bin","captured_date":"2099-01-07","source_url":"https://example.invalid"}'::jsonb
-   when 'wb_asset_character' then '{"asset_source_id":"legacy-asset","character_source_id":"legacy-char","character_label":"Synthetic Legacy Character","file_name":"synthetic.bin","captured_date":"2099-01-07","source_url":"https://example.invalid"}'::jsonb
-   else '{"property_source_id":"legacy-fp","property_label":"Synthetic Legacy","character_source_id":"legacy-char","character_label":"Synthetic Legacy Character","id_fallback":false,"captured_at":"2099-01-07T00:00:00Z","source_url":"https://example.invalid"}'::jsonb end;
-  payload:=jsonb_build_array(rowj)::text;
-  chunk_hash:=encode(extensions.digest(convert_to(payload,'UTF8'),'sha256'),'hex');
-  manifest_hash:=encode(extensions.digest(convert_to(chunk_hash,'UTF8'),'sha256'),'hex');
-  c:=plm.begin_wb_capture(t,date '2099-01-07','synthetic-legacy',manifest_hash,1,'synthetic','https://example.invalid',null);
-  perform plm.load_wb_chunk(c,1,payload,chunk_hash);
-  select * into r from plm.finalize_wb_capture(c,manifest_hash,1);
-  if r.rows_seen<>1 or r.rows_landed<>1 then raise exception 'legacy pipeline report failed: %',t; end if;
-  if not exists(select 1 from plm.wb_capture where capture_id=c and chunk_number=0 and status='complete' and loader_report is not null) then raise exception 'legacy header completion failed: %',t; end if;
-  if exists(select 1 from plm.wb_capture wc where wc.capture_id=c and wc.chunk_number=1 and wc.payload is not null) then raise exception 'legacy payload was not cleared: %',t; end if;
- end loop;
-end
-$legacy_pipelines$;
-rollback;
-
 -- Full begin + byte-checked chunk + finalize dispatch for every normalized route.
 begin;
 do $pipelines$
-declare targets text[]:=array['wb_franchise','wb_property','wb_character_normalized','wb_style_guide_normalized','wb_asset_normalized','wb_asset_franchise','wb_asset_property','wb_asset_character_normalized','wb_asset_style_guide_normalized','wb_property_character_normalized','wb_franchise_property_evidence'];
- t text; rowj jsonb; payload text; chunk_hash text; manifest_hash text; c uuid; c_repeat uuid; r record; core_before bigint; hierarchy_before bigint;
+ declare targets text[]:=array['wb_franchise','wb_property','wb_character_normalized','wb_style_guide_normalized','wb_asset_normalized','wb_asset_franchise','wb_asset_property','wb_asset_character_normalized','wb_asset_style_guide_normalized','wb_property_character_normalized','wb_franchise_property_evidence'];
+ t text; rowj jsonb; payload text; chunk_hash text; manifest_hash text; c uuid; c_repeat uuid; r record; core_before bigint; evidence_before bigint;
 begin
  select count(*) into core_before from core.property;
- select (select count(*) from plm.wb_franchise_property)+(select count(*) from plm.wb_property_character) into hierarchy_before;
+ select count(*) into evidence_before from plm.wb_franchise_property_evidence;
  foreach t in array targets loop
   rowj:=case t
    when 'wb_franchise' then '{"source_namespace":"pipeline","fallback_key":"franchise-fallback","label":"Synthetic Franchise","identity_method":"natural_key_fallback","source_url":"https://example.invalid"}'::jsonb
@@ -175,11 +94,12 @@ begin
   if r.rows_seen<>1 or r.rows_landed<>1 or r.rows_unchanged<>1 or r.rows_inserted<>0 or r.rows_updated<>0 then raise exception 'normalized route repeat is not a no-op: %',t; end if;
  end loop;
  if (select count(*) from core.property)<>core_before then raise exception 'normalized pipelines wrote core.property'; end if;
- if (select count(*) from plm.wb_franchise_property)+(select count(*) from plm.wb_property_character)<>hierarchy_before then raise exception 'asset routes invented a direct hierarchy'; end if;
+ if (select count(*) from plm.wb_franchise_property_evidence)<>evidence_before+1 then raise exception 'only the explicit evidence route may create hierarchy evidence'; end if;
  begin
   perform plm.wb_validate_normalized_row('wb_franchise_property_evidence','{"franchise_namespace":"pipeline","franchise_fallback_key":"franchise-fallback","property_namespace":"warner_product_catalogue","property_source_id":"pipeline-property","evidence_source":"synthetic_direct","evidence_type":"inferred_asset_cooccurrence","source_url":"https://example.invalid"}');
   raise exception 'unsupported hierarchy evidence unexpectedly passed';
  exception when sqlstate 'P0001' then null; end;
+ if (select count(*) from plm.wb_franchise_property_evidence)<>evidence_before+1 then raise exception 'unsupported evidence changed hierarchy rows'; end if;
 end
 $pipelines$;
 rollback;
@@ -201,19 +121,26 @@ begin
 end
 $routes$;
 
--- All eight legacy routes still enter the original capture authority.
-begin;
-do $legacy$
-declare t text; c uuid; i integer:=0;
+-- Retired targets, non-Product direct relationships, and non-canonical IDs fail closed.
+do $retired_and_identity$
+declare rejected boolean;
 begin
- foreach t in array array['wb_franchise_property','wb_style_guide','wb_character','wb_asset','wb_asset_style_guide','wb_asset_franchise_property','wb_asset_character','wb_property_character'] loop
-  i:=i+1;
-  c:=plm.begin_wb_capture(t,date '2099-01-04','synthetic',repeat(to_hex(i),64),1,'synthetic','https://example.invalid',null);
-  if c is null or not exists(select 1 from plm.wb_capture where capture_id=c and chunk_number=0 and target=t and status='loading') then raise exception 'legacy route failed: %',t; end if;
- end loop;
+ rejected:=false;
+ begin perform plm.begin_wb_capture('wb_property_character',date '2099-01-04','synthetic',repeat('a',64),1,'synthetic','https://example.invalid',null);
+ exception when sqlstate 'P0001' then rejected:=true; end;
+ if not rejected then raise exception 'retired Warner target unexpectedly began a capture'; end if;
+
+ rejected:=false;
+ begin perform plm.wb_validate_normalized_row('wb_property_character_normalized','{"property_namespace":"warner_art_assets","property_source_id":"p","character_namespace":"synthetic","character_source_id":"c","property_label":"Synthetic Property","character_label":"Synthetic Character","source_url":"https://example.invalid"}');
+ exception when sqlstate 'P0001' then rejected:=true; end;
+ if not rejected then raise exception 'Art Assets evidence unexpectedly passed as direct Property-to-Character evidence'; end if;
+
+ rejected:=false;
+ begin perform plm.wb_validate_normalized_row('wb_property','{"source_namespace":"warner_product_catalogue","source_id":" p ","label":"Synthetic","identity_method":"source_id","source_url":"https://example.invalid"}');
+ exception when sqlstate 'P0001' then rejected:=true; end;
+ if not rejected then raise exception 'untrimmed source identity unexpectedly passed'; end if;
 end
-$legacy$;
-rollback;
+$retired_and_identity$;
 
 -- Executable loader behavior. Every value below is synthetic.
 begin;

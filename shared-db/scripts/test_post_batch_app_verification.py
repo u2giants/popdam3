@@ -1361,7 +1361,7 @@ class ReviewFixTests(unittest.TestCase):
         self.assertIn("qual is not null", extra.expression)
         self.assertIn("has_any_role", extra.expression)
         self.assertIn(str(len(WARNER_TABLES)), extra.expression)
-        self.assertEqual(len(WARNER_TABLES), 19)
+        self.assertEqual(len(WARNER_TABLES), 11)
         for table in WARNER_TABLES:
             self.assertIn(table, extra.expression)
 

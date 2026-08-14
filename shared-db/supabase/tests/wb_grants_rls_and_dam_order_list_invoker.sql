@@ -68,9 +68,7 @@
 do $$
 declare
   v_known text[] := array[
-    'wb_franchise_property','wb_style_guide','wb_character','wb_asset',
-    'wb_asset_style_guide','wb_asset_franchise_property','wb_asset_character',
-    'wb_property_character','wb_franchise','wb_property','wb_character_normalized',
+    'wb_franchise','wb_property','wb_character_normalized',
     'wb_style_guide_normalized','wb_asset_normalized','wb_asset_franchise',
     'wb_asset_property','wb_asset_character_normalized','wb_asset_style_guide_normalized',
     'wb_property_character_normalized','wb_franchise_property_evidence'
@@ -179,10 +177,10 @@ begin
   end if;
 
   select qual into v_ref from pg_policies
-  where schemaname = 'plm' and tablename = 'wb_franchise_property';
+  where schemaname = 'plm' and tablename = 'wb_franchise';
 
   if v_ref is null or btrim(lower(v_ref)) = 'true' then
-    raise exception 'B1 FAILED: reference predicate on plm.wb_franchise_property is % -- '
+    raise exception 'B1 FAILED: reference predicate on plm.wb_franchise is % -- '
       'the read gate is open', coalesce(v_ref, '<null>');
   end if;
 
@@ -266,53 +264,21 @@ insert into app.app_access (profile_id, app)
 select id, 'plm'::app.app_name from app.profile
 where auth_user_id = '99999999-9999-4999-8999-999999999901';
 
--- One marker row per plm.wb_* table, built from the catalog: every NOT NULL column that
--- has no default is filled by data type. source_hash carries the marker token.
-do $$
-declare
-  t      text;
-  v_cols text;
-  v_vals text;
-  v_term text;
-begin
-  for t in
-    select c.relname from pg_class c
-    where c.relnamespace = 'plm'::regnamespace and c.relkind = 'r' and c.relname like 'wb\_%'
-    order by 1
-  loop
-    -- source_term is pinned by a per-table CHECK ('Property' / 'Character' / 'Style
-    -- Guide'). Read the first allowed literal out of that constraint rather than
-    -- hard-coding it, so a new plm.wb_* table is still handled.
-    select substring(pg_get_constraintdef(c.oid) from '''([^'']*)''')
-      into v_term
-    from pg_constraint c
-    where c.conrelid = format('plm.%I', t)::regclass
-      and c.contype = 'c'
-      and pg_get_constraintdef(c.oid) like '%source_term%'
-    limit 1;
-
-    select string_agg(quote_ident(a.column_name), ', ' order by a.ordinal_position),
-           string_agg(
-             case
-               when a.column_name = 'source_hash'                then quote_literal('ZZTESTMARKER')
-               when a.column_name = 'source_term'                then quote_literal(v_term)
-               when a.data_type = 'text'                         then quote_literal('ZZTEST-' || upper(a.column_name))
-               when a.data_type = 'date'                         then quote_literal('2026-08-10') || '::date'
-               when a.data_type = 'jsonb'                        then quote_literal('{"zztest":true}') || '::jsonb'
-               when a.data_type = 'boolean'                      then 'false'
-               when a.data_type = 'timestamp with time zone'     then 'now()'
-               when a.data_type in ('integer','bigint','numeric') then '0'
-               else 'null'
-             end, ', ' order by a.ordinal_position)
-      into v_cols, v_vals
-    from information_schema.columns a
-    where a.table_schema = 'plm' and a.table_name = t
-      and a.is_nullable = 'NO' and a.column_default is null;
-
-    execute format('insert into plm.%I (%s) values (%s)', t, v_cols, v_vals);
-  end loop;
-end;
-$$;
+-- One representative marker proves the shared predicate's behavior. B1 already proves
+-- that every Warner table has that exact same predicate byte-for-byte.
+insert into plm.wb_capture(
+  capture_id,chunk_number,target,status,captured_at,private_source_commit,
+  snapshot_sha256,expected_row_count,captured_by,source_url,started_at
+) values (
+  '99999999-9999-4999-8999-999999999902',0,'wb_franchise','loading',date '2099-01-01',
+  'synthetic',repeat('a',64),1,'synthetic','https://example.invalid',now()
+);
+insert into plm.wb_franchise(
+  source_namespace,source_id,label,identity_method,capture_id,source_url,raw,source_hash
+) values (
+  'synthetic','ZZTEST-IDENTITY','ZZTEST','source_id',
+  '99999999-9999-4999-8999-999999999902','https://example.invalid','{}','ZZTESTMARKER'
+);
 
 do $$
 declare
@@ -343,9 +309,7 @@ declare
   ];
   i int;
 begin
-  select array_agg(c.relname order by c.relname) into v_tables
-  from pg_class c
-  where c.relnamespace = 'plm'::regnamespace and c.relkind = 'r' and c.relname like 'wb\_%';
+  v_tables := array['wb_franchise'];
 
   for i in 1 .. array_length(v_cases, 1) loop
     v_case   := v_cases[i][1];
@@ -574,39 +538,43 @@ do $$
 declare
   v_landed int;
   v_ins    int;
+  v_capture uuid := '99999999-9999-4999-8999-000000000958';
 begin
+  insert into plm.wb_capture(capture_id,chunk_number,target,status,captured_at,private_source_commit,snapshot_sha256,expected_row_count,captured_by,source_url,started_at)
+  values(v_capture,0,'wb_franchise','validating',date '2099-01-01','synthetic',repeat('a',64),1,'synthetic','https://example.invalid',now());
   execute 'set local role service_role';
   if auth.role() <> 'service_role' then
     raise exception 'D3 FAILED (setup): auth.role() is %, expected service_role', auth.role();
   end if;
 
   select rows_landed, rows_inserted into v_landed, v_ins
-  from plm.sync_wb_franchise_property(
+  from plm.sync_wb_normalized_target(
+    v_capture,
+    'wb_franchise',
     jsonb_build_object(
-      'captured_at', '2026-08-10',
+      'captured_at', '2099-01-01',
       'rows', jsonb_build_array(
         jsonb_build_object(
-          'source_term',   'Property',
+          'source_namespace', 'synthetic',
           'source_id',     'ZZTEST-9000002',
           'label',         'ZZTEST Franchise Two',
-          'captured_date', '2026-08-10',
-          'source_url',    'https://example.invalid/zztest2'
+          'identity_method', 'source_id',
+          'source_url',    'https://example.invalid'
         )
       )
     ),
-    'mirror_only',
-    1.0
+    'mirror_only', 1.0
   );
 
   execute 'reset role';
 
   if coalesce(v_landed, -1) <> 1 or coalesce(v_ins, -1) <> 1 then
-    raise exception 'D3 FAILED: plm.sync_wb_franchise_property landed % / inserted % '
+    raise exception 'D3 FAILED: plm.sync_wb_normalized_target landed % / inserted % '
       '(expected 1 / 1) -- the revokes in 20260810120000 broke the SECURITY DEFINER '
       'write path', v_landed, v_ins;
   end if;
 
-  raise notice 'D3 passed: plm.sync_wb_franchise_property landed 1 / inserted 1 as '
+  raise notice 'D3 passed: plm.sync_wb_normalized_target landed 1 / inserted 1 as '
     'service_role AFTER INSERT was revoked -- the loaders never consumed service_role''s '
     'table grants, exactly as 20260810120000 claims';
 end;
@@ -627,10 +595,10 @@ declare
   v_stmt text;
 begin
   foreach v_stmt in array array[
-    'insert into plm.wb_franchise_property (source_term, source_id, label, captured_date, source_url, raw, source_hash) values (''Property'',''ZZTEST-9000003'',''ZZTEST'',date ''2026-08-10'',''https://example.invalid/z'',''{}''::jsonb,''ZZTESTMARKER'')',
-    'update plm.wb_franchise_property set label = label',
-    'delete from plm.wb_franchise_property',
-    'truncate plm.wb_franchise_property'
+    'insert into plm.wb_franchise (source_namespace,source_id,label,identity_method,capture_id,source_url,raw,source_hash) values (''synthetic'',''ZZTEST-9000003'',''ZZTEST'',''source_id'',''99999999-9999-4999-8999-000000000958'',''https://example.invalid'',''{}''::jsonb,''ZZTESTMARKER'')',
+    'update plm.wb_franchise set label = label',
+    'delete from plm.wb_franchise',
+    'truncate plm.wb_franchise'
   ]
   loop
     begin
@@ -648,7 +616,7 @@ begin
 
   if v_bad > 0 then raise exception 'E FAILED (% failures)', v_bad; end if;
   raise notice 'E passed: service_role is refused INSERT, UPDATE, DELETE and TRUNCATE on '
-    'plm.wb_franchise_property (42501 insufficient_privilege -- loud, not silent)';
+    'plm.wb_franchise (42501 insufficient_privilege -- loud, not silent)';
 end;
 $$;
 rollback;
