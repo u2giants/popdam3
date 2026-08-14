@@ -197,7 +197,13 @@ export function releaseOwnedRef(ref, ownerSha, io = githubIo) {
   if (actual === null) return false
   if (actual !== ownerSha) throw new LaneError(`refusing to release ${ref}: it belongs to another owner`)
   io.deleteRef(ref)
-  const after = io.readRef(ref)
+  let after = io.readRef(ref)
+  // GitHub can briefly return the deleted ref from a stale read replica.
+  // Re-read once before reporting an ambiguous release failure.
+  if (after === ownerSha) {
+    (io.wait ?? ((ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms)))(250)
+    after = io.readRef(ref)
+  }
   if (after === ownerSha) throw new LaneError(`release of ${ref} could not be proved; do not retry blindly`)
   // A different SHA means another contender acquired the static ref after our
   // successful delete. That proves our ownership ended; never delete it again.

@@ -160,6 +160,16 @@ test('101 claims and 101 open PR sources are all considered',()=>{
   assert.throws(()=>assertLaneAvailable([],['table core.p100'],NOW,{prSources:prs}),/PR #101/)
 })
 
+test('release tolerates one stale post-delete GitHub read',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'ours');let reads=0,waits=0
+  io.deleteRef=()=>io.refs.delete(MUTEX_REF)
+  io.readRef=()=>++reads===2?'ours':io.refs.get(MUTEX_REF)??null
+  io.wait=()=>{waits++}
+  assert.equal(releaseOwnedRef(MUTEX_REF,'ours',io),true)
+  assert.equal(waits,1)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
 test('stranded author mutex recovery requires exact SHA, lock type, age, and explicit confirmation',()=>{
   const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc')
   const recover=(values={})=>recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0,...values},io)
