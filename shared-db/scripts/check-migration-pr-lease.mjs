@@ -9,6 +9,12 @@ import { parseAuthorLease, REPO } from './manage-migration-author-lanes.mjs'
 export class LeaseCheckError extends Error {}
 const normalize = (x) => String(x).trim().replace(/\s+/g,' ').toLowerCase()
 
+export function declarationCoversActual(declared, actual) {
+  if (declared.has(actual)) return true
+  const column = /^column ([a-z_][a-z0-9_$]*\.[a-z_][a-z0-9_$]*)\.[a-z_][a-z0-9_$]*$/.exec(actual)
+  return Boolean(column && declared.has(`table ${column[1]}`))
+}
+
 export function validateMigrationLease({ claims, branch, files, now = new Date(), reservationExists }) {
   const migrations=files.filter(f=>f.filename?.startsWith('supabase/migrations/')&&f.filename.endsWith('.sql')&&f.status!=='removed')
   if (!migrations.length) return { relevant:false }
@@ -33,7 +39,7 @@ export function validateMigrationLease({ claims, branch, files, now = new Date()
   }
   if(versions.size!==1 || !versions.has(holder.lease.version)) throw new LeaseCheckError(`migration version must exactly match claim #${holder.number}`)
   if(!reservationExists(holder.lease.version)) throw new LeaseCheckError(`permanent reservation ref is missing for ${holder.lease.version}`)
-  const undeclared=[...actual].filter(x=>!declared.has(x))
+  const undeclared=[...actual].filter(x=>!declarationCoversActual(declared,x))
   if(undeclared.length) throw new LeaseCheckError(`migration writes undeclared objects: ${undeclared.join(', ')}`)
   return { relevant:true, claim:holder.number, version:holder.lease.version, objects:[...actual].sort() }
 }

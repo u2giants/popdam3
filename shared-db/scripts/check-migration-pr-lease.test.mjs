@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { flattenPages, validateMigrationLease } from './check-migration-pr-lease.mjs'
+import { declarationCoversActual, flattenPages, validateMigrationLease } from './check-migration-pr-lease.mjs'
 import { claimBody } from './manage-migration-author-lanes.mjs'
 const now=new Date('2026-08-14T20:00:00Z')
 const claim=(overrides={})=>({number:12,body:claimBody({version:'20260814170219',objects:['table core.x'],owner:'a',branch:'codex/x',worktree:'C:/w',expiresAt:new Date('2026-08-15T00:00:00Z'),...overrides})})
@@ -13,6 +13,15 @@ test('wrong branch fails',()=>assert.throws(()=>run({branch:'codex/other'}),/exa
 test('expired lease fails',()=>assert.throws(()=>run({claims:[claim({expiresAt:new Date('2026-08-14T19:00:00Z')})]}),/expired/))
 test('wrong version and missing reservation fail',()=>{assert.throws(()=>run({files:[{...file(),filename:'supabase/migrations/20260814170220_x.sql'}]}),/version/);assert.throws(()=>run({reservationExists:()=>false}),/reservation/)})
 test('undeclared written object fails',()=>assert.throws(()=>run({files:[file('alter table core.y add column x text;')]}),/undeclared.*core.y/))
+test('declared parent table covers parsed columns on that table',()=>{
+  const result=run({files:[file("comment on column core.x.code is 'owned by core.x';")]})
+  assert.deepEqual(result.objects,['column core.x.code','table core.x'])
+  assert.equal(declarationCoversActual(new Set(['table core.x']),'column core.x.code'),true)
+})
+test('declared parent table does not cover another table columns',()=>{
+  assert.equal(declarationCoversActual(new Set(['table core.x']),'column core.y.code'),false)
+  assert.throws(()=>run({files:[file("comment on column core.y.code is 'not core.x';")]}),/undeclared.*column core.y.code/)
+})
 test('empty SQL fails closed',()=>assert.throws(()=>run({files:[file('')]}),/empty SQL/))
 test('non-migration PR is not relevant',()=>assert.equal(run({claims:[],files:[{filename:'README.md',status:'modified',sql:''}]}).relevant,false))
 test('pagination includes more than 100 records',()=>{
