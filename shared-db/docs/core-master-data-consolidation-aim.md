@@ -110,6 +110,21 @@ work between the landing tables and `core.*` — plus Warner entirely. Do not re
 this rule as "the scrapes have already corrected everything", and do not read an
 empty resolution table as "the scrape never ran".
 
+**Paramount was schema-audited on 2026-08-14** (plan_pmt-duplicate-name-columns.md
+and its two sibling plans). The schema is the strongest of the four; the audit's
+findings are being fixed in stages. One fix is authored in the repository tree but has
+not been applied to any database — migration `20260814193351`: two
+non-entity tables carried a duplicated copy of the property name —
+`plm.pmt_authorized_title_property.paramount_property_name` and
+`plm.pmt_property_capture_log.property_name`. Migration `20260814193351` makes both
+nullable, stops both writers (the client loader and `plm.load_pmt_capture_chunk`)
+and drops `idx_pmt_atp_name`; the property name is read by joining
+`plm.pmt_property` on `(capture_id, property_source_id)`. The columns themselves
+are dropped (or renamed, if one proves to be a distinct fact) by a later migration
+once the plan's Step 1 evidence is read. Note also that the Paramount asset figure
+in the table above counts every retained capture, including two failed ones — see
+the 2026-08-14 handoff for the per-capture breakdown.
+
 ## 2. Why this shape
 
 - The portals are the **authority on what a property IS** — its real name, its

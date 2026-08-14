@@ -352,6 +352,68 @@ test("a title with no resolved property produces no title-property mapping row",
   assert.equal(p.pmt_authorized_title_property[0].property_source_id, "9001");
 });
 
+// ---------------------------------------------------------------------------
+// The duplicated property-name copies (issue #964, plan_pmt-duplicate-name-columns.md).
+// plm.pmt_property.property_name is the single place a property name is written.
+// pmt_authorized_title_property.paramount_property_name and
+// pmt_property_capture_log.property_name were deprecated by migration 20260814193351;
+// this loader must stop forwarding BOTH, while the source files may still carry them.
+// ---------------------------------------------------------------------------
+test("the loader forwards NEITHER duplicated property-name copy", () => {
+  const p = buildPayloads(fixtureCapture);
+  for (const row of p.pmt_authorized_title_property) {
+    assert.ok(!("paramount_property_name" in row),
+      "pmt_authorized_title_property must not carry paramount_property_name");
+    assert.ok(!("property_name" in row),
+      "pmt_authorized_title_property must not carry property_name either");
+  }
+  for (const row of p.pmt_property_capture_log) {
+    assert.ok(!("property_name" in row),
+      "pmt_property_capture_log must not carry property_name");
+  }
+});
+
+test("the omission is the loader's, not the fixture's -- the source fields still exist", () => {
+  // If these ever stop holding, the tests above would pass vacuously: nothing would be
+  // dropped because nothing was there to drop. The capture CSVs may legitimately keep
+  // carrying these columns; the loader simply must not forward them.
+  assert.equal(typeof fixtureCapture.titleScope[0].paramount_property_name, "string");
+  assert.notEqual(fixtureCapture.titleScope[0].paramount_property_name, "");
+  assert.equal(typeof fixtureCapture.captureLog[0].property_name, "string");
+  assert.notEqual(fixtureCapture.captureLog[0].property_name, "");
+});
+
+test("the database boundary receives no name key: the serialized chunks omit both columns", () => {
+  // This is the exact wire format plm.load_pmt_capture_chunk receives. An absent key
+  // serializes to nothing, so the DB-side r->>'...' reads NULL -- legal only after
+  // migration 20260814193351 dropped the NOT NULL. If either key reappears here, a
+  // capture run against a post-drop database is one migration away from failing.
+  const p = buildPayloads(fixtureCapture);
+  const atpJson = JSON.stringify(p.pmt_authorized_title_property);
+  const logJson = JSON.stringify(p.pmt_property_capture_log);
+  assert.ok(!atpJson.includes("paramount_property_name"));
+  assert.ok(!atpJson.includes("property_name"));
+  assert.ok(!logJson.includes("property_name"));
+});
+
+test("the entity payload remains the SINGLE place the property name is written", () => {
+  const p = buildPayloads(fixtureCapture);
+  const entity = p.pmt_property.find((r) => r.property_source_id === "9001");
+  assert.equal(entity.property_name, "Fixture Property Alpha");
+  // No other target's rows may carry a property-name KEY, or the name's VALUE.
+  for (const t of LOAD_ORDER) {
+    if (t === "pmt_property") continue;
+    for (const row of p[t]) {
+      for (const k of Object.keys(row)) {
+        assert.ok(!(k === "property_name" || k.endsWith("_property_name")),
+          `${t}.${k} reintroduced a property-name copy`);
+      }
+      assert.ok(!Object.values(row).includes("Fixture Property Alpha"),
+        `${t} leaked the property-name value`);
+    }
+  }
+});
+
 test("POSITIVE: the franchise payload NEVER carries a direct-relationship claim", () => {
   const p = buildPayloads(fixtureCapture);
   for (const row of p.pmt_property_franchise_evidence) {
@@ -683,4 +745,96 @@ test("no RAISE statement uses %L, which is a format() specifier and prints a str
   for (const r of raiseLines) {
     assert.ok(!r.includes("%L"), `a RAISE still uses %L: ${r.slice(0, 80)}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Issue #964, plan_pmt-duplicate-name-columns.md -- the deprecation migration itself
+// (20260814193351). These pin, OFFLINE, the invariants the database contract test
+// supabase/tests/pmt_no_duplicate_property_name_contracts.sql pins against a live
+// catalog: both writers stopped, guard before relax, index gone, posture intact, and
+// NOTHING destructive in the staged file.
+// ---------------------------------------------------------------------------
+async function readDeprecationMigration() {
+  const { readFileSync } = await import("node:fs");
+  const { join, dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  return readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "supabase", "migrations",
+      "20260814193351_pmt_duplicate_name_columns_deprecated.sql"),
+    "utf8"
+  ).replace(/\r\n/g, "\n");
+}
+
+async function readDuplicateNameContract() {
+  const { readFileSync } = await import("node:fs");
+  const { join, dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  return readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "supabase", "tests",
+      "pmt_no_duplicate_property_name_contracts.sql"),
+    "utf8"
+  ).replace(/\r\n/g, "\n");
+}
+
+test("the duplicate-name contract exposes the VALUES aliases its loop reads", async () => {
+  const sql = await readDuplicateNameContract();
+  assert.match(sql, /select table_name, column_name from \(values[\s\S]*?\) as v\(table_name, column_name\)/,
+    "section A must alias VALUES as table_name/column_name for r.table_name/r.column_name");
+  assert.doesNotMatch(sql, /\) as v\(tbl, col\)/,
+    "the old aliases make SELECT table_name,column_name fail before assertions run");
+});
+
+test("the deprecation migration replaces the loader WITHOUT the two duplicate-name writes", async () => {
+  const sql = await readDeprecationMigration();
+  const starts = sql.match(/create or replace function plm\.load_pmt_capture_chunk\(/g) ?? [];
+  assert.equal(starts.length, 1, "exactly one whole-function replacement");
+  const start = sql.indexOf("create or replace function plm.load_pmt_capture_chunk(");
+  const body = sql.slice(start, sql.indexOf("\n$$;", start));
+  const normBody = body.replace(/\s+/g, " ");
+
+  assert.ok(!body.includes("paramount_property_name"),
+    "the function body must not write the rights-list copy");
+  assert.ok(!normBody.includes("property_name, reported_asset_count"),
+    "the old capture-log INSERT shape must be gone");
+  assert.ok(normBody.includes("property_name, is_licensed_selection"),
+    "the entity branch keeps its legitimate property_name write");
+  assert.ok(body.includes("security definer"), "SECURITY DEFINER preserved");
+  assert.ok(body.includes("set search_path = plm, core, public, extensions"),
+    "pinned search_path preserved");
+  assert.ok(body.includes("not (p_target = any (c_targets))"), "allow-list guard preserved");
+
+  // The security-definer posture is re-pinned AFTER the replacement, as in every
+  // prior replacement of this function.
+  assert.match(sql, /revoke all on function plm\.load_pmt_capture_chunk\(uuid, text, jsonb\) from public;/);
+  assert.match(sql, /revoke all on function plm\.load_pmt_capture_chunk\(uuid, text, jsonb\) from anon, authenticated;/);
+  assert.match(sql, /grant execute on function plm\.load_pmt_capture_chunk\(uuid, text, jsonb\) to service_role;/);
+});
+
+test("the deprecation migration relaxes BOTH columns behind the drift guard, and drops the index", async () => {
+  const sql = await readDeprecationMigration();
+  assert.match(sql, /alter table plm\.pmt_authorized_title_property alter column paramount_property_name drop not null;/);
+  assert.match(sql, /alter table plm\.pmt_property_capture_log alter column property_name drop not null;/);
+
+  // The refusal guard runs BEFORE either relax, and raises on drift or orphans.
+  const driftAt = sql.indexOf("v_atp_mismatch > 0 or v_log_mismatch > 0");
+  const orphanAt = sql.indexOf("v_orphans > 0");
+  const relaxAt = sql.indexOf("drop not null");
+  assert.ok(driftAt > 0, "drift refusal present");
+  assert.ok(orphanAt > 0, "orphan refusal present");
+  assert.ok(relaxAt > driftAt && relaxAt > orphanAt,
+    "the guard must run before the NOT NULL relax");
+
+  assert.match(sql, /drop index plm\.idx_pmt_atp_name;/);
+});
+
+test("the deprecation migration is STAGED: schema-only, and carries no column drop", async () => {
+  const sql = await readDeprecationMigration();
+  // Strip every function/DO body first: inserts INSIDE the loader are the runtime path.
+  const topLevel = sql.replace(/\$\$[\s\S]*?\$\$/g, "\n-- [body omitted]\n");
+  const seeds = [...topLevel.matchAll(/insert\s+into\s+plm\.pmt_/gi)];
+  assert.equal(seeds.length, 0, "the migration must not seed any plm.pmt_* row at the top level");
+  assert.ok(!/\bdrop\s+column\b/i.test(topLevel),
+    "plan Step 6's column drops are deliberately NOT in this staged migration");
+  assert.ok(!/\brename\s+column\b/i.test(topLevel),
+    "no rename either: Step 1 (duplicate vs distinct fact) is still open");
 });

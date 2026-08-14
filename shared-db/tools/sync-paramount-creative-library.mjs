@@ -552,12 +552,20 @@ export function buildPayloads(cap) {
       asset_version: num(r.version) ?? 0,
     })),
 
+    // The property NAME is deliberately NOT forwarded. It duplicates
+    // plm.pmt_property.property_name, which the pmt_property payload above already
+    // carries for the same (capture_id, property_source_id). Migration 20260814193351
+    // deprecated the column; the database-side loader no longer reads this key, and the
+    // column is dropped once plan_pmt-duplicate-name-columns.md Step 1 is settled. If
+    // Step 1 rules this a distinct fact (the rights-list display name), restore this
+    // mapping alongside the rename.
+    // Sibling workstreams (#965, #970): rebase onto the then-live buildPayloads and
+    // re-apply this single omission; do not copy this block from a stale base.
     pmt_authorized_title_property: cap.titleScope
       .filter((r) => r.property_id)
       .map((r) => ({
         authorized_title_key: r.licensed_business_title,
         property_source_id: exactSourceId(r.property_id, 'pmt_authorized_title_property.property_source_id'),
-        paramount_property_name: r.paramount_property_name,
         reported_asset_count: num(r.reported_asset_count) ?? 0,
         mapping_status: r.capture_status,
         notes: r.notes || null,
@@ -607,9 +615,13 @@ export function buildPayloads(cap) {
       asset_id: r.asset_id,
     })),
 
+    // Same rule as pmt_authorized_title_property above: the property NAME is not
+    // forwarded. The row is keyed by the FK'd property_source_id and joins to
+    // plm.pmt_property for the name. Migration 20260814193351 deprecated the column.
+    // If plan Step 1 rules this the search string the portal displayed (a distinct
+    // fact), restore this mapping alongside the rename.
     pmt_property_capture_log: cap.captureLog.map((r) => ({
       property_source_id: exactSourceId(r.property_id, 'pmt_property_capture_log.property_source_id'),
-      property_name: r.property_name,
       reported_asset_count: num(r.reported_asset_count) ?? 0,
       captured_asset_count: num(r.captured_asset_count) ?? 0,
       page_count: num(r.page_count) ?? 0,

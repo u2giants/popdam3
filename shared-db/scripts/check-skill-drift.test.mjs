@@ -13,11 +13,9 @@ function fixture() {
   mkdirSync(path.join(root, 'skills'), { recursive: true })
   cpSync(canonical, path.join(root, 'skills', 'shared'), { recursive: true })
   const sourceRoot = process.env.AI_DEVOPS_DIR || 'C:/repos/ai-devops'
-  for (const skill of ['shared-db-change', 'shared-db-handover']) {
-    const target = path.join(root, 'skills', 'claude', skill)
-    mkdirSync(path.dirname(target), { recursive: true })
-    cpSync(path.join(sourceRoot, 'skills', 'claude', skill), target, { recursive: true })
-  }
+  const target = path.join(root, 'skills', 'claude', 'shared-db-change')
+  mkdirSync(path.dirname(target), { recursive: true })
+  cpSync(path.join(sourceRoot, 'skills', 'claude', 'shared-db-change'), target, { recursive: true })
   return root
 }
 

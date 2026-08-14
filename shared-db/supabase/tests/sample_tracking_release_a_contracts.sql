@@ -12,6 +12,18 @@ DECLARE
   v_carrier smallint;
   v_shipment bigint;
 BEGIN
+  IF to_regclass('dflow.sample_shipment') IS NULL
+     OR to_regclass('dflow.sample_carrier') IS NULL THEN
+    RAISE EXCEPTION 'Release A shipment-header relations are missing';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_schema='dflow' AND table_name='sample_shipment_line'
+      AND column_name='sample_shipment_id')
+     OR NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_schema='dflow' AND table_name='sample_movement'
+      AND column_name='sample_shipment_id') THEN
+    RAISE EXCEPTION 'Release A shipment identity columns are missing';
+  END IF;
   IF (SELECT count(*) FROM dflow.sample_carrier WHERE is_active) <> 4 THEN
     RAISE EXCEPTION 'Release A must seed exactly four proven active carriers';
   END IF;
@@ -85,6 +97,12 @@ BEGIN
   VALUES(v_sample,v_box,1,'warehouse','china_warehouse','office','ningbo','warehouse_to_ningbo','packed',
     'release-a-line','hash-l','contract-test','production',v_shipment);
   BEGIN
+    UPDATE dflow.sample_shipment SET destination_location_id='nyc'
+    WHERE sample_shipment_id=v_shipment;
+    RAISE EXCEPTION 'shipment header route changed after lines were attached';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  BEGIN
     INSERT INTO dflow.sample_shipment_line(sample_id_fk,box_id_fk,quantity_intended,origin_location_type,
       origin_location_id,destination_location_type,destination_location_id,route_leg,state,idempotency_key,
       request_hash,created_by_user,created_by_role,sample_shipment_id)
@@ -113,6 +131,31 @@ BEGIN
     RAISE EXCEPTION 'unboxed shipment movement did not retain shipment identity';
   END IF;
   BEGIN
+    UPDATE dflow.sample_shipment_line SET sample_shipment_id=NULL
+    WHERE sample_id_fk=v_unboxed_sample;
+    RAISE EXCEPTION 'shipment line identity changed after movement';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  PERFORM dflow.post_sample_movement(v_sample,1,'terminal','created','warehouse','china_warehouse',
+    'create','contract-test','production','release-a-create','hash-m');
+  BEGIN
+    INSERT INTO dflow.sample_movement(sample_id_fk,quantity,from_location_type,from_location_id,
+      to_location_type,to_location_id,box_id_fk,shipment_line_id,sample_shipment_id,lifecycle_action,
+      actor_user,actor_role,idempotency_key,request_hash)
+    VALUES(v_unboxed_sample,1,'terminal','created','in_transit',v_shipment::text,
+      NULL,(SELECT shipment_line_id FROM dflow.sample_shipment_line WHERE sample_id_fk=v_sample),
+      v_shipment,'ship','contract-test','production','release-a-direct-bypass','hash-db');
+    RAISE EXCEPTION 'direct movement insert bypassed shipment identity enforcement';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    PERFORM dflow.post_sample_movement(v_sample,1,'terminal','created','office','nyc',
+      'return','contract-test','production','release-a-off-route','hash-or',v_box,
+      (SELECT shipment_line_id FROM dflow.sample_shipment_line WHERE sample_id_fk=v_sample));
+    RAISE EXCEPTION 'non-ship action bypassed shipment route enforcement';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
     PERFORM dflow.post_sample_movement(v_sample,1,'warehouse','china_warehouse','in_transit',
       v_shipment::text,'ship','contract-test','production','release-a-wrong-box','hash-wb',NULL,
       (SELECT shipment_line_id FROM dflow.sample_shipment_line WHERE sample_id_fk=v_sample));
@@ -120,8 +163,6 @@ BEGIN
   EXCEPTION WHEN check_violation THEN NULL;
   END;
 
-  PERFORM dflow.post_sample_movement(v_sample,1,'terminal','created','warehouse','china_warehouse',
-    'create','contract-test','production','release-a-create','hash-m');
   IF NOT EXISTS (
     SELECT 1 FROM dflow.sample_inventory
     WHERE sample_id_fk=v_sample AND product_location_type='warehouse'
