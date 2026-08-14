@@ -381,12 +381,22 @@ added ad hoc.
 
 ### Open items
 
-| Entity | Key | Source says | Correct value | Fix belongs in | Notified |
+| Entity | Key | Source says | Correct value | Fix belongs in | Status |
 |---|---|---|---|---|---|
-| Property `CC` COCO | `EDGEHOME/CW001/06/CC` and `.../SP001/06/CC` | parent `ZZ` DTR - NO LICENSE | parent `DY` DISNEY | **DesignFlow** | **not yet — recipient not identified** |
+| Property `CC` COCO | `EDGEHOME/CW001/06/CC` and `.../SP001/06/CC` | parent `ZZ` DTR - NO LICENSE | parent `DY` DISNEY | DesignFlow | **CLOSED — no upstream push** |
 
-Canonical is already right for this item, so nothing here blocks our own work. The
-outstanding action is purely the upstream notification.
+**COCO is closed, 2026-08-13.** Owner ruling: because the wrong value is not in
+ColdLion, correcting it here is enough. `core.property` already carries `DY` and is
+authoritative, so no message is owed and no data change is needed.
+
+The reason that is safe, and the condition under which it stops being safe: a
+ColdLion pull never writes `licensor_id` (§7a), so DesignFlow's `ZZ` cannot
+propagate into canonical on a refresh. **But if a DesignFlow-sourced edge seed is
+ever run again, it will silently reintroduce `ZZ`.** Any such seed must therefore
+skip properties whose canonical parent was set by an owner ruling. Record those, or
+this correction gets undone the next time somebody reseeds.
+
+There are no other open items.
 
 ## 7. Sequence
 
