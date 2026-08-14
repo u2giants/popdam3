@@ -58,14 +58,57 @@ transact*. Whether a property is `active` still comes from the ColdLion mapping
 carries authority for its own licensor's properties — the Warner scrape says
 nothing about a Disney title.
 
-**This rule is only as good as scrape coverage, which is currently partial.**
-Measured 2026-08-13: Paramount 254 properties / 228 characters and NBCU 249 / 190
-have landed; **Warner and Disney have landed zero rows** (`plm.wb_property`,
-`plm.dcp_property`, `plm.wb_character`, `plm.dcp_character` are all empty), and
-`core.style_guide` and `dam.asset` are empty. Until Warner and Disney land, the
-majority of the canonical catalogue has no scrape to defer to and the DesignFlow
-seed remains the best available source for those rows. Do not read this rule as
-"the scrapes have already corrected everything".
+### Scrape coverage, measured 2026-08-13
+
+> ⚠️ **Counting `plm.dcp_property` / `plm.wb_property` and concluding "the scrape
+> landed nothing" is WRONG, and an AI session did exactly that on 2026-08-13.**
+> The `<source>_property` / `<source>_character` tables are **resolution** tables —
+> they hold entities already reconciled to a canonical `core.*` row. They are empty
+> for Disney because the resolution pass has not been run, **not** because the
+> scrape has no data. Disney has 156,644 assets loaded.
+>
+> **Never guess which table a loader wrote to. Ask:**
+>
+> ```sql
+> select * from api.source_capture_inventory order by source_system, row_count desc;
+> ```
+>
+> Exact live counts for every `plm` landing table, grouped by source, built from the
+> catalog so a new scrape's tables appear automatically. The numbers in the table
+> below are a dated snapshot; that view is always current. Note its
+> `carries_resolution` column describes the table's *shape* — it never tells you
+> whether a scrape ran.
+
+| Source | Assets | Properties | Characters | Style guides |
+|---|---|---|---|---|
+| **Disney** (OPA + DCP Vault) | **156,644** `dcp_asset` | **1,444** distinct in `opa_property_character` | **9,591** distinct in `opa_property_character` | **2,967** `dcp_style_guide` |
+| **Paramount** (Creative Library) | 119,304 `pmt_asset` | 254 `pmt_property` | 228 `pmt_character` | 1,928 `pmt_collection` |
+| **NBCU** (Creative Asset Factory) | 113,331 `nbcu_asset` | 249 `nbcu_property` | 190 `nbcu_character` | 461 `nbcu_style_guide` |
+| **Warner** (STARLABS) | **0** | **0** | **0** | **0** |
+
+Disney also holds 198,753 asset-to-tile observations, 11 portal tiles, and a
+complete crawl and chunk ledger.
+
+**Three separate gaps, and they are not the same problem:**
+
+1. **Warner has genuinely landed nothing.** Every `plm.wb_*` table is empty. This
+   is the one true "the loader was never written" case among the four
+   (issue #900).
+2. **Disney has landed richly but is NOT normalized.** `plm.dcp_property`,
+   `plm.dcp_character`, `plm.dcp_asset_property_observation` and
+   `plm.dcp_asset_character_observation` are all empty, and the Disney
+   property/character universe currently exists only as **names** inside
+   `plm.opa_property_character`. Until those names are resolved into entities,
+   Disney data cannot participate in the scrapes-win rule or in consolidation,
+   even though the raw capture is complete.
+3. **Nothing has reached canonical yet.** `core.style_guide` and `dam.asset` are
+   both empty for every source. Consolidation into `core.*` has not started.
+
+So the rule is sound, and for Disney, Paramount and NBCU the source data to enforce
+it with is genuinely present. What is missing is the resolution and consolidation
+work between the landing tables and `core.*` — plus Warner entirely. Do not read
+this rule as "the scrapes have already corrected everything", and do not read an
+empty resolution table as "the scrape never ran".
 
 ## 2. Why this shape
 
@@ -310,10 +353,14 @@ No data fix is required on our side; the correction is owed upstream (§6a).
 Investigation behind the ruling: it is not a duplicate. Live DesignFlow holds
 exactly one COCO per licensed division (`mg_id` 1728 in CW001, 1966 in SP001),
 both active and both parented to `ZZ`. There is no second, Disney-parented COCO
-anywhere in DesignFlow, and `core.property` holds exactly one COCO row. The
-Disney scrape has landed zero rows (§1a), so no scrape was available to settle it
-under the scrapes-win rule; the ruling stands on the owner's knowledge of the
-title.
+anywhere in DesignFlow, and `core.property` holds exactly one COCO row.
+
+The ruling stands on the owner's knowledge of the title. The Disney scrape could
+not be used to settle it — not because it is empty (it is not; see §1a), but
+because its properties are still only names in `plm.opa_property_character` and
+have not been resolved into entities that could be matched against `CC`. Once that
+resolution runs, COCO should be confirmed against the Disney source as a check on
+this ruling rather than treated as settled forever.
 
 Incidental illustration of the composite-key rule (§5a.5): in the same division,
 `CC` is *both* a licensor code (COCA COLA, inactive) and a property code (COCO,

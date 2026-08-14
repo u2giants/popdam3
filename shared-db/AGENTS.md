@@ -70,6 +70,27 @@ AI sessions from breaking each other through the one database they all depend on
 > runs on every push to `main`, daily, and on demand: workflow `Migration Ledger Drift`
 > ([`.github/workflows/migration-ledger-drift.yml`](.github/workflows/migration-ledger-drift.yml)).
 
+> ## ⚠️ Before you report that a scrape or loader "landed nothing"
+>
+> **An empty table is not proof that a capture never ran — it is proof that *that
+> table* is empty.** Table names do not reliably tell you where a loader wrote. On
+> 2026-08-13 a session counted `plm.dcp_property` and `plm.wb_property`, found both
+> empty, and told the owner "Warner and Disney have landed zero rows". Disney had in
+> fact landed **156,644 assets** in `plm.dcp_asset`, 2,967 style guides in
+> `plm.dcp_style_guide` and 10,262 rows in `plm.opa_property_character`. The same
+> session also understated Paramount and NBCU by roughly 230,000 rows, because it
+> counted entity tables and ignored the asset tables entirely.
+>
+> **Never guess the table. Ask:**
+>
+>     select * from api.source_capture_inventory order by source_system, row_count desc;
+>
+> Exact live counts for every `plm` landing table, grouped by source system, built
+> from the live catalog so a new scrape's tables appear with no maintenance. Its
+> `carries_resolution` column describes a table's shape and never indicates whether
+> a scrape ran. Same discipline as the migration-ledger rule above: check the
+> authoritative inventory before reporting an absence.
+
 ## 0. Shared-db gatekeeper rule for consumer repos
 
 `shared-db` is the gatekeeper for every database schema change in the shared
