@@ -452,11 +452,16 @@ function gh(args) {
 }
 
 function ghJson(args) {
-  const raw = gh(args)
+  const paginated = args.includes('--paginate')
+  const actualArgs = paginated && !args.includes('--slurp') ? [...args.slice(0, args.indexOf('--paginate') + 1), '--slurp', ...args.slice(args.indexOf('--paginate') + 1)] : args
+  const raw = gh(actualArgs)
   try {
-    return JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    if (!paginated) return parsed
+    if (!Array.isArray(parsed) || parsed.some((page) => !Array.isArray(page))) throw new Error('paginated response is not an array of pages')
+    return parsed.flat()
   } catch {
-    throw new Unknown(`\`gh ${args.join(' ')}\` did not return JSON`)
+    throw new Unknown(`\`gh ${actualArgs.join(' ')}\` did not return complete paginated JSON`)
   }
 }
 
@@ -511,6 +516,10 @@ export function gatherOpenPrObjects(repo, io = defaultIo) {
   const sources = []
   for (const pr of open) {
     const files = io.listPullFiles(repo, pr.number)
+    if (!Array.isArray(files)) throw new Unknown(`PR #${pr.number} returned an unreadable file list`)
+    if (!Number.isInteger(pr.changed_files) || pr.changed_files < 0) throw new Unknown(`PR #${pr.number} has no trustworthy changed_files count`)
+    if (pr.changed_files >= 3000) throw new Unknown(`PR #${pr.number} reaches GitHub's 3000-file limit; refusing incomplete coverage`)
+    if (files.length !== pr.changed_files) throw new Unknown(`PR #${pr.number} returned ${files.length} of ${pr.changed_files} changed files`)
     const objects = new Set()
     const versions = new Set()
     for (const file of files) {
@@ -536,6 +545,7 @@ export function gatherOpenPrObjects(repo, io = defaultIo) {
       label: `PR #${pr.number}${pr.draft ? ' [DRAFT]' : ''} "${pr.title}"`,
       url: pr.html_url,
       draft: Boolean(pr.draft),
+      branch: pr.head?.ref ?? null,
       objects: [...objects].sort(),
       versions: [...versions].sort(),
     })

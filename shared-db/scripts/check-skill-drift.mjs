@@ -35,8 +35,7 @@ import { readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const AGENTS = 'AGENTS.md';
-const CANDIDATE_DIRS = [
-  process.env.AI_DEVOPS_DIR,
+const CANDIDATE_DIRS = process.env.AI_DEVOPS_DIR ? [process.env.AI_DEVOPS_DIR] : [
   'C:/repos/ai-devops',
   '/c/repos/ai-devops',
   '/repos/ai-devops',
@@ -44,6 +43,13 @@ const CANDIDATE_DIRS = [
 ].filter(Boolean);
 
 const SKILLS = ['shared-db-orchestrator', 'shared-db-change', 'shared-db-handover'];
+const ORCHESTRATOR_REQUIREMENTS = [
+  ['three-author-cap', /three fixed\s+author slots|at most three migration authors/i],
+  ['github-object-locks', /GitHub-backed(?: exact-)?object locks/i],
+  ['exclusive-preview', /exclusive GitHub-backed preview lock/i],
+  ['exclusive-merge', /exclusive merge lock/i],
+  ['expiry-stays-protective', /Expiry never removes collision protection/i],
+];
 
 /**
  * Each rule is a CONTRADICTION, not a style preference: a pattern that must not appear in
@@ -52,6 +58,18 @@ const SKILLS = ['shared-db-orchestrator', 'shared-db-change', 'shared-db-handove
  * ignored, which is how the original defect survived.
  */
 const CONTRADICTIONS = [
+  {
+    id: 'retired-single-writer',
+    pattern: /single-writer ownership of `supabase\/migrations\/`/i,
+    agents: '§4 permits up to three isolated migration authors',
+    why: 'This needlessly serializes every author and contradicts the atomic lane allocator.',
+  },
+  {
+    id: 'manual-migration-version',
+    pattern: /ls supabase\/migrations\s*\|\s*cut|pick the version by hand/i,
+    agents: '§4 requires a central atomic migration-version reservation',
+    why: 'A local directory listing cannot see simultaneous reservations on other computers.',
+  },
   {
     id: 'mcp-ddl',
     // `~~…~~` means struck through and corrected below, which is how a superseded rule is
@@ -101,10 +119,10 @@ const CONTRADICTIONS = [
 async function findSkillsDir() {
   for (const d of CANDIDATE_DIRS) {
     try {
-      await access(join(d, 'skills', 'claude', 'shared-db-orchestrator', 'SKILL.md'));
-      return join(d, 'skills', 'claude');
+      await access(join(d, 'skills', 'shared', 'shared-db-orchestrator', 'SKILL.md'));
+      return d;
     } catch {
-      /* try the next candidate */
+      /* try the next canonical candidate */
     }
   }
   return null;
@@ -119,8 +137,8 @@ async function main() {
   // prints a clean skip is the false-green pattern this file was written to end.
   const requireSkills = process.argv.includes('--require-skills');
 
-  const dir = await findSkillsDir();
-  if (!dir) {
+  const root = await findSkillsDir();
+  if (!root) {
     if (requireSkills) {
       console.error('FAILED: --require-skills was passed and the ai-devops skills were NOT found.');
       console.error('  Looked in: ' + CANDIDATE_DIRS.join(', '));
@@ -139,7 +157,8 @@ async function main() {
 
   const problems = [];
   for (const skill of SKILLS) {
-    const path = join(dir, skill, 'SKILL.md');
+    const tree = skill === 'shared-db-orchestrator' ? 'shared' : 'claude';
+    const path = join(root, 'skills', tree, skill, 'SKILL.md');
     let text;
     try {
       text = await readFile(path, 'utf8');
@@ -158,6 +177,11 @@ async function main() {
           `      why it matters: ${rule.why}`,
       );
     }
+    if (skill === 'shared-db-orchestrator') {
+      for (const [id, pattern] of ORCHESTRATOR_REQUIREMENTS) {
+        if (!pattern.test(text)) problems.push(`${skill}/SKILL.md [missing-${id}]: required safety rule is absent.`);
+      }
+    }
   }
 
   if (problems.length) {
@@ -168,7 +192,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`OK: checked ${SKILLS.length} skills in ${dir} against ${AGENTS}; no contradictions.`);
+  console.log(`OK: checked ${SKILLS.length} canonical skills in ${root} against ${AGENTS}; no contradictions.`);
 }
 
 await main();

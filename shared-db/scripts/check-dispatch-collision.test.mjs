@@ -330,7 +330,7 @@ test('a create index in an open PR collides with a proposal naming its table', (
   const prObjects = dispatchObjectKeys('create index idx_licensor_code on core.licensor(code);')
   // BOTH identities: an index is a write to its table, and the index name is
   // itself claimable. Emitting only one of the two was a false clear either way.
-  assert.deepEqual(prObjects, ['index idx_licensor_code', 'table core.licensor'])
+  assert.deepEqual(prObjects, ['index core.idx_licensor_code', 'table core.licensor'])
   const result = findDispatchConflicts({ objects: ['table core.licensor'] }, [
     { label: 'PR #503', objects: prObjects, versions: [] },
   ])
@@ -494,7 +494,7 @@ const SQL = 'create or replace function plm.foo() returns void as $$ begin end $
 
 /** A fake GitHub, so the gathering LOGIC is testable without a network call. */
 const fakeIo = (pulls, filesByPr, bodies = {}) => ({
-  listPulls: () => pulls,
+  listPulls: () => pulls.map((pull) => ({ changed_files: filesByPr[pull.number]?.length ?? 0, ...pull })),
   listPullFiles: (_repo, number) => filesByPr[number] ?? [],
   readFileAtRef: (_repo, filename) => (filename in bodies ? bodies[filename] : SQL),
 })
@@ -509,6 +509,12 @@ const PR = (number, extra = {}) => ({
 })
 
 const FILE = (filename, status = 'modified') => ({ filename, status })
+
+test('open PR coverage refuses a truncated or 3000-file GitHub response', () => {
+  const one = [FILE('supabase/migrations/20260806120000_x.sql')]
+  assert.throws(() => gatherOpenPrObjects('o/r', fakeIo([PR(1, { changed_files: 2 })], { 1: one })), /returned 1 of 2/)
+  assert.throws(() => gatherOpenPrObjects('o/r', fakeIo([PR(1, { changed_files: 3000 })], { 1: one })), /3000-file limit/)
+})
 
 test('a DRAFT pull request counts as in flight at dispatch time', () => {
   // Defect: `if (pr.draft) continue`. Correct for the merge guard (a draft is

@@ -93,13 +93,13 @@ test('FIRES: triggers and policies collide per (name, table)', () => {
     { label: 'A', files: [{ path: 'a.sql', sql: trigger('before') }] },
     { label: 'B', files: [{ path: 'b.sql', sql: trigger('after') }] },
   ])
-  assert.deepEqual(t.collisions.map((c) => c.object), ['trigger touch on public.assets'])
+  assert.deepEqual(t.collisions.map((c) => c.object), ['table public.assets', 'trigger touch on public.assets'])
 
   const p = findCollisions([
     { label: 'A', files: [{ path: 'a.sql', sql: 'create policy p on core.customer for select using (true);' }] },
     { label: 'B', files: [{ path: 'b.sql', sql: 'create policy p on core.customer for all using (false);' }] },
   ])
-  assert.deepEqual(p.collisions.map((c) => c.object), ['policy p on core.customer'])
+  assert.deepEqual(p.collisions.map((c) => c.object), ['policy p on core.customer', 'table core.customer'])
 })
 
 test('FIRES: `drop` + `create` collides with `create or replace` (Kimi K3 finding)', () => {
@@ -226,7 +226,7 @@ test('does NOT fire on a commented-out create or replace', () => {
   assert.deepEqual(result.collisions, [])
 })
 
-test('SKIP POSTURE: no pull-request context warns loudly and exits 0', () => {
+test('FAIL-CLOSED POSTURE: no pull-request context exits 2', () => {
   // The guard's core promise (a false positive blocking every PR is worse than
   // the bug it prevents) had no test until Kimi K3's review said so.
   const script = path.join(repoRoot, 'scripts', 'check-pr-object-collisions.mjs')
@@ -234,8 +234,8 @@ test('SKIP POSTURE: no pull-request context warns loudly and exits 0', () => {
     encoding: 'utf8',
     env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot }, // no GITHUB_* at all
   })
-  assert.equal(run.status, 0, run.stderr)
-  assert.match(run.stderr, /SKIPPED/)
+  assert.equal(run.status, 2, run.stderr)
+  assert.match(run.stderr, /could not gather complete inputs/)
   assert.match(run.stderr, /No collision checking was performed/)
 })
 
@@ -303,4 +303,12 @@ test('DOCUMENTED BLIND SPOT: plain `create table`/`alter` is not modelled', () =
   assert.deepEqual(extractObjects("execute 'create or replace function plm.hidden()';"), [
     'function plm.hidden', // string-built DDL happens to match here; it is not guaranteed
   ])
+})
+
+test('merge collisions use broad claim identities for create/alter table', () => {
+  const result = findCollisions([
+    { label: 'A', files: [{ path: 'a.sql', sql: 'create table core.thing (id int);' }] },
+    { label: 'B', files: [{ path: 'b.sql', sql: 'alter table core.thing add column x int;' }] },
+  ])
+  assert.deepEqual(result.collisions.map((x) => x.object), ['table core.thing'])
 })

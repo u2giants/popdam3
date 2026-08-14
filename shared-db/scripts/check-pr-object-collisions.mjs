@@ -40,7 +40,7 @@
 //       it prevents. This mirrors Guard B in scripts/check-sql.sh and
 //       scripts/check-backlog-queue-sync.mjs: when the guard cannot gather its
 //       inputs with confidence (no `gh`, no token, no pull-request context, an
-//       API error) it prints a LOUD SKIPPED warning and exits 0. It never
+//       API error) it prints a loud error and exits 2. It never
 //       guesses.
 //
 //   (b) It is deliberately COARSE on function overloads: it keys on
@@ -424,8 +424,13 @@ const DISPATCH_PATTERNS = [
       'gi',
     ),
     map: (m) => {
-      const ops = [{ action: 'create', kind: 'table', target: canonical(m[2]) }]
-      if (m[1]) ops.push({ action: 'create', kind: 'index', target: canonical(m[1].trim()) })
+      const table = canonical(m[2])
+      const ops = [{ action: 'create', kind: 'table', target: table }]
+      if (m[1]) {
+        let index = canonical(m[1].trim())
+        if (!index.includes('.') && table.includes('.')) index = `${table.split('.')[0]}.${index}`
+        ops.push({ action: 'create', kind: 'index', target: index })
+      }
       return ops
     },
   },
@@ -847,7 +852,7 @@ export function findCollisions(sources, primaryLabel) {
   for (const source of sources) {
     const seen = new Set()
     for (const file of source.files ?? []) {
-      for (const object of extractObjects(file.sql)) {
+      for (const object of dispatchObjectKeys(file.sql)) {
         seen.add(object)
         if (!index.has(object)) index.set(object, new Map())
         const bySource = index.get(object)
@@ -934,11 +939,16 @@ function gh(args) {
 }
 
 function ghJson(args) {
-  const out = gh(args)
+  const paginated = args.includes('--paginate')
+  const actualArgs = paginated && !args.includes('--slurp') ? [...args.slice(0, args.indexOf('--paginate') + 1), '--slurp', ...args.slice(args.indexOf('--paginate') + 1)] : args
+  const out = gh(actualArgs)
   try {
-    return JSON.parse(out)
+    const parsed = JSON.parse(out)
+    if (!paginated) return parsed
+    if (!Array.isArray(parsed) || parsed.some((page) => !Array.isArray(page))) throw new Error('bad pages')
+    return parsed.flat()
   } catch {
-    throw new Skip(`\`gh ${args.join(' ')}\` did not return JSON`)
+    throw new Skip(`\`gh ${actualArgs.join(' ')}\` did not return complete paginated JSON`)
   }
 }
 
@@ -952,11 +962,16 @@ function isMigration(file) {
 }
 
 function fetchFiles(repo, number, ref) {
-  const files = ghJson([
+  const pr = ghJson(['api', `repos/${repo}/pulls/${number}`])
+  const allFiles = ghJson([
     'api',
     '--paginate',
     `repos/${repo}/pulls/${number}/files?per_page=100`,
-  ]).filter(isMigration)
+  ])
+  if (!Number.isInteger(pr?.changed_files)) throw new Skip(`PR #${number} has no trustworthy changed_files count`)
+  if (pr.changed_files >= 3000) throw new Skip(`PR #${number} reaches GitHub's 3000-file limit`)
+  if (allFiles.length !== pr.changed_files) throw new Skip(`PR #${number} returned ${allFiles.length} of ${pr.changed_files} changed files`)
+  const files = allFiles.filter(isMigration)
   return files.map((file) => ({
     path: file.filename,
     sql: gh([
@@ -1066,10 +1081,10 @@ function main() {
     sources = gatherSources()
   } catch (error) {
     if (!(error instanceof Skip)) throw error
-    console.warn('WARNING: cross-PR object collision guard SKIPPED --', error.message)
+    console.error('ERROR: cross-PR object collision guard could not gather complete inputs --', error.message)
     console.warn('No collision checking was performed. This is deliberate: a guard')
-    console.warn('that cannot gather its inputs must not guess. See B6 in HANDOFF.md.')
-    return 0
+    console.warn('that cannot gather its inputs must fail closed. See B6 in HANDOFF.md.')
+    return 2
   }
 
   // Only a collision that INVOLVES this pull request may fail it.
