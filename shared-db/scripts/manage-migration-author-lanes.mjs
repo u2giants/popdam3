@@ -12,11 +12,79 @@ export const DEFAULT_LEASE_HOURS = 12
 export const MUTEX_STALE_AFTER_MS = 2 * 60 * 1000
 export const MUTEX_REF = 'refs/db-coordination/author-acquisition'
 export const MUTEX_RECOVERY_ACTIVE_REF = 'refs/db-coordination/author-acquisition-recovery-active'
+export const REVIEW_CURSOR_REF = 'refs/db-coordination/reviewer-round-robin'
+export const REVIEWERS = Object.freeze([
+  { name:'grok-4.6', wrapper:'ai-grok-review' }, { name:'glm-5.2', wrapper:'ai-glm' },
+  { name:'kimi-k3', wrapper:'ai-kimi' }, { name:'qwen-3.8-max', wrapper:'ai-qwen' },
+])
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
   merge: 'refs/db-coordination/merge',
   production: 'refs/db-coordination/production',
 })
+
+const QUEUE_STATES = new Set(['eligible','blocked','owner-decision','data-only','non-structural'])
+
+export function parseQueueScope(body = '') {
+  const fences=[...body.matchAll(/```db-work-scope\s*\n([\s\S]*?)```/g)]
+  if (!fences.length) return null
+  if (fences.length !== 1) throw new LaneError('exactly one db-work-scope block is required')
+  const fence=fences[0]
+  const lines = fence[1].split(/\r?\n/), fields = new Map(), objects = []
+  let inObjects = false
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) continue
+    if (line === 'objects:') { inObjects = true; continue }
+    if (inObjects && line.startsWith('- ')) { objects.push(line.slice(2).trim()); continue }
+    inObjects = false
+    const match = /^([a-z_]+):\s*(.*)$/.exec(line)
+    if (!match || fields.has(match[1])) throw new LaneError('unreadable db-work-scope block')
+    fields.set(match[1], match[2].trim())
+  }
+  const state = fields.get('state')
+  if (!QUEUE_STATES.has(state)) throw new LaneError(`db-work-scope state must be one of ${[...QUEUE_STATES].join(', ')}`)
+  const priority = Number(fields.get('priority'))
+  if (!Number.isInteger(priority) || priority < 0) throw new LaneError('db-work-scope priority must be a non-negative integer')
+  const dependencies = (fields.get('depends_on') ?? '').split(',').map((v)=>v.trim()).filter(Boolean).map((v)=>Number(String(v).replace(/^#/,'')))
+  if (dependencies.some((v)=>!Number.isInteger(v) || v <= 0)) throw new LaneError('db-work-scope depends_on must contain issue numbers')
+  if (state === 'eligible' && !objects.length) throw new LaneError('eligible db-work-scope must list exact objects')
+  return { state, priority, dependencies, objects: objects.length ? validateClaimObjects(objects) : [] }
+}
+
+function overlaps(a, b) { const right = new Set(b); return a.some((x)=>right.has(x)) }
+
+export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number)) {
+  const openNumbers = new Set(allOpenIssueNumbers.map(Number))
+  const skipped = [], unclassified = [], malformed = [], candidates = []
+  for (const issue of issues) {
+    let scope
+    try { scope = parseQueueScope(issue.body) } catch (error) { malformed.push({ issue:issue.number, reason:error.message }); continue }
+    if (!scope) { unclassified.push(issue.number); continue }
+    if (scope.state !== 'eligible') { skipped.push({ issue:issue.number, reason:scope.state }); continue }
+    const waiting = scope.dependencies.filter((number)=>openNumbers.has(number))
+    if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
+    candidates.push({ issue:issue.number, title:issue.title, ...scope })
+  }
+  const active = claims.map((claim)=>({ claim:claim.number, issue:null, priority:Number.MAX_SAFE_INTEGER, objects:parseAuthorLease(claim.body,now).objects }))
+  const components = [...active, ...candidates].map((item)=>[item])
+  for (let i=0;i<components.length;i++) for (let j=i+1;j<components.length;) {
+    if (components[i].some((a)=>components[j].some((b)=>overlaps(a.objects,b.objects)))) components[i].push(...components.splice(j,1)[0]); else j++
+  }
+  const queues = Array.from({length:MAX_AUTHOR_LANES},(_,index)=>({ lane:index+1, active:null, queued:[], objects:[] }))
+  const ordered = components.sort((a,b)=>Number(Boolean(b.some(x=>x.claim)))-Number(Boolean(a.some(x=>x.claim))) || Math.max(...b.map(x=>x.priority))-Math.max(...a.map(x=>x.priority)))
+  for (const component of ordered) {
+    const activeItem = component.find((x)=>x.claim)
+    const free=queues.filter((q)=>!q.active)
+    let lane = activeItem ? free[0] : [...(free.length?free:queues)].sort((a,b)=>a.queued.length-b.queued.length)[0]
+    if (activeItem) lane.active = activeItem.claim
+    lane.queued.push(...component.filter((x)=>x.issue).sort((a,b)=>b.priority-a.priority || a.issue-b.issue).map((x)=>x.issue))
+    lane.objects.push(...new Set(component.flatMap((x)=>x.objects)))
+  }
+  const emptyLanes = queues.filter((q)=>!q.active).length
+  const dispatchable = queues.filter((q)=>!q.active && q.queued.length).map((q)=>q.queued[0])
+  return { queues, skipped, unclassified, malformed, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length }
+}
 
 export class LaneError extends Error {}
 
@@ -111,6 +179,11 @@ export const githubIo = {
     const rows = ghPaginated(`repos/${REPO}/issues?state=open&labels=db-claim&per_page=100`)
     return rows.filter((x) => !x.pull_request).map((x) => ({ number: x.number, title: x.title, body: x.body, url: x.html_url }))
   },
+  openWorkIssues() {
+    const rows = ghPaginated(`repos/${REPO}/issues?state=open&labels=db-work&per_page=100`)
+    return rows.filter((x)=>!x.pull_request).map((x)=>({ number:x.number, title:x.title, body:x.body, labels:(x.labels??[]).map((l)=>l.name) }))
+  },
+  openIssueNumbers() { return ghPaginated(`repos/${REPO}/issues?state=open&per_page=100`).filter((x)=>!x.pull_request).map((x)=>x.number) },
   prSources() { return gatherOpenPrObjects(REPO) },
   openPulls() { return ghPaginated(`repos/${REPO}/pulls?state=open&per_page=100`) },
   getPr(number) { return ghJson(['api', `repos/${REPO}/pulls/${number}`]) },
@@ -135,6 +208,7 @@ export const githubIo = {
     catch (error) { if (/HTTP 404|not found/i.test(error.message)) return null; throw error }
   },
   deleteRef(ref) { gh(['api', '-X', 'DELETE', `repos/${REPO}/git/refs/${ref.replace(/^refs\//, '')}`]) },
+  updateRef(ref, sha) { gh(['api','-X','PATCH',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`,'-f',`sha=${sha}`,'-F','force=true']) },
   reserveVersion() { return JSON.parse(execFileSync(process.execPath, ['scripts/check-dispatch-collision.mjs', '--reserve-version', '--json'], { encoding: 'utf8' })) },
   createClaim(title, body) { return gh(['issue', 'create', '--repo', REPO, '--label', 'db-claim', '--title', `CLAIM: ${title}`, '--body', body]).trim() },
   closeClaim(number) { gh(['issue', 'close', String(number), '--repo', REPO, '--comment', 'Expired migration-author lease closed by guarded cleanup. Its migration version remains unavailable.']) },
@@ -210,6 +284,37 @@ export function releaseOwnedRef(ref, ownerSha, io = githubIo) {
   return true
 }
 
+export function parseReviewCursor(commit) {
+  if (!commit) return null
+  const message=commit.message ?? commit.commit?.message ?? ''
+  const match=/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})$/i.exec(message)
+  if (!match) throw new LaneError('reviewer cursor does not point to a recognized assignment')
+  return {sequence:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5]}
+}
+
+export function assignNextReviewer({issue,pr,headSha},io=githubIo){
+  if(!Number.isInteger(Number(issue))||!Number.isInteger(Number(pr))||!/^[0-9a-f]{7,40}$/i.test(String(headSha??'')))throw new LaneError('review assignment requires issue, PR, and exact head SHA')
+  const request={issue:Number(issue),pr:Number(pr),headSha:String(headSha)}, ownerSha=io.makeOwnerCommit(`db-coordination reviewer-assignment-lock issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
+  acquireMutex(ownerSha,io)
+  try{
+    const assignmentRef=`refs/db-review-assignments/${request.issue}-${request.pr}-${request.headSha}`
+    const priorSha=io.readRef(assignmentRef)
+    if(priorSha){const prior=parseReviewCursor(io.getCommit(priorSha));return {...prior,wrapper:REVIEWERS.find((r)=>r.name===prior.reviewer)?.wrapper}}
+    const cursorSha=io.readRef(REVIEW_CURSOR_REF), current=parseReviewCursor(cursorSha?io.getCommit(cursorSha):null)
+    if(current&&current.issue===request.issue&&current.pr===request.pr&&current.headSha===request.headSha){
+      if(!io.createRef(assignmentRef,cursorSha)&&io.readRef(assignmentRef)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
+      return {...current,wrapper:REVIEWERS.find((r)=>r.name===current.reviewer)?.wrapper}
+    }
+    const sequence=(current?.sequence??0)+1, reviewer=REVIEWERS[(sequence-1)%REVIEWERS.length]
+    const assignmentSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
+    if(cursorSha)io.updateRef(REVIEW_CURSOR_REF,assignmentSha);else if(!io.createRef(REVIEW_CURSOR_REF,assignmentSha))throw new LaneError('reviewer cursor was created concurrently; retry the same assignment')
+    if(io.readRef(REVIEW_CURSOR_REF)!==assignmentSha)throw new LaneError('reviewer cursor advancement could not be proved; retry the same assignment')
+    if(!io.createRef(assignmentRef,assignmentSha)&&io.readRef(assignmentRef)!==assignmentSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
+    return {sequence,reviewer:reviewer.name,wrapper:reviewer.wrapper,...request}
+  }finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
+}
+
 export function acquireAuthorLane(options, now = new Date(), io = githubIo) {
   options = { ...options, objects: validateClaimObjects(options.objects) }
   const requestId = options.requestId ?? randomUUID()
@@ -273,6 +378,8 @@ function parseArgs(argv) {
     const a = argv[i]
     if (a === '--claim') out.claim = true
     else if (a === '--audit') out.audit = true
+    else if (a === '--queue-audit') out.queueAudit = true
+    else if (a === '--assign-reviewer') out.assignReviewer = true
     else if (a === '--cleanup-stale') out.cleanup = true
     else if (a === '--release-claim') out.releaseClaim = next(i), i++
     else if (a === '--confirm-finished') out.confirmFinished = true
@@ -280,7 +387,7 @@ function parseArgs(argv) {
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--pr','--head-sha','--owner-sha','--expected-sha'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if (a === '--objects') { out.objects.push(...next(i).split(',').map((v)=>v.trim()).filter(Boolean)); i++ }
     else if (a === '--lease-hours') { out.leaseHours = Number(next(i)); i++ }
     else throw new LaneError(`unknown argument: ${a}`)
@@ -295,6 +402,14 @@ export function main(argv, now = new Date(), io = githubIo) {
     if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha }, io), null, 2)); return 0 }
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }
     const claims = io.openClaims()
+    if(o.assignReviewer){console.log(JSON.stringify(assignNextReviewer({issue:o.issue,pr:o.pr,headSha:o.headSha},io),null,2));return 0}
+    if (o.queueAudit) {
+      const result = buildDynamicQueues(io.openWorkIssues(), claims, now, io.openIssueNumbers())
+      console.log(JSON.stringify(result,null,2))
+      if (result.dispatchable.length) { console.error(`REFILL REQUIRED NOW: dispatch issue(s) ${result.dispatchable.map((n)=>`#${n}`).join(', ')}`); return 2 }
+      if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify every open db-work issue before claiming no eligible work exists'); return 2 }
+      return result.malformed.length ? 2 : 0
+    }
     if (o.releaseClaim) {
       if (!o.confirmFinished || !o.owner) throw new LaneError('--release-claim requires exact --owner and --confirm-finished')
       const requestId=randomUUID(), ownerSha=io.makeOwnerCommit(`db-coordination claim-release ${requestId}`)
@@ -321,7 +436,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       for(const problem of malformed)console.error(`MALFORMED ${problem}`)
       return malformed.length || occupied>MAX_AUTHOR_LANES ? 2 : 0
     }
-    if (!o.claim) throw new LaneError('choose --claim, --audit, --cleanup-stale, or an exclusive-lane command')
+    if (!o.claim) throw new LaneError('choose --claim, --audit, --queue-audit, --cleanup-stale, or an exclusive-lane command')
     for (const k of ['task','owner','branch','worktree']) if (!o[k]) throw new LaneError(`--${k} is required`)
     if (!o.objects.length) throw new LaneError('--objects must name every database object exactly')
     o.leaseHours ??= DEFAULT_LEASE_HOURS

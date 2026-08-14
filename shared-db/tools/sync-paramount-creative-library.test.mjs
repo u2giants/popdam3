@@ -328,6 +328,62 @@ test("buildPayloads produces a row array for every load target", () => {
   for (const t of LOAD_ORDER) assert.ok(Array.isArray(p[t]), `${t} must be an array`);
 });
 
+test("the collection payload omits the redundant Paramount vocabulary term", () => {
+  const p = buildPayloads(fixtureCapture);
+  assert.deepEqual(p.pmt_collection, [{
+    collection_source_id: "5001",
+    collection_name: "Fixture Collection",
+  }]);
+  assert.ok(!Object.hasOwn(p.pmt_collection[0], "paramount_term"));
+});
+
+test("legacy style-guide input may contain paramount_term but the loader ignores it", () => {
+  const legacy = {
+    ...fixtureCapture,
+    collections: [{
+      source_id: "5001",
+      name: "Fixture Collection",
+      paramount_term: "Legacy value that must not cross the public loader boundary",
+    }],
+  };
+  const p = buildPayloads(legacy);
+  assert.equal(p.pmt_collection.length, 1);
+  assert.ok(!Object.hasOwn(p.pmt_collection[0], "paramount_term"));
+});
+
+async function readParamountTermMigration() {
+  const { readFileSync } = await import("node:fs");
+  const { join, dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  return readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "supabase", "migrations",
+      "20260814223552_pmt_collection_paramount_term_normalization.sql"),
+    "utf8"
+  ).replace(/\r\n/g, "\n");
+}
+
+test("#970 migration removes storage while preserving loader and API security contracts", async () => {
+  const sql = await readParamountTermMigration();
+  const start = sql.indexOf("create or replace function plm.load_pmt_capture_chunk(");
+  const body = sql.slice(start, sql.indexOf("\n$$;", start));
+  assert.ok(start > 0, "whole loader replacement is present");
+  assert.ok(!body.includes("paramount_term"), "loader no longer reads, defaults, or writes the term");
+  assert.ok(body.includes("security definer"));
+  assert.ok(body.includes("set search_path = plm, core, public, extensions"));
+  assert.ok(body.includes("not (p_target = any (c_targets))"));
+  assert.ok(body.includes("'pmt_metadata_element'"), "#965 target survives");
+  assert.ok(body.includes("elsif p_target = 'pmt_metadata_element' then"), "#965 branch survives");
+  assert.ok(!body.includes("paramount_property_name"), "#964 omission survives");
+  assert.match(sql, /revoke all on function plm\.load_pmt_capture_chunk\(uuid, text, jsonb\) from public;/);
+  assert.match(sql, /grant execute on function plm\.load_pmt_capture_chunk\(uuid, text, jsonb\) to service_role;/);
+  assert.match(sql, /create view api\.pmt_style_guides\s+with \(security_invoker = true\)/);
+  assert.match(sql, /'Collection'::text\s+as paramount_term/);
+  assert.match(sql, /execute 'revoke all on api\.pmt_style_guides from public';/);
+  assert.match(sql, /execute 'revoke all on api\.pmt_style_guides from anon';/);
+  assert.match(sql, /execute 'grant select on api\.pmt_style_guides to authenticated, service_role';/);
+  assert.match(sql, /alter table plm\.pmt_collection drop column paramount_term;/);
+});
+
 test("is_licensed_selection is TRUE only for properties an exact Property search selected", () => {
   const p = buildPayloads(fixtureCapture);
   // NOTE === "9001", a STRING. Source IDs are identities and are no longer numbers.

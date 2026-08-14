@@ -5,10 +5,71 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, claimBody, EXCLUSIVE_REFS, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, recoverStaleAuthorMutex, releaseOwnedRef, requireOwnedRef, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, EXCLUSIVE_REFS, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, recoverStaleAuthorMutex, releaseOwnedRef, requireOwnedRef, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
+
+const scope = (state, priority, objects=[], depends='') => `\`\`\`db-work-scope\nstate: ${state}\npriority: ${priority}\ndepends_on: ${depends}\nobjects:\n${objects.map((x)=>`  - ${x}`).join('\n')}\n\`\`\``
+
+test('queue scope is strict and requires objects for eligible work',()=>{
+  assert.deepEqual(parseQueueScope(scope('eligible',9,['table core.a'],'#12, 13')), {state:'eligible',priority:9,dependencies:[12,13],objects:['table core.a']})
+  assert.throws(()=>parseQueueScope(scope('eligible',1)),/must list exact objects/)
+  assert.throws(()=>parseQueueScope(scope('waiting',1,['table core.a'])),/state must be/)
+  assert.throws(()=>parseQueueScope(`${scope('eligible',1,['table core.a'])}\n${scope('blocked',1)}`),/exactly one/)
+})
+
+test('dynamic queues serialize overlapping work and refill every empty lane',()=>{
+  const issues=[
+    {number:1,title:'a',body:scope('eligible',10,['table core.a'])},
+    {number:2,title:'a later',body:scope('eligible',8,['table core.a'])},
+    {number:3,title:'b',body:scope('eligible',7,['table core.b'])},
+    {number:4,title:'c',body:scope('eligible',6,['table core.c'])},
+  ]
+  const result=buildDynamicQueues(issues,[],NOW)
+  assert.equal(result.fullyAudited,true)
+  assert.deepEqual(new Set(result.dispatchable),new Set([1,3,4]))
+  assert.ok(result.queues.some((q)=>q.queued.join(',')==='1,2'))
+})
+
+test('dynamic queues fill inactive lanes before queueing behind active claims',()=>{
+  const claims=[{number:31,body:body(['table core.a'],'31')},{number:32,body:body(['table core.b'],'32')}]
+  const one=buildDynamicQueues([{number:40,title:'c',body:scope('eligible',9,['table core.c'])}],claims,NOW)
+  assert.deepEqual(one.dispatchable,[40])
+  assert.equal(one.queues.find((q)=>q.queued.includes(40)).active,null)
+  const two=buildDynamicQueues([
+    {number:40,title:'c',body:scope('eligible',9,['table core.c'])},
+    {number:41,title:'d',body:scope('eligible',8,['table core.d'])},
+  ],[{number:31,body:body(['table core.a'],'31')}],NOW)
+  assert.deepEqual(new Set(two.dispatchable),new Set([40,41]))
+})
+
+test('blocked, owner-decision, data-only and dependent work never consume a lane',()=>{
+  const issues=[
+    {number:10,title:'open dependency',body:scope('blocked',9)},
+    {number:11,title:'dependent',body:scope('eligible',8,['table core.x'],'#10')},
+    {number:12,title:'owner',body:scope('owner-decision',7)},
+    {number:13,title:'data',body:scope('data-only',6)},
+    {number:14,title:'app',body:scope('non-structural',5)},
+  ]
+  const result=buildDynamicQueues(issues,[],NOW)
+  assert.deepEqual(result.dispatchable,[])
+  assert.equal(result.skipped.length,5)
+  assert.equal(result.fullyAudited,true)
+})
+
+test('dependency on an open non-db-work issue prevents dispatch',()=>{
+  const issues=[{number:11,title:'dependent',body:scope('eligible',8,['table core.x'],'#99')}]
+  const result=buildDynamicQueues(issues,[],NOW,[11,99])
+  assert.deepEqual(result.dispatchable,[])
+  assert.match(result.skipped[0].reason,/99/)
+})
+
+test('an unclassified issue prevents proof that an empty lane is justified',()=>{
+  const result=buildDynamicQueues([{number:20,title:'unknown',body:'plain prose'}],[],NOW)
+  assert.equal(result.fullyAudited,false)
+  assert.deepEqual(result.unclassified,[20])
+})
 
 test('legacy claims count toward the three-lane cap and always protect objects', () => {
   const legacy = (n, object) => ({ number:n, body:`\`\`\`db-claim\nversion: none\nobjects:\n  - ${object}\n\`\`\`` })
@@ -45,6 +106,41 @@ function memoryIo() {
     getCommit:()=>({message:'db-coordination author-acquisition request-1',committer:{date:'2026-08-14T19:55:00Z'}}),
   }
 }
+
+function reviewIo(){
+  const io=memoryIo(), commits=new Map();let seq=0
+  io.makeOwnerCommit=(message)=>{const sha=`review-${++seq}`;commits.set(sha,{message});return sha}
+  io.getCommit=(sha)=>commits.get(sha)
+  io.updateRef=(ref,sha)=>io.refs.set(ref,sha)
+  return io
+}
+
+test('reviewer cursor advances atomically through the durable round robin',()=>{
+  const io=reviewIo(), names=[]
+  for(let n=1;n<=5;n++)names.push(assignNextReviewer({issue:n,pr:100+n,headSha:`abcdef${n}`},io).reviewer)
+  assert.deepEqual(names,['grok-4.6','glm-5.2','kimi-k3','qwen-3.8-max','grok-4.6'])
+  assert.ok(io.refs.has(REVIEW_CURSOR_REF))
+})
+
+test('reviewer assignment retry returns the same assignment without advancing',()=>{
+  const io=reviewIo(), request={issue:9,pr:109,headSha:'abcdef9'}
+  const first=assignNextReviewer(request,io), second=assignNextReviewer(request,io)
+  assert.deepEqual(second,first)
+  assert.equal(second.sequence,1)
+})
+
+test('reviewer assignment remains stable after later assignments advance the cursor',()=>{
+  const io=reviewIo(), a={issue:9,pr:109,headSha:'abcdef9'}
+  const first=assignNextReviewer(a,io)
+  assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io)
+  assert.deepEqual(assignNextReviewer(a,io),first)
+})
+
+test('concurrent orchestrator cannot advance reviewer cursor without the mutex',()=>{
+  const io=reviewIo();io.refs.set(MUTEX_REF,'other-orchestrator')
+  assert.throws(()=>assignNextReviewer({issue:9,pr:109,headSha:'abcdef9'},io),/occupied/)
+  assert.equal(io.refs.get(REVIEW_CURSOR_REF),undefined)
+})
 
 const opts={task:'#1',owner:'agent',branch:'codex/x',worktree:'C:/w',objects:['table core.x'],leaseHours:12,requestId:'r1',mutexAttempts:1}
 
@@ -219,4 +315,9 @@ test('REAL CLI: a relative script path executes main and refuses an invalid argu
   const result = spawnSync(process.execPath, ['scripts/manage-migration-author-lanes.mjs', '--definitely-invalid'], { encoding: 'utf8' })
   assert.equal(result.status, 2)
   assert.match(result.stderr, /unknown argument/)
+})
+test('forged caller-written production risk JSON has no CLI authorization path', () => {
+  const result = spawnSync(process.execPath, ['scripts/manage-migration-author-lanes.mjs', '--production-risk-gate', 'forged.json'], { encoding: 'utf8' })
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /unknown argument: --production-risk-gate/)
 })

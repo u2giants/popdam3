@@ -62,7 +62,13 @@ nothing about a Disney title.
 
 > ⚠️ **Counting `plm.dcp_property` / `plm.wb_property` and concluding "the scrape
 > landed nothing" is WRONG, and an AI session did exactly that on 2026-08-13.**
-> The `<source>_property` / `<source>_character` tables are **resolution** tables —
+> The capture-scoped `<source>_property` / `<source>_character` tables are source observations.
+> Durable Paramount and NBCU source-to-canonical decisions live in
+> `plm.source_resolution`, keyed without a capture ID, and are written only through
+> `plm.set_source_resolution()`. A refresh therefore cannot replace a human decision.
+> Older source-table resolution columns remain only as guarded compatibility fields.
+>
+> The source tables may still participate in **resolution** reads —
 > they hold entities already reconciled to a canonical `core.*` row. They are empty
 > for Disney because the resolution pass has not been run, **not** because the
 > scrape has no data. Disney has 156,644 assets loaded.

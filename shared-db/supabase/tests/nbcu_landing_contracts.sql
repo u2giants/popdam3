@@ -347,12 +347,24 @@ begin
     end if;
   end loop;
 
-  -- No trigger may have crept in: the design rejected triggers deliberately.
+  -- Issue #963 adds exactly four fail-closed guards for the deprecated resolution columns.
+  -- Snapshot immutability still comes from privileges; no other user trigger is allowed.
   select count(*) into v_n from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
     join pg_namespace n on n.oid = c.relnamespace
    where n.nspname='plm' and c.relname like 'nbcu\_%' and not tg.tgisinternal;
-  if v_n <> 0 then v_fail := v_fail+1;
-    raise warning 'FAIL % user trigger(s) on nbcu tables; immutability is by privilege, not trigger', v_n;
+  if v_n <> 4 then v_fail := v_fail+1;
+    raise warning 'FAIL % user trigger(s) on nbcu tables; expected four resolution guards', v_n;
+  else v_pass := v_pass+1; end if;
+
+  select count(*) into v_n from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname='plm' and not tg.tgisinternal
+     and tg.tgname in (
+       'nbcu_property_resolution_immutable','nbcu_character_resolution_immutable',
+       'nbcu_style_guide_resolution_immutable','nbcu_asset_resolution_immutable'
+     );
+  if v_n <> 4 then v_fail := v_fail+1;
+    raise warning 'FAIL only % of four named NBCU resolution guards exist', v_n;
   else v_pass := v_pass+1; end if;
 
   -- Functions: execute revoked from the browser roles, granted to service_role.

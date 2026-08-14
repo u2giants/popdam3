@@ -658,6 +658,77 @@ four rules below are non-negotiable for any database change.
    ends; the lease only controls who occupies an author lane.
 
    Audit lanes with `node scripts/manage-migration-author-lanes.mjs --audit`.
+   Audit and refill the three dynamic queues with
+   `node scripts/manage-migration-author-lanes.mjs --queue-audit`. Every open
+   `db-work` issue must contain one authoritative block:
+
+   ````text
+   ```db-work-scope
+   state: eligible
+   priority: 100
+   depends_on:
+   objects:
+     - table schema.name
+   ````
+   ```
+
+   Allowed states are `eligible`, `blocked`, `owner-decision`, `data-only`, and
+   `non-structural`. Exact object overlap forms a serial queue; unrelated object
+   groups fill up to three author lanes. When a claim releases, rerun the queue
+   audit and dispatch every reported `REFILL REQUIRED NOW` issue in the same
+   turn. Never wait for Albert to ask or approve routine dispatch. Ask him only
+   for a genuine business ruling or material production risk. Recompute after
+   every merge. Preview and merge stay globally serialized.
+
+   An empty author lane is valid only when the audit has classified every open
+   `db-work` issue and reports no eligible issue for it. Unclassified, malformed,
+   blocked, owner-decision, data-only, and non-structural issues never consume a
+   lane; unclassified or malformed issues also prevent a claim that no work
+   exists. While an author waits for CI, review, preview, or merge, continue safe
+   local work or prepare the next queued issue without creating overlapping
+   migration files.
+
+   After an issue reaches an exact reviewed head, atomically assign its external
+   reviewer with:
+
+   ```bash
+   node scripts/manage-migration-author-lanes.mjs --assign-reviewer \
+     --issue <issue> --pr <pr> --head-sha <exact-head>
+   ```
+
+   The machine-independent cursor rotates Grok 4.6 → GLM 5.2 → Kimi K3 → Qwen
+   3.8 Max → repeat. Use only `ai-grok-review`, `ai-glm`, `ai-kimi`, or `ai-qwen`
+   and their fixed model settings. Reuse one named session for rebuttals. Require
+   a current exact-head re-read and `APPROVE` or `REVISE` with evidence. Verify
+   every claim independently. Relay disagreements with
+   `templates/delegation/debate-turn.md`, stopping at agreement or the initial
+   review plus three rebuttals. If material disagreement remains, stop the merge
+   and ask Albert one concise decision. Never send secrets or licensed rows.
+
+   Append objective reviewer evidence through an `ai-devops` PR to
+   `models_comparison_grok_kim_glm.md`: issue/PR, requested and proven model,
+   verdict, confirmed/disproved findings, defects, false positives, policy/tool
+   adherence, continuity, latency, turns, and only metrics the wrapper reports.
+   Kimi headless metrics and returned model are unavailable; never invent them.
+   After review approval, green checks, preview proof, and guarded merge, the
+   production workflow runs `scripts/production_business_risk_gate.py`. It
+   derives the result from the exact merged PR and required checks, immutable
+   review artifact, pinned preview-apply artifact and ledger, current-main SQL,
+   and the activation record. Caller-written booleans or prose are never
+   evidence. Automatically promote only when those governed records prove: no
+   existing data is deleted or permanently rewritten, no expected user downtime,
+   no material access change, a tested credible recovery path, and no unresolved
+   material objection. Ambiguous SQL stops for Albert. Ask him one plain
+   business-risk question. Never ask him to approve migration numbers, project
+   identifiers, SQL, or other technical details. This policy cannot authorize
+   its own rollout. `config/production-risk-policy-activation.json` remains
+   inactive, and the older exact-approval rule remains binding, until #1015 is
+   independently reviewed, both PRs are merged, the installed skill hash matches
+   canonical ai-devops, and the forward-test proof hash is recorded. The gate
+   verifies those facts again before it can permit automatic promotion.
+   Record Qwen High as requested, but never override the wrapper's qualified
+   fixed configuration.
+
    Audit reports malformed claims without hiding the healthy ones; allocation
    still refuses while any malformed claim exists. **Expiry never unlocks an
    object.** Renew active work or explicitly release a claim after proving its
@@ -1281,7 +1352,7 @@ For the active ColdLion Licensor/Property source cutover, read the STATUS table 
 before re-deriving or re-planning anything.
 
 **Step 7A (the real recurring feed) is BUILT and preview-proven as of 2026-07-29; the next action
-is Step 8, Albert's production approval.** Two rules that catch sessions out:
+is Step 8, the production business-risk gate in §4.** Two rules that catch sessions out:
 
 - **A one-time 542-link run is NOT the feed switch.** The recurring lane is
   `.github/workflows/coldlion-licensor-property-production.yml` (production-only, currently
@@ -1437,9 +1508,15 @@ unset."** If the matching keys disagree — if one lookup key finds a row that a
 not — that is a **possible match, not an absence**: quarantine it as evidence for a human, and
 never resolve it by inserting.
 
-**What this means in practice TODAY.** No per-field curation record exists in this database, and
-no importer can currently tell curated from untouched. So the operative rule right now is not
-advisory: **an import writes a curated field only on INSERT of a genuinely new row, and writes no
+**Durable source-resolution decisions.** `plm.source_resolution` is the capture-independent
+home for a human decision that a Paramount or NBCU source identity matches a canonical property,
+character, style guide, or asset. Source loaders never write it and must leave the deprecated
+resolution columns on capture rows unresolved and null. Human tools use
+`plm.set_source_resolution()`; a later capture cannot bypass that decision.
+
+**What this means in practice TODAY.** The durable resolution record above does not identify
+which ordinary fields on a matched `core.*` row were curated. So the operative rule remains
+non-advisory: **an import writes a curated field only on INSERT of a genuinely new row, and writes no
 curated field at all on a matched row.** Gap-filling a matched row becomes permissible only once
 "deliberately set" is recorded per field and the importer actually consults that record.
 

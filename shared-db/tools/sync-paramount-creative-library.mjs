@@ -576,7 +576,6 @@ export function buildPayloads(cap) {
     pmt_collection: cap.collections.map((r) => ({
       collection_source_id: exactSourceId(r.source_id, 'pmt_collection.collection_source_id'),
       collection_name: r.name,
-      paramount_term: r.paramount_term || "Collection",
     })),
     pmt_brand: cap.brands.map((r) => ({
       brand_source_id: exactSourceId(r.source_id, 'pmt_brand.brand_source_id'),
