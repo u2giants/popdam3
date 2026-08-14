@@ -55,10 +55,38 @@ re-pulled the same day (see the division matrix below).
 > Modelling detail and known defects:
 > [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md).
 
-> ### Known outage (2026-07-19)
-> **`GET /items` returns HTTP 500 `java.lang.NullPointerException`** on every parameter
-> combination tried. Server-side; it was working 2026-07-15. All other read endpoints verified
-> healthy the same day. `/salespersons` returns 400 without additional params.
+> ### ✅ RESOLVED 2026-08-14 — `GET /items` is healthy again
+>
+> The 2026-07-19 outage (**HTTP 500 `java.lang.NullPointerException`** on every parameter
+> combination; server-side, after working on 2026-07-15) is **over**. Verified live
+> 2026-08-14 with `companyCode=EDGEHOME&itemNo=BRT10DYWP01` → **HTTP 200**, one row, normal
+> paged envelope. Do not plan around the outage; it is kept here only as history.
+> Unchanged and still true: `/salespersons` returns 400 without additional params.
+>
+> #### Division-mapping proof captured by that same call (Q8, 2026-08-14)
+>
+> DesignFlow ids and ColdLion division codes are two encodings of the same three live
+> divisions, and the mapping is now proven end to end on a real item, not just asserted:
+>
+> | DesignFlow `itemHeader.div_code_fk` | ColdLion `divisionCode` | Name |
+> |---|---|---|
+> | `1` | `CW001` | POP Lic |
+> | `8` | `SP001` | Spruce Lic |
+> | `9` | `EH001` | Spruce non-Lic |
+>
+> Worked example — item `BRT10DYWP01` ("Disney Winnie the Pooh Metal Bow Frame…"),
+> `div_code_fk = 1` in DesignFlow, returned by `GET /items` as:
+>
+> ```
+> companyCode: EDGEHOME   divisionCode: CW001   itemNo: BRT10DYWP01
+> merchGroup05: DY   merchGroup06: WP        (CW001 dictionary: Licensor / Property)
+> ```
+>
+> So the canonical item key `EDGEHOME | CW001 | BRT10DYWP01` is real and buildable, and the
+> ColdLion spelling (`CW001`/`SP001`/`EH001`) is the shape to store in shared PLM item tables
+> — never the raw DesignFlow ids `1`/`8`/`9`, and never the deprecated id `2`.
+> `EDGEHOME` is the only valid company code. Ids `2` (deprecated) and `7` (unused) also point
+> at `CW001` in `plm."divisionCode"` and must not be treated as live divisions.
 
 ## Paging & incremental-sync conventions
 List endpoints are Spring-paged:
