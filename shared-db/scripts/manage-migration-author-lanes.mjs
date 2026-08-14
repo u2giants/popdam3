@@ -9,7 +9,9 @@ import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-d
 export const REPO = 'u2giants/shared-db'
 export const MAX_AUTHOR_LANES = 3
 export const DEFAULT_LEASE_HOURS = 12
+export const MUTEX_STALE_AFTER_MS = 2 * 60 * 1000
 export const MUTEX_REF = 'refs/db-coordination/author-acquisition'
+export const MUTEX_RECOVERY_ACTIVE_REF = 'refs/db-coordination/author-acquisition-recovery-active'
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
   merge: 'refs/db-coordination/merge',
@@ -113,6 +115,7 @@ export const githubIo = {
   openPulls() { return ghPaginated(`repos/${REPO}/pulls?state=open&per_page=100`) },
   getPr(number) { return ghJson(['api', `repos/${REPO}/pulls/${number}`]) },
   mainSha() { return ghJson(['api', `repos/${REPO}/git/ref/heads/main`])?.object?.sha ?? null },
+  getCommit(sha) { return ghJson(['api', `repos/${REPO}/git/commits/${sha}`]) },
   makeOwnerCommit(message) {
     const head = ghJson(['api', `repos/${REPO}/git/ref/heads/main`])?.object?.sha
     if (!head) throw new LaneError('GitHub main ref has no commit SHA')
@@ -144,15 +147,49 @@ export function acquireRef(ref, ownerSha, io = githubIo) {
 
 export function acquireMutex(ownerSha, io = githubIo, attempts = 100) {
   for (let attempt=1; attempt<=attempts; attempt++) {
+    if(io.readRef(MUTEX_RECOVERY_ACTIVE_REF))throw new LaneError('author mutex recovery is active; retry after it finishes')
     try { acquireRef(MUTEX_REF,ownerSha,io);return }
     catch(error) {
-      if(!/occupied/.test(error.message) || attempt===attempts)throw error
+      if(!/occupied/.test(error.message))throw error
+      if(attempt===attempts){
+        const held=io.readRef(MUTEX_REF)
+        throw new LaneError(`${MUTEX_REF} remained occupied${held ? ` at ${held}` : ''}; inspect it and use --recover-author-mutex with that exact SHA only if it is stale`)
+      }
       // A mutex is held only for GitHub reads plus one issue creation. Waiting
       // here lets simultaneous unrelated authors serialize acquisition and then
       // continue authoring concurrently.
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,50)
     }
   }
+}
+
+export function requireOwnedRef(ref, ownerSha, io = githubIo) {
+  if (io.readRef(ref) !== ownerSha) throw new LaneError(`lost ownership of ${ref}; refusing the next GitHub mutation`)
+}
+
+export function recoverStaleAuthorMutex({ expectedSha, confirmStale, serializedRecovery, now = new Date(), minAgeMs = MUTEX_STALE_AFTER_MS, quietMs = 6000 }, io = githubIo) {
+  if (!confirmStale || !serializedRecovery || !/^[0-9a-f]{7,40}$/i.test(String(expectedSha ?? ''))) throw new LaneError('recovery requires the serialized recovery workflow, --expected-sha, and --confirm-stale')
+    if(!io.createRef(MUTEX_RECOVERY_ACTIVE_REF,expectedSha) && io.readRef(MUTEX_RECOVERY_ACTIVE_REF)!==expectedSha)throw new LaneError('another author mutex recovery target is active')
+    requireOwnedRef(MUTEX_RECOVERY_ACTIVE_REF,expectedSha,io)
+    try {
+    // An acquisition that read the marker just before it was created can wait
+    // at most five seconds. Let it finish before inspecting/deleting the ref.
+    if (quietMs > 0) (io.wait ?? ((ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms)))(quietMs)
+    requireOwnedRef(MUTEX_RECOVERY_ACTIVE_REF,expectedSha,io)
+    const actual=io.readRef(MUTEX_REF)
+    if(actual===null)return {released:null,ageSeconds:null}
+    if(actual!==expectedSha)throw new LaneError(`refusing recovery: mutex is ${actual}, not expected ${expectedSha}`)
+    const commit=io.getCommit?.(actual)
+    const message=commit?.message ?? commit?.commit?.message ?? ''
+    const dateText=commit?.committer?.date ?? commit?.commit?.committer?.date
+    const acquiredAt=new Date(dateText)
+    if(!/^db-coordination (?:author-acquisition|preview|merge|production|claim-release)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
+    if(Number.isNaN(acquiredAt.valueOf()))throw new LaneError('refusing recovery: mutex owner time is unreadable')
+    const age=now-acquiredAt
+    if(age<minAgeMs)throw new LaneError(`refusing recovery: mutex is only ${Math.max(0,Math.floor(age/1000))} seconds old`)
+    releaseOwnedRef(MUTEX_REF,expectedSha,io)
+    return { released:expectedSha, ageSeconds:Math.floor(age/1000) }
+    } finally { if(io.readRef(MUTEX_RECOVERY_ACTIVE_REF)===expectedSha)releaseOwnedRef(MUTEX_RECOVERY_ACTIVE_REF,expectedSha,io) }
 }
 
 export function releaseOwnedRef(ref, ownerSha, io = githubIo) {
@@ -176,13 +213,24 @@ export function acquireAuthorLane(options, now = new Date(), io = githubIo) {
     const claims = io.openClaims()
     const prSources = io.prSources()
     assertLaneAvailable(claims, options.objects, now, { prSources })
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
     const reservation = io.reserveVersion()
     const expiresAt = new Date(now.valueOf() + options.leaseHours * 3600000)
     const body = claimBody({ ...options, version: reservation.version, expiresAt })
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
     const url = io.createClaim(options.task, body)
+    try { requireOwnedRef(MUTEX_REF,ownerSha,io) }
+    catch(error) {
+      const number=/\/(\d+)\/?$/.exec(String(url))?.[1]
+      if(!number)throw new LaneError(`lost mutex ownership after claim creation and could not identify the claim to close: ${error.message}`)
+      io.closeClaim(number)
+      throw error
+    }
     return { version: reservation.version, claim: url, expiresAt: expiresAt.toISOString(), requestId }
   } finally {
-    releaseOwnedRef(MUTEX_REF, ownerSha, io)
+    // If recovery already replaced us, never delete the successor's lock and
+    // never mask the original lost-ownership refusal.
+    if (io.readRef(MUTEX_REF) === ownerSha) releaseOwnedRef(MUTEX_REF, ownerSha, io)
   }
 }
 
@@ -206,9 +254,10 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       if (kind === 'merge' && pr.base?.sha !== io.mainSha?.()) throw new LaneError('pull request is not based on the current main tip')
       if (kind === 'merge' && io.readRef(EXCLUSIVE_REFS.production)) throw new LaneError('production promotion is active; merges are frozen')
     }
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
     acquireRef(ref, ownerSha, io)
     return { kind, ref, ownerSha, requestId }
-  } finally { releaseOwnedRef(MUTEX_REF, ownerSha, io) }
+  } finally { if (io.readRef(MUTEX_REF) === ownerSha) releaseOwnedRef(MUTEX_REF, ownerSha, io) }
 }
 
 function parseArgs(argv) {
@@ -221,9 +270,11 @@ function parseArgs(argv) {
     else if (a === '--cleanup-stale') out.cleanup = true
     else if (a === '--release-claim') out.releaseClaim = next(i), i++
     else if (a === '--confirm-finished') out.confirmFinished = true
+    else if (a === '--recover-author-mutex') out.recoverMutex = true
+    else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--pr','--head-sha','--owner-sha'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--pr','--head-sha','--owner-sha','--expected-sha'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if (a === '--objects') { out.objects.push(...next(i).split(',').map((v)=>v.trim()).filter(Boolean)); i++ }
     else if (a === '--lease-hours') { out.leaseHours = Number(next(i)); i++ }
     else throw new LaneError(`unknown argument: ${a}`)
@@ -234,21 +285,23 @@ function parseArgs(argv) {
 export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
+    if(o.recoverMutex){console.log(JSON.stringify(recoverStaleAuthorMutex({expectedSha:o.expectedSha,confirmStale:o.confirmStale,serializedRecovery:process.env.GITHUB_ACTIONS==='true'&&process.env.AUTHOR_MUTEX_RECOVERY_SERIALIZED==='true',now},io),null,2));return 0}
     if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha }, io), null, 2)); return 0 }
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }
     const claims = io.openClaims()
     if (o.releaseClaim) {
       if (!o.confirmFinished || !o.owner) throw new LaneError('--release-claim requires exact --owner and --confirm-finished')
       const requestId=randomUUID(), ownerSha=io.makeOwnerCommit(`db-coordination claim-release ${requestId}`)
-      acquireRef(MUTEX_REF,ownerSha,io)
+      acquireMutex(ownerSha,io)
       try {
         const fresh=io.openClaims(), claim=fresh.find((x)=>String(x.number)===String(o.releaseClaim))
         if(!claim)throw new LaneError(`claim #${o.releaseClaim} is not open`)
         const lease=parseAuthorLease(claim.body,now)
         if(lease.owner!==o.owner)throw new LaneError(`claim #${o.releaseClaim} belongs to a different owner`)
         if((io.openPulls?.() ?? io.prSources()).some((pr)=>(pr.head?.ref ?? pr.branch)===lease.branch))throw new LaneError(`claim branch ${lease.branch} still has an open pull request`)
+        requireOwnedRef(MUTEX_REF,ownerSha,io)
         io.closeClaim(claim.number)
-      } finally { releaseOwnedRef(MUTEX_REF,ownerSha,io) }
+      } finally { if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io) }
       return 0
     }
     if (o.cleanup) {

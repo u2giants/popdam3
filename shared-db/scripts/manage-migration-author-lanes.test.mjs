@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, claimBody, EXCLUSIVE_REFS, LaneError, main, MUTEX_REF, parseAuthorLease, releaseOwnedRef, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, claimBody, EXCLUSIVE_REFS, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, recoverStaleAuthorMutex, releaseOwnedRef, requireOwnedRef, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
@@ -42,6 +42,7 @@ function memoryIo() {
     reserveVersion:()=>({version:'20260814170219'}),
     createClaim:()=> 'https://github.test/issues/1', closeClaim:()=>{},
     getPr:(number)=>({number:Number(number),head:{sha:'abc',ref:'codex/x'},base:{sha:'main'}}),mainSha:()=> 'main',
+    getCommit:()=>({message:'db-coordination author-acquisition request-1',committer:{date:'2026-08-14T19:55:00Z'}}),
   }
 }
 
@@ -157,6 +158,52 @@ test('101 claims and 101 open PR sources are all considered',()=>{
   const state=assertLaneAvailable(claims,[],NOW,{ignoreCapacity:true});assert.equal(state.active.length,101)
   const prs=Array.from({length:101},(_,i)=>({label:`PR #${i+1}`,objects:[`table core.p${i}`]}))
   assert.throws(()=>assertLaneAvailable([],['table core.p100'],NOW,{prSources:prs}),/PR #101/)
+})
+
+test('stranded author mutex recovery requires exact SHA, lock type, age, and explicit confirmation',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc')
+  const recover=(values={})=>recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0,...values},io)
+  assert.throws(()=>recover({expectedSha:'deadbeef'}),/not expected/)
+  assert.throws(()=>recover({confirmStale:false}),/requires/)
+  assert.throws(()=>recover({serializedRecovery:false}),/serialized recovery workflow/)
+  io.getCommit=()=>({message:'unrelated commit',committer:{date:'2026-08-14T19:55:00Z'}})
+  assert.throws(()=>recover(),/not a recognized/)
+  io.getCommit=()=>({message:'db-coordination author-acquisition request-1',committer:{date:'2026-08-14T19:59:30Z'}})
+  assert.throws(()=>recover(),/only 30 seconds/)
+  io.getCommit=()=>({message:'db-coordination author-acquisition request-1',committer:{date:'2026-08-14T19:55:00Z'}})
+  assert.equal(recover().released,'4a69fbbc')
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('author acquisition proves mutex ownership before each GitHub mutation',()=>{
+  const io=memoryIo();let reserved=false,created=false
+  io.openClaims=()=>{io.refs.set(MUTEX_REF,'stolen');return []}
+  io.reserveVersion=()=>{reserved=true;return {version:'20260814170219'}}
+  io.createClaim=()=>{created=true}
+  assert.throws(()=>acquireAuthorLane(opts,NOW,io),/lost ownership/)
+  assert.equal(reserved,false);assert.equal(created,false)
+})
+
+test('requireOwnedRef fails closed when a stranded lock was replaced',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'new-owner')
+  assert.throws(()=>requireOwnedRef(MUTEX_REF,'old-owner',io),/lost ownership/)
+})
+test('stale process that resumes after claim creation closes its own claim and returns no lane',()=>{
+  const io=memoryIo();let closed=null
+  io.createClaim=()=>{io.refs.set(MUTEX_REF,'successor');return 'https://github.test/issues/77'}
+  io.closeClaim=(number)=>{closed=String(number)}
+  assert.throws(()=>acquireAuthorLane(opts,NOW,io),/lost ownership/)
+  assert.equal(closed,'77');assert.equal(io.refs.get(MUTEX_REF),'successor')
+})
+test('active serialized recovery fences every new author acquisition',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_RECOVERY_ACTIVE_REF,'4a69fbbc')
+  assert.throws(()=>acquireAuthorLane(opts,NOW,io),/recovery is active/)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+test('serialized recovery resumes its own stranded active marker and cleans it',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc');io.refs.set(MUTEX_RECOVERY_ACTIVE_REF,'4a69fbbc')
+  const result=recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0},io)
+  assert.equal(result.released,'4a69fbbc');assert.equal(io.refs.has(MUTEX_REF),false);assert.equal(io.refs.has(MUTEX_RECOVERY_ACTIVE_REF),false)
 })
 test('REAL CLI: a relative script path executes main and refuses an invalid argument', () => {
   const result = spawnSync(process.execPath, ['scripts/manage-migration-author-lanes.mjs', '--definitely-invalid'], { encoding: 'utf8' })
