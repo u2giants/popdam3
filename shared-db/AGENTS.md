@@ -1250,6 +1250,26 @@ Short version: **customer and vendor are cut over to ColdLion; licensor and prop
 not** (and `plm.licensor_import` / `plm.property_import` are DesignFlow staging, *not* a
 ColdLion mirror — a previous session got this wrong).
 
+**ColdLion purchase/sales history (`prodHistory` / `orderHistory`) — read the shape doc before
+writing any loader.** These two endpoints (new to us 2026-08-14) carry order history for buying
+and selling. Their payload is documented from live probing in
+[`docs/coldlion-history-endpoints-shape.md`](docs/coldlion-history-endpoints-shape.md). Three
+traps that will silently corrupt a load if you skip it:
+
+- **They are NOT paged.** They return a plain array and **silently ignore `page`/`size`**
+  (`size=5` returned 265 rows). A paging loop re-fetches the same rows forever. Chunk by date.
+- **`prodHistory` repeats component rows for two different reasons that look identical** — a
+  `last*` lookup fan-out (collapse) and genuinely separate buy lines on one order (keep). Near
+  50/50 in the sample, and **there is no line-number field to tell them apart**. The rule, and
+  the residual case that must ALERT rather than guess, is in §4.3 of that doc.
+- **`lineInvoiceQty` / `lineOpenQty` are zero in all 5,874 sampled rows**, as is `depositPerc`
+  on `prodHistory`. A report built on them reads zero and looks like a business fact.
+
+Also: the feed spans **four divisions** (`CW001`, `EH001`, `EP001`, `SP001`), not just `EH001` —
+a short window shows only `EH001` and misleads. `1900-01-01` is the empty-date marker
+(**owner-confirmed 2026-08-14 — settled, do not re-raise**), and `salesOrderNo = 0` on
+`prodHistory` means "no linked sales order", not a broken link.
+
 ### 6.1 Merch groups / licensors / properties — read this before touching them
 
 Anything involving licensor, property, big theme, little theme, style guide, art type,
