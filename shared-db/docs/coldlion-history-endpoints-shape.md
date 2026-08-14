@@ -200,9 +200,12 @@ for everything. Added as a question to ColdLion.
 Same pattern on `prodHistory`: **`depositPerc` is 0 in all 3,411 rows** and `totalProdCost` is
 0 in 3,218 of them, while `extCost` is populated and meaningful.
 
-### 5.3 `1900-01-01` is the empty-date marker
+### 5.3 `1900-01-01` is the empty-date marker — CONFIRMED
 
-Confirmed across both endpoints. Rates in the sample: `udfDate01`/`udfDate02` 100% sentinel;
+> **Owner confirmation (Albert Hazan, 2026-08-14):** `1900-01-01` is the empty-date marker.
+> This is settled, not an open question. Do not re-raise it with ColdLion.
+
+Observed across both endpoints, consistent with that confirmation. Rates in the sample: `udfDate01`/`udfDate02` 100% sentinel;
 `shipCancelDate` 99%; `origShipCancelDate` 95%; `shipDate` 25%; `origShipDate` 21%;
 `receiveDate` 10%. Store these as NULL, never as a real 1900 date, or every date-range report
 will be wrong.
@@ -248,7 +251,10 @@ not yet sent.
 3. `ppkMerchGroup*` blank rate on production — known gap? (§5.7)
 4. `lineInvoiceQty` / `lineOpenQty` always zero — not exposed here? (§5.2)
 5. Max date range / row count per request, and a preferred window and rate for a bulk pull (§3).
-6. Confirm `1900-01-01` as empty-date marker and `salesOrderNo=0` as "no link" (§5.3, §5.5).
+6. Confirm `salesOrderNo=0` means "no linked sales order" (§5.5).
+
+**Already settled, not to be asked:** `1900-01-01` as the empty-date marker — confirmed by the
+owner 2026-08-14 (§5.3).
 
 ## 7. What has NOT been checked
 

@@ -71,13 +71,12 @@ window. Two things would help us be good citizens:
   you. Response times we've seen range from under a second to about 50 seconds on older
   months, so we'd rather not run anything in parallel without your say-so.
 
-**6. Two smaller confirmations.**
+**6. One smaller confirmation.**
 
-- `1900-01-01` appears in date fields where we'd expect "not set" (for example
-  `shipCancelDate`, `udfDate01`). Confirming that's your empty-date marker so we store it as
-  empty rather than as a real 1900 date.
-- On `prodHistory`, `salesOrderNo` is sometimes `0`. We're reading that as "this production
-  order isn't tied to a specific sales order" rather than a missing link. Is that right?
+On `prodHistory`, `salesOrderNo` is sometimes `0` — about 1,500 of the 3,400 rows we sampled,
+and those same rows come back with empty customer PO and customer dates. We're reading that as
+"this production order isn't tied to a specific sales order" rather than a missing link. Is
+that right?
 
 Thanks very much,
 Albert
