@@ -27,10 +27,12 @@ import {
   readPinnedCsv,
   assertCaptureHeaders,
   resolvePinnedBlob,
+  normalizeCaptureRows,
   prepareCaptures,
   summarise,
   resolveRunConfig,
   loadCapture,
+  loadPreparedCaptures,
 } from "./sync-warner-starlabs.mjs";
 
 const cleanupMigration = readFileSync(
@@ -186,6 +188,46 @@ test("an empty capture file is refused rather than treated as an empty populatio
   const header = CAPTURE_FILES.find((c) => c.file === "characters-normalized.csv").requiredHeaders.join(",");
   const g = fakeGit({ files: { "characters-normalized.csv": `${header}\n` } });
   await assert.rejects(prepareCaptures(resolveRunConfig(baseEnv), { git: g.run }), /parsed to ZERO rows/);
+});
+
+test("the direct Franchise-to-Property evidence stream may truthfully contain zero rows", async () => {
+  const file = "links-franchise-property-evidence.csv";
+  const header = CAPTURE_FILES.find((c) => c.file === file).requiredHeaders.join(",");
+  const g = fakeGit({ files: { [file]: `${header}\n` } });
+  const captures = await prepareCaptures(resolveRunConfig(baseEnv), { git: g.run });
+  const evidence = captures.find((c) => c.file === file);
+  assert.equal(evidence.rowCount, 0);
+  assert.deepEqual(evidence.chunks, []);
+  assert.equal(evidence.manifestSha256, sha256(""));
+  assert.equal(evidence.skipLoad, true);
+  assert.equal(captures.filter((c) => c.rowCount === 0).length, 1);
+});
+
+test("only exact blank optional Asset fields become JSON null before hashing", async () => {
+  const file = "assets-normalized.csv";
+  const header = [
+    "source_namespace", "source_id", "warner_asset_id", "file_name", "source_path",
+    "season", "file_size_bytes", "source_created_at", "source_url",
+  ];
+  const body = `${header.join(",")}\nsynthetic,, ,synthetic.bin,synthetic/path,,,unchanged,https://example.invalid\n`;
+  const g = fakeGit({ files: { [file]: body } });
+  const captures = await prepareCaptures(resolveRunConfig(baseEnv), { git: g.run });
+  const asset = captures.find((c) => c.file === file);
+  const [row] = JSON.parse(asset.chunks[0].json);
+  assert.equal(row.warner_asset_id, " ", "whitespace is source text, not an exact blank");
+  assert.equal(row.season, null);
+  assert.equal(row.file_size_bytes, null);
+  assert.equal(row.source_created_at, "unchanged", "unrelated optional strings stay untouched");
+  assert.equal(row.source_id, "", "required blank identity stays blank for fail-closed validation");
+  assert.equal(asset.chunks[0].sha256, sha256(asset.chunks[0].json));
+});
+
+test("normalization does not alter non-Asset rows or nonblank Asset values", () => {
+  const other = [{ season: "" }];
+  assert.equal(normalizeCaptureRows("wb_property", other), other);
+  assert.deepEqual(normalizeCaptureRows("wb_asset_normalized", [{
+    warner_asset_id: "id", season: "S1", file_size_bytes: "0", source_id: "required",
+  }]), [{ warner_asset_id: "id", season: "S1", file_size_bytes: "0", source_id: "required" }]);
 });
 
 // ---------------------------------------------------------------------------
@@ -504,6 +546,58 @@ test("a capture streams begin, every chunk in order, then finalize", async () =>
   assert.equal(c.queries[0].args[3], c.queries[3].args[1]);
   // The declared row count is sent up front.
   assert.equal(c.queries[0].args[4], 3);
+});
+
+test("a truthful zero-row evidence stream is recorded as skipped with no database call", async () => {
+  const calls = [];
+  const empty = {
+    file: "links-franchise-property-evidence.csv",
+    target: "wb_franchise_property_evidence",
+    rowCount: 0,
+    chunks: [],
+    manifestSha256: chainDigest([]),
+    skipLoad: true,
+  };
+  const logs = [];
+  const result = await loadPreparedCaptures(
+    { query: () => { throw new Error("database must not be called"); } },
+    resolveRunConfig(baseEnv),
+    [empty],
+    (message) => logs.push(message),
+    async (...args) => { calls.push(args); throw new Error("loadCapture must not be called"); }
+  );
+  assert.deepEqual(calls, []);
+  assert.deepEqual(result, [{ target: "wb_franchise_property_evidence", skipped: true, rows: 0 }]);
+  assert.match(logs[0], /SKIPPED.*0 rows.*no database call/i);
+});
+
+test("skipLoad cannot bypass a required stream", async () => {
+  await assert.rejects(
+    loadPreparedCaptures({}, resolveRunConfig(baseEnv), [{
+      file: "assets-normalized.csv",
+      target: "wb_asset_normalized",
+      rowCount: 0,
+      chunks: [],
+      manifestSha256: chainDigest([]),
+      skipLoad: true,
+    }], () => {}, async () => { throw new Error("must not load"); }),
+    /REFUSING TO SKIP.*Only the verified zero-row Franchise-to-Property evidence stream/
+  );
+});
+
+test("skipLoad cannot bypass a nonempty evidence stream", async () => {
+  const chunks = buildChunks([{ synthetic: true }]);
+  await assert.rejects(
+    loadPreparedCaptures({}, resolveRunConfig(baseEnv), [{
+      file: "links-franchise-property-evidence.csv",
+      target: "wb_franchise_property_evidence",
+      rowCount: 1,
+      chunks,
+      manifestSha256: chainDigest(chunks),
+      skipLoad: true,
+    }], () => {}, async () => { throw new Error("must not load"); }),
+    /REFUSING TO SKIP/
+  );
 });
 
 test("a chunk whose reported row count differs is treated as a silent drop and fails the run", async () => {
