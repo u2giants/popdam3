@@ -74,8 +74,8 @@ def load_activation(path: Path) -> dict[str, Any]:
         return data
     required = {
         "active", "schema_version", "shared_db_pr", "shared_db_merge_sha",
-        "ai_devops_pr", "ai_devops_merge_sha", "canonical_skill_sha256",
-        "installed_skill_sha256", "forward_test_sha256",
+        "ai_devops_pr", "ai_devops_merge_sha", "skill_hashes",
+        "forward_test_path", "forward_test_sha256",
     }
     if not isinstance(data, dict) or set(data) != required:
         raise RiskGateError("production-risk activation record has a forged or incomplete schema")
@@ -84,11 +84,22 @@ def load_activation(path: Path) -> dict[str, Any]:
     for key in ("shared_db_merge_sha", "ai_devops_merge_sha"):
         if not re.fullmatch(r"[0-9a-f]{40}", str(data[key])):
             raise RiskGateError(f"activation {key} is not an exact commit")
-    for key in ("canonical_skill_sha256", "installed_skill_sha256", "forward_test_sha256"):
-        if not re.fullmatch(r"[0-9a-f]{64}", str(data[key])):
-            raise RiskGateError(f"activation {key} is not a SHA-256 digest")
-    if data["canonical_skill_sha256"] != data["installed_skill_sha256"]:
-        raise RiskGateError("installed orchestrator skill does not match canonical ai-devops")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(data["forward_test_sha256"])):
+        raise RiskGateError("activation forward_test_sha256 is not a SHA-256 digest")
+    expected_files = {"SKILL.md", "references/operating-manual.md", "agents/openai.yaml"}
+    hashes = data["skill_hashes"]
+    if not isinstance(hashes, dict) or set(hashes) != expected_files:
+        raise RiskGateError("activation skill_hashes must pin all three orchestrator files")
+    for filename, record in hashes.items():
+        if not isinstance(record, dict) or set(record) != {"canonical", "codex_installed", "claude_installed"}:
+            raise RiskGateError(f"activation hash record is incomplete for {filename}")
+        values = list(record.values())
+        if any(not re.fullmatch(r"[0-9a-f]{64}", str(value)) for value in values):
+            raise RiskGateError(f"activation hash is not SHA-256 for {filename}")
+        if len(set(values)) != 1:
+            raise RiskGateError(f"installed orchestrator file does not match canonical ai-devops: {filename}")
+    if data["forward_test_path"] != "docs/verification/issue-1039-production-risk-activation-forward-proof.md":
+        raise RiskGateError("activation forward-test path is not the governed issue #1039 proof")
     return data
 
 
@@ -109,7 +120,7 @@ def prove_activation(
         ["git", "merge-base", "--is-ancestor", data["shared_db_merge_sha"], main_sha],
         cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
-    forward = repo_root / "docs/verification/issue-1015-dynamic-queue-forward-test.md"
+    forward = repo_root / data["forward_test_path"]
     if sha256_file(forward) != data["forward_test_sha256"]:
         raise RiskGateError("forward-test proof does not match the activated record")
 
@@ -205,6 +216,19 @@ def classify_sql(repo_root: Path, allowlist: list[str]) -> list[str]:
     return sorted(reasons)
 
 
+def decide_business_risk(
+    sql_reasons: list[str], *, recovery_proven: bool, review_approved: bool
+) -> dict[str, Any]:
+    """Decide only from facts already established by governed verifiers."""
+    reasons = set(sql_reasons)
+    if not recovery_proven:
+        reasons.add(RISK_TEXT["recovery_unproven"])
+    if not review_approved:
+        reasons.add(RISK_TEXT["unresolved_material_objection"])
+    ordered = sorted(reasons)
+    return {"automaticPromotionAllowed": not ordered, "ownerDecisionReasons": ordered}
+
+
 def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifact) -> dict[str, Any]:
     repo_root = args.repo.resolve()
     allowlist = normalize_review_allowlist(args.allowlist)
@@ -224,10 +248,9 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
         run_id=args.preview_run_id, digest=args.preview_digest, pr_head=pr_head,
         allowlist=allowlist, api=api, downloader=downloader, repo_root=repo_root,
     )
-    reasons = classify_sql(repo_root, allowlist)
+    decision = decide_business_risk(classify_sql(repo_root, allowlist), recovery_proven=True, review_approved=True)
     return {
-        "automaticPromotionAllowed": not reasons,
-        "ownerDecisionReasons": reasons,
+        **decision,
         "governedEvidence": {
             "mainSha": args.main_sha, "sourcePr": args.pr, "sourcePrHead": pr_head,
             "reviewRun": args.review_run_id, "previewRun": args.preview_run_id,

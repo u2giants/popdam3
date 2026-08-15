@@ -306,9 +306,10 @@ begin
   insert into core.property (licensor_id, name, code)
     values (v_lic, 'Contract Test Property OPA', 'ZZTESTPROPOPA') returning id into v_prop;
 
-  update plm.opa_property_character
-    set property_id = v_prop, resolution_status = 'matched'
-    where licensed_property_id = 900000001;
+  perform plm.set_source_resolution(
+    'disney_opa','property','900000001','matched',v_prop,
+    null,null,null,'contract test FK protection',null
+  );
 
   begin
     delete from core.property where id = v_prop;
@@ -473,14 +474,8 @@ begin
   -- ==================================================================================
   -- 6c. api.opa_property_reconciliation must be EXACTLY one row per OPA property node.
   --
-  --     THE FIXTURE MUST BE ONE NODE WITH SEVERAL CHARACTERS IN DIFFERENT RESOLUTION
-  --     STATES. That is the only shape that can tell the two view versions apart:
-  --       old (grouped on licensed_property_id AND the per-row resolution columns)
-  --           -> 2 rows, opa_character_count 1 and 1
-  --       new (grouped on licensed_property_id alone)
-  --           -> 1 row, opa_character_count 2, resolution_status 'mixed'
-  --     Two DIFFERENT nodes with one character each cannot detect the regression,
-  --     because different ids land in different groups under BOTH versions.
+  --     THE FIXTURE MUST BE ONE NODE WITH SEVERAL CHARACTERS. Resolution is now one
+  --     durable property decision, never repeated or allowed to disagree by character.
   -- ==================================================================================
   insert into plm.opa_property_character (
     licensed_property_id, character_id, property_name, character_name,
@@ -493,21 +488,16 @@ begin
      900000010, 1007, date '2026-08-06', 'https://example.invalid/contract-test',
      '{"fixture":true}'::jsonb, 'grainhash2');
 
-  -- Resolve exactly ONE of the two, so the node disagrees with itself.
-  update plm.opa_property_character
-     set property_id = v_prop,
-         resolution_status = 'matched',
-         resolution_reason = 'contract test node-grain fixture',
-         resolved_at = timestamptz '2026-08-06 12:00:00+00',
-         resolved_by = 'contract-test'
-   where licensed_property_id = 900000010 and character_id = 900000110;
+  perform plm.set_source_resolution(
+    'disney_opa','property','900000010','matched',v_prop,
+    null,null,null,'contract test node-grain fixture',null
+  );
 
   select count(*) into v_count from api.opa_property_reconciliation
     where licensed_property_id = 900000010;
   if v_count <> 1 then
-    raise exception 'api.opa_property_reconciliation returned % rows for ONE partially '
-      'resolved OPA property node (expected exactly 1). It is grouping on the per-row '
-      'resolution columns again, which splits a node and divides its character count.',
+    raise exception 'api.opa_property_reconciliation returned % rows for ONE resolved '
+      'OPA property node (expected exactly 1).',
       v_count;
   end if;
 
@@ -522,14 +512,13 @@ begin
       'character count is being divided across duplicate rows', v_count;
   end if;
 
-  if v_status is distinct from 'mixed' then
-    raise exception 'node 900000010 reports resolution_status=%L (expected ''mixed''); a '
-      'node whose characters disagree must say so rather than splitting into rows',
+  if v_status is distinct from 'matched' then
+    raise exception 'node 900000010 reports resolution_status=%L (expected ''matched'')',
       v_status;
   end if;
 
-  if v_missing::integer <> 1 then
-    raise exception 'node 900000010 reports unresolved_character_count=% (expected 1)',
+  if v_missing::integer <> 0 then
+    raise exception 'node 900000010 reports unresolved_character_count=% (expected 0)',
       v_missing;
   end if;
 

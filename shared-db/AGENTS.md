@@ -83,10 +83,13 @@ AI sessions from breaking each other through the one database they all depend on
 >
 > **Never guess the table. Ask:**
 >
->     select * from api.source_capture_inventory order by source_system, row_count desc;
+>     select * from api.source_capture_inventory order by source_system, retained_row_count desc;
 >
-> Exact live counts for every `plm` landing table, grouped by source system, built
-> from the live catalog so a new scrape's tables appear with no maintenance. Its
+> The view separates retained evidence from current complete-capture coverage.
+> `row_count` remains a compatibility alias for `retained_row_count`; neither is a
+> current-coverage number. Use `latest_complete_row_count` with `count_basis`,
+> `latest_complete_status`, and `count_note` when judging source coverage. A NULL
+> latest-complete count means the exact count cannot be derived, not zero. Its
 > `carries_resolution` column describes a table's shape and never indicates whether
 > a scrape ran. Same discipline as the migration-ledger rule above: check the
 > authoritative inventory before reporting an absence.

@@ -697,8 +697,8 @@ begin
       'evidence as a correction.';
   end if;
 
-  -- E5. An identity observed by a COMPLETE run has frozen source columns but editable
-  -- reconciliation columns. The carve-out is the entire reason those columns exist.
+  -- E5. An identity observed by a COMPLETE run has frozen source columns. Human
+  -- reconciliation uses plm.set_source_resolution; landing decision columns are immutable.
   v_ok := false;
   begin
     update plm.dcp_character set source_id = 'ZZTEST-CHAR-RENAMED' where id = v_char;
@@ -709,11 +709,18 @@ begin
       'changed.';
   end if;
 
-  update plm.dcp_character set resolution_note = 'ZZTEST reviewed', resolved_at = now()
-  where id = v_char;
-  if (select resolution_note from plm.dcp_character where id = v_char) <> 'ZZTEST reviewed' then
-    raise exception 'E FAILED: a reconciliation column could not be written after the run '
-      'completed. Those columns are OUR decisions and must stay editable forever.';
+  perform plm.set_source_resolution(
+    'disney_dcpvault','character',
+    (select 'id:' || source_id from plm.dcp_character where id=v_char),
+    'deferred',null,null,null,null,'ZZTEST reviewed',null
+  );
+  if not exists (
+    select 1 from plm.source_resolution
+    where source_system='disney_dcpvault' and entity_kind='character'
+      and source_id=(select 'id:' || source_id from plm.dcp_character where id=v_char)
+      and resolution_reason='ZZTEST reviewed'
+  ) then
+    raise exception 'E FAILED: the durable reconciliation decision was not stored.';
   end if;
 
   -- E6. A second run over the same crawl may still re-observe the same identity. The
@@ -729,7 +736,8 @@ begin
 
   raise notice 'E PASSED: 9 properties + 1 character created no relationship; duplicates '
     'collapse; empty sets are zero rows beside a success; a completed run refuses INSERT, '
-    'UPDATE and DELETE; identities freeze their source columns only.';
+    'UPDATE and DELETE; identity refresh fields remain writable and durable decisions '
+    'use plm.set_source_resolution.';
   raise notice 'G PASSED: cross-crawl metadata refused; HTTP 200 is not success; failures '
     'need a code; interpreted values need their raw; unknown rights survive raw.';
 end;

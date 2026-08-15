@@ -76,24 +76,28 @@ nothing about a Disney title.
 > **Never guess which table a loader wrote to. Ask:**
 >
 > ```sql
-> select * from api.source_capture_inventory order by source_system, row_count desc;
+> select * from api.source_capture_inventory order by source_system, retained_row_count desc;
 > ```
 >
-> Exact live counts for every `plm` landing table, grouped by source, built from the
-> catalog so a new scrape's tables appear automatically. The numbers in the table
-> below are a dated snapshot; that view is always current. Note its
-> `carries_resolution` column describes the table's *shape* — it never tells you
-> whether a scrape ran.
+> The view reports two different facts. `retained_row_count` counts all retained
+> evidence, including failed or superseded attempts; `row_count` is its compatibility
+> alias. `latest_complete_row_count` reports current complete-capture coverage only
+> where exact membership can be proved. A NULL latest-complete count means unknown or
+> not applicable, never zero. Read `count_basis`, `latest_complete_status`, and
+> `count_note` with it. The dated snapshot below shows both facts. The view's
+> `carries_resolution` column describes table *shape* and never proves a scrape ran.
 
-| Source | Assets | Properties | Characters | Style guides |
-|---|---|---|---|---|
-| **Disney** (OPA + DCP Vault) | **156,644** `dcp_asset` | **1,444** distinct in `opa_property_character` | **9,591** distinct in `opa_property_character` | **2,967** `dcp_style_guide` |
-| **Paramount** (Creative Library) | 119,304 `pmt_asset` | 254 `pmt_property` | 228 `pmt_character` | 1,928 `pmt_collection` |
-| **NBCU** (Creative Asset Factory) | 113,331 `nbcu_asset` | 249 `nbcu_property` | 190 `nbcu_character` | 461 `nbcu_style_guide` |
-| **Warner** (STARLABS) | **0** | **0** | **0** | **0** |
+| Source | Basis | Assets | Properties | Characters | Style guides |
+|---|---|---|---|---|---|
+| **Disney OPA** | Current upserted snapshot | n/a | **1,444** distinct in `opa_property_character` | **9,591** distinct in `opa_property_character` | n/a |
+| **Disney DCP Vault** | Retained evidence; no complete crawl existed at snapshot time | **156,644** `dcp_asset`; latest complete **unknown** | n/a | n/a | **2,967** `dcp_style_guide`; latest complete **unknown** |
+| **Paramount** (Creative Library) | Latest complete full capture; retained totals in parentheses | **33,862** (**119,304**) `pmt_asset` | **67** (**254**) `pmt_property` | **62** (**228**) `pmt_character` | **538** (**1,928**) `pmt_collection` |
+| **NBCU** (Creative Asset Factory) | Latest complete capture; retained totals in parentheses | **113,331** (**113,331**) `nbcu_asset` | **249** (**249**) `nbcu_property` | **190** (**190**) `nbcu_character` | **461** (**461**) `nbcu_style_guide` |
+| **Warner** (STARLABS) | Retained evidence only | **0** | **0** | **0** | **0** |
 
-Disney also holds 198,753 asset-to-tile observations, 11 portal tiles, and a
-complete crawl and chunk ledger.
+Disney also holds 198,753 asset-to-tile observations, 11 portal tiles, and crawl
+and chunk ledger rows. At this snapshot there was one DCP crawl still running and
+no complete DCP crawl, so exact latest-complete DCP coverage was unavailable.
 
 **Three separate gaps, and they are not the same problem:**
 
@@ -106,7 +110,8 @@ complete crawl and chunk ledger.
    property/character universe currently exists only as **names** inside
    `plm.opa_property_character`. Until those names are resolved into entities,
    Disney data cannot participate in the scrapes-win rule or in consolidation,
-   even though the raw capture is complete.
+   even though substantial raw evidence is retained. OPA is a current snapshot;
+   DCP had no completed crawl at this snapshot.
 3. **Nothing has reached canonical yet.** `core.style_guide` and `dam.asset` are
    both empty for every source. Consolidation into `core.*` has not started.
 
@@ -127,9 +132,8 @@ nullable, stops both writers (the client loader and `plm.load_pmt_capture_chunk`
 and drops `idx_pmt_atp_name`; the property name is read by joining
 `plm.pmt_property` on `(capture_id, property_source_id)`. The columns themselves
 are dropped (or renamed, if one proves to be a distinct fact) by a later migration
-once the plan's Step 1 evidence is read. Note also that the Paramount asset figure
-in the table above counts every retained capture, including two failed ones — see
-the 2026-08-14 handoff for the per-capture breakdown.
+once the plan's Step 1 evidence is read. The Paramount figures above now lead with
+the latest complete full capture and show all retained rows in parentheses.
 
 ## 2. Why this shape
 

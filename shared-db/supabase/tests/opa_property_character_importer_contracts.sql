@@ -424,13 +424,10 @@ begin
   insert into core.property (licensor_id, name, code)
     values (v_lic, 'Contract Test Property OPA2', 'ZZTESTPROPOPA2') returning id into v_prop;
 
-  update plm.opa_property
-     set core_property_id = v_prop,
-         resolution_status = 'resolved',
-         resolution_reason = 'contract test manual resolution',
-         resolved_at = timestamptz '2026-08-06 12:00:00+00',
-         resolved_by = 'contract-test'
-   where licensed_property_id = 910000001;
+  perform plm.set_source_resolution(
+    'disney_opa','property','910000001','matched',v_prop,
+    null,null,null,'contract test manual resolution',null
+  );
 
   select * into v_r from plm.sync_opa_property_character(v_snapshot);
 
@@ -440,9 +437,10 @@ begin
   end if;
 
   select resolution_status, core_property_id into v_status, v_propid
-  from plm.opa_property where licensed_property_id = 910000001;
+  from plm.source_resolution
+  where source_system='disney_opa' and entity_kind='property' and source_id='910000001';
 
-  if v_status is distinct from 'resolved' or v_propid is distinct from v_prop then
+  if v_status is distinct from 'matched' or v_propid is distinct from v_prop then
     raise exception 'a re-import WIPED a human resolution (status=%, core_property_id=%). The '
       'resolution columns must be absent from the upsert SET list.', v_status, v_propid;
   end if;

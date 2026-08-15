@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import RiskGateError, classify_sql, load_activation, prove_activation, prove_preview
+from production_business_risk_gate import RiskGateError, classify_sql, decide_business_risk, load_activation, prove_activation, prove_preview
 
 
 class ProductionBusinessRiskGateTests(unittest.TestCase):
@@ -33,8 +33,13 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 "active": True, "schema_version": "shared-db-production-risk-activation/v2",
                 "shared_db_pr": 1021, "shared_db_merge_sha": "a" * 40,
                 "ai_devops_pr": 24, "ai_devops_merge_sha": "b" * 40,
-                "canonical_skill_sha256": "c" * 64, "installed_skill_sha256": "d" * 64,
-                "forward_test_sha256": "e" * 64,
+                "skill_hashes": {
+                    "SKILL.md": {"canonical": "c" * 64, "codex_installed": "d" * 64, "claude_installed": "c" * 64},
+                    "references/operating-manual.md": {"canonical": "e" * 64, "codex_installed": "e" * 64, "claude_installed": "e" * 64},
+                    "agents/openai.yaml": {"canonical": "f" * 64, "codex_installed": "f" * 64, "claude_installed": "f" * 64},
+                },
+                "forward_test_path": "docs/verification/issue-1039-production-risk-activation-forward-proof.md",
+                "forward_test_sha256": "a" * 64,
             }
             path.write_text(json.dumps(data))
             with self.assertRaisesRegex(RiskGateError, "does not match"):
@@ -51,6 +56,24 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             reasons = classify_sql(root, ["20260814000001"])
             self.assertIn("users may be interrupted", reasons)
             self.assertIn("access or permissions materially change", reasons)
+
+    def test_synthetic_low_risk_and_all_five_risk_classes_fail_closed(self):
+        self.assertEqual(
+            decide_business_risk([], recovery_proven=True, review_approved=True),
+            {"automaticPromotionAllowed": True, "ownerDecisionReasons": []},
+        )
+        cases = [
+            (["existing production data may be lost or permanently altered"], True, True),
+            (["users may be interrupted"], True, True),
+            (["access or permissions materially change"], True, True),
+            ([], False, True),
+            ([], True, False),
+        ]
+        for sql_reasons, recovery, review in cases:
+            with self.subTest(sql_reasons=sql_reasons, recovery=recovery, review=review):
+                result = decide_business_risk(sql_reasons, recovery_proven=recovery, review_approved=review)
+                self.assertFalse(result["automaticPromotionAllowed"])
+                self.assertEqual(len(result["ownerDecisionReasons"]), 1)
 
     def test_forged_preview_claim_is_rejected_before_download(self):
         run = {

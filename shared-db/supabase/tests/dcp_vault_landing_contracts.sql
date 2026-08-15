@@ -563,8 +563,8 @@ begin
   end if;
 
   -- E5. A stable identity observed by a completed crawl: SOURCE columns freeze, but
-  -- last_seen_crawl_id and the reconciliation columns must STILL be editable, or the
-  -- reconciliation workstream is dead on arrival.
+  -- last_seen_crawl_id must remain editable for refreshes. Human reconciliation now goes
+  -- through plm.set_source_resolution; the landing decision columns are immutable.
   v_ok := false;
   begin
     update plm.dcp_asset set file_name = 'ZZTEST-renamed.zzz' where id = v_asset;
@@ -575,7 +575,11 @@ begin
       'was changed. Every stored row hash was computed from those exact values.';
   end if;
 
-  update plm.dcp_style_guide set resolution_reason = 'ZZTEST reviewed' where id = v_guide;
+  perform plm.set_source_resolution(
+    'disney_dcpvault','style_guide',
+    (select 'path:' || source_path from plm.dcp_style_guide where id=v_guide),
+    'deferred',null,null,null,null,'ZZTEST reviewed',null
+  );
 
   -- E6. THE HIGH FINDING, PROVED BEHAVIOURALLY. INSERT is the ONLY mutating operation
   -- section 7 still leaves to service_role, so it is the one that matters most. Each of
@@ -683,8 +687,8 @@ begin
   end;
 
   raise notice 'E PASSED: completed-crawl evidence refuses INSERT, UPDATE and DELETE; the '
-    'crawl header is frozen; source columns freeze while reconciliation and exception-'
-    'resolution columns stay editable.';
+    'crawl header is frozen; source columns freeze; durable decisions use '
+    'plm.set_source_resolution while exception workflow state stays editable.';
 end;
 $$;
 

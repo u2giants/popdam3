@@ -1,1 +1,27 @@
-{"active":false,"schema_version":"shared-db-production-risk-activation/v1"}
+{
+  "active": true,
+  "ai_devops_merge_sha": "7c3e25454561748cd29e24bcfe1f3b4c0d3bdeb6",
+  "ai_devops_pr": 24,
+  "forward_test_path": "docs/verification/issue-1039-production-risk-activation-forward-proof.md",
+  "forward_test_sha256": "8fe5889eba4e31f7683db77fdfc7cf766243c55104ff5e5c7a5bc8fdf12e9c9b",
+  "schema_version": "shared-db-production-risk-activation/v2",
+  "shared_db_merge_sha": "6e4ea801798dae3ae30648a5e4682bbb3aa06e66",
+  "shared_db_pr": 1021,
+  "skill_hashes": {
+    "SKILL.md": {
+      "canonical": "dd5193ea661703563df58c49026bb540ce81e531f3e3b06acaa73a459a1401fc",
+      "claude_installed": "dd5193ea661703563df58c49026bb540ce81e531f3e3b06acaa73a459a1401fc",
+      "codex_installed": "dd5193ea661703563df58c49026bb540ce81e531f3e3b06acaa73a459a1401fc"
+    },
+    "agents/openai.yaml": {
+      "canonical": "af75ff26faea15194941da38f1efd212f0ada1a17bf375452645230f870d863b",
+      "claude_installed": "af75ff26faea15194941da38f1efd212f0ada1a17bf375452645230f870d863b",
+      "codex_installed": "af75ff26faea15194941da38f1efd212f0ada1a17bf375452645230f870d863b"
+    },
+    "references/operating-manual.md": {
+      "canonical": "dc55f17ea0887231f07725634e4209ef9533656fd45a945f220866361b394445",
+      "claude_installed": "dc55f17ea0887231f07725634e4209ef9533656fd45a945f220866361b394445",
+      "codex_installed": "dc55f17ea0887231f07725634e4209ef9533656fd45a945f220866361b394445"
+    }
+  }
+}

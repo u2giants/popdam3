@@ -36,25 +36,29 @@ begin
   values (v_core_property, 'Synthetic OPA Core Character', 'ZZOPA953C')
   returning id into v_core_character;
 
-  -- Seed one already-resolved entity pair and one legacy link. A refresh may update the
-  -- entity display names, but it must preserve the human resolution and must not rewrite
-  -- the deprecated duplicate columns on the link.
+  -- Seed one entity pair, record its decisions in the durable home, and add one legacy
+  -- link. A refresh may update display names but must preserve the durable decisions.
   insert into plm.opa_property (
-    licensed_property_id, property_name, core_property_id, resolution_status,
-    resolution_reason, resolved_at, resolved_by, last_seen_at
+    licensed_property_id, property_name, last_seen_at
   ) values (
-    953000001, 'Old Entity Property Name', v_core_property, 'resolved',
-    'synthetic contract resolution', timestamptz '2026-08-14 12:00:00+00', 'contract-test',
+    953000001, 'Old Entity Property Name',
     timestamptz '2026-08-01 00:00:00+00'
   );
 
   insert into plm.opa_character (
-    character_id, character_name, core_character_id, resolution_status,
-    resolution_reason, resolved_at, resolved_by, last_seen_at
+    character_id, character_name, last_seen_at
   ) values (
-    953000101, 'Old Entity Character Name', v_core_character, 'resolved',
-    'synthetic contract resolution', timestamptz '2026-08-14 12:00:00+00', 'contract-test',
+    953000101, 'Old Entity Character Name',
     timestamptz '2026-08-01 00:00:00+00'
+  );
+
+  perform plm.set_source_resolution(
+    'disney_opa','property','953000001','matched',v_core_property,
+    null,null,null,'synthetic contract resolution',null
+  );
+  perform plm.set_source_resolution(
+    'disney_opa','character','953000101','matched',null,v_core_character,
+    null,null,'synthetic contract resolution',null
   );
 
   insert into plm.opa_property_character (
@@ -178,21 +182,25 @@ begin
 
   -- Entity-level human resolutions must survive the name refresh.
   select core_property_id into v_uuid
-  from plm.opa_property where licensed_property_id = 953000001;
+  from plm.source_resolution
+  where source_system='disney_opa' and entity_kind='property' and source_id='953000001';
   if v_uuid is distinct from v_core_property then
     raise exception 'property core resolution was overwritten';
   end if;
 
   select core_character_id into v_uuid
-  from plm.opa_character where character_id = 953000101;
+  from plm.source_resolution
+  where source_system='disney_opa' and entity_kind='character' and source_id='953000101';
   if v_uuid is distinct from v_core_character then
     raise exception 'character core resolution was overwritten';
   end if;
 
-  if (select resolution_status from plm.opa_property where licensed_property_id = 953000001)
-       is distinct from 'resolved'
-     or (select resolution_status from plm.opa_character where character_id = 953000101)
-       is distinct from 'resolved' then
+  if (select resolution_status from plm.source_resolution
+      where source_system='disney_opa' and entity_kind='property' and source_id='953000001')
+       is distinct from 'matched'
+     or (select resolution_status from plm.source_resolution
+         where source_system='disney_opa' and entity_kind='character' and source_id='953000101')
+       is distinct from 'matched' then
     raise exception 'entity resolution status was overwritten';
   end if;
 
