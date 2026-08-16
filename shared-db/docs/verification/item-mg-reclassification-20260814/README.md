@@ -1,5 +1,9 @@
 # Historical item product taxonomy and MG review
 
+> **Permanent process:** Read [`../../item-description-mg-classification-process.md`](../../item-description-mg-classification-process.md) before running or changing this analysis. The approved method parses all descriptions into five fields, builds three independent post-change product-type maps, and matches historical types in the order MG01+MG02+MG03, MG01+MG02, then MG01.
+
+The earlier exact-signature workflow described below is retained as investigation history. It is not the approved classification method because it did not build or try an independent MG01 map.
+
 ## Purpose
 
 This work supports reassignment of merchandise groups for items created through May 13, 2025 using the categorization method introduced on May 14, 2025.
