@@ -52,6 +52,8 @@ describe("tag asset contract", () => {
     expect(prompt).toContain('"close-up view"');
     expect(prompt).toContain('"back view"');
     expect(prompt).toContain('"lifestyle / in-use image"');
+    expect(prompt).toContain('"person holding item / size scale image"');
+    expect(prompt).toContain("mainly to communicate its physical size or scale");
     expect(prompt).toContain('"product mockup"');
     expect(prompt).toContain('"artwork"');
     expect(prompt).toContain('"tech pack"');

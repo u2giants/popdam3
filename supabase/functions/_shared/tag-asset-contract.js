@@ -137,7 +137,7 @@ Tag rules:
 - Do not guess. A filename/path/ERP description may establish product context, but visual categories and photography views must be supported by the image. If a character, property, view, readable word, or asset kind is unclear, omit that tag.
 
 Controlled image categories:
-- Professional photography: include "professional photography" plus exactly one applicable view tag: "straight view", "3/4 view", "close-up view", "back view", or "lifestyle / in-use image". Use "lifestyle / in-use image" when a product is shown being used, worn, held, or staged in a real-life setting. Do not call a clean computer-generated product image photography.
+- Professional photography: include "professional photography" plus exactly one applicable view tag: "straight view", "3/4 view", "close-up view", "back view", "lifestyle / in-use image", or "person holding item / size scale image". Use "person holding item / size scale image" when a person deliberately holds or presents the item mainly to communicate its physical size or scale relative to a hand or body. Use "lifestyle / in-use image" instead when the person is naturally using or wearing the product in context. Do not call a clean computer-generated product image photography.
 - Design assets: include "design asset" plus the best applicable subtype: "product mockup", "artwork", "tech pack", "packaging design", "embellishment placement design", or "freelancer illustration".
 - "product mockup": a rendered or composited preview showing artwork applied to a product.
 - "artwork": standalone creative art not shown applied to a product.
@@ -149,6 +149,7 @@ Controlled image categories:
 Category examples:
 - Front-facing studio backpack photo: tags include "professional photography", "straight view", and "backpack"; content_type is product_photo.
 - Product worn or used by a person: tags include "professional photography" and "lifestyle / in-use image"; content_type is lifestyle_photo.
+- Person deliberately holding an item to demonstrate its physical size: tags include "professional photography" and "person holding item / size scale image"; content_type is product_photo.
 - Standalone character composition not applied to merchandise: tags include "design asset" and "artwork"; content_type is source_art or style_guide_art as supported by metadata.
 - Product rendering with art applied: tags include "design asset" and "product mockup"; content_type is render_mockup.
 - Specification page with dimensions and callouts: tags include "design asset" and "tech pack"; content_type is tech_pack.
