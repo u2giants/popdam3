@@ -8,10 +8,10 @@
 
 # AGENTS.md — cross-app coordination playbook
 
-## Active implementation plan
+## Active contracts and implementation plans
 
 - PopDAM OrderList linked to Master Data: [`plan_popdam_order_list.md`](plan_popdam_order_list.md). Read its STATUS table first. Do not re-derive or re-plan completed steps.
-- **Master-data destination (read before proposing any licensor/property/character/asset/style-guide change):** [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md). Owner ruling 2026-08-13 — consolidated portal scrapes land in `core.property` / `core.character` / `core.style_guide` / canonical asset; ColdLion supplies only the operational subset and is mapped onto those rows (automated, then manual); canonical properties absent from ColdLion go `inactive`. The licensor -> property edge stays a single foreign key, never a junction table. The mapping screen lives in DB Data Admin.
+- **Settled licensing Master Data architecture (read before any Licensor, Property, Character, Style Guide, Asset, or Franchise work):** [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md). Owner ruling 2026-08-16: authorized licensor scrapes are canonical for Property spelling, Property ownership, Characters, Style Guides, Asset metadata, Franchises, and direct source-published relationships. ColdLion decides Property Active/Inactive only. The one stale DesignFlow pull has no authority. Authorized licensor scrapes run weekly. This is a central architecture contract, not an issue or proposal.
 - OrderList source contract: [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md), with formula detail in [`docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md`](docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md). Owner ruling: Google OrderList and future Coldlion rows are the same orders; `plm.item` is the ultimate item list. One canonical order/line must retain separate Google and Coldlion source refs.
 
 This is the operating contract for **every AI session working on any app that
@@ -1425,15 +1425,16 @@ must not overlap ColdLion Phase 7.
 
 **If your work touches characters, style guides, or royalty rates, read
 [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
-FIRST.** It documents a layer the merch-group doc does not cover. There are **two axes, and chaining
-them is the classic bug**: ownership is linear — **Licensor → Property → Character** (a
-character has exactly one property) — while style is many-to-many — **a style guide holds many
+FIRST.** Read its historical measurements under the controlling 2026-08-16 architecture in
+[`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md).
+There are **two axes, and chaining them is the classic bug**: Licensor-to-Property is one-to-many;
+Property-to-Character is many-to-many; and style is many-to-many — **a style guide holds many
 characters and a character appears in many style guides**. A style guide is *not* a level
 between property and character. The legacy table
 `dflow.properties_and_characters` is misleadingly named — its `type='PROPERTY'` rows are
 **style guides**, not properties, and its `type='CHARACTER'` rows are character *appearances*
 (one per style guide), not distinct characters — those 9,622 rows are the **style-guide ↔
-character bridge**, not a character list. Batman is one character, under one property, appearing
+character bridge**, not a canonical character list. Batman is one character appearing
 in 15 style guides, each with its own external id. That doc also records the Marvel-only +2% talent-likeness
 royalty rule and the fact that likeness attaches to a **style guide asset (file)**, never to a
 character. Two AI sessions have already corrupted their understanding by reading those column
@@ -1831,8 +1832,10 @@ never by rewriting history.
   hand-curated link requires, so the hand-curation ruling and this section point the same way.
   (Recorded in the
   orchestrator intake as ruling 4.)
-- **`dflow.*` is being retired; `core.*` becomes the source of truth for all applications**, fed
-  from ColdLion as the ultimate upstream. (Recorded in the orchestrator intake as ruling 6.)
+- **`dflow.*` is being retired; `core.*` becomes the source of truth for all applications.**
+  Under the controlling 2026-08-16 architecture, authorized licensor scrapes supply canonical
+  identity, names, ownership and source-published relationships; ColdLion supplies only Property
+  Active/Inactive membership. The stale DesignFlow pull supplies neither.
   **§6.6 is the direct consequence of this.** If `core.*` serves every app, the surface on which
   humans curate `core.*` must not be locked inside one application — which is precisely Albert's
   "it should not be only in 1 particular application". Building further curation into DesignFlow
@@ -1843,20 +1846,11 @@ never by rewriting history.
   matched row** (§6.4), so until `20260802170000` is applied to production, parentage curated
   anywhere — DB Data Admin included — is not durable there.
 
-**The one question this section MUST answer: ColdLion says one parent, a human curated another —
-who wins?** §6.3 makes ColdLion ERP data canonical; §6.4 makes curated data outrank imported data.
-For **licensor→property parentage specifically, the curated value wins**, and this is not an agent's
-judgement call — it follows from §6.1's rule 2, verified against the source: **ColdLion has no
-licensor→property relationship at all.** It cannot state a parent, so there is nothing for §6.3 to
-make canonical. Any parent that appears to come "from ColdLion" is in fact something a POP system
-inferred — from `mgTypeCode`, `mg_code`, co-occurrence, or a prior guess — and inference is exactly
-what the hand-curation ruling bans.
-
-**This carves out ONLY the parent edge. §6.3 is otherwise untouched and still wins:** when ColdLion
-inactivates or removes a licensor or property, **follow it**. Names, codes, and lifecycle status
-remain ColdLion's. If ColdLion ever begins transmitting a genuine licensor→property relationship,
-this carve-out stops being self-evident and becomes an owner question — escalate it, do not decide
-it.
+**Controlling answer, 2026-08-16:** the applicable authorized licensor scrape wins for
+Property spelling and Licensor ownership. ColdLion has no parent authority and decides only
+whether a Property is Active or Inactive. DesignFlow has no authority. See the central licensing
+architecture document; older ColdLion-canonical wording in this section is historical and must
+not be used to design or load licensing Master Data.
 
 ### 6.7 OWNER RULING — branch protection on `main` is ON, and CI guards are no longer advisory (Albert Hazan, 2026-08-04)
 

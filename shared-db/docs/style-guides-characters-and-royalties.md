@@ -1,5 +1,13 @@
 # Style guides, characters, and royalty rates
 
+> **Controlling architecture changed 2026-08-16.** The settled licensing Master Data
+> contract is [`core-master-data-consolidation-aim.md`](core-master-data-consolidation-aim.md).
+> Authorized licensor scrapes now control canonical Property spelling and ownership,
+> Characters, Style Guides, Asset metadata, Franchises, and direct source-published
+> relationships. ColdLion controls Property Active/Inactive only. DesignFlow has no
+> authority. A Character may belong to multiple Properties. Any contrary statement below
+> is retained only as historical investigation and must not be implemented.
+
 > **PopSG execution boundary:** This document remains the authority for the
 > business meaning and relationships described below. The single bounded
 > execution plan for reconciling PopSG folder-derived Property observations is
@@ -8,9 +16,9 @@
 > reconciliation workstream. The executable phases are named `PSG-0` through
 > `PSG-7`; this document supplies business authority, not a parallel checklist.
 
-**Status:** authoritative for the business rules in §1–§3, which were stated directly by the
-owner (Albert) on 2026-07-23. Data measurements in §4 were taken live against production
-Supabase `qsllyeztdwjgirsysgai` on the same date. Open questions are marked as such in §7.
+**Status:** historical evidence and royalty-detail authority, subordinate to the central
+2026-08-16 licensing architecture. Data measurements in §4 were taken live against production
+Supabase `qsllyeztdwjgirsysgai` on 2026-07-23.
 
 **Who this is for:** anyone about to touch characters, style guides, licensed properties, or
 royalty reporting. Read this *before* [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md)
@@ -149,10 +157,10 @@ failure that is very hard to unpick later.
 
 | Fact | Owned by | Notes |
 |---|---|---|
-| Which licensors/properties exist (classification codes) | Coldlion ERP | flat merch-group lists, see the merch-group doc |
-| Licensor → property relationship | **DesignFlow** | Coldlion has no parent link at all |
-| Style guides and sub-style guides | **DesignFlow / the licensing system** | Coldlion returns **zero** MG07 Style Guide rows for both licensed divisions |
-| Characters per style guide | **the licensing system** | `dflow.properties_and_characters` |
+| Which licensors/properties exist and their official names | **Authorized licensor scrapes** | ColdLion separately determines whether a Property is Active |
+| Licensor → property relationship | **Authorized licensor scrapes** | DesignFlow has no authority |
+| Style guides and sub-style guides | **Authorized licensor scrapes** | ColdLion and DesignFlow do not provide the canonical universe |
+| Characters per style guide | **Authorized licensor scrapes** | Preserve only direct source-published relationships |
 | Talent-likeness flag | **the style guide asset (file)** | Marvel-only royalty impact |
 | Royalty rate | licensing agreement (`dflow."licenseList"`) | `licenseList_royalty_rate`, `licenseList_fob_royalty_rate` |
 
