@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromPr, EXCLUSIVE_REFS, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromPr, EXCLUSIVE_REFS, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
@@ -353,6 +353,37 @@ test('release tolerates one stale post-delete GitHub read',()=>{
   assert.equal(releaseOwnedRef(MUTEX_REF,'ours',io),true)
   assert.equal(waits,1)
   assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('release tolerates bounded stale owner reads until exact absence is visible',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'ours');let postDeleteReads=0,deleted=false,waited=0
+  io.deleteRef=()=>{deleted=true}
+  io.readRef=(ref)=>deleted&&ref===MUTEX_REF?(++postDeleteReads<5?'ours':null):io.refs.get(ref)??null
+  io.wait=(ms)=>{waited+=ms}
+  assert.equal(releaseOwnedRef(MUTEX_REF,'ours',io),true)
+  assert.equal(postDeleteReads,5);assert.equal(waited,3250)
+})
+
+test('release fails closed on ambiguous transport readback without retrying delete',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'ours');let deletes=0,reads=0
+  io.deleteRef=()=>{deletes++}
+  io.readRef=()=>{if(++reads===1)return 'ours';throw new LaneError('transport endpoint not found')}
+  assert.throws(()=>releaseOwnedRef(MUTEX_REF,'ours',io),/transport endpoint not found/)
+  assert.equal(deletes,1)
+})
+
+test('only an explicit GitHub HTTP 404 is confirmed ref absence',()=>{
+  assert.equal(isConfirmedRefAbsence(new Error('gh: Not Found (HTTP 404)')),true)
+  assert.equal(isConfirmedRefAbsence(new Error('transport endpoint not found')),false)
+  assert.equal(isConfirmedRefAbsence(new Error('HTTP 502 upstream failure')),false)
+})
+
+test('release never deletes a changed owner during bounded readback',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'ours');let deleted=false,deletes=0
+  io.deleteRef=()=>{deleted=true;deletes++}
+  io.readRef=()=>deleted?'successor':'ours'
+  assert.equal(releaseOwnedRef(MUTEX_REF,'ours',io),true)
+  assert.equal(deletes,1)
 })
 
 test('stranded author mutex recovery requires exact SHA, lock type, age, and explicit confirmation',()=>{

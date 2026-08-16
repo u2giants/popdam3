@@ -176,6 +176,7 @@ function ghPaginated(endpoint) {
   if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) throw new LaneError(`GitHub pagination for ${endpoint} was incomplete or malformed`)
   return pages.flat()
 }
+export function isConfirmedRefAbsence(error) { return /HTTP 404/i.test(String(error?.message??'')) }
 
 export const githubIo = {
   openClaims() {
@@ -217,7 +218,10 @@ export const githubIo = {
   readRef(ref) {
     const short = ref.replace(/^refs\//, '')
     try { return ghJson(['api', `repos/${REPO}/git/ref/${short}`])?.object?.sha ?? null }
-    catch (error) { if (/HTTP 404|not found/i.test(error.message)) return null; throw error }
+    // Only GitHub CLI's explicit HTTP 404 proves that this exact ref is absent.
+    // A transport message that merely says "not found" is ambiguous and must
+    // remain a hard failure rather than being mistaken for successful cleanup.
+    catch (error) { if (isConfirmedRefAbsence(error)) return null; throw error }
   },
   deleteRef(ref) { gh(['api', '-X', 'DELETE', `repos/${REPO}/git/refs/${ref.replace(/^refs\//, '')}`]) },
   updateRef(ref, sha) { gh(['api','-X','PATCH',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`,'-f',`sha=${sha}`,'-F','force=true']) },
@@ -298,17 +302,16 @@ export function releaseOwnedRef(ref, ownerSha, io = githubIo) {
   if (actual === null) return false
   if (actual !== ownerSha) throw new LaneError(`refusing to release ${ref}: it belongs to another owner`)
   io.deleteRef(ref)
-  let after = io.readRef(ref)
-  // GitHub can briefly return the deleted ref from a stale read replica.
-  // Re-read once before reporting an ambiguous release failure.
-  if (after === ownerSha) {
-    (io.wait ?? ((ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms)))(250)
-    after = io.readRef(ref)
+  const delays=[0,250,500,1000,1500,2000]
+  for(const delay of delays){
+    if(delay)(io.wait ?? ((ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms)))(delay)
+    const after=io.readRef(ref)
+    if(after===null)return true
+    // A different SHA means another contender acquired the static ref after
+    // our successful owner-verified delete. Never delete the successor.
+    if(after!==ownerSha)return true
   }
-  if (after === ownerSha) throw new LaneError(`release of ${ref} could not be proved; do not retry blindly`)
-  // A different SHA means another contender acquired the static ref after our
-  // successful delete. That proves our ownership ended; never delete it again.
-  return true
+  throw new LaneError(`release of ${ref} could not be proved after bounded readback; do not retry blindly`)
 }
 
 export function parseReviewCursor(commit) {
