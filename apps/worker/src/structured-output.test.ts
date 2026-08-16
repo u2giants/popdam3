@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { executeStructuredOutput } from "./structured-output.js";
+import { executeStructuredOutput, isStrictCompatibleSchema } from "./structured-output.js";
 import type { ModelCapabilities } from "./model-capabilities.js";
 
 const capabilities: ModelCapabilities = { modelId: "test/model", imageInput: true, tools: true, toolChoice: true, toolChoiceModes: ["required"], structuredOutputs: true, jsonObject: true, source: "live", fetchedAt: new Date().toISOString() };
 const schema = { type: "object", properties: { answer: { type: "string" } }, required: ["answer"] };
 const validate = (value: Record<string, unknown>) => { if (typeof value.answer !== "string") throw new Error("answer required"); return value.answer; };
 function response(message: Record<string, unknown>, status = 200) { return new Response(JSON.stringify(status === 200 ? { choices: [{ message }], usage: { total_tokens: 1 } } : message), { status, headers: { "content-type": "application/json" } }); }
+
+test("strict schema is used only when every property is required", () => {
+  assert.equal(isStrictCompatibleSchema(schema), true);
+  assert.equal(isStrictCompatibleSchema({ ...schema, properties: { ...schema.properties, optional: { type: "string" } } }), false);
+});
 
 test("executor continues after invalid schema output and succeeds with JSON object", async () => {
   const original = globalThis.fetch; const seen: unknown[] = [];

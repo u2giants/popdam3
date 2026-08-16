@@ -12,6 +12,22 @@ function parse(content?: string): Record<string, unknown> | null {
 }
 function safe(error: unknown) { return (error instanceof Error ? error.message : String(error)).replace(/data:[^;]+;base64,[A-Za-z0-9+/=]+/g, "[image removed]").slice(0, 500); }
 
+/** OpenAI strict schemas require every declared property at every object level. */
+export function isStrictCompatibleSchema(schema: Record<string, unknown>): boolean {
+  if (schema.type === "object") {
+    const properties = schema.properties && typeof schema.properties === "object"
+      ? schema.properties as Record<string, Record<string, unknown>>
+      : {};
+    const required = Array.isArray(schema.required) ? schema.required : [];
+    if (Object.keys(properties).some((key) => !required.includes(key))) return false;
+    return Object.values(properties).every(isStrictCompatibleSchema);
+  }
+  if (schema.type === "array" && schema.items && typeof schema.items === "object") {
+    return isStrictCompatibleSchema(schema.items as Record<string, unknown>);
+  }
+  return true;
+}
+
 export async function executeStructuredOutput<T>(options: ExecuteStructuredOutputOptions<T>): Promise<{ value: T; outputMode: StructuredOutputMethod; attempts: OutputAttempt[]; usage?: unknown; providerInfo?: OpenRouterProviderInfo; repairCount: number }> {
   const attempts: OutputAttempt[] = [];
   let repairSource: string | null = null;
@@ -24,7 +40,7 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
         request.tool_choice = method === "tool_named" ? { type: "function", function: { name: options.schemaName } } : method === "tool_required" ? "required" : "auto";
       } else {
         request.messages = [...options.messages, { role: "user", content: "Return only one valid JSON object matching the supplied contract. No markdown or commentary." }];
-        request.response_format = method === "json_schema" ? { type: "json_schema", json_schema: { name: options.schemaName, strict: true, schema: options.schema } } : { type: "json_object" };
+        request.response_format = method === "json_schema" ? { type: "json_schema", json_schema: { name: options.schemaName, strict: isStrictCompatibleSchema(options.schema), schema: options.schema } } : { type: "json_object" };
       }
       const result = await chatCompletion(options.apiKey, request, options.timeoutMs);
       const candidate = result.toolCalls?.[0]?.arguments ?? parse(result.content);
