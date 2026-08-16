@@ -34,6 +34,12 @@ REQUIRED_CHECKS = {
     "SQL migration guards",
     "supabase/tests against an ephemeral database",
 }
+HISTORICAL_DISNEY_SOURCE = {
+    "pr": 924,
+    "head": "5135b668d87c1639281c506ae75fde75211b7019",
+    "merge": "96bf385aa5c0f703ec98f5730249f586964f5142",
+    "allowlist": ["20260813210000", "20260813220000"],
+}
 RISK_TEXT = {
     "permanent_data_rewrite_or_loss": "existing production data may be lost or permanently altered",
     "expected_downtime": "users may be interrupted",
@@ -194,10 +200,23 @@ def prove_preview(
             if version not in before_versions or version not in after_versions:
                 raise RiskGateError(f"historical preview ledger does not prove stable prior application of {version}")
         elif version in before_versions or version not in after_versions:
-            raise RiskGateError(f"preview ledger does not prove exactly-once application of {version}")
+                raise RiskGateError(f"preview ledger does not prove exactly-once application of {version}")
 
 
-def prove_pr_and_checks(pr_number: int, main_sha: str, api: Callable[[str], Any], repo_root: Path) -> str:
+def is_pinned_historical_disney_source(
+    pr_number: int, head: str, merge_sha: str, allowlist: list[str]
+) -> bool:
+    return (
+        pr_number == HISTORICAL_DISNEY_SOURCE["pr"]
+        and head == HISTORICAL_DISNEY_SOURCE["head"]
+        and merge_sha == HISTORICAL_DISNEY_SOURCE["merge"]
+        and allowlist == HISTORICAL_DISNEY_SOURCE["allowlist"]
+    )
+
+
+def prove_pr_and_checks(
+    pr_number: int, main_sha: str, allowlist: list[str], api: Callable[[str], Any], repo_root: Path
+) -> str:
     pr = api(f"repos/{REPOSITORY}/pulls/{pr_number}")
     if pr.get("merged") is not True or pr.get("merge_commit_sha") is None:
         raise RiskGateError("source PR is not merged")
@@ -211,6 +230,14 @@ def prove_pr_and_checks(pr_number: int, main_sha: str, api: Callable[[str], Any]
     checks = api(f"repos/{REPOSITORY}/commits/{head}/check-runs?per_page=100").get("check_runs", [])
     conclusions = {c.get("name"): c.get("conclusion") for c in checks if isinstance(c, dict)}
     missing = sorted(name for name in REQUIRED_CHECKS if conclusions.get(name) != "success")
+    historical_source = is_pinned_historical_disney_source(
+        pr_number, head, pr.get("merge_commit_sha"), allowlist
+    )
+    if historical_source:
+        # The author-lease workflow did not exist when this exact PR merged. Its
+        # historical source proof is verified later against current main and the
+        # preview artifact; every contemporary safety check remains mandatory.
+        missing = [name for name in missing if name != "Migration author lease"]
     if missing:
         raise RiskGateError(f"required exact-head checks are not successful: {', '.join(missing)}")
     return head
@@ -250,7 +277,7 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
     allowlist = normalize_review_allowlist(args.allowlist)
     activation = load_activation(args.activation)
     prove_activation(activation, main_sha=args.main_sha, api=api, repo_root=repo_root)
-    pr_head = prove_pr_and_checks(args.pr, args.main_sha, api, repo_root)
+    pr_head = prove_pr_and_checks(args.pr, args.main_sha, allowlist, api, repo_root)
     with tempfile.TemporaryDirectory(prefix="production-risk-review-") as temp:
         review_path = verify_review(
             run_id_text=str(args.review_run_id), expected_digest=args.review_digest,
