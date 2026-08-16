@@ -14,6 +14,10 @@ This is a permanent design decision, not an issue, proposal, backlog item, or
 temporary migration plan. Future database structures, source loaders, API
 contracts, admin screens, and application behavior must follow it.
 
+The executable build sequence is
+[`../plan_licensing_master_data_implementation.md`](../plan_licensing_master_data_implementation.md).
+Read its STATUS table first; do not re-plan completed phases.
+
 ## 1. Decision in one paragraph
 
 The official licensing Master Data consists of **Licensor, Property, Character,
