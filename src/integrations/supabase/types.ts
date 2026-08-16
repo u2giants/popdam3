@@ -1463,6 +1463,39 @@ export type Database = {
         }
         Relationships: []
       }
+      order_list_user_views: {
+        Row: {
+          column_state: Json
+          created_at: string
+          filter_model: Json
+          id: string
+          sort_model: Json
+          updated_at: string
+          user_id: string
+          view_name: string
+        }
+        Insert: {
+          column_state?: Json
+          created_at?: string
+          filter_model?: Json
+          id?: string
+          sort_model?: Json
+          updated_at?: string
+          user_id?: string
+          view_name?: string
+        }
+        Update: {
+          column_state?: Json
+          created_at?: string
+          filter_model?: Json
+          id?: string
+          sort_model?: Json
+          updated_at?: string
+          user_id?: string
+          view_name?: string
+        }
+        Relationships: []
+      }
       pdf_text_samples: {
         Row: {
           asset_id: string | null
@@ -3011,6 +3044,18 @@ export type Database = {
       }
     }
     Functions: {
+      acknowledge_taxonomy_sync_alert: {
+        Args: { p_acknowledgement: Json; p_alert_id: string }
+        Returns: Json
+      }
+      activate_popsg_property_decision_batch: {
+        Args: {
+          p_evidence_batch_id: string
+          p_evidence_batch_sha256: string
+          p_expected_row_count: number
+        }
+        Returns: number
+      }
       add_style_guide_manual_tag: {
         Args: { p_facet?: string; p_file_id: string; p_tag: string }
         Returns: {
@@ -3074,12 +3119,24 @@ export type Database = {
           total_cost_before: Json
         }[]
       }
+      approve_licensor_alias: {
+        Args: {
+          p_alias: string
+          p_approval_evidence: string
+          p_approved_by: string
+        }
+        Returns: string
+      }
       backfill_pdf_files_used: { Args: never; Returns: number }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
         Returns: number
       }
       bulk_insert_pdf_text_samples: { Args: { p_rows: Json }; Returns: number }
+      check_taxonomy_sync_health: {
+        Args: { p_max_success_age?: string; p_options?: Json }
+        Returns: Json
+      }
       claim_dam_search_embedding_documents: {
         Args: { p_limit?: number }
         Returns: {
@@ -3188,6 +3245,10 @@ export type Database = {
         }[]
       }
       count_pdf_backfill_remaining: { Args: never; Returns: number }
+      create_dam_order: {
+        Args: { p_lines?: Json; p_order: Json }
+        Returns: string
+      }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
       deactivate_stale_sg_files: {
         Args: { p_root_label: string; p_run_id: string }
@@ -3310,6 +3371,27 @@ export type Database = {
         Args: { p_file_type: string; p_filename: string }
         Returns: boolean
       }
+      link_dam_order_line: {
+        Args: { p_item_id: string; p_line_id: string; p_match_status?: string }
+        Returns: string
+      }
+      list_licensor_aliases: {
+        Args: never
+        Returns: {
+          alias: string
+          approval_evidence: string
+          approval_status: string
+          approved_at: string
+          approved_by: string
+          evidence_notes: string
+          is_dormant: boolean
+          licensor_code: string
+          licensor_id: string
+          licensor_name: string
+          normalized_alias: string
+          source_system: string
+        }[]
+      }
       mark_dam_search_embedding_error: {
         Args: {
           p_content_sha256: string
@@ -3322,6 +3404,33 @@ export type Database = {
       normalize_for_sg_match: { Args: { p: string }; Returns: string }
       normalize_style_guide_tag: { Args: { p_value: string }; Returns: string }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
+      promote_coldlion_source_owned: {
+        Args: { p_client_plan?: Json; p_expected: Json; p_is_drill?: boolean }
+        Returns: {
+          curated_name_changes: number
+          linked_rows: number
+          mode: string
+          promotions: number
+          protected_violations: number
+          provenance_refreshes: number
+          quarantined_rows: number
+          source_rows: number
+          sync_run_id: string
+          unchanged_rows: number
+        }[]
+      }
+      promote_property_alias_batch: {
+        Args: {
+          p_alias: string
+          p_approved_by: string
+          p_cross_app_certified: boolean
+          p_evidence_batch_sha256: string
+          p_evidence_notes?: string
+          p_property_id: string
+          p_source_system?: string
+        }
+        Returns: string
+      }
       propagate_group_tags_batch: {
         Args: { p_batch_size?: number; p_cursor?: string }
         Returns: {
@@ -3330,6 +3439,20 @@ export type Database = {
           propagated: number
           skipped: number
         }[]
+      }
+      propose_popsg_property_resolution: {
+        Args: {
+          p_disposition: string
+          p_evidence_batch_id?: string
+          p_evidence_batch_sha256?: string
+          p_evidence_run_id?: string
+          p_licensor_id: string
+          p_occurrence_count?: number
+          p_property_id?: string
+          p_raw_observed_value: string
+          p_review_notes?: string
+        }
+        Returns: string
       }
       queue_nightly_rebuild_style_groups: { Args: never; Returns: undefined }
       queue_sg_render_jobs_by_ids: {
@@ -3358,6 +3481,32 @@ export type Database = {
       }
       record_failed_sync_run: {
         Args: { p_error: string; p_source_name: string; p_stage: string }
+        Returns: string
+      }
+      record_taxonomy_circuit_breaker_blocked_attempt: {
+        Args: {
+          p_actor?: string
+          p_lane?: string
+          p_payload?: Json
+          p_reason: string
+        }
+        Returns: string
+      }
+      record_taxonomy_parallel_observation: {
+        Args: { p_observation_date?: string; p_options?: Json }
+        Returns: Json
+      }
+      record_taxonomy_sync_alert: {
+        Args: {
+          p_is_drill?: boolean
+          p_observation_date?: string
+          p_observation_id?: string
+          p_payload?: Json
+          p_reason: string
+          p_related_run_id?: string
+          p_severity: string
+          p_source_name: string
+        }
         Returns: string
       }
       refresh_dam_search_asset_document: {
@@ -3437,6 +3586,11 @@ export type Database = {
         Args: { p_timeout_minutes?: number }
         Returns: number
       }
+      reset_taxonomy_circuit_breaker: {
+        Args: { p_authorization: Json; p_lane?: string }
+        Returns: Json
+      }
+      resolve_licensor_alias: { Args: { p_observed: string }; Returns: string }
       resolve_sku_files_used: { Args: never; Returns: number }
       resolve_sku_files_used_fuzzy: {
         Args: { p_threshold?: number }
@@ -3513,6 +3667,37 @@ export type Database = {
         }
         Returns: string
       }
+      sync_clickup_tasks: {
+        Args: { p_mode?: string; p_snapshot: Json }
+        Returns: {
+          locked: boolean
+          mode: string
+          rows_failed: number
+          rows_inserted: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_hash: string
+          sync_run_id: string
+          watermark_at: string
+        }[]
+      }
+      sync_coldlion_licensors_properties: {
+        Args: { p_link_expected?: Json; p_mode?: string; p_snapshot: Json }
+        Returns: {
+          cross_entity_collisions: number
+          division_count: number
+          licensor_rows: number
+          mode: string
+          property_rows: number
+          rows_inserted: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_hash: string
+          sync_run_id: string
+        }[]
+      }
       sync_coldlion_vendors: {
         Args: { vendors_payload: Json }
         Returns: {
@@ -3525,11 +3710,217 @@ export type Database = {
           sync_run_id: string
         }[]
       }
+      sync_opa_property_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          captured_at: string
+          distinct_character: number
+          distinct_property: number
+          mode: string
+          rows_inserted: number
+          rows_missing: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_franchise_property: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_style_guide: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_franchise_property: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_property_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_style_guide: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      taxonomy_breaker_enforcement_status: { Args: never; Returns: Json }
+      taxonomy_circuit_breaker_state: {
+        Args: { p_lane?: string }
+        Returns: Json
+      }
+      trip_taxonomy_circuit_breaker: {
+        Args: {
+          p_actor?: string
+          p_environment?: string
+          p_failed_invariant: string
+          p_is_drill?: boolean
+          p_lane?: string
+          p_payload?: Json
+          p_provenance?: string
+          p_reason: string
+          p_related_run_id?: string
+        }
+        Returns: Json
+      }
       update_bulk_operation: {
         Args: { p_only_if_status?: string; p_op_key: string; p_op_state: Json }
         Returns: Json
       }
       update_bulk_operations_batch: { Args: { p_updates: Json }; Returns: Json }
+      update_dam_order: {
+        Args: {
+          p_line_patches?: Json
+          p_order_id: string
+          p_order_patch?: Json
+        }
+        Returns: string
+      }
       upsert_dam_search_embedding: {
         Args: {
           p_content_sha256: string
@@ -3573,6 +3964,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      verify_coldlion_approved_mapping_identity: {
+        Args: { p_expected?: Json; p_input: Json; p_sample_limit?: number }
+        Returns: Json
       }
     }
     Enums: {
