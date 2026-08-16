@@ -85,8 +85,17 @@ function parseJsonObject(content: string | undefined): Record<string, unknown> |
 // tool JSON. Skip the tool leg and use the structured-JSON path directly.
 const NON_TOOL_CALLING_MODEL_PATTERNS = [/(^|\/)gemma/i, /(^|\/)llama-4-scout/i, /(^|\/)minimax-m3/i];
 
+// Muse Spark advertises tool support, but its current OpenRouter provider only
+// accepts tool_choice="auto". Auto does not guarantee a tag_asset call, so use
+// the model's native JSON-schema output as the primary path instead.
+const JSON_SCHEMA_FIRST_MODEL_PATTERNS = [/(^|\/)muse-spark(?:-|$)/i];
+
 export function modelSupportsTools(model: string): boolean {
   return !NON_TOOL_CALLING_MODEL_PATTERNS.some((re) => re.test(model));
+}
+
+export function prefersJsonSchemaOutput(model: string): boolean {
+  return JSON_SCHEMA_FIRST_MODEL_PATTERNS.some((re) => re.test(model));
 }
 
 function isToolCapabilityError(error: unknown): boolean {
@@ -325,7 +334,9 @@ export async function callTagAssetModel(
 ): Promise<TagAssetCompletionResult> {
   let toolError: unknown = null;
 
-  if (modelSupportsTools(model)) {
+  if (prefersJsonSchemaOutput(model)) {
+    toolError = new Error(`Skipped tool call: ${model} uses JSON schema before optional tool calling`);
+  } else if (modelSupportsTools(model)) {
     try {
       const result = await chatCompletion(apiKey, {
         model,
@@ -357,12 +368,12 @@ export async function callTagAssetModel(
   try {
     const result = await chatCompletion(apiKey, {
       model,
-      messages,
+      messages: withJsonObjectInstruction(messages),
       response_format: {
         type: "json_schema",
         json_schema: {
           name: "tag_asset",
-          strict: false,
+          strict: prefersJsonSchemaOutput(model),
           schema: TAG_ASSET_SCHEMA,
         },
       },

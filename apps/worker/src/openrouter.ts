@@ -191,6 +191,10 @@ function baseModelId(model: string): string {
   return model.split(":")[0].trim();
 }
 
+export function isToolChoiceCompatibilityError(status: number, body: string): boolean {
+  return (status === 400 || status === 404) && body.includes("tool_choice");
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build an image content part from a base64-encoded image */
@@ -327,7 +331,9 @@ export async function chatCompletion(
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<ChatCompletionResult> {
   // Some models don't support the specific-function or "required" tool_choice forms.
-  // Fall back through the compatibility ladder automatically on a 404.
+  // Fall back through the compatibility ladder when an upstream provider
+  // explicitly rejects the requested tool_choice value. Providers return this
+  // as either 400 or 404, depending on their OpenAI-compatibility layer.
   const toolChoiceFallbacks: Array<ChatCompletionRequest["tool_choice"]> = [];
   if (request.tool_choice && request.tool_choice !== "auto") {
     if (request.tool_choice !== "required") toolChoiceFallbacks.push("required");
@@ -450,7 +456,7 @@ export async function chatCompletion(
 
     // tool_choice compatibility fallback: if the model rejects our tool_choice
     // value, retry with the next less-strict value in the ladder.
-    if (response.status === 404 && errBody.includes("tool_choice") && toolChoiceFallbacks.length > 0) {
+    if (isToolChoiceCompatibilityError(response.status, errBody) && toolChoiceFallbacks.length > 0) {
       const nextChoice = toolChoiceFallbacks.shift()!;
       logger.warn("openrouter: tool_choice not supported, retrying with fallback", {
         model: currentRequest.model,
