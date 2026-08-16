@@ -14,6 +14,10 @@ rate limits/server retries, invalid media, and content-policy refusal stop the
 cascade. Do not add model-name matching code; record unpublished provider facts
 in the override setting.
 
+The `tag_asset` response ceiling is 4,000 tokens. Reasoning-capable vision models
+can spend more than 1,500 tokens internally before emitting the compact JSON;
+lowering this ceiling can turn otherwise valid models into truncated responses.
+
 This document covers two distinct things: (1) which AI models are used inside the PopDAM system, and (2) execution rules for AI coding assistants working on this codebase.
 
 > **Active reliability plan:** [`../plan_ai_model_interaction_reliability.md`](../plan_ai_model_interaction_reliability.md)

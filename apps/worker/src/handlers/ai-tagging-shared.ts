@@ -305,7 +305,7 @@ export async function callTagAssetModel(
   model: string,
   messages: ChatMessage[],
   timeoutMs: number,
-  maxTokens = 1500,
+  maxTokens = 4000,
   provider?: ChatCompletionRequest["provider"],
 ): Promise<TagAssetCompletionResult> {
   const capabilities = await getRuntimeModelCapabilities(apiKey, model);

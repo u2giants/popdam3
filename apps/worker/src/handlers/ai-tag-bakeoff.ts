@@ -349,7 +349,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
       image,
       "Analyze this design asset image and return structured tags matching the tag_asset schema.",
     );
-    const { tagData: output, usage, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 1500);
+    const { tagData: output, usage, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 4000);
 
     const tags = normalizeTags(output.tags);
     const { characterIds, propertyId, debug } = await normalizeModelTaxonomy(asset, output, tags);
@@ -411,6 +411,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const providerInfo = providerInfoFromError(e);
+    const attempts = (e as { attempts?: unknown[] })?.attempts ?? [];
     logger.warn("ai-tag-bakeoff: model failed", { runId, assetId: asset.id, slot, modelId, error: msg });
     await upsertBakeoffResult({
       run_id: runId,
@@ -427,6 +428,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
       } : null,
       raw_output: {
         _popdam_provider: providerInfo,
+        _popdam_output_attempts: attempts,
         _popdam_failure_stage: "structured_output",
       },
       error_message: msg.slice(0, 500),
