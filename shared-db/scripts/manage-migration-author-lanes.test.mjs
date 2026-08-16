@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromPr, EXCLUSIVE_REFS, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromPr, EXCLUSIVE_REFS, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, reversionActiveClaim, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
@@ -522,4 +522,40 @@ test('active claim expansion rolls back an ambiguous update failure while mutex-
 test('REAL main command wires claim-number into the incident-pinned expansion',()=>{
   const io=expansionIo(),args=['--expand-active-claim-from-pr','--claim-number','1063','--pr','1065','--owner','codex-issue-853-orderlist','--head-sha','head','--branch','codex/issue-853-orderlist-index','--worktree','C:\\repos\\shared-db-wt-853-index']
   assert.equal(main(args,NOW,io),0);assert.ok(parseAuthorLease(io.issue.body,NOW).objects.includes('table plm.item'))
+})
+
+function reversionIo(overrides={}){
+  const io=memoryIo(),old='20260816044638',fresh='20260816120000',head='a'.repeat(40),newHead='b'.repeat(40)
+  const issue={number:1056,state:'open',body:claimBody({version:old,objects:['sequence dflow.licensingtime_id_seq','sequence dflow.properties_and_characters_id_seq'],owner:'issue_764_sequence_repair/session-1053',branch:'codex/issue-764-sequence-repair',worktree:'C:\\repos\\shared-db-worktrees\\issue-764-sequence-repair',expiresAt:new Date('2026-08-16T16:46:32Z')})}
+  io.refs.set(`refs/db-claims/${old}`,'old-ref');io.refs.set(`refs/db-claims/${fresh}`,'new-ref')
+  io.getIssue=()=>structuredClone(issue);io.updateIssue=(_,fields)=>{Object.assign(issue,fields);return structuredClone(issue)}
+  io.getPr=()=>({state:'open',head:{sha:head,ref:'codex/issue-764-sequence-repair'}})
+  io.getPrFiles=()=>[{filename:`supabase/migrations/${old}_repair.sql`}]
+  io.localClean=()=>true;io.localHead=()=>head;io.currentMaxVersion=()=> '20260816063532'
+  io.reserveVersion=()=>({version:fresh});io.rewriteVersion=()=>{};io.commitAndPushReversion=()=>{io.getPr=()=>({state:'open',head:{sha:newHead,ref:'codex/issue-764-sequence-repair'}});io.getPrFiles=()=>[{filename:`supabase/migrations/${fresh}_repair.sql`}];return newHead}
+  return Object.assign(io,{issue,head,newHead,old,fresh},overrides)
+}
+const reversionArgs={claim:1056,pr:1047,oldVersion:'20260816044638',headSha:'a'.repeat(40),branch:'codex/issue-764-sequence-repair',worktree:'C:\\repos\\shared-db-worktrees\\issue-764-sequence-repair'}
+test('active claim reversion preserves ownership and both permanent refs',()=>{
+  const io=reversionIo(),result=reversionActiveClaim(reversionArgs,NOW,io),lease=parseAuthorLease(io.issue.body,NOW)
+  assert.equal(result.newVersion,io.fresh);assert.equal(lease.version,io.fresh);assert.equal(lease.owner,'issue_764_sequence_repair/session-1053');assert.equal(io.refs.get(`refs/db-claims/${io.old}`),'old-ref')
+})
+test('active claim reversion rejects changed head, collision, dirty worktree, and non-later reservation',()=>{
+  assert.throws(()=>reversionActiveClaim({...reversionArgs,headSha:'c'.repeat(40)},NOW,reversionIo()),/exact head/)
+  assert.throws(()=>reversionActiveClaim(reversionArgs,NOW,reversionIo({localClean:()=>false})),/dirty/)
+  assert.throws(()=>reversionActiveClaim(reversionArgs,NOW,reversionIo({reserveVersion:()=>({version:'20260816040000'})})),/not later/)
+  assert.throws(()=>reversionActiveClaim({...reversionArgs,claim:999},NOW,reversionIo()),/pinned/)
+})
+test('active claim reversion fails closed when mutex ownership is lost during partial failure',()=>{
+  const io=reversionIo();io.commitAndPushReversion=()=>{io.refs.set(MUTEX_REF,'successor');throw new Error('push failed')}
+  assert.throws(()=>reversionActiveClaim(reversionArgs,NOW,io),/ROLLBACK NOT ATTEMPTED/)
+  assert.equal(io.refs.get(`refs/db-claims/${io.old}`),'old-ref')
+})
+test('active claim reversion rolls back an applied-then-failed issue update',()=>{
+  const io=reversionIo(),original=io.issue.body,baseUpdate=io.updateIssue,rewrites=[];let first=true
+  io.rewriteVersion=(_,from,to)=>{rewrites.push([from,to])}
+  io.updateIssue=(number,fields)=>{const result=baseUpdate(number,fields);if(first){first=false;throw new Error('response lost after PATCH')}return result}
+  assert.throws(()=>reversionActiveClaim(reversionArgs,NOW,io),/response lost/)
+  assert.equal(io.issue.body,original)
+  assert.deepEqual(rewrites,[[io.old,io.fresh],[io.fresh,io.old]])
 })

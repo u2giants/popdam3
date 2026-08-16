@@ -288,15 +288,15 @@ begin
     v_fail := v_fail + 1; raise notice 'FAIL bridge FK to erp_items_current count = % (expect 1)', v_n;
   end if;
 
-  -- D3. That FK is ON DELETE SET NULL. THIS IS THE HAZARD, stated by the catalog rather
-  --     than by a document: a careless cutover NULLs bridge links and raises NOTHING.
+  -- D3. #853 removes the silent-link-loss hazard while keeping the legacy FK additive.
+  --     Deletes must now fail loudly until every bridge link has a canonical destination.
   select pg_get_constraintdef(oid) into v_def from pg_constraint
    where conrelid = 'plm.style_tracker_item_bridge'::regclass and contype = 'f'
      and confrelid = 'public.erp_items_current'::regclass;
-  if v_def like '%ON DELETE SET NULL%' then
-    v_pass := v_pass + 1; raise notice 'PASS hazard confirmed by catalog: % — deletes NULL silently, they do not error', v_def;
+  if v_def like '%ON DELETE RESTRICT%' or v_def not like '%ON DELETE%' then
+    v_pass := v_pass + 1; raise notice 'PASS legacy bridge deletion fails loudly: %', v_def;
   else
-    v_fail := v_fail + 1; raise notice 'FAIL unexpected bridge FK action: %', v_def;
+    v_fail := v_fail + 1; raise notice 'FAIL legacy bridge FK can still erase a link silently: %', v_def;
   end if;
 
   -- D4. The reconciliation baseline Phase 3 must hit.
