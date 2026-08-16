@@ -884,20 +884,21 @@ async function handleGetOpenrouterVisionModels() {
     const inputModalities = Array.isArray(arch?.input_modalities) ? arch.input_modalities as string[] : [];
     const override = overrides[id] ?? null;
     return ({
-    id,
-    name: (m.name as string | null) ?? (m.id as string),
-    context_length: m.context_length as number | null,
-    input_modalities: inputModalities,
-    image_input: inputModalities.length ? inputModalities.includes("image") : null,
-    supports_tools: override?.tools ?? params.includes("tools"),
-    supports_tool_choice: override?.tool_choice ?? params.includes("tool_choice"),
-    tool_choice_modes: override?.tool_choice_modes ?? (params.includes("tool_choice") ? ["named", "required", "auto"] : []),
-    supports_structured_outputs: override?.structured_outputs ?? params.includes("structured_outputs"),
-    supports_response_format: override?.json_object ?? params.includes("response_format"),
-    capability_source: override ? "override" : "live",
-    applied_override: override,
-    pricing: m.pricing as Record<string, unknown> | null,
-  }); });
+      id,
+      name: (m.name as string | null) ?? (m.id as string),
+      context_length: m.context_length as number | null,
+      input_modalities: inputModalities,
+      image_input: inputModalities.length ? inputModalities.includes("image") : null,
+      supports_tools: override?.tools ?? params.includes("tools"),
+      supports_tool_choice: override?.tool_choice ?? params.includes("tool_choice"),
+      tool_choice_modes: override?.tool_choice_modes ?? (params.includes("tool_choice") ? ["named", "required", "auto"] : []),
+      supports_structured_outputs: override?.structured_outputs ?? params.includes("structured_outputs"),
+      supports_response_format: override?.json_object ?? params.includes("response_format"),
+      capability_source: override ? "override" : "live",
+      applied_override: override,
+      pricing: m.pricing as Record<string, unknown> | null,
+    });
+  });
 
   return json({ ok: true, models });
 }
