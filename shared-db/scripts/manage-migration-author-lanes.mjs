@@ -27,7 +27,18 @@ export const EXCLUSIVE_REFS = Object.freeze({
   production: 'refs/db-coordination/production',
 })
 
-const QUEUE_STATES = new Set(['eligible','blocked','owner-decision','data-only','non-structural'])
+export const QUEUE_STATUSES = new Set(['ready','blocked','owner-decision'])
+export const QUEUE_WORK_TYPES = new Set(['structural','curated-master-data','application-data','source-data','repo-maintenance','documentation','security-settings'])
+export const QUEUE_ROUTES = new Set(['shared-db-orchestrator','curated-master-data-governance','application-session','source-data-session','owner-only','repo-maintenance'])
+const ROUTES_BY_WORK_TYPE = Object.freeze({
+  structural: new Set(['shared-db-orchestrator']),
+  'curated-master-data': new Set(['curated-master-data-governance']),
+  'application-data': new Set(['application-session']),
+  'source-data': new Set(['source-data-session']),
+  'repo-maintenance': new Set(['repo-maintenance','owner-only']),
+  documentation: new Set(['repo-maintenance','owner-only']),
+  'security-settings': new Set(['owner-only','repo-maintenance']),
+})
 
 export function parseQueueScope(body = '') {
   const fences=[...body.matchAll(/```db-work-scope\s*\n([\s\S]*?)```/g)]
@@ -46,14 +57,22 @@ export function parseQueueScope(body = '') {
     if (!match || fields.has(match[1])) throw new LaneError('unreadable db-work-scope block')
     fields.set(match[1], match[2].trim())
   }
-  const state = fields.get('state')
-  if (!QUEUE_STATES.has(state)) throw new LaneError(`db-work-scope state must be one of ${[...QUEUE_STATES].join(', ')}`)
+  if (fields.has('state')) throw new LaneError('db-work-scope state is retired; use separate status, work_type, and route fields')
+  const status = fields.get('status')
+  const workType = fields.get('work_type')
+  const route = fields.get('route')
+  if (!QUEUE_STATUSES.has(status)) throw new LaneError(`db-work-scope status must be one of ${[...QUEUE_STATUSES].join(', ')}`)
+  if (!QUEUE_WORK_TYPES.has(workType)) throw new LaneError(`db-work-scope work_type must be one of ${[...QUEUE_WORK_TYPES].join(', ')}`)
+  if (!QUEUE_ROUTES.has(route)) throw new LaneError(`db-work-scope route must be one of ${[...QUEUE_ROUTES].join(', ')}`)
+  if (!ROUTES_BY_WORK_TYPE[workType].has(route)) throw new LaneError(`route ${route} is not valid for work_type ${workType}`)
   const priority = Number(fields.get('priority'))
   if (!Number.isInteger(priority) || priority < 0) throw new LaneError('db-work-scope priority must be a non-negative integer')
   const dependencies = (fields.get('depends_on') ?? '').split(',').map((v)=>v.trim()).filter(Boolean).map((v)=>Number(String(v).replace(/^#/,'')))
   if (dependencies.some((v)=>!Number.isInteger(v) || v <= 0)) throw new LaneError('db-work-scope depends_on must contain issue numbers')
-  if (state === 'eligible' && !objects.length) throw new LaneError('eligible db-work-scope must list exact objects')
-  return { state, priority, dependencies, objects: objects.length ? validateClaimObjects(objects) : [] }
+  if (workType === 'structural' && !objects.length) throw new LaneError('structural db-work-scope must list exact objects')
+  if (workType !== 'structural' && objects.length) throw new LaneError(`${workType} db-work-scope must not claim database objects`)
+  if (route === 'owner-only' && status !== 'owner-decision') throw new LaneError('owner-only route requires status owner-decision')
+  return { status, workType, route, priority, dependencies, objects: objects.length ? validateClaimObjects(objects) : [] }
 }
 
 function overlaps(a, b) { const right = new Set(b); return a.some((x)=>right.has(x)) }
@@ -65,7 +84,10 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     let scope
     try { scope = parseQueueScope(issue.body) } catch (error) { malformed.push({ issue:issue.number, reason:error.message }); continue }
     if (!scope) { unclassified.push(issue.number); continue }
-    if (scope.state !== 'eligible') { skipped.push({ issue:issue.number, reason:scope.state }); continue }
+    if (scope.status !== 'ready') { skipped.push({ issue:issue.number, reason:`status:${scope.status}`, workType:scope.workType, route:scope.route }); continue }
+    if (scope.workType !== 'structural' || scope.route !== 'shared-db-orchestrator') {
+      skipped.push({ issue:issue.number, reason:'not-migration-author-work', workType:scope.workType, route:scope.route }); continue
+    }
     const waiting = scope.dependencies.filter((number)=>openNumbers.has(number))
     if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
     candidates.push({ issue:issue.number, title:issue.title, ...scope })

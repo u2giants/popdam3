@@ -1,0 +1,681 @@
+[
+  {
+    "number": 503,
+    "title": "OWNER: four decisions left open by session 774f5010",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": "All four owner decisions were answered and recorded on 2026-08-16."
+  },
+  {
+    "number": 505,
+    "title": "DS->DY at its source (Albert ruled: no hard-coding)",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 300\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 506,
+    "title": "Promote migration 20260807030000 (the Coco ruling) to production",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 508,
+    "title": "Move licensor/property off Cloud SQL, with ColdLion as the source",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 509,
+    "title": "Silent failure: the dead PLM feed reports success on every run",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 511,
+    "title": "core.character is ON DELETE CASCADE on core.property",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: structural\nroute: shared-db-orchestrator\npriority: 600\ndepends_on: \nobjects:\n  - table core.character\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": null
+  },
+  {
+    "number": 512,
+    "title": "Close the app-repo blast-radius gap (popdam3 and three others)",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 514,
+    "title": "Collect the csv-export agent output left on the Desktop",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: source-data\nroute: source-data-session\npriority: 200\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 515,
+    "title": "OWNER: how should an ownerless property be stored?",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": null
+  },
+  {
+    "number": 516,
+    "title": "OWNER: the six remaining licensor/property cutover decisions",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 518,
+    "title": "Blocker 8 mis-stated: the real writer is PATCH /api/admin/updateMerchGroup",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 519,
+    "title": "Reconcile the 9 documents the triage ruling now contradicts",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: documentation\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 521,
+    "title": "Which CC property row should the Disney Coco style guide point at?",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": null
+  },
+  {
+    "number": 526,
+    "title": "Record the 8 round-3 licensing answers and run the mandated validator",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: documentation\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 527,
+    "title": "Fix the shared-db-orchestrator skill: stale 1Password vault ID and an invalid fetch command",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 529,
+    "title": "Backlog B6: fold in the four-worktree collision evidence and re-assess the guard",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: documentation\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 531,
+    "title": "OWNER: trim the orchestrator skill, or leave it as it is?",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: repo-maintenance\nroute: owner-only\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 532,
+    "title": "DesignFlow: show an item's UPCs on the item detail page (app-side half)",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 536,
+    "title": "Close the pre-link ColdLion alert-delivery gap",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 400\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 537,
+    "title": "Restart ColdLion Phase 6 preview monitoring",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 539,
+    "title": "OWNER: the 5 remaining ColdLion property-code contract questions",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": null
+  },
+  {
+    "number": 541,
+    "title": "PopDAM data quality: 8 Exorcist assets filed under the wrong licensor",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: application-data\nroute: application-session\npriority: 300\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 542,
+    "title": "Assemble the ColdLion Step 8 approval package",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 543,
+    "title": "popdam3 worker alias cutover (different repo)",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 300\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 544,
+    "title": "PopSG PSG-5 rebuild (hold — dedicated dispatch only)",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 300\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 552,
+    "title": "ColdLion sync: the health-lane re-pin",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 553,
+    "title": "Licensor/property mappings: the 7-step import and removal sequence",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 450\ndepends_on: 555\nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 554,
+    "title": "Build the DB Data Admin licensor->property curation screen",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 555,
+    "title": "Stop the three overwrite paths that violate AGENTS.md 6.4 in production",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: structural\nroute: shared-db-orchestrator\npriority: 950\ndepends_on: \nobjects:\n  - function plm.import_master_data\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 557,
+    "title": "Un-park the shared checkout /worksp/shared-db and find the root cause",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 200\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 558,
+    "title": "Decide the fate of the 2 untracked GLM review files",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 559,
+    "title": "Branch protection on main: keep the required-review gap decided and documented",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: documentation\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": "The setting was already decided, implemented, and verified live."
+  },
+  {
+    "number": 562,
+    "title": "Characters/style-guides: core.character is empty, plus a question-generator defect",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 350\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 565,
+    "title": "Propagate the ai-devops skill updates to every machine (this is step 5's gate)",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 583,
+    "title": "HANDOVER: Warner has no source tables and two competing unmerged PRs; ColdLion gap grew 47 to 66 with the DESPERATE sub-licensor records",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 584,
+    "title": "HANDOVER: five small verified items left deliberately (nanoid check, G6 echo, one Disney name, collision-checker blindness, two env traps)",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 588,
+    "title": "Load the Warner STARLABS source extract — pinned snapshot, and the Franchise-vs-Property trap",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: source-data\nroute: source-data-session\npriority: 300\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 597,
+    "title": "HANDOVER: Product Size and Product Depth Phase 1",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 619,
+    "title": "HANDOVER: plan items B, C and D — not started, deliberately, plus new live evidence for B1",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 620,
+    "title": "HANDOVER: issue #597 production promotion and the remaining Phase 1 gaps",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: 597\nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 640,
+    "title": "HIGH PRIORITY: reconcile the four licensor source extracts against core.property and core.licensor",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 700\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 643,
+    "title": "HANDOVER: [ALBERT] the credential hole in the production approval gate",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: security-settings\nroute: owner-only\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": "Albert answered this risk decision on 2026-08-16; no implementation remains in this issue."
+  },
+  {
+    "number": 644,
+    "title": "HANDOVER: [ALBERT] decide can_admins_bypass on the production environment",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: security-settings\nroute: owner-only\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": "Albert answered this setting decision on 2026-08-16; no implementation remains in this issue."
+  },
+  {
+    "number": 645,
+    "title": "HANDOVER: [ALBERT] 208 vendor emails, 98 phones and 98 addresses published in baseline.json",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: documentation\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": null
+  },
+  {
+    "number": 650,
+    "title": "HANDOVER: the PopDAM folder-position licensor resolver defect",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 652,
+    "title": "HANDOVER: the plm.item nulls-not-distinct trap",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: 853, 868\nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 655,
+    "title": "HANDOVER: two test-quality gaps in PR #635, reported not fixed",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 678,
+    "title": "HANDOVER: promote Disney/OPA to production — plan ready, customer #2 after the canary",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 679,
+    "title": "HANDOVER: promote Paramount to production and run its first real load — plan ready",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 680,
+    "title": "HANDOVER: promote NBCU to production — plan ready, but Gate 0 is whether the loader can reach plm at all",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 681,
+    "title": "HANDOVER: promote Warner/STARLABS to production — six-migration closure, plan ready",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 682,
+    "title": "HANDOVER: 19 worktrees need retiring — six are mine and finished, five must keep their branches",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 689,
+    "title": "Two hetz worktrees hold 4 unpushed commits that exist on no remote",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 696,
+    "title": "Cloud SQL: DesignFlow production needs the #690 office/language columns — Uma owns this",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 706,
+    "title": "ACCEPTED RISK: no monitoring on PopDAM, PopCRM or PopPIM — breakage is found by a user complaining",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: documentation\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 711,
+    "title": "HANDOVER: [ALBERT] four open owner decisions on the promotion — D7 (who runs the checks) is urgent",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 718,
+    "title": "32 pre-existing plm tables still carry the unintended MAINTAIN/TRUNCATE grants — scoped out of #664, needs its own sweep",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 732,
+    "title": "HANDOVER: [ALBERT] NBCU is 58 Properties, not 57 — plus contract restrictions nobody transcribed",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: source-data\nroute: source-data-session\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 733,
+    "title": "HANDOVER: NBCU capture has three silent drop points and a mislabelled exclusion count",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: source-data\nroute: source-data-session\npriority: 450\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 734,
+    "title": "HANDOVER: write R5 down and reconcile it against SUPABASE-MIGRATION.md — the capture now makes this decidable",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: documentation\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 748,
+    "title": "WORKSTREAM: execute the DCP Vault full schema redesign plan",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 764,
+    "title": "Two dflow sequences are behind their data and will collide on the next insert (LicensingTime, properties_and_characters)",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: structural\nroute: shared-db-orchestrator\npriority: 900\ndepends_on: \nobjects:\n  - sequence dflow.licensingtime_id_seq\n  - sequence dflow.properties_and_characters_id_seq\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 768,
+    "title": "HANDOVER: [ALBERT] is DesignFlow already pointing at Supabase? An app is writing to dflow and we cannot tell which one",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 769,
+    "title": "HANDOVER: [ALBERT] was the 'R5' ruling ever actually made? It exists in no file and four plans rest on it",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: documentation\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 770,
+    "title": "HANDOVER: Cloud SQL to Supabase — the measured plan, and the id-versus-actionDate correction every version of it needs",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 771,
+    "title": "HANDOVER: run the timed cutover rehearsal — designed, not run; every window figure is currently invented",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 450\ndepends_on: 770\nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 778,
+    "title": "Orphan 'designflow' schema on production Supabase: 7 populated tables no migration created",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 810,
+    "title": "HANDOVER: [ALBERT] B5's two outstanding verification steps — the app smoke test and the non-admin acknowledgement",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 815,
+    "title": "HANDOVER: [ALBERT] three Paramount titles appear in the public repo while the doc claims none are reproduced",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: documentation\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 816,
+    "title": "HANDOVER: [ALBERT] Paramount PMT_PORTAL_GLOBAL_ASSET_COUNT blocks the data load — do not sum brand facets",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: source-data\nroute: source-data-session\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 817,
+    "title": "HANDOVER: [ALBERT] the Paramount capture is incomplete — Garfield, Invader Zim, The Garfield Movie (~8,076 assets)",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: source-data\nroute: source-data-session\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": null
+  },
+  {
+    "number": 851,
+    "title": "HANDOVER: approve and promote CRM Phase 7A, then implement Phase 7B",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 853,
+    "title": "HANDOVER: complete plm.item and style-item bridge before PopDAM orders deployment",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: 868\nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 854,
+    "title": "HANDOVER: repair and prove the Grok 4.5 runner",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 865,
+    "title": "[ALBERT] core has TWO disjoint property universes — #640 reconciliation targets the smaller one (256 rows vs 10,122)",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 868,
+    "title": "ENGINEERING BLOCKER: prove complete ColdLion item mapping before bridge repoint",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 870,
+    "title": "Guard is silent when production already rests inside a half-applied atomic batch",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 875,
+    "title": "[ALBERT] ColdLion ERP is plain HTTP — the API key crosses the wire in clear text on every call",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: security-settings\nroute: owner-only\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": "Superseded by the cleanly framed open security question in #906."
+  },
+  {
+    "number": 878,
+    "title": "HANDOVER: the DCP Vault enrichment pass has never been run — and the crawl stopped at job 23 of 34",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: source-data\nroute: source-data-session\npriority: 400\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 879,
+    "title": "HANDOVER: [ALBERT] ColdLion sends 300 properties and IS core.property — 48 unmatched, not 33",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": true,
+    "closeReason": "The later policy recorded on #539 resolves this stale count-based owner question."
+  },
+  {
+    "number": 880,
+    "title": "HANDOVER: a preview rehearsal does NOT prove a production outcome — the two have drifted BOTH ways",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 350\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 883,
+    "title": "HANDOVER: #512 app blast-radius narrowed to 2 repos, not closed — hiclaw and monitor absent from this machine",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 300\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 884,
+    "title": "HANDOVER: housekeeping deliberately left — one worktree holds unmerged work, one dirty tree would destroy a capture",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 898,
+    "title": "DELETE is now live on pim.stage and two ClickUp-history tables — review whether it should be",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: structural\nroute: shared-db-orchestrator\npriority: 600\ndepends_on: \nobjects:\n  - table pim.stage\n  - table pim.product_update\n  - table pim.product_time_entry\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 900,
+    "title": "Warner loader exists, but Warner has landed no source rows",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: source-data\nroute: source-data-session\npriority: 300\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 901,
+    "title": "HANDOVER: preview is 10 migrations behind production — rehearsals there are now materially unsound",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 700\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 903,
+    "title": "HANDOVER: [ALBERT] the division-code questions for Uma are written and ready to ask",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: application-data\nroute: application-session\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 906,
+    "title": "HANDOVER: [ALBERT] re-ask cleanly — does ColdLion have an HTTPS endpoint? (the first ask was bundled and got no real answer)",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: security-settings\nroute: owner-only\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 912,
+    "title": "WORKSTREAM: fix licensor tables - normalize licensing master data",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 933,
+    "title": "HANDOVER: reconcile core.property licensor edge against the DesignFlow mirror (5 missing, 1 conflict)",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: curated-master-data\nroute: curated-master-data-governance\npriority: 300\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 943,
+    "title": "Dispatch-collision hardening Phase B: release object refs on merge, and a staleness rule for abandoned holds",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 250\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 949,
+    "title": "MIGRATION LEDGER DRIFT — merged work may not be applied",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 900\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 974,
+    "title": "MANDATORY CLEANUP: remove temporary licensing compatibility views after every app moves",
+    "after": "```db-work-scope\nstatus: blocked\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 500\ndepends_on: 912\nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 1031,
+    "title": "ColdLion history endpoints: build the chunked historical puller (shape already documented)",
+    "after": "```db-work-scope\nstatus: owner-decision\nwork_type: source-data\nroute: source-data-session\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 1051,
+    "title": "HANDOVER: finish the restricted Codex GitHub-access repair safely",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 850\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 1073,
+    "title": "Tooling: atomic SQL plus migration-ledger apply for transaction-required migrations",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  },
+  {
+    "number": 1075,
+    "title": "Tooling: unblock exact owner decisions and prevent reviewer transport pauses",
+    "after": "```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\npriority: 600\ndepends_on: \nobjects:\n```",
+    "removeNeedsAlbert": false,
+    "closeReason": null
+  }
+]

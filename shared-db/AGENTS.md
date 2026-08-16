@@ -667,7 +667,9 @@ four rules below are non-negotiable for any database change.
 
    ````text
    ```db-work-scope
-   state: eligible
+   status: ready
+   work_type: structural
+   route: shared-db-orchestrator
    priority: 100
    depends_on:
    objects:
@@ -675,8 +677,23 @@ four rules below are non-negotiable for any database change.
    ````
    ```
 
-   Allowed states are `eligible`, `blocked`, `owner-decision`, `data-only`, and
-   `non-structural`. Exact object overlap forms a serial queue; unrelated object
+   Status, work type, and route are independent. Allowed statuses are `ready`,
+   `blocked`, and `owner-decision`. Allowed work types are `structural`,
+   `curated-master-data`, `application-data`, `source-data`, `repo-maintenance`,
+   `documentation`, and `security-settings`. There is no default route. Only
+   `ready + structural + shared-db-orchestrator` can enter a migration-author
+   lane, and it must name every exact database object. Non-structural work must
+   not claim database objects.
+
+   Outside-sourced writes into curated `core.*` Master Data use
+   `work_type: curated-master-data` and
+   `route: curated-master-data-governance`. This preserves §6.4 governance but
+   never grants a migration-author lane. Source-data review such as NBCU rights
+   classification uses `work_type: source-data` and
+   `route: source-data-session`, even while `status: owner-decision`. Changing
+   only the status after Albert answers can never change its owner route.
+
+   Exact object overlap forms a serial queue; unrelated object
    groups fill up to three author lanes. When a claim releases, rerun the queue
    audit and dispatch every reported `REFILL REQUIRED NOW` issue in the same
    turn. Never wait for Albert to ask or approve routine dispatch. Ask him only
@@ -685,7 +702,7 @@ four rules below are non-negotiable for any database change.
 
    An empty author lane is valid only when the audit has classified every open
    `db-work` issue and reports no eligible issue for it. Unclassified, malformed,
-   blocked, owner-decision, data-only, and non-structural issues never consume a
+   blocked, owner-decision, and every non-structural work type never consume a
    lane; unclassified or malformed issues also prevent a claim that no work
    exists. While an author waits for CI, review, preview, or merge, continue safe
    local work or prepare the next queued issue without creating overlapping

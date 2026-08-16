@@ -1,0 +1,487 @@
+[
+  {
+    "number": 503,
+    "title": "OWNER: four decisions left open by session 774f5010",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 505,
+    "title": "DS->DY at its source (Albert ruled: no hard-coding)",
+    "before": "```db-work-scope\nstate: data-only\npriority: 300\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 506,
+    "title": "Promote migration 20260807030000 (the Coco ruling) to production",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 508,
+    "title": "Move licensor/property off Cloud SQL, with ColdLion as the source",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 509,
+    "title": "Silent failure: the dead PLM feed reports success on every run",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 511,
+    "title": "core.character is ON DELETE CASCADE on core.property",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 512,
+    "title": "Close the app-repo blast-radius gap (popdam3 and three others)",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 514,
+    "title": "Collect the csv-export agent output left on the Desktop",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 200\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 515,
+    "title": "OWNER: how should an ownerless property be stored?",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 516,
+    "title": "OWNER: the six remaining licensor/property cutover decisions",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 518,
+    "title": "Blocker 8 mis-stated: the real writer is PATCH /api/admin/updateMerchGroup",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 519,
+    "title": "Reconcile the 9 documents the triage ruling now contradicts",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 521,
+    "title": "Which CC property row should the Disney Coco style guide point at?",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 526,
+    "title": "Record the 8 round-3 licensing answers and run the mandated validator",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 527,
+    "title": "Fix the shared-db-orchestrator skill: stale 1Password vault ID and an invalid fetch command",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 529,
+    "title": "Backlog B6: fold in the four-worktree collision evidence and re-assess the guard",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 531,
+    "title": "OWNER: trim the orchestrator skill, or leave it as it is?",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 532,
+    "title": "DesignFlow: show an item's UPCs on the item detail page (app-side half)",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 536,
+    "title": "Close the pre-link ColdLion alert-delivery gap",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 400\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 537,
+    "title": "Restart ColdLion Phase 6 preview monitoring",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 539,
+    "title": "OWNER: the 5 remaining ColdLion property-code contract questions",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 541,
+    "title": "PopDAM data quality: 8 Exorcist assets filed under the wrong licensor",
+    "before": "```db-work-scope\nstate: data-only\npriority: 300\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 542,
+    "title": "Assemble the ColdLion Step 8 approval package",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 543,
+    "title": "popdam3 worker alias cutover (different repo)",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 300\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 544,
+    "title": "PopSG PSG-5 rebuild (hold — dedicated dispatch only)",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 300\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 552,
+    "title": "ColdLion sync: the health-lane re-pin",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 553,
+    "title": "Licensor/property mappings: the 7-step import and removal sequence",
+    "before": "```db-work-scope\nstate: data-only\npriority: 450\ndepends_on: 555\nobjects:\n```"
+  },
+  {
+    "number": 554,
+    "title": "Build the DB Data Admin licensor->property curation screen",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 555,
+    "title": "Stop the three overwrite paths that violate AGENTS.md 6.4 in production",
+    "before": "```db-work-scope\nstate: blocked\npriority: 950\ndepends_on:\nobjects:\n  - function plm.import_master_data\n```"
+  },
+  {
+    "number": 557,
+    "title": "Un-park the shared checkout /worksp/shared-db and find the root cause",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 200\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 558,
+    "title": "Decide the fate of the 2 untracked GLM review files",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 559,
+    "title": "Branch protection on main: keep the required-review gap decided and documented",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 562,
+    "title": "Characters/style-guides: core.character is empty, plus a question-generator defect",
+    "before": "```db-work-scope\nstate: data-only\npriority: 350\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 565,
+    "title": "Propagate the ai-devops skill updates to every machine (this is step 5's gate)",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 583,
+    "title": "HANDOVER: Warner has no source tables and two competing unmerged PRs; ColdLion gap grew 47 to 66 with the DESPERATE sub-licensor records",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 584,
+    "title": "HANDOVER: five small verified items left deliberately (nanoid check, G6 echo, one Disney name, collision-checker blindness, two env traps)",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 588,
+    "title": "Load the Warner STARLABS source extract — pinned snapshot, and the Franchise-vs-Property trap",
+    "before": "```db-work-scope\nstate: data-only\npriority: 300\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 597,
+    "title": "HANDOVER: Product Size and Product Depth Phase 1",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 619,
+    "title": "HANDOVER: plan items B, C and D — not started, deliberately, plus new live evidence for B1",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 620,
+    "title": "HANDOVER: issue #597 production promotion and the remaining Phase 1 gaps",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 500\ndepends_on: 597\nobjects:\n```"
+  },
+  {
+    "number": 640,
+    "title": "HIGH PRIORITY: reconcile the four licensor source extracts against core.property and core.licensor",
+    "before": "```db-work-scope\nstate: data-only\npriority: 700\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 643,
+    "title": "HANDOVER: [ALBERT] the credential hole in the production approval gate",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 644,
+    "title": "HANDOVER: [ALBERT] decide can_admins_bypass on the production environment",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 645,
+    "title": "HANDOVER: [ALBERT] 208 vendor emails, 98 phones and 98 addresses published in baseline.json",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 650,
+    "title": "HANDOVER: the PopDAM folder-position licensor resolver defect",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 652,
+    "title": "HANDOVER: the plm.item nulls-not-distinct trap",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: 853, 868\nobjects:\n```"
+  },
+  {
+    "number": 655,
+    "title": "HANDOVER: two test-quality gaps in PR #635, reported not fixed",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 678,
+    "title": "HANDOVER: promote Disney/OPA to production — plan ready, customer #2 after the canary",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 679,
+    "title": "HANDOVER: promote Paramount to production and run its first real load — plan ready",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 680,
+    "title": "HANDOVER: promote NBCU to production — plan ready, but Gate 0 is whether the loader can reach plm at all",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 681,
+    "title": "HANDOVER: promote Warner/STARLABS to production — six-migration closure, plan ready",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 682,
+    "title": "HANDOVER: 19 worktrees need retiring — six are mine and finished, five must keep their branches",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 689,
+    "title": "Two hetz worktrees hold 4 unpushed commits that exist on no remote",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 696,
+    "title": "Cloud SQL: DesignFlow production needs the #690 office/language columns — Uma owns this",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 706,
+    "title": "ACCEPTED RISK: no monitoring on PopDAM, PopCRM or PopPIM — breakage is found by a user complaining",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 711,
+    "title": "HANDOVER: [ALBERT] four open owner decisions on the promotion — D7 (who runs the checks) is urgent",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 718,
+    "title": "32 pre-existing plm tables still carry the unintended MAINTAIN/TRUNCATE grants — scoped out of #664, needs its own sweep",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 732,
+    "title": "HANDOVER: [ALBERT] NBCU is 58 Properties, not 57 — plus contract restrictions nobody transcribed",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 733,
+    "title": "HANDOVER: NBCU capture has three silent drop points and a mislabelled exclusion count",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 450\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 734,
+    "title": "HANDOVER: write R5 down and reconcile it against SUPABASE-MIGRATION.md — the capture now makes this decidable",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 748,
+    "title": "WORKSTREAM: execute the DCP Vault full schema redesign plan",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 764,
+    "title": "Two dflow sequences are behind their data and will collide on the next insert (LicensingTime, properties_and_characters)",
+    "before": "```db-work-scope\nstate: eligible\npriority: 900\ndepends_on:\nobjects:\n  - sequence dflow.licensingtime_id_seq\n  - sequence dflow.properties_and_characters_id_seq\n```"
+  },
+  {
+    "number": 768,
+    "title": "HANDOVER: [ALBERT] is DesignFlow already pointing at Supabase? An app is writing to dflow and we cannot tell which one",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 769,
+    "title": "HANDOVER: [ALBERT] was the 'R5' ruling ever actually made? It exists in no file and four plans rest on it",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 770,
+    "title": "HANDOVER: Cloud SQL to Supabase — the measured plan, and the id-versus-actionDate correction every version of it needs",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 771,
+    "title": "HANDOVER: run the timed cutover rehearsal — designed, not run; every window figure is currently invented",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 450\ndepends_on: 770\nobjects:\n```"
+  },
+  {
+    "number": 778,
+    "title": "Orphan 'designflow' schema on production Supabase: 7 populated tables no migration created",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 810,
+    "title": "HANDOVER: [ALBERT] B5's two outstanding verification steps — the app smoke test and the non-admin acknowledgement",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 815,
+    "title": "HANDOVER: [ALBERT] three Paramount titles appear in the public repo while the doc claims none are reproduced",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 816,
+    "title": "HANDOVER: [ALBERT] Paramount PMT_PORTAL_GLOBAL_ASSET_COUNT blocks the data load — do not sum brand facets",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 817,
+    "title": "HANDOVER: [ALBERT] the Paramount capture is incomplete — Garfield, Invader Zim, The Garfield Movie (~8,076 assets)",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 851,
+    "title": "HANDOVER: approve and promote CRM Phase 7A, then implement Phase 7B",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 853,
+    "title": "HANDOVER: complete plm.item and style-item bridge before PopDAM orders deployment",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: 868\nobjects:\n```"
+  },
+  {
+    "number": 854,
+    "title": "HANDOVER: repair and prove the Grok 4.5 runner",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 865,
+    "title": "[ALBERT] core has TWO disjoint property universes — #640 reconciliation targets the smaller one (256 rows vs 10,122)",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 868,
+    "title": "ENGINEERING BLOCKER: prove complete ColdLion item mapping before bridge repoint",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 870,
+    "title": "Guard is silent when production already rests inside a half-applied atomic batch",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 875,
+    "title": "[ALBERT] ColdLion ERP is plain HTTP — the API key crosses the wire in clear text on every call",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 878,
+    "title": "HANDOVER: the DCP Vault enrichment pass has never been run — and the crawl stopped at job 23 of 34",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 400\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 879,
+    "title": "HANDOVER: [ALBERT] ColdLion sends 300 properties and IS core.property — 48 unmatched, not 33",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 880,
+    "title": "HANDOVER: a preview rehearsal does NOT prove a production outcome — the two have drifted BOTH ways",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 350\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 883,
+    "title": "HANDOVER: #512 app blast-radius narrowed to 2 repos, not closed — hiclaw and monitor absent from this machine",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 300\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 884,
+    "title": "HANDOVER: housekeeping deliberately left — one worktree holds unmerged work, one dirty tree would destroy a capture",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 898,
+    "title": "DELETE is now live on pim.stage and two ClickUp-history tables — review whether it should be",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 900,
+    "title": "Warner loader exists, but Warner has landed no source rows",
+    "before": "```db-work-scope\nstate: data-only\npriority: 300\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 901,
+    "title": "HANDOVER: preview is 10 migrations behind production — rehearsals there are now materially unsound",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 700\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 903,
+    "title": "HANDOVER: [ALBERT] the division-code questions for Uma are written and ready to ask",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 906,
+    "title": "HANDOVER: [ALBERT] re-ask cleanly — does ColdLion have an HTTPS endpoint? (the first ask was bundled and got no real answer)",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 912,
+    "title": "WORKSTREAM: fix licensor tables - normalize licensing master data",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 933,
+    "title": "HANDOVER: reconcile core.property licensor edge against the DesignFlow mirror (5 missing, 1 conflict)",
+    "before": "```db-work-scope\nstate: data-only\npriority: 300\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 943,
+    "title": "Dispatch-collision hardening Phase B: release object refs on merge, and a staleness rule for abandoned holds",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 250\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 949,
+    "title": "MIGRATION LEDGER DRIFT — merged work may not be applied",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 900\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 974,
+    "title": "MANDATORY CLEANUP: remove temporary licensing compatibility views after every app moves",
+    "before": "```db-work-scope\nstate: blocked\npriority: 500\ndepends_on: 912\nobjects:\n```"
+  },
+  {
+    "number": 1031,
+    "title": "ColdLion history endpoints: build the chunked historical puller (shape already documented)",
+    "before": "```db-work-scope\nstate: owner-decision\npriority: 600\ndepends_on: \nobjects:\n```"
+  },
+  {
+    "number": 1051,
+    "title": "HANDOVER: finish the restricted Codex GitHub-access repair safely",
+    "before": "```db-work-scope\nstate: non-structural\npriority: 850\ndepends_on:\nobjects:\n```"
+  },
+  {
+    "number": 1073,
+    "title": "Tooling: atomic SQL plus migration-ledger apply for transaction-required migrations",
+    "before": null
+  },
+  {
+    "number": 1075,
+    "title": "Tooling: unblock exact owner decisions and prevent reviewer transport pauses",
+    "before": null
+  }
+]
