@@ -94,6 +94,14 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         self.assertIn("environment: production", text)
         self.assertGreaterEqual(text.count("config/production-risk-policy-activation.json"), 2)
 
+    def test_historical_preview_recovery_proves_existing_ledger_without_writing(self):
+        workflow = Path(__file__).parents[1] / ".github/workflows/shared-supabase-migrations.yml"
+        text = workflow.read_text(encoding="utf-8")
+        self.assertIn("Recover proof for migrations already present on preview", text)
+        self.assertIn("HISTORICAL PREVIEW PROOF: already applied; no database write performed", text)
+        self.assertIn("REFUSED: historical preview recovery is missing ledger versions", text)
+        self.assertIn("inputs.mode == 'apply' && inputs.historical_preview_source_pr == ''", text)
+
 
 if __name__ == "__main__":
     unittest.main()

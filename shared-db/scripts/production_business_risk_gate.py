@@ -190,7 +190,10 @@ def prove_preview(
             raise RiskGateError(f"allowlisted migration {version} is absent from exact main")
         if filename.name not in dry or filename.name not in apply:
             raise RiskGateError(f"preview proof does not name exact migration {filename.name}")
-        if version in before_versions or version not in after_versions:
+        if historical:
+            if version not in before_versions or version not in after_versions:
+                raise RiskGateError(f"historical preview ledger does not prove stable prior application of {version}")
+        elif version in before_versions or version not in after_versions:
             raise RiskGateError(f"preview ledger does not prove exactly-once application of {version}")
 
 
