@@ -1,7 +1,11 @@
-# The item descriptions and generated workbooks are confidential.
-# Keep only the reusable analysis code and its business-rule README in Git.
+# Keep generated workbooks and intermediate results out of Git.
+# The owner approved publishing the two source files under data/ on 2026-08-15.
 *
 !.gitignore
 !README.md
 !*.py
 !*.mjs
+!data/
+!data/README.md
+!data/full_item_master.csv
+!data/MerchGroup_Rework.xlsx
