@@ -46,10 +46,14 @@ The complete build specification is
 - GitHub issue [`#90`](https://github.com/u2giants/popdam3/issues/90) tracks the
   complete repair.
 - The implementation plan, this handoff, and router/topic links are the only work
-  produced by this planning session. They were committed and pushed to `main` as
-  `563c802a`. No application code or production config was changed.
-- GitHub CI run `31922211794`, the shared-database guard, and the bypass guard
-  passed. Railway marked `563c802a` successful.
+  produced by this planning session. The initial plan commit is `563c802a`; the
+  verification-gotcha correction is `449da5af`. This closeout update is the
+  newest commit touching this handoff (`git log -1 --oneline --
+  HANDOFF.d/2026-08-16T0228Z-hetz-codex-ai-model-routing-plan.md` re-derives it).
+  No application code or production config was changed.
+- GitHub CI run `31922283458`, the shared-database guard, and the bypass guard
+  passed for `449da5af`. Railway also marked `449da5af` successful. The final
+  closeout commit must pass the same checks before this session reports closed.
 - The external `Supabase Preview` check failed with `Remote migration versions
   not found in local migrations directory.` The same check failed identically on
   earlier commit `c3f133b5`; this is the known split between canonical
