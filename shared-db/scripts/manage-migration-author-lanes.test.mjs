@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromPr, EXCLUSIVE_REFS, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, requireOwnedRef, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromPr, EXCLUSIVE_REFS, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
@@ -109,9 +109,13 @@ function memoryIo() {
 
 function reviewIo(){
   const io=memoryIo(), commits=new Map();let seq=0
-  io.makeOwnerCommit=(message)=>{const sha=`review-${++seq}`;commits.set(sha,{message});return sha}
+  io.makeOwnerCommit=(message)=>{const sha=(++seq).toString(16).padStart(40,'0');commits.set(sha,{message});return sha}
   io.getCommit=(sha)=>commits.get(sha)
   io.updateRef=(ref,sha)=>io.refs.set(ref,sha)
+  io.getIssue=()=>({state:'open'})
+  io.getPr=(number)=>({number:Number(number),state:'open',head:{sha:'abcdef9',ref:'codex/x'}})
+  io.getIssueComments=()=>[]
+  io.getPrReviews=()=>[]
   return io
 }
 
@@ -140,6 +144,54 @@ test('concurrent orchestrator cannot advance reviewer cursor without the mutex',
   const io=reviewIo();io.refs.set(MUTEX_REF,'other-orchestrator')
   assert.throws(()=>assignNextReviewer({issue:9,pr:109,headSha:'abcdef9'},io),/occupied/)
   assert.equal(io.refs.get(REVIEW_CURSOR_REF),undefined)
+})
+
+const failedReview={issue:9,pr:109,headSha:'abcdef9000000000000000000000000000000000'}
+function failedReviewIo(){const io=reviewIo();io.getPr=()=>({state:'open',head:{sha:failedReview.headSha}});assignNextReviewer(failedReview,io);return io}
+const replacementRequest={...failedReview,failedSequence:1,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true}
+
+test('terminal provider failure advances exactly once and retry is idempotent',()=>{
+  const io=failedReviewIo(), first=replaceFailedReviewer(replacementRequest,io), second=replaceFailedReviewer(replacementRequest,io)
+  assert.equal(first.sequence,2);assert.equal(first.reviewer,'glm-5.2');assert.deepEqual(second,first)
+  assert.equal(assignNextReviewer(failedReview,io).reviewer,'glm-5.2')
+  assert.equal(assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io).reviewer,'kimi-k3')
+})
+
+test('reviewer replacement rejects mismatched original assignment and preserves intervening rotation',()=>{
+  const io=failedReviewIo()
+  assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence:2},io),/does not match/)
+  assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io)
+  const replacement=replaceFailedReviewer(replacementRequest,io)
+  assert.equal(replacement.priorSequence,2);assert.equal(replacement.sequence,3);assert.equal(replacement.reviewer,'kimi-k3')
+})
+
+test('reviewer replacement rejects a substantive exact-head verdict',()=>{
+  const io=failedReviewIo();io.getPrReviews=()=>[{body:`REVISE ${failedReview.headSha}`}]
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/existing verdict/)
+  const stateIo=failedReviewIo();stateIo.getPrReviews=()=>[{body:'',commit_id:failedReview.headSha,state:'APPROVED'}]
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,stateIo),/existing verdict/)
+})
+
+test('reviewer replacement retry rejects mismatched failure sequence and missing evidence',()=>{
+  const io=failedReviewIo(), done=replaceFailedReviewer(replacementRequest,io)
+  assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence:2},io),/does not match/)
+  const failureRef=[...io.refs.keys()].find((ref)=>ref.startsWith('refs/db-review-failures/'));io.refs.delete(failureRef)
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/evidence is missing/)
+  assert.ok(done.replacementSha)
+})
+
+test('reviewer replacement rejects unproved or nonterminal failures',()=>{
+  const io=failedReviewIo()
+  assert.throws(()=>replaceFailedReviewer({...replacementRequest,confirmNoVerdict:false},io),/confirmation/)
+  assert.throws(()=>replaceFailedReviewer({...replacementRequest,failureCode:'reviewer_disagreed'},io),/recognized terminal/)
+})
+
+test('partial reviewer replacement failure rolls back cursor and immutable evidence',()=>{
+  const io=failedReviewIo(), assignment=io.refs.get(REVIEW_CURSOR_REF), originalCreate=io.createRef
+  io.createRef=(ref,sha)=>ref.startsWith('refs/db-review-replacements/')?false:originalCreate(ref,sha)
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/created concurrently/)
+  assert.equal(io.refs.get(REVIEW_CURSOR_REF),assignment)
+  assert.equal([...io.refs.keys()].some((ref)=>ref.startsWith('refs/db-review-failures/')),false)
 })
 
 const opts={task:'#1',owner:'agent',branch:'codex/x',worktree:'C:/w',objects:['table core.x'],leaseHours:12,requestId:'r1',mutexAttempts:1}
@@ -362,6 +414,12 @@ test('stranded atomic split-recovery mutex is recognized and safely recoverable'
   const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc');io.getCommit=()=>({message:'db-coordination claim-split-recovery request-2',committer:{date:'2026-08-14T19:55:00Z'}})
   const result=recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0},io)
   assert.equal(result.released,'4a69fbbc');assert.equal(io.refs.has(MUTEX_REF),false)
+})
+test('stranded reviewer assignment and replacement mutexes are recoverable',()=>{
+  for(const kind of ['reviewer-assignment-lock','reviewer-replacement-lock']){
+    const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc');io.getCommit=()=>({message:`db-coordination ${kind} issue=1 pr=2 head=abcdef0`,committer:{date:'2026-08-14T19:55:00Z'}})
+    assert.equal(recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0},io).released,'4a69fbbc')
+  }
 })
 
 function splitIo(overrides={}) {
