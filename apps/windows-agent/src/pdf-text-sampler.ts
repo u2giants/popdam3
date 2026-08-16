@@ -84,7 +84,8 @@ export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promi
 
   // ── Path 1: OpenRouter (preferred when key is configured) ───────────────
   if (aiConfig.openRouterApiKey) {
-    const model = aiConfig.aiTaskModels?.pdf_extraction ?? "google/gemini-2.0-flash-001";
+    const model = aiConfig.aiTaskModels?.pdf_extraction;
+    if (!model) throw new Error("PDF AI configuration has an OpenRouter key but no pdf_extraction model");
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -109,27 +110,30 @@ export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promi
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = await res.json() as any;
-    return ((data?.choices?.[0]?.message?.content as string) ?? "").trim();
+    const choice = data?.choices?.[0];
+    if (choice?.message?.refusal || choice?.finish_reason === "content_filter") throw new Error("OpenRouter refused PDF transcription");
+    if (!choice?.message || typeof choice.message.content !== "string") throw new Error("OpenRouter returned a malformed PDF transcription response");
+    return choice.message.content.trim();
   }
 
   // ── Path 2: Legacy direct API (backward compat when no OpenRouter key) ──
   const modelId = aiConfig.pdf_extraction?.ai_vision_model_id;
-  if (!modelId) return "";
+  if (!modelId) throw new Error("No usable PDF AI provider is configured");
 
   const modelDef = aiConfig.models.find((m) => m.id === modelId);
   if (!modelDef) {
     logger.warn("PDF text sample: ai vision model not found in catalog", { modelId });
-    return "";
+    throw new Error(`PDF AI model ${modelId} was not found in the catalog`);
   }
   if (!modelDef.capabilities.includes("vision")) {
     logger.warn("PDF text sample: selected model has no vision capability", { modelId });
-    return "";
+    throw new Error(`PDF AI model ${modelId} does not support vision`);
   }
 
   if (modelDef.provider === "google") {
     if (!aiConfig.googleApiKey) {
       logger.warn("PDF text sample: GOOGLE_AI_API_KEY not configured");
-      return "";
+      throw new Error("GOOGLE_AI_API_KEY is not configured");
     }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelDef.apiModel}:generateContent?key=${aiConfig.googleApiKey}`;
     const res = await fetch(url, {
@@ -157,7 +161,7 @@ export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promi
   } else if (modelDef.provider === "anthropic") {
     if (!aiConfig.anthropicApiKey) {
       logger.warn("PDF text sample: ANTHROPIC_API_KEY not configured");
-      return "";
+      throw new Error("ANTHROPIC_API_KEY is not configured");
     }
     const AnthropicLib = tryRequire("@anthropic-ai/sdk");
     if (!AnthropicLib) throw new Error("@anthropic-ai/sdk not installed");
@@ -180,7 +184,7 @@ export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promi
   }
 
   logger.warn("PDF text sample: unsupported ai vision provider", { provider: modelDef.provider });
-  return "";
+  throw new Error(`Unsupported PDF AI provider: ${modelDef.provider}`);
 }
 
 // ── Progress reporter (fire-and-forget) ──────────────────────────────────────

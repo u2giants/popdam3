@@ -39,6 +39,8 @@ export interface AiConfig {
   pdf_extraction: { ai_vision_model_id: string } | null;
   googleApiKey: string;
   anthropicApiKey: string;
+  openRouterApiKey?: string;
+  aiTaskModels?: Record<string, string>;
 }
 
 /** Maximum PDF file size to load into memory (100 MB). Larger files are skipped. */
@@ -70,26 +72,41 @@ interface FileProgressEntry {
 
 const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
 
-async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
+export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
+  const base64 = pngBuffer.toString("base64");
+  if (aiConfig.openRouterApiKey) {
+    const model = aiConfig.aiTaskModels?.pdf_extraction;
+    if (!model) throw new Error("PDF AI configuration has an OpenRouter key but no pdf_extraction model");
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST", headers: { Authorization: `Bearer ${aiConfig.openRouterApiKey}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(60_000), body: JSON.stringify({ model, messages: [{ role: "user", content: [
+        { type: "image_url", image_url: { url: `data:image/png;base64,${base64}` } }, { type: "text", text: PDF_EXTRACTION_PROMPT },
+      ] }] }),
+    });
+    if (!res.ok) throw new Error(`OpenRouter API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const data = await res.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; refusal?: string } }> };
+    const choice = data.choices?.[0];
+    if (choice?.message?.refusal || choice?.finish_reason === "content_filter") throw new Error("OpenRouter refused PDF transcription");
+    if (!choice?.message || typeof choice.message.content !== "string") throw new Error("OpenRouter returned a malformed PDF transcription response");
+    return choice.message.content.trim();
+  }
   const modelId = aiConfig.pdf_extraction?.ai_vision_model_id;
-  if (!modelId) return "";
+  if (!modelId) throw new Error("No usable PDF AI provider is configured");
 
   const modelDef = aiConfig.models.find((m) => m.id === modelId);
   if (!modelDef) {
     logger.warn("PDF text sample: ai vision model not found in catalog", { modelId });
-    return "";
+    throw new Error(`PDF AI model ${modelId} was not found in the catalog`);
   }
   if (!modelDef.capabilities.includes("vision")) {
     logger.warn("PDF text sample: selected model has no vision capability", { modelId });
-    return "";
+    throw new Error(`PDF AI model ${modelId} does not support vision`);
   }
-
-  const base64 = pngBuffer.toString("base64");
 
   if (modelDef.provider === "google") {
     if (!aiConfig.googleApiKey) {
       logger.warn("PDF text sample: GOOGLE_AI_API_KEY not configured");
-      return "";
+      throw new Error("GOOGLE_AI_API_KEY is not configured");
     }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelDef.apiModel}:generateContent?key=${aiConfig.googleApiKey}`;
     const res = await fetch(url, {
@@ -117,7 +134,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
   } else if (modelDef.provider === "anthropic") {
     if (!aiConfig.anthropicApiKey) {
       logger.warn("PDF text sample: ANTHROPIC_API_KEY not configured");
-      return "";
+      throw new Error("ANTHROPIC_API_KEY is not configured");
     }
     const anthropic = new Anthropic({ apiKey: aiConfig.anthropicApiKey });
     const aiResponse = await anthropic.messages.create({
@@ -136,7 +153,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
   }
 
   logger.warn("PDF text sample: unsupported ai vision provider", { provider: modelDef.provider });
-  return "";
+  throw new Error(`Unsupported PDF AI provider: ${modelDef.provider}`);
 }
 
 // ── Progress reporter (fire-and-forget) ──────────────────────────────────────

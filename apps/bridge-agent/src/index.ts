@@ -168,6 +168,8 @@ let cloudScanMinDate: string | null = null;
 let cloudStyleGuideRoots: string[] = [];
 let cloudAnthropicApiKey = "";
 let cloudGoogleAiApiKey = "";
+let cloudOpenRouterApiKey = "";
+let cloudAiTaskModels: Record<string, string> = {};
 let cloudAiModels: AiModelDef[] = [];
 let cloudPdfExtractionConfig: { ai_vision_model_id: string } | null = null;
 
@@ -288,6 +290,8 @@ async function sendHeartbeat() {
         pdf_extraction: cloudPdfExtractionConfig,
         googleApiKey: cloudGoogleAiApiKey,
         anthropicApiKey: cloudAnthropicApiKey,
+        openRouterApiKey: cloudOpenRouterApiKey,
+        aiTaskModels: cloudAiTaskModels,
       }).finally(() => {
         isSamplingPdfText = false;
       });
@@ -322,6 +326,8 @@ async function sendHeartbeat() {
         pdf_extraction: cloudPdfExtractionConfig,
         googleApiKey: cloudGoogleAiApiKey,
         anthropicApiKey: cloudAnthropicApiKey,
+        openRouterApiKey: cloudOpenRouterApiKey,
+        aiTaskModels: cloudAiTaskModels,
       }).catch((e) =>
         logger.error("PDF backfill error", { error: (e as Error).message })
       ).finally(() => {
@@ -415,6 +421,8 @@ interface CloudConfig {
   ai?: {
     anthropic_api_key?: string;
     google_ai_api_key?: string;
+    openrouter_api_key?: string;
+    ai_task_models?: Record<string, string>;
     models?: Array<{ id: string; provider: string; apiModel: string; capabilities: string[] }>;
     pdf_extraction?: { ai_vision_model_id?: string } | null;
   };
@@ -636,6 +644,8 @@ function applyCloudConfig(cfg: CloudConfig) {
   if (cfg.ai) {
     if (cfg.ai.anthropic_api_key) cloudAnthropicApiKey = cfg.ai.anthropic_api_key;
     if (cfg.ai.google_ai_api_key) cloudGoogleAiApiKey = cfg.ai.google_ai_api_key;
+    if (cfg.ai.openrouter_api_key) cloudOpenRouterApiKey = cfg.ai.openrouter_api_key;
+    if (cfg.ai.ai_task_models) cloudAiTaskModels = cfg.ai.ai_task_models;
     if (Array.isArray(cfg.ai.models) && cfg.ai.models.length > 0) cloudAiModels = cfg.ai.models as AiModelDef[];
     if (cfg.ai.pdf_extraction !== undefined) {
       cloudPdfExtractionConfig = (cfg.ai.pdf_extraction as { ai_vision_model_id: string } | null) ?? null;

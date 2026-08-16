@@ -1,5 +1,19 @@
 # AI Model Usage Rules
 
+## Capability-driven structured output
+
+Image tagging, Vision Bake-Off, and ERP classification share one bounded output
+engine. It reads the account-filtered OpenRouter catalog, caches it for ten
+minutes, and merges `AI_MODEL_CAPABILITY_OVERRIDES`. Strict schema is preferred
+when advertised, followed by JSON object and compatible tool modes. Each method
+is attempted at most once, with one final JSON repair attempt.
+
+Malformed JSON, a missing tool call, or business-validation failure may move to
+the next supported method. Authentication, authorization, billing, exhausted
+rate limits/server retries, invalid media, and content-policy refusal stop the
+cascade. Do not add model-name matching code; record unpublished provider facts
+in the override setting.
+
 This document covers two distinct things: (1) which AI models are used inside the PopDAM system, and (2) execution rules for AI coding assistants working on this codebase.
 
 > **Active reliability plan:** [`../plan_ai_model_interaction_reliability.md`](../plan_ai_model_interaction_reliability.md)

@@ -198,8 +198,9 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
           image,
           "Analyze this design asset image and return structured tags matching the tag_asset schema.",
         );
-        const { tagData, outputMode, providerInfo, retryCount } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 1500, providerOverride);
+        const { tagData, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 1500, providerOverride);
         logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount, sameModelRetry });
+        if (attempts.length > 1) logger.warn("ai-tag: model needed structured-output fallback", { assetId, model, attempts });
 
         const updates: Record<string, unknown> = {
           status: "tagged",

@@ -264,23 +264,15 @@ export default function AiTagBakeoffTab() {
     queryKey: ["openrouter-vision-models-bakeoff", savedOpenRouterKey],
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
-      const res = await fetch("https://openrouter.ai/api/v1/models/user", {
-        headers: { Authorization: `Bearer ${savedOpenRouterKey}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      const data = await res.json();
-      const items: OpenRouterModelResponse[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-          ? data.data
-          : [];
+      const data = await call("get-openrouter-vision-models");
+      const items = (data?.models ?? []) as Array<OpenRouterModelResponse & { supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; input_modalities?: string[] }>;
       return items.map((m) => ({
         id: m.id,
         name: m.name ?? m.id,
-        supports_tools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
-        supports_structured_outputs: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("structured_outputs"),
-        supports_response_format: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("response_format"),
-        architecture: m.architecture,
+        supports_tools: m.supports_tools,
+        supports_structured_outputs: m.supports_structured_outputs,
+        supports_response_format: m.supports_response_format,
+        architecture: { input_modalities: m.input_modalities ?? m.architecture?.input_modalities },
         pricing: m.pricing,
       }));
     },

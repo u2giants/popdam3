@@ -187,8 +187,15 @@ const MODEL_ROUTING_OVERRIDES: Record<string, NonNullable<ChatCompletionRequest[
 };
 
 /** The bare "author/slug" model id, stripped of any ":variant" suffix. */
-function baseModelId(model: string): string {
+export function baseModelId(model: string): string {
   return model.split(":")[0].trim();
+}
+
+export function isTerminalOpenRouterError(error: unknown): boolean {
+  if (!(error instanceof OpenRouterError)) return false;
+  const body = error.body.toLowerCase();
+  return error.status === 401 || error.status === 403 || error.status === 429 || error.status >= 500 ||
+    /billing|credit|payment|invalid (?:image|media)|content[_ -]?policy|safety|moderation|blocked|refusal/.test(body);
 }
 
 export function isToolChoiceCompatibilityError(status: number, body: string): boolean {

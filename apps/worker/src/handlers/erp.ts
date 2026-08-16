@@ -9,7 +9,9 @@
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { chatCompletion, tool, type ChatMessage } from "../openrouter.js";
+import type { ChatMessage } from "../openrouter.js";
+import { getRuntimeModelCapabilities } from "../model-capabilities.js";
+import { executeStructuredOutput } from "../structured-output.js";
 import type { BatchResult, OpState } from "../types.js";
 
 const DEFAULT_CLASSIFICATION_MODEL = "anthropic/claude-3.5-haiku";
@@ -319,6 +321,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
 
   let classified = 0;
   let skippedUnclassifiable = 0;
+  let failed = 0;
 
   for (const item of candidates) {
     if (isUnclassifiable(item)) {
@@ -375,10 +378,7 @@ Product to classify:
 
 Use the provided tool to return your classification.`;
 
-      const classifyTool = tool(
-        "classify_product",
-        "Classify a product into one of 7 categories",
-        {
+      const classificationSchema = {
           type: "object",
           properties: {
             category: { type: "string", enum: CATEGORIES },
@@ -387,24 +387,28 @@ Use the provided tool to return your classification.`;
           },
           required: ["category", "confidence", "rationale"],
           additionalProperties: false,
-        },
-      );
+        };
 
       const messages: ChatMessage[] = [
         { role: "system", content: "You are a product classification expert for a home décor company. Classify each product into exactly one category." },
         { role: "user", content: prompt },
       ];
 
-      const aiResult = await chatCompletion(apiKey, {
-        model: classificationModel,
-        messages,
-        max_tokens: 1024,
-        tools: [classifyTool],
-        tool_choice: { type: "function", function: { name: "classify_product" } },
+      const capabilities = await getRuntimeModelCapabilities(apiKey, classificationModel);
+      const aiResult = await executeStructuredOutput({
+        apiKey, model: classificationModel, messages, maxTokens: 1024,
+        schemaName: "classify_product", schema: classificationSchema, capabilities,
+        validate(value) {
+          const category = value.category;
+          const confidence = value.confidence;
+          const rationale = value.rationale;
+          if (typeof category !== "string" || !CATEGORIES.includes(category)) throw new Error("category is not recognized");
+          if (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error("confidence must be between 0 and 1");
+          if (typeof rationale !== "string" || !rationale.trim()) throw new Error("rationale is required");
+          return { category, confidence, rationale };
+        },
       });
-
-      const parsed = aiResult.toolCalls?.[0]?.arguments as { category: string; confidence: number; rationale: string } | undefined;
-      if (!parsed || !CATEGORIES.includes(parsed.category)) continue;
+      const parsed = aiResult.value;
 
       const status = parsed.confidence >= 0.65 ? "auto_applied" : "pending";
 
@@ -423,6 +427,7 @@ Use the provided tool to return your classification.`;
 
       classified++;
     } catch (e) {
+      failed++;
       logger.warn("erp-classify: classification error", { external_id: item.external_id, error: String(e) });
     }
   }
@@ -431,8 +436,9 @@ Use the provided tool to return your classification.`;
     ok: true,
     done: exhausted && candidates.length < batchSize,
     classified,
+    failed,
     skipped_unclassifiable: skippedUnclassifiable,
-    total: classified + skippedUnclassifiable,
+    total: classified + skippedUnclassifiable + failed,
     scanned,
     nextOffset: scanOffset,
   };

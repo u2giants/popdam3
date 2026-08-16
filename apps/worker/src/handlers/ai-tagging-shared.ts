@@ -1,6 +1,8 @@
 import { config } from "../config.js";
 import { db } from "../supabase.js";
-import { chatCompletion, imageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
+import { imageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
+import { getRuntimeModelCapabilities } from "../model-capabilities.js";
+import { executeStructuredOutput, type OutputAttempt } from "../structured-output.js";
 import {
   TAG_ASSET_SCHEMA,
   CONTENT_TYPE_VALUES,
@@ -42,9 +44,10 @@ export type TagAssetCompletionResult = {
     completion_tokens?: number;
     total_tokens?: number;
   };
-  outputMode: "tool" | "json_schema" | "json_object" | "tool_content_json";
+  outputMode: "json_schema" | "json_object" | "tool_named" | "tool_required" | "tool_auto" | "json_repair";
   providerInfo?: OpenRouterProviderInfo;
   retryCount: number;
+  attempts: OutputAttempt[];
 };
 
 function parseJsonObject(content: string | undefined): Record<string, unknown> | null {
@@ -71,33 +74,6 @@ function parseJsonObject(content: string | undefined): Record<string, unknown> |
   return null;
 }
 
-// Model families that don't support OpenAI-style function/tool calling on
-// OpenRouter. For these we skip the tool_choice leg entirely and go straight
-// to structured JSON output — attempting the tool leg just wastes a full
-// request (with its own timeout budget) that always fails over. Match against
-// the bare model name so both "gemma-4-31b-it" and "google/gemma-4-31b-it"
-// resolve the same way. Scout is image-capable, but some routed endpoints reject
-// the image + function-calling combination; structured JSON keeps the production
-// contract without forcing that brittle leg.
-// minimax-m3: its first-party OpenRouter endpoint (where we pin it, see
-// MODEL_ROUTING_OVERRIDES in openrouter.ts) supports response_format/JSON schema
-// but NOT function-calling; the one tool-capable endpoint returns truncated
-// tool JSON. Skip the tool leg and use the structured-JSON path directly.
-const NON_TOOL_CALLING_MODEL_PATTERNS = [/(^|\/)gemma/i, /(^|\/)llama-4-scout/i, /(^|\/)minimax-m3/i];
-
-// Muse Spark advertises tool support, but its current OpenRouter provider only
-// accepts tool_choice="auto". Auto does not guarantee a tag_asset call, so use
-// the model's native JSON-schema output as the primary path instead.
-const JSON_SCHEMA_FIRST_MODEL_PATTERNS = [/(^|\/)muse-spark(?:-|$)/i];
-
-export function modelSupportsTools(model: string): boolean {
-  return !NON_TOOL_CALLING_MODEL_PATTERNS.some((re) => re.test(model));
-}
-
-export function prefersJsonSchemaOutput(model: string): boolean {
-  return JSON_SCHEMA_FIRST_MODEL_PATTERNS.some((re) => re.test(model));
-}
-
 function isToolCapabilityError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
   return (
@@ -110,7 +86,7 @@ function isToolCapabilityError(error: unknown): boolean {
   );
 }
 
-function validateTagAssetData(value: Record<string, unknown>, mode: TagAssetCompletionResult["outputMode"]) {
+function validateTagAssetData(value: Record<string, unknown>, mode: string) {
   const errors: string[] = [];
   if (!Array.isArray(value.tags)) errors.push("tags must be an array");
   if (typeof value.ai_description !== "string" || value.ai_description.trim().length === 0) {
@@ -135,7 +111,7 @@ function validatedTagResult(
   retryCount: number,
 ): TagAssetCompletionResult {
   validateTagAssetData(tagData, outputMode);
-  return { tagData, usage, outputMode, providerInfo, retryCount };
+  return { tagData, usage, outputMode, providerInfo, retryCount, attempts: [] };
 }
 
 function withJsonObjectInstruction(messages: ChatMessage[]): ChatMessage[] {
@@ -332,101 +308,13 @@ export async function callTagAssetModel(
   maxTokens = 1500,
   provider?: ChatCompletionRequest["provider"],
 ): Promise<TagAssetCompletionResult> {
-  let toolError: unknown = null;
-
-  if (prefersJsonSchemaOutput(model)) {
-    toolError = new Error(`Skipped tool call: ${model} uses JSON schema before optional tool calling`);
-  } else if (modelSupportsTools(model)) {
-    try {
-      const result = await chatCompletion(apiKey, {
-        model,
-        messages,
-        tools: [TAG_ASSET_TOOL],
-        tool_choice: "required",
-        max_tokens: maxTokens,
-        provider,
-      }, timeoutMs);
-
-      const toolData = result.toolCalls?.[0]?.arguments;
-      if (toolData) return validatedTagResult(toolData, result.usage, "tool", result.providerInfo, 0);
-
-      const contentData = parseJsonObject(result.content);
-      if (contentData) return validatedTagResult(contentData, result.usage, "tool_content_json", result.providerInfo, 0);
-
-      toolError = new Error("Model returned no structured tags from tool request");
-    } catch (e) {
-      toolError = e;
-    }
-
-    if (toolError && !isToolCapabilityError(toolError)) {
-      throw toolError;
-    }
-  } else {
-    toolError = new Error(`Skipped tool call: ${model} does not support tool calling`);
-  }
-
-  try {
-    const result = await chatCompletion(apiKey, {
-      model,
-      messages: withJsonObjectInstruction(messages),
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "tag_asset",
-          strict: prefersJsonSchemaOutput(model),
-          schema: TAG_ASSET_SCHEMA,
-        },
-      },
-      max_tokens: maxTokens,
-      provider,
-    }, timeoutMs);
-
-    const contentData = parseJsonObject(result.content);
-    if (!contentData) throw new Error("Model returned no parsable JSON for tag_asset schema");
-    return validatedTagResult(contentData, result.usage, "json_schema", result.providerInfo, 0);
-  } catch (schemaError) {
-    try {
-      const result = await chatCompletion(apiKey, {
-        model,
-        messages: withJsonObjectInstruction(messages),
-        response_format: { type: "json_object" },
-        max_tokens: maxTokens,
-        provider,
-      }, timeoutMs);
-
-      const contentData = parseJsonObject(result.content);
-      if (!contentData) throw new Error("Model returned no parsable JSON object");
-      return validatedTagResult(contentData, result.usage, "json_object", result.providerInfo, 0);
-    } catch (jsonObjectError) {
-      try {
-        const repairMessage = jsonObjectError instanceof Error ? jsonObjectError.message : String(jsonObjectError);
-        const result = await chatCompletion(apiKey, {
-          model,
-          messages: withJsonRepairInstruction(withJsonObjectInstruction(messages), repairMessage),
-          response_format: { type: "json_object" },
-          max_tokens: maxTokens,
-          temperature: 0,
-          provider,
-        }, timeoutMs);
-
-        const contentData = parseJsonObject(result.content);
-        if (!contentData) throw new Error("Model returned no parsable JSON object after repair retry");
-        return validatedTagResult(contentData, result.usage, "json_object", result.providerInfo, 1);
-      } catch (repairError) {
-        const first = toolError instanceof Error ? toolError.message : String(toolError);
-        const second = schemaError instanceof Error ? schemaError.message : String(schemaError);
-        const third = jsonObjectError instanceof Error ? jsonObjectError.message : String(jsonObjectError);
-        const fourth = repairError instanceof Error ? repairError.message : String(repairError);
-        const failure = new Error(`Structured tag output failed. tool_call: ${first}; json_schema: ${second}; json_object: ${third}; repair: ${fourth}`);
-        (failure as Error & { providerInfo?: OpenRouterProviderInfo }).providerInfo =
-          providerInfoFromError(repairError) ??
-          providerInfoFromError(jsonObjectError) ??
-          providerInfoFromError(schemaError) ??
-          providerInfoFromError(toolError);
-        throw failure;
-      }
-    }
-  }
+  const capabilities = await getRuntimeModelCapabilities(apiKey, model);
+  const result = await executeStructuredOutput({
+    apiKey, model, messages, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA,
+    capabilities, timeoutMs, maxTokens, provider,
+    validate(value) { validateTagAssetData(value, "structured"); return value; },
+  });
+  return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };
 }
 
 export function getAiTaggingApiKey() {

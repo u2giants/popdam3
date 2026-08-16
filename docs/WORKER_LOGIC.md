@@ -1,5 +1,15 @@
 # WORKER LOGIC (Bridge Agent on Synology) — The “Muscle” Contract
 
+## Reliable AI output
+
+The cloud worker plans only structured-output methods a model advertises. Image
+tagging and Vision Bake-Off share the same adapter. ERP uses the same executor
+with its own validation and reports `classified`, `failed`, and
+`skipped_unclassifiable` separately. Bake-off stores sanitized attempts in
+`raw_output._popdam_output_attempts`. Both PDF agents prefer the configured
+OpenRouter `pdf_extraction` model, then use direct Google/Anthropic only when
+OpenRouter is unavailable.
+
 This document defines what the Synology Bridge Agent MUST do and MUST NOT do.
 Primary goal: keep the NAS workload bounded and prevent silent failures.
 

@@ -1,5 +1,17 @@
 # Configuration Reference
 
+## AI model capability overrides
+
+`admin_config.AI_MODEL_CAPABILITY_OVERRIDES` is optional JSON keyed by the bare
+OpenRouter model ID. It may set `tools`, `tool_choice`, `tool_choice_modes`,
+`structured_outputs`, `json_object`, `image_input`, and an ordered `prefer`
+list. It contains no credentials. The worker refreshes it once per minute and
+merges it over the cached live model catalog.
+
+```json
+{"meta/muse-spark-1.2":{"tool_choice_modes":["auto"],"prefer":["json_schema","json_object","tool_auto"]}}
+```
+
 ## Frontend — Build-Time Config
 
 The frontend has **no runtime env vars**. All configuration is baked into the bundle at build time.

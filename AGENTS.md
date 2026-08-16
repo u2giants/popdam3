@@ -180,6 +180,15 @@ Changing a model in one place does not change it in others. Each consumer reads 
 
 ### Image Tagging / Vision Bake-Off contract
 
+All structured AI work uses the capability planner in
+`apps/worker/src/model-capabilities.ts` and bounded executor in
+`apps/worker/src/structured-output.ts`. Runtime routing comes from OpenRouter's
+account catalog plus `admin_config.AI_MODEL_CAPABILITY_OVERRIDES`, never a new
+model-name regular expression. Malformed output advances to the next supported
+method; authentication, billing, exhausted rate limits, invalid media, and
+content-policy failures stop immediately. ERP counts every attempted item as
+classified, failed, or unclassifiable.
+
 Production Image Tagging and the Vision Bake-Off intentionally use the same
 worker path: `apps/worker/src/handlers/ai-tagging-shared.ts`. The bake-off is a
 production-behavior evaluator, not a stricter tool-calling-only test. A model is

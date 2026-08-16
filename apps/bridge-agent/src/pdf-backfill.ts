@@ -21,61 +21,12 @@ import { uploadThumbnail, uploadPdfPage } from "./uploader.js";
 import * as mupdf from "mupdf";
 import { createWorker } from "tesseract.js";
 import Anthropic from "@anthropic-ai/sdk";
-import type { AiConfig } from "./pdf-text-sampler.js";
+import { callAiVision, type AiConfig } from "./pdf-text-sampler.js";
 import { isAiWithoutPdfCompat } from "./thumbnailer.js";
 
 const PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
 const THUMBNAIL_WIDTH = 800;
 const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
-
-// ── AI vision (mirrors pdf-text-sampler.ts) ───────────────────────────────────
-
-async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
-  const modelId = aiConfig.pdf_extraction?.ai_vision_model_id;
-  if (!modelId) return "";
-
-  const modelDef = aiConfig.models.find((m) => m.id === modelId);
-  if (!modelDef || !modelDef.capabilities.includes("vision")) return "";
-
-  const base64 = pngBuffer.toString("base64");
-
-  if (modelDef.provider === "google") {
-    if (!aiConfig.googleApiKey) return "";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelDef.apiModel}:generateContent?key=${aiConfig.googleApiKey}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(60_000),
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [
-          { inlineData: { mimeType: "image/png", data: base64 } },
-          { text: PDF_EXTRACTION_PROMPT },
-        ]}],
-      }),
-    });
-    if (!res.ok) throw new Error(`Gemini API ${res.status}`);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = await res.json() as any;
-    return (data?.candidates?.[0]?.content?.parts?.[0]?.text as string || "").trim();
-  }
-
-  if (modelDef.provider === "anthropic") {
-    if (!aiConfig.anthropicApiKey) return "";
-    const anthropic = new Anthropic({ apiKey: aiConfig.anthropicApiKey });
-    const aiResponse = await anthropic.messages.create({
-      model: modelDef.apiModel,
-      max_tokens: 2048,
-      messages: [{ role: "user", content: [
-        { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
-        { type: "text", text: PDF_EXTRACTION_PROMPT },
-      ]}],
-    });
-    const first = aiResponse.content[0];
-    return (first.type === "text" ? first.text : "").trim();
-  }
-
-  return "";
-}
 
 // ── Process a single PDF ──────────────────────────────────────────────────────
 

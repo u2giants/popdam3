@@ -861,13 +861,13 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
 
 async function handleGetOpenrouterVisionModels() {
   const db = serviceClient();
-  const { data: keyRow } = await db
+  const { data: configRows } = await db
     .from("admin_config")
-    .select("value")
-    .eq("key", "OPENROUTER_API_KEY")
-    .maybeSingle();
+    .select("key,value")
+    .in("key", ["OPENROUTER_API_KEY", "AI_MODEL_CAPABILITY_OVERRIDES"]);
 
-  const apiKey = (keyRow?.value as string | null) ?? null;
+  const apiKey = (configRows?.find((row) => row.key === "OPENROUTER_API_KEY")?.value as string | null) ?? null;
+  const overrides = (configRows?.find((row) => row.key === "AI_MODEL_CAPABILITY_OVERRIDES")?.value as Record<string, Record<string, unknown>> | null) ?? {};
   if (!apiKey) return err("OPENROUTER_API_KEY not configured in admin_config", 400);
 
   const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
@@ -877,17 +877,27 @@ async function handleGetOpenrouterVisionModels() {
 
   const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
   const items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
-  const models = items.filter((m) => {
+  const models = items.map((m) => {
+    const id = m.id as string;
+    const params = Array.isArray(m.supported_parameters) ? m.supported_parameters as string[] : [];
     const arch = m.architecture as Record<string, unknown> | undefined;
-    const modalities = arch?.input_modalities as string[] | undefined;
-    return Array.isArray(modalities) && modalities.includes("image");
-  }).map((m) => ({
-    id: m.id as string,
+    const inputModalities = Array.isArray(arch?.input_modalities) ? arch.input_modalities as string[] : [];
+    const override = overrides[id] ?? null;
+    return ({
+    id,
     name: (m.name as string | null) ?? (m.id as string),
     context_length: m.context_length as number | null,
-    supports_tools: Array.isArray(m.supported_parameters) && (m.supported_parameters as string[]).includes("tools"),
+    input_modalities: inputModalities,
+    image_input: inputModalities.length ? inputModalities.includes("image") : null,
+    supports_tools: override?.tools ?? params.includes("tools"),
+    supports_tool_choice: override?.tool_choice ?? params.includes("tool_choice"),
+    tool_choice_modes: override?.tool_choice_modes ?? (params.includes("tool_choice") ? ["named", "required", "auto"] : []),
+    supports_structured_outputs: override?.structured_outputs ?? params.includes("structured_outputs"),
+    supports_response_format: override?.json_object ?? params.includes("response_format"),
+    capability_source: override ? "override" : "live",
+    applied_override: override,
     pricing: m.pricing as Record<string, unknown> | null,
-  }));
+  }); });
 
   return json({ ok: true, models });
 }

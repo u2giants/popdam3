@@ -477,7 +477,7 @@ WHAT THIS TASK DOES
 Classifies a home-décor product into exactly ONE of a small, fixed set of categories (Wall, Tabletop, Clock, Storage, Workspace, Floor, Garden, Other). Closed-vocabulary, single-label, TEXT-ONLY (no image). It runs only as a fallback for records that lack a reliable deterministic category mapping, so the model is a backstop for the ambiguous long tail, not the primary categorizer. Obvious-junk descriptions are filtered out in code before the model is ever called, so the model only sees plausible, real product descriptions.
 
 HOW THE CODE INVOKES THE MODEL
-Through OpenRouter, single-turn, text-only, with a forced function call (classify_product). The model MUST reliably produce a valid forced tool/function call with a typed result — there is no JSON-mode fallback ladder here as there is for image tagging, so weak or flaky function calling directly breaks the pipeline.
+Through OpenRouter, single-turn and text-only. The worker chooses strict schema, JSON object, or a compatible classify_product tool call from the model's live capability profile. Invalid output is recorded as a failed item instead of being silently skipped.
 
 WHAT IS FED TO THE MODEL
 A system role framing it as a product-classification expert, then a prompt containing: the definition of each category, a set of hard rules, a list of explicit "correction examples" pairing a description with its correct category, and finally the item to classify — its style number, its text description, and a blob of raw ERP attribute fields. Everything the model reasons from is text and structured metadata.
@@ -629,25 +629,17 @@ export function AiModelsConfigSection() {
     queryKey: ["openrouter-models", savedOpenRouterKey],
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
-      const res = await fetch("https://openrouter.ai/api/v1/models/user", {
-        headers: { Authorization: `Bearer ${savedOpenRouterKey}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      const data = await res.json();
-      const items: Array<{ id: string; name?: string; supported_parameters?: string[]; architecture?: { input_modalities?: string[] }; pricing?: OpenRouterPricing }> = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-          ? data.data
-          : [];
+      const data = await call("get-openrouter-vision-models");
+      const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
       return items
         .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing))
         .map((m) => ({
           id: m.id,
           name: m.name ?? m.id,
-          supportsTools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
-          supportsStructuredOutputs: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("structured_outputs"),
-          supportsResponseFormat: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("response_format"),
-          inputModalities: Array.isArray(m.architecture?.input_modalities) ? m.architecture.input_modalities : [],
+          supportsTools: m.supports_tools === true,
+          supportsStructuredOutputs: m.supports_structured_outputs === true,
+          supportsResponseFormat: m.supports_response_format === true,
+          inputModalities: m.input_modalities ?? [],
           pricing: m.pricing,
         }))
         .sort((a, b) => a.id.localeCompare(b.id));

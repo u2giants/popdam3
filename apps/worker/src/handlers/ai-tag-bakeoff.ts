@@ -349,15 +349,15 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
       image,
       "Analyze this design asset image and return structured tags matching the tag_asset schema.",
     );
-    const { tagData: output, usage, outputMode, providerInfo, retryCount } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 1500);
+    const { tagData: output, usage, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 1500);
 
     const tags = normalizeTags(output.tags);
     const { characterIds, propertyId, debug } = await normalizeModelTaxonomy(asset, output, tags);
     const { characterNames, propertyName } = await resolveNames(characterIds, propertyId);
     const costUsd = computeCostUsd(usage, pricing);
     const rawOutput = Object.keys(debug).length > 0
-      ? { ...output, _popdam_debug: debug, _popdam_output_mode: outputMode, _popdam_provider: providerInfo, _popdam_retry_count: retryCount, _popdam_image_rendition: rendition }
-      : { ...output, _popdam_output_mode: outputMode, _popdam_provider: providerInfo, _popdam_retry_count: retryCount, _popdam_image_rendition: rendition };
+      ? { ...output, _popdam_debug: debug, _popdam_output_mode: outputMode, _popdam_output_attempts: attempts, _popdam_provider: providerInfo, _popdam_retry_count: retryCount, _popdam_image_rendition: rendition }
+      : { ...output, _popdam_output_mode: outputMode, _popdam_output_attempts: attempts, _popdam_provider: providerInfo, _popdam_retry_count: retryCount, _popdam_image_rendition: rendition };
 
     try {
       await upsertBakeoffResult({

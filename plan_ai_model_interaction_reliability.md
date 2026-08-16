@@ -13,14 +13,14 @@ the new status.
 
 | Step | Status | Date | Evidence / fresh-session start |
 |---|---|---|---|
-| 1. Freeze the behavior contract with failing tests | ⬜ open | 2026-08-16 | Start here. No implementation has begun. |
-| 2. Build the shared capability profile and strategy planner | ⬜ open | 2026-08-16 | Depends on Step 1. |
-| 3. Make the structured-output executor exhaust compatible methods | ⬜ open | 2026-08-16 | Depends on Steps 1–2. |
-| 4. Move tagging and Vision Bake-Off to the shared executor | ⬜ open | 2026-08-16 | Depends on Step 3. |
-| 5. Move ERP classification to the shared executor and remove silent skips | ⬜ open | 2026-08-16 | Depends on Step 3; may run in parallel with Step 4. |
-| 6. Align bridge and Windows PDF vision fallback | ⬜ open | 2026-08-16 | Depends on Step 2; may run in parallel with Steps 4–5. |
-| 7. Make the model catalog and settings UI capability-complete | ⬜ open | 2026-08-16 | Depends on Step 2. |
-| 8. Run end-to-end verification and document the final contract | ⬜ open | 2026-08-16 | Depends on Steps 3–7. |
+| 1. Freeze the behavior contract with failing tests | ✅ complete | 2026-08-16 | Executor tests cover recoverable invalid output and terminal authentication failure; worker suite 30/30 passed. |
+| 2. Build the shared capability profile and strategy planner | ✅ complete | 2026-08-16 | `model-capabilities.test.ts` proves variant lookup, override merge, ordering, and unsupported-method exclusion. |
+| 3. Make the structured-output executor exhaust compatible methods | ✅ complete | 2026-08-16 | Worker tests and TypeScript build passed; attempt history and terminal stopping are verified. |
+| 4. Move tagging and Vision Bake-Off to the shared executor | ✅ complete | 2026-08-16 | Both paths use `callTagAssetModel`; bake-off records `_popdam_output_attempts`. |
+| 5. Move ERP classification to the shared executor and remove silent skips | ✅ complete | 2026-08-16 | ERP validates schema/tool/JSON results and returns an explicit `failed` counter. |
+| 6. Align bridge and Windows PDF vision fallback | ✅ complete | 2026-08-16 | Both agent TypeScript builds pass with identical OpenRouter-first selection and refusal handling. |
+| 7. Make the model catalog and settings UI capability-complete | ✅ complete | 2026-08-16 | Admin API normalizes capabilities/overrides; both screens consume that endpoint; frontend tests/build pass. |
+| 8. Run end-to-end verification and document the final contract | 🟨 local complete | 2026-08-16 | Frontend 109/109, worker 30/30, lint (0 errors), all four builds, and `git diff --check` passed. Authenticated smoke/deploy verification remains in Step 9. |
 | 9. Commit, push, deploy, verify, and retire this plan/handoff | ⬜ open | 2026-08-16 | Depends on Step 8. |
 
 Natural context cut points are after Steps 3, 6, and 8. At each cut, use the

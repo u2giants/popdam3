@@ -1,5 +1,17 @@
 # Known Quirks — Why Things Look Wrong But Aren't
 
+## Structured model compatibility is runtime data
+
+**Looks like:** a new model needs another hard-coded exception.
+
+**Actually:** the worker builds a capability profile from OpenRouter metadata and
+`AI_MODEL_CAPABILITY_OVERRIDES`, then exhausts only compatible output methods.
+
+**Why:** providers vary across strict schema, JSON object, and tool-choice modes.
+
+**Do not change because:** model-name exceptions become stale and can silently
+skip ERP items or falsely fail a usable vision model.
+
 This document explains intentional code decisions that may appear like bugs or bad practices to an outside developer. Each entry explains **what it looks like**, **why it exists**, and **what would break if you "fixed" it**.
 
 ---
