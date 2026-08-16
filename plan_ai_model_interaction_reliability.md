@@ -13,15 +13,15 @@ the new status.
 
 | Step | Status | Date | Evidence / fresh-session start |
 |---|---|---|---|
-| 1. Freeze the behavior contract with failing tests | ✅ complete | 2026-08-16 | Executor tests cover recoverable invalid output and terminal authentication failure; worker suite 30/30 passed. |
+| 1. Freeze the behavior contract with failing tests | ✅ complete | 2026-08-16 | Executor tests cover recoverable invalid output and terminal authentication failure; worker suite 31/31 passed. |
 | 2. Build the shared capability profile and strategy planner | ✅ complete | 2026-08-16 | `model-capabilities.test.ts` proves variant lookup, override merge, ordering, and unsupported-method exclusion. |
 | 3. Make the structured-output executor exhaust compatible methods | ✅ complete | 2026-08-16 | Worker tests and TypeScript build passed; attempt history and terminal stopping are verified. |
 | 4. Move tagging and Vision Bake-Off to the shared executor | ✅ complete | 2026-08-16 | Both paths use `callTagAssetModel`; bake-off records `_popdam_output_attempts`. |
 | 5. Move ERP classification to the shared executor and remove silent skips | ✅ complete | 2026-08-16 | ERP validates schema/tool/JSON results and returns an explicit `failed` counter. |
 | 6. Align bridge and Windows PDF vision fallback | ✅ complete | 2026-08-16 | Both agent TypeScript builds pass with identical OpenRouter-first selection and refusal handling. |
 | 7. Make the model catalog and settings UI capability-complete | ✅ complete | 2026-08-16 | Admin API normalizes capabilities/overrides; both screens consume that endpoint; frontend tests/build pass. |
-| 8. Run end-to-end verification and document the final contract | 🟨 local complete | 2026-08-16 | Frontend 109/109, worker 30/30, lint (0 errors), all four builds, and `git diff --check` passed. Authenticated smoke/deploy verification remains in Step 9. |
-| 9. Commit, push, deploy, verify, and retire this plan/handoff | ⬜ open | 2026-08-16 | Depends on Step 8. |
+| 8. Run end-to-end verification and document the final contract | ✅ complete | 2026-08-16 | Frontend 109/109, worker 31/31, lint (0 errors), all four builds, and authenticated production run `53cbb6e7-718a-418a-8832-158bd74d3626` passed 5/5. |
+| 9. Commit, push, deploy, verify, and retire this plan/handoff | ✅ complete | 2026-08-16 | CI and Railway are green through `f5bcba80`; production smoke passed without changing asset tags; issue #90 closed. Plan retained as historical evidence because its linked handoff belongs to a different session and must not be deleted here. |
 
 Natural context cut points are after Steps 3, 6, and 8. At each cut, use the
 `fresh-session` skill. Before starting the next phase, re-read all downstream
