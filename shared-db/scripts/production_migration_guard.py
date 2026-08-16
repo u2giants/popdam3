@@ -89,6 +89,12 @@ HARD_BLOCKED = {
     # the file would succeed and regress production silently.
     # Evidence: docs/verification/production-apply-set-and-rehearsal-20260809.md
     "20260729120000",
+    # RETIRED and NEVER APPLIED. Supabase CLI 2.105.0 runs explicit COMMIT from
+    # this file before it writes the migration ledger, so a later ledger error
+    # can leave its DDL applied but unrecorded. Issue #853 replaces it with the
+    # transaction-safe 20260816110750 migration and the exceptional atomic path.
+    # Keep the retired version impossible to name in preview or production.
+    "20260816045130",
 }
 
 # The four unblocked above. This is ENFORCED, not documentary: `parse_allowlist`
@@ -730,9 +736,10 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
     ``production_catalog_verification``) keep the STRICTER ledger-blind
     behaviour. Defaulting to "no ledger" fails closed, never open.
     """
-    values = [item.strip() for item in raw.split(",") if item.strip()]
-    if not values:
+    items = raw.split(",")
+    if not items or any(not item.strip() for item in items):
         raise GuardError("production allowlist is empty")
+    values = [item.strip() for item in items]
     if any(not VERSION_RE.fullmatch(value) for value in values):
         raise GuardError("every entry must be an exact 14-digit version")
     if len(values) != len(set(values)):
