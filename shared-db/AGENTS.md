@@ -708,6 +708,19 @@ four rules below are non-negotiable for any database change.
    review plus three rebuttals. If material disagreement remains, stop the merge
    and ask Albert one concise decision. Never send secrets or licensed rows.
 
+   **Reviewer transport failures never pause the queue.** Run reviewer wrappers
+   from the full-access orchestrator process, not from a delegated sandbox. Before
+   starting, prove the selected wrapper can read its own authentication file and
+   create its session directory. A permission denial, missing authentication,
+   provider quota error, or wrapper timeout with no verdict is a transport failure,
+   not a review. Stop that process, record `verdict=none` and `artifact=none`, and
+   immediately use `--replace-failed-reviewer` with the matching terminal failure
+   code. Continue with the manager-selected replacement from the full-access
+   orchestrator in the same turn. Never leave an author, preview, merge, or
+   production lane waiting on a reviewer process that cannot authenticate or
+   write its own state. A real `REVISE` verdict is not a transport failure and
+   must never be replaced.
+
    Append objective reviewer evidence through an `ai-devops` PR to
    `models_comparison_grok_kim_glm.md`: issue/PR, requested and proven model,
    verdict, confirmed/disproved findings, defects, false positives, policy/tool

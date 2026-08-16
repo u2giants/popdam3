@@ -7,8 +7,16 @@ from pathlib import Path
 REPO="u2giants/shared-db"
 SCHEMA="shared-db-production-owner-decision/v1"
 TARGET=".github/workflows/shared-supabase-migrations.yml"
-ONLY_BATCH=["20260813210000","20260813220000"]
 ALLOWED_RISKS={"permanent_data_rewrite_or_loss","expected_downtime","material_access_change","recovery_unproven","unresolved_material_objection"}
+
+def validate_allowlist(value):
+    if not isinstance(value,list) or not value:
+        raise ValueError("owner decision ordered allowlist is missing")
+    if any(not isinstance(x,str) or not re.fullmatch(r"\d{14}",x) for x in value):
+        raise ValueError("owner decision ordered allowlist contains an invalid migration version")
+    if len(value)!=len(set(value)) or value!=sorted(value):
+        raise ValueError("owner decision ordered allowlist must be unique and ordered")
+    return value
 
 def gh(endpoint):
     return json.loads(subprocess.run(["gh","api",endpoint],check=True,text=True,stdout=subprocess.PIPE,encoding="utf-8").stdout)
@@ -25,14 +33,14 @@ def parse_comment(comment):
     required={"schema","approved","main_sha","ordered_allowlist","accepted_risks","source_pr","source_merge_sha","target_workflow"}
     if set(data)!=required or data["schema"]!=SCHEMA or data["approved"] is not True:
         raise ValueError("owner decision schema is incomplete or not approved")
-    if data["ordered_allowlist"] != ONLY_BATCH:
-        raise ValueError("owner decision is not the one narrowly approved batch")
+    validate_allowlist(data["ordered_allowlist"])
     if not data["accepted_risks"] or any(x not in ALLOWED_RISKS for x in data["accepted_risks"]):
         raise ValueError("owner decision risks are missing or unknown")
     if data["target_workflow"]!=TARGET: raise ValueError("owner decision targets another workflow")
     return data
 
 def prove(comment_id, main_sha, allowlist, source_pr, api=gh):
+    validate_allowlist(allowlist)
     comment=api(f"repos/{REPO}/issues/comments/{comment_id}"); data=parse_comment(comment)
     if data["main_sha"]!=main_sha or data["ordered_allowlist"]!=allowlist or data["source_pr"]!=source_pr:
         raise ValueError("owner decision does not match exact main, ordered batch, or source PR")

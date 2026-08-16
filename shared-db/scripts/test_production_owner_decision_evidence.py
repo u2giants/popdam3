@@ -1,7 +1,9 @@
 import json, sys, unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).parent))
-from production_owner_decision_evidence import ONLY_BATCH, SCHEMA, TARGET, parse_comment, prove
+from production_owner_decision_evidence import SCHEMA, TARGET, parse_comment, prove
+
+ONLY_BATCH=["20260813210000","20260813220000"]
 
 def comment(data, **changes):
     body=f"```production-owner-decision\n{json.dumps(data,separators=(',',':'))}\n```"
@@ -13,9 +15,21 @@ class Tests(unittest.TestCase):
         self.data={"schema":SCHEMA,"approved":True,"main_sha":"a"*40,"ordered_allowlist":ONLY_BATCH,
           "accepted_risks":["expected_downtime"],"source_pr":924,"source_merge_sha":"b"*40,"target_workflow":TARGET}
     def test_exact_owner_ruling_is_accepted(self): self.assertEqual(parse_comment(comment(self.data)),self.data)
-    def test_non_owner_edited_and_other_batch_fail(self):
-        for c in [comment(self.data,user={"login":"someone"}),comment(self.data,updated_at="later"),comment({**self.data,"ordered_allowlist":["20260813210000"]})]:
+    def test_non_owner_edited_and_malformed_batch_fail(self):
+        for c in [comment(self.data,user={"login":"someone"}),comment(self.data,updated_at="later"),
+                  comment({**self.data,"ordered_allowlist":[]}),
+                  comment({**self.data,"ordered_allowlist":["not-a-version"]}),
+                  comment({**self.data,"ordered_allowlist":["20260813220000","20260813210000"]}),
+                  comment({**self.data,"ordered_allowlist":["20260813210000","20260813210000"]})]:
             with self.assertRaises(ValueError): parse_comment(c)
+    def test_any_exact_ordered_batch_is_accepted(self):
+        single={**self.data,"ordered_allowlist":["20260816045120"],"accepted_risks":["material_access_change"],"source_pr":1059}
+        self.assertEqual(parse_comment(comment(single)),single)
+    def test_proof_rejects_comment_batch_that_differs_from_workflow_input(self):
+        c=comment(self.data)
+        def api(path): return c if "comments" in path else {"merged":True,"merge_commit_sha":"b"*40}
+        with self.assertRaisesRegex(ValueError,"does not match exact main"):
+            prove(7,"a"*40,["20260816045120"],924,api)
     def test_proof_binds_source_merge(self):
         c=comment(self.data)
         def api(path): return c if "comments" in path else {"merged":True,"merge_commit_sha":"b"*40}
