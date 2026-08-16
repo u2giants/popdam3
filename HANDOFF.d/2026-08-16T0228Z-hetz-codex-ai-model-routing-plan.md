@@ -46,7 +46,15 @@ The complete build specification is
 - GitHub issue [`#90`](https://github.com/u2giants/popdam3/issues/90) tracks the
   complete repair.
 - The implementation plan, this handoff, and router/topic links are the only work
-  produced by this planning session. No application code or production config was changed.
+  produced by this planning session. They were committed and pushed to `main` as
+  `563c802a`. No application code or production config was changed.
+- GitHub CI run `31922211794`, the shared-database guard, and the bypass guard
+  passed. Railway marked `563c802a` successful.
+- The external `Supabase Preview` check failed with `Remote migration versions
+  not found in local migrations directory.` The same check failed identically on
+  earlier commit `c3f133b5`; this is the known split between canonical
+  `/worksp/shared-db` migrations and this app's historical folder, not a plan
+  regression. Do not copy migrations or add a bypass.
 - All implementation steps remain open. A new session starts at plan Step 1.
 - The plan is written against remote `main` baseline `c3f133b5` and must be
   drift-checked before implementation.
@@ -113,6 +121,8 @@ strategy planning, execution, diagnostics, and UI.
 - Update the plan immediately as steps are executed.
 - Do not rewrite the legacy root `HANDOFF.md`; another session has modified it in
   the shared checkout. Migration remains pending and is not part of issue #90.
+- Do not try to clear the pre-existing external `Supabase Preview` warning by
+  copying shared migrations into this app or using a database bypass label/message.
 
 ## 8. Access and environment
 
@@ -144,7 +154,9 @@ credentials, stop and ask Albert once with the consequence and recommendation.
 2. **Could they continue as effectively as this session?** Yes. Sections 4–5
    preserve failed approaches, exact root causes, and file evidence; Sections 7–9
    preserve constraints, access, and risks.
-3. **Are failed attempts included with reasons?** Yes, Section 4 and plan Section 7.
+3. **Are failed attempts included with reasons?** Yes, Section 4 and plan Section
+   7. Section 3 also records the pre-existing Supabase Preview failure and why it
+   must not be "fixed" from this repo.
 4. **Is every next step concrete and verifiable?** Yes, Section 6 links to plan
    Section 9, where each file-level step ends with a verification gate.
 5. **Are terms, paths, URLs, identifiers, and SHAs explained?** Yes, Sections

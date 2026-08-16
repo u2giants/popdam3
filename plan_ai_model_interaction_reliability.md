@@ -234,6 +234,14 @@ named functions and update line references, but keep the stated behavior goals.
 - No production configuration has been changed for this plan.
 - The existing checkout may contain unrelated work from concurrent sessions.
   Preserve it and stage only files named by the step being implemented.
+- The external `Supabase Preview` GitHub check currently fails on ordinary app
+  commits with `Remote migration versions not found in local migrations
+  directory.` The same failure is present on pre-plan commit `c3f133b5` and plan
+  commit `563c802a`; it is caused by this app's historical migration folder not
+  containing canonical `/worksp/shared-db` history. Do not copy migrations into
+  this repo or add a bypass. Required PopDAM CI and both shared-database guards
+  must still be green. If `admin-api` changes, verify the normal Supabase edge
+  deployment workflow separately.
 
 ## 6. Key findings and root cause
 
@@ -777,6 +785,9 @@ either agent build because this plan changes shared types and UI.
 - Verify Albert's git identity before the first commit.
 - No database structure change from this repo. If structure becomes necessary,
   stop and use canonical `/worksp/shared-db` branch + PR workflow first.
+- Do not attempt to fix the external `Supabase Preview` migration-history warning
+  by copying canonical migrations into this app or using `db-change-approved`.
+  It predates this plan and is outside issue #90.
 - Do not edit generated `src/integrations/supabase/types.ts`.
 - No hard-coded model behavior that should be configuration or provider metadata.
   Explicit overrides are allowed only for unreported provider facts and must be
@@ -945,4 +956,7 @@ credentials, stop and ask once with the exact consequence and recommendation.
    makes the goal authoritative. Sections 4 and 8 bound permissible alternatives,
    while Section 13 states when the implementer must stop rather than expand scope.
 
-No gap was found in the final audit.
+The first audit found one missing environment gotcha: the pre-existing external
+`Supabase Preview` failure. Sections 5 and 11 now record its exact message,
+evidence commits, correct interpretation, and prohibited bypass. The full audit
+was re-run after that correction; no gap remains.
