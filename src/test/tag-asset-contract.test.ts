@@ -17,6 +17,9 @@ describe("tag asset contract", () => {
       "product_photo", "lifestyle_photo", "render_mockup", "tech_pack",
       "licensing_sheet", "spec_layout_doc", "packaging_art", "sticker", "jcard", "other",
     ]);
+    expect(TAG_ASSET_SCHEMA.properties.tags.minItems).toBe(6);
+    expect(TAG_ASSET_SCHEMA.properties.tags.maxItems).toBe(18);
+    expect(TAG_ASSET_SCHEMA.properties.tags.uniqueItems).toBe(true);
   });
 
   it("uses nullable unions for optional string fields", () => {
@@ -43,5 +46,19 @@ describe("tag asset contract", () => {
     expect(prompt).toContain("Authoritative product/item description");
     expect(prompt).toContain("do NOT restate or override it");
     expect(prompt).toContain("choose exactly one primary file kind");
+    expect(prompt).toContain('"professional photography"');
+    expect(prompt).toContain('"straight view"');
+    expect(prompt).toContain('"3/4 view"');
+    expect(prompt).toContain('"close-up view"');
+    expect(prompt).toContain('"back view"');
+    expect(prompt).toContain('"lifestyle / in-use image"');
+    expect(prompt).toContain('"product mockup"');
+    expect(prompt).toContain('"artwork"');
+    expect(prompt).toContain('"tech pack"');
+    expect(prompt).toContain('"packaging design"');
+    expect(prompt).toContain('"embellishment placement design"');
+    expect(prompt).toContain('"freelancer illustration"');
+    expect(prompt).toContain("Magenta placement overlays take priority");
+    expect(prompt).toContain("Do not guess");
   });
 });

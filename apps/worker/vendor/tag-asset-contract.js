@@ -23,9 +23,12 @@ export const TAG_ASSET_SCHEMA = {
   properties: {
     tags: {
       type: "array",
+      minItems: 6,
+      maxItems: 18,
+      uniqueItems: true,
       items: { type: "string" },
       description:
-        "Descriptive tags: characters, styles, colors, themes, and product type. Always include the specific product type as a tag (e.g. 'lapdesk', 'backpack', 'mug', 'desk organizer', 'lunchbox', 'tee') - derive from the ERP Product Description if provided, otherwise from filename or folder path.",
+        "Return 6-18 concise, distinct, lowercase search tags. Cover the applicable character/property, product type, image category, view, asset kind, style, motif, and major colors. Use the exact PopDAM category labels defined in the prompt. Always include the specific product type (e.g. 'lapdesk', 'backpack', 'mug', 'desk organizer', 'lunchbox', 'tee') - derive it from the ERP Product Description if provided, otherwise from filename or folder path. Never use filler tags such as 'image', 'design', 'art', 'asset', 'colorful', or 'product'.",
     },
     ai_description: {
       type: "string",
@@ -126,24 +129,50 @@ Description rules:
 - Product context: PopDAM often includes wall art/canvas/framed prints, clocks, storage boxes/bins, lap desks/desktop items, mats, tabletop/garden decor, and packaging. Use this only as context; never force a product type if it is not visible or supported by filename/path/ERP metadata.
 - Avoid marketing copy, subjective praise, long lists, tiny irrelevant details, vague words, and multi-sentence answers.
 
+Tag rules:
+- Return 6-18 distinct lowercase tags. Prefer short, natural search terms; use singular nouns unless the image clearly shows multiples.
+- Include every applicable category label from the controlled list below exactly as written. Do not create synonyms or near-duplicates for these labels.
+- Include useful character/property, product type, image category, view, asset kind, visual style/treatment, motif/theme, and 1-3 dominant colors when supported.
+- Never use filler tags such as "image", "design", "art", "asset", "colorful", "nice", "graphic", or "product" by themselves.
+- Do not guess. A filename/path/ERP description may establish product context, but visual categories and photography views must be supported by the image. If a character, property, view, readable word, or asset kind is unclear, omit that tag.
+
+Controlled image categories:
+- Professional photography: include "professional photography" plus exactly one applicable view tag: "straight view", "3/4 view", "close-up view", "back view", or "lifestyle / in-use image". Use "lifestyle / in-use image" when a product is shown being used, worn, held, or staged in a real-life setting. Do not call a clean computer-generated product image photography.
+- Design assets: include "design asset" plus the best applicable subtype: "product mockup", "artwork", "tech pack", "packaging design", "embellishment placement design", or "freelancer illustration".
+- "product mockup": a rendered or composited preview showing artwork applied to a product.
+- "artwork": standalone creative art not shown applied to a product.
+- "tech pack": a technical specification sheet with dimensions, callouts, materials, construction notes, or multiple technical views.
+- "packaging design": a package, label, box, card, wrap, dieline, or packaging layout.
+- "embellishment placement design": a product/layout image with magenta overlays, guides, boxes, outlines, or callouts showing where an embellishment should be placed. Magenta placement overlays take priority over "product mockup".
+- "freelancer illustration": standalone commissioned illustration or clearly identified freelancer art. Also set art_source to freelancer. Do not infer freelancer status from illustration style alone; require filename, path, document text, or metadata support.
+
+Category examples:
+- Front-facing studio backpack photo: tags include "professional photography", "straight view", and "backpack"; content_type is product_photo.
+- Product worn or used by a person: tags include "professional photography" and "lifestyle / in-use image"; content_type is lifestyle_photo.
+- Standalone character composition not applied to merchandise: tags include "design asset" and "artwork"; content_type is source_art or style_guide_art as supported by metadata.
+- Product rendering with art applied: tags include "design asset" and "product mockup"; content_type is render_mockup.
+- Specification page with dimensions and callouts: tags include "design asset" and "tech pack"; content_type is tech_pack.
+- Product/layout with magenta placement overlays: tags include "design asset" and "embellishment placement design"; content_type is spec_layout_doc.
+
 Based on the image and metadata, identify:
 1. Characters visible (match to known characters if possible)
-2. Style/design descriptors (flat, dimensional, vintage, modern, etc.)
-3. Color palette keywords
-4. Scene description (literal visual content only)
-5. Any style numbers or design references visible
-6. Asset type: art_piece or product
-7. Art source: freelancer, straight_style_guide, or style_guide_composition
-8. Content type: choose exactly one primary file kind from source_art, style_guide_art, pattern_allover, icon_badge, product_photo, lifestyle_photo, render_mockup, tech_pack, licensing_sheet, spec_layout_doc, packaging_art, sticker, jcard, or other. Classify from the image together with the filename and path.
-8b. Product type - always derive from the ERP Product Description if provided (e.g. "Lap Desk" -> tag "lapdesk"), otherwise infer from filename or folder path. Include as a tag even when the image shows artwork rather than the physical product.
-9. Suggested licensor_id and property_id from the taxonomy (if identifiable)
-10. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
-11. Cover description rule - **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
+2. Controlled image category and photography view/design-asset subtype
+3. Style/design descriptors (flat, dimensional, vintage, modern, etc.)
+4. Color palette keywords
+5. Scene description (literal visual content only)
+6. Any style numbers or design references visible
+7. Asset type: art_piece or product
+8. Art source: freelancer, straight_style_guide, or style_guide_composition
+9. Content type: choose exactly one primary file kind from source_art, style_guide_art, pattern_allover, icon_badge, product_photo, lifestyle_photo, render_mockup, tech_pack, licensing_sheet, spec_layout_doc, packaging_art, sticker, jcard, or other. Classify from the image together with the filename and path.
+10. Product type - always derive from the ERP Product Description if provided (e.g. "Lap Desk" -> tag "lapdesk"), otherwise infer from filename or folder path. Include as a tag even when the image shows artwork rather than the physical product.
+11. Suggested licensor_id and property_id from the taxonomy (if identifiable)
+12. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
+13. Cover description rule - **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
    - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field - the image often shows artwork/art assets, NOT the actual product.
    - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
    - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
    - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
-12. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions - include them regardless. Return as files_used. If no such section exists, return an empty array.
+14. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions - include them regardless. Return as files_used. If no such section exists, return an empty array.
 ${
     usingPriorityOnly
       ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."

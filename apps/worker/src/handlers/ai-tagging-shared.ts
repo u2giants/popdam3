@@ -88,7 +88,19 @@ function isToolCapabilityError(error: unknown): boolean {
 
 function validateTagAssetData(value: Record<string, unknown>, mode: string) {
   const errors: string[] = [];
-  if (!Array.isArray(value.tags)) errors.push("tags must be an array");
+  if (!Array.isArray(value.tags)) {
+    errors.push("tags must be an array");
+  } else {
+    const tags = value.tags;
+    if (tags.length < 6 || tags.length > 18) errors.push("tags must contain 6-18 items");
+    if (tags.some((tag) => typeof tag !== "string" || tag.trim().length === 0)) {
+      errors.push("every tag must be a non-empty string");
+    }
+    const normalizedTags = tags
+      .filter((tag): tag is string => typeof tag === "string")
+      .map((tag) => tag.trim().toLowerCase());
+    if (new Set(normalizedTags).size !== normalizedTags.length) errors.push("tags must be distinct");
+  }
   if (typeof value.ai_description !== "string" || value.ai_description.trim().length === 0) {
     errors.push("ai_description must be a non-empty string");
   }
