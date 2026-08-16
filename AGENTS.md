@@ -55,6 +55,10 @@ Active cross-app reference-data plan:
 
 - `plan_master_data_designflow_reference_cutover.md` — compare and then converge Packaging Type, ColdLion MG04 Product Size, Creative Designer assignments, ColdLion-backed Factory/Vendor, and Depth across PopDAM Master Data and DesignFlow Item Details. Read its STATUS table first; do not re-derive or re-plan completed steps.
 
+Active AI model interaction reliability plan:
+
+- `plan_ai_model_interaction_reliability.md` — replace model-name capability guesses, premature structured-output failures, silent ERP skips, and split PDF-agent behavior with one tested capability-driven contract. Read its STATUS table first; do not re-derive or re-plan completed steps.
+
 Then load additional docs only when relevant — do **not** ingest every `.md` file:
 
 | Task / question | Read these docs | Usually do not need |

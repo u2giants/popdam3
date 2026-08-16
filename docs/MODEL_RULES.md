@@ -2,6 +2,11 @@
 
 This document covers two distinct things: (1) which AI models are used inside the PopDAM system, and (2) execution rules for AI coding assistants working on this codebase.
 
+> **Active reliability plan:** [`../plan_ai_model_interaction_reliability.md`](../plan_ai_model_interaction_reliability.md)
+> replaces model-name capability guesses, premature structured-output failures,
+> silent ERP skips, and split PDF-agent behavior. Read its STATUS table first;
+> do not re-derive or re-plan completed steps.
+
 ---
 
 ## 1. Models Used Inside PopDAM
