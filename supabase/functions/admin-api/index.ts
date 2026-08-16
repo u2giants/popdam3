@@ -895,9 +895,7 @@ async function handleGetOpenrouterVisionModels() {
     const inputModalities = Array.isArray(arch?.input_modalities) ? arch.input_modalities as string[] : [];
     const builtInOverride = BUILTIN_AI_MODEL_CAPABILITY_OVERRIDES[id];
     const configuredOverride = overrides[id];
-    const override = builtInOverride || configuredOverride
-      ? { ...builtInOverride, ...configuredOverride }
-      : null;
+    const override = builtInOverride || configuredOverride ? { ...builtInOverride, ...configuredOverride } : null;
     return ({
       id,
       name: (m.name as string | null) ?? (m.id as string),
