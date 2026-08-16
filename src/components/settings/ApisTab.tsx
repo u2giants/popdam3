@@ -623,6 +623,7 @@ export function AiModelsConfigSection() {
     supportsTools: boolean;
     supportsStructuredOutputs: boolean;
     supportsResponseFormat: boolean;
+    toolChoiceModes: string[];
     inputModalities: string[];
     pricing?: OpenRouterPricing;
   }>>({
@@ -630,7 +631,7 @@ export function AiModelsConfigSection() {
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
-      const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
+      const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
       return items
         .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing))
         .map((m) => ({
@@ -639,6 +640,7 @@ export function AiModelsConfigSection() {
           supportsTools: m.supports_tools === true,
           supportsStructuredOutputs: m.supports_structured_outputs === true,
           supportsResponseFormat: m.supports_response_format === true,
+          toolChoiceModes: m.tool_choice_modes ?? [],
           inputModalities: m.input_modalities ?? [],
           pricing: m.pricing,
         }))
@@ -768,13 +770,13 @@ export function AiModelsConfigSection() {
               // If currentVal is set but not in filteredList, still show it (with a warning)
               const currentModelMeetsRequirements = !currentVal || !(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal));
               const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
-                ? [{ id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, inputModalities: [] }, ...filteredList]
+                ? [{ id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...filteredList]
                 : filteredList;
 
               const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
               const fallbackOptions = fallbackKey
                 ? (fallbackVal && !filteredList.some((m) => m.id === fallbackVal)
-                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, inputModalities: [] }, ...filteredList]
+                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...filteredList]
                   : filteredList)
                 : [];
 
@@ -788,7 +790,7 @@ export function AiModelsConfigSection() {
                       {options.map((m) => {
                         const modeLabel = requiresStructuredOutput
                           ? m.supportsTools
-                            ? ""
+                            ? m.toolChoiceModes.includes("named") ? " (tool named)" : m.toolChoiceModes.includes("required") ? " (tool required)" : " (tool auto)"
                             : m.supportsStructuredOutputs
                               ? " (schema)"
                               : m.supportsResponseFormat

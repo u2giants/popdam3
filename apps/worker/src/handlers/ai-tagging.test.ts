@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleBulkAiTag, type AiTagRpcClient } from "./ai-tagging.js";
+import { handleBulkAiTag, isRetryableStructuredOutputError, type AiTagRpcClient } from "./ai-tagging.js";
+
+test("new executor aggregate errors retain same-model retry behavior", () => {
+  assert.equal(isRetryableStructuredOutputError("Structured output failed: json_schema: no parsable JSON"), true);
+  assert.equal(isRetryableStructuredOutputError("Structured output failed: data_inspection_failed"), false);
+});
 
 const IDS = [
   "123e4567-e89b-42d3-a456-426614174000",

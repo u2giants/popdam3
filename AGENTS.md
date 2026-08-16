@@ -195,7 +195,7 @@ production-behavior evaluator, not a stricter tool-calling-only test. A model is
 eligible when it has image input and can return the `tag_asset` contract via one
 of: OpenRouter tool calling, `response_format` JSON schema/structured outputs,
 or `response_format: { "type": "json_object" }` with app-side validation.
-Required fields are `tags`, `ai_description`, and `scene_description`; malformed
+Required fields are `tags`, `ai_description`, `scene_description`, and `content_type`; malformed
 JSON gets one repair retry in JSON mode.
 
 The description fields are search metadata, not free-form captions.

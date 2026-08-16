@@ -15,6 +15,18 @@ import { executeStructuredOutput } from "../structured-output.js";
 import type { BatchResult, OpState } from "../types.js";
 
 const DEFAULT_CLASSIFICATION_MODEL = "anthropic/claude-3.5-haiku";
+const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden", "Other"];
+export const ERP_CLASSIFICATION_SCHEMA = {
+  type: "object", properties: { category: { type: "string", enum: CATEGORIES }, confidence: { type: "number", minimum: 0, maximum: 1 }, rationale: { type: "string", maxLength: 200 } },
+  required: ["category", "confidence", "rationale"], additionalProperties: false,
+};
+export function validateErpClassification(value: Record<string, unknown>) {
+  const { category, confidence, rationale } = value;
+  if (typeof category !== "string" || !CATEGORIES.includes(category)) throw new Error("category is not recognized");
+  if (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error("confidence must be between 0 and 1");
+  if (typeof rationale !== "string" || !rationale.trim()) throw new Error("rationale is required");
+  return { category, confidence, rationale };
+}
 let cachedClassModel: string | null = null;
 let classCacheExpires = 0;
 
@@ -207,8 +219,6 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
 
 // ── ERP Classification ───────────────────────────────────────────────────────
 
-const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden", "Other"];
-
 function isUnclassifiable(item: { item_description: string | null; style_number: string | null; external_id: string }): boolean {
   const desc = (item.item_description || "").trim().toLowerCase();
   const style = (item.style_number || "").trim();
@@ -325,7 +335,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
 
   for (const item of candidates) {
     if (isUnclassifiable(item)) {
-      await client.from("product_category_predictions").insert({
+      const { error: insertError } = await client.from("product_category_predictions").insert({
         erp_item_id: item.id,
         external_id: item.external_id,
         predicted_category: "Unknown",
@@ -337,12 +347,17 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
         status: "unclassifiable",
         input_context: { style_number: item.style_number, item_description: item.item_description, raw_mg_fields: item.raw_mg_fields },
       });
+      if (insertError) {
+        failed++;
+        logger.warn("erp-classify: failed to save unclassifiable result", { external_id: item.external_id, error: insertError.message });
+        continue;
+      }
       skippedUnclassifiable++;
       continue;
     }
 
     try {
-      const prompt = `Classify this product into exactly ONE of these 7 categories for home décor products:
+      const prompt = `Classify this product into exactly ONE of these 8 categories for home décor products:
 - Wall (wall art, wall clocks, wall signs, letters/plaques, canvas, frames, mirrors mounted on walls)
 - Tabletop (picture frames that sit on tables, decorative objects, sculptures, figurines, candle holders, vases, desk accessories)
 - Clock (any type of clock - wall clocks, desk clocks, mantle clocks, alarm clocks)
@@ -378,17 +393,6 @@ Product to classify:
 
 Use the provided tool to return your classification.`;
 
-      const classificationSchema = {
-          type: "object",
-          properties: {
-            category: { type: "string", enum: CATEGORIES },
-            confidence: { type: "number", minimum: 0, maximum: 1 },
-            rationale: { type: "string", maxLength: 200 },
-          },
-          required: ["category", "confidence", "rationale"],
-          additionalProperties: false,
-        };
-
       const messages: ChatMessage[] = [
         { role: "system", content: "You are a product classification expert for a home décor company. Classify each product into exactly one category." },
         { role: "user", content: prompt },
@@ -397,22 +401,14 @@ Use the provided tool to return your classification.`;
       const capabilities = await getRuntimeModelCapabilities(apiKey, classificationModel);
       const aiResult = await executeStructuredOutput({
         apiKey, model: classificationModel, messages, maxTokens: 1024,
-        schemaName: "classify_product", schema: classificationSchema, capabilities,
-        validate(value) {
-          const category = value.category;
-          const confidence = value.confidence;
-          const rationale = value.rationale;
-          if (typeof category !== "string" || !CATEGORIES.includes(category)) throw new Error("category is not recognized");
-          if (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error("confidence must be between 0 and 1");
-          if (typeof rationale !== "string" || !rationale.trim()) throw new Error("rationale is required");
-          return { category, confidence, rationale };
-        },
+        schemaName: "classify_product", schema: ERP_CLASSIFICATION_SCHEMA, capabilities,
+        validate: validateErpClassification,
       });
       const parsed = aiResult.value;
 
       const status = parsed.confidence >= 0.65 ? "auto_applied" : "pending";
 
-      await client.from("product_category_predictions").insert({
+      const { error: insertError } = await client.from("product_category_predictions").insert({
         erp_item_id: item.id,
         external_id: item.external_id,
         predicted_category: parsed.category,
@@ -424,6 +420,7 @@ Use the provided tool to return your classification.`;
         status,
         input_context: { style_number: item.style_number, item_description: item.item_description, raw_mg_fields: item.raw_mg_fields },
       });
+      if (insertError) throw new Error(`Failed to save classification: ${insertError.message}`);
 
       classified++;
     } catch (e) {

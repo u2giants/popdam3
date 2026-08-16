@@ -122,7 +122,7 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 
 ### AI model dropdown refresh
 
-Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Image Tagging and Vision Bake-Off then apply the same filter: image-capable models that support tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). JSON-mode outputs are parsed and must include the required `tags`, `ai_description`, and `scene_description` fields before the worker stores a result.
+Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Image Tagging and Vision Bake-Off then apply the same filter: image-capable models that support tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). JSON-mode outputs are parsed and must include the required `tags`, `ai_description`, `scene_description`, and `content_type` fields before the worker stores a result.
 
 The Railway worker reads `admin_config.AI_TASK_MODELS.vision_tagging` for production Image Tagging and defaults to `google/gemini-2.5-flash` when unset. `vision_tagging_fallback` is optional. The worker caches the model config for 60 seconds.
 

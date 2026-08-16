@@ -10,7 +10,7 @@
  * Reports per-file progress back to the cloud so the UI shows real-time status.
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { logger } from "./logger";
 import * as api from "./api-client";
@@ -59,13 +59,17 @@ export interface PdfTextSampleResult {
   asset_id: string;
   filename: string;
   relative_path: string;
-  extraction_method: "pdf_text" | "likely_scanned" | "failed" | "ocr_text" | "ai_vision";
+  extraction_method: "pdf_text" | "likely_scanned" | "failed" | "ocr_text" | "ai_vision" | "skipped";
   extracted_text: string | null;
   page_count: number | null;
   char_count: number;
   extraction_error: string | null;
   thumbnail_url?: string;
+  skip_reason?: string;
 }
+
+export const PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
+export function exceedsPdfSizeLimit(size: number): boolean { return size > PDF_SIZE_LIMIT_BYTES; }
 
 interface FileProgressEntry {
   filename: string;
@@ -225,6 +229,15 @@ async function processSinglePdf(
 ): Promise<PdfTextSampleResult> {
   // Report: starting this file
   await reportProgress(index, total, asset.filename, "reading", fileResults);
+
+  const fileStat = await stat(fullPath);
+  if (exceedsPdfSizeLimit(fileStat.size)) {
+    return {
+      asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
+      extraction_method: "skipped", extracted_text: null, page_count: null,
+      char_count: 0, extraction_error: null, skip_reason: "file_over_100mb",
+    };
+  }
 
   const buffer = await readFile(fullPath);
 

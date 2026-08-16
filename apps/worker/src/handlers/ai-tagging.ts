@@ -92,7 +92,7 @@ function isModelSpecificError(msg: string): boolean {
   );
 }
 
-function isRetryableStructuredOutputError(msg: string): boolean {
+export function isRetryableStructuredOutputError(msg: string): boolean {
   const lower = msg.toLowerCase();
   if (
     lower.includes("data_inspection_failed") ||
@@ -103,7 +103,7 @@ function isRetryableStructuredOutputError(msg: string): boolean {
   }
 
   return (
-    lower.includes("structured tag output failed") &&
+    (lower.includes("structured output failed") || lower.includes("structured tag output failed")) &&
     (
       lower.includes("no endpoints found") ||
       lower.includes("tool use") ||

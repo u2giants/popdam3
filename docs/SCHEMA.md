@@ -368,7 +368,7 @@ taxonomy choices are recorded under `raw_output._popdam_debug`. Stale `running`
 rows older than 10 minutes are normalized to `failed`.
 
 `raw_output` also carries PopDAM-owned audit keys:
-- `_popdam_output_mode` — one of `tool`, `tool_content_json`, `json_schema`, or `json_object`
+- `_popdam_output_mode` — one of `tool_named`, `tool_required`, `tool_auto`, `json_schema`, `json_object`, or `json_repair`
 - `_popdam_retry_count` — currently `0` or `1`; JSON mode gets one repair retry after malformed/invalid JSON
 - `_popdam_provider` — best-effort OpenRouter route metadata, including provider, endpoint/model, generation id, selected router metadata, response headers, and `/api/v1/generation` enrichment when available
 - `_popdam_failure_stage` — present on failed rows when the worker can identify the structured-output stage

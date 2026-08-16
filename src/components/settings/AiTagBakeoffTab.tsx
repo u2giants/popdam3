@@ -24,6 +24,7 @@ type VisionModel = {
   supports_tools?: boolean;
   supports_structured_outputs?: boolean;
   supports_response_format?: boolean;
+  tool_choice_modes?: string[];
   architecture?: { input_modalities?: string[] };
   pricing?: OpenRouterPricing | null;
 };
@@ -265,13 +266,14 @@ export default function AiTagBakeoffTab() {
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
-      const items = (data?.models ?? []) as Array<OpenRouterModelResponse & { supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; input_modalities?: string[] }>;
+      const items = (data?.models ?? []) as Array<OpenRouterModelResponse & { supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[] }>;
       return items.map((m) => ({
         id: m.id,
         name: m.name ?? m.id,
         supports_tools: m.supports_tools,
         supports_structured_outputs: m.supports_structured_outputs,
         supports_response_format: m.supports_response_format,
+        tool_choice_modes: m.tool_choice_modes,
         architecture: { input_modalities: m.input_modalities ?? m.architecture?.input_modalities },
         pricing: m.pricing,
       }));
@@ -413,7 +415,7 @@ export default function AiTagBakeoffTab() {
           <SelectContent className="sm:min-w-[28rem]">
             {visionModels.map((model) => (
               <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
-                {fmtModel(model.id)}{model.supports_tools ? "" : model.supports_structured_outputs ? " (schema)" : " (json)"}
+                {fmtModel(model.id)}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " (tool named)" : model.tool_choice_modes?.includes("required") ? " (tool required)" : " (tool auto)" : model.supports_structured_outputs ? " (schema)" : " (json)"}
               </SelectItem>
             ))}
           </SelectContent>

@@ -859,6 +859,17 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
 
 // ── Route: get-openrouter-vision-models ─────────────────────────────
 
+const BUILTIN_AI_MODEL_CAPABILITY_OVERRIDES: Record<string, Record<string, unknown>> = {
+  "meta/muse-spark-1.2": {
+    tool_choice_modes: ["auto"],
+    prefer: ["json_schema", "json_object", "tool_auto"],
+  },
+  "minimax/minimax-m3": {
+    tools: false,
+    prefer: ["json_schema", "json_object"],
+  },
+};
+
 async function handleGetOpenrouterVisionModels() {
   const db = serviceClient();
   const { data: configRows } = await db
@@ -882,7 +893,11 @@ async function handleGetOpenrouterVisionModels() {
     const params = Array.isArray(m.supported_parameters) ? m.supported_parameters as string[] : [];
     const arch = m.architecture as Record<string, unknown> | undefined;
     const inputModalities = Array.isArray(arch?.input_modalities) ? arch.input_modalities as string[] : [];
-    const override = overrides[id] ?? null;
+    const builtInOverride = BUILTIN_AI_MODEL_CAPABILITY_OVERRIDES[id];
+    const configuredOverride = overrides[id];
+    const override = builtInOverride || configuredOverride
+      ? { ...builtInOverride, ...configuredOverride }
+      : null;
     return ({
       id,
       name: (m.name as string | null) ?? (m.id as string),
