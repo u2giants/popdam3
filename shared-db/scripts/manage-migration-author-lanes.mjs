@@ -216,7 +216,21 @@ export const githubIo = {
 
 export function acquireRef(ref, ownerSha, io = githubIo) {
   if (!io.createRef(ref, ownerSha)) throw new LaneError(`${ref} is occupied`)
-  if (io.readRef(ref) !== ownerSha) throw new LaneError(`${ref} ownership could not be proved after acquisition`)
+  if (readRefAfterWrite(ref, ownerSha, io) !== ownerSha) throw new LaneError(`${ref} ownership could not be proved after acquisition`)
+}
+
+// GitHub's create-ref response can arrive before the new custom ref is visible
+// to a following GET. Treat only a short sequence of 404/not-found reads as
+// eventual consistency; a different owner is returned immediately and fails
+// closed. This keeps the atomic create-if-absent lock while avoiding stranded
+// mutexes caused by a successful create followed by a transient 404.
+export function readRefAfterWrite(ref, expectedSha, io = githubIo, attempts = 12) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const actual = io.readRef(ref)
+    if (actual !== null || attempt === attempts) return actual
+    ;(io.wait ?? ((ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)))(Math.min(50 * attempt, 500))
+  }
+  return null
 }
 
 export function acquireMutex(ownerSha, io = githubIo, attempts = 100) {
@@ -243,7 +257,8 @@ export function requireOwnedRef(ref, ownerSha, io = githubIo) {
 
 export function recoverStaleAuthorMutex({ expectedSha, confirmStale, serializedRecovery, now = new Date(), minAgeMs = MUTEX_STALE_AFTER_MS, quietMs = 6000 }, io = githubIo) {
   if (!confirmStale || !serializedRecovery || !/^[0-9a-f]{7,40}$/i.test(String(expectedSha ?? ''))) throw new LaneError('recovery requires the serialized recovery workflow, --expected-sha, and --confirm-stale')
-    if(!io.createRef(MUTEX_RECOVERY_ACTIVE_REF,expectedSha) && io.readRef(MUTEX_RECOVERY_ACTIVE_REF)!==expectedSha)throw new LaneError('another author mutex recovery target is active')
+    if(!io.createRef(MUTEX_RECOVERY_ACTIVE_REF,expectedSha) && readRefAfterWrite(MUTEX_RECOVERY_ACTIVE_REF,expectedSha,io)!==expectedSha)throw new LaneError('another author mutex recovery target is active')
+    if(readRefAfterWrite(MUTEX_RECOVERY_ACTIVE_REF,expectedSha,io)!==expectedSha)throw new LaneError('recovery marker ownership could not be proved after acquisition')
     requireOwnedRef(MUTEX_RECOVERY_ACTIVE_REF,expectedSha,io)
     try {
     // An acquisition that read the marker just before it was created can wait
@@ -302,15 +317,15 @@ export function assignNextReviewer({issue,pr,headSha},io=githubIo){
     if(priorSha){const prior=parseReviewCursor(io.getCommit(priorSha));return {...prior,wrapper:REVIEWERS.find((r)=>r.name===prior.reviewer)?.wrapper}}
     const cursorSha=io.readRef(REVIEW_CURSOR_REF), current=parseReviewCursor(cursorSha?io.getCommit(cursorSha):null)
     if(current&&current.issue===request.issue&&current.pr===request.pr&&current.headSha===request.headSha){
-      if(!io.createRef(assignmentRef,cursorSha)&&io.readRef(assignmentRef)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
+      if(!io.createRef(assignmentRef,cursorSha)&&readRefAfterWrite(assignmentRef,cursorSha,io)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
       return {...current,wrapper:REVIEWERS.find((r)=>r.name===current.reviewer)?.wrapper}
     }
     const sequence=(current?.sequence??0)+1, reviewer=REVIEWERS[(sequence-1)%REVIEWERS.length]
     const assignmentSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     if(cursorSha)io.updateRef(REVIEW_CURSOR_REF,assignmentSha);else if(!io.createRef(REVIEW_CURSOR_REF,assignmentSha))throw new LaneError('reviewer cursor was created concurrently; retry the same assignment')
-    if(io.readRef(REVIEW_CURSOR_REF)!==assignmentSha)throw new LaneError('reviewer cursor advancement could not be proved; retry the same assignment')
-    if(!io.createRef(assignmentRef,assignmentSha)&&io.readRef(assignmentRef)!==assignmentSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
+    if(readRefAfterWrite(REVIEW_CURSOR_REF,assignmentSha,io)!==assignmentSha)throw new LaneError('reviewer cursor advancement could not be proved; retry the same assignment')
+    if(!io.createRef(assignmentRef,assignmentSha)&&readRefAfterWrite(assignmentRef,assignmentSha,io)!==assignmentSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
     return {sequence,reviewer:reviewer.name,wrapper:reviewer.wrapper,...request}
   }finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
 }

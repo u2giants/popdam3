@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, EXCLUSIVE_REFS, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, recoverStaleAuthorMutex, releaseOwnedRef, requireOwnedRef, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, EXCLUSIVE_REFS, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverStaleAuthorMutex, releaseOwnedRef, requireOwnedRef, REVIEW_CURSOR_REF, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
@@ -151,6 +151,32 @@ test('GitHub create-if-absent mutex makes acquisition cross-host atomic', () => 
   assert.equal(io.refs.get(MUTEX_REF),'other-host-owner')
 })
 
+test('fresh custom refs tolerate transient GitHub 404 reads without weakening ownership', () => {
+  const io=memoryIo();let reads=0,waits=0
+  io.readRef=(ref)=>ref===MUTEX_REF && ++reads<4 ? null : io.refs.get(ref)??null
+  io.wait=()=>{waits++}
+  const result=acquireAuthorLane(opts,NOW,io)
+  assert.equal(result.version,'20260814170219')
+  assert.equal(waits,3)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('post-write proof fails immediately when GitHub shows a different owner', () => {
+  const io=memoryIo();let waits=0
+  io.readRef=()=> 'different-owner';io.wait=()=>{waits++}
+  assert.equal(readRefAfterWrite(MUTEX_REF,'ours',io), 'different-owner')
+  assert.equal(waits,0)
+})
+
+test('serialized recovery tolerates transient 404 for its fresh recovery marker',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc');let markerReads=0
+  io.readRef=(ref)=>ref===MUTEX_RECOVERY_ACTIVE_REF && ++markerReads<3 ? null : io.refs.get(ref)??null
+  io.wait=()=>{}
+  const result=recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0},io)
+  assert.equal(result.released,'4a69fbbc')
+  assert.equal(io.refs.has(MUTEX_RECOVERY_ACTIVE_REF),false)
+})
+
 test('mutex is safely released when reservation or issue creation fails', () => {
   for (const failure of ['reserve','issue']) {
     const io=memoryIo()
@@ -169,7 +195,7 @@ test('release refuses to delete a lock now owned by someone else', () => {
 
 test('preview and merge are fixed exclusive refs and merge refuses during production', () => {
   const io=memoryIo()
-  io.openClaims=()=>[{number:1,body:body(['table core.x'],'1')}]
+  io.openClaims=()=>[{number:1,body:body(['table core.x'],'1','2099-01-01T00:00:00Z')}]
   io.getPr=(number)=>({number:Number(number),head:{sha:'abc',ref:'codex/1'},base:{sha:'main'}})
   const first=acquireExclusive('preview',{owner:'a',pr:1,headSha:'abc'},io)
   assert.throws(()=>acquireExclusive('preview',{owner:'b',pr:2,headSha:'abc'},io),/occupied/)
