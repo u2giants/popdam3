@@ -206,6 +206,17 @@ test('preview and merge are fixed exclusive refs and merge refuses during produc
   assert.throws(()=>acquireExclusive('production',{owner:'p',headSha:'main'},io),/guarded merge is active/)
 })
 
+test('historical preview recovery shares the preview lock and requires current main plus merged source PR',()=>{
+  const io=memoryIo()
+  io.getPr=()=>({merged:true,merge_commit_sha:'merged'})
+  const lock=acquireExclusive('preview-recovery',{owner:'recovery',pr:924,headSha:'main'},io)
+  assert.equal(lock.ref,EXCLUSIVE_REFS.preview)
+  releaseOwnedRef(EXCLUSIVE_REFS.preview,lock.ownerSha,io)
+  assert.throws(()=>acquireExclusive('preview-recovery',{owner:'recovery',pr:924,headSha:'old'},io),/current main/)
+  io.getPr=()=>({merged:false})
+  assert.throws(()=>acquireExclusive('preview-recovery',{owner:'recovery',pr:924,headSha:'main'},io),/already-merged/)
+})
+
 test('unreadable claims fail closed',()=>assert.throws(()=>assertLaneAvailable([{number:9,body:'bad'}],[],NOW),/unreadable/))
 
 test('claim objects require known kinds and exact qualified identifiers',()=>{

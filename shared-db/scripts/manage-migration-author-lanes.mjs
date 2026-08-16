@@ -19,6 +19,7 @@ export const REVIEWERS = Object.freeze([
 ])
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
+  'preview-recovery': 'refs/db-coordination/preview',
   merge: 'refs/db-coordination/merge',
   production: 'refs/db-coordination/production',
 })
@@ -371,6 +372,10 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
     if (kind === 'production') {
       if (metadata.headSha !== io.mainSha?.()) throw new LaneError('production lane requires the exact current main SHA')
       if (io.readRef(EXCLUSIVE_REFS.merge)) throw new LaneError('a guarded merge is active; production promotion must wait')
+    } else if (kind === 'preview-recovery') {
+      if (metadata.headSha !== io.mainSha?.()) throw new LaneError('historical preview recovery requires the exact current main SHA')
+      const pr = io.getPr?.(metadata.pr)
+      if (pr?.merged !== true || !pr?.merge_commit_sha) throw new LaneError('historical preview recovery requires an already-merged source PR')
     } else {
       const pr = io.getPr?.(metadata.pr)
       if (!pr?.head?.sha || pr.head.sha !== metadata.headSha) throw new LaneError('exclusive lane head SHA does not match the live pull request')
@@ -400,8 +405,8 @@ function parseArgs(argv) {
     else if (a === '--confirm-finished') out.confirmFinished = true
     else if (a === '--recover-author-mutex') out.recoverMutex = true
     else if (a === '--confirm-stale') out.confirmStale = true
-    else if (/^--acquire-(preview|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
-    else if (/^--release-(preview|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
+    else if (/^--acquire-(preview|preview-recovery|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
+    else if (/^--release-(preview|preview-recovery|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
     else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if (a === '--objects') { out.objects.push(...next(i).split(',').map((v)=>v.trim()).filter(Boolean)); i++ }
     else if (a === '--lease-hours') { out.leaseHours = Number(next(i)); i++ }

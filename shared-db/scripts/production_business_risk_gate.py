@@ -21,6 +21,8 @@ from typing import Any, Callable
 from production_apply_review_evidence import verify as verify_review
 from production_migration_guard import parse_remote_versions
 from production_review_allowlist import normalize_review_allowlist
+from historical_preview_recovery import verify as verify_historical_preview
+from production_owner_decision_evidence import verify_artifact as verify_owner_decision
 
 REPOSITORY = "u2giants/shared-db"
 PREVIEW_WORKFLOW = ".github/workflows/shared-supabase-migrations.yml"
@@ -137,18 +139,20 @@ def select_preview_artifact(payload: Any, run_id: int, expected_name: str) -> di
 
 
 def prove_preview(
-    *, run_id: int, digest: str, pr_head: str, allowlist: list[str], api: Callable[[str], Any],
+    *, run_id: int, digest: str, pr_head: str, main_sha: str, source_pr: int, allowlist: list[str], api: Callable[[str], Any],
     downloader: Callable[[int, Path], None], repo_root: Path,
 ) -> None:
     run = api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
     expected = {
         "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
-        "head_sha": pr_head, "path": PREVIEW_WORKFLOW,
+        "path": PREVIEW_WORKFLOW,
     }
     for key, value in expected.items():
         if run.get(key) != value:
             raise RiskGateError(f"preview run has wrong {key}")
-    name = f"preview-migration-apply-{pr_head}"
+    if run.get("head_sha") not in {pr_head, main_sha}:
+        raise RiskGateError("preview run has wrong head_sha")
+    name = f"preview-migration-apply-{run['head_sha']}"
     artifact = select_preview_artifact(
         api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id, name
     )
@@ -166,6 +170,15 @@ def prove_preview(
     apply = texts.get("preview-apply.txt", "")
     before = texts.get("preview-ledger-before.txt", "")
     after = texts.get("preview-ledger-after.txt", "")
+    historical = texts.get("historical-preview-source.json")
+    expected_head = pr_head
+    if historical:
+        record = json.loads(historical)
+        if record != verify_historical_preview(source_pr, main_sha, ",".join(allowlist), repo_root, api):
+            raise RiskGateError("historical preview source proof does not match current governed evidence")
+        expected_head = main_sha
+    if run.get("head_sha") != expected_head:
+        raise RiskGateError("preview run has wrong head_sha")
     with tempfile.TemporaryDirectory(prefix="production-risk-ledger-") as ledger_temp:
         before_path, after_path = Path(ledger_temp, "before.txt"), Path(ledger_temp, "after.txt")
         before_path.write_text(before, encoding="utf-8")
@@ -246,15 +259,28 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
         return {"automaticPromotionAllowed": False, "ownerDecisionReasons": [RISK_TEXT["unresolved_material_objection"]]}
     prove_preview(
         run_id=args.preview_run_id, digest=args.preview_digest, pr_head=pr_head,
-        allowlist=allowlist, api=api, downloader=downloader, repo_root=repo_root,
+        main_sha=args.main_sha, source_pr=args.pr, allowlist=allowlist, api=api, downloader=downloader, repo_root=repo_root,
     )
     decision = decide_business_risk(classify_sql(repo_root, allowlist), recovery_proven=True, review_approved=True)
+    owner_evidence = None
+    if decision["ownerDecisionReasons"]:
+        if not args.owner_decision_run_id or not args.owner_decision_digest:
+            return {**decision, "productionPromotionAllowed": False}
+        owner_evidence = verify_owner_decision(
+            args.owner_decision_run_id, args.owner_decision_digest, args.main_sha,
+            allowlist, args.pr, downloader, api,
+        )
+        expected_risks = sorted(key for key, text in RISK_TEXT.items() if text in decision["ownerDecisionReasons"])
+        if sorted(owner_evidence["accepted_risks"]) != expected_risks:
+            raise RiskGateError("owner decision does not accept exactly the risks derived from governed evidence")
     return {
         **decision,
+        "productionPromotionAllowed": not decision["ownerDecisionReasons"] or owner_evidence is not None,
         "governedEvidence": {
             "mainSha": args.main_sha, "sourcePr": args.pr, "sourcePrHead": pr_head,
             "reviewRun": args.review_run_id, "previewRun": args.preview_run_id,
             "allowlist": allowlist,
+            "ownerDecision": owner_evidence,
         },
     }
 
@@ -270,6 +296,11 @@ def main() -> int:
     parser.add_argument("--review-digest", required=True)
     parser.add_argument("--preview-run-id", type=int, required=True)
     parser.add_argument("--preview-digest", required=True)
+    # GitHub Actions supplies an omitted optional workflow input as an empty
+    # string.  Keep it as text so the established no-risk automatic path can
+    # reach assess(); a material-risk path still rejects the missing value.
+    parser.add_argument("--owner-decision-run-id")
+    parser.add_argument("--owner-decision-digest")
     args = parser.parse_args()
     try:
         result = assess(args)
@@ -277,7 +308,7 @@ def main() -> int:
         print(f"::error::Production business-risk gate rejected evidence: {exc}")
         return 2
     print(json.dumps(result, sort_keys=True))
-    return 0 if result["automaticPromotionAllowed"] else 3
+    return 0 if result.get("productionPromotionAllowed", result["automaticPromotionAllowed"]) else 3
 
 
 if __name__ == "__main__":

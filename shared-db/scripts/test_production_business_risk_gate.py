@@ -83,7 +83,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         with self.assertRaisesRegex(RiskGateError, "wrong head_sha"):
             prove_preview(
                 run_id=7, digest="sha256:" + "c" * 64, pr_head="a" * 40,
-                allowlist=["20260814000000"], api=lambda _: run,
+                main_sha="d" * 40, source_pr=1, allowlist=["20260814000000"], api=lambda _: run,
                 downloader=lambda *_: self.fail("forged run must not download"), repo_root=Path.cwd(),
             )
 
