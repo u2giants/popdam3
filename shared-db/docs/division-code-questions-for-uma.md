@@ -1,5 +1,10 @@
 # Division codes: what to ask Uma
 
+> **ANSWERED 2026-08-13.** All eight questions are answered in
+> [`division-code-answers-from-uma-20260813.md`](division-code-answers-from-uma-20260813.md).
+> That file, plus the owner rulings in it, is the authority. This page is kept only as
+> the record of what was asked and why.
+
 **Prepared 2026-08-13. Every number below was measured live against production
 `qsllyeztdwjgirsysgai`. Nothing was changed.**
 
