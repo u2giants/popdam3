@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create or verify immutable evidence of Albert's exact material-risk decision."""
 
-import argparse, hashlib, json, re, subprocess, tempfile, zipfile
+import argparse, hashlib, json, re, subprocess, tempfile, time, zipfile
 from pathlib import Path
 
 REPO="u2giants/shared-db"
@@ -18,8 +18,26 @@ def validate_allowlist(value):
         raise ValueError("owner decision ordered allowlist must be unique and ordered")
     return value
 
-def gh(endpoint):
-    return json.loads(subprocess.run(["gh","api",endpoint],check=True,text=True,stdout=subprocess.PIPE,encoding="utf-8").stdout)
+TRANSIENT_GITHUB_ERRORS=(
+    "secondary rate limit", "rate limit exceeded", "http 429",
+    "http 500", "http 502", "http 503", "http 504",
+    "connection reset", "connection timed out", "tls handshake timeout",
+)
+
+def gh(endpoint, runner=subprocess.run, sleep=time.sleep, attempts=4):
+    """Read GitHub with bounded retries for transport failures, never semantic failures."""
+    for attempt in range(attempts):
+        result=runner(["gh","api",endpoint],text=True,stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,encoding="utf-8")
+        if result.returncode==0:
+            try: return json.loads(result.stdout)
+            except json.JSONDecodeError as exc: raise ValueError("GitHub returned invalid JSON") from exc
+        error=(result.stderr or "GitHub API request failed").strip()
+        transient=any(marker in error.lower() for marker in TRANSIENT_GITHUB_ERRORS)
+        if not transient or attempt==attempts-1:
+            # GitHub CLI diagnostics contain the status/reason but not the token.
+            raise ValueError(f"GitHub API request failed: {error}")
+        sleep(2**attempt)
 
 def parse_comment(comment):
     if comment.get("user",{}).get("login")!="u2giants" or comment.get("author_association")!="OWNER":

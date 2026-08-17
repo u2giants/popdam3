@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -7,10 +8,39 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import RiskGateError, canonical_sha256, classify_sql, decide_business_risk, is_pinned_historical_disney_source, load_activation, prove_activation, prove_preview, prove_preview_migration_contents
+from production_business_risk_gate import RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_preview, prove_preview_migration_contents
 
 
 class ProductionBusinessRiskGateTests(unittest.TestCase):
+    def test_live_owner_comment_read_retries_transient_failure(self):
+        responses=iter([
+            subprocess.CompletedProcess([],1,"","HTTP 503: unavailable"),
+            subprocess.CompletedProcess([],0,'{"author_association":"OWNER"}',""),
+        ])
+        sleeps=[]
+        result=gh_json("repos/u2giants/shared-db/issues/comments/7",
+            runner=lambda *a,**k: next(responses),sleep=sleeps.append)
+        self.assertEqual(result,{"author_association":"OWNER"})
+        self.assertEqual(sleeps,[1])
+
+    def test_non_comment_evidence_read_never_retries(self):
+        calls=[]
+        def runner(*args,**kwargs):
+            calls.append(1); return subprocess.CompletedProcess([],1,"","HTTP 503: unavailable")
+        with self.assertRaisesRegex(RiskGateError,"HTTP 503"):
+            gh_json("repos/u2giants/shared-db/pulls/1108",runner=runner,
+                sleep=lambda _: self.fail("non-comment read slept"))
+        self.assertEqual(len(calls),1)
+
+    def test_live_owner_comment_permanent_absence_never_retries(self):
+        calls=[]
+        def runner(*args,**kwargs):
+            calls.append(1); return subprocess.CompletedProcess([],1,"","HTTP 404: Not Found")
+        with self.assertRaisesRegex(RiskGateError,"HTTP 404"):
+            gh_json("repos/u2giants/shared-db/issues/comments/7",runner=runner,
+                sleep=lambda _: self.fail("permanent absence slept"))
+        self.assertEqual(len(calls),1)
+
     def atomic_preview_fixture(self):
         temp = tempfile.TemporaryDirectory()
         root = Path(temp.name)

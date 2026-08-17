@@ -14,6 +14,7 @@ import json
 import re
 import subprocess
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from typing import Any, Callable
@@ -22,7 +23,7 @@ from production_apply_review_evidence import verify as verify_review
 from production_migration_guard import parse_remote_versions
 from production_review_allowlist import normalize_review_allowlist
 from historical_preview_recovery import verify as verify_historical_preview
-from production_owner_decision_evidence import verify_artifact as verify_owner_decision
+from production_owner_decision_evidence import TRANSIENT_GITHUB_ERRORS, verify_artifact as verify_owner_decision
 
 REPOSITORY = "u2giants/shared-db"
 PREVIEW_WORKFLOW = ".github/workflows/shared-supabase-migrations.yml"
@@ -53,12 +54,24 @@ class RiskGateError(ValueError):
     """Governed evidence is missing, inconsistent, forged, or stale."""
 
 
-def gh_json(endpoint: str) -> Any:
-    result = subprocess.run(
-        ["gh", "api", endpoint], check=True, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",
-    )
-    return json.loads(result.stdout)
+def gh_json(endpoint: str, *, runner=subprocess.run, sleep=time.sleep, attempts=4) -> Any:
+    # Only the live owner-comment read receives transport retries. All other
+    # governed evidence reads preserve their existing single-attempt behavior.
+    retry_transport = "/issues/comments/" in endpoint
+    effective_attempts = attempts if retry_transport else 1
+    for attempt in range(effective_attempts):
+        result = runner(
+            ["gh", "api", endpoint], text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",
+        )
+        if result.returncode == 0:
+            try: return json.loads(result.stdout)
+            except json.JSONDecodeError as exc: raise RiskGateError("GitHub returned invalid JSON") from exc
+        error = (result.stderr or "GitHub API request failed").strip()
+        transient = any(marker in error.lower() for marker in TRANSIENT_GITHUB_ERRORS)
+        if not transient or attempt == effective_attempts - 1:
+            raise RiskGateError(f"GitHub API request failed: {error}")
+        sleep(2 ** attempt)
 
 
 def download_artifact(artifact_id: int, destination: Path) -> None:
