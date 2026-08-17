@@ -2,7 +2,6 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { X, Search, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AssetFilters, FacetCounts, FileStatusFilter } from "@/types/assets";
 import { CONTENT_TYPE_LABELS, CONTENT_TYPE_OPTIONS } from "@/lib/asset-content-types";
 import { STAGE_OPTIONS } from "@/types/assets";
@@ -85,6 +84,7 @@ function FacetRow({
       <span
         style={{
           flex: 1,
+          minWidth: 0,
           fontSize: 13,
           color: "var(--pd-fg)",
           overflow: "hidden",
@@ -305,6 +305,8 @@ function SearchableCombo({
               zIndex: 50,
               marginTop: 2,
               width: "100%",
+              maxWidth: "100%",
+              overflow: "hidden",
               borderRadius: 6,
               border: "1px solid var(--pd-border)",
               background: "var(--pd-surface)",
@@ -328,6 +330,7 @@ function SearchableCombo({
                 placeholder={placeholder}
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   background: "transparent",
                   border: "none",
                   outline: "none",
@@ -337,7 +340,10 @@ function SearchableCombo({
               />
             </div>
 
-            <ScrollArea className="max-h-[200px]">
+            {/* Plain scroller, not Radix ScrollArea: its display:table wrapper is
+                sized by max-content, so long nowrap option names widened the
+                sidebar's own scroll area and pushed this panel off-screen. */}
+            <div style={{ maxHeight: 200, overflowY: "auto", overflowX: "hidden" }}>
               <div style={{ padding: 4 }}>
                 <button
                   type="button"
@@ -386,12 +392,12 @@ function SearchableCombo({
                       fontWeight: value === opt.id ? 600 : 400,
                     }}
                   >
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt.name}</span>
+                    <span style={{ flex: 1, minWidth: 0, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt.name}</span>
                     <span style={{ fontSize: 11, color: "var(--pd-fg-subtle)", marginLeft: 6, flexShrink: 0 }}>{opt.count}</span>
                   </button>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         )}
       </div>
@@ -561,7 +567,10 @@ export default function FilterSidebar({
         </button>
       </div>
 
-      <ScrollArea className="flex-1">
+      {/* Plain scroller: Radix ScrollArea wraps content in a display:table box that
+          is sized by max-content, so long filter labels made this column wider than
+          the sidebar and horizontal auto-scroll pushed open dropdowns off-screen. */}
+      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden" }}>
         {/* Tag filter — assets only */}
         {mode === "assets" && (
           <Section title="Tag" selectedCount={filters.tagFilter ? 1 : 0}>
@@ -785,7 +794,7 @@ export default function FilterSidebar({
             onChange={(v) => update({ artSource: v })}
           />
         )}
-      </ScrollArea>
+      </div>
     </div>
   );
 }
