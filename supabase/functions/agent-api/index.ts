@@ -18,6 +18,16 @@ const TIFF_REINSPECT_DEFAULT_BATCH = 50;
 const LOG_TAIL_LINES = 50;
 const PDF_TEXT_SAMPLE_PROGRESS_LIMIT = 25;
 const MAX_FUTURE_FILE_DATE_MS = 24 * 60 * 60 * 1000;
+/**
+ * Extensions PopSG will store. Allow-list on purpose: unrenderable files
+ * (fonts, web/code, archives, video, 3D, office docs, temp files) never enter
+ * the library. Keep in sync with INGESTABLE_EXTENSIONS in the bridge agent's
+ * style-guide-crawler and the SQL render allow-list in queue_sg_render_jobs*.
+ */
+const SG_INGESTABLE_EXTENSIONS = new Set([
+  "ai", "psd", "eps", "pdf",
+  "tif", "tiff", "jpg", "jpeg", "png",
+]);
 
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
@@ -2802,9 +2812,24 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
 
   if (!runId) return err("run_id is required");
 
+  // Server-side guard: PopSG only stores files it can render a preview for.
+  // Mirrors INGESTABLE_EXTENSIONS in apps/bridge-agent/src/style-guide-crawler.ts
+  // so an older agent build cannot reintroduce unrenderable files.
+  const ingestable = files.filter((f) => {
+    const ext = typeof f.file_extension === "string" ? f.file_extension.toLowerCase() : "";
+    return SG_INGESTABLE_EXTENSIONS.has(ext);
+  });
+  if (ingestable.length !== files.length) {
+    console.warn("[complete-style-guide-crawl] Dropped unrenderable files", {
+      run_id: runId,
+      dropped: files.length - ingestable.length,
+      received: files.length,
+    });
+  }
+
   // Upsert files in batch
-  if (files.length > 0) {
-    const rows = files.map((f) => {
+  if (ingestable.length > 0) {
+    const rows = ingestable.map((f) => {
       const reportedModifiedAt = typeof f.modified_at === "string" ? f.modified_at : null;
       const parsedModifiedAt = reportedModifiedAt ? Date.parse(reportedModifiedAt) : Number.NaN;
       const modifiedAt = reportedModifiedAt && Number.isFinite(parsedModifiedAt) &&

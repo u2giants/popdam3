@@ -14,6 +14,7 @@ import { basename, extname, resolve } from "node:path";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { safeFilesystemModifiedAt } from "./file-date-validation.js";
+import { isIngestableFile } from "./sg-ingest-filter.js";
 
 // ── Normalization ────────────────────────────────────────────────
 
@@ -118,6 +119,9 @@ async function* walkDirectory(
     if (stats.isDirectory()) {
       yield* walkDirectory(fullPath, rootPath, rootLabel);
     } else if (stats.isFile()) {
+      // Only files we can render a preview for enter the library.
+      if (!isIngestableFile(entry.name)) continue;
+
       // Build relative path (POSIX, no leading slash)
       const relPath = fullPath
         .slice(rootPath.length)
