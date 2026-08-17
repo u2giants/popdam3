@@ -124,6 +124,10 @@ else
       continue
     fi
     if [[ "$version" < "$main_newest_version" ]]; then
+      if node scripts/historical-migration-restorations.mjs --allows-backdated "supabase/migrations/$name"; then
+        echo "Guard B historical restoration: exact governed version $version is allowed to sort before main."
+        continue
+      fi
       backdated+="  $name"$'\n'
     fi
   done < "$migration_names_file"

@@ -102,6 +102,13 @@ HARD_BLOCKED = {
     "20260816045130",
 }
 
+# Preview contains this authenticated historical migration, but production does
+# not. The repository file exists only to keep source truth aligned with the
+# preview ledger. No production allowlist may carry it.
+PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
+    "20260817150944",
+}
+
 # The four unblocked above. This is ENFORCED, not documentary: `parse_allowlist`
 # requires an allowlist to contain either ALL FOUR or NONE of them. AGENTS.md
 # section 6.8 forbids unblocking them "one at a time, a few at a time, or just
@@ -752,6 +759,12 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
     blocked = sorted(set(values) & HARD_BLOCKED)
     if blocked:
         raise GuardError(f"general production lane blocks: {', '.join(blocked)}")
+    preview_only = sorted(set(values) & PREVIEW_ONLY_HISTORICAL_RESTORATIONS)
+    if preview_only:
+        raise GuardError(
+            "preview-only historical restoration may never enter a production allowlist: "
+            + ", ".join(preview_only)
+        )
     if values != sorted(values):
         raise GuardError("production allowlist must be in migration order")
     # AGENTS.md section 6.8: all four or none. Enforced here, in the one function

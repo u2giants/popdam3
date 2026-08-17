@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from production_migration_guard import (  # noqa: E402
     HARD_BLOCKED,
+    PREVIEW_ONLY_HISTORICAL_RESTORATIONS,
     BUNDLE_20260804,
     FR_HELD_20260803,
     FR_REMOVAL_VERSIONS,
@@ -196,6 +197,11 @@ def _run_block_commands(step: str) -> list[str]:
 
 
 class GuardTests(unittest.TestCase):
+    def test_preview_only_historical_restoration_is_never_production_allowlisted(self):
+        self.assertEqual(PREVIEW_ONLY_HISTORICAL_RESTORATIONS, {"20260817150944"})
+        with self.assertRaisesRegex(GuardError, "preview-only historical restoration"):
+            parse_allowlist("20260817150944")
+
     def test_bad_allowlists_are_blocked(self) -> None:
         values = [
             "",

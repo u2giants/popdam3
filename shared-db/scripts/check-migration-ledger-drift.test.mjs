@@ -108,6 +108,12 @@ test('classifies retired and deliberately-held versions from the existing Python
   assert.match(result['20260816045130'].reason, /never apply production/)
 })
 
+test('classifies preview-only historical restoration as deliberately held',()=>{
+  const result=classifyPendingWithRules(['20260817150944'],[],ruleFixture({previewOnlyHistorical:['20260817150944']}))
+  assert.equal(result['20260817150944'].kind,'deliberately-held')
+  assert.match(result['20260817150944'].reason,/never include.*production allowlist/i)
+})
+
 test('classifies a normal version explicitly instead of leaving it unknown', () => {
   const result = guardClassifications(['29990101000000'], [])
   assert.equal(result['29990101000000'].kind, 'genuinely-pending')

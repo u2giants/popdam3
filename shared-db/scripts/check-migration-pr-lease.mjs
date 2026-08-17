@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { dispatchObjectKeys } from './check-pr-object-collisions.mjs'
 import { parseAuthorLease, REPO } from './manage-migration-author-lanes.mjs'
+import { validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 
 export class LeaseCheckError extends Error {}
 const normalize = (x) => String(x).trim().replace(/\s+/g,' ').toLowerCase()
@@ -37,11 +38,15 @@ export function validateMigrationLease({ claims, branch, files, now = new Date()
     if(!String(file.sql??'').trim()) throw new LeaseCheckError(`${file.filename} returned empty SQL`)
     for(const object of dispatchObjectKeys(file.sql)) actual.add(normalize(object))
   }
-  if(versions.size!==1 || !versions.has(holder.lease.version)) throw new LeaseCheckError(`migration version must exactly match claim #${holder.number}`)
+  let historical=null
+  if(versions.size===1&&!versions.has(holder.lease.version)){
+    if(migrations.length!==1)throw new LeaseCheckError('historical restoration must add exactly one migration file')
+    try{historical=validateHistoricalRestorationFile(migrations[0].filename,migrations[0].sql)}catch(error){throw new LeaseCheckError(`migration version does not match claim and ${error.message}`)}
+  } else if(versions.size!==1) throw new LeaseCheckError(`migration version must exactly match claim #${holder.number}`)
   if(!reservationExists(holder.lease.version)) throw new LeaseCheckError(`permanent reservation ref is missing for ${holder.lease.version}`)
   const undeclared=[...actual].filter(x=>!declarationCoversActual(declared,x))
   if(undeclared.length) throw new LeaseCheckError(`migration writes undeclared objects: ${undeclared.join(', ')}`)
-  return { relevant:true, claim:holder.number, version:holder.lease.version, objects:[...actual].sort() }
+  return { relevant:true, claim:holder.number, version:historical?versions.values().next().value:holder.lease.version, reservationVersion:holder.lease.version, historical:Boolean(historical), objects:[...actual].sort() }
 }
 
 function gh(args){try{return execFileSync('gh',args,{encoding:'utf8',maxBuffer:64*1024*1024})}catch(e){throw new LeaseCheckError(`GitHub read failed: ${e.stderr||e.message}`)}}
