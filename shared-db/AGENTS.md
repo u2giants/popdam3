@@ -1465,6 +1465,41 @@ The three rules that cause the most damage when ignored:
 3. **Merch-group codes are unique only within `(division, mgTypeCode)`.** `FR` is a licensor
    in our DB and a *property* in Coldlion. Never look up by `mg_code` alone.
 
+### 6.1b Division codes — TWO encodings, and the one that will bite you (2026-08-17)
+
+`division_code` / `divisionCode_*` columns hold **two different encodings of the same
+divisions**, in the same database, sometimes under the identical column name:
+
+| ColdLion spelling | DesignFlow id | Name |
+|---|---|---|
+| `CW001` | `1` | POP Lic |
+| `SP001` | `8` | Spruce Lic |
+| `EH001` | `9` | Spruce non-Lic |
+
+**Rules (settled, do not re-litigate):** shared PLM item tables store the **ColdLion
+spelling**; never the raw ids `1`/`8`/`9`; never the deprecated id `2` or unused id `7`;
+company is always `EDGEHOME` (`SPRUCE` and `UCI` in old rows are legacy labels, not tenants);
+`plm."divisionCode"` is the single source of truth. Proven live on item `BRT10DYWP01`
+(2026-08-14) — do not re-verify.
+
+**The trap: 78% of item headers (15,185 of 19,463) sit in DesignFlow division `2`**, the one
+everyone calls dead. None are active, but that is where item history lives, and division `2`
+has no ColdLion code under the rules above. **`public.erp_items_current.division_code` must
+not be backfilled until the owner rules on those rows** — the bridge table maps id `2` to
+`CW001` while the agreed rule forbids accepting `2`, and both cannot be true.
+
+**Also settled:** `EP001` is a **real retired book/education division** (grade bands, page
+counts, flash cards, 2019–2020), *not* a mis-keyed `EH001`. Never "correct" it to `EH001`.
+
+**Before touching any `core."merchGroup"` division value**, read all three, in this order:
+1. [`docs/division-code-answers-from-uma-20260813.md`](docs/division-code-answers-from-uma-20260813.md) — the answers, with two withdrawn fix rules
+2. [`docs/merchgroup-271-division-conflicts-back-to-uma-20260817.md`](docs/merchgroup-271-division-conflicts-back-to-uma-20260817.md) — why the 271-row fix creates 142 duplicates
+3. [`docs/division-code-round2-answers-and-reference-check-20260817.md`](docs/division-code-round2-answers-and-reference-check-20260817.md) — the reference check: **178 of 363 unclean rows are safe to clean, 185 are not**
+
+⚠️ Three rows (`mg_id` 2, 3, 4) carry **no division at all**, look like obvious junk, and hold
+**573 item references** between them. Deleting them on sight is the mistake this section exists
+to prevent.
+
 ### 6.2 Coldlion `/vendors` — wrong table, now FIXED upstream (2026-07-22)
 
 `core.factory` = **merchandise vendors (factories)**. Coldlion's `/vendors` endpoint was returning a

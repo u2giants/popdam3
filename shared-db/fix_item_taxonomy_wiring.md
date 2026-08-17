@@ -6,6 +6,34 @@ plan. `fix_schema_for_api.md` is the umbrella (5 phases, Phase 1 done/live). Thi
 drill-down for the item→taxonomy resolver specifically. Keep both in sync.
 **Status:** DRAFT for review (Kimi K3 debate → Codex implementation). Not yet started in code.
 **Unblocked by:** Coldlion `GET /items` returning 200 again as of 2026-07-20 (was a 500).
+Re-verified live **2026-08-14**: `GET /items` is healthy (`itemNo=BRT10DYWP01` → HTTP 200).
+
+---
+
+## STATUS — division-code facts this plan depends on (updated 2026-08-17)
+
+No step of this plan has been executed. What changed is the **ground truth underneath it**:
+the division-code questions this plan leans on are now answered and evidenced. Read this
+table before implementing, and do not re-derive any of it.
+
+| Item | State | Where the evidence is |
+|---|---|---|
+| Item key `(companyCode, divisionCode, itemNo)` is real and buildable | ✅ **PROVEN 2026-08-14** — do not redo | [`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md) |
+| DesignFlow id ↔ ColdLion code map (`1`↔`CW001`, `8`↔`SP001`, `9`↔`EH001`) | ✅ **PROVEN on a live item** — do not re-verify | same |
+| `division_code` in shared PLM tables stores the **ColdLion spelling**, never `1`/`8`/`9`, never `2` or `7` | ✅ **RULED** | [`docs/division-code-answers-from-uma-20260813.md`](docs/division-code-answers-from-uma-20260813.md) |
+| `EDGEHOME` is the only company code; `SPRUCE`/`UCI` are legacy labels | ✅ **CONFIRMED 2026-08-17** | [`docs/division-code-round2-answers-and-reference-check-20260817.md`](docs/division-code-round2-answers-and-reference-check-20260817.md) |
+| `EP001` is a **real retired book/education division**, not a mis-keyed `EH001` | ✅ **ESTABLISHED 2026-08-17** — §7b.3's "expect 100% unresolved in EP001" stands, and the reason is now documented | round-2 doc, finding 2 |
+| `plm."divisionCode"` is the single source of truth; the hardcoded map in `designflow-data-syncing/helpers/utility.js` is a second one | 🟡 **AGREED, NOT YET FIXED** (change lives in the app repo, not here) | round-2 doc, answer 9 |
+| **78% of item headers (15,185 of 19,463) sit in DesignFlow division `2`**, which has no ColdLion code under the agreed rule | ⬜ **OPEN — owner decision owed** | round-2 doc, finding 1 |
+
+**Where a fresh session starts:** §7b is still the implementation spec and is unaffected —
+this plan ingests **from ColdLion**, which returns `CW001`/`SP001`/`EH001` directly, so the
+division-`2` problem does not arise on the bronze path.
+
+**The one trap.** Division `2` bites anything that sources item divisions **from DesignFlow
+instead of ColdLion** — specifically the `public.erp_items_current.division_code` backfill,
+which is **blocked** on the owner's answer. Do not "helpfully" fill that column while
+implementing this plan.
 
 ---
 
