@@ -189,9 +189,50 @@ export function claimBody({ version, objects, owner, branch, worktree, expiresAt
   return ['```db-claim', `version: ${version}`, 'objects:', ...objects.map((o) => `  - ${normalizeObject(o)}`), '```', '', '```db-author-lease', `owner: ${owner}`, `branch: ${branch}`, `worktree: ${worktree}`, `expires_at: ${expiresAt.toISOString()}`, '```', '', 'This claim remains authoritative and occupies a lane until explicitly released.', 'Expiry is an audit warning, not an automatic release. The migration version is permanent and is never reused.'].join('\n')
 }
 
-function gh(args) {
-  try { return execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }) }
-  catch (error) { throw new LaneError(`GitHub command failed: gh ${args.join(' ')}: ${error.stderr || error.message}`) }
+export function isTransientGitHubTransport(error) {
+  return /HTTP 5\d\d|connection (?:reset|timed out)|TLS handshake timeout|No server is currently available/i.test(String(error?.stderr ?? error?.message ?? error ?? ''))
+}
+export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms),attempts=4}={}) {
+  let last
+  for(let attempt=0;attempt<attempts;attempt++){
+    try{return executor('gh',args,{encoding:'utf8',maxBuffer:64*1024*1024})}
+    catch(error){
+      last=error
+      if(!isTransientGitHubTransport(error)||attempt===attempts-1){
+        const wrapped=new LaneError(`GitHub command failed: ${String(error.stderr??error.message).trim()}`)
+        wrapped.transientTransport=isTransientGitHubTransport(error)
+        throw wrapped
+      }
+      wait(2**attempt*1000)
+    }
+  }
+  throw last
+}
+function gh(args) { return runGitHubCommand(args) }
+
+export function createRefWithReadback(ref,sha,{run=gh,readRef}={}) {
+  try{run(['api','-X','POST',`repos/${REPO}/git/refs`,'-f',`ref=${ref}`,'-f',`sha=${sha}`]);return true}
+  catch(error){
+    if(/reference already exists/i.test(error.message)){
+      if(!readRef)return false
+      return readRef(ref)===sha
+    }
+    if(!error.transientTransport||!readRef)throw error
+    const actual=readRef(ref)
+    if(actual===sha)return true
+    if(actual!==null)return false
+    throw error
+  }
+}
+export function deleteRefWithReadback(ref,{run=gh,readRef}={}) {
+  try{run(['api','-X','DELETE',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`]);return}
+  catch(error){
+    if(isConfirmedRefAbsence(error))return
+    if(/reference does not exist/i.test(error.message)&&readRef&&readRef(ref)===null)return
+    if(!error.transientTransport||!readRef)throw error
+    if(readRef(ref)===null)return
+    throw error
+  }
 }
 function ghJson(args) {
   const raw = gh(args)
@@ -238,8 +279,7 @@ export const githubIo = {
     return commit.sha
   },
   createRef(ref, sha) {
-    try { gh(['api', '-X', 'POST', `repos/${REPO}/git/refs`, '-f', `ref=${ref}`, '-f', `sha=${sha}`]); return true }
-    catch (error) { if (/reference already exists/i.test(error.message)) return false; throw error }
+    return createRefWithReadback(ref,sha,{readRef:(target)=>this.readRef(target)})
   },
   readRef(ref) {
     const short = ref.replace(/^refs\//, '')
@@ -253,7 +293,15 @@ export const githubIo = {
     const short=prefix.replace(/^refs\//,'')
     return ghPaginated(`repos/${REPO}/git/matching-refs/${short}?per_page=100`).map((row)=>({ref:row.ref,sha:row.object?.sha})).filter((row)=>row.sha)
   },
-  deleteRef(ref) { gh(['api', '-X', 'DELETE', `repos/${REPO}/git/refs/${ref.replace(/^refs\//, '')}`]) },
+  // A DELETE is never replayed after a transport failure. The first request may
+  // have succeeded and a new owner may acquire the fixed coordination ref
+  // during backoff; replaying the DELETE could then remove that new owner.
+  deleteRef(ref) {
+    deleteRefWithReadback(ref,{
+      run:(args)=>runGitHubCommand(args,{attempts:1}),
+      readRef:(target)=>this.readRef(target),
+    })
+  },
   updateRef(ref, sha) { gh(['api','-X','PATCH',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`,'-f',`sha=${sha}`,'-F','force=true']) },
   reserveVersion() { return JSON.parse(execFileSync(process.execPath, ['scripts/check-dispatch-collision.mjs', '--reserve-version', '--json'], { encoding: 'utf8' })) },
   createClaim(title, body) { return gh(['issue', 'create', '--repo', REPO, '--label', 'db-claim', '--title', `CLAIM: ${title}`, '--body', body]).trim() },

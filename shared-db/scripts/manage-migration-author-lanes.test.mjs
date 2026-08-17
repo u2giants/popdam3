@@ -5,7 +5,67 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+
+function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
+
+test('GitHub coordination transport retries bounded transient failures with identical deterministic arguments',()=>{
+  const calls=[],waits=[],args=['api','-X','POST','repos/u2giants/shared-db/git/commits','-f','message=exact']
+  const result=runGitHubCommand(args,{executor:(command,actual)=>{
+    calls.push([command,[...actual]])
+    if(calls.length<3)throw commandFailure('HTTP 503: No server is currently available')
+    return '{"sha":"same"}'
+  },wait:waits.push.bind(waits)})
+  assert.equal(result,'{"sha":"same"}')
+  assert.deepEqual(waits,[1000,2000])
+  assert.equal(calls.length,3)
+  assert.ok(calls.every(([,actual])=>JSON.stringify(actual)===JSON.stringify(args)))
+})
+
+test('GitHub coordination transport exhausts after four attempts and never retries 4xx',()=>{
+  let transientCalls=0
+  assert.throws(()=>runGitHubCommand(['api','endpoint'],{executor:()=>{transientCalls++;throw commandFailure('HTTP 502: bad gateway')},wait:()=>{}}),error=>error instanceof LaneError&&error.transientTransport===true)
+  assert.equal(transientCalls,4)
+  let permanentCalls=0
+  assert.throws(()=>runGitHubCommand(['api','endpoint'],{executor:()=>{permanentCalls++;throw commandFailure('HTTP 422: semantic mismatch')},wait:()=>{}}),error=>error instanceof LaneError&&error.transientTransport===false)
+  assert.equal(permanentCalls,1)
+})
+
+test('create ref accepts only exact readback after a lost success response',()=>{
+  const lost=new LaneError('HTTP 503 after POST');lost.transientTransport=true
+  assert.equal(createRefWithReadback('refs/db-coordination/preview','abc',{run:()=>{throw lost},readRef:()=> 'abc'}),true)
+  assert.equal(createRefWithReadback('refs/db-coordination/preview','abc',{run:()=>{throw lost},readRef:()=> 'other'}),false)
+  assert.throws(()=>createRefWithReadback('refs/db-coordination/preview','abc',{run:()=>{throw lost},readRef:()=>null}),/HTTP 503/)
+  const exists=new LaneError('HTTP 422: Reference already exists')
+  assert.equal(createRefWithReadback('refs/db-coordination/preview','abc',{run:()=>{throw exists},readRef:()=> 'abc'}),true)
+  assert.equal(createRefWithReadback('refs/db-coordination/preview','abc',{run:()=>{throw exists},readRef:()=> 'other'}),false)
+})
+
+test('delete ref accepts only proved absence after a lost success response',()=>{
+  const lost=new LaneError('HTTP 503 after DELETE');lost.transientTransport=true
+  assert.doesNotThrow(()=>deleteRefWithReadback('refs/db-coordination/preview',{run:()=>{throw lost},readRef:()=>null}))
+  assert.throws(()=>deleteRefWithReadback('refs/db-coordination/preview',{run:()=>{throw lost},readRef:()=> 'next-owner'}),/HTTP 503/)
+  const absent=new LaneError('HTTP 422: Reference does not exist')
+  assert.doesNotThrow(()=>deleteRefWithReadback('refs/db-coordination/preview',{run:()=>{throw absent},readRef:()=>null}))
+  assert.throws(()=>deleteRefWithReadback('refs/db-coordination/preview',{run:()=>{throw absent},readRef:()=> 'next-owner'}),/does not exist/)
+})
+
+test('GitHub coordination delete never replays after response loss and preserves a new owner',()=>{
+  const originalExecutor=githubIo.deleteRef
+  let deleteCalls=0,readCalls=0
+  const run=(args)=>runGitHubCommand(args,{
+    attempts:1,
+    executor:()=>{deleteCalls++;throw commandFailure('HTTP 503 after DELETE')},
+    wait:()=>assert.fail('single-attempt DELETE must not back off for a replay'),
+  })
+  assert.throws(()=>deleteRefWithReadback('refs/db-coordination/preview',{
+    run,
+    readRef:()=>{readCalls++;return 'next-owner'},
+  }),error=>error instanceof LaneError&&error.transientTransport===true)
+  assert.equal(deleteCalls,1)
+  assert.equal(readCalls,1)
+  assert.equal(typeof originalExecutor,'function')
+})
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
