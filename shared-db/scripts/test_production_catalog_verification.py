@@ -460,6 +460,20 @@ class SqlBuildTests(unittest.TestCase):
             build_row_count_sql(["plm.x'; drop table y --"])
 
 
+class RecoveryWorkflowTests(unittest.TestCase):
+    def test_current_and_historical_main_are_bound_separately(self):
+        workflow = (
+            REPO / ".github" / "workflows" /
+            "production-catalog-verification-recovery.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn('MAIN_SHA: "${{ inputs.main_sha }}"', workflow)
+        self.assertIn('APPLY_MAIN_SHA: ${{ inputs.apply_main_sha }}', workflow)
+        self.assertIn('git rev-parse origin/main)" = "$MAIN_SHA"', workflow)
+        self.assertIn('jq -r .head_sha <<<"$run")" = "$APPLY_MAIN_SHA"', workflow)
+        self.assertIn('production-migration-apply-$APPLY_MAIN_SHA', workflow)
+        self.assertNotIn('production-migration-apply-$MAIN_SHA', workflow)
+
+
 class ExtractReportTests(unittest.TestCase):
     def test_bare_list_of_rows(self):
         self.assertEqual(extract_report([{"report": {"a": 1}}]), {"a": 1})
