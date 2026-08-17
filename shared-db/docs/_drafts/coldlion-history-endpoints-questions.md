@@ -54,9 +54,53 @@ was `0` on all 3,411 rows.
 
 **4. On `prodHistory`, does `salesOrderNo = 0` mean "not tied to a sales order"?**
 
-It's `0` on about 1,500 of the 3,400 rows we sampled, and those same rows come back with empty
-customer PO and customer dates. We're reading it as stock production not raised against a specific
-customer order, rather than a missing link. Is that right?
+Examples below, as requested. First, what we can see from our side, because it may narrow the
+search: **`salesOrderNo = 0` and `custPONumber` being empty go together perfectly.** Across 1,047
+rows sampled from five separate weeks between 2019 and 2026:
+
+- 550 rows had `salesOrderNo = 0`. **All 550** had an empty `custPONumber`, `custStartDate` and
+  `custCancelDate`.
+- 497 rows had a real `salesOrderNo`. **All 497** had `custPONumber` populated.
+
+There is no overlap either way, which is what makes us think it is one deliberate state rather
+than sporadically missing data.
+
+What we did **not** expect: `customerCode` is still populated on **534 of those 550** rows
+(MOD010, OLL629, ROS010 and so on). So a customer is named even though no sales order is. That is
+why we would rather ask than assume — "no customer order" and "customer known but no order raised"
+are different things for our reporting.
+
+One pattern that might be the lead you need: **95 of the 550 have a `prodReferenceNo` ending in
+`COS`** (D2296COS, D2954COS, D3161COS...), and **not one** of the 497 linked rows does. Several of
+those lines are clearly not regular production — item `SAMPLECHRG` "SAMPLE CHARGE", item
+`FOILCORNER` "FOIL CORNERS", quantities of 4, 5 or 15. Others look like perfectly ordinary
+production runs of thousands of units.
+
+The rate also varies enormously by week, which we cannot explain: 91% of rows in the first week of
+June 2019, 0% in the first week of July 2024, 64% in the first week of August 2026.
+
+**Examples, one per week sampled, all `companyCode=EDGEHOME`:**
+
+| Production order | Line | Reference | Division | Ordered | Item | Qty | Vendor | Customer |
+|---|---|---|---|---|---|---|---|---|
+| 20015 | 1 | d0557 | CW001 | 2019-06-03 | VSZ851B | 1600 | 417 | MOD010 |
+| 20016 | 1 | d0561 | CW001 | 2019-06-03 | VSZ851B | 1600 | 417 | MOD010 |
+| 20818 | 1 | b0247 | EP001 | 2021-03-03 | ACMPRM1 | 15600 | SKPHL | *(blank)* |
+| 20821 | 41 | D1201 | CW001 | 2021-03-01 | HGP83DYMM01 | 12 | CNFLW | BIG226 |
+| 22233 | 3 | D2296COS | CW001 | 2023-11-08 | VSM93DYNX04 | 5 | CNJAM | MOD010 |
+| 22236 | 4 | D2313 | CW001 | 2023-11-07 | SAMPLECHRG | 1 | CNJAM | HLL770 |
+| 23353 | 1 | D2996COS | CW001 | 2025-04-09 | MQZ48DYLS01 | 4 | CNDWG | ROS010 |
+| 23852 | 12 | D3321 | CW001 | 2026-01-08 | FOILCORNER | 7600 | CNHDL | MOD010 |
+| 24187 | 1 | D3161COS | SP001 | 2026-08-03 | SDX00WBLR01S | 15 | INHDW | BOX030 |
+| 24189 | 1 | D3415COS | SP001 | 2026-08-03 | NKR06DYMM01 | 4 | CNQJM | BOX030 |
+
+For contrast, a normal linked row from the same period: production order **23825**, line 3,
+reference D3320, item AAW2A02, `salesOrderNo` 7127555, `custPONumber` 668120603.
+
+So the question is really two: is `0` a deliberate "no sales order for this line", and if so, is
+there a rule we can apply — the `COS` reference suffix, a production type, something else — that
+tells us *why* a given line has none? We would rather report these correctly than lump them in
+with ordinary customer orders or drop them.
 
 **5. Two small things we noticed in the new behaviour, in case they're useful to you.**
 

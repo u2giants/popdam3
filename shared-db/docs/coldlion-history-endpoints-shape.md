@@ -315,12 +315,33 @@ will be wrong.
 `custCancelDate` on **1,518 of 3,411** rows, and `lastVendorDesc` on 167. `orderHistory`
 returned **no nulls at all** — it uses `""`. A loader must handle both empty conventions.
 
-### 5.5 `salesOrderNo = 0` means "not tied to a sales order"
+### 5.5 `salesOrderNo = 0` means "no linked sales order" — but NOT "no customer"
 
-On `prodHistory`, `salesOrderNo` is 0 on **1,510 of 3,411** rows — closely tracking the 1,518
-rows with null customer fields, which is consistent with stock production not raised against a
-specific customer order. Reading 0 as a foreign key would create 1,500 broken links per sample.
-Treat 0 as "no link". Being confirmed with ColdLion.
+On `prodHistory`, `salesOrderNo` is 0 on **1,510 of 3,411** rows in the original census. Reading 0
+as a foreign key would create ~1,500 broken links per sample, so **treat 0 as "no link"**.
+
+> **Correction, 2026-08-17.** An earlier version of this section called these rows "stock
+> production not raised against a specific customer order". **That inference was wrong** and is
+> retracted. `customerCode` is populated on **534 of 550** such rows — a customer *is* named; only
+> the sales order is absent. The correct statement is the narrow one: no linked sales order.
+
+Deeper evidence gathered 2026-08-17 when ColdLion asked for examples (1,047 rows across five weeks
+spanning 2019–2026):
+
+- **The correlation with `custPONumber` is perfect, in both directions.** All **550** rows with
+  `salesOrderNo = 0` had empty `custPONumber`, `custStartDate` and `custCancelDate`; all **497**
+  rows with a real `salesOrderNo` had `custPONumber` populated. Zero exceptions either way, which
+  points to one deliberate state rather than sporadic missing data.
+- **`prodReferenceNo` ending in `COS` occurs only on unlinked rows** — 95 of 550, and 0 of 497.
+  Some of those lines are visibly not regular production (`SAMPLECHRG` "SAMPLE CHARGE",
+  `FOILCORNER` "FOIL CORNERS", quantities of 4–15), but others are ordinary runs of thousands.
+- **The rate swings wildly by week and is unexplained:** 91% (2019-06-03), 48% (2021-03-01),
+  42% (2023-11-06), **0%** (2024-07-01), 34% (2025-04-07), 1% (2026-01-05), 64% (2026-08-03).
+
+**Practical guidance until ColdLion answers:** never join on `salesOrderNo = 0`, and do not assume
+those rows are customer-less — carry `customerCode` through. Do not classify them as "stock
+production" in any report; we do not yet know what they are. The `COS` suffix is a **lead, not a
+rule** — do not build logic on it yet.
 
 ### 5.6 Negative quantities and costs are real
 
@@ -361,7 +382,9 @@ whether the pull can run.
 1. `subUpc` never populated — dead field or missing request? (§5.1)
 2. `ppkMerchGroup*` blank rate on production — known gap? (§5.7)
 3. `lineInvoiceQty` / `lineOpenQty` always zero, and `depositPerc` likewise — not exposed here? (§5.2)
-4. Confirm `salesOrderNo=0` means "no linked sales order" (§5.5).
+4. Confirm `salesOrderNo=0` means "no linked sales order", and whether there is a rule explaining
+   *why* a given line has none (§5.5). **ColdLion asked for examples on 2026-08-17; ten are in the
+   draft note, with the `custPONumber` correlation and the `COS` reference-suffix lead.**
 
 Worth adding when the note is sent, arising from the 2026-08-17 changes:
 
