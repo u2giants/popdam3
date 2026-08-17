@@ -17,8 +17,17 @@ from pathlib import Path
 
 import pandas as pd
 
+from product_type_dictionary import candidate_wording, classify_semantic_signature, normalize as semantic_normalize, unusable_reason
+
 
 CUTOFF = pd.Timestamp("2025-05-14")
+MG01_FAMILY_CODES = {
+    "Stretched or Box": "A", "Framed": "B", "Plaque": "C", "Functional Wall": "D",
+    "Other Wall": "E", "Block": "F", "Box": "G", "Photo Frames": "H", "Object": "J",
+    "Other Tabletop": "K", "Clocks": "M", "Soft Storage": "N", "Hard Storage": "P",
+    "Other Storage": "R", "Stationery Organization": "S", "Desk Accessories": "T",
+    "Other Workspace": "U", "Floor Coverings": "V", "Garden": "W",
+}
 DIMENSION = re.compile(
     r"(?<![A-Za-z0-9])\d+(?:\.\d+)?\s*(?:in(?:ches?)?|[\"”″])?\s*[x×]\s*"
     r"\d+(?:\.\d+)?(?:\s*(?:in(?:ches?)?|[\"”″]))?"
@@ -132,12 +141,7 @@ PRODUCT_RULES = tuple((name, re.compile(pattern, re.I)) for name, pattern in PRO
 
 
 def normalize(value: object) -> str:
-    text = unicodedata.normalize("NFKD", "" if pd.isna(value) else str(value))
-    text = text.encode("ascii", "ignore").decode().lower()
-    replacements = {"shadow box": "shadowbox", "die-cut": "die cut", "fatique": "fatigue", "cnvs": "canvas"}
-    for old, new in replacements.items():
-        text = text.replace(old, new)
-    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+    return semantic_normalize(value)
 
 
 def extract_size(description: str) -> tuple[str, str]:
@@ -204,57 +208,135 @@ def remove_phrase(text: str, phrase: str) -> str:
 @dataclass
 class ParsedDescription:
     product_type: str
+    construction_shape: str
+    treatment: str
     size: str
     licensor: str
     property: str
     artwork_description: str
     parse_basis: str
+    dictionary_status: str
+    family_id: str
+    matched_product_wording: str
 
 
-def parse_description(description: str, licensors, properties) -> ParsedDescription:
-    product_type, basis = extract_product_type(description)
+def parse_description(description: str, licensors, properties, dictionary: dict[str, dict] | None = None) -> ParsedDescription:
+    if dictionary is None:
+        semantic = classify_semantic_signature(description)
+        product_type = semantic.physical_product
+        construction = semantic.construction_shape
+        treatment = semantic.treatment
+        basis = "Reviewed semantic rule" if semantic.status == "accepted" else semantic.decision
+        status = semantic.status
+        family_id = ""
+        matched_wording = semantic.matched_wording
+    else:
+        record = dictionary.get(normalize(candidate_wording(description)), {})
+        product_type = record.get("canonical_physical_product", "")
+        construction = record.get("construction_shape", "")
+        treatment = record.get("treatment", "")
+        status = record.get("status", "needs_review")
+        family_id = record.get("family_id", "")
+        matched_wording = record.get("matched_product_wording", "")
+        basis = "Exact reviewed dictionary wording" if status in {"accepted", "alias"} else record.get("semantic_decision", "Dictionary review required")
     size, _ = extract_size(description)
     licensor = find_name(description, licensors)
     prop = find_name(description, properties)
     artwork = description
-    for value in (product_type, size, licensor, prop):
+    for value in (matched_wording, product_type, construction, treatment, size, licensor, prop):
         artwork = remove_phrase(artwork, value)
     artwork = DIMENSION.sub(" ", artwork)
     artwork = re.sub(r"[_|]+", " ", artwork)
     artwork = " ".join(artwork.split()).strip(" -_,;:/")
-    return ParsedDescription(product_type, size, licensor, prop, artwork, basis)
+    return ParsedDescription(product_type, construction, treatment, size, licensor, prop, artwork, basis, status, family_id, matched_wording)
 
 
 def product_key(value: str) -> str:
-    value = normalize(value)
-    aliases = {
-        "canvas": "printed canvas", "plain canvas": "printed canvas", "stretched canvas": "printed canvas",
-        "pp wall clock": "molded wall clock", "polypropylene molded wall clock": "molded wall clock",
-        "anti fatigue pvc kitchen": "anti fatigue pvc kitchen mat",
-        "anti fatigue kitchen mat": "anti fatigue pvc kitchen mat",
-        "27cm froomies foam wall dcor": "froomies foam wall decor",
-    }
-    return aliases.get(value, value)
+    return normalize(value)
 
 
 def hierarchy_key(row: pd.Series, depth: int) -> str:
     return "|".join(str(row[f"MG0{i}"]).strip().upper() for i in range(1, depth + 1))
 
 
+def mg01_product_family(product: str) -> str:
+    """Broad physical format used only for the MG01 fallback."""
+    if product in {"Canvas", "Framed Canvas", "Canvas Tapestry", "Paint-Your-Own Canvas Set"}:
+        return "Stretched or Box"
+    if product.startswith("Framed "):
+        return "Framed"
+    if product in {"Wall Plaque", "Wall Sign", "Tall Wall Sign", "Door Hanger"}:
+        return "Plaque"
+    if product in {"Wall Shelf", "Wall Hook", "Memo Board", "Functional Board"}:
+        return "Functional Wall"
+    if product in {"Hanging Wall Art", "Wall Decal", "Foam Wall Decor", "Wall Light", "Wall Decor", "Paper Shade"}:
+        return "Other Wall"
+    if product in {"Tabletop Block", "Tabletop Monogram", "Perpetual Calendar"}:
+        return "Block"
+    if product in {"Tabletop Box"}:
+        return "Box"
+    if product == "Photo Frame":
+        return "Photo Frames"
+    if product in {"Mug", "Bookend", "Candle Holder", "Snow Globe", "Tabletop Planter", "Bank"}:
+        return "Object"
+    if product in {"Tabletop LED Art", "Tabletop Easel"}:
+        return "Other Tabletop"
+    if "Clock" in product:
+        return "Clocks"
+    if product in {"Storage Hamper", "Storage Toy Chest", "Storage Chest", "Storage Bin", "Storage Basket", "Storage Cube", "Storage Ottoman"}:
+        return "Soft Storage"
+    if product == "Hard Storage Box":
+        return "Hard Storage"
+    if product in {"Storage Organizer", "Storage Tower"}:
+        return "Other Storage"
+    if product in {"Stationery Organizer", "Pencil Cup", "Memo Holder", "Book"}:
+        return "Stationery Organization"
+    if product in {"Tablet Stand", "Desktop Cube", "Desk Organizer", "Lap Desk"}:
+        return "Desk Accessories"
+    if product in {"Writing Desk", "Desk Mat", "Embroidery Kit", "Display Rack"}:
+        return "Other Workspace"
+    if product in {"Door Mat", "Kitchen Mat", "Bath Mat", "Rug"}:
+        return "Floor Coverings"
+    if product in {"Garden Stake", "Garden Flag", "Outdoor Planter"}:
+        return "Garden"
+    return ""
+
+
+def semantic_key(row: pd.Series, depth: int) -> str:
+    product = row.get("Product Type", "")
+    if depth == 1:
+        values = [mg01_product_family(product)]
+    elif depth == 2:
+        values = [product, row.get("Construction Shape", "")]
+    else:
+        values = [product, row.get("Construction Shape", ""), row.get("Treatment", "")]
+    return "|".join(normalize(value) for value in values)
+
+
 def build_associations(post: pd.DataFrame) -> tuple[dict[int, list[dict]], dict[int, dict[str, Counter]]]:
     groups: dict[int, list[dict]] = {}
     reverse: dict[int, dict[str, Counter]] = {}
     for depth in (1, 2, 3):
-        usable = post[[f"MG0{i}" for i in range(1, depth + 1)]].ne("").all(axis=1)
+        usable = (
+            post[[f"MG0{i}" for i in range(1, depth + 1)]].ne("").all(axis=1)
+            & post["Dictionary Status"].isin(["accepted", "alias"])
+            & post["Description Usable for Product Matching"].eq("Yes")
+            & post["Product Type"].ne("")
+        )
         source = post[usable].copy()
+        if source.empty:
+            groups[depth] = []
+            reverse[depth] = {}
+            continue
         source["Hierarchy Key"] = source.apply(lambda row: hierarchy_key(row, depth), axis=1)
+        source["Semantic Key"] = source.apply(lambda row: semantic_key(row, depth), axis=1)
         records = []
         by_product: dict[str, Counter] = defaultdict(Counter)
         for key, part in source.groupby("Hierarchy Key", sort=True):
-            types = Counter(product_key(value) for value in part["Product Type"] if product_key(value))
+            types = Counter(value for value in part["Semantic Key"] if value)
             records.append({
                 "level": depth, "key": key, "item_count": len(part),
-                "product_types": [{"product_type": name, "item_count": count} for name, count in types.most_common()],
+                "product_types": [{"semantic_key": name, "item_count": count} for name, count in types.most_common()],
                 "examples": part["Item Desc"].drop_duplicates().head(5).tolist(),
             })
             for name, count in types.items():
@@ -264,46 +346,9 @@ def build_associations(post: pd.DataFrame) -> tuple[dict[int, list[dict]], dict[
     return groups, reverse
 
 
-def token_similarity(left: str, right: str) -> float:
-    a, b = set(product_key(left).split()), set(product_key(right).split())
-    if not a or not b:
-        return 0.0
-    return len(a & b) / len(a | b)
-
-
-_ASSOCIATION_TOKEN_INDEX: dict[int, dict[str, set[str]]] = {}
-
-
-def related_later_types(product_type: str, associations: dict[str, Counter]) -> set[str]:
-    identity = id(associations)
-    if identity not in _ASSOCIATION_TOKEN_INDEX:
-        index: dict[str, set[str]] = defaultdict(set)
-        for later_type in associations:
-            for token in set(later_type.split()):
-                if len(token) >= 3:
-                    index[token].add(later_type)
-        _ASSOCIATION_TOKEN_INDEX[identity] = dict(index)
-    result: set[str] = set()
-    for token in set(product_key(product_type).split()):
-        if len(token) >= 3:
-            result.update(_ASSOCIATION_TOKEN_INDEX[identity].get(token, set()))
-    return result
-
-
-def choose_at_level(product_type: str, depth: int, associations: dict[str, Counter]) -> dict | None:
-    key = product_key(product_type)
+def choose_at_level(signature_key: str, depth: int, associations: dict[str, Counter]) -> dict | None:
+    key = signature_key
     evidence = Counter(associations.get(key, {}))
-    basis = "Exact canonical product type"
-    if not evidence:
-        # Variant recovery is deliberately stricter for deep assignments. MG01 is broad,
-        # so a shared physical noun is often enough when every close later type agrees.
-        threshold = {3: 0.72, 2: 0.55, 1: 0.25}[depth]
-        scored = [(token_similarity(key, later_type), later_type) for later_type in related_later_types(key, associations)]
-        best = max((score for score, _ in scored), default=0)
-        for score, later_type in scored:
-            if score >= threshold and score >= best - 0.08:
-                evidence.update(associations[later_type])
-        basis = f"Semantic product-type variant ({best:.0%} token agreement)"
     if not evidence:
         return None
     ranked = evidence.most_common()
@@ -312,60 +357,103 @@ def choose_at_level(product_type: str, depth: int, associations: dict[str, Count
     share = count / total
     runner = ranked[1][1] if len(ranked) > 1 else 0
     minimum_share = {3: 0.80, 2: 0.75, 1: 0.60}[depth]
-    if share < minimum_share or (runner and count < runner * 1.5):
+    if share < minimum_share or (runner and count < runner * 1.5) or total < 2:
         return None
     return {
         "depth": depth, "key": chosen, "support": count, "total": total,
-        "share": round(share, 4), "basis": basis,
+        "share": round(share, 4), "basis": "Exact reviewed semantic signature",
         "distribution": "; ".join(f"{value}: {n}" for value, n in ranked),
     }
 
 
-def classify_product_type(product_type: str, reverse: dict[int, dict[str, Counter]]) -> dict:
+def classify_product_type(product_type: str, reverse: dict[int, dict[str, Counter]], construction: str = "", treatment: str = "") -> dict:
     for depth in (3, 2, 1):
-        decision = choose_at_level(product_type, depth, reverse[depth])
+        if depth == 3:
+            values = [product_type, construction, treatment]
+        elif depth == 2:
+            values = [product_type, construction]
+        else:
+            values = [mg01_product_family(product_type)]
+        if not values[0]:
+            continue
+        decision = choose_at_level("|".join(normalize(value) for value in values), depth, reverse[depth])
         if decision:
             return decision
+        if depth == 1 and values[0] in MG01_FAMILY_CODES:
+            return {
+                "depth": 1, "key": MG01_FAMILY_CODES[values[0]], "support": 0, "total": 0,
+                "share": 1, "basis": "Exact physical format in the approved MG01 taxonomy",
+                "distribution": f"{values[0]}: {MG01_FAMILY_CODES[values[0]]}",
+            }
     return {"depth": 0, "key": "", "support": 0, "total": 0, "share": 0, "basis": "No reliable post-change product-type association", "distribution": ""}
 
 
 def usable_description(value: str) -> bool:
-    text = normalize(value)
-    if not text or text in {"pending", "assortment", "assorted", "desc", "sample", "samples"}:
-        return False
-    if re.fullmatch(r"(?:annual )?(?:testing|sample|reprint|art|mdpd)? ?fees?", text):
-        return False
-    if re.fullmatch(r"[a-z]*\d+[a-z0-9]*", text):
-        return False
-    return True
+    return not unusable_reason(value)
 
 
-def run(source: Path, output: Path, reference: Path | None) -> dict:
+def load_product_dictionary(path: Path) -> dict[str, dict]:
+    rows = pd.read_csv(path, dtype=str).fillna("")
+    required = {
+        "observed_normalized_wording", "canonical_physical_product", "construction_shape",
+        "treatment", "status", "family_id", "matched_product_wording", "semantic_decision",
+    }
+    missing = required - set(rows.columns)
+    if missing:
+        raise ValueError(f"Dictionary is missing columns: {sorted(missing)}")
+    return {str(row["observed_normalized_wording"]): row.to_dict() for _, row in rows.iterrows()}
+
+
+def run(source: Path, output: Path, reference: Path | None, dictionary_path: Path | None = None) -> dict:
     data = pd.read_csv(source, dtype=str, encoding="cp1252").fillna("")
     data["Created Date"] = pd.to_datetime(data["CreatedTime"], errors="coerce")
+    if data["Created Date"].isna().any():
+        raise ValueError(f"{int(data['Created Date'].isna().sum())} CreatedTime values could not be read")
+    dictionary_path = dictionary_path or Path(__file__).with_name("product_type_dictionary.csv")
+    dictionary = load_product_dictionary(dictionary_path)
     licensors, properties = load_name_lexicons(reference)
-    parsed = [parse_description(value, licensors, properties) for value in data["Item Desc"]]
+    parsed = [parse_description(value, licensors, properties, dictionary) for value in data["Item Desc"]]
     for field in ParsedDescription.__dataclass_fields__:
         data[field.replace("_", " ").title()] = [asdict(value)[field] for value in parsed]
     data = data.rename(columns={"MerchGroup01": "MG01", "MerchGroup02": "MG02", "MerchGroup03": "MG03", "MerchGroup04": "MG04"})
+    data["Description Usable for Product Matching"] = data["Item Desc"].map(lambda value: "Yes" if usable_description(value) else "No")
     post = data[data["Created Date"].ge(CUTOFF)].copy()
     pre = data[data["Created Date"].lt(CUTOFF)].copy()
+    if len(post) + len(pre) != len(data):
+        raise AssertionError("The date split did not account for every source row")
     groups, reverse = build_associations(post)
-    # A product type is classified once, then reused for every item carrying that type.
-    # This also guarantees identical product types receive identical decisions.
-    decision_by_type = {
-        value: classify_product_type(value, reverse) for value in pre["Product Type"].drop_duplicates()
-    }
-    decisions = [decision_by_type[value] for value in pre["Product Type"]]
+    signatures = list(zip(pre["Product Type"], pre["Construction Shape"], pre["Treatment"], pre["Dictionary Status"]))
+    decision_by_signature = {}
+    for product, construction, treatment, status in set(signatures):
+        if status in {"accepted", "alias"} and product:
+            decision_by_signature[(product, construction, treatment, status)] = classify_product_type(product, reverse, construction, treatment)
+        else:
+            decision_by_signature[(product, construction, treatment, status)] = {
+                "depth": 0, "key": "", "support": 0, "total": 0, "share": 0,
+                "basis": "No accepted physical-product dictionary entry", "distribution": "",
+            }
+    decisions = [decision_by_signature[value] for value in signatures]
     proposed = [decision["key"].split("|") if decision["key"] else [] for decision in decisions]
     for index, name in enumerate(("Proposed MG01", "Proposed MG02", "Proposed MG03")):
         pre[name] = [parts[index] if len(parts) > index else "" for parts in proposed]
     pre["Matched Level"] = [decision["depth"] for decision in decisions]
     pre["Match Basis"] = [decision["basis"] for decision in decisions]
     pre["Post-Change Evidence"] = [decision["distribution"] for decision in decisions]
+    pre["Evidence Support"] = [decision["support"] for decision in decisions]
+    pre["Evidence Total"] = [decision["total"] for decision in decisions]
     pre["Evidence Share"] = [decision["share"] for decision in decisions]
     pre["Artwork Used for MG Decision"] = "No"
-    pre["Description Usable for Product Matching"] = pre["Item Desc"].map(lambda value: "Yes" if usable_description(value) else "No")
+    def outcome(row: pd.Series) -> str:
+        if row["Matched Level"] == 3:
+            return "Matched to MG01+MG02+MG03"
+        if row["Matched Level"] == 2:
+            return "Matched to MG01+MG02"
+        if row["Matched Level"] == 1:
+            return "Matched to MG01"
+        if row["Description Usable for Product Matching"] == "Yes" and row["Dictionary Status"] in {"accepted", "alias"}:
+            return "Readable accepted product, no reliable MG01"
+        return "No usable accepted product type"
+    pre["Outcome Bucket"] = pre.apply(outcome, axis=1)
     output.mkdir(parents=True, exist_ok=True)
     data.drop(columns=["Created Date"]).to_csv(output / "all_item_description_chunks.csv", index=False, encoding="utf-8-sig")
     pre.drop(columns=["Created Date"]).to_csv(output / "historical_hierarchical_mg_matches.csv", index=False, encoding="utf-8-sig")
@@ -381,7 +469,11 @@ def run(source: Path, output: Path, reference: Path | None) -> dict:
         "historical_matched_to_mg01_mg02": counts[2], "historical_matched_to_mg01": counts[1],
         "historical_unmatched_to_mg01": counts[0],
         "historical_without_usable_description": int(pre["Description Usable for Product Matching"].eq("No").sum()),
-        "historical_usable_description_but_unmatched_to_mg01": int(no_mg01["Description Usable for Product Matching"].eq("Yes").sum()),
+        "historical_usable_accepted_product_but_unmatched_to_mg01": int((
+            no_mg01["Description Usable for Product Matching"].eq("Yes")
+            & no_mg01["Dictionary Status"].isin(["accepted", "alias"])
+        ).sum()),
+        "historical_no_usable_accepted_product_type": int(pre["Outcome Bucket"].eq("No usable accepted product type").sum()),
     }
     (output / "hierarchical_match_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
@@ -392,8 +484,9 @@ def main() -> None:
     parser.add_argument("source", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--reference", type=Path)
+    parser.add_argument("--dictionary", type=Path)
     args = parser.parse_args()
-    print(json.dumps(run(args.source, args.output, args.reference), indent=2))
+    print(json.dumps(run(args.source, args.output, args.reference, args.dictionary), indent=2))
 
 
 if __name__ == "__main__":

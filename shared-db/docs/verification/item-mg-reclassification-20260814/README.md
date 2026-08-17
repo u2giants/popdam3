@@ -4,6 +4,31 @@
 
 The earlier exact-signature workflow described below is retained as investigation history. It is not the approved classification method because it did not build or try an independent MG01 map.
 
+## Implemented process and current result
+
+The permanent implementation is now:
+
+1. Build one exact dictionary row for every distinct observed Item Description wording.
+2. Split accepted descriptions into physical product, construction or shape, treatment, size, licensor, property, and artwork wording.
+3. Mark descriptions that do not state a physical product as `needs_review` or `placeholder`. They never teach or receive an MG value.
+4. Build the MG01, MG01+MG02, and MG01+MG02+MG03 association maps independently, using only items created May 14, 2025 or later and only accepted dictionary entries.
+5. Match each historical accepted product at the deepest supported level. Try MG01+MG02+MG03, then MG01+MG02, then the approved broad MG01 physical format.
+6. Never use historical MG values, licensor, property, character, artwork, slogan, color, or size to choose a proposed MG value.
+7. Require at least two later items, a minimum winning share, and a clear lead over the second choice before proposing MG02 or MG03. Leave unsupported lower levels blank.
+
+The August 17, 2026 final run accounts for all 19,302 source rows: 3,658 later items and 15,644 historical items. Historical results are 2,294 full three-level matches, 7,496 two-level matches, and 2,600 MG01-only matches. There are zero accepted historical product types that fail to receive MG01. A separate 3,254 rows are held back because the description does not contain an accepted physical product type; these are not guessed and are listed individually in the workbook.
+
+The final workbook is `outputs/issue-1113-taxonomy/item_mg_taxonomy_final.xlsx`. Its sheets are Summary, the three independent combination lists, all Historical Recommendations, the complete Dictionary Ledger, Residual Review, and Precision Review.
+
+To reproduce the result from the verification directory:
+
+```powershell
+python build_product_type_dictionary.py data/full_item_master.csv --output product_type_dictionary.csv
+python -m unittest -v
+python hierarchical_item_taxonomy.py data/full_item_master.csv --dictionary product_type_dictionary.csv --output <private-output-folder>
+python evaluate_precision.py data/full_item_master.csv --dictionary product_type_dictionary.csv --output <private-output-folder>\precision_review.json
+```
+
 ## Purpose
 
 This work supports reassignment of merchandise groups for items created through May 13, 2025 using the categorization method introduced on May 14, 2025.

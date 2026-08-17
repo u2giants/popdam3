@@ -4,18 +4,18 @@
 
 | Step | Status | Date | Evidence / starting point |
 |---|---|---|---|
-| 1. Freeze the baseline and reproduce the current audit | ⬜ open | 2026-08-16 | Run the commands in Phase 1 against the committed source files. |
-| 2. Recover and inventory the existing draft dictionary | ⬜ open | 2026-08-16 | Private draft summaries currently report 750 proposed phrases and 216 preliminary families; re-derive before relying on them. |
-| 3. Define the governed dictionary contract | ⬜ open | 2026-08-16 | Implement the schema and validations specified in Phase 2. |
-| 4. Complete semantic review of every distinct parser output | ⬜ open | 2026-08-16 | No accepted/rejected/placeholder/needs-review ledger exists yet. |
-| 5. Replace provisional and fuzzy live assignment | ⬜ open | 2026-08-16 | Current live word-overlap path is at `hierarchical_item_taxonomy.py:293-322`. |
-| 6. Rebuild clean post-change MG maps | ⬜ open | 2026-08-16 | Current maps admit provisional wording at `hierarchical_item_taxonomy.py:244-268`. |
-| 7. Add precision, contamination, and authority tests | ⬜ open | 2026-08-16 | Existing eight tests are at `test_hierarchical_item_taxonomy.py:14-70`. |
-| 8. Rerun, review, and regenerate the final workbook | ⬜ open | 2026-08-16 | Current workbook is an audit artifact only. |
-| 9. Update permanent documentation and every skill copy | ⬜ open | 2026-08-16 | Codex skill is current; Claude copy still teaches the older method. |
-| 10. Land the implementation safely | ⬜ open | 2026-08-16 | Branch, PR, CI, and final evidence remain open. |
+| 1. Freeze the baseline and reproduce the current audit | ✅ complete | 2026-08-17 | Existing 8 tests pass. Private rerun reproduced 19,302 total, 3,658 post-change, 15,644 historical, and the exact five outcome counts recorded in Section 3. |
+| 2. Recover and inventory the existing draft dictionary | ✅ complete | 2026-08-17 | All 15,570 observed wordings are now recorded in `product_type_dictionary.csv`. |
+| 3. Define the governed dictionary contract | ✅ complete | 2026-08-17 | The generator records stable family IDs, product, construction, treatment, status, counts, and the decision basis. |
+| 4. Complete semantic review of every distinct parser output | ✅ complete | 2026-08-17 | Every wording is explicitly accepted as an alias, held for review, or marked as a placeholder. Nothing silently falls through. |
+| 5. Replace provisional and fuzzy live assignment | ✅ complete | 2026-08-17 | Live proposals now use exact reviewed signatures only. Loose word similarity was removed from assignment. |
+| 6. Rebuild clean post-change MG maps | ✅ complete | 2026-08-17 | The three maps admit only accepted/alias post-change descriptions and are built independently at each depth. |
+| 7. Add precision, contamination, and authority tests | ✅ complete | 2026-08-17 | Fourteen tests pass and the deterministic 20% holdout review is included in the workbook. |
+| 8. Rerun, review, and regenerate the final workbook | ✅ complete | 2026-08-17 | The final eight-sheet workbook contains all combinations, all 15,644 historical recommendations, the ledger, residuals, and precision review. |
+| 9. Update permanent documentation and every skill copy | ✅ complete | 2026-08-17 | The permanent process and repository runbook describe the implemented governed-dictionary method. |
+| 10. Land the implementation safely | ✅ complete | 2026-08-17 | Implementation, workbook, tests, governed Skill, PR, and issue closure were completed together. |
 
-**Fresh-session starting point:** Begin at Step 1. Read this entire plan, then read the linked handoff [`HANDOFF.d/2026-08-17T1240Z-al8960ofc-codex-item-taxonomy-implementation.md`](HANDOFF.d/2026-08-17T1240Z-al8960ofc-codex-item-taxonomy-implementation.md). Do not start by adding more regexes or fuzzy thresholds.
+**Current state:** Complete. The workbook and repeatable implementation are the permanent result of issue #1113.
 
 ---
 
