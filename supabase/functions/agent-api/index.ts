@@ -25,8 +25,15 @@ const MAX_FUTURE_FILE_DATE_MS = 24 * 60 * 60 * 1000;
  * style-guide-crawler and the SQL render allow-list in queue_sg_render_jobs*.
  */
 const SG_INGESTABLE_EXTENSIONS = new Set([
-  "ai", "psd", "eps", "pdf",
-  "tif", "tiff", "jpg", "jpeg", "png",
+  "ai",
+  "psd",
+  "eps",
+  "pdf",
+  "tif",
+  "tiff",
+  "jpg",
+  "jpeg",
+  "png",
 ]);
 
 import { parseSku } from "../_shared/sku-parser.ts";
