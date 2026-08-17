@@ -142,6 +142,18 @@ See `docs/SEARCH_PERFORMANCE.md` for the search monitoring and embedding runbook
 
 ---
 
+## OrderList (`/orders`)
+
+PopDAM-only screen (hidden in PopSG) that replaces the legacy `OrderList` Google
+Sheet. It reads the shared-db view `api.dam_order_list` in bounded 200-row
+blocks with sorting, filtering and search performed in the database, and writes
+through the `create_dam_order` / `update_dam_order` / `link_dam_order_line`
+RPCs. Product facts are read from Master Data through the canonical
+`plm.item` link; order facts stay on the order. Full behavior:
+[ORDER_LIST.md](ORDER_LIST.md).
+
+---
+
 ## Key Edge Functions
 
 | Function | Purpose |

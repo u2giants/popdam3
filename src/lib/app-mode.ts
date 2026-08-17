@@ -40,9 +40,35 @@ function detectMode(): AppMode {
   return "popdam";
 }
 
-export const POPDAM_SUPABASE_PROJECT_REF = "qsllyeztdwjgirsysgai";
-export const POPDAM_SUPABASE_URL = `https://${POPDAM_SUPABASE_PROJECT_REF}.supabase.co`;
-export const POPDAM_ANON_KEY = "sb_publishable_DzKBYH1jmWYDuA3ONUrPQQ_0EFEUSbE";
+/**
+ * Production shared POP database. This is the default for every build.
+ *
+ * A local development run can point at the shared-db preview branch instead by
+ * setting VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (see docs/development.md).
+ * Both must be set together: a half-configured override is a loud failure rather
+ * than a silent fall back to production, because a preview test that quietly
+ * writes to production is exactly the accident this guard exists to prevent.
+ */
+const PRODUCTION_SUPABASE_PROJECT_REF = "qsllyeztdwjgirsysgai";
+const PRODUCTION_SUPABASE_URL = `https://${PRODUCTION_SUPABASE_PROJECT_REF}.supabase.co`;
+const PRODUCTION_ANON_KEY = "sb_publishable_DzKBYH1jmWYDuA3ONUrPQQ_0EFEUSbE";
+
+const overrideUrl = import.meta.env?.VITE_SUPABASE_URL as string | undefined;
+const overrideAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+if (Boolean(overrideUrl) !== Boolean(overrideAnonKey)) {
+  throw new Error(
+    "Supabase override is incomplete: set BOTH VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, or neither.",
+  );
+}
+
+export const POPDAM_SUPABASE_URL = overrideUrl || PRODUCTION_SUPABASE_URL;
+export const POPDAM_ANON_KEY = overrideAnonKey || PRODUCTION_ANON_KEY;
+export const POPDAM_SUPABASE_PROJECT_REF =
+  new URL(POPDAM_SUPABASE_URL).hostname.split(".")[0] || PRODUCTION_SUPABASE_PROJECT_REF;
+
+/** True whenever this build is NOT pointed at the production database. */
+export const IS_NON_PRODUCTION_DATABASE = POPDAM_SUPABASE_URL !== PRODUCTION_SUPABASE_URL;
 
 export const APP_CONFIG = {
   popdam: {

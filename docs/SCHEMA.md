@@ -263,6 +263,16 @@ Latest normalized production PO header/detail row.
 - Optional display fields: `order_status`, `customer_code`, `customer_name`, `quantity`, `due_date`, `order_date`, `erp_updated_at`
 - `raw_payload jsonb`, `synced_at`, `sync_run_id uuid FK`
 
+#### OrderList contract (owned by shared-db)
+
+The `/orders` screen does not use the `prod_order_*` tables above. It reads the
+security-invoker view `api.dam_order_list` over `plm.production_order` and
+`plm.production_order_line`, and writes through `public.create_dam_order`,
+`public.update_dam_order` and `public.link_dam_order_line`, with per-user
+layouts in `public.order_list_user_views`. All of these are authored in
+`u2giants/shared-db` (migrations `20260810010000`, `20260810060000`,
+`20260810100000`, `20260810110000`). See [ORDER_LIST.md](ORDER_LIST.md).
+
 ### `dam` schema (worker-internal, NOT exposed to PostgREST)
 
 Tables the frontend never queries; `dam` is deliberately absent from `pgrst.db_schemas`, so server-side code must reach these via `public` `SECURITY DEFINER` RPCs (a direct `.schema("dam").from(...)` fails with `Invalid schema: dam` — see `docs/KNOWN_QUIRKS.md` #64).
