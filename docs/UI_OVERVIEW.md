@@ -132,6 +132,17 @@ Faceted filter panel that appears on the left side. Filters include:
 
 All filter counts update live as other filters change.
 
+The panel is **drag-to-resize**: the handle on its right edge takes it from
+180px to 520px, the chosen width is remembered per browser in `localStorage`
+(`library-filter-sidebar-width`), and double-clicking the handle resets it to
+the 214px default. Labels and dropdown values get a native tooltip **only while
+their text is actually cut off**, measured live from `scrollWidth` vs
+`clientWidth`, so tooltips disappear once the panel is wide enough.
+
+**This panel must not use Radix `ScrollArea`.** Its `display: table` wrapper is
+sized by max-content, which made the column wider than the panel and pushed
+open dropdowns off the left edge of the screen — see KNOWN_QUIRKS §73.
+
 The Product Category filter uses `product_category` when present. For **Wall**, it also treats legacy folder signals such as `WALL ART` and `3FZ` as Wall matches because older framed 3D wall-art SKUs may predate complete ERP category enrichment.
 
 ### Scan Monitor Banner (`ScanMonitorBanner.tsx`)

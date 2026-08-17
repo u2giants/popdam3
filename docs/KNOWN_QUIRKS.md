@@ -1058,3 +1058,45 @@ repaired by this change; that owner-gated cleanup remains sequenced in canonical
 **Release evidence**: PopDAM commit `9e0ec1d`; CI, edge-function deploy, bridge
 image, frontend image, and both guards passed. `dam.designflow.app` and
 `sg.designflow.app` served HTTP 200 with frontend build `9e0ec1d`.
+
+---
+
+## 73. Radix `ScrollArea` Sizes Its Content to `max-content` — It Pushed Filter Dropdowns Off-Screen (fixed 2026-08-17)
+
+**File**: `src/components/library/FilterSidebar.tsx`.
+
+**Looks like**: `<ScrollArea>` is a drop-in scroll container, so a fixed-width
+panel can wrap its contents in one and rely on `text-overflow: ellipsis` to
+keep long labels inside.
+
+**Actually**: Radix wraps the viewport's children in a `display: table` box with
+`min-width: 100%`. A table box is sized by its content's **max-content** width,
+so a single `white-space: nowrap` label (a long licensor name, or the
+"No preview — AI not PDF compatible" file-status row) made the sidebar's scroll
+content 267px wide inside a 214px panel. `min-width: 0` on the flex text cells
+does not help: table sizing ignores the child's ability to shrink.
+
+**The visible bug**: opening a filter dropdown autofocused its search input,
+the browser scrolled that hidden 53px of horizontal overflow into view, and the
+whole dropdown slid past the **left** edge of the screen (measured left edge
+`-21px`), showing only part of each value.
+
+**The fix**: the sidebar and its dropdown lists use plain
+`overflow-y: auto; overflow-x: hidden` scrollers instead of Radix `ScrollArea`.
+That also restored the dropdown list's `max-height: 200px`, which `ScrollArea`
+had been silently ignoring (the class landed on the Root, not the Viewport).
+
+**Rule of thumb**: do not use Radix `ScrollArea` inside a fixed-width panel
+whose children must truncate. Use a plain scroller. If you must use
+`ScrollArea`, force the inner wrapper's width and verify with
+`viewport.scrollWidth === viewport.clientWidth` in the browser, not by eye.
+
+**Related**: the same panel now supports drag-to-resize (180-520px, persisted
+in `localStorage` under `library-filter-sidebar-width`, double-click resets),
+and values carry a tooltip only while they are actually cut off, measured live
+from `scrollWidth > clientWidth`. Regression coverage:
+`src/test/filter-sidebar-resize-tooltip.test.tsx`.
+
+**Release evidence**: PopDAM commits `9fc434ea` (overflow fix) and `23f1c480`
+(resize + tooltips); CI, both DB guards, and the frontend image build passed on
+each.
