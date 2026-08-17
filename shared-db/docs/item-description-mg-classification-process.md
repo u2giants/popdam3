@@ -4,6 +4,8 @@
 
 This is the permanent operating rule for interpreting item descriptions and proposing the new merchandise-group hierarchy for items created before May 14, 2025.
 
+The active plan to replace the incomplete provisional dictionary and unsafe live fuzzy assignment is [`../plan_item_description_mg_taxonomy_repair.md`](../plan_item_description_mg_taxonomy_repair.md). Until that plan is complete, existing workbook results are audit artifacts, not final recoding recommendations.
+
 The process does not redefine, repair, renumber, or overwrite MG01, MG02, MG03, or MG04. It changes only the analysis used to propose codes for historical items. The Item Master and source files remain unchanged until a separate update is explicitly approved.
 
 The implementation is [`hierarchical_item_taxonomy.py`](verification/item-mg-reclassification-20260814/hierarchical_item_taxonomy.py). Its tests are [`test_hierarchical_item_taxonomy.py`](verification/item-mg-reclassification-20260814/test_hierarchical_item_taxonomy.py).

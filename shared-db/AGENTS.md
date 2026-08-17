@@ -10,7 +10,7 @@
 
 ## Historical item merchandise-group classification
 
-Before interpreting `full_item_master.csv`, changing item-description parsing, or reporting historical MG match counts, read [`docs/item-description-mg-classification-process.md`](docs/item-description-mg-classification-process.md). The permanent rule is: parse every description into product type, size, licensor, property, and artwork; build independent post-May-13 maps for MG01, MG01+MG02, and MG01+MG02+MG03; then match old product types from three levels to two to one. A failed full-key match is never an MG01 failure.
+Before interpreting `full_item_master.csv`, changing item-description parsing, or reporting historical MG match counts, read [`docs/item-description-mg-classification-process.md`](docs/item-description-mg-classification-process.md). The active remediation plan is [`plan_item_description_mg_taxonomy_repair.md`](plan_item_description_mg_taxonomy_repair.md); follow its STATUS table and do not recreate the unsafe provisional/fuzzy method. The permanent rule is: parse every description into product type, size, licensor, property, and artwork; build independent post-May-13 maps for MG01, MG01+MG02, and MG01+MG02+MG03; then match old product types from three levels to two to one. A failed full-key match is never an MG01 failure.
 
 ## Active contracts and implementation plans
 
