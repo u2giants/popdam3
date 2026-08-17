@@ -15,7 +15,7 @@ Before interpreting `full_item_master.csv`, changing item-description parsing, o
 ## Active contracts and implementation plans
 
 - PopDAM OrderList linked to Master Data: [`plan_popdam_order_list.md`](plan_popdam_order_list.md). Read its STATUS table first. Do not re-derive or re-plan completed steps.
-- **Settled licensing Master Data architecture (read before any Licensor, Property, Character, Style Guide, Asset, or Franchise work):** [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md). Owner ruling 2026-08-16: authorized licensor scrapes are canonical for Property spelling, Property ownership, Characters, Style Guides, Asset metadata, Franchises, and direct source-published relationships. ColdLion decides Property Active/Inactive only. The one stale DesignFlow pull has no authority. Authorized licensor scrapes run weekly. This is a central architecture contract, not an issue or proposal.
+- **Settled licensing Master Data architecture (read before any Licensor, Property, Character, Style Guide, Asset, or Franchise work):** [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md). Owner ruling 2026-08-16: authorized licensor scrapes are canonical for Property spelling, Property ownership, Characters, Style Guides, Asset metadata, Franchises, and direct source-published relationships. ColdLion decides Property Active/Inactive only. New scrape Properties and reviewed ColdLion create-new rows start Potential; a ColdLion-only proposal needs Licensing confirmation of name and owning Licensor before creation, then guarded membership may make it Active. The one stale DesignFlow pull has no authority. Authorized licensor scrapes run weekly. This is a central architecture contract, not an issue or proposal.
 - **Licensing Master Data implementation:** [`plan_licensing_master_data_implementation.md`](plan_licensing_master_data_implementation.md). Read its STATUS table first and start at the named fresh-session step. It supersedes conflicting execution assumptions in older Character/Style Guide and ColdLion plans without deleting their historical evidence.
 - OrderList source contract: [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md), with formula detail in [`docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md`](docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md). Owner ruling: Google OrderList and future Coldlion rows are the same orders; `plm.item` is the ultimate item list. One canonical order/line must retain separate Google and Coldlion source refs.
 
@@ -1682,6 +1682,37 @@ read §6.4 as reaching an application's own rows in its own tables; it does not,
 but **not applied there**), and the compliant reference implementations all stand exactly as written
 above. This subsection adds addressees; it removes nothing.
 
+#### 6.4-D OWNER RULING — authorized licensor scrape consolidation is a governed authority path, not an ad-hoc load (Albert Hazan, 2026-08-16)
+
+> "What comes in from the licensor scrape ... is canonical as to which licensor a property belongs
+> to and how the property is spelled ... the scrapes are canonical (and have to be run weekly)."
+> — Albert Hazan, 2026-08-16
+
+**This is the narrow exception that §6.4-C requires an owner to name.** For an authorized licensor
+portal that POP has implemented, the portal is the approved authority for its scoped Licensor,
+Property spelling and ownership, Characters, Style Guides, Asset metadata, Franchises, and direct
+source-published relationships. A future guarded consolidator may therefore update those specific
+facts on a matched canonical row. That is intentional authority application, not gap-filling.
+
+The exception applies only when all of these are true:
+
+1. the full `source_system` identity is explicitly authorized and mapped to its Licensor scope;
+2. the capture is complete, validated, and the exact capture identity is recorded;
+3. durable source resolution identifies the matched canonical row without ambiguity;
+4. a dry-run plan is reviewed and its exact hash is required by the apply;
+5. every changed field is inside the source-authority matrix in
+   [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md);
+6. the change and the prior value are audited and reversible;
+7. Property status is untouched, because only guarded ColdLion membership controls Active/Inactive.
+
+This does **not** exempt a spreadsheet dump, pasted rows, a one-off API pull, direct SQL, or an AI
+session that decides to imitate the future consolidator. Those remain fully bound by §6.4-C and
+write nothing on matched rows. Until the guarded consolidator in
+[`plan_licensing_master_data_implementation.md`](plan_licensing_master_data_implementation.md) is
+implemented, preview-proven, and applied, the existing matched-row abstention remains the only safe
+behavior for manual sessions. The exception is a contract for that named controlled path, not a
+permission shortcut.
+
 ### 6.5 OWNER RULING — PR #408 is HELD and ships as one production change with the FR removal work (Albert Hazan, 2026-08-03)
 
 > "hold it and ship it together with the removal work"
@@ -2042,6 +2073,12 @@ it as an AI's preference, and do not reorder it.**
    recommendation and it is **already accepted** — it is not open for re-litigation. Marking an
    unmatched code `inactive` silently hides what may be a real, live property; `potential` says
    truthfully that it exists and has not yet been reconciled.
+
+**Relationship to the 2026-08-16 licensing architecture.** The admission moment still follows rule
+3: a reviewed create-new row starts `potential`, never `inactive` or `active` by default. After its
+ColdLion identity is durably mapped and a complete guarded membership cycle proves it is present,
+the newer settled rule permits the separate status function to make it `active`. Thus "Potential at
+admission" remains in force; it does not mean "stay Potential after successful mapping forever."
 
 **A count caveat, stated so nobody launders it into a fact.** The figure was **66** at the
 2026-07-31 handover and is recorded as **33** now. That reduction has **not** been independently

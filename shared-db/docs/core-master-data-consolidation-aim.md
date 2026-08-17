@@ -116,6 +116,10 @@ One canonical row represents one real licensed Property or title. It contains:
 No refresh hard-deletes a Property. Inactive means POP is not currently carrying
 it in ColdLion. It does not mean the Property stopped existing.
 
+A Property first created from an authorized licensor scrape starts in review as
+**Potential**, never Active by default. Only the separate guarded ColdLion
+membership reconciliation can later set it Active or Inactive.
+
 ### 5.3 Character
 
 One canonical row represents one real Character. A Character may belong to
@@ -216,11 +220,26 @@ After a complete, successful ColdLion cycle and approved reconciliation:
 - unmatched ColdLion records enter the licensing review queue and do not create
   guessed canonical ownership.
 
+The review queue may offer a create-new action for a ColdLion record that has no
+canonical match, but ColdLion is only the proposal source. A Licensing user must
+confirm the canonical Property name and owning Licensor before the row is
+created. The row starts Potential, then the membership calculation may make it
+Active. If a later authorized licensor scrape covers that Property, the scrape's
+name and ownership win and the earlier reviewed wording is retained as an alias.
+
 The status calculation must fail closed. A failed, short, incomplete, or
 suspicious ColdLion response cannot deactivate the catalogue. Required guards
 include expected source scope, minimum counts, maximum shrink limits, complete
 pagination, duplicate-key checks, and a reviewable proposed change set before
 status changes are applied.
+
+An unresolved ColdLion record does not freeze status for the entire catalogue.
+It protects only the specific canonical candidate rows it might represent: those
+rows retain their prior status, or remain Potential if new, until reviewed.
+Mapped rows and canonical rows with a resolved absence may still receive the
+guarded Active/Inactive result. An unmatched record cannot be dismissed with a
+generic “unknown” reason; exclusions require a reviewed non-Property, duplicate,
+out-of-scope, ignored, or dismissed decision with audit facts.
 
 ## 9. Weekly scrape and consolidation contract
 

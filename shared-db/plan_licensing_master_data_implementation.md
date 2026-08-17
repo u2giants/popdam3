@@ -6,11 +6,11 @@
 
 **Implementation tracker:** [GitHub #1090](https://github.com/u2giants/shared-db/issues/1090). The architecture is not an issue. #1090 tracks execution only.
 
-**Paired handoff:** [`HANDOFF.d/2026-08-16T2342Z-al8960ofc-codex-licensing-master-data-plan.md`](HANDOFF.d/2026-08-16T2342Z-al8960ofc-codex-licensing-master-data-plan.md)
+**Paired handoff:** [`HANDOFF.d/2026-08-17T0016Z-al8960ofc-codex-licensing-plan-review-fixes.md`](HANDOFF.d/2026-08-17T0016Z-al8960ofc-codex-licensing-plan-review-fixes.md)
 
 **Repository:** `u2giants/shared-db`
 
-**Starting commit used for this plan:** `fa59fd151dcc233d81a752a1cb283c0026ff731c`
+**Review revision:** rewritten from merged plan commit `1e7daffd7ac6d1507a76dc8452462bef6f876d0a` on repository base `b262a9fd698b60ab0e455d63b8b97a965eb9bfbb` after GLM 5.3 review and a two-turn Grok 4.6 review. Sections 6.1 and 6.2 record every finding and its disposition. Grok's final verdict was **Ready**.
 
 **Fresh-session starting point:** Phase 0, Step 0.1. Re-read the settled architecture, refresh `origin/main`, audit the current migration ledger and live catalog, then claim the first exact-object migration lane. Do not begin from the older Character/Style Guide or ColdLion plans without applying this plan's supersession rules.
 
@@ -18,16 +18,37 @@
 
 | Step | State | Date | Evidence / next action |
 |---|---|---|---|
-| 0.1 Reconfirm repository, ledger, live catalog, and object ownership | ⬜ Open | 2026-08-16 | Start here. Produce `docs/verification/licensing-master-data-phase0-<date>/` from the commands in §9. |
-| 0.2 Reserve migration lanes and versions | ⬜ Open | 2026-08-16 | After 0.1. Claim exact objects with `scripts/manage-migration-author-lanes.mjs`; never choose versions manually. |
-| 1. Canonical entity and relationship foundation | ⬜ Open | 2026-08-16 | Implement Phase 1 migrations and contract tests on an isolated branch. |
-| 2. Durable resolution, provenance, and consolidation engine | ⬜ Open | 2026-08-16 | Depends on Phase 1 and on merged migration `20260814224937` being present in the target ledger. |
-| 3. Four licensed-source adapters and preview consolidation | ⬜ Open | 2026-08-16 | Disney, NBCU, Paramount, and Warner, one source at a time. No production data write. |
-| 4. Guarded ColdLion Active/Inactive calculation | ⬜ Open | 2026-08-16 | Depends on canonical Property mappings and a complete guarded ColdLion cycle. |
-| 5. DB Data Admin review and audit surface | ⬜ Open | 2026-08-16 | Depends on Phases 1–4 API contracts. Requires visual verification. |
-| 6. Weekly source operations and freshness alerts | ⬜ Open | 2026-08-16 | Requires private source-repo work plus shared database run evidence. |
-| 7. Consumer application cutover | ⬜ Open | 2026-08-16 | Begins only after preview canonical contracts are stable. No app-repo schema changes. |
-| 8. Governed production landing and monitoring | ⬜ Open | 2026-08-16 | Separate fresh session after all earlier gates and explicit production-risk approval where required. |
+| 0.1 Reconfirm repository, ledger, live catalog, and object ownership | ⬜ Open | 2026-08-17 | Start here. Produce `docs/verification/licensing-master-data-phase0-<date>/` from the commands in §9. |
+| 0.2 Reserve migration lanes and versions | ⬜ Open | 2026-08-17 | After 0.1. Claim exact objects with `scripts/manage-migration-author-lanes.mjs`; never choose versions manually. |
+| 1.0 Install a durable licensing write guard and stop every non-authoritative writer | ⬜ Open | 2026-08-17 | Must protect against DesignFlow and current ColdLion name/owner writes before any canonical scrape apply. |
+| 1.1 Repair Character ownership without losing data | ⬜ Open | 2026-08-17 | Add bridge compatibility first; scalar removal waits for Step 7.2. |
+| 1.2 Create canonical Franchise | ⬜ Open | 2026-08-17 | Add canonical entity and aliases with source-scoped identity. |
+| 1.3 Replace scalar Style Guide ownership with a bridge | ⬜ Open | 2026-08-17 | Add bridge compatibility first; scalar removal waits for Step 7.2. |
+| 1.4 Standardize direct relationship bridges | ⬜ Open | 2026-08-17 | Preserve canonical pair identity and add per-source support tables; Step 2.3 replaces the old axis invariant after the queue exists. |
+| 1.5 Extend canonical provenance and Asset freshness | ⬜ Open | 2026-08-17 | Preserve source identity, freshness, and compatibility fields. |
+| 2.1 Extend and backfill `plm.source_resolution` | ⬜ Open | 2026-08-17 | Preserve all existing portal decisions and freeze only portal landing-resolution columns. ColdLion `erp_*` stays writable until Step 4.0. |
+| 2.2 Add authorized source scope | ⬜ Open | 2026-08-17 | Scope each full portal `source_system` to one authorized Licensor and allowed facts. |
+| 2.3 Add relationship-resolution and candidate contracts | ⬜ Open | 2026-08-17 | Latest complete captures only. |
+| 2.4 Implement preview/dry-run-first consolidation | ⬜ Open | 2026-08-17 | New scraped Properties must start `potential`, never `active`. |
+| 2.5 Add canonical duplicate merge and ownership history | ⬜ Open | 2026-08-17 | Repoint safely, retain aliases/tombstone, audit, and support reversal. |
+| 3.0 Prove a complete validated preview capture for each source | ⬜ Open | 2026-08-17 | Includes the first Warner capture before its adapter can run. |
+| 3.1 Disney adapter | ⬜ Open | 2026-08-17 | Use authorized OPA and DCP identities and direct relationships. |
+| 3.2 NBCU adapter | ⬜ Open | 2026-08-17 | Preserve IP Family terminology and direct links. |
+| 3.3 Paramount adapter | ⬜ Open | 2026-08-17 | Keep co-occurrence evidence out of direct bridges. |
+| 3.4 Warner adapter | ⬜ Open | 2026-08-17 | Run only after Step 3.0 has a complete Warner preview capture. |
+| 3.5 Consolidated preview and performance proof | ⬜ Open | 2026-08-17 | Correctness, idempotency, timing, and lock-budget evidence. |
+| 4.0 Build ColdLion-to-canonical Property mapping | ⬜ Open | 2026-08-17 | Reuse existing approved links and add reviewed create-new handling. |
+| 4.1 Apply ColdLion membership-only status logic | ⬜ Open | 2026-08-17 | Only status becomes Active/Inactive; canonical identity remains scrape/review owned. |
+| 4.2 Remove DesignFlow comparison from authority decisions | ⬜ Open | 2026-08-17 | Check `dflow.*`, Cloud SQL, APIs, `plm.import_master_data`, and `plm-sync`. |
+| 5.1 Expand DB Data Admin server-side APIs | ⬜ Open | 2026-08-17 | Depends on Phases 1–4 contracts. |
+| 5.2 Implement and visually verify DB Data Admin UI | ⬜ Open | 2026-08-17 | Requires role tests and screenshots. |
+| 6.1 Add weekly automation in each private source repo | ⬜ Open | 2026-08-17 | Two complete preview cycles plus one injected failure per source. |
+| 6.2 Add freshness monitoring and escalation | ⬜ Open | 2026-08-17 | Second consecutive missed weekly deadline disables scope and pages a human. |
+| 7.1 Cut every consumer over to canonical APIs | ⬜ Open | 2026-08-17 | No app-repo schema changes. |
+| 7.2 Retire compatibility scalar fields and views | ⬜ Open | 2026-08-17 | Separate post-cutover migration after search and live telemetry prove zero readers. |
+| 8.1 Assemble the exact bounded production package | ⬜ Open | 2026-08-17 | Separate fresh session, merge freeze, held-version exclusions, immutable evidence. |
+| 8.2 Promote structure, curated data, status, and consumers | ⬜ Open | 2026-08-17 | Production is not authorized by this plan. |
+| 8.3 Retire superseded paths safely | ⬜ Open | 2026-08-17 | Only after sustained verified operation and recovery proof. |
 
 Every implementing session must update this table, the current-state sections it changes, and its verification evidence before stopping. A row marked complete must cite an artifact or commit, never a remembered count.
 
@@ -158,7 +179,7 @@ The controlling architecture is committed on `main` in [`docs/core-master-data-c
 | Existing object | Definition | Useful behavior | Gap against settled architecture |
 |---|---|---|---|
 | `core.licensor` | `supabase/migrations/20260621150815_app_core.sql:180` | UUID identity, name, code, status, metadata | Lacks first/last-seen fields on the row; authority is not enforced by a consolidation contract |
-| `core.property` | same file, line 191 | One nullable `licensor_id`, name, code, status | Correct one-Licensor shape; needs guarded scrape authority and ColdLion-only status calculation |
+| `core.property` | base definition at `supabase/migrations/20260621150815_app_core.sql:191`; tightened by `supabase/migrations/20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql:69-76`; `potential` added by `supabase/migrations/20260717122237_core_entity_status_add_potential.sql` | One `licensor_id` that is `NOT NULL` with `ON DELETE RESTRICT`, plus name, code, status | Correct one-Licensor shape; `status` still defaults to `active`, so every consolidation insert must explicitly use the already-defined `potential` value; needs guarded scrape authority and ColdLion-only status calculation |
 | `core.character` | same file, line 203 | UUID identity and metadata | Still has scalar `property_id`, `ON DELETE CASCADE`, and uniqueness scoped to one Property; conflicts with many-to-many Property membership |
 | `core.taxonomy_source_ref` | same file, line 215 | Generic source identity record | Lacks first/last-seen, current/missing state, evidence kind, and enforced target integrity |
 | `core.style_guide` | `supabase/migrations/20260727230000_core_style_guide_axis.sql:24` | Canonical Style Guide identity and parent guide | Still has scalar `property_id`; comments say one-Property assumptions that are superseded |
@@ -179,7 +200,7 @@ The source-resolution model is the correct foundation and must be extended, not 
 
 - no `licensor` or `franchise` entity kind;
 - no `core_licensor_id` or `core_franchise_id` target;
-- no source-scope table proving which canonical Licensor a portal namespace represents;
+- no source-scope table proving which canonical Licensor a full portal `source_system` represents;
 - no canonical relationship-resolution record for direct source edges.
 
 Production ledger evidence from GitHub Actions run `31979756895` on 2026-08-16 showed 467 versions on `main`, 453 applied, and 14 merged-but-not-applied versions. The source-resolution migrations were among the genuinely pending set. This plan must not assume those objects exist in production and must not promote the unrelated pending set as a batch.
@@ -193,6 +214,8 @@ Production ledger evidence from GitHub Actions run `31979756895` on 2026-08-16 s
 - Warner: normalized `plm.wb_franchise`, `plm.wb_property`, `plm.wb_character_normalized`, `plm.wb_style_guide_normalized`, `plm.wb_asset_normalized`, direct Asset relationships, Property/Character, and `plm.wb_franchise_property_evidence`.
 
 Do not duplicate these tables. Source adapters must read their latest complete, validated capture contracts.
+
+The 2026-08-13 evidence recorded zero rows in every Warner normalized landing table. Treat that as dated evidence, not current truth: Phase 0 rechecks it, and Step 3.0 requires the first complete validated Warner capture on preview before the Warner adapter may run.
 
 ### 5.5 Current operational scheduling
 
@@ -208,6 +231,12 @@ The four private licensor-source repositories had no checked-in `.github/workflo
 
 Do not execute an old phase merely because its status says open. Re-derive each relevant step under this plan.
 
+### 5.7 Existing overwrite and mapping paths that must be handled explicitly
+
+`plm.import_master_data(jsonb, jsonb)` is the DesignFlow PLM API catch-up importer, not a `dflow.*` table reader. The production definition can force `core.property.licensor_id` and Property/Licensor status back to DesignFlow-supplied values. The daily `systemd/plm-sync.timer` lane still exists. Neither may run, be repaired, or be re-enabled until Step 1.0 has installed and verified a forward guard that prevents licensing canonical writes.
+
+ColdLion already has resolution state in `plm.erp_licensor`, `plm.erp_property`, `plm.taxonomy_resolution_review`, and approved links used by `tools/promote-coldlion-source-owned.mjs`. These decisions must be migrated into the durable resolution home before legacy landing-resolution columns are frozen. They are evidence and mapping inputs, not authority for scrape-covered Property spelling or ownership.
+
 ---
 
 ## 6. Key findings and root cause
@@ -222,8 +251,53 @@ Do not execute an old phase merely because its status says open. Re-derive each 
 8. ColdLion does not supply Characters, Style Guides, Assets, Franchises, or the canonical Property-to-Licensor decision. Its only canonical output in this design is Property membership for Active/Inactive.
 9. Weekly licensor-source scheduling is absent from the inspected private repositories, so database freshness columns and alerts must be implemented together with private-repo operations.
 10. Production migration drift is real. A live catalog absence can mean “merged but not applied,” not “never built.” Every phase starts by comparing `origin/main`, preview ledger, and production ledger.
+11. New scraped Properties cannot rely on the current `core.property.status` default because it is `active`. The consolidation function must explicitly insert `potential`, and only guarded ColdLion membership may later set `active`.
+12. The existing `core.property_character` pair row cannot itself retain two independent source observations. Step 1.4 preserves its application-facing pair key and adds companion source-support rows; Step 2.3 replaces the old scalar-based Style Guide/Character axis invariant after the audited queue exists.
+13. Durable source resolution cannot become authoritative while approved decisions remain only in landing-table columns. Step 2.1 backfills and freezes portal landing decisions; Step 4.0 atomically retargets ColdLion tools, backfills `erp_*` decisions with an explicit status map, and only then freezes those live match columns.
+14. Duplicate discovery after canonical creation needs a reversible merge operation. Repointing relationships without an audited merge contract would lose history and make rollback unsafe.
 
 Root cause: the shared database was built incrementally from DesignFlow, ColdLion, PopDAM, and individual portal captures before one authority model was settled. The result is good source evidence but overlapping canonical assumptions. The 2026-08-16 architecture supplies the missing authority model; this plan makes the structure and operations agree with it.
+
+### 6.1 GLM 5.3 review correction ledger
+
+GLM 5.3 reviewed merged plan commit `1e7daffd7ac6d1507a76dc8452462bef6f876d0a` on 2026-08-17. Every finding is resolved below so a later session does not have to rediscover or reinterpret the review.
+
+| Finding | Resolution in this revision |
+|---|---|
+| H1 ColdLion mappings were assumed but never built | Added Step 4.0 using the existing ERP resolution/review machinery, approved links, manual review, and create-new handling. A ColdLion-only proposal cannot become canonical until Licensing confirms its name and owning Licensor; later authorized scrape evidence wins and the reviewed/ColdLion wording becomes an alias. This preserves the settled rule that ColdLion itself has no spelling or ownership authority. |
+| H2 new scraped rows could default Active | Step 2.4 explicitly inserts `status='potential'`; tests forbid consolidation from creating or changing a Property to Active. Phase 8 applies status in the same bounded release before consumer enablement. |
+| H3 scrape authority conflicted with §6.4 matched-row abstention | `AGENTS.md` now states the narrow owner-approved exception for the future guarded, source-scoped complete-capture consolidator. Ad-hoc external loads remain fully bound by §6.4. |
+| H4 DesignFlow PLM importer could overwrite the catalogue | Step 1.0 installs a table-level protected-column guard that survives later function replacement, blocks `plm.import_master_data`, and stops `systemd/plm-sync.timer` before consolidation. Step 8.1 replays held function `20260802170000` after the guard and proves it still cannot write. |
+| M5 alleged nonexistent `--queue-audit` command | Verified against revised base `b262a9f`: `scripts/manage-migration-author-lanes.mjs:749,819` supports `--queue-audit`, and `AGENTS.md:668-670` requires it. The GLM checkout was stale, so Step 0.1 retains both `--audit` and `--queue-audit` and cites the verified locations. |
+| M6 Property/Character key and cross-axis invariant were unspecified | Step 1.4 preserves the application-facing endpoint-pair key and adds per-source support rows. Step 2.3 replaces the scalar-derived invariant only after the relationship queue exists, without inferring a direct edge. |
+| M7 landing-table resolution decisions could remain a second truth | Step 2.1 backfills/freezes portal landing decisions. Step 4.0 separately retargets all live ColdLion matching tools, proves parity with an explicit status map, then freezes only the `erp_*` decision columns. |
+| M8 Warner had no complete capture prerequisite | Added Step 3.0; Warner adapter work cannot start until a complete validated Warner preview capture exists. |
+| M9 Property Licensor nullability was wrong | §5.2 now records `licensor_id NOT NULL` and `ON DELETE RESTRICT` from migration `20260724030000`. |
+| M10 duplicate merge/history was missing | Added Step 2.5 with repointing, alias/tombstone retention, ownership/name history, audit, dry run, and reversal. |
+| L1 scalar drops appeared to happen in Phase 1 | Phase 1 is additive compatibility only. Step 7.2 is the separate post-cutover removal migration. |
+| L2 production merge freeze and held versions were unnamed | Step 8.1 now requires the §12.1 merge freeze and explicitly excludes held versions `20260802170000` and `20260802171000` unless separately released. |
+| L3 overdue escalation was missing | Step 6.2 alerts on the first missed deadline and disables the source scope plus pages a human after the second consecutive missed weekly deadline. Recovery requires a complete capture and reviewed re-enable. |
+| L4 no real-volume time/lock rehearsal | Step 3.5 adds three full-volume timed preview rehearsals, a five-second lock timeout, measured lock evidence, and a production budget derived from the slowest successful preview run plus 50 percent. |
+
+### 6.2 Grok 4.6 review correction ledger
+
+Grok 4.6 reviewed the first GLM-corrected working tree on 2026-08-17. The initial turn cost $0.21711448 and found four High, five Medium, and four Low items. Every item was resolved. The same session then reread the complete revision for $0.15495568 and returned **Ready**, confirming that every prior High, Medium, and Low finding was resolved. Total Grok cost: $0.37207016.
+
+| Finding | Resolution in this revision |
+|---|---|
+| H1 current ColdLion promotion could restore old names before Phase 4 | Step 1.0 now installs the table guard and retires both ColdLion promotion functions/workflows before any scrape apply. Step 2.4/3.5 depend on it. |
+| H2 one unresolved ColdLion row froze all status work | Step 4.1 changes only rows with a resolved membership outcome. Unresolved records protect only their candidate canonical rows; unrelated mapped/resolved-absence rows proceed. Allowed exclusion reasons are enumerated. |
+| H3 ColdLion live match columns froze before tool cutover | Step 2.1 excludes `erp_*`. Step 4.0 publishes the exact legacy status map, retargets every function/tool/UI, proves parity, then freezes only decision columns atomically. |
+| H4 held importer file could undo a function-body lock | Step 1.0 uses a table-level transaction-bound protected-column guard. Step 8.1 replays `20260802170000` after the guard and requires post-apply guard proof. |
+| M1 axis rule depended on a queue created later | Step 1.4 only adds source-support structure. Step 2.3 creates the queue and then replaces `opa_property_character_landing_contracts.sql:334-353`. |
+| M2 source identity and scope used two different keys | The locked key is `(source_system, entity_kind, source_id)` everywhere. Existing full DCP source-system names carry studio scope; no second namespace key is introduced. |
+| M3 §6.9 appeared to require ColdLion rows to remain Potential forever | `AGENTS.md` now says Potential is the admission status; after durable mapping and a complete current ColdLion set, the newer status rule may make the row Active. |
+| M4 replacing the Property/Character primary key could break readers | The endpoint-pair primary key remains. A companion source-support table carries multiple source observations; Phase 0 inventories all readers/FKs before any future compatible surrogate addition. |
+| M5 Step 0.2 omitted the first claimed objects | The first claim unit now names the protected tables, guard, DesignFlow importer, both ColdLion promotion functions, grants, tools, services, and workflows. |
+| L1 Potential migration was not cited | §5.2 and Step 2.4 cite `20260717122237_core_entity_status_add_potential.sql` and forbid recreating the value. |
+| L2 header had two planning bases | The obsolete original starting-commit line was removed. The review revision names one current base and Phase 0 still refreshes `main`. |
+| L3 the old axis test was replaced in two phases | Step 2.3 is the sole replacement point; Step 7.2 removes only scalar-specific tests. |
+| L4 opening router omitted Potential/reviewed create-new | The opening `AGENTS.md` licensing summary now states both rules. |
 
 ---
 
@@ -290,6 +364,8 @@ If authentication or portal availability prevents a run, record a failure/due st
 9. Authorized licensor scrapes run at least weekly.
 10. Asset means canonical metadata in `dam.asset`, not binaries in the public repository.
 11. DB Data Admin is the licensing review and audit surface.
+12. A Property created from an authorized scrape starts `potential`, never `active`; only guarded ColdLion membership may set `active`.
+13. An unmatched ColdLion record may propose a new Property, but ColdLion does not supply canonical spelling or ownership. A Licensing user must confirm both before creation; a later authorized portal scrape overrides those reviewed values and preserves the prior spelling as an alias.
 
 ### Implementation choices fixed by this plan
 
@@ -300,6 +376,8 @@ If authentication or portal availability prevents a run, record a failure/due st
 5. Extend `plm.source_resolution` for Licensor and Franchise. Use a separate audited relationship-resolution table because entity resolution and edge evidence are different facts.
 6. Use `dam.asset` as the canonical Asset metadata table.
 7. Store co-occurrence evidence only in source/evidence tables and views, not canonical direct bridges.
+8. Hard-gate `plm.import_master_data` before any canonical consolidation so the DesignFlow PLM API cannot overwrite licensing names, ownership, or status.
+9. Use one reversible canonical merge operation for duplicates discovered after creation; direct manual re-pointing is forbidden.
 
 ### Open implementation judgments that do not require Albert
 
@@ -307,6 +385,7 @@ If authentication or portal availability prevents a run, record a failure/due st
 - whether a compatibility view or generated API field best carries a single “primary Property” during consumer transition;
 - how to split migrations into collision-safe units after current object claims are audited;
 - whether each private portal can run fully unattended. Decide from the portal's authorized technical behavior and its source-specific skill. Never weaken security or fabricate success.
+- the final production time budget after three full-volume preview rehearsals. Set it to the slowest successful preview apply plus 50 percent, record the measured value, and stop rather than raising it if production exceeds the approved budget.
 
 Any new business authority question discovered during implementation stops the affected source only. It does not permit the implementer to guess or redesign the locked model.
 
@@ -329,7 +408,7 @@ Files and commands:
    - `node scripts/check-migration-ledger-drift.mjs --target production`
    - the same check for preview using the script's supported preview target;
    - `node scripts/manage-migration-author-lanes.mjs --audit`
-   - `node scripts/manage-migration-author-lanes.mjs --queue-audit`
+   - `node scripts/manage-migration-author-lanes.mjs --queue-audit` (verified on revision base at `scripts/manage-migration-author-lanes.mjs:749,819`; it audits/refills dynamic queues and is distinct from the lane audit)
 5. Capture catalog definitions, constraints, policies, grants, row counts, and dependent views for every object listed in the STATUS table. Prove the connection target immediately before each database read and record only counts/definitions, never licensed row contents.
 6. Query `api.source_capture_inventory` and record current coverage/freshness using its declared count basis. Do not guess source table names or treat a null latest-complete count as zero.
 7. Save all sanitized output under `docs/verification/licensing-master-data-phase0-<UTC-date>/` with a README explaining target references and command exit codes.
@@ -342,9 +421,10 @@ Verification gate: the evidence directory proves the exact preview and productio
 
 Use the orchestrator's dynamic queue. Likely author units, subject to current overlap audit:
 
-1. Entity foundation: `core.character`, `core.franchise`, alias tables, `core.taxonomy_source_ref`, `plm.source_resolution`, `plm.licensing_source_scope`.
-2. Relationship foundation: the four `core.*` bridges and four `dam.*` bridges.
-3. Consolidation/API foundation: candidate views, audited promotion functions, freshness views, and DB Data Admin RPC contracts.
+1. Write-authority guard first: `core.licensor` and `core.property` protected-column triggers/guard state, `plm.import_master_data`, `plm.promote_coldlion_source_owned`, `public.promote_coldlion_source_owned`, their grants, and every repository caller/workflow including `systemd/plm-sync.*` and the ColdLion promotion workflows.
+2. Entity foundation: `core.character`, `core.franchise`, alias tables, `core.taxonomy_source_ref`, `plm.source_resolution`, `plm.licensing_source_scope`.
+3. Relationship foundation: the four `core.*` bridges, four `dam.*` bridges, and their source-support tables.
+4. Consolidation/API foundation: candidate views, audited promotion functions, freshness views, and DB Data Admin RPC contracts.
 
 Run `node scripts/manage-migration-author-lanes.mjs --claim ...` with every exact object and the isolated worktree path. Let the tool reserve each 14-digit version. Do not create a migration file before a successful claim.
 
@@ -353,6 +433,30 @@ Verification gate: GitHub-backed claims show no overlapping object owner, each b
 ### Phase 1: canonical entity and relationship foundation
 
 Natural fresh-session cut point: after the Phase 1 PR is preview-proven and merged. Re-read Phases 2–4 before starting Phase 2.
+
+#### Step 1.0: install a durable licensing write guard and stop every non-authoritative writer
+
+Target a new forward migration under `supabase/migrations/`; do not edit already-applied or held migration files. Create private table `plm.licensing_write_authorization`, trigger function `app.enforce_licensing_write_authority()`, and triggers `licensor_licensing_write_guard` / `property_licensing_write_guard`. Protect authoritative columns on every `core.licensor` / `core.property` insert and update with table-level guards that survive later `CREATE OR REPLACE FUNCTION` statements.
+
+The guard requires a non-expired authorization row matching `pg_backend_pid()`, the current transaction ID, write kind, plan ID/hash, actor, and exact protected-column set. Revoke direct writes to the authorization table; only controlled `SECURITY DEFINER` plan/apply functions may create an authorization after validating source scope, capture/plan hash, and caller role. Allowed kinds are explicit:
+
+- `scrape_consolidation`: portal-authoritative Licensor/Property name/code/ownership; a new Property status must be exactly `potential`, and matched Property status cannot change;
+- `licensing_review_create`: one reviewed ColdLion-only Property insert with confirmed name, owning Licensor, and `potential` status;
+- `coldlion_status`: Property status only, to `active` or `inactive`;
+- `canonical_merge`: only the exact survivor/tombstone changes declared by the Step 2.5 hash-pinned merge plan.
+
+Direct table grants or a caller-set session variable do not create an authorization. A legacy function body cannot bypass the guard merely because it is replaced or applied later.
+
+In the same bounded change:
+
+1. Redefine or wrap `plm.import_master_data(jsonb, jsonb)` so any Licensor/Property portion is rejected before mutation. Preserve unrelated import behavior only where Phase 0 proves it is still required and contract tests show it cannot reach licensing tables.
+2. Replace `plm.promote_coldlion_source_owned(jsonb,jsonb,boolean)` and `public.promote_coldlion_source_owned(jsonb,jsonb,boolean)` with a loud retired-until-Step-4 refusal. The existing function and `tools/promote-coldlion-source-owned.mjs` currently permit ColdLion name writes; they cannot run after the first authoritative scrape name is applied.
+3. Stop and inventory `systemd/plm-sync.timer`, every DesignFlow PLM importer caller, and every ColdLion promotion workflow/caller. None may be repaired or re-enabled until it targets the later narrow authorized function.
+4. Add an immutable guard audit that records allowed/refused write kind, protected columns, plan/capture reference, actor, and timestamp without licensed values.
+
+Dependency: Phase 0 evidence and exact claims on both protected tables, the guard objects, both promotion functions, `plm.import_master_data`, grants, and callers. This step must merge before Steps 2.4, 3.5, or 4.1 can apply canonical data.
+
+Verification gate: SQL tests prove direct writes, a DesignFlow licensing payload, the current/held `plm.import_master_data` body, and the current ColdLion promotion body all fail before changing protected columns when no valid transaction authorization exists. Authorized test functions can change only their allowed column set. Reapplying the function definition from held migration `20260802170000` after the guard is installed still cannot change Property ownership or status. Caller evidence proves `systemd/plm-sync.timer` and old ColdLion promotion schedules are stopped. Existing non-licensing tests remain green.
 
 #### Step 1.1: repair Character ownership without losing data
 
@@ -364,7 +468,7 @@ Behavior:
 2. If any current row is backed by an authorized direct source or audited licensing decision, insert the equivalent edge into `core.property_character` with stable source-edge provenance.
 3. If a row derives only from stale DesignFlow, do not promote that parent as canonical. Preserve its value as historical evidence and place the identity/edge into review.
 4. Remove the `ON DELETE CASCADE` route from Property to Character.
-5. Drop the scalar `property_id` and its unique constraint only after a compatibility view/API has replaced every consumer read.
+5. In Phase 1, add a compatibility view/API and mark the scalar `property_id` deprecated/read-only; do not drop it here. Step 7.2 owns the separate removal migration after every consumer read is replaced.
 6. Give `core.character` a Licensor scope suitable for identity (`licensor_id` nullable during review, `ON DELETE RESTRICT`) and a partial unique code index only when the source supplies a stable code. Do not deduplicate on name alone.
 
 Verification gate: SQL tests prove one Character can link to two Properties; deleting/inactivating a Property cannot delete the Character; no stale DesignFlow parent is promoted; every pre-existing authoritative scalar link is preserved as an edge; old consumers have a tested compatibility result during transition.
@@ -390,7 +494,7 @@ Verification gate: contract tests prove same-name Franchises can exist under dif
 
 Create `core.property_style_guide` and migrate only direct-source or audited links from `core.style_guide.property_id`. Stale DesignFlow-derived links go to review/evidence, not the bridge.
 
-After all API and app consumers move, drop `core.style_guide.property_id`. Keep `core.style_guide.licensor_id` as identity scope unless Phase 0 proves a real cross-Licensor guide.
+In Phase 1, add a compatibility view/API and mark `core.style_guide.property_id` deprecated/read-only; do not drop it here. Step 7.2 owns the separate removal migration after all API and app consumers move. Keep `core.style_guide.licensor_id` as identity scope unless Phase 0 proves a real cross-Licensor guide.
 
 Verification gate: one Style Guide can link to multiple Properties; a Style Guide with no resolved Property remains valid; removing an edge cannot delete either endpoint; compatibility reads remain correct during transition.
 
@@ -407,25 +511,21 @@ Ensure these canonical direct-edge tables exist:
 - `dam.asset_style_guide`
 - `dam.asset_franchise`
 
-Each bridge must carry:
+Each canonical bridge keeps one business row per endpoint pair, with both endpoint UUIDs using `ON DELETE RESTRICT`, pair uniqueness, current/retired summary state, reverse-lookup indexes, and endpoint-matching RLS/grants. Source support is stored in a companion `<bridge>_source_edge` table keyed by the full `source_system` plus stable `source_edge_id` or a documented deterministic source key. Each support row carries `evidence_kind`, `first_seen_at`, `last_seen_at`, `is_current`, and metadata. Two sources can therefore support one canonical pair without duplicating the application-facing pair.
 
-- both endpoint UUIDs with `ON DELETE RESTRICT` unless a reviewed exception proves otherwise;
-- `source_system` and stable `source_edge_id` or a deterministic composite source key;
-- `evidence_kind` constrained to direct source statement or audited curated decision;
-- `first_seen_at`, `last_seen_at`, `is_current`, and `metadata`;
-- uniqueness that prevents the same source edge from duplicating while allowing two sources to support the same canonical edge;
-- indexes for reverse lookup and current-edge queries;
-- RLS/grants matching the endpoints.
+For `core.property_character`, keep the existing `(property_id, character_id)` primary key in Phase 1 and add `core.property_character_source_edge` with a composite foreign key back to that pair. Phase 0 must inventory every foreign key, view, function, generated type, and application reader that treats the endpoint pair as identity. If the evidence later proves a surrogate pair ID is necessary, add it compatibly and retain the endpoint unique key; do not replace the primary key while readers are unknown.
+
+Do not replace the existing scalar-based axis test in Phase 1 because the audited relationship-review queue does not exist until Step 2.3. Phase 1 adds source-support structure and forbids creating new inferred Property/Character edges. Step 2.3 owns the replacement of `supabase/tests/opa_property_character_landing_contracts.sql:334-353` after the queue exists.
 
 Do not place Paramount or Warner co-occurrence rows in `core.property_franchise`. Keep their evidence-only tables and expose clearly labelled evidence views.
 
-Verification gate: tests insert two independent sources supporting one canonical edge without duplicate business display, retire one source observation without removing the other support, reject `evidence_kind='cooccurrence'` from canonical direct bridges, and prove endpoint deletion is blocked.
+Verification gate: tests preserve the existing `core.property_character` endpoint-pair contract, insert two independent source-support rows for one canonical pair without duplicate business display, retire one source observation without removing the other support, reject `evidence_kind='cooccurrence'` from direct support tables, create no inferred edge, and prove endpoint deletion is blocked.
 
 #### Step 1.5: extend canonical provenance and Asset freshness
 
-Extend `core.taxonomy_source_ref` with source namespace/composite identity, entity kind constraints, `first_seen_at`, `last_seen_at`, `is_current`, `missing_since`, and audit metadata. Add integrity enforcement so a source ref cannot silently point at a nonexistent or wrong-kind target.
+Extend `core.taxonomy_source_ref` with the existing collision-proof `source_system` plus complete source-specific `source_id`, entity kind constraints, `first_seen_at`, `last_seen_at`, `is_current`, `missing_since`, and audit metadata. Add integrity enforcement so a source ref cannot silently point at a nonexistent or wrong-kind target.
 
-Extend `dam.asset` with the same freshness/current-state facts. Retain the established `(source_system, source_id)` identity, but add source namespace if Phase 0 proves a collision risk. Keep the scalar Asset Property/Licensor fields as compatibility-only until all consumers use bridges, then retire them.
+Extend `dam.asset` with the same freshness/current-state facts and retain the established `(source_system, source_id)` identity. If Phase 0 proves an actual collision, assign a distinct full `source_system` value consistent with the durable-resolution model rather than introducing a second namespace key. Keep the scalar Asset Property/Licensor fields as deprecated, read-only compatibility fields during Phases 1–7. Step 7.2 retires them only after all consumers use bridges.
 
 Verification gate: source refs preserve multiple source identities for one entity, reject cross-kind targets, and mark missing/current without deleting. Asset tests prove multiple Properties/Style Guides/Franchises can link to one Asset.
 
@@ -442,25 +542,31 @@ Add:
 - target-kind checks covering all six entity types;
 - corresponding parameters and checks in `plm.set_source_resolution`;
 - API fields and DB Data Admin read/write contracts;
-- migration assertions that preserve every existing decision exactly.
+- migration assertions that preserve every existing decision exactly;
+- a one-time, source-by-source backfill from approved portal landing-resolution columns in Paramount, NBCU, OPA, and every other portal landing table found by Phase 0;
+- count-parity and target-parity assertions before the backfill commits;
+- database guards that make those portal landing-resolution columns read-only compatibility evidence after parity succeeds. New portal decisions go only through `plm.set_source_resolution`. Do not freeze `plm.erp_licensor` or `plm.erp_property` here; Step 4.0 moves their live ColdLion tools and freezes them atomically.
 
 The new migration must work whether the genuinely pending source-resolution migrations are already applied by the time implementation reaches production. Ordered ledger presence is the gate; do not manually skip their SQL.
 
-Verification gate: existing Property/Character/Style Guide/Asset decisions survive byte-for-byte; Licensor and Franchise decisions can be created; wrong-kind target combinations fail; first-writer and optimistic-lock tests stay green.
+Verification gate: existing portal Property/Character/Style Guide/Asset decisions survive byte-for-byte; the durable table has exact source/target parity with every approved portal decision; attempted post-freeze writes to those portal landing columns fail loudly; ColdLion `erp_*` matching still works unchanged until Step 4.0; Licensor and Franchise decisions can be created; wrong-kind target combinations fail; first-writer and optimistic-lock tests stay green.
 
 #### Step 2.2: add authorized source scope
 
-Create `plm.licensing_source_scope` to map an authorized source namespace to its canonical Licensor and permitted entity/relationship kinds. Required fields:
+Create `plm.licensing_source_scope` to map the existing full `source_system` identity to its canonical Licensor and permitted entity/relationship kinds. The identity rule is locked: canonical source identity is `(source_system, entity_kind, source_id)`, matching `plm.source_resolution`; `source_system` itself carries the collision-proof studio/portal namespace. Use already-shipped names such as `disney_dcpvault`, `lucasfilm_dcpvault`, `marvel_dcpvault`, and `twentieth_century_dcpvault`. Do not introduce a second `source_namespace` key unless a future migration changes the resolution key and all consumers together.
 
-- `source_system`, `source_namespace` primary identity;
+Required fields:
+
+- `source_system` primary key;
 - `core_licensor_id`;
 - allowed entity kinds and relationship kinds;
 - `authorized_at`, `authorized_by`, evidence note/reference;
 - `is_enabled`, `disabled_at`, `disabled_reason`;
 - expected weekly freshness interval;
+- consecutive missed-deadline count, last alert time, and reviewed re-enable facts;
 - no public/anonymous writes.
 
-This table is how a Disney, NBCU, Paramount, or Warner namespace proves which Licensor scope it may write. It is not inferred from DesignFlow or ColdLion.
+This table is how each full Disney, NBCU, Paramount, or Warner `source_system` proves which Licensor scope it may write. It is not inferred from DesignFlow or ColdLion.
 
 Verification gate: a source adapter cannot propose or promote an entity outside its authorized Licensor/kind scope; disabled or stale scopes fail loudly; audit fields are mandatory.
 
@@ -473,11 +579,13 @@ Create audited structures for unresolved source entities and direct source edges
 - `api.licensing_relationship_candidates`
 - `api.licensing_resolution_queue`
 
-Entity candidates standardize source system/namespace, entity kind, stable source ID, official name, source parent identity, capture ID, completeness state, and first/last seen. Relationship candidates add source edge ID, endpoint source identities, direct/evidence-only classification, and capture facts.
+Entity candidates use the exact `(source_system, entity_kind, source_id)` key, official name, source parent identity, capture ID, completeness state, and first/last seen. Relationship candidates add source edge ID, endpoint source identities, direct/evidence-only classification, and capture facts.
 
 Candidate views must read only the latest complete validated capture for sources that use replaceable captures. A running, partial, failed, or superseded capture cannot become canonical input.
 
-Verification gate: fixtures for each source show correct stable identities and direct/evidence distinction; incomplete captures return no promotable candidates; display names are never used as the sole key.
+After `api.licensing_resolution_queue` exists, replace the scalar-derived rule in `supabase/tests/opa_property_character_landing_contracts.sql:334-353`. The successor behavior is: direct Property/Character source evidence creates current support; a Style Guide linked to a Property and Character does not by itself manufacture that direct edge; any potentially missing direct edge appears in the audited relationship queue with its two supporting facts. This replacement belongs here, not Step 1.4 or Step 7.2.
+
+Verification gate: fixtures for each source show the exact three-part identity key, correct stable identities, and direct/evidence distinction; equal source IDs in Disney/Lucasfilm/Marvel/Twentieth Century remain distinct through their existing `source_system` names; incomplete captures return no promotable candidates; display names are never used as the sole key; the old axis test is replaced and no inferred direct edge is created.
 
 #### Step 2.4: implement preview/dry-run-first consolidation
 
@@ -489,21 +597,45 @@ Create a service-role-only consolidation function and a dry-run/read API. The ex
 Rules:
 
 - only authorized, complete captures;
+- the Step 1.0 table-level write guard is present and the caller obtains a transaction-bound `scrape_consolidation` authorization for the exact plan/hash before protected writes;
 - source resolution and source scope determine canonical targets;
-- create a new canonical row automatically only when the stable source identity and Licensor scope are unambiguous and no normalized/alias collision exists;
+- create a new canonical row automatically only when the stable source identity and owning Licensor are unambiguous and no normalized/alias collision exists; `core.property.licensor_id` is never null;
+- every scrape-created Property explicitly inserts `status='potential'` using the value already added by `supabase/migrations/20260717122237_core_entity_status_add_potential.sql`; never recreate the enum value, rely on the table's `active` default, or let consolidation create or change a Property to `active`;
 - ambiguous matches enter the licensing queue;
-- portal spelling and Property ownership update canonical rows, while previous internal spellings become aliases;
+- for an authorized, source-scoped complete capture, portal spelling and Property ownership update matched canonical rows, while previous internal spellings become aliases and ownership changes enter immutable history; this is the narrow approved-source exception recorded in `AGENTS.md`, not permission for an ad-hoc external load;
 - direct relationships upsert current support and record first/last seen;
 - absence from a complete capture retires only that source's support, never the entity;
 - plan output has deterministic hash, counts, reasons, and no licensed row values in logs;
 - apply requires the exact plan hash and serializes per source/capture;
 - rerunning the same capture is a no-op.
 
-Verification gate: two-cycle tests prove idempotency, canonical spelling replacement plus alias preservation, ownership correction, safe missing-edge retirement, ambiguity abstention, and deterministic dry-run/apply parity.
+Verification gate: two-cycle tests prove idempotency, canonical spelling replacement plus alias preservation, ownership correction plus history, safe missing-edge retirement, ambiguity abstention, and deterministic dry-run/apply parity. A dedicated assertion proves every newly inserted Property is `potential` and consolidation leaves the status of every matched Property unchanged; only the separate ColdLion function can set `active` or `inactive`.
+
+#### Step 2.5: add reversible canonical duplicate merge and ownership history
+
+Create one service-role-only dry-run/apply merge contract for duplicates discovered after canonical creation. Recommended names after collision audit:
+
+- `plm.plan_licensing_canonical_merge(entity_kind, survivor_id, duplicate_id)`
+- `plm.apply_licensing_canonical_merge(plan_id, expected_hash)`
+- `plm.licensing_canonical_change_history`
+
+The operation must validate same entity kind and compatible Licensor/source scope; re-point every source resolution, alias, and relationship support to the survivor; deduplicate only identical source-edge support; retain the duplicate ID as a non-selectable merged tombstone plus alias; record before/after ownership and spelling, actor, reason, source evidence, hash, and timestamps; and create an audited reversal plan. It must abstain when the two rows have conflicting direct-source ownership that is not already resolved by the authority matrix.
+
+Direct `UPDATE` statements that manually re-point a subset of bridges are forbidden because they can leave split identity behind.
+
+Verification gate: fixtures merge duplicates with relationships from two sources, preserve every source reference, collapse only true duplicate edge support, keep the old ID traceable but absent from active pickers, and reverse the merge without loss. Conflicting Licensor scope refuses before mutation.
 
 ### Phase 3: source adapters and preview consolidation
 
 Implement one source at a time. Each source uses its named skill and private repository. Never copy licensed rows into this plan or public evidence.
+
+#### Step 3.0: prove one complete validated preview capture for every source
+
+Before an adapter is allowed to consolidate, use the matching private source repository and source-specific skill to produce or identify one complete, validated capture loaded into preview. This prerequisite may be a controlled manual capture; Phase 6 later makes the process weekly and operationally durable.
+
+For Disney, NBCU, Paramount, and Warner, record only sanitized capture identity/hash, validation result, completeness basis, timestamps, and counts under `docs/verification/licensing-master-data-phase3-prerequisites-<date>/`. Do not record licensed row values. Warner requires an actual first complete preview capture because the 2026-08-13 evidence found its normalized tables empty. A schema-ready Warner loader is not a completed capture.
+
+Verification gate: `api.source_capture_inventory` and the source-specific validator agree that each named capture is complete and current; every validator exit code is recorded; the Warner capture has nonzero validated coverage in the normalized tables required by Step 3.4. An absent, partial, running, stale, or failed capture blocks only that source adapter and cannot be treated as an empty authoritative universe.
 
 #### Step 3.1: Disney adapter
 
@@ -514,7 +646,7 @@ Requirements:
 - use OPA stable IDs for Property/Character identity;
 - use DCP stable path/ID contracts already defined in the separated landing migrations;
 - do not treat a DCP portal tile as a Property or Franchise unless the source contract explicitly says it is one;
-- preserve source namespace so equal IDs across studios cannot collide;
+- preserve the already-separated DCP `source_system` names so equal IDs across studios cannot collide;
 - reconcile OPA and DCP evidence without assuming display-name equality proves identity.
 
 Verification gate: preview evidence shows every promotable entity has stable source identity and authorized scope; direct Property/Character and Asset/Style Guide relationships reconcile; ambiguous cross-source matches abstain.
@@ -554,7 +686,7 @@ Requirements:
 - treat normalized Franchise and Property as separate entities;
 - promote direct Asset relationships and Property/Character;
 - keep `plm.wb_franchise_property_evidence` evidence-only unless a future direct source pair is captured;
-- retain Warner source namespace and fallback identity method.
+- retain Warner's full `source_system` identity and fallback identity method.
 
 Verification gate: deprecated combined tables are never read by the canonical adapter; normalized direct edges reconcile; inferred Franchise/Property evidence cannot enter the direct bridge.
 
@@ -573,9 +705,51 @@ Required invariants:
 - rerun produces zero changes;
 - every unresolved collision appears in DB Data Admin queue.
 
-Verification gate: `docs/verification/licensing-master-data-phase3-<date>/README.md` records the exact preview project, capture IDs/hashes, commands, exit codes, and invariant totals without licensed values.
+Performance and lock gate:
+
+1. Restore the same documented preview snapshot and run each full-volume source apply three times from the same starting state; do not compare a mutating first run to idempotent no-op reruns.
+2. Set `lock_timeout = '5s'` for the apply transaction and record transaction duration, lock waits, rows examined/changed, and query plans without row values.
+3. The apply must not require an unbounded table lock or hold an `ACCESS EXCLUSIVE` lock over the canonical tables during data consolidation.
+4. Set the proposed production time budget to the slowest successful full-volume preview apply plus 50 percent. Record the calculated number in the Phase 3 evidence and carry it into the production package. A production timeout is a stop signal, not permission to raise the budget during the run.
+
+Verification gate: `docs/verification/licensing-master-data-phase3-<date>/README.md` records the exact preview project, restored-snapshot identity, capture IDs/hashes, commands, exit codes, invariant totals, three-run timing/lock evidence, and calculated production budget without licensed values.
 
 ### Phase 4: guarded ColdLion Active/Inactive
+
+#### Step 4.0: build ColdLion-to-canonical Property mapping without granting ColdLion identity authority
+
+Reuse and rehome the existing approved resolution evidence from `plm.erp_licensor`, `plm.erp_property`, and `plm.taxonomy_resolution_review` into the durable source-resolution contract from Step 2.1. Automated matching may propose a link from stable source identity, approved aliases, and exact unambiguous keys, but it may not change canonical name or owning Licensor.
+
+ColdLion legacy-to-durable status map:
+
+| `erp_*`.resolution_status | `plm.source_resolution`.resolution_status | Rule |
+|---|---|---|
+| `unresolved` | `unresolved` | No decision. |
+| `auto_matched` | `matched` | Preserve target and record automation reason. |
+| `manually_matched` | `matched` | Preserve target, actor, timestamp, and approved-link history. |
+| `new_candidate` | `no_match` | No existing canonical target; eligible for reviewed create-new, never automatic insert. |
+| `ambiguous` | `ambiguous` | Keep in active review. |
+| `quarantined` | `deferred` | Preserve quarantine reason; no promotion. |
+| `ignored` | `rejected` | Preserve terminal ignored reason; no promotion. |
+
+For `plm.taxonomy_resolution_review`, only `approved_link` creates a durable `matched` decision. `ignored` and `dismissed` remain terminal review history with their original reason; they do not invent a canonical target. Count/target/actor/timestamp parity must pass before switching readers.
+
+Required review behavior:
+
+- approved existing links retain their decision history and are not re-decided on every pull;
+- ambiguous or conflicting keys enter the DB Data Admin licensing queue;
+- an unmatched ColdLion record may use a create-new review action only after a Licensing user confirms the canonical Property name and owning Licensor from authorized business knowledge;
+- the new reviewed Property is inserted `potential`, with the ColdLion source reference and reviewer/audit facts, then Step 4.1 may set it Active because it is present;
+- ColdLion payload spelling and Licensor values are proposals only and never write an existing canonical row;
+- if a later authorized portal scrape covers that Property, the scrape spelling and ownership win, the previous reviewed/ColdLion wording becomes an alias, and the change enters history.
+
+Retarget `tools/promote-coldlion-source-owned.mjs`, every `plm.promote_coldlion_source_owned` replacement, DB Data Admin mapping APIs/UI, readiness tools, and recurring-cycle tests to read/write `plm.source_resolution`. Only after parity and all callers pass may the migration freeze `plm.erp_licensor`/`plm.erp_property` resolution columns as read-only evidence. The raw ColdLion mirror fields remain refreshable; only the legacy match-decision fields freeze.
+
+Dependency: Steps 1.0, 2.1–2.5, and a complete guarded ColdLion capture. Unresolved source rows do not freeze the whole catalogue. They remain in review, and only specific canonical candidate rows that the unresolved source row might represent are protected from an Inactive change until resolved.
+
+Allowed terminal exclusion reasons are limited to: reviewed non-Property record; reviewed duplicate of an already mapped ColdLion key; outside the authorized division/Licensor scope proven by `plm.licensing_source_scope`; or reviewed ignored/dismissed record with actor, timestamp, and reason. “Unmatched,” “unknown,” missing data, or a display-name mismatch is not an exclusion.
+
+Verification gate: every legacy status maps exactly as the table above; approved-link count/target/actor/timestamp parity passes; old and new mapping views return the same resolved targets before cutover; all named tools/functions/UI write durable resolution only; attempted post-cutover writes to `erp_*` decision columns fail loudly; automated matches cannot write names/ownership; create-new refuses without confirmed name and Licensor; a reviewed ColdLion-only fixture starts `potential`, becomes Active only through Step 4.1, and is later superseded correctly by an authorized scrape while retaining its alias/history.
 
 #### Step 4.1: replace old promotion authority with membership-only status logic
 
@@ -586,25 +760,27 @@ Reuse the proven ColdLion pagination, completeness, shrink, serialization, alert
 - `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs`
 - `.github/workflows/coldlion-licensor-property-production.yml`
 
-Remove or disable any path that writes canonical Property name, code, or `licensor_id` from ColdLion. Add a new plan/apply path whose only canonical mutation is `core.property.status` after mapping the complete current ColdLion Property set.
+Step 1.0 has already blocked every automatic path that writes canonical Property/Licensor name, code, or `licensor_id` from ColdLion. The reviewed create-new path in Step 4.0 is the only way a ColdLion-only proposal becomes a canonical row, and the Licensing reviewer, not ColdLion, supplies the accepted identity facts. Replace the retired promotion path with a plan/apply function whose only protected canonical mutation is `core.property.status`; it must obtain a transaction-bound `coldlion_status` authorization from the Step 1.0 table guard for the exact hash-pinned plan.
 
 Behavior:
 
-- mapped present Property becomes Active;
-- mapped absent Property becomes Inactive;
-- unmatched ColdLion rows enter review and cannot create guessed ownership;
+- a canonical Property durably mapped to a ColdLion key present in the complete current set becomes Active;
+- a canonical Property whose durable ColdLion key is absent from the complete current set becomes Inactive;
+- a scrape-only canonical Property with no ColdLion key and no unresolved ColdLion candidate pointing at it is a resolved absence and becomes Inactive, matching the settled “only present in ColdLion is Active” rule;
+- canonical rows named as candidates for an unresolved ColdLion record retain their prior status, or remain Potential if new, while that record stays in review; they are the bounded fail-closed exception and do not block status changes for other rows;
+- unmatched ColdLion rows enter review and cannot create guessed spelling or ownership or directly receive canonical status;
 - short/failed/incomplete pulls make no status changes;
 - proposed Active/Inactive changes are reviewable and hash-pinned;
 - no Property is deleted;
 - rerun is idempotent.
 
-Verification gate: fault tests for short pull, missing division, pagination loss, duplicate key, suspicious shrink, and stale plan all refuse mutation; a complete two-cycle rehearsal activates/preserves/deactivates exactly the expected fixture Properties without renaming or re-parenting them.
+Verification gate: fault tests for short pull, missing division, pagination loss, duplicate key, suspicious shrink, and stale plan all refuse mutation. An unresolved fixture protects only its candidate canonical rows while unrelated mapped/present rows activate and resolved-absence rows deactivate. Invalid exclusion reasons refuse. A complete two-cycle rehearsal activates/preserves/deactivates exactly the expected fixture Properties without renaming or re-parenting them; the status function cannot obtain authority for name, code, or `licensor_id`.
 
 #### Step 4.2: remove DesignFlow comparison from authority decisions
 
-Historical DesignFlow comparison can remain as a diagnostic labelled non-authoritative, but readiness and promotion must not require DesignFlow agreement or use it to set canonical values.
+Historical DesignFlow comparison can remain as a diagnostic labelled non-authoritative, but readiness and promotion must not require DesignFlow agreement or use it to set canonical values. This check includes DesignFlow API payloads and the `plm.import_master_data`/`systemd/plm-sync.timer` route, not only `dflow.*` tables.
 
-Verification gate: repository search and tests prove no canonical licensing write reads `dflow.*`, DesignFlow Cloud SQL, or DesignFlow API data. Diagnostic outputs say “historical comparison,” never “source of truth.”
+Verification gate: repository search, function-definition capture, caller inventory, and tests prove no canonical licensing write reads `dflow.*`, DesignFlow Cloud SQL, or DesignFlow API data; `plm.import_master_data` refuses licensing writes; `systemd/plm-sync.timer` remains stopped. Diagnostic outputs say “historical comparison,” never “source of truth.”
 
 ### Phase 5: DB Data Admin review and audit surface
 
@@ -679,11 +855,20 @@ Create a source-health API and alert workflow that reports:
 
 Do not expose licensed values in alerts. Use source/system names, counts, timestamps, hashes, and failure categories.
 
-Verification gate: a simulated eight-day gap marks the weekly source overdue and alerts; a new complete capture clears the overdue state without erasing failure history.
+Escalation is deterministic and idempotent:
+
+1. At the first missed weekly deadline, mark the source overdue and alert Licensing plus the technical owner. Do not change canonical data.
+2. At the second consecutive missed weekly deadline, atomically set `plm.licensing_source_scope.is_enabled = false`, record the reason/timestamp, and page a human. Count each scheduled boundary once, not every monitor poll.
+3. A disabled scope blocks consolidation but preserves the last canonical entities and relationships exactly as they were.
+4. A disabled scope may run validation and a read-only recovery dry run, but cannot apply canonical changes. Re-enable only after a new complete validated capture, that successful dry run, and an audited Licensing/administrator acknowledgement. Clearing an alert must not erase failure history or re-enable automatically.
+
+Verification gate: a simulated first missed boundary alerts without changing scope; the second consecutive missed boundary disables the scope exactly once and pages a human; repeated monitor polls are no-ops; a complete capture alone does not re-enable; reviewed recovery re-enables without erasing failure history.
 
 ### Phase 7: consumer application cutover
 
 For each consumer repo, first read its own `AGENTS.md`. Database structure remains in shared-db; app repos change only code, generated types, tests, and docs.
+
+#### Step 7.1: cut every consumer over to canonical APIs
 
 Sequence:
 
@@ -692,9 +877,16 @@ Sequence:
 3. PopPIM/PM uses canonical licensing pickers and relationships.
 4. PopCRM uses canonical Licensor/Property display contracts where applicable.
 5. Six DesignFlow services switch reads from `dflow.*` licensing tables to canonical Supabase APIs according to their sandbox/develop rules. DesignFlow never becomes a writer of canonical truth.
-6. Remove compatibility scalar fields/views only after repository-wide search and live telemetry show zero consumers.
 
 Verification gate per app: unit/integration tests pass, real signed-in user journey works, no network/API call reads DesignFlow licensing truth, and generated types match the applied preview schema. UI changes have screenshots.
+
+#### Step 7.2: retire compatibility scalar fields and views in a separate post-cutover migration
+
+After every Step 7.1 consumer is deployed and verified, run repository-wide searches plus live API/query telemetry for `core.character.property_id`, `core.style_guide.property_id`, scalar Asset Property/Licensor fields, and every compatibility view/API. Observe at least one normal business cycle with zero readers. Then reserve a new migration version and exact object claims to remove only the proven-unused columns, constraints, views, and compatibility code.
+
+Remove only tests that directly require the retired scalar columns. The relationship-axis test was already replaced in Step 2.3 and must remain green. Do not bundle this removal into the Phase 1 additive migrations or an application repository.
+
+Verification gate: the evidence names every searched repository and deployed version, includes the telemetry window with zero readers, proves current bridge counts/invariants before and after, and shows all consumers remain green against the removal migration on preview. Recovery is the tested compatibility-view restoration migration, not deletion of canonical bridges.
 
 ### Phase 8: governed production landing and monitoring
 
@@ -702,9 +894,11 @@ This is a separate fresh session. Production is not authorized by this plan.
 
 #### Step 8.1: assemble the exact bounded production package
 
-Re-run production ledger drift, rebase each migration from current `main`, and include only this plan's prerequisites and migrations proven together on preview. Respect retired, held, and unrelated pending versions. Use the shared production workflow's immutable evidence and business-risk gate.
+Enter the orchestrator's §12.1 pre-apply merge freeze before taking the final ledger snapshot. Re-run production ledger drift, rebase each migration from current `main`, and include only this plan's prerequisites and migrations proven together on preview. The held bundle `20260802170000` and `20260802171000` is excluded unless its separate hold is explicitly released and it is reviewed as part of the exact package; never pull it in merely because it is pending. Respect every retired, held, and unrelated pending version. Use the shared production workflow's immutable evidence and business-risk gate.
 
-Verification gate: package names exact migration versions, immutable review artifacts, preview apply proof, current-main SHA, rollback path, and every consumer compatibility result. The workflow accepts the package without overrides.
+The Step 1.0 protection is table-level and must remain effective regardless of which `plm.import_master_data` function body exists. In preview, install the guard, then apply or replay the exact function definition from held migration `20260802170000` and prove its attempted ownership/status writes are refused. If the held FRIENDS/FRIDA bundle is ever released later, its package must include this regression proof and post-apply trigger/guard verification; replacing the function never counts as replacing or weakening the guard.
+
+Verification gate: merge-freeze evidence and a final unchanged ledger snapshot exist; the package names exact migration versions, explicit included/excluded held versions, immutable review artifacts, preview apply proof, current-main SHA, rollback path, performance/lock budget, and every consumer compatibility result. A held-function replay test and catalog check prove the table-level guard survives. The workflow accepts the package without overrides.
 
 #### Step 8.2: promote structure, then curated data, then consumers
 
@@ -721,13 +915,15 @@ Order:
 
 Every production write must prove and quote project `qsllyeztdwjgirsysgai` immediately before execution.
 
+Scrape-created Properties enter as `potential`. Canonical consumer APIs and new application readers remain disabled until the same bounded release completes ColdLion reconciliation and proves every Property has the expected Active/Inactive result. If ColdLion reconciliation fails, do not cut consumers over and do not change new rows to Active manually.
+
 Verification gate: exact production catalog matches the approved structure; source and relationship invariants are zero-failure; all apps read canonical contracts; live build SHAs are verified where apps changed; weekly monitors are enabled and healthy.
 
 #### Step 8.3: retire superseded paths safely
 
 Only after sustained verified operation:
 
-- disable DesignFlow licensing feeds/writes;
+- remove the already-blocked DesignFlow licensing importer callers and retire `systemd/plm-sync.timer` only after proving no unrelated required behavior depends on them;
 - remove compatibility scalar columns/views;
 - retain historical evidence and aliases;
 - remove deprecated landing paths only when their replacement captures are complete and rollback no longer depends on them;
@@ -746,9 +942,12 @@ Add focused files under `supabase/tests/` covering:
 - `licensing_canonical_entities_contracts.sql`
   - six canonical homes exist;
   - no scalar Character/Style Guide Property authority after cutover;
+  - scrape-created Property explicitly starts `potential` and cannot use the `active` default;
   - RLS, grants, FKs, restrict behavior, and indexes.
 - `licensing_relationship_evidence_contracts.sql`
   - many-to-many behavior;
+  - canonical endpoint-pair identity stays stable while companion source rows allow two sources to support one pair;
+  - bridge-based Style Guide/Character/Property invariant replaces the retired scalar invariant;
   - direct versus co-occurrence rejection;
   - multi-source support and current-edge calculation;
   - no endpoint cascade destruction.
@@ -756,23 +955,44 @@ Add focused files under `supabase/tests/` covering:
   - Licensor/Franchise resolution;
   - wrong-kind rejection;
   - audit and optimistic locking;
-  - preservation of existing decisions.
+  - preservation and count/target parity of existing landing-table decisions;
+  - portal decision columns freeze in Step 2.1;
+  - ColdLion status-word mapping, tool parity, and delayed `erp_*` decision-column freeze in Step 4.0.
 - `licensing_source_scope_contracts.sql`
-  - source namespace authorization;
+  - full `source_system` authorization and exact identity-key compatibility;
   - cross-Licensor/kind refusal;
-  - disabled scope refusal.
+  - disabled scope refusal;
+  - first/second missed-deadline escalation and reviewed re-enable.
 - `licensing_consolidation_contracts.sql`
   - dry-run hash;
   - idempotency;
   - spelling/ownership authority;
+  - ownership-change history;
+  - new Property `potential` status and matched Property status preservation;
   - alias preservation;
   - missing-source retention;
   - ambiguous-match abstention;
   - stale DesignFlow non-authority.
+- `licensing_write_authority_guard_contracts.sql`
+  - direct and legacy-function protected-column writes refuse without transaction-bound authorization;
+  - authorized scrape writes can change only official identity/ownership fields;
+  - authorized ColdLion writes can change only Property status;
+  - DesignFlow PLM payload and current ColdLion promotion body produce zero protected-column changes;
+  - replaying held function definition `20260802170000` cannot bypass the table guard;
+  - unrelated retained importer behavior cannot reach licensing tables.
+- `licensing_canonical_merge_contracts.sql`
+  - complete source/alias/edge repointing;
+  - merged tombstone traceability;
+  - conflicting scope abstention;
+  - audited reversal without loss.
 - `coldlion_property_status_contracts.sql`
+  - durable mapping and reviewed create-new behavior;
+  - exact legacy-to-durable status map and parity;
   - membership-only mutation;
   - fail-closed short/partial input;
-  - no rename/re-parent/delete.
+  - unresolved records protect only their candidate canonical rows;
+  - allowed exclusion reasons only;
+  - no automatic rename/re-parent/delete.
 - `db_data_admin_licensing_contracts.sql`
   - licensing access boundaries;
   - review/audit functions;
@@ -784,8 +1004,11 @@ Add or extend:
 
 - source adapter unit tests for Disney, NBCU, Paramount, and Warner;
 - two-cycle consolidation rehearsal tests;
+- three-run restored-snapshot performance and lock-budget test;
 - incomplete-capture refusal tests;
 - ColdLion status fault matrix;
+- legacy ColdLion promotion retirement and durable-resolution caller tests;
+- Warner complete-capture prerequisite test;
 - weekly schedule mapping and missed-run alert tests;
 - workflow contract tests ensuring licensed values cannot enter logs/artifacts.
 
@@ -796,6 +1019,8 @@ Use Vitest/Testing Library for:
 - each entity/relationship view;
 - licensing versus administrator permissions;
 - ambiguous resolution and optimistic conflict;
+- ColdLion mapping/create-new review and later scrape supersession;
+- duplicate canonical merge preview, apply, and reversal;
 - source freshness/overdue/failure;
 - evidence-only label;
 - no delete controls;
@@ -825,11 +1050,11 @@ A flaky test may be rerun once only after its full log proves it is unrelated. A
 4. No direct production database change, dashboard SQL, broad migration apply, Terraform apply, or mutating GCP command.
 5. Read the ledger before claiming an object is missing. Exit 2 is not a clean result.
 6. Prove the database target immediately before every data write. Production is `qsllyeztdwjgirsysgai`; preview is `rjyboqwcdzcocqgmsyel`.
-7. Outside-sourced writes into curated `core.*` remain under curated Master Data governance even after structure is ready.
+7. Outside-sourced writes into curated Master Data remain under §6.4 governance. The only matched-row exception is the owner-approved guarded consolidator for an authorized full `source_system` and complete validated capture, limited to the facts that source owns and backed by durable resolution, scope, dry-run hash, and audit. Ad-hoc API pulls, spreadsheets, pasted rows, and direct SQL remain fully abstention-bound.
 8. Licensed source rows never enter this public repo, issues, PRs, logs, or outside AI prompts.
 9. Fetch 1Password secrets serially from vault `vibe_coding`; never print or store values.
 10. DesignFlow data is non-authoritative historical evidence only.
-11. ColdLion writes Property status only after guarded membership reconciliation.
+11. ColdLion automation writes Property status only after durable mapping and guarded membership reconciliation. It never writes canonical name, code, or owning Licensor. A ColdLion-only create-new proposal requires a Licensing reviewer to confirm those identity facts.
 12. Never hard-delete canonical licensing entities during refresh.
 13. Do not infer direct relationships from names, paths, folders, or co-occurrence.
 14. `dam.asset` is metadata, not the licensed binary.
@@ -839,6 +1064,9 @@ A flaky test may be rerun once only after its full log proves it is unrelated. A
 18. Every fallback alerts loudly; no silent skip of a source or schedule.
 19. Preserve recovery before destructive retirement: merged commit, preview proof, rollback SQL/backup, and verified zero consumers.
 20. Existing private source repo working copies may contain other sessions' files. Never stage, edit, delete, or tidy unrelated work.
+21. A table-level protected-column guard must block `plm.import_master_data`, current/held replacement bodies, and current ColdLion promotion before canonical consolidation. `systemd/plm-sync.timer` and old ColdLion promotion workflows remain stopped until retired or retargeted to narrow guarded functions.
+22. Phase 1 is additive compatibility work. Scalar and compatibility removal happens only in Step 7.2 after deployed-reader evidence.
+23. The Phase 8 production package enters a merge freeze and explicitly excludes held versions `20260802170000` and `20260802171000` unless their separate hold is released.
 
 ---
 
@@ -887,15 +1115,26 @@ On this Windows machine, injected environment values do not cross into bare WSL 
 - [ ] Franchise is canonical and preserves source terminology.
 - [ ] `dam.asset` supports all required canonical relationships without storing binaries here.
 - [ ] Durable source resolution supports all six entity kinds and preserves existing decisions.
+- [ ] Every approved legacy landing-resolution decision is backfilled with parity proof and the legacy columns are read-only.
 - [ ] Source scope prevents cross-Licensor/source writes.
+- [ ] `plm.import_master_data` and every DesignFlow/PLM sync caller cannot write licensing canonical values.
+- [ ] The table-level guard blocks current and held legacy function bodies and permits only exact scrape-identity or ColdLion-status column sets through hash-pinned plans.
+- [ ] Existing ColdLion promotion functions/workflows cannot write names, codes, or ownership before the first authoritative scrape apply.
 - [ ] All four source adapters pass complete/incomplete/idempotency tests on preview.
+- [ ] A complete validated Warner preview capture exists before Warner consolidation.
+- [ ] Every scrape-created Property starts `potential`; consolidation never sets Active/Inactive.
 - [ ] ColdLion changes only Property Active/Inactive and fails closed on bad input.
+- [ ] ColdLion-to-canonical mapping supports reviewed create-new without granting ColdLion spelling or ownership authority.
+- [ ] ColdLion tools use durable resolution, the published status map passes parity, and legacy `erp_*` decision columns are frozen only after caller cutover.
+- [ ] Duplicate canonical entities have one reversible, audited merge path with complete relationship/source repointing.
 - [ ] DB Data Admin supports review, aliases, direct/evidence distinction, status reason, freshness, and audit for Licensing users.
 - [ ] Weekly automation or explicit weekly due action exists for all four sources, with missed/failed-run alerts.
+- [ ] Two consecutive missed weekly deadlines disable the affected source scope and require reviewed recovery.
 - [ ] Consumer applications read canonical APIs and no longer read licensing truth from DesignFlow.
 - [ ] All new and existing tests are green.
 - [ ] Independent review has no unresolved Critical or High finding.
 - [ ] Migrations are preview-proven, merged, and applied through the governed production lane.
+- [ ] Three restored-snapshot full-volume preview rehearsals establish the production duration/lock budget.
 - [ ] Production object, data-invariant, application, and weekly-monitor verification pass.
 - [ ] Every repo change is committed with Albert's identity, pushed, CI green, and deployed SHA verified where applicable.
 - [ ] This plan's STATUS, central architecture, app docs, and handoffs match reality.
@@ -907,13 +1146,17 @@ On this Windows machine, injected environment values do not cross into bare WSL 
 |---|---|---|
 | Wrong portal entity matched to canonical row | Stable source IDs, scope gate, ambiguity abstention, human review | Reverse audited resolution/merge; canonical IDs retained |
 | Stale DesignFlow value re-enters | No canonical writer reads DesignFlow; contract search/test | Disable offending writer, restore from prior canonical audit, replay authoritative source |
+| A legacy DesignFlow or ColdLion function overwrites authority | Table-level protected-column guard, stopped callers, held-function replay test | Keep callers stopped, verify guard, restore prior canonical audit, replay authorized source |
+| New scraped Properties appear Active before ColdLion | Explicit `potential` insert and contract test; consumers remain gated through status reconciliation | Keep consumer cutover disabled; rerun guarded ColdLion plan, never manually mass-activate |
 | Short scrape retires relationships | Complete-capture gate and shrink/freshness checks | No apply occurs; prior current edges remain |
 | ColdLion mass-deactivates | Hash-pinned plan, complete pagination/division checks, max shrink, preview | Reapply prior status snapshot through audited rollback plan |
+| One unresolved ColdLion row blocks or misclassifies the whole catalogue | Candidate-scoped status protection and enumerated exclusions | Leave only candidate rows unchanged, resolve review, rerun hash-pinned status plan |
 | Scalar-to-bridge cutover breaks apps | Compatibility API, consumer inventory, staged cutover | Restore compatibility view/column from migration rollback while bridges remain |
 | Co-occurrence becomes false direct relationship | Evidence-kind constraints and source adapter tests | Remove rejected edge through audited plan; source evidence remains |
 | Production pending migrations collide | Ledger drift check, exact bounded package, serialized merge/promotion | Stop before apply; never broad-push the pending set |
 | Licensed data leaks publicly | Aggregate-only evidence and source-specific private repos | Remove current-version exposure per policy and incident procedure; never publish row values |
 | Weekly automation silently stops | due-state and missed-run alerts independent of capture job | Manual approved capture while automation is repaired; never mark stale data fresh |
+| Duplicate merge loses source or relationships | Hash-pinned whole-graph merge plan, tombstone, audit, reversal test | Apply audited reversal plan; source evidence and old ID remain traceable |
 
 ### Open questions
 
@@ -941,11 +1184,13 @@ Prefer forward-compatible, additive phases. Before dropping scalar columns or di
 - [x] No secret value or licensed row content is included.
 - [x] Definition of done covers commit, push, CI, governed production apply, app/deploy proof, docs, and handoff retirement.
 - [x] This plan and its paired handoff link to each other; `AGENTS.md` and the topic architecture link to the plan.
+- [x] Every GLM 5.3 High, Medium, and Low finding has an explicit disposition in §6.1 and an executable correction in §9–13.
+- [x] Every Grok 4.6 High, Medium, and Low finding has an explicit disposition in §6.2 and an executable correction; the same Grok session reread the completed revision and returned Ready.
 
 ### Required synthesis answers
 
-1. **Could a brand-new AI session with no project knowledge execute this plan without asking a question? Yes.** Sections 1–4 explain the business, product, trigger, and boundaries. Sections 5–8 preserve current state, findings, rejected approaches, and locked decisions. Section 9 gives ordered file/object-level work with a verification gate for every step. Sections 11–13 provide rules, access, risks, rollback, and completion criteria.
-2. **Does the plan carry the background, nuance, and reasoning held by the planning session? Yes.** Sections 5–7 record the conflicting scalar/bridge shapes, pending source-resolution migrations, source landing inventory, absent weekly schedules, production ledger drift evidence, subordinate older plans, and every rejected authority model.
-3. **Is the goal clear enough to guide a correct judgment when a step is wrong? Yes.** Section 1 defines the desired business state and explicitly says the goal wins. Section 8 identifies locked decisions and safe technical judgment areas; Section 13 says how to stop and escalate a newly discovered business conflict.
+1. **Could a brand-new AI session with no project knowledge execute this plan without asking a question? Yes.** Sections 1–4 explain the business, product, trigger, and boundaries. Sections 5–8 preserve current state, GLM's complete correction ledger, rejected approaches, and locked decisions. Section 9 now has one STATUS row and one executable, verified step for every unit of work, including the importer guard, durable mapping backfill, Warner prerequisite, ColdLion mapping, duplicate merge, freshness escalation, scalar retirement, performance budget, merge freeze, and held versions. Sections 11–13 provide rules, access, risks, rollback, and completion criteria.
+2. **Does the plan carry the background, nuance, and reasoning held by the planning session? Yes.** Sections 5–7 record the conflicting scalar/bridge shapes, pending source-resolution migrations, source landing inventory, absent weekly schedules, DesignFlow API overwrite path, Active default, legacy resolution dual truth, Warner capture gap, duplicate-merge need, production ledger drift evidence, subordinate older plans, and every GLM and Grok finding/disposition. The paired handoff preserves failed review attempts and the reason ColdLion proposals still require Licensing confirmation.
+3. **Is the goal clear enough to guide a correct judgment when a step is wrong? Yes.** Section 1 defines the desired business state and explicitly says the goal wins. Section 8 separates locked authority decisions, fixed implementation choices, and bounded technical measurements. Sections 9 and 13 say how to stop, preserve evidence, and escalate a genuine new authority conflict without redesigning the model.
 
 No gap remained after the final audit.
