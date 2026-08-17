@@ -337,7 +337,7 @@ export function recoverStaleAuthorMutex({ expectedSha, confirmStale, serializedR
     const message=commit?.message ?? commit?.commit?.message ?? ''
     const dateText=commit?.committer?.date ?? commit?.commit?.committer?.date
     const acquiredAt=new Date(dateText)
-    if(!/^db-coordination (?:author-acquisition|preview|merge|production|claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|reviewer-assignment-lock|reviewer-replacement-lock)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
+    if(!/^db-coordination (?:author-acquisition|preview|merge|production|claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-lease-renewal|reviewer-assignment-lock|reviewer-replacement-lock)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
     if(Number.isNaN(acquiredAt.valueOf()))throw new LaneError('refusing recovery: mutex owner time is unreadable')
     const age=now-acquiredAt
     if(age<minAgeMs)throw new LaneError(`refusing recovery: mutex is only ${Math.max(0,Math.floor(age/1000))} seconds old`)
@@ -603,6 +603,65 @@ function replaceClaimObjects(body, version, objects) {
   return body.slice(0,fences[0].index)+replacement+body.slice(fences[0].index+fences[0][0].length)
 }
 
+function replaceLeaseExpiry(body, expiresAt) {
+  const fences=[...body.matchAll(/```db-author-lease\s*\n([\s\S]*?)```/g)]
+  if(fences.length!==1)throw new LaneError('claim body must contain exactly one manager-owned db-author-lease block')
+  const block=fences[0][1], matches=block.match(/^expires_at:\s*.+$/gm)??[]
+  if(matches.length!==1)throw new LaneError('claim lease expiry is ambiguous')
+  const replacement=block.replace(/^expires_at:\s*.+$/m,`expires_at: ${expiresAt.toISOString()}`)
+  return body.slice(0,fences[0].index)+fences[0][0].replace(block,()=>replacement)+body.slice(fences[0].index+fences[0][0].length)
+}
+
+export function renewExpiredClaim(options, now = new Date(), io = githubIo) {
+  for(const key of ['claim','owner','branch','worktree','pr','headSha','leaseHours'])if(options[key]===undefined||options[key]===null||options[key]==='')throw new LaneError(`claim renewal requires ${key}`)
+  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>24)throw new LaneError('renewal lease hours must be greater than 0 and no more than 24')
+  const desiredExpiry=new Date(now.valueOf()+options.leaseHours*3600000)
+  const requestId=options.requestId??randomUUID(),ownerSha=io.makeOwnerCommit(`db-coordination claim-lease-renewal ${requestId}`)
+  acquireMutex(ownerSha,io,options.mutexAttempts??100)
+  let before,possiblyChanged=false
+  try {
+    const claims=io.openClaims(),matches=claims.filter((claim)=>String(claim.number)===String(options.claim))
+    if(matches.length!==1)throw new LaneError(`claim #${options.claim} must be uniquely open`)
+    before=io.getIssue(options.claim)
+    if(before?.state!=='open'||before.body!==matches[0].body)throw new LaneError('claim changed concurrently before renewal')
+    const lease=parseAuthorLease(before.body,now)
+    if(lease.legacy)throw new LaneError('legacy claim leases cannot be renewed')
+    if(lease.owner!==options.owner||lease.branch!==options.branch||lease.worktree!==options.worktree)throw new LaneError('claim owner, branch, or worktree mismatch')
+    const expectedBody=replaceLeaseExpiry(before.body,desiredExpiry)
+    if(lease.active){
+      if(before.body===expectedBody)return {claim:Number(options.claim),version:lease.version,expiresAt:lease.expiresAt.toISOString(),idempotent:true}
+      throw new LaneError('claim has an active lease; refusing unrelated renewal')
+    }
+    if(!io.readRef(`refs/db-claims/${lease.version}`))throw new LaneError('permanent version reservation is unreadable')
+    const pr=io.getPr(options.pr)
+    if(pr?.state!=='open'||pr.head?.ref!==options.branch||pr.head?.sha!==options.headSha)throw new LaneError('open pull request branch or exact head mismatch')
+    const fileVersions=migrationVersions(io.getPrFiles(options.pr))
+    if(fileVersions.length!==1||fileVersions[0]!==lease.version)throw new LaneError('pull request migration version does not match the permanent claim version')
+    const sources=io.prSources(), target=sources.filter((source)=>new RegExp(`^PR #${options.pr}(?:\\s|$)`).test(source.label))
+    if(target.length!==1)throw new LaneError('pull request parser source is missing or ambiguous')
+    if(target[0].versions?.length!==1||String(target[0].versions[0])!==lease.version)throw new LaneError('parsed pull request version does not match the permanent claim version')
+    const claimed=new Set(lease.objects.map(normalizeObject)),parsed=validateClaimObjects(target[0].objects??[])
+    const uncovered=parsed.filter((object)=>!claimed.has(object))
+    if(uncovered.length)throw new LaneError(`claim does not cover parsed pull request objects: ${uncovered.join(', ')}`)
+    const others=claims.filter((claim)=>String(claim.number)!==String(options.claim)),otherPrs=sources.filter((source)=>source!==target[0])
+    assertLaneAvailable(others,lease.objects,now,{ignoreCapacity:true,prSources:otherPrs})
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
+    possiblyChanged=true;io.updateIssue(options.claim,{body:expectedBody})
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
+    const after=io.getIssue(options.claim),afterLease=parseAuthorLease(after?.body??'',now)
+    if(after?.state!=='open'||after.body!==expectedBody||afterLease.version!==lease.version||afterLease.owner!==lease.owner||afterLease.branch!==lease.branch||afterLease.worktree!==lease.worktree||JSON.stringify(afterLease.objects)!==JSON.stringify(lease.objects))throw new LaneError('renewed claim exact readback failed')
+    if(!io.readRef(`refs/db-claims/${lease.version}`))throw new LaneError('permanent reservation disappeared during renewal')
+    return {claim:Number(options.claim),version:lease.version,expiresAt:afterLease.expiresAt.toISOString(),idempotent:false}
+  } catch(error) {
+    if(possiblyChanged){
+      if(io.readRef(MUTEX_REF)!==ownerSha)throw new LaneError(`${error.message}; ROLLBACK NOT ATTEMPTED because mutex ownership was lost`)
+      try{requireOwnedRef(MUTEX_REF,ownerSha,io);io.updateIssue(options.claim,{body:before.body});requireOwnedRef(MUTEX_REF,ownerSha,io);if(io.getIssue(options.claim)?.body!==before.body)throw new LaneError('rollback readback mismatch')}
+      catch(rollbackError){throw new LaneError(`${error.message}; ROLLBACK INCOMPLETE: ${rollbackError.message}`)}
+    }
+    throw error
+  } finally {if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
+}
+
 export function expandActiveClaimFromPr(options, now = new Date(), io = githubIo) {
   for(const key of ['claim','pr','owner','headSha','branch','worktree'])if(!options[key])throw new LaneError(`claim expansion requires ${key}`)
   if(String(options.claim)!=='1063'||String(options.pr)!=='1065')throw new LaneError('claim expansion is pinned to claim #1063 and PR #1065')
@@ -756,6 +815,7 @@ function parseArgs(argv) {
     else if (a === '--recover-author-mutex') out.recoverMutex = true
     else if (a === '--recover-same-owner-split') out.recoverSplit = true
     else if (a === '--expand-active-claim-from-pr') out.expandClaim = true
+    else if (a === '--renew-claim') out.renewClaim = true
     else if (a === '--reversion-active-claim') out.reversionClaim = true
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
@@ -776,6 +836,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.recoverMutex){console.log(JSON.stringify(recoverStaleAuthorMutex({expectedSha:o.expectedSha,confirmStale:o.confirmStale,serializedRecovery:process.env.GITHUB_ACTIONS==='true'&&process.env.AUTHOR_MUTEX_RECOVERY_SERIALIZED==='true',now},io),null,2));return 0}
     if(o.recoverSplit){console.log(JSON.stringify(recoverSameOwnerSplit(o,now,io),null,2));return 0}
     if(o.expandClaim){console.log(JSON.stringify(expandActiveClaimFromPr({...o,claim:o.claimNumber},now,io),null,2));return 0}
+    if(o.renewClaim){console.log(JSON.stringify(renewExpiredClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.reversionClaim){console.log(JSON.stringify(reversionActiveClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.replaceFailedReviewer){console.log(JSON.stringify(replaceFailedReviewer(o,io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}

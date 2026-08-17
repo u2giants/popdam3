@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromPr, EXCLUSIVE_REFS, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, reviewerExecutionPreflight, reversionActiveClaim, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromPr, EXCLUSIVE_REFS, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
@@ -527,6 +527,11 @@ test('stranded reviewer assignment and replacement mutexes are recoverable',()=>
     assert.equal(recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0},io).released,'4a69fbbc')
   }
 })
+test('stranded claim lease renewal mutex is recognized and safely recoverable',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc');io.getCommit=()=>({message:'db-coordination claim-lease-renewal renew-853',committer:{date:'2026-08-14T19:55:00Z'}})
+  const result=recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0},io)
+  assert.equal(result.released,'4a69fbbc');assert.equal(io.refs.has(MUTEX_REF),false)
+})
 
 function splitIo(overrides={}) {
   const io=memoryIo(), original=['table plm.style_tracker_item_bridge'], combined=[...original,'index plm.item_upper_trim_item_number_idx']
@@ -597,6 +602,63 @@ test('active claim expansion rolls back an ambiguous update failure while mutex-
 test('REAL main command wires claim-number into the incident-pinned expansion',()=>{
   const io=expansionIo(),args=['--expand-active-claim-from-pr','--claim-number','1063','--pr','1065','--owner','codex-issue-853-orderlist','--head-sha','head','--branch','codex/issue-853-orderlist-index','--worktree','C:\\repos\\shared-db-wt-853-index']
   assert.equal(main(args,NOW,io),0);assert.ok(parseAuthorLease(io.issue.body,NOW).objects.includes('table plm.item'))
+})
+
+function renewalIo(overrides={}){
+  const io=memoryIo(),version='20260816045130',head='a'.repeat(40),objects=['table plm.style_tracker_item_bridge']
+  const issue={number:1058,state:'open',body:claimBody({version,objects,owner:'codex-issue-853-orderlist',branch:'codex/issue-853-orderlist',worktree:'C:\\repos\\shared-db-worktrees\\issue-853-orderlist',expiresAt:new Date('2026-08-14T19:00:00Z')})}
+  io.refs.set(`refs/db-claims/${version}`,'permanent')
+  io.openClaims=()=>[structuredClone(issue)];io.getIssue=()=>structuredClone(issue);io.updateIssue=(_n,fields)=>{Object.assign(issue,fields);return structuredClone(issue)}
+  io.getPr=()=>({state:'open',head:{sha:head,ref:'codex/issue-853-orderlist'}})
+  io.getPrFiles=()=>[{status:'added',filename:`supabase/migrations/${version}_orderlist.sql`}]
+  io.prSources=()=>[{label:'PR #1060 "#853 OrderList"',objects:[...objects],versions:[version]}]
+  return Object.assign(io,{issue,version,head,objects},overrides)
+}
+const renewalOptions={claim:1058,owner:'codex-issue-853-orderlist',branch:'codex/issue-853-orderlist',worktree:'C:\\repos\\shared-db-worktrees\\issue-853-orderlist',pr:1060,headSha:'a'.repeat(40),leaseHours:12,requestId:'renew-853',mutexAttempts:1}
+
+test('#853-shaped expired claim renewal preserves every byte except expires_at',()=>{
+  const io=renewalIo(),before=io.issue.body,result=renewExpiredClaim(renewalOptions,NOW,io)
+  assert.equal(result.idempotent,false);assert.equal(result.version,io.version)
+  assert.equal(io.issue.body.replace(/^expires_at:.*$/m,'expires_at: X'),before.replace(/^expires_at:.*$/m,'expires_at: X'))
+  assert.match(io.issue.body,/expires_at: 2026-08-15T08:00:00.000Z/)
+})
+
+test('claim renewal rejects every exact identity and permanent-version mismatch',()=>{
+  for(const [change,pattern] of [[{owner:'wrong'},/owner/],[{branch:'wrong'},/branch/],[{worktree:'wrong'},/worktree/],[{headSha:'b'.repeat(40)},/head/],[{pr:999},/parser source/]])assert.throws(()=>renewExpiredClaim({...renewalOptions,...change},NOW,renewalIo()),pattern)
+  let io=renewalIo();io.getPrFiles=()=>[{filename:'supabase/migrations/20260816000000_wrong.sql'}];assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/migration version/)
+  io=renewalIo();io.refs.delete(`refs/db-claims/${io.version}`);assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/reservation/)
+})
+
+test('claim renewal requires one open claim and rejects object collisions',()=>{
+  let io=renewalIo();io.openClaims=()=>[];assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/uniquely open/)
+  io=renewalIo();const duplicate=io.openClaims()[0];io.openClaims=()=>[duplicate,{...duplicate}];assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/uniquely open/)
+  io=renewalIo();io.openClaims=()=>[structuredClone(io.issue),{number:77,body:claimBody({version:'20260816070000',objects:io.objects,owner:'other',branch:'other',worktree:'C:/other',expiresAt:new Date('2026-08-17T00:00:00Z')})}];assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/collision/)
+  io=renewalIo();io.prSources=()=>[{label:'PR #1060',objects:io.objects,versions:[io.version]},{label:'PR #999',objects:io.objects,versions:['20260816070000']}];assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/collision/)
+})
+
+test('claim renewal rejects uncovered PR objects, concurrent mutation, and active unrelated leases',()=>{
+  let io=renewalIo();io.prSources=()=>[{label:'PR #1060',objects:[...io.objects,'table plm.item'],versions:[io.version]}];assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/does not cover/)
+  io=renewalIo();const listed=io.openClaims()[0];io.openClaims=()=>[listed];io.getIssue=()=>({...listed,body:`${listed.body}\nchanged`});assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/concurrently/)
+  io=renewalIo();io.issue.body=io.issue.body.replace('2026-08-14T19:00:00.000Z','2026-08-15T09:00:00.000Z');assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/active lease/)
+})
+
+test('claim renewal is idempotent for the exact already-written expiry',()=>{
+  const io=renewalIo();renewExpiredClaim(renewalOptions,NOW,io);const once=io.issue.body
+  const result=renewExpiredClaim(renewalOptions,NOW,io);assert.equal(result.idempotent,true);assert.equal(io.issue.body,once)
+})
+
+test('claim renewal rolls back readback failure while mutex-owned and refuses after ownership loss',()=>{
+  let io=renewalIo(),before=io.issue.body,reads=0,baseGet=io.getIssue
+  io.getIssue=()=>{const value=baseGet();if(++reads===2)value.body+='\nbad';return value}
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/readback/);assert.equal(io.issue.body,before)
+  io=renewalIo();before=io.issue.body;const update=io.updateIssue;io.updateIssue=(n,fields)=>{const result=update(n,fields);io.refs.set(MUTEX_REF,'successor');return result}
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/ROLLBACK NOT ATTEMPTED/);assert.notEqual(io.issue.body,before)
+})
+
+test('claim renewal enforces a bounded lease and real CLI wiring',()=>{
+  for(const leaseHours of [0,24.01,NaN])assert.throws(()=>renewExpiredClaim({...renewalOptions,leaseHours},NOW,renewalIo()),/no more than 24/)
+  const io=renewalIo(),args=['--renew-claim','--claim-number','1058','--owner',renewalOptions.owner,'--branch',renewalOptions.branch,'--worktree',renewalOptions.worktree,'--pr','1060','--head-sha',renewalOptions.headSha,'--lease-hours','12']
+  assert.equal(main(args,NOW,io),0);assert.equal(parseAuthorLease(io.issue.body,NOW).active,true)
 })
 
 function reversionIo(overrides={}){
