@@ -41,6 +41,72 @@ const FILE_STATUS_OPTIONS: { value: FileStatusFilter; label: string }[] = [
   { value: "no_preview_unsupported", label: "No preview — unsupported format" },
 ];
 
+// ── Sidebar width (drag to resize) ──────────────────────────────────
+
+const SIDEBAR_WIDTH_KEY = "library-filter-sidebar-width";
+const SIDEBAR_MIN_WIDTH = 180;
+const SIDEBAR_MAX_WIDTH = 520;
+const SIDEBAR_DEFAULT_WIDTH = 214;
+
+function clampSidebarWidth(px: number) {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px)));
+}
+
+function readStoredSidebarWidth() {
+  if (typeof window === "undefined") return SIDEBAR_DEFAULT_WIDTH;
+  const raw = window.localStorage.getItem(SIDEBAR_WIDTH_KEY);
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) ? clampSidebarWidth(parsed) : SIDEBAR_DEFAULT_WIDTH;
+}
+
+// ── Text that only gets a tooltip when it is actually cut off ───────
+
+/**
+ * Single-line text with an ellipsis. The native tooltip is attached ONLY when
+ * the text does not fit, measured from the live layout (scrollWidth vs
+ * clientWidth), so widening the sidebar removes tooltips that are no longer
+ * needed.
+ */
+function TruncatedText({
+  text,
+  style,
+  className,
+}: {
+  text: string;
+  style?: React.CSSProperties;
+  className?: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [truncated, setTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setTruncated(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+
+  return (
+    <span
+      ref={ref}
+      className={className}
+      title={truncated ? text : undefined}
+      style={{
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        ...style,
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
 // ── Checkbox row ────────────────────────────────────────────────────
 
 function FacetRow({
@@ -81,20 +147,16 @@ function FacetRow({
           </svg>
         )}
       </span>
-      <span
+      <TruncatedText
+        text={label}
         style={{
           flex: 1,
           minWidth: 0,
           fontSize: 13,
           color: "var(--pd-fg)",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
           textTransform: "capitalize",
         }}
-      >
-        {label}
-      </span>
+      />
       {count !== undefined && (
         <span style={{ color: "var(--pd-fg-subtle)", fontSize: 11, tabularNums: true } as React.CSSProperties}>
           {count}
@@ -292,9 +354,10 @@ function SearchableCombo({
             gap: 4,
           }}
         >
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "left" }}>
-            {selectedName ?? "All"}
-          </span>
+          <TruncatedText
+            text={selectedName ?? "All"}
+            style={{ flex: 1, minWidth: 0, textAlign: "left" }}
+          />
           <ChevronDown style={{ width: 13, height: 13, flexShrink: 0, color: "var(--pd-fg-muted)" }} />
         </button>
 
@@ -392,7 +455,7 @@ function SearchableCombo({
                       fontWeight: value === opt.id ? 600 : 400,
                     }}
                   >
-                    <span style={{ flex: 1, minWidth: 0, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt.name}</span>
+                    <TruncatedText text={opt.name} style={{ flex: 1, minWidth: 0, textAlign: "left" }} />
                     <span style={{ fontSize: 11, color: "var(--pd-fg-subtle)", marginLeft: 6, flexShrink: 0 }}>{opt.count}</span>
                   </button>
                 ))}
@@ -443,6 +506,37 @@ export default function FilterSidebar({
       program: null,
     });
 
+  // ── Drag-to-resize width, remembered across sessions ──────────────
+  const [width, setWidth] = useState(readStoredSidebarWidth);
+  const [resizing, setResizing] = useState(false);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  }, [width]);
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = width;
+    setResizing(true);
+
+    const onMove = (ev: MouseEvent) => {
+      setWidth(clampSidebarWidth(startWidth + (ev.clientX - startX)));
+    };
+    const onUp = () => {
+      setResizing(false);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
   const licensorOptions: ComboOption[] = licensors.map((l) => ({
     id: l.id,
     name: l.name,
@@ -490,7 +584,8 @@ export default function FilterSidebar({
   return (
     <div
       style={{
-        width: 214,
+        position: "relative",
+        width,
         borderRight: "1px solid var(--pd-border)",
         background: "var(--pd-surface)",
         display: "flex",
@@ -499,6 +594,32 @@ export default function FilterSidebar({
         flexShrink: 0,
       }}
     >
+      {/* Drag handle — widen or narrow the panel; double-click resets. */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize filter panel"
+        title="Drag to resize — double-click to reset"
+        onMouseDown={startResize}
+        onDoubleClick={() => setWidth(SIDEBAR_DEFAULT_WIDTH)}
+        style={{
+          position: "absolute",
+          top: 0,
+          right: -3,
+          bottom: 0,
+          width: 6,
+          cursor: "col-resize",
+          zIndex: 60,
+          background: resizing ? "var(--pd-accent)" : "transparent",
+          transition: resizing ? "none" : "background 0.12s",
+        }}
+        onMouseEnter={(e) => {
+          if (!resizing) e.currentTarget.style.background = "var(--pd-border)";
+        }}
+        onMouseLeave={(e) => {
+          if (!resizing) e.currentTarget.style.background = "transparent";
+        }}
+      />
       {/* Header */}
       <div
         style={{
