@@ -30,7 +30,23 @@ npx tsc --noEmit
 npm test
 ```
 
-The dev server binds to `::` (all interfaces) on port 8080. No `.env.local` file is required — Supabase credentials are hardcoded in `src/lib/app-mode.ts` and connect to the production Supabase project (`qsllyeztdwjgirsysgai`). See quirk #1 in [KNOWN_QUIRKS.md](KNOWN_QUIRKS.md).
+The dev server binds to `::` (all interfaces) on port 8080. No `.env.local` file is required — the default Supabase target is defined in `src/lib/app-mode.ts` and connects to the production Supabase project (`qsllyeztdwjgirsysgai`). See quirk #1 in [KNOWN_QUIRKS.md](KNOWN_QUIRKS.md).
+
+### Running against the shared-db preview database
+
+Set **both** of these to point a local run at the preview branch instead of
+production. Setting only one is a startup error rather than a silent fall back
+to production, so a preview test can never write to the live database by
+accident. The values live in 1Password (`vibe_coding`, item *Supabase Preview
+Branch Credentials - shared POP database*); never paste them into a committed
+file.
+
+```bash
+VITE_SUPABASE_URL=... VITE_SUPABASE_ANON_KEY=... npm run dev
+```
+
+Pages that write data show an amber "Connected to a non-production database"
+banner while this override is active.
 
 ### Preview PopSG mode
 
