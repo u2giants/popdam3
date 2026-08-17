@@ -102,9 +102,16 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 > `/merchGroupDetails`, **`/prodHistory`** and **`/orderHistory`** return a **plain JSON array**,
 > not the envelope above. The two history endpoints **silently ignore `page` and `size`**
 > (verified 2026-08-14: `size=5` still returned 265 rows), so a paging loop written against
-> them will re-fetch the same rows forever. Chunk them by **date window** instead, and read
-> [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) before building
-> any loader — it documents a repeated-row trap that double-counts purchases.
+> them will re-fetch the same rows forever. Chunk them by **date window** instead.
+>
+> **Both history endpoints cap the window at 7 days inclusive** (ColdLion change 2026-08-17, set at
+> our request; verified: 8 days refused, 7 accepted, `from == to` accepted). The refusal is
+> **HTTP 400 on the wire with `"status": 500` in the body** — do not treat it as a transient fault.
+> `/prodHistory` also gained **`prodLineSeq`** (row identity) and a `prodOrderNo` filter that day.
+>
+> Read [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) before building
+> any loader — it carries the window arithmetic, the row-identity rule, and the fields that look
+> usable but are always zero.
 
 > ## ✅ RESOLVED 2026-07-22 — Coldlion swapped `/vendors` to the correct (factory) table
 >
@@ -156,8 +163,8 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 | `/proddetails` | Production order detail | companyCode *(req)*, prodOrderNo *(req)* |
 | `/prodtracking` | Production tracking | prodOrderNo, created/modifiedFrom/To |
 | `/order` | **POST** — insert a sales order | body = `OrderHeader` (with `OrderDetail[]`) |
-| `/prodHistory` | **Purchase history** — orders we placed with factories, one row per production-order line × prepack component (132 fields). **Not paged.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, stageCode |
-| `/orderHistory` | **Sales history** — orders customers placed with us, one row per sales-order line × prepack component (59 fields). **Not paged.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, divisionCode, salesOrderNo |
+| `/prodHistory` | **Purchase history** — orders we placed with factories, one row per production-order line × prepack component (133 fields incl. `prodLineSeq`). **Not paged; 7-day window cap.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, prodOrderNo, stageCode |
+| `/orderHistory` | **Sales history** — orders customers placed with us, one row per sales-order line × prepack component (59 fields). **Not paged; 7-day window cap.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, divisionCode, salesOrderNo |
 
 **Read vs write:** all pulls are read-only GET **except** `PUT /itemDetails`, `PUT /itemImages`,
 `PUT /items`, and `POST /order`. The import only needs GETs. Any write path (pushing data

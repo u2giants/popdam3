@@ -5,9 +5,23 @@ historical load can be designed without re-probing. Companion to
 [`coldlion-erp-api-reference.md`](coldlion-erp-api-reference.md) (auth, base URL, the other
 16 endpoints, and the merch-group rules that apply here too).
 
-**Verified:** 2026-08-14, live calls against `http://x5.coldlion.com/EhpApi`,
-`companyCode=EDGEHOME`. Nothing below is copied from the spec without being seen in a real
-response.
+**Verified:** 2026-08-14, re-verified after ColdLion's changes on **2026-08-17**, live calls
+against `http://x5.coldlion.com/EhpApi`, `companyCode=EDGEHOME`. Nothing below is copied from the
+spec without being seen in a real response.
+
+> ## ✅ 2026-08-17 — ColdLion changed BOTH endpoints. Two things you may have read here before are now wrong.
+>
+> Albert relayed these from ColdLion and both are **verified live**:
+>
+> 1. **`prodLineSeq` has been added to `prodHistory`** (133 fields now, was 132) and the
+>    duplicate-row problem is resolved upstream: ColdLion now selects the maximum `lastProdDate`.
+>    **The ambiguity that used to block the loader is GONE** — see §4.3, rewritten.
+> 2. **`fromDate`/`toDate` must now be within 7 days (inclusive).** Anything wider is refused.
+>    Month-window calls that worked on 2026-08-14 now fail — **including the ones used to gather
+>    the census below**. See §2 and §3.
+>
+> Any document, plan, or code that says "no line number exists" or fetches a month at a time is
+> stale as of 2026-08-17. This is the only place that carries the corrected version.
 
 **Evidence base:** the full-field census sampled **seven one-month windows** spread across the
 history — 2019-06, 2021-03, 2022-09, 2023-11, 2024-07, 2025-04, 2026-01 — giving
@@ -15,6 +29,17 @@ history — 2019-06, 2021-03, 2022-09, 2023-11, 2024-07, 2025-04, 2026-01 — gi
 draw on 1,985 order-side and 1,774 production-side component rows in the same windows. Every
 percentage in this document comes from that sample. It is a sample, not the whole history:
 treat the *patterns* as established and the *exact percentages* as indicative.
+
+> **The census can no longer be reproduced as run.** It used one-month windows, which the
+> 7-day cap introduced on 2026-08-17 now refuses. The findings stand — they were observed in real
+> responses — but re-running them means stitching ~4–5 seven-day windows per month. The field
+> census was **re-verified against the spec on 2026-08-17**: `prodHistory` now has 133 properties
+> (`prodLineSeq` added), `orderHistory` still 59, and spec and payload still agree exactly with no
+> undeclared or missing fields on either.
+
+**Post-change verification (2026-08-17):** nine 7-day windows spanning 2019-06 to 2026-01,
+**1,475 `prodHistory` rows**, used to confirm `prodLineSeq` is always populated and to re-test
+row uniqueness (§4.3).
 
 ---
 
@@ -45,8 +70,32 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 
 | Endpoint | Required | Optional |
 |---|---|---|
-| `prodHistory` | `companyCode`, `fromDate`, `toDate` | `stageCode` |
+| `prodHistory` | `companyCode`, `fromDate`, `toDate` | `prodOrderNo`, `stageCode` |
 | `orderHistory` | `companyCode`, `fromDate`, `toDate` | `divisionCode`, `salesOrderNo` |
+
+(`prodOrderNo` on `prodHistory` appeared with the 2026-08-17 changes; it was not in the spec on
+2026-08-14. Useful for spot-checking one order without scanning a window.)
+
+> ### ⚠️ Hard 7-day window cap (since 2026-08-17)
+> `fromDate` and `toDate` **must be within 7 days, inclusive**, on **both** endpoints. This is
+> ColdLion's own limit, set deliberately at our request so a bulk pull cannot overload them.
+> A wider window is refused outright — no partial data, no truncation.
+>
+> Verified: `2026-01-01..2026-01-07` → **HTTP 200**. `2026-01-01..2026-01-08` → **refused**.
+> A full month → **refused**. A single day (`from == to`) → **HTTP 200**, so equal dates are fine.
+>
+> **The error contract is malformed — handle it deliberately.** The refusal arrives as
+> **HTTP 400 on the wire**, but the JSON body says `"status": 500` and
+> `"error": "Internal Server Error"`, with the real explanation only in `message`:
+>
+> ```json
+> {"timestamp":"2026-08-17","message":"fromDate and toDate must be within 7 days (inclusive)",
+>  "error":"Internal Server Error","status":500,"path":"uri=/EhpApi/prodHistory"}
+> ```
+>
+> A loader that trusts the body's `500` will classify a permanent, self-inflicted input error as a
+> transient server fault and **retry it forever**. Branch on the wire status and on the `message`
+> text, never on the body's `status`.
 
 > ### ⚠️ There is no paging on these two endpoints
 > Unlike `/items` and the other paged endpoints, these return a **plain JSON array**, not the
@@ -64,9 +113,22 @@ can be narrowed with `divisionCode`; **`prodHistory` cannot** (no such parameter
 
 ## 3. Volume and timing
 
+**Current shape of the work, post-cap.** ColdLion's stated expectation: *"about 2 seconds to load
+7 days of data from our office."* Measured from al8960ofc across nine 7-day `prodHistory` windows
+spanning 2019–2026: **18 to 662 rows per window**, typically **0.1–1.4 seconds**, with one outlier
+at **6.4 seconds**. That matches their figure; our earlier 18s and 51s outliers were month-window
+calls that are no longer permitted, so the very slow responses may well have been the width of the
+request rather than the server.
+
+Sizing the full pull: 7 years of history at ~52 windows per year is roughly **370 windows per
+endpoint, ~740 requests total**. At a few seconds each plus a courtesy pause, that is a couple of
+hours of wall-clock — comfortably a weekend job, and far smaller than feared.
+
+Historic per-month figures, gathered before the cap and kept for volume estimation only (these
+window widths are now refused):
+
 | Window | `prodHistory` | `orderHistory` |
 |---|---|---|
-| 10 days (2026-01-01..10) | 265 rows, 0.8 MB | 149 rows, 0.2 MB |
 | 1 month (2026-01) | 347 rows, 1.1 MB | 477 rows, 0.6 MB |
 | 1 month (2020-01) | 536 rows, 1.6 MB | 1,061 rows, 1.3 MB |
 | Busiest month sampled | 1,260 rows (2021-03) | 1,435 rows (2024-07) |
@@ -74,19 +136,19 @@ can be narrowed with `divisionCode`; **`prodHistory` cannot** (no such parameter
 Roughly **0.5–1.5 MB per endpoint per month**, so a full multi-year history is plausibly low
 hundreds of MB, not gigabytes.
 
-**Response times are unpredictable and that is the real constraint.** Most calls returned in
-1–4 seconds. Two outliers: `orderHistory` 2020-01 took **18 seconds** and 2019-06 took
-**51 seconds** — the same endpoint and window size that elsewhere returns in under two.
-There is no way to predict which window will be slow.
-
 Practical consequences for the bulk load:
-- Use **one request at a time**, never parallel. A slow window plus a parallel fan-out is how
-  we would disrupt their users.
-- Allow a **per-request timeout of at least 120 seconds** before treating a window as failed.
-- Pause between requests (3 seconds was used for all probing here without complaint).
+- **Iterate in 7-day windows.** Anything wider is refused (§2). Do not "optimize" by widening.
+- Use **one request at a time**, never parallel. The 7-day cap exists so we do not overload them;
+  firing 20 capped windows at once defeats its purpose and breaks the spirit of the agreement.
+- Keep a **generous per-request timeout** (≥60s) even though windows are now fast — one 6.4s
+  outlier was seen at this width, and a timeout that is too tight turns a slow window into a
+  spurious failure.
+- Pause between requests (2–3 seconds was used throughout probing without complaint).
 - Note that the MCP-driven `op_run` path has its **own timeout** that a long run will hit.
   Bulk pulls must run as background tasks writing each chunk to disk, so a stall loses one
   window rather than the whole run.
+- **Windows must not overlap**, or rows land twice: the cap makes a 7-day stride the natural
+  increment, so advance `fromDate` by exactly 7 days and set `toDate = fromDate + 6`.
 
 ## 4. Assortments / prepacks — how a master item carries its component styles
 
@@ -132,10 +194,54 @@ Example: production order 23825, master AAW2A02, 800 packs × 4 pieces = `totalP
 pack cost 1.71 split evenly at 0.4275 per piece. About **52%** of production rows are
 assortment components.
 
-### 4.3 ⚠️ The repeated-row trap — read before writing any loader
+### 4.3 The repeated-row trap — ✅ RESOLVED UPSTREAM 2026-08-17, rule is now simple
 
-`prodHistory` returns the same `(prodOrderNo, itemNo, prepackItemNo)` combination more than
-once, and **there are two different causes that look identical in shape**.
+> **What changed.** ColdLion added **`prodLineSeq`** and now selects the maximum `lastProdDate`.
+> Albert's relay: *"Coldlion has adjusted the logic and added prodLineSeq. The duplicated prod
+> reference number caused the problem; we just select the maximum lastProdDate now."*
+>
+> **Verified live 2026-08-17.** `prodLineSeq` is present on every row (1,475 rows across nine
+> 7-day windows, **zero** null or missing), integer, 1..31 within a window. The old
+> cause-A example — order **23825** / AAW2A02, which returned **8 rows for 4 components** on
+> 2026-08-14 — now returns **exactly 4**, all `prodLineSeq = 3`, all `lastProdDate = 2026-01-08`
+> (the maximum of the two that used to fan out). The duplication is gone at the source.
+
+**The rule to implement now:**
+
+- **Row identity is `(prodOrderNo, prodLineSeq, prepackItemNo)`** — plus `itemNo` for non-prepack
+  lines, where `prepackItemNo` is empty.
+- **Distinct `prodLineSeq` = distinct real buy lines. Never merge them.** This is what used to be
+  indistinguishable; it no longer is.
+- **Any remaining duplicate differs only in `last*` fields and is safe to collapse.** Verified: in
+  the two 2021-03 windows, **98 duplicate keys, 98 of which differ ONLY in `last*` fields, and 0
+  in anything else.** Adding every other field to the key removed **no** duplicates, which proves
+  the remaining fan-out is entirely `last*`.
+
+**Residual quirk worth knowing:** the surviving fan-out is now on **`lastProdCost`**, not
+`lastProdDate` — two historical production records share the same maximum date but carry different
+costs (e.g. order 20872, line 1, component CTZHS0MSC01: `lastProdCost` 3.09 vs 3.64). Only legacy
+data showed it: **0 duplicates in any window from 2019-06, 2020-01, 2022-09, 2023-11, 2024-07,
+2025-04 or 2026-01** — all 98 came from March 2021.
+
+**Therefore: the `last*` block is a "most recent production" lookup, not part of the purchase.**
+Either drop those seven fields on load, or pick one copy deterministically. Do **not** aggregate or
+sum across the copies, and do not let `lastProdCost` reach a cost report — it is not this order's
+cost (`prodCost` / `extCost` / `ppkDetailCost` are).
+
+**The blocking ambiguity is closed.** The old worry — two real lines with identical quantities
+being indistinguishable from a duplicate — cannot happen now, because `prodLineSeq` separates real
+lines regardless of their quantities. The alert-on-ambiguity safeguard is still worth keeping as a
+cheap tripwire (if a `(prodOrderNo, prodLineSeq, prepackItemNo)` group ever differs in a
+non-`last*` field, something changed upstream and we want to hear about it), but it is no longer
+load-blocking.
+
+---
+
+**Historical record — why this section exists, and what it cost.** Keep this: a future session
+that loses the *why* could cheerfully "simplify" the dedupe and re-introduce the bug.
+
+Before 2026-08-17, `prodHistory` returned the same `(prodOrderNo, itemNo, prepackItemNo)` more than
+once with **two causes that were indistinguishable in shape**.
 
 **Cause A — genuine duplicate fan-out.** The rows are the same purchase, differing only in the
 `last*` lookup fields. Production order 23825 / AAW2A02 returned 8 rows for 4 components; each
@@ -149,25 +255,17 @@ must be counted. Collapsing them erases a 3,000-pack purchase.
 Measured across the sample: **261 repeated groups — 131 cause A, 130 cause B.** Almost an even
 split, so neither "always collapse" nor "never collapse" is acceptable.
 
-> **There is no line-number field to separate them.** Confirmed against the spec: `ProdHistory`
-> has no line/sequence property. The only discriminator available is whether the quantities
-> differ.
+At the time, `ProdHistory` had **no line/sequence property** — confirmed against the spec, not
+assumed — so the only discriminator was whether the quantities differed. That left a hole: two real
+lines with *identical* quantities would have been indistinguishable from a duplicate, and we would
+have silently undercounted a purchase. Measured then: **261 repeated groups — 131 cause A, 130
+cause B**, an almost even split, so no blanket rule was safe.
 
-**Rule to implement, and its known hole:**
-
-1. Group by `(prodOrderNo, itemNo, prePackCode, prepackItemNo, salesOrderNo, prodReferenceNo,
-   colorCode, sizeCode)`.
-2. Within a group, if copies differ **only** in `last*` fields
-   (`lastProdRefNo`, `lastDueDate`, `lastProdDate`, `lastWarehouseCode`, `lastVendorCode`,
-   `lastVendorDesc`, `lastProdCost`) → collapse to one row.
-3. If copies differ in quantity or cost → keep them all; they are separate lines.
-4. **If copies are identical in every field including quantity → we cannot tell.** Log it
-   loudly for human review rather than silently picking one. Per rule 11 (no silent failures),
-   this must alert, not shrug.
-
-Case 4 has not been observed yet, but nothing in the data prevents it. The permanent fix is a
-line number from ColdLion — asked for in
-[`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-history-endpoints-questions.md).
+**Asking the vendor was the right move and it worked.** Rather than building a heuristic around the
+hole, we asked ColdLion for a line number (question 1 of the draft note). They added `prodLineSeq`
+and fixed the fan-out at the source within days. **The heuristic was never built** — do not go
+looking for it in the code, and do not resurrect the quantity-comparison logic; `prodLineSeq` makes
+it obsolete and strictly worse.
 
 ## 5. Field-level findings that change the data model
 
@@ -175,7 +273,8 @@ line number from ColdLion — asked for in
 
 **`orderHistory` (4 of 59):** `invoiceNoString`, `invoiceDateString`, `subDimCode`, `itemImage`.
 
-**`prodHistory` (31 of 132):** `seasonCode`, `freightForwarderCode`, `udf02`, `udf03`, `udf04`,
+**`prodHistory` (31 of 132 as sampled; the field count is now 133 with `prodLineSeq`, which is
+always populated):** `seasonCode`, `freightForwarderCode`, `udf02`, `udf03`, `udf04`,
 `udfDate01`, `udfDate02`, `merchGroup11`–`14`, `merchGroup09Desc`–`14Desc`, `prepackDimCode`,
 `ppkMerchGroup11`–`14`, `ppkMerchGroup07Desc`–`14Desc`, `itemImage`.
 
@@ -241,20 +340,37 @@ standing merch-group rules — see
 that `mgTypeCode` meaning varies by division, which matters more here now that we know the feed
 spans four divisions.
 
-## 6. Open questions with ColdLion
+## 6. Questions with ColdLion — answered and outstanding
+
+### ✅ Answered (2026-08-17, relayed by Albert, verified live)
+
+| Question | Answer | Verified |
+|---|---|---|
+| **Production-order line number** (was the one true blocker) | `prodLineSeq` **added**; the duplicated prod reference number was the cause; ColdLion now selects the maximum `lastProdDate` | Yes — §4.3. Present on 1,475/1,475 rows; order 23825 went from 8 rows to 4 |
+| **Paging / rate limits for a bulk pull** | `fromDate`–`toDate` must be **within 7 days (inclusive)**; ~2 seconds per 7-day window from their office | Yes — §2 (8 days refused, 7 accepted) and §3 (0.1–1.4s typical here) |
+
+**Also settled, not to be asked again:** `1900-01-01` as the empty-date marker — confirmed by the
+owner 2026-08-14 (§5.3).
+
+### ⬜ Still outstanding
 
 Drafted in [`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-history-endpoints-questions.md),
-not yet sent.
+not yet sent. **None of these blocks the load** — every one changes how a field is modelled, not
+whether the pull can run.
 
-1. **Production-order line number** — the only true blocker (§4.3).
-2. `subUpc` never populated — dead field or missing request? (§5.1)
-3. `ppkMerchGroup*` blank rate on production — known gap? (§5.7)
-4. `lineInvoiceQty` / `lineOpenQty` always zero — not exposed here? (§5.2)
-5. Max date range / row count per request, and a preferred window and rate for a bulk pull (§3).
-6. Confirm `salesOrderNo=0` means "no linked sales order" (§5.5).
+1. `subUpc` never populated — dead field or missing request? (§5.1)
+2. `ppkMerchGroup*` blank rate on production — known gap? (§5.7)
+3. `lineInvoiceQty` / `lineOpenQty` always zero, and `depositPerc` likewise — not exposed here? (§5.2)
+4. Confirm `salesOrderNo=0` means "no linked sales order" (§5.5).
 
-**Already settled, not to be asked:** `1900-01-01` as the empty-date marker — confirmed by the
-owner 2026-08-14 (§5.3).
+Worth adding when the note is sent, arising from the 2026-08-17 changes:
+
+5. **The 7-day-cap refusal returns a malformed error** — HTTP 400 on the wire but `"status": 500`
+   and `"Internal Server Error"` in the body (§2). Worth telling them, since it invites clients to
+   retry a permanent input error as if it were a transient fault.
+6. **`lastProdCost` still fans out** where two historical production records share the maximum
+   `lastProdDate` (§4.3). Harmless for us now that `prodLineSeq` exists, but they may want to know
+   the de-duplication is not quite complete.
 
 ## 7. What has NOT been checked
 
@@ -262,11 +378,16 @@ Stated plainly so the next session does not assume more coverage than exists.
 
 - **How far back the history goes.** Earliest window probed is 2019-06 and it returned data;
   no earlier boundary was searched.
-- **`stageCode` on `prodHistory`** — never exercised. Values and meaning unknown.
+- **`stageCode` and `prodOrderNo` on `prodHistory`** — never exercised. Values and meaning unknown.
 - **`divisionCode` / `salesOrderNo` filters on `orderHistory`** — never exercised.
-- **Whether the endpoints are stable over time.** Every window was fetched once; nothing was
-  re-fetched to see whether the same window returns the same rows on a later call. That matters
-  for incremental re-pulls and should be tested before designing the recurring sync.
+- **Whether the endpoints are stable over time.** Windows were re-fetched on 2026-08-17 only to
+  confirm ColdLion's two changes, and the row counts for a given window are **not** directly
+  comparable across the change (month windows are now refused). Nothing yet proves that the same
+  7-day window returns the same rows on two different days. That matters for incremental re-pulls
+  and should be tested before designing the recurring sync — and it now has a cheap test, since a
+  7-day window costs about a second.
+- **Whether the `lastProdCost` fan-out is confined to 2021.** It appeared in both March 2021
+  windows and in none of the other seven. Not proven absent elsewhere, only unobserved.
 - **The five months between sampled windows.** Patterns held in all seven windows across seven
   years, but the sample is 10 months of roughly 80.
 - **Anything about loading this into Supabase.** No schema, no migration, no target tables.

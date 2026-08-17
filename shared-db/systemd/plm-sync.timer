@@ -1,5 +1,6 @@
 [Unit]
 Description=Run Designflow PLM master-data sync daily
+ConditionPathExists=/etc/shared-db/RETIRED-BY-ISSUE-1090-DO-NOT-CREATE
 
 [Timer]
 OnCalendar=*-*-* 03:30:00
@@ -7,4 +8,4 @@ Persistent=true
 Unit=plm-sync.service
 
 [Install]
-WantedBy=timers.target
+# Retired by #1090 Step 1.0. Intentionally has no install target.

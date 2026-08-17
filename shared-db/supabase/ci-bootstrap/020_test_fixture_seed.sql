@@ -103,6 +103,11 @@ begin
   -- ---------------------------------------------------------------------------------
   select id into v_licensor_id from core.licensor where name = 'ZZ Fixture Licensor';
   if v_licensor_id is null then
+    insert into plm.licensing_write_authorization
+      (backend_pid, transaction_id, target_table, write_kind, plan_id, plan_hash, actor, protected_columns, expires_at)
+    values
+      (pg_backend_pid(), txid_current(), 'core.licensor', 'licensing_review_create', gen_random_uuid(), repeat('c', 64),
+       'ci-synthetic-fixture', array['name','code','status'], clock_timestamp() + interval '1 minute');
     insert into core.licensor (name, code) values ('ZZ Fixture Licensor', 'ZZFXL')
     returning id into v_licensor_id;
   end if;
@@ -111,8 +116,13 @@ begin
   from core.property
   where name = 'ZZ Fixture Property' and licensor_id = v_licensor_id;
   if v_property_id is null then
-    insert into core.property (licensor_id, name, code)
-    values (v_licensor_id, 'ZZ Fixture Property', 'ZZFXP')
+    insert into plm.licensing_write_authorization
+      (backend_pid, transaction_id, target_table, write_kind, plan_id, plan_hash, actor, protected_columns, expires_at)
+    values
+      (pg_backend_pid(), txid_current(), 'core.property', 'licensing_review_create', gen_random_uuid(), repeat('d', 64),
+       'ci-synthetic-fixture', array['licensor_id','name','code','status'], clock_timestamp() + interval '1 minute');
+    insert into core.property (licensor_id, name, code, status)
+    values (v_licensor_id, 'ZZ Fixture Property', 'ZZFXP', 'potential')
     returning id into v_property_id;
   end if;
 
@@ -145,3 +155,46 @@ begin
   raise notice 'fixture seed applied: 4 profiles, 1 licensor, 1 property, 1 customer, 1 factory, 1 coldlion source ref';
 end
 $fixture$;
+
+-- CI-only compatibility helper. The contract runner invokes this inside the same
+-- transaction as legacy tests that create synthetic canonical rows. It is absent from
+-- every deployed database because ci-bootstrap files are never migrations.
+create or replace function public.ci_authorize_licensing_contract_test()
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, plm, core
+as $ci_auth$
+declare
+  v_table regclass;
+  v_columns text[];
+  v_subset text[];
+  v_mask integer;
+  v_i integer;
+  v_copy integer;
+begin
+  for v_table, v_columns in
+    values
+      ('core.licensor'::regclass, array['name','code','status']::text[]),
+      ('core.property'::regclass, array['licensor_id','name','code','status']::text[])
+  loop
+    for v_mask in 1..((1 << cardinality(v_columns)) - 1) loop
+      v_subset := '{}'::text[];
+      for v_i in 1..cardinality(v_columns) loop
+        if (v_mask & (1 << (v_i - 1))) <> 0 then
+          v_subset := array_append(v_subset, v_columns[v_i]);
+        end if;
+      end loop;
+      for v_copy in 1..100 loop
+        insert into plm.licensing_write_authorization
+          (backend_pid, transaction_id, target_table, write_kind, plan_id, plan_hash, actor, protected_columns, expires_at)
+        values
+          (pg_backend_pid(), txid_current(), v_table, 'canonical_merge', gen_random_uuid(), repeat('e', 64),
+           'ci-legacy-contract-compatibility', v_subset, clock_timestamp() + interval '10 minutes');
+      end loop;
+    end loop;
+  end loop;
+end;
+$ci_auth$;
+
+revoke all on function public.ci_authorize_licensing_contract_test() from public, anon, authenticated, service_role;

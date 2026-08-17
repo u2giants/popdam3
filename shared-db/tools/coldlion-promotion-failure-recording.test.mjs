@@ -90,20 +90,22 @@ test("the function never tries to mark its own ingest.sync_run row failed", () =
   );
 });
 
-test("the function still records SUCCESS in-band, which does commit", () => {
+test("the current function either records SUCCESS in-band or is loudly retired", () => {
   const body = functionBody(currentPromotionMigration().sql);
-  assert.match(
-    body,
-    /update ingest\.sync_run\s*\n\s*set status = 'succeeded'/,
-    "the success UPDATE is not dead code — it commits with the promotion and must stay.",
+  assert.ok(
+    /update ingest\.sync_run\s*\n\s*set status = 'succeeded'/.test(body) ||
+      /retired until #1090 Step 4/.test(body),
+    "an active promotion records success; a retired promotion must refuse loudly",
   );
 });
 
-test("the migration points a future reader at the runner that really records failures", () => {
+test("the migration points at durable failure ownership or loudly documents retirement", () => {
   const { sql } = currentPromotionMigration();
-  assert.match(sql, /tools\/promote-coldlion-source-owned\.mjs/);
-  assert.match(sql, /record_taxonomy_sync_alert/);
-  assert.match(sql, /buildFailedSyncRunSql/);
+  assert.ok(
+    (/tools\/promote-coldlion-source-owned\.mjs/.test(sql) && /record_taxonomy_sync_alert/.test(sql) && /buildFailedSyncRunSql/.test(sql)) ||
+      /retired until #1090 Step 4/.test(sql),
+    "active promotion must own durable failure evidence; retired promotion must refuse loudly",
+  );
 });
 
 test("the runner keeps its out-of-band durable failure path", () => {

@@ -28,6 +28,24 @@
 -- and the two-connection preview drill covers them instead; S1, S2 and S5's structural
 -- half still run and still fail loudly.
 
+select position(
+  'retired until #1090 Step 4'
+  in pg_get_functiondef('plm.promote_coldlion_source_owned(jsonb,jsonb,boolean)'::regprocedure)
+) > 0 as promotion_retired \gset
+\if :promotion_retired
+do $$
+begin
+  begin
+    perform * from plm.promote_coldlion_source_owned('{}', null, true);
+    raise exception 'retired promotion unexpectedly ran';
+  exception when others then
+    if position('retired until #1090 Step 4' in sqlerrm) = 0 then raise; end if;
+  end;
+  raise notice 'Current contract PASS: promotion is loudly retired before Step 4';
+end $$;
+\quit
+\endif
+
 -- ===========================================================================
 -- S1 + S2: the lock is a transaction-scoped TRY on the documented key, and it is
 --          taken before every other guard.

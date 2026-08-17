@@ -1366,15 +1366,21 @@ ColdLion mirror — a previous session got this wrong).
 **ColdLion purchase/sales history (`prodHistory` / `orderHistory`) — read the shape doc before
 writing any loader.** These two endpoints (new to us 2026-08-14) carry order history for buying
 and selling. Their payload is documented from live probing in
-[`docs/coldlion-history-endpoints-shape.md`](docs/coldlion-history-endpoints-shape.md). Three
+[`docs/coldlion-history-endpoints-shape.md`](docs/coldlion-history-endpoints-shape.md). Four
 traps that will silently corrupt a load if you skip it:
 
+- **Hard 7-day window cap (since 2026-08-17).** `fromDate`–`toDate` must be **within 7 days,
+  inclusive**, on both endpoints; wider is refused outright. Month-wide calls that worked on
+  2026-08-14 now fail. **The refusal is malformed** — HTTP 400 on the wire but `"status": 500` /
+  `"Internal Server Error"` in the body — so a loader that trusts the body retries a permanent
+  input error forever. Branch on the wire status, never the body's.
 - **They are NOT paged.** They return a plain array and **silently ignore `page`/`size`**
   (`size=5` returned 265 rows). A paging loop re-fetches the same rows forever. Chunk by date.
-- **`prodHistory` repeats component rows for two different reasons that look identical** — a
-  `last*` lookup fan-out (collapse) and genuinely separate buy lines on one order (keep). Near
-  50/50 in the sample, and **there is no line-number field to tell them apart**. The rule, and
-  the residual case that must ALERT rather than guess, is in §4.3 of that doc.
+- **`prodHistory` row identity is `(prodOrderNo, prodLineSeq, prepackItemNo)`.** `prodLineSeq` was
+  added 2026-08-17 and **resolved the old duplicate-row ambiguity** — distinct `prodLineSeq` means
+  distinct real buy lines, never merge them. Any remaining duplicate differs only in `last*`
+  lookup fields and is safe to collapse (verified: 98 of 98). **Do not build or resurrect the old
+  quantity-comparison heuristic** — §4.3 of the doc explains why it is obsolete.
 - **`lineInvoiceQty` / `lineOpenQty` are zero in all 5,874 sampled rows**, as is `depositPerc`
   on `prodHistory`. A report built on them reads zero and looks like a business fact.
 

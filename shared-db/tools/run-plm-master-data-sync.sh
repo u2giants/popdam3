@@ -4,6 +4,9 @@
 # PLM_API_KEY, while the canonical import tool accepts DESIGNFLOW_API_KEY.
 set -euo pipefail
 
+echo "PLM licensing sync retired by shared-db issue #1090 Step 1.0; no import was attempted." >&2
+exit 78
+
 if [ -n "${PLM_API_KEY:-}" ] && [ -z "${DESIGNFLOW_API_KEY:-}" ]; then
   export DESIGNFLOW_API_KEY="$PLM_API_KEY"
 fi

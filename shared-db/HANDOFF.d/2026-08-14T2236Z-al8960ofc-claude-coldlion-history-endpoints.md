@@ -6,7 +6,31 @@ owner: al8960ofc/claude-coldlion-history-endpoints-13b4f3 (session ended)
 
 # ColdLion history endpoints (`prodHistory` / `orderHistory`) — shape probed, loader NOT built
 
-**Written:** 2026-08-14T2236Z · **Machine:** al8960ofc · **Agent:** claude · **Status:** OPEN
+**Written:** 2026-08-14T2236Z · **Updated:** 2026-08-17 (same session — ColdLion answered two
+questions; see §0) · **Machine:** al8960ofc · **Agent:** claude · **Status:** OPEN
+
+## 0. UPDATE 2026-08-17 — the blocker is GONE, and a new constraint arrived
+
+ColdLion acted on the note's first two questions before it was even sent. Albert relayed both;
+**both are verified live** and merged into
+[`docs/coldlion-history-endpoints-shape.md`](../docs/coldlion-history-endpoints-shape.md).
+
+1. **`prodLineSeq` added to `prodHistory`, and the fan-out fixed at source** (they now select the
+   maximum `lastProdDate`). Row identity is `(prodOrderNo, prodLineSeq, prepackItemNo)`. The old
+   ambiguity described in §4 below **can no longer occur**. Verified: `prodLineSeq` on 1,475/1,475
+   rows across nine 7-day windows; order 23825 dropped from 8 rows to 4.
+2. **A hard 7-day window cap on both endpoints** (`fromDate`–`toDate` within 7 days inclusive),
+   ~2s per window from their office, ~0.1–1.4s from here. **Month-wide calls now fail**, which
+   invalidates the fetch pattern used for the original census.
+
+**What this changes for the next session:** §4 below is now history, not instruction — do **not**
+build the quantity-comparison heuristic it describes. §3.2's requirement list is superseded by
+§3 and §4.3 of the shape doc, which carry the 7-day arithmetic and the current dedupe rule. The
+malformed error contract on the cap (HTTP 400 on the wire, `"status": 500` in the body) is a real
+trap for retry logic and is documented in §2 of the shape doc.
+
+The remaining questions to ColdLion have been rewritten accordingly: the two answered ones are
+removed, and **nothing left in that note blocks the load**.
 
 **Tracking issue:** [#1031](https://github.com/u2giants/shared-db/issues/1031) — carries both open
 actions. **Owners:** Albert (send the note to ColdLion) and the next AI session (build the
@@ -76,6 +100,9 @@ how far back the history should go (see §6, unknown #1).
 
 Requirements gathered this session, all evidence-backed in the shape doc:
 
+0. **SUPERSEDED IN PART — read §0 first.** Items 1–3 below are now governed by the 7-day cap:
+   windows are exactly 7 days, non-overlapping, and item 5's dedupe rule is replaced by the
+   `prodLineSeq` identity rule. Items 4 and 6 stand unchanged.
 1. **Chunk by date window only.** No paging exists (§4.2 of the shape doc).
 2. **One request at a time. Never parallel.** Response times ranged from under 1s to **51s**
    unpredictably. Parallel fan-out against a slow window is exactly how we would disrupt their
@@ -95,7 +122,7 @@ Requirements gathered this session, all evidence-backed in the shape doc:
 authored in `u2giants/shared-db` through the orchestrator/issue workflow — never inline from an
 app repo. This session deliberately produced **zero** schema.
 
-## 4. The finding that matters most — read before writing the loader
+## 4. (HISTORICAL — resolved 2026-08-17, see §0) The finding that mattered most
 
 `prodHistory` returns the same `(prodOrderNo, itemNo, prepackItemNo)` more than once, for **two
 different reasons that are indistinguishable in shape**:
@@ -145,8 +172,9 @@ Recorded so nobody repeats it.
 
 1. **How far back the history goes.** Earliest probed is **2019-06** and it returned data. No
    earlier boundary was searched. **This directly determines the size of the weekend pull and
-   must be settled before building.** Cheapest check: request a few single-month windows going
-   backwards (2015, 2010) and see where rows stop.
+   must be settled before building.** Now also asked of ColdLion directly (Q6 of the draft note),
+   which is cheaper than scanning. If scanning: probe single 7-day windows going backwards
+   (2015, 2010) and see where rows stop — **not** month windows, which are now refused.
 2. **Whether repeated calls for the same window return the same rows.** Every window was fetched
    once. Nothing proves stability over time. **This matters for the recurring incremental sync,
    not the one-time load** — test it before designing the recurring lane.

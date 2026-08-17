@@ -72,6 +72,7 @@ $$;
 -- Case 1: curated fields + non-clickup metadata survive an UPDATE upsert.
 -- ===========================================================================
 begin;
+select public.ci_authorize_licensing_contract_test();
 do $c1$
 declare
   v_lic  uuid;
@@ -127,6 +128,7 @@ rollback;
 --   imports the same task id and proves exactly one product row results.
 -- ===========================================================================
 begin;
+select public.ci_authorize_licensing_contract_test();
 do $c2$
 declare
   v_r      jsonb;
@@ -181,6 +183,7 @@ rollback;
 --   Expect rows_failed>=1 and watermark_at == watermark_in (not ~11:00).
 -- ===========================================================================
 begin;
+select public.ci_authorize_licensing_contract_test();
 do $c3$
 declare
   v_r   jsonb;
@@ -227,6 +230,7 @@ rollback;
 --   back, and re-enabled explicitly below.)
 -- ===========================================================================
 begin;
+select public.ci_authorize_licensing_contract_test();
 do $c4$
 declare
   v_r  jsonb;
@@ -279,6 +283,7 @@ rollback;
 --   apply/verify time instead.
 -- ===========================================================================
 begin;
+select public.ci_authorize_licensing_contract_test();
 do $c5$
 declare
   v_r     jsonb;
@@ -343,6 +348,7 @@ rollback;
 --   product row for every one of them and stranded the curated links on the original.
 -- ===========================================================================
 begin;
+select public.ci_authorize_licensing_contract_test();
 do $c6$
 declare
   v_r    jsonb;
@@ -407,6 +413,7 @@ rollback;
 -- Case 7: the section-2 guard exists — one product row per ClickUp task id.
 -- ===========================================================================
 begin;
+select public.ci_authorize_licensing_contract_test();
 do $c7$
 declare
   v_ok boolean := false;
