@@ -1,4 +1,12 @@
 {
   "schema_version": 1,
-  "migrations": {}
+  "migrations": {
+    "20260816110750": {
+      "sha256": "0b178fab222aec93b0c06cd676c83a6d4cdfdeac62a0af68184e6ed24c08eca2",
+      "targets": [
+        "preview",
+        "production"
+      ]
+    }
+  }
 }

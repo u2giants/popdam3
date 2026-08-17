@@ -41,6 +41,31 @@ class AtomicMigrationApplyTests(unittest.TestCase):
             with self.assertRaisesRegex(atomic.Refusal, "SHA256 mismatch"):
                 atomic.load_candidate(self.root, "29990101000000", "preview")
 
+    def test_policy_hash_is_stable_across_lf_and_windows_crlf_checkouts(self):
+        path = self.root / "29990101000000_test.sql"
+        canonical = b"lock table x in exclusive mode;\nselect 1;\n"
+        path.write_bytes(canonical)
+        digest = hashlib.sha256(canonical).hexdigest()
+        policy = {
+            "schema_version": 1,
+            "migrations": {
+                "29990101000000": {"sha256": digest, "targets": ["preview"]}
+            },
+        }
+        policy_path = self.root / "policy.json"
+        policy_path.write_text(json.dumps(policy), encoding="utf-8")
+
+        with patch.object(atomic, "POLICY", policy_path):
+            atomic.validate_policy_bindings(self.root)
+            path.write_bytes(canonical.replace(b"\n", b"\r\n"))
+            atomic.validate_policy_bindings(self.root)
+            loaded = atomic.load_candidate(self.root, "29990101000000", "preview")
+
+        self.assertEqual(loaded[2].encode("utf-8"), canonical)
+        self.assertEqual(
+            hashlib.sha256(atomic.canonical_migration_bytes(path)).hexdigest(), digest
+        )
+
     def test_transaction_controls_are_refused(self):
         for control in (
             "begin", "start transaction", "end", "abort", "commit", "rollback",

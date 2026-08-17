@@ -48,10 +48,16 @@ number, while the direct ColdLion load supplies their missing division.
 ## Preservation rule
 
 The bridge changes while staff and scheduled jobs use it, so counts from separate
-read requests are not a safe cutover proof. Migration `20260816045130` takes a
+read requests are not a safe cutover proof. Migration `20260816110750` takes a
 transaction-level table lock, fingerprints the exact legacy link set in one
 snapshot, makes only additive safety changes, and refuses the transaction if
 the legacy link set changes.
+
+Migration `20260816045130` contains explicit transaction control that a pinned
+CLI failure test proved can separate DDL from its migration-ledger row. It is
+retired and hard-blocked from production; it remains on disk only because it was
+already applied to preview. The safe replacement above carries the same database
+body and leaves transaction ownership to Supabase CLI.
 
 The cutover keeps `erp_item_id` for every row. It adds `plm_item_id` only when
 there is one deterministic ColdLion destination:

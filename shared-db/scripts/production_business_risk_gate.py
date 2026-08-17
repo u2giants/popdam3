@@ -144,6 +144,102 @@ def select_preview_artifact(payload: Any, run_id: int, expected_name: str) -> di
     return artifact
 
 
+def canonical_sha256(path: Path) -> str:
+    raw = path.read_bytes()
+    if b"\r" in raw.replace(b"\r\n", b""):
+        raise RiskGateError(f"migration contains unsupported bare CR line endings: {path.name}")
+    return hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()
+
+
+def prove_preview_migration_contents(
+    *, texts: dict[str, str], allowlist: list[str], repo_root: Path,
+    before_versions: set[str], after_versions: set[str], historical: bool,
+) -> None:
+    dry = texts.get("preview-dry-run.txt", "")
+    apply = texts.get("preview-apply.txt", "")
+    if historical:
+        for version in allowlist:
+            matches = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
+            if len(matches) != 1:
+                raise RiskGateError(
+                    f"allowlisted migration {version} is absent or ambiguous on exact main"
+                )
+            if matches[0].name not in dry or matches[0].name not in apply:
+                raise RiskGateError(
+                    f"preview proof does not name exact migration {matches[0].name}"
+                )
+            if version not in before_versions or version not in after_versions:
+                raise RiskGateError(
+                    f"historical preview ledger does not prove stable prior application of {version}"
+                )
+        if before_versions != after_versions:
+            raise RiskGateError("historical preview ledger changed during a no-write proof")
+        return
+
+    added = after_versions - before_versions
+    removed = before_versions - after_versions
+    if added != set(allowlist) or removed:
+        raise RiskGateError(
+            "preview ledger delta must add exactly the allowlist once and remove nothing"
+        )
+
+    try:
+        policy = json.loads(
+            (repo_root / "config/atomic-migration-allowlist.json").read_text(encoding="utf-8")
+        ).get("migrations", {})
+    except (OSError, json.JSONDecodeError, AttributeError) as exc:
+        raise RiskGateError("atomic migration policy is missing or unreadable") from exc
+
+    atomic_versions = [version for version in allowlist if version in policy]
+    if atomic_versions and (len(allowlist) != 1 or len(atomic_versions) != 1):
+        raise RiskGateError("atomic preview proof must contain exactly one allowlisted migration")
+
+    for version in allowlist:
+        matches = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
+        if len(matches) != 1:
+            raise RiskGateError(f"allowlisted migration {version} is absent or ambiguous on exact main")
+        filename = matches[0]
+        entry = policy.get(version)
+        if entry is None:
+            if filename.name not in dry or filename.name not in apply:
+                raise RiskGateError(f"preview proof does not name exact migration {filename.name}")
+            continue
+
+        if not isinstance(entry, dict) or "preview" not in entry.get("targets", []):
+            raise RiskGateError(f"atomic policy does not authorize preview for {version}")
+        expected_hash = entry.get("sha256")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(expected_hash)):
+            raise RiskGateError(f"atomic policy SHA-256 is invalid for {version}")
+        if canonical_sha256(filename) != expected_hash:
+            raise RiskGateError(f"atomic policy does not match exact migration content for {version}")
+
+        try:
+            manifest = json.loads(texts["migration-content-manifest.json"])
+        except (KeyError, json.JSONDecodeError, TypeError) as exc:
+            raise RiskGateError("atomic preview proof is missing a valid content manifest") from exc
+        if not isinstance(manifest, dict) or manifest.get(version) != expected_hash:
+            raise RiskGateError(f"preview content manifest does not match atomic policy for {version}")
+
+        preflight = (
+            f"ATOMIC PREFLIGHT OK: target=preview version={version} "
+            f"sha256={expected_hash} statements="
+        )
+        dry_lines = dry.splitlines()
+        apply_lines = apply.splitlines()
+        if len(dry_lines) != 1 or not dry_lines[0].startswith(preflight):
+            raise RiskGateError(f"atomic preview dry-run proof is incomplete or forged for {version}")
+        if len(apply_lines) != 2 or apply_lines[0] != dry_lines[0]:
+            raise RiskGateError(f"atomic preview apply preflight does not match dry-run for {version}")
+        count = dry_lines[0][len(preflight):]
+        if not re.fullmatch(r"[1-9][0-9]*", count):
+            raise RiskGateError(f"atomic preview statement count is invalid for {version}")
+        expected_apply = (
+            f"ATOMIC APPLY OK: target=preview version={version} ledger_row=1 statements={count}"
+        )
+        if apply_lines[1] != expected_apply:
+            raise RiskGateError(f"atomic preview apply proof is incomplete or forged for {version}")
+
+
 def prove_preview(
     *, run_id: int, digest: str, pr_head: str, main_sha: str, source_pr: int, allowlist: list[str], api: Callable[[str], Any],
     downloader: Callable[[int, Path], None], repo_root: Path,
@@ -172,8 +268,6 @@ def prove_preview(
             raise RiskGateError("downloaded preview artifact bytes do not match the pinned digest")
         with zipfile.ZipFile(zip_path) as archive:
             texts = {Path(n).name: archive.read(n).decode("utf-8", errors="strict") for n in archive.namelist() if not n.endswith("/")}
-    dry = texts.get("preview-dry-run.txt", "")
-    apply = texts.get("preview-apply.txt", "")
     before = texts.get("preview-ledger-before.txt", "")
     after = texts.get("preview-ledger-after.txt", "")
     historical = texts.get("historical-preview-source.json")
@@ -190,17 +284,11 @@ def prove_preview(
         before_path.write_text(before, encoding="utf-8")
         after_path.write_text(after, encoding="utf-8")
         before_versions, after_versions = parse_remote_versions(before_path), parse_remote_versions(after_path)
-    for version in allowlist:
-        filename = next(repo_root.glob(f"supabase/migrations/{version}_*.sql"), None)
-        if filename is None:
-            raise RiskGateError(f"allowlisted migration {version} is absent from exact main")
-        if filename.name not in dry or filename.name not in apply:
-            raise RiskGateError(f"preview proof does not name exact migration {filename.name}")
-        if historical:
-            if version not in before_versions or version not in after_versions:
-                raise RiskGateError(f"historical preview ledger does not prove stable prior application of {version}")
-        elif version in before_versions or version not in after_versions:
-                raise RiskGateError(f"preview ledger does not prove exactly-once application of {version}")
+    prove_preview_migration_contents(
+        texts=texts, allowlist=allowlist, repo_root=repo_root,
+        before_versions=before_versions, after_versions=after_versions,
+        historical=bool(historical),
+    )
 
 
 def is_pinned_historical_disney_source(

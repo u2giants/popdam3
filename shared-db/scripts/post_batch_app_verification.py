@@ -339,10 +339,18 @@ def _never_rest_by_batch() -> dict[str, tuple[str, ...]]:
     return {b: tuple(v) for b, v in out.items()}
 
 
-# Contract §5: never applied at all, at any time, in any batch. Applying it
-# REGRESSES a live security control and sorts below the migration that would
-# repair it, so the damage is permanent.
-RETIRED_VERSIONS = frozenset({"20260729120000"})
+# Contract §5: never applied at all, at any time, in any batch.
+RETIRED_VERSION_REASONS = {
+    "20260729120000": (
+        "applying it would regress a live production security control whose "
+        "safe end state is already present"
+    ),
+    "20260816045130": (
+        "explicit COMMIT separates DDL from the Supabase migration ledger; "
+        "never apply production; use safe replacement 20260816110750"
+    ),
+}
+RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
 
 # Contract §6.5: held pending the FRIENDS TV removal work.
 HELD_VERSIONS = frozenset({"20260802170000", "20260802171000"})
@@ -1455,9 +1463,8 @@ def resolve_batch(batch: str | None, versions_csv: str | None) -> BatchResolutio
     for v in versions:
         if v in RETIRED_VERSIONS:
             problems.append(
-                f"RETIRED MIGRATION APPLIED: {v} must NEVER reach production. It "
-                "REGRESSES a live security control and sorts below the migration "
-                "that would repair it, so the damage is not self-healing."
+                f"RETIRED MIGRATION APPLIED: {v} must NEVER reach production: "
+                f"{RETIRED_VERSION_REASONS[v]}."
             )
         if v in HELD_VERSIONS:
             problems.append(

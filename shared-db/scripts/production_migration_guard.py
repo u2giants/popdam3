@@ -57,6 +57,11 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #853/#868 unsafe transaction-framed bridge cutover. The explicit COMMIT
+    # can commit DDL before Supabase inserts its migration-ledger row. A pinned
+    # CLI 2.105.0 disposable failure test proved SQL present + ledger absent.
+    # Never apply production; 20260816110750 is the transaction-safe replacement.
+    "20260816045130",
     # Master Data lockdown: restricted editing of public.style_tracker_rows to
     # admins. WRONG -- it locked all 33 plain 'user' accounts out of the Styles
     # grid, which is open BY DESIGN (AGENTS.md section 0.4). Applied to

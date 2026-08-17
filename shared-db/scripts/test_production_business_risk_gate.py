@@ -7,10 +7,93 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import RiskGateError, classify_sql, decide_business_risk, is_pinned_historical_disney_source, load_activation, prove_activation, prove_preview
+from production_business_risk_gate import RiskGateError, canonical_sha256, classify_sql, decide_business_risk, is_pinned_historical_disney_source, load_activation, prove_activation, prove_preview, prove_preview_migration_contents
 
 
 class ProductionBusinessRiskGateTests(unittest.TestCase):
+    def atomic_preview_fixture(self):
+        temp = tempfile.TemporaryDirectory()
+        root = Path(temp.name)
+        migrations = root / "supabase/migrations"
+        migrations.mkdir(parents=True)
+        config = root / "config"
+        config.mkdir()
+        version = "20260816110750"
+        filename = migrations / f"{version}_safe_forward.sql"
+        filename.write_text("lock table plm.bridge in share mode;\n", encoding="utf-8")
+        digest = canonical_sha256(filename)
+        (config / "atomic-migration-allowlist.json").write_text(json.dumps({
+            "schema_version": 1,
+            "migrations": {version: {"sha256": digest, "targets": ["preview", "production"]}},
+        }), encoding="utf-8")
+        preflight = f"ATOMIC PREFLIGHT OK: target=preview version={version} sha256={digest} statements=8"
+        texts = {
+            "preview-dry-run.txt": preflight + "\n",
+            "preview-apply.txt": preflight + "\n" + f"ATOMIC APPLY OK: target=preview version={version} ledger_row=1 statements=8\n",
+            "migration-content-manifest.json": json.dumps({version: digest}),
+        }
+        return temp, root, version, digest, texts
+
+    def test_atomic_preview_proof_binds_version_hash_manifest_apply_and_ledger_delta(self):
+        temp, root, version, _, texts = self.atomic_preview_fixture()
+        with temp:
+            prove_preview_migration_contents(
+                texts=texts, allowlist=[version], repo_root=root,
+                before_versions={"20260801000000"},
+                after_versions={"20260801000000", version}, historical=False,
+            )
+
+    def test_atomic_preview_proof_rejects_wrong_version_hash_filename_and_incomplete_proof(self):
+        mutations = {
+            "wrong version": lambda t, v, d: t.__setitem__("preview-apply.txt", t["preview-apply.txt"].replace(v, "20260816110751")),
+            "wrong hash": lambda t, v, d: t.__setitem__("preview-dry-run.txt", t["preview-dry-run.txt"].replace(d, "f" * 64)),
+            "wrong manifest": lambda t, v, d: t.__setitem__("migration-content-manifest.json", json.dumps({v: "e" * 64})),
+            "missing apply": lambda t, v, d: t.__setitem__("preview-apply.txt", t["preview-apply.txt"].splitlines()[0] + "\n"),
+            "forged extra line": lambda t, v, d: t.__setitem__("preview-dry-run.txt", t["preview-dry-run.txt"] + "trust me\n"),
+        }
+        for name, mutate in mutations.items():
+            temp, root, version, digest, texts = self.atomic_preview_fixture()
+            with self.subTest(name=name), temp, self.assertRaises(RiskGateError):
+                mutate(texts, version, digest)
+                prove_preview_migration_contents(
+                    texts=texts, allowlist=[version], repo_root=root,
+                    before_versions=set(), after_versions={version}, historical=False,
+                )
+
+    def test_legacy_preview_proof_still_rejects_wrong_filename(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            migrations = root / "supabase/migrations"
+            migrations.mkdir(parents=True)
+            (root / "config").mkdir()
+            (root / "config/atomic-migration-allowlist.json").write_text(
+                '{"schema_version":1,"migrations":{}}', encoding="utf-8"
+            )
+            version = "20260814000000"
+            (migrations / f"{version}_exact.sql").write_text("select 1;", encoding="utf-8")
+            texts = {
+                "preview-dry-run.txt": f"Applying migration {version}_wrong.sql...",
+                "preview-apply.txt": f"Applying migration {version}_wrong.sql...",
+            }
+            with self.assertRaisesRegex(RiskGateError, "exact migration"):
+                prove_preview_migration_contents(
+                    texts=texts, allowlist=[version], repo_root=root,
+                    before_versions=set(), after_versions={version}, historical=False,
+                )
+
+    def test_preview_ledger_delta_rejects_extra_additions_removals_and_prior_version(self):
+        cases = [
+            ({"old"}, {"old", "20260816110750", "extra"}),
+            ({"old"}, {"20260816110750"}),
+            ({"20260816110750"}, {"20260816110750"}),
+        ]
+        for before, after in cases:
+            temp, root, version, _, texts = self.atomic_preview_fixture()
+            with self.subTest(before=before, after=after), temp, self.assertRaisesRegex(RiskGateError, "delta"):
+                prove_preview_migration_contents(
+                    texts=texts, allowlist=[version], repo_root=root,
+                    before_versions=before, after_versions=after, historical=False,
+                )
     def test_inactive_policy_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp, "activation.json")
@@ -85,6 +168,39 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 run_id=7, digest="sha256:" + "c" * 64, pr_head="a" * 40,
                 main_sha="d" * 40, source_pr=1, allowlist=["20260814000000"], api=lambda _: run,
                 downloader=lambda *_: self.fail("forged run must not download"), repo_root=Path.cwd(),
+            )
+
+    def test_preview_artifact_must_match_pinned_run_and_digest_before_download(self):
+        head = "a" * 40
+        run = {
+            "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
+            "head_sha": head, "path": ".github/workflows/shared-supabase-migrations.yml",
+        }
+        artifact = {
+            "id": 9,
+            "name": f"preview-migration-apply-{head}",
+            "digest": "sha256:" + "d" * 64,
+            "expired": False,
+            "workflow_run": {"id": 7},
+        }
+
+        def api(endpoint):
+            return {"artifacts": [artifact]} if endpoint.endswith("artifacts?per_page=100") else run
+
+        with self.assertRaisesRegex(RiskGateError, "pinned digest"):
+            prove_preview(
+                run_id=7, digest="sha256:" + "c" * 64, pr_head=head,
+                main_sha="b" * 40, source_pr=1, allowlist=["20260814000000"], api=api,
+                downloader=lambda *_: self.fail("wrong digest must not download"), repo_root=Path.cwd(),
+            )
+
+        artifact["digest"] = "sha256:" + "c" * 64
+        artifact["workflow_run"] = {"id": 8}
+        with self.assertRaisesRegex(RiskGateError, "another run"):
+            prove_preview(
+                run_id=7, digest="sha256:" + "c" * 64, pr_head=head,
+                main_sha="b" * 40, source_pr=1, allowlist=["20260814000000"], api=api,
+                downloader=lambda *_: self.fail("wrong run must not download"), repo_root=Path.cwd(),
             )
 
     def test_production_workflow_enforces_gate_twice_and_keeps_old_boundary(self):

@@ -37,6 +37,14 @@ class Refusal(RuntimeError):
     pass
 
 
+def canonical_migration_bytes(path: Path) -> bytes:
+    """Return repository-canonical bytes regardless of checkout line endings."""
+    raw = path.read_bytes()
+    if b"\r" in raw.replace(b"\r\n", b""):
+        raise Refusal(f"migration contains unsupported bare CR line endings: {path.name}")
+    return raw.replace(b"\r\n", b"\n")
+
+
 def validate_version(version: str) -> str:
     if not VERSION_VALUE_RE.fullmatch(version):
         raise Refusal("version must be an exact 14-digit migration version")
@@ -83,7 +91,7 @@ def validate_policy_bindings(migrations_dir: Path) -> None:
                 f"atomic policy {version} must bind exactly one committed migration; "
                 f"found {len(matches)}"
             )
-        digest = hashlib.sha256(matches[0].read_bytes()).hexdigest()
+        digest = hashlib.sha256(canonical_migration_bytes(matches[0])).hexdigest()
         if digest != entry.get("sha256"):
             raise Refusal(f"atomic policy SHA256 mismatch for {version}")
         targets = entry.get("targets")
@@ -152,7 +160,7 @@ def load_candidate(migrations_dir: Path, version: str, target: str) -> tuple[Pat
     match = VERSION_RE.fullmatch(path.name)
     if not match or match.group(1) != version:
         raise Refusal("migration filename/version mismatch")
-    raw_bytes = path.read_bytes()
+    raw_bytes = canonical_migration_bytes(path)
     digest = hashlib.sha256(raw_bytes).hexdigest()
     if digest != entry.get("sha256"):
         raise Refusal(f"SHA256 mismatch for {version}")

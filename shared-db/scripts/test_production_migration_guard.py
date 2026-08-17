@@ -231,6 +231,10 @@ class GuardTests(unittest.TestCase):
             },
         )
 
+    def test_the_unsafe_issue_853_migration_cannot_enter_an_allowlist(self) -> None:
+        with self.assertRaises(GuardError):
+            parse_allowlist("20260816045130")
+
     def test_the_retired_lockdown_migration_cannot_enter_an_allowlist(self) -> None:
         """A2's RETIRE verdict must be mechanical, not prose. (Kimi K3.)"""
         with self.assertRaises(GuardError):

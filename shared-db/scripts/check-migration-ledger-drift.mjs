@@ -99,9 +99,10 @@ from pathlib import Path
 root = Path(sys.argv[1])
 sys.path.insert(0, str(root / 'scripts'))
 from production_migration_guard import HARD_BLOCKED, BUNDLE_20260804, FR_HELD_20260803, FR_REMOVAL_VERSIONS, CO_PRESENCE_RULES, ATOMIC_BATCHES
-from post_batch_app_verification import RETIRED_VERSIONS
+from post_batch_app_verification import RETIRED_VERSION_REASONS, RETIRED_VERSIONS
 print(json.dumps({
   'retired': sorted(RETIRED_VERSIONS), 'hardBlocked': sorted(HARD_BLOCKED),
+  'retiredReasons': RETIRED_VERSION_REASONS,
   'bundle': sorted(BUNDLE_20260804), 'frHeld': sorted(FR_HELD_20260803),
   'frRemoval': sorted(FR_REMOVAL_VERSIONS),
   'coPresence': [{'create': c, 'fixes': sorted(f), 'why': w} for c, f, w in CO_PRESENCE_RULES],
@@ -135,7 +136,8 @@ export function classifyPendingWithRules(versions, appliedVersions, rules) {
   const result = {}
   for (const version of versions) {
     if (retired.has(version)) {
-      result[version] = { kind: 'retired', reason: 'RETIRED_VERSIONS: never apply this version; applying it would regress a live production security control whose end state is already present.' }
+      const reason = rules.retiredReasons?.[version] ?? 'never apply this version; its safe replacement or end state is already present'
+      result[version] = { kind: 'retired', reason: `RETIRED_VERSIONS: ${reason}.` }
       continue
     }
     if (frHeld.has(version) || frRemoval.has(version)) {

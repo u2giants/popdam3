@@ -98,11 +98,14 @@ test('the clean path through runDriftCheck returns driftFound false', async () =
 })
 
 test('classifies retired and deliberately-held versions from the existing Python rule sources', () => {
-  const result = guardClassifications(['20260729120000', '20260802170000'], [])
+  const result = guardClassifications(['20260729120000', '20260802170000', '20260816045130'], [])
   assert.equal(result['20260729120000'].kind, 'retired')
   assert.match(result['20260729120000'].reason, /RETIRED_VERSIONS/)
   assert.equal(result['20260802170000'].kind, 'deliberately-held')
   assert.match(result['20260802170000'].reason, /owner ruling/i)
+  assert.equal(result['20260816045130'].kind, 'retired')
+  assert.match(result['20260816045130'].reason, /explicit COMMIT separates DDL from the Supabase migration ledger/)
+  assert.match(result['20260816045130'].reason, /never apply production/)
 })
 
 test('classifies a normal version explicitly instead of leaving it unknown', () => {

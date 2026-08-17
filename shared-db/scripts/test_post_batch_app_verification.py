@@ -757,7 +757,10 @@ class BatchResolutionTests(unittest.TestCase):
         self.assertTrue(any("HELD MIGRATION" in p for p in r.problems))
 
     def test_the_retired_and_held_versions_match_the_contract(self):
-        self.assertEqual(RETIRED_VERSIONS, {"20260729120000"})
+        self.assertEqual(
+            RETIRED_VERSIONS,
+            {"20260729120000", "20260816045130"},
+        )
         self.assertEqual(HELD_VERSIONS, {"20260802170000", "20260802171000"})
 
     def test_bad_input_is_refused(self):
