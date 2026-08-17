@@ -15,7 +15,7 @@
 | 9. Update permanent documentation and every skill copy | ⬜ open | 2026-08-16 | Codex skill is current; Claude copy still teaches the older method. |
 | 10. Land the implementation safely | ⬜ open | 2026-08-16 | Branch, PR, CI, and final evidence remain open. |
 
-**Fresh-session starting point:** Begin at Step 1. Read this entire plan, then read the linked handoff [`HANDOFF.d/2026-08-17T0234Z-al8960ofc-codex-item-taxonomy-plan.md`](HANDOFF.d/2026-08-17T0234Z-al8960ofc-codex-item-taxonomy-plan.md). Do not start by adding more regexes or fuzzy thresholds.
+**Fresh-session starting point:** Begin at Step 1. Read this entire plan, then read the linked handoff [`HANDOFF.d/2026-08-17T1240Z-al8960ofc-codex-item-taxonomy-implementation.md`](HANDOFF.d/2026-08-17T1240Z-al8960ofc-codex-item-taxonomy-implementation.md). Do not start by adding more regexes or fuzzy thresholds.
 
 ---
 
@@ -142,7 +142,7 @@ GLM 5.3 then reviewed the full plan and live code in a two-turn adversarial deba
 
 - PR #1091 is merged to `main` at `b262a9fd698b60ab0e455d63b8b97a965eb9bfbb`.
 - This plan is being authored on branch `codex/item-taxonomy-plan`, based on `origin/main` commit `93a337719dbc39a071d9ae78f191a3954fac2371`.
-- Issue #1097 tracks this plan and future implementation.
+- Issue #1097 tracked planning and is complete. Issue #1113 tracks implementation.
 - No implementation from this plan has started.
 - No database or Item Master data has been changed.
 
@@ -528,7 +528,7 @@ Verification gate: search all copies for the old single-full-key and live-fuzzy 
 5. Open and merge the shared-db PR after all required checks pass.
 6. Do not commit private descriptions, generated workbooks, or licensed examples.
 7. Update this plan STATUS table after every executed step.
-8. Delete the linked handoff only when issue #1097 and every obligation in this plan are genuinely complete.
+8. Delete the linked handoff only when issue #1113 and every obligation in this plan are genuinely complete.
 
 Verification gate: PR merged, all CI green, `origin/main` contains the implementation SHA, private outputs remain untracked, and the final workbook opens and reconciles.
 
@@ -624,7 +624,7 @@ No secrets are needed. If future work unexpectedly needs credentials, use 1Passw
 - [ ] Plan STATUS table and handoff are current.
 - [ ] Commit identity is Albert Hazan `<u2giants@users.noreply.github.com>`.
 - [ ] Branch is pushed, PR merged, all CI green, and merged SHA verified on `origin/main`.
-- [ ] Issue #1097 is closed only after all work is proven complete.
+- [ ] Issue #1113 is closed only after all implementation work is proven complete.
 
 ### Rollback
 
