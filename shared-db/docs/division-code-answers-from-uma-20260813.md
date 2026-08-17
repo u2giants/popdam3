@@ -29,6 +29,14 @@ Questions asked in [`division-code-questions-for-uma.md`](division-code-question
 >    produces **169 duplicates**, and there is no unique constraint to stop it. Full
 >    row-by-row evidence:
 >    [`merchgroup-271-division-conflicts-back-to-uma-20260817.md`](merchgroup-271-division-conflicts-back-to-uma-20260817.md).
+>
+> 4. **Round 2 is answered and supersedes several items here.** Uma answered 12 follow-up
+>    questions on 2026-08-17, and the `itemHeader` reference check he asked for has been
+>    run against all 363 unclean rows. Two findings change the plan: **78% of all items sit
+>    in the "deprecated" division 2**, which blocks the `erp_items_current` backfill, and
+>    **EP001 is a real retired book/education division, not a mis-keyed `EH001`**. Read
+>    [`division-code-round2-answers-and-reference-check-20260817.md`](division-code-round2-answers-and-reference-check-20260817.md)
+>    before acting on any cleanup or backfill described below.
 
 ---
 
