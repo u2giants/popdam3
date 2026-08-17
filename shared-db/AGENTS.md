@@ -721,9 +721,13 @@ four rules below are non-negotiable for any database change.
      --issue <issue> --pr <pr> --head-sha <exact-head>
    ```
 
-   The machine-independent cursor rotates Grok 4.6 → GLM 5.2 → Kimi K3 → Qwen
-   3.8 Max → repeat. Use only `ai-grok-review`, `ai-glm`, `ai-kimi`, or `ai-qwen`
-   and their fixed model settings. Reuse one named session for rebuttals. Require
+   For new assignments, the machine-independent cursor rotates Grok 4.6 → GLM
+   5.2 → Kimi K3 → repeat. Qwen 3.8 Max is paused until an explicit owner
+   instruction restores it. Historical Qwen assignments, failures, and
+   replacement evidence remain readable and must be recovered or replaced
+   through `scripts/manage-migration-author-lanes.mjs`, never hand-edited. Use
+   only the wrapper returned by the manager and its fixed model settings. Reuse
+   one named session for rebuttals. Require
    a current exact-head re-read and `APPROVE` or `REVISE` with evidence. Verify
    every claim independently. Relay disagreements with
    `templates/delegation/debate-turn.md`, stopping at agreement or the initial

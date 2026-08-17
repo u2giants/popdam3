@@ -20,6 +20,9 @@ export const REVIEWERS = Object.freeze([
   { name:'grok-4.6', wrapper:'ai-grok-review' }, { name:'glm-5.2', wrapper:'ai-glm' },
   { name:'kimi-k3', wrapper:'ai-kimi' }, { name:'qwen-3.8-max', wrapper:'ai-qwen' },
 ])
+// Keep REVIEWERS as the historical evidence registry. Paused providers remain
+// readable forever, but only ACTIVE_REVIEWERS can receive new work.
+export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>row.name!=='qwen-3.8-max'))
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
   'preview-recovery': 'refs/db-coordination/preview',
@@ -397,7 +400,7 @@ export function assignNextReviewer({issue,pr,headSha},io=githubIo){
       if(!io.createRef(assignmentRef,cursorSha)&&readRefAfterWrite(assignmentRef,cursorSha,io)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
       return {...current,wrapper:REVIEWERS.find((r)=>r.name===current.reviewer)?.wrapper}
     }
-    const sequence=(current?.sequence??0)+1, reviewer=REVIEWERS[(sequence-1)%REVIEWERS.length]
+    const sequence=(current?.sequence??0)+1, reviewer=ACTIVE_REVIEWERS[(sequence-1)%ACTIVE_REVIEWERS.length]
     const assignmentSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     if(cursorSha)io.updateRef(REVIEW_CURSOR_REF,assignmentSha);else if(!io.createRef(REVIEW_CURSOR_REF,assignmentSha))throw new LaneError('reviewer cursor was created concurrently; retry the same assignment')
@@ -465,7 +468,7 @@ function requireReplacementEvidence(replacement,io){
 }
 
 export function reviewerExecutionPreflight({reviewer,wrapper,worktree,headSha},io=githubIo){
-  const approved=REVIEWERS.find((row)=>row.name===reviewer)
+  const approved=ACTIVE_REVIEWERS.find((row)=>row.name===reviewer)
   if(!approved||approved.wrapper!==wrapper)throw new LaneError('reviewer preflight requires an approved reviewer and its exact wrapper')
   if(!/^[0-9a-f]{40}$/i.test(String(headSha??''))||!worktree)throw new LaneError('reviewer preflight requires an exact 40-character head SHA and worktree')
   if(!io.commandAvailable?.(wrapper))throw new LaneError(`reviewer preflight cannot execute ${wrapper}`)
@@ -521,7 +524,7 @@ export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCo
       return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))
     }))throw new LaneError('an existing verdict for the exact head forbids reviewer replacement')
     const failureSha=io.makeOwnerCommit(`db-coordination reviewer-failure issue=${request.issue} pr=${request.pr} head=${request.headSha} sequence=${request.failedSequence} reviewer=${original.reviewer} code=${failureCode} verdict=none artifact=none`)
-    const sequence=cursor.sequence+1, reviewer=REVIEWERS[(sequence-1)%REVIEWERS.length]
+    const sequence=cursor.sequence+1, reviewer=ACTIVE_REVIEWERS[(sequence-1)%ACTIVE_REVIEWERS.length]
     if(reviewer.name===original.reviewer)throw new LaneError('next durable reviewer is the same failed provider; replacement refuses to retry it')
     const cursorReplacementSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
     const replacementSha=io.makeOwnerCommit(`db-coordination reviewer-replacement sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha} failed-sequence=${request.failedSequence} prior-sequence=${cursor.sequence} failure-ref=${failureSha}`)

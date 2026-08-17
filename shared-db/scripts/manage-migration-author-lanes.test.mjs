@@ -157,7 +157,7 @@ function reviewIo(){
 test('reviewer cursor advances atomically through the durable round robin',()=>{
   const io=reviewIo(), names=[]
   for(let n=1;n<=5;n++)names.push(assignNextReviewer({issue:n,pr:100+n,headSha:`abcdef${n}`},io).reviewer)
-  assert.deepEqual(names,['grok-4.6','glm-5.2','kimi-k3','qwen-3.8-max','grok-4.6'])
+  assert.deepEqual(names,['grok-4.6','glm-5.2','kimi-k3','grok-4.6','glm-5.2'])
   assert.ok(io.refs.has(REVIEW_CURSOR_REF))
 })
 
@@ -200,6 +200,16 @@ test('reviewer execution preflight enforces approved wrapper, clean worktree, an
   assert.throws(()=>reviewerExecutionPreflight(request,{...io,commandAvailable:()=>false}),/cannot execute/)
   assert.throws(()=>reviewerExecutionPreflight(request,{...io,localHead:()=> 'f'.repeat(40)}),/exact assigned head/)
   assert.throws(()=>reviewerExecutionPreflight(request,{...io,localClean:()=>false}),/dirty/)
+})
+
+test('paused Qwen evidence remains readable but Qwen receives no new assignment',()=>{
+  const io=reviewIo(), request={issue:9,pr:109,headSha:'abcdef9'}
+  const historical=io.makeOwnerCommit('db-coordination reviewer-cursor sequence=64 reviewer=qwen-3.8-max issue=9 pr=109 head=abcdef9')
+  io.refs.set(REVIEW_CURSOR_REF,historical)
+  const recovered=assignNextReviewer(request,io)
+  assert.equal(recovered.reviewer,'qwen-3.8-max');assert.equal(recovered.wrapper,'ai-qwen')
+  const next=assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io)
+  assert.notEqual(next.reviewer,'qwen-3.8-max')
 })
 
 test('two consecutive terminal no-verdict failures form an immutable idempotent chain',()=>{
