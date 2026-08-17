@@ -195,6 +195,11 @@ ALTER_RELATION_RE = re.compile(
 ROW_SECURITY_RE = re.compile(r"\brow\s+level\s+security\b")
 CREATE_POLICY_RE = re.compile(rf"^\s*create\s+policy\b[\s\S]*?\bon\s+{QUALIFIED}")
 INSERT_INTO_RE = re.compile(rf"^\s*insert\s+into\s+{QUALIFIED}")
+CREATE_INDEX_HEAD_RE = re.compile(r"^\s*create\s+(?:unique\s+)?index\b")
+CREATE_INDEX_RE = re.compile(
+    rf"^\s*create\s+(unique\s+)?index\s+(concurrently\s+)?"
+    rf"(?:if\s+not\s+exists\s+)?({IDENT})\s+on\s+(?:only\s+)?{QUALIFIED}\b"
+)
 GRANT_RE = re.compile(r"^\s*(grant|revoke)\b")
 # The object of a GRANT/REVOKE. `all tables in schema` is DELIBERATELY NOT
 # matched: it names a schema, not a relation, and guessing its membership is
@@ -546,6 +551,7 @@ class Targets:
         privileges: list[PrivilegeExpectation] | None = None,
         notes: list[str] | None = None,
         noop_declaration: dict | None = None,
+        indexes: set[tuple[str, str]] | None = None,
     ) -> None:
         # ORDER IS LOAD-BEARING and must be the order the statements appear in,
         # not sorted: a batch may `grant` a privilege and then `revoke` it, and
@@ -566,6 +572,7 @@ class Targets:
         self.functions = sorted(functions)
         self.roles = sorted(roles)
         self.seeded = sorted(seeded)
+        self.indexes = sorted(indexes or set())
         # Relations an `... if exists` statement named. Read if present, NEVER
         # required: the migration said in its own SQL that it tolerates absence.
         self.optional = sorted(set(optional or set()) - set(tables) - set(views))
@@ -597,6 +604,7 @@ class Targets:
             or self.seeded
             or self.rls_relations
             or self.privileges
+            or self.indexes
         )
 
     def as_dict(self) -> dict[str, list[str]]:
@@ -608,6 +616,7 @@ class Targets:
             "functions": self.functions,
             "roles": self.roles,
             "seeded": self.seeded,
+            "indexes": [f"{index}|{relation}" for index, relation in self.indexes],
             "privilege_assertions": [e.describe() for e in self.privileges],
             "unassertable_statements": self.notes,
         }
@@ -1260,6 +1269,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     privileges: list[PrivilegeExpectation] = []
     notes: list[str] = []
     noop: dict | None = None
+    indexes: set[tuple[str, str]] = set()
 
     for version in allowlist:
         path = migrations.get(version)
@@ -1290,6 +1300,18 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                 continue
             if match := INSERT_INTO_RE.match(statement):
                 seeded.add(f"{match.group(1)}.{match.group(2)}")
+                continue
+            if match := CREATE_INDEX_RE.match(statement):
+                index_name = f"{match.group(4)}.{match.group(3)}"
+                relation_name = f"{match.group(4)}.{match.group(5)}"
+                indexes.add((index_name, relation_name))
+                tables.add(relation_name)
+                continue
+            if CREATE_INDEX_HEAD_RE.match(statement):
+                notes.append(
+                    f"{version}: CREATE INDEX was not safely parseable and was not "
+                    f"silently accepted: `{statement.strip()[:240]}`"
+                )
                 continue
             if match := ALTER_RELATION_RE.match(statement):
                 kind, if_exists = match.group(1), match.group(2)
@@ -1360,6 +1382,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         privileges=privileges,
         notes=notes,
         noop_declaration=noop,
+        indexes=indexes,
     )
 
 
@@ -1405,6 +1428,8 @@ def build_catalog_sql(targets: Targets) -> str:
     rls_relations = _sql_array(targets.rls_relations)
     roles = _sql_array(targets.roles)
     functions = _sql_array(targets.functions)
+    index_names = _sql_array([row[0] for row in targets.indexes])
+    index_relations = _sql_array([row[1] for row in targets.indexes])
     defacl = targets.default_acls
     defacl_schemas = _sql_array([row[0] for row in defacl])
     defacl_roles = _sql_array([row[1] for row in defacl])
@@ -1413,6 +1438,10 @@ def build_catalog_sql(targets: Targets) -> str:
 with defacl_target as (
   select * from unnest({defacl_schemas}, {defacl_roles}, {defacl_objtypes})
     as t(nspname, rolname, objtype)
+),
+index_target as (
+  select * from unnest({index_names}, {index_relations})
+    as t(index_name, relation_name)
 ),
 rel as (
   select n as name, to_regclass(n) as oid from unnest({relations}) as n
@@ -1441,6 +1470,26 @@ select jsonb_build_object(
   -- the two need different verdicts.
   'probe_roles', coalesce((
     select jsonb_agg(probe_roles.role order by probe_roles.role) from probe_roles
+  ), '[]'::jsonb),
+  'indexes', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'name', t.index_name,
+      'relation', t.relation_name,
+      'exists', c.oid is not null,
+      'actual_relation', case when tc.oid is null then null
+        else tn.nspname || '.' || tc.relname end,
+      'valid', i.indisvalid,
+      'ready', i.indisready,
+      'definition', case when c.oid is null then null else pg_get_indexdef(c.oid) end
+    ) order by t.index_name)
+    from index_target t
+    left join pg_namespace n on n.nspname = split_part(t.index_name, '.', 1)
+    left join pg_class c on c.relnamespace = n.oid
+      and c.relname = split_part(t.index_name, '.', 2)
+      and c.relkind = 'i'
+    left join pg_index i on i.indexrelid = c.oid
+    left join pg_class tc on tc.oid = i.indrelid
+    left join pg_namespace tn on tn.oid = tc.relnamespace
   ), '[]'::jsonb),
   -- DEFAULT PRIVILEGES (issue #790). `alter default privileges` names no
   -- relation, so nothing above can see it. `pg_default_acl` is where its effect
@@ -2243,6 +2292,39 @@ def render_report(
             f"`{row.get('objtype')}` | {row.get('row_exists')} | "
             f"`{row.get('acl_text') or 'NULL'}` |"
         )
+    add("")
+
+    add("## Indexes (`pg_index` / `pg_get_indexdef`)")
+    add("")
+    add("| name | expected table | actual table | valid | ready | exact live definition |")
+    add("| --- | --- | --- | --- | --- | --- |")
+    expected_indexes = {name: relation for name, relation in targets.indexes}
+    seen_indexes: set[str] = set()
+    for row in data.get("indexes") or []:
+        name = row.get("name")
+        if isinstance(name, str):
+            seen_indexes.add(name)
+        expected_relation = expected_indexes.get(str(name))
+        actual_relation = row.get("actual_relation")
+        definition = row.get("definition")
+        add(
+            f"| `{name}` | `{expected_relation}` | `{actual_relation or 'NULL'}` | "
+            f"{row.get('valid')} | {row.get('ready')} | `{definition or 'NULL'}` |"
+        )
+        if row.get("exists") is not True:
+            failures.append(f"{name}: expected index is missing")
+        elif actual_relation != expected_relation:
+            failures.append(
+                f"{name}: index belongs to {actual_relation!r}, expected {expected_relation!r}"
+            )
+        elif row.get("valid") is not True or row.get("ready") is not True:
+            failures.append(f"{name}: index is not valid and ready")
+        elif not isinstance(definition, str) or not definition.strip():
+            failures.append(f"{name}: pg_get_indexdef returned no definition")
+    for missing_index in sorted(set(expected_indexes) - seen_indexes):
+        failures.append(f"{missing_index}: catalog returned no index evidence row")
+    if not expected_indexes:
+        add("| _no CREATE INDEX target was derived_ | | | | | |")
     add("")
 
     add("## Relations (`to_regclass`)")
