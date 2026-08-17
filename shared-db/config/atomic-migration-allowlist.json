@@ -7,6 +7,13 @@
         "preview",
         "production"
       ]
+    },
+    "20260817041506": {
+      "sha256": "979d85632836b7a469f118eb9c356d226df27c93954dc5120e98dd4844b98ceb",
+      "targets": [
+        "preview",
+        "production"
+      ]
     }
   }
 }

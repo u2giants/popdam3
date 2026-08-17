@@ -355,7 +355,7 @@ export function recoverStaleAuthorMutex({ expectedSha, confirmStale, serializedR
     const message=commit?.message ?? commit?.commit?.message ?? ''
     const dateText=commit?.committer?.date ?? commit?.commit?.committer?.date
     const acquiredAt=new Date(dateText)
-    if(!/^db-coordination (?:author-acquisition|preview|merge|production|claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-lease-renewal|reviewer-assignment-lock|reviewer-replacement-lock)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
+    if(!/^db-coordination (?:author-acquisition|preview|merge|production|claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-lease-renewal|reviewer-assignment-lock|reviewer-replacement-lock)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
     if(Number.isNaN(acquiredAt.valueOf()))throw new LaneError('refusing recovery: mutex owner time is unreadable')
     const age=now-acquiredAt
     if(age<minAgeMs)throw new LaneError(`refusing recovery: mutex is only ${Math.max(0,Math.floor(age/1000))} seconds old`)
@@ -431,44 +431,62 @@ function replaceClaimVersion(body,oldVersion,newVersion){
   return body.slice(0,fence.index)+fence[0].replace(`version: ${oldVersion}`,`version: ${newVersion}`)+body.slice(fence.index+fence[0].length)
 }
 
-export function reversionActiveClaim(options,now=new Date(),io=githubIo){
-  const OLD='20260816044638'
-  if(String(options.claim)!=='1056'||String(options.pr)!=='1047'||options.oldVersion!==OLD)throw new LaneError('active-claim reversion is pinned to claim #1056, PR #1047, and version 20260816044638')
-  if(!/^[0-9a-f]{40}$/i.test(String(options.headSha??''))||options.branch!=='codex/issue-764-sequence-repair'||options.worktree!=='C:\\repos\\shared-db-worktrees\\issue-764-sequence-repair')throw new LaneError('reversion requires the exact head, branch, and worktree')
-  const ownerSha=io.makeOwnerCommit(`db-coordination claim-reversion claim=1056 pr=1047 head=${options.headSha}`)
+function parseVersionSupersession(commit){
+  const message=commit?.message??commit?.commit?.message??''
+  const match=/^db-coordination claim-version-superseded issue=(\d+) claim=(\d+) pr=(\d+) old=(\d{14}) new=(\d{14}) old-ref=([0-9a-f]{7,40}) head=([0-9a-f]{40})$/i.exec(message)
+  if(!match)throw new LaneError('version supersession ref is unreadable')
+  return {issue:Number(match[1]),claim:Number(match[2]),pr:Number(match[3]),oldVersion:match[4],newVersion:match[5],oldReservation:match[6],newHead:match[7]}
+}
+
+export function supersedeActiveClaimVersion(options,now=new Date(),io=githubIo){
+  const request={issue:Number(options.issue),claim:Number(options.claim),pr:Number(options.pr),owner:String(options.owner??''),branch:String(options.branch??''),worktree:String(options.worktree??''),headSha:String(options.headSha??''),oldVersion:String(options.oldVersion??'')}
+  if(!Number.isInteger(request.issue)||!Number.isInteger(request.claim)||!Number.isInteger(request.pr)||!request.owner||!request.branch||!request.worktree||!/^[0-9a-f]{40}$/i.test(request.headSha)||!/^\d{14}$/.test(request.oldVersion))throw new LaneError('version supersession requires exact issue, claim, owner, branch, worktree, PR, head, and current version')
+  const supersessionRef=`refs/db-claim-supersessions/${request.claim}-${request.oldVersion}`
+  const priorSha=io.readRef(supersessionRef)
+  if(priorSha){
+    const prior=parseVersionSupersession(io.getCommit(priorSha)),claim=io.getIssue(request.claim),lease=parseAuthorLease(claim?.body??'',now),pr=io.getPr(request.pr)
+    if(prior.issue!==request.issue||prior.claim!==request.claim||prior.pr!==request.pr||prior.oldVersion!==request.oldVersion||lease.version!==prior.newVersion||lease.owner!==request.owner||lease.branch!==request.branch||lease.worktree!==request.worktree||pr?.head?.sha!==prior.newHead||pr?.head?.ref!==request.branch||io.readRef(`refs/db-claims/${request.oldVersion}`)!==prior.oldReservation||!io.readRef(`refs/db-claims/${prior.newVersion}`))throw new LaneError('durable version supersession does not match current state')
+    return {...prior,supersessionSha:priorSha,idempotent:true}
+  }
+  const ownerSha=io.makeOwnerCommit(`db-coordination claim-version-supersession issue=${request.issue} claim=${request.claim} pr=${request.pr} head=${request.headSha}`)
   acquireMutex(ownerSha,io)
-  let before,rewritten=false,bodyChanged=false,newVersion
+  let before,rewritten=false,bodyChanged=false,newVersion,newHead,supersessionSha
   try{
-    before=io.getIssue(1056);if(before?.state!=='open')throw new LaneError('claim #1056 is not open')
+    before=io.getIssue(request.claim);if(before?.state!=='open'||Number(before.number)!==request.claim)throw new LaneError(`claim #${request.claim} is not open`)
     const lease=parseAuthorLease(before.body,now)
-    if(lease.owner!=='issue_764_sequence_repair/session-1053'||lease.version!==OLD||lease.branch!==options.branch||lease.worktree!==options.worktree)throw new LaneError('claim owner, lease, version, branch, or worktree changed')
-    const oldReservation=io.readRef(`refs/db-claims/${OLD}`);if(!oldReservation)throw new LaneError('old permanent reservation is missing')
-    const pr=io.getPr(1047);if(pr?.state!=='open'||pr.head?.sha!==options.headSha||pr.head?.ref!==options.branch)throw new LaneError('open PR exact head or branch changed')
-    const versions=migrationVersions(io.getPrFiles(1047));if(versions.length!==1||versions[0]!==OLD)throw new LaneError('PR must change exactly one migration at the old version')
-    if(!io.localClean(options.worktree)||io.localHead(options.worktree)!==options.headSha)throw new LaneError('target worktree is dirty or not at the exact PR head')
+    if(lease.owner!==request.owner||lease.version!==request.oldVersion||lease.branch!==request.branch||lease.worktree!==request.worktree||!new RegExp(`#${request.issue}(?:\\D|$)`).test(before.title??''))throw new LaneError('claim issue, owner, lease, version, branch, or worktree changed')
+    const oldReservation=io.readRef(`refs/db-claims/${request.oldVersion}`);if(!oldReservation)throw new LaneError('old permanent reservation is missing')
+    const pr=io.getPr(request.pr);if(pr?.state!=='open'||pr.head?.sha!==request.headSha||pr.head?.ref!==request.branch)throw new LaneError('open PR exact head or branch changed')
+    const versions=migrationVersions(io.getPrFiles(request.pr));if(versions.length!==1||versions[0]!==request.oldVersion)throw new LaneError('PR must change exactly one migration at the current reserved version')
+    if(!io.localClean(request.worktree)||io.localHead(request.worktree)!==request.headSha)throw new LaneError('target worktree is dirty or not at the exact PR head')
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     const reservation=io.reserveVersion();newVersion=String(reservation.version)
-    if(!/^\d{14}$/.test(newVersion)||newVersion<=String(io.currentMaxVersion(options.worktree)??'')||newVersion===OLD)throw new LaneError('manager reservation is not later than current main')
+    if(!/^\d{14}$/.test(newVersion)||newVersion<=String(io.currentMaxVersion(request.worktree)??'')||newVersion===request.oldVersion)throw new LaneError('manager reservation is not later than current main')
     if(!io.readRef(`refs/db-claims/${newVersion}`))throw new LaneError('new permanent reservation readback failed')
-    io.rewriteVersion(options.worktree,OLD,newVersion);rewritten=true
-    const newHead=io.commitAndPushReversion(options.worktree,OLD,newVersion)
+    io.rewriteVersion(request.worktree,request.oldVersion,newVersion);rewritten=true
+    newHead=io.commitAndPushReversion(request.worktree,request.oldVersion,newVersion)
     requireOwnedRef(MUTEX_REF,ownerSha,io)
-    const newBody=replaceClaimVersion(before.body,OLD,newVersion);bodyChanged=true;io.updateIssue(1056,{body:newBody})
-    const after=io.getIssue(1056),afterLease=parseAuthorLease(after.body,now)
+    const newBody=replaceClaimVersion(before.body,request.oldVersion,newVersion);bodyChanged=true;io.updateIssue(request.claim,{body:newBody})
+    const after=io.getIssue(request.claim),afterLease=parseAuthorLease(after.body,now)
     if(after.body!==newBody||afterLease.version!==newVersion||afterLease.owner!==lease.owner||afterLease.branch!==lease.branch||afterLease.worktree!==lease.worktree||afterLease.objects.join('|')!==lease.objects.join('|'))throw new LaneError('claim readback changed fields outside its fenced version')
-    const livePr=io.getPr(1047),liveVersions=migrationVersions(io.getPrFiles(1047))
+    const livePr=io.getPr(request.pr),liveVersions=migrationVersions(io.getPrFiles(request.pr))
     if(livePr?.head?.sha!==newHead||liveVersions.length!==1||liveVersions[0]!==newVersion)throw new LaneError('PR did not expose exactly the new reserved migration')
-    if(io.readRef(`refs/db-claims/${OLD}`)!==oldReservation||!io.readRef(`refs/db-claims/${newVersion}`))throw new LaneError('permanent reservation readback changed')
-    return {claim:1056,pr:1047,oldVersion:OLD,newVersion,oldReservation,newHead}
+    if(io.readRef(`refs/db-claims/${request.oldVersion}`)!==oldReservation||!io.readRef(`refs/db-claims/${newVersion}`))throw new LaneError('permanent reservation readback changed')
+    supersessionSha=io.makeOwnerCommit(`db-coordination claim-version-superseded issue=${request.issue} claim=${request.claim} pr=${request.pr} old=${request.oldVersion} new=${newVersion} old-ref=${oldReservation} head=${newHead}`)
+    if(!io.createRef(supersessionRef,supersessionSha)||readRefAfterWrite(supersessionRef,supersessionSha,io)!==supersessionSha)throw new LaneError('durable version supersession evidence could not be created and read back')
+    return {issue:request.issue,claim:request.claim,pr:request.pr,oldVersion:request.oldVersion,newVersion,oldReservation,newHead,supersessionSha,idempotent:false}
   }catch(error){
     if(io.readRef(MUTEX_REF)!==ownerSha)throw new LaneError(`${error.message}; ROLLBACK NOT ATTEMPTED because mutex ownership was lost`)
     const failures=[]
-    if(bodyChanged)try{io.updateIssue(1056,{body:before.body})}catch(e){failures.push(e.message)}
-    if(rewritten)try{io.rewriteVersion(options.worktree,newVersion,OLD);io.commitAndPushReversion(options.worktree,newVersion,OLD)}catch(e){failures.push(e.message)}
+    if(supersessionSha)try{if(io.readRef(supersessionRef)===supersessionSha)releaseOwnedRef(supersessionRef,supersessionSha,io)}catch(e){failures.push(e.message)}
+    if(bodyChanged)try{io.updateIssue(request.claim,{body:before.body})}catch(e){failures.push(e.message)}
+    if(rewritten)try{io.rewriteVersion(request.worktree,newVersion,request.oldVersion);io.commitAndPushReversion(request.worktree,newVersion,request.oldVersion)}catch(e){failures.push(e.message)}
     if(failures.length)throw new LaneError(`${error.message}; ROLLBACK INCOMPLETE: ${failures.join('; ')}`)
     throw error
   }finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
 }
+
+export const reversionActiveClaim=supersedeActiveClaimVersion
 
 function parseReviewReplacement(commit) {
   const message=commit?.message ?? commit?.commit?.message ?? ''
@@ -891,7 +909,7 @@ function parseArgs(argv) {
     else if (a === '--expand-active-claim-from-pr') out.expandClaim = true
     else if (a === '--expand-active-claim-from-issue') out.expandClaimFromIssue = true
     else if (a === '--renew-claim') out.renewClaim = true
-    else if (a === '--reversion-active-claim') out.reversionClaim = true
+    else if (a === '--reversion-active-claim' || a === '--supersede-active-claim-version') out.reversionClaim = true
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|preview-recovery|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
