@@ -641,15 +641,16 @@ test('REAL main command expands an active claim from exact issue scope',()=>{
 
 function renewalIo(overrides={}){
   const io=memoryIo(),version='20260816045130',head='a'.repeat(40),objects=['table plm.style_tracker_item_bridge']
-  const issue={number:1058,state:'open',body:claimBody({version,objects,owner:'codex-issue-853-orderlist',branch:'codex/issue-853-orderlist',worktree:'C:\\repos\\shared-db-worktrees\\issue-853-orderlist',expiresAt:new Date('2026-08-14T19:00:00Z')})}
+  const issue={number:1058,state:'open',title:'CLAIM: #853 OrderList bridge',body:claimBody({version,objects,owner:'codex-issue-853-orderlist',branch:'codex/issue-853-orderlist',worktree:'C:\\repos\\shared-db-worktrees\\issue-853-orderlist',expiresAt:new Date('2026-08-14T19:00:00Z')})}
   io.refs.set(`refs/db-claims/${version}`,'permanent')
-  io.openClaims=()=>[structuredClone(issue)];io.getIssue=()=>structuredClone(issue);io.updateIssue=(_n,fields)=>{Object.assign(issue,fields);return structuredClone(issue)}
+  const workIssue={number:853,state:'open',body:scope('ready','structural','shared-db-orchestrator',900,objects)}
+  io.openClaims=()=>[structuredClone(issue)];io.getIssue=(number)=>Number(number)===853?structuredClone(workIssue):Number(number)===1058?structuredClone(issue):null;io.updateIssue=(_n,fields)=>{Object.assign(issue,fields);return structuredClone(issue)}
   io.getPr=()=>({state:'open',head:{sha:head,ref:'codex/issue-853-orderlist'}})
   io.getPrFiles=()=>[{status:'added',filename:`supabase/migrations/${version}_orderlist.sql`}]
   io.prSources=()=>[{label:'PR #1060 "#853 OrderList"',objects:[...objects],versions:[version]}]
-  return Object.assign(io,{issue,version,head,objects},overrides)
+  return Object.assign(io,{issue,workIssue,version,head,objects},overrides)
 }
-const renewalOptions={claim:1058,owner:'codex-issue-853-orderlist',branch:'codex/issue-853-orderlist',worktree:'C:\\repos\\shared-db-worktrees\\issue-853-orderlist',pr:1060,headSha:'a'.repeat(40),leaseHours:12,requestId:'renew-853',mutexAttempts:1}
+const renewalOptions={claim:1058,issue:853,owner:'codex-issue-853-orderlist',branch:'codex/issue-853-orderlist',worktree:'C:\\repos\\shared-db-worktrees\\issue-853-orderlist',pr:1060,headSha:'a'.repeat(40),leaseHours:12,requestId:'renew-853',mutexAttempts:1}
 
 test('#853-shaped expired claim renewal preserves every byte except expires_at',()=>{
   const io=renewalIo(),before=io.issue.body,result=renewExpiredClaim(renewalOptions,NOW,io)
@@ -677,6 +678,32 @@ test('claim renewal rejects uncovered PR objects, concurrent mutation, and activ
   io=renewalIo();io.issue.body=io.issue.body.replace('2026-08-14T19:00:00.000Z','2026-08-15T09:00:00.000Z');assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/active lease/)
 })
 
+test('claim renewal accepts parser-empty sequence PR only through exact issue scope',()=>{
+  const io=renewalIo();io.prSources=()=>[{label:'PR #1060',objects:[],versions:[io.version]}]
+  assert.equal(renewExpiredClaim(renewalOptions,NOW,io).idempotent,false)
+  const bad=renewalIo();bad.prSources=()=>[{label:'PR #1060',objects:[],versions:[bad.version]}];bad.workIssue.body=scope('ready','structural','shared-db-orchestrator',900,['sequence dflow.wrong_seq'])
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,bad),/issue objects do not exactly match/)
+})
+
+test('claim renewal rejects missing, closed, blocked, or wrong-route issue binding',()=>{
+  for(const mutate of [io=>io.workIssue.state='closed',io=>io.workIssue.body=scope('blocked','structural','shared-db-orchestrator',900,io.objects),io=>io.workIssue.body=scope('ready','repo-maintenance','repo-maintenance',900)]){
+    const io=renewalIo();mutate(io);assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/open ready structural/)
+  }
+  assert.throws(()=>renewExpiredClaim({...renewalOptions,issue:999},NOW,renewalIo()),/not identified by the claim title/)
+})
+
+test('claim renewal binds the requested issue number to the claim title',()=>{
+  const io=renewalIo();io.workIssue.number=764
+  assert.throws(()=>renewExpiredClaim({...renewalOptions,issue:764},NOW,io),/not identified by the claim title/)
+})
+
+test('claim renewal refuses an issue scope mutation immediately before write',()=>{
+  const io=renewalIo(),baseGet=io.getIssue;let reads=0
+  io.getIssue=(number)=>{const value=baseGet(number);if(Number(number)===853&&++reads===2)value.body=scope('blocked','structural','shared-db-orchestrator',900,io.objects);return value}
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/issue changed concurrently/)
+  assert.match(io.issue.body,/expires_at: 2026-08-14T19:00:00.000Z/)
+})
+
 test('claim renewal is idempotent for the exact already-written expiry',()=>{
   const io=renewalIo();renewExpiredClaim(renewalOptions,NOW,io);const once=io.issue.body
   const result=renewExpiredClaim(renewalOptions,NOW,io);assert.equal(result.idempotent,true);assert.equal(io.issue.body,once)
@@ -684,7 +711,7 @@ test('claim renewal is idempotent for the exact already-written expiry',()=>{
 
 test('claim renewal rolls back readback failure while mutex-owned and refuses after ownership loss',()=>{
   let io=renewalIo(),before=io.issue.body,reads=0,baseGet=io.getIssue
-  io.getIssue=()=>{const value=baseGet();if(++reads===2)value.body+='\nbad';return value}
+  io.getIssue=(number)=>{const value=baseGet(number);if(Number(number)===1058&&++reads===2)value.body+='\nbad';return value}
   assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/readback/);assert.equal(io.issue.body,before)
   io=renewalIo();before=io.issue.body;const update=io.updateIssue;io.updateIssue=(n,fields)=>{const result=update(n,fields);io.refs.set(MUTEX_REF,'successor');return result}
   assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/ROLLBACK NOT ATTEMPTED/);assert.notEqual(io.issue.body,before)
@@ -692,7 +719,7 @@ test('claim renewal rolls back readback failure while mutex-owned and refuses af
 
 test('claim renewal enforces a bounded lease and real CLI wiring',()=>{
   for(const leaseHours of [0,24.01,NaN])assert.throws(()=>renewExpiredClaim({...renewalOptions,leaseHours},NOW,renewalIo()),/no more than 24/)
-  const io=renewalIo(),args=['--renew-claim','--claim-number','1058','--owner',renewalOptions.owner,'--branch',renewalOptions.branch,'--worktree',renewalOptions.worktree,'--pr','1060','--head-sha',renewalOptions.headSha,'--lease-hours','12']
+  const io=renewalIo(),args=['--renew-claim','--claim-number','1058','--issue','853','--owner',renewalOptions.owner,'--branch',renewalOptions.branch,'--worktree',renewalOptions.worktree,'--pr','1060','--head-sha',renewalOptions.headSha,'--lease-hours','12']
   assert.equal(main(args,NOW,io),0);assert.equal(parseAuthorLease(io.issue.body,NOW).active,true)
 })
 

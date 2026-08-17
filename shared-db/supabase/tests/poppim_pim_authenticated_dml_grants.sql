@@ -45,8 +45,9 @@
 --      carrying a permissive `pm_write ALL/authenticated` policy) and cross-checked
 --      against the named 23-table array. Adding a pim table with a pm_write policy and
 --      forgetting to grant it therefore FAILS here rather than passing vacuously.
---   B  PRESENCE. On the 18 widened tables, `authenticated` holds SELECT, INSERT,
---      UPDATE and DELETE.
+--   B  PRESENCE. On all 18 widened tables, `authenticated` holds SELECT, INSERT and
+--      UPDATE. Fifteen retain DELETE; #898 deliberately revokes it from the three
+--      history-sensitive tables.
 --   C  NARROWNESS PRESERVED. The five deliberately narrow tables still hold exactly
 --      their narrower set -- `product` = SELECT+UPDATE, `stage_history` =
 --      SELECT+INSERT, `view_pref` = SELECT+INSERT+UPDATE, and `customer_ext` /
@@ -118,7 +119,8 @@ begin
 end $$;
 
 -- -------------------------------------------------------------------------------------
--- B  PRESENCE -- the 20 widened tables hold SELECT, INSERT, UPDATE, DELETE.
+-- B  PRESENCE -- all 18 widened tables hold SELECT, INSERT and UPDATE. Fifteen also
+--    hold DELETE; #898 deliberately removed DELETE from three history-sensitive tables.
 -- -------------------------------------------------------------------------------------
 do $$
 declare
@@ -128,6 +130,7 @@ declare
     'product_style_group','product_submission','product_tag','product_time_entry',
     'product_update','project','revision_request','stage'
   ];
+  delete_revoked text[] := array['product_time_entry','product_update','stage'];
   tbl text;
   missing text[] := array[]::text[];
   verb text;
@@ -145,22 +148,29 @@ begin
       raise exception 'B FAILED: pim.% does not exist in this environment', tbl;
     end if;
 
-    foreach verb in array array['SELECT','INSERT','UPDATE','DELETE'] loop
+    foreach verb in array array['SELECT','INSERT','UPDATE'] loop
       if not has_table_privilege('authenticated', format('pim.%I', tbl), verb) then
         missing := missing || (tbl || '.' || verb);
       end if;
     end loop;
+
+    if tbl = any (delete_revoked) then
+      if has_table_privilege('authenticated', format('pim.%I', tbl), 'DELETE') then
+        missing := missing || (tbl || '.UNEXPECTED_DELETE');
+      end if;
+    elsif not has_table_privilege('authenticated', format('pim.%I', tbl), 'DELETE') then
+      missing := missing || (tbl || '.DELETE');
+    end if;
   end loop;
 
   if array_length(missing, 1) is not null then
     raise exception
-      'B FAILED: authenticated is missing % privilege(s) that the pm_write policy '
-      'already authorises: %. This is the #866 defect -- the policy is inert without '
-      'the grant.',
+      'B FAILED: authenticated privilege contract has % problem(s): %. #866 widened '
+      'the 18 tables; #898 deliberately removed DELETE from three history tables.',
       array_length(missing, 1), array_to_string(missing, ', ');
   end if;
 
-  raise notice 'B OK: authenticated holds SELECT+INSERT+UPDATE+DELETE on all 18 widened tables';
+  raise notice 'B OK: authenticated holds S+I+U on 18 widened tables; DELETE is absent only from the 3 #898 history tables';
 end $$;
 
 -- -------------------------------------------------------------------------------------
