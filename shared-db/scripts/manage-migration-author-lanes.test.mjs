@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 const NOW = new Date('2026-08-14T20:00:00Z')
 const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody({ version:`2026081420${owner.padStart(4,'0')}`, objects, owner:`agent-${owner}`, branch:`codex/${owner}`, worktree:`C:/w/${owner}`, expiresAt:new Date(expires) })
@@ -731,3 +731,58 @@ test('active claim reversion rolls back an applied-then-failed issue update',()=
   assert.equal(io.issue.body,original)
   assert.deepEqual(rewrites,[[io.old,io.fresh],[io.fresh,io.old]])
 })
+
+function withReversionRepo(files,run){
+  const repo=mkdtempSync(path.join(tmpdir(),'db-lane-reversion-'))
+  try{
+    for(const [relative,contents] of Object.entries(files)){
+      const absolute=path.join(repo,relative);mkdirSync(path.dirname(absolute),{recursive:true});writeFileSync(absolute,contents)
+    }
+    const initialized=spawnSync('git',['init','--quiet',repo],{encoding:'utf8'});assert.equal(initialized.status,0,initialized.stderr)
+    const added=spawnSync('git',['-C',repo,'add','--all'],{encoding:'utf8'});assert.equal(added.status,0,added.stderr)
+    return run(repo)
+  }finally{rmSync(repo,{recursive:true,force:true})}
+}
+
+test('REAL GIT: version rewrite discovers a migration whose version exists only in its filename and reverses it',()=>withReversionRepo({
+  'supabase/migrations/20260816044638_repair.sql':'select nextval(regclass);\n',
+  'docs/reversion.md':'reserved version 20260816044638\n',
+},(repo)=>{
+  const old='20260816044638',fresh='20260816120000',oldFile=path.join(repo,'supabase/migrations',`${old}_repair.sql`),newFile=path.join(repo,'supabase/migrations',`${fresh}_repair.sql`)
+  githubIo.rewriteVersion(repo,old,fresh)
+  assert.equal(existsSync(oldFile),false);assert.equal(existsSync(newFile),true);assert.equal(readFileSync(newFile,'utf8'),'select nextval(regclass);\n');assert.equal(readFileSync(path.join(repo,'docs/reversion.md'),'utf8'),`reserved version ${fresh}\n`)
+  githubIo.rewriteVersion(repo,fresh,old)
+  assert.equal(existsSync(oldFile),true);assert.equal(existsSync(newFile),false);assert.equal(readFileSync(path.join(repo,'docs/reversion.md'),'utf8'),`reserved version ${old}\n`)
+}))
+
+test('REAL GIT: version rewrite fails closed on missing, duplicate, and malformed migration filenames',()=>{
+  const old='20260816044638',fresh='20260816120000'
+  for(const files of [
+    {'docs/reversion.md':`reserved version ${old}\n`},
+    {[`supabase/migrations/${old}_a.sql`]:'select 1;\n',[`supabase/migrations/${old}_b.sql`]:'select 2;\n'},
+    {[`supabase/migrations/${old}.sql`]:'select 1;\n','docs/reversion.md':`reserved version ${old}\n`},
+  ])withReversionRepo(files,(repo)=>{
+    const before=new Map(Object.keys(files).map((relative)=>[relative,readFileSync(path.join(repo,relative),'utf8')]))
+    assert.throws(()=>githubIo.rewriteVersion(repo,old,fresh),/exactly one/)
+    for(const [relative,contents] of before)assert.equal(readFileSync(path.join(repo,relative),'utf8'),contents)
+  })
+})
+
+test('REAL GIT: version rewrite refuses an existing target filename without editing either migration',()=>withReversionRepo({
+  'supabase/migrations/20260816044638_repair.sql':'-- version 20260816044638\nselect 1;\n',
+  'supabase/migrations/20260816120000_repair.sql':'select 2;\n',
+},(repo)=>{
+  const old='20260816044638',fresh='20260816120000',oldFile=path.join(repo,'supabase/migrations',`${old}_repair.sql`),newFile=path.join(repo,'supabase/migrations',`${fresh}_repair.sql`)
+  assert.throws(()=>githubIo.rewriteVersion(repo,old,fresh),/target filename already exists/)
+  assert.equal(readFileSync(oldFile,'utf8'),`-- version ${old}\nselect 1;\n`);assert.equal(readFileSync(newFile,'utf8'),'select 2;\n')
+}))
+
+test('REAL GIT: failed migration rename restores all content edits before returning',()=>withReversionRepo({
+  'supabase/migrations/20260816044638_repair.sql':'-- version 20260816044638\nselect 1;\n',
+  'docs/reversion.md':'reserved version 20260816044638\n',
+},(repo)=>{
+  const io={...githubIo,renameVersionFile(){throw new Error('injected rename failure')}},old='20260816044638',fresh='20260816120000',oldFile=path.join(repo,'supabase/migrations',`${old}_repair.sql`)
+  assert.throws(()=>io.rewriteVersion(repo,old,fresh),/injected rename failure/)
+  assert.equal(existsSync(oldFile),true);assert.equal(existsSync(path.join(repo,'supabase/migrations',`${fresh}_repair.sql`)),false)
+  assert.equal(readFileSync(oldFile,'utf8'),`-- version ${old}\nselect 1;\n`);assert.equal(readFileSync(path.join(repo,'docs/reversion.md'),'utf8'),`reserved version ${old}\n`)
+}))

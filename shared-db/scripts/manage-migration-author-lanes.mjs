@@ -2,7 +2,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-dispatch-collision.mjs'
@@ -259,16 +259,31 @@ export const githubIo = {
   createClaim(title, body) { return gh(['issue', 'create', '--repo', REPO, '--label', 'db-claim', '--title', `CLAIM: ${title}`, '--body', body]).trim() },
   closeClaim(number) { gh(['issue', 'close', String(number), '--repo', REPO, '--comment', 'Expired migration-author lease closed by guarded cleanup. Its migration version remains unavailable.']) },
   reversionFiles(worktree,oldVersion) {
-    const rows=execFileSync('git',['-C',worktree,'grep','-l',oldVersion,'--','supabase/migrations','supabase/tests','docs'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)
-    return rows.map((file)=>path.join(worktree,file))
+    let referenced=[]
+    try{referenced=execFileSync('git',['-C',worktree,'grep','-l',oldVersion,'--','supabase/migrations','supabase/tests','docs'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)}
+    catch(error){if(error.status!==1)throw error}
+    const migrations=execFileSync('git',['-C',worktree,'ls-files','--cached','--others','--exclude-standard','--',`supabase/migrations/${oldVersion}_*.sql`],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)
+    return [...new Set([...referenced,...migrations].map((file)=>path.normalize(file)))].map((file)=>path.resolve(worktree,file))
   },
   rewriteVersion(worktree,oldVersion,newVersion) {
-    const files=this.reversionFiles(worktree,oldVersion),migration=files.filter((file)=>new RegExp(`[\\/]${oldVersion}_[^\\/]+\\.sql$`).test(file))
+    const files=this.reversionFiles(worktree,oldVersion),migration=files.filter((file)=>new RegExp(`^${oldVersion}_[^\\/]+\\.sql$`).test(path.basename(file)))
     if(migration.length!==1)throw new LaneError('local worktree must contain exactly one old-version migration file')
     const exactVersion=new RegExp(`(?<!\\d)${oldVersion}(?!\\d)`,'g')
-    for(const file of files)writeFileSync(file,readFileSync(file,'utf8').replace(exactVersion,newVersion))
-    const renamed=migration[0].replace(oldVersion,newVersion);renameSync(migration[0],renamed)
-    return {files,migration:migration[0],renamed}
+    const renamed=path.join(path.dirname(migration[0]),path.basename(migration[0]).replace(new RegExp(`^${oldVersion}_`),`${newVersion}_`))
+    if(existsSync(renamed))throw new LaneError('refusing migration version rewrite because the target filename already exists')
+    const originals=new Map(files.map((file)=>[file,readFileSync(file,'utf8')]))
+    let renamedApplied=false
+    try{
+      for(const [file,contents] of originals)writeFileSync(file,contents.replace(exactVersion,newVersion))
+      ;(this.renameVersionFile??renameSync)(migration[0],renamed);renamedApplied=true
+      return {files,migration:migration[0],renamed}
+    }catch(error){
+      const failures=[]
+      if(renamedApplied||(!existsSync(migration[0])&&existsSync(renamed)))try{renameSync(renamed,migration[0])}catch(rollbackError){failures.push(rollbackError.message)}
+      for(const [file,contents] of originals)try{writeFileSync(file,contents)}catch(rollbackError){failures.push(rollbackError.message)}
+      if(failures.length)throw new LaneError(`${error.message}; LOCAL ROLLBACK INCOMPLETE: ${failures.join('; ')}`)
+      throw error
+    }
   },
   commitAndPushReversion(worktree,oldVersion,newVersion) {
     execFileSync('git',['-C',worktree,'add','--all','--','supabase/migrations','supabase/tests','docs'])
