@@ -1387,7 +1387,9 @@ traps that will silently corrupt a load if you skip it:
 **What the ERP data MEANS** (as opposed to its shape) lives in
 [`docs/business-rules-erp-data.md`](docs/business-rules-erp-data.md) — a new file, because this
 repo documented shape thoroughly and meaning not at all, and a session already inferred a business
-rule wrongly from field populations. First entry, an owner ruling: a `prodReferenceNo` ending
+rule wrongly from field populations. **That file holds business meaning ONLY** — no
+implementation advice, no build notes; those belong on the workstream's GitHub issue. First entry,
+an owner ruling: a `prodReferenceNo` ending
 **`COS`** marks **sample production** — extra pieces of a customer's item made for the licensor
 (contractual samples) or for POP Creations itself (DAVID samples). They carry real cost with no
 customer revenue, so classify them separately; `salesOrderNo = 0` on them is correct, not missing
