@@ -46,6 +46,11 @@ When using any other AI tool, paste this file as your first message and follow t
 
 ## Documentation map: what to read for each task
 
+Business logic is companywide and organized by topic, not by application. Start at
+[companywide application and task map](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/application-map.md)
+and load only the topics the task touches. This repo documents DAM implementation; it must
+not maintain a competing copy of a business rule.
+
 Always start with:
 
 - `AGENTS.md` (this file)
@@ -525,12 +530,12 @@ Use this exact shape for every new quirk:
 **Actually:** Only PDFs whose filename contains `licensing sheet`/`license sheet`/`tech pack`/`techpack` write `sku_files_used` (gate `is_style_guide_source_pdf()`, migration `20260610070731`). Resolution against the 214k-row `style_guide_files` is trigram-fuzzy (`resolve_sku_files_used_fuzzy`, nightly cron `resolve-sku-files-used-nightly` 04:00 UTC) and **quarantine-model — never auto-deletes/unlinks**. Full detail: `docs/POPSG.md` → "Style Guide Sources"; quirks #46–#48.
 **Do not change because:** Do NOT bulk-delete unresolved `sku_files_used` rows that look like filenames — PopSG is not a comprehensive ground truth (a stale crawl can mark real files inactive; see quirk #46), so "no match" ≠ "garbage." Only categorical non-filenames (style-guide titles, a SKU used as its own filename) are safe to delete. Files-used live in PopSG `style_guide_files`, **not** PopDAM `assets` — don't reconcile against `assets`.
 
-### Master Data style tracker is temporary; PLM APIs are canonical for customers/licensors/properties
+### Master Data style tracker is temporary; companywide business rules own source authority
 
 **Looks like:** `master.designflow.app/styles` can fuzzy-match customer-looking strings and treat those as canonical customers.
-**Actually:** the Master Data style tracker is a temporary Google Sheet replica. The user clarified on 2026-06-24 that canonical licensors/properties/customers come from read-only PLM APIs, whose credential is stored in 1Password item `DesignFlow PLM Canonical Master Data API`. Canonical customers now live in `core.customer`; confirmed PLM-backed customers have `is_potential = false` and a `designflow_plm` row in `core.company_source_ref`. Email/domain noise belongs only in `crm.ingested_domain` and must never create, promote into, source-ref, FK to, or otherwise associate with customers.
-**Why:** PLM is the source of truth for this business data, but PLM is not yet fully transferred into the shared Supabase project. The tracker needs a bridge now without polluting or over-trusting shared tables.
-**Do not change because:** do not write new values into shared canonical tables from the tracker, do not use `api.customer_list`, and do not assume customer candidates are correct unless reconciled to PLM. Use `docs/MASTER_DATA.md` for the app/data-flow details.
+**Actually:** the Master Data style tracker is a temporary Google Sheet replica. Customer identity follows `shared-db/docs/shared-database-vision.md`. Licensor, Property, Character, Style Guide, Franchise, licensed-Asset, and licensing source authority follow `shared-db/docs/core-master-data-consolidation-aim.md`: authorized licensor sources own official names, ownership, and direct relationships; ColdLion controls Property Active/Inactive only; the stale DesignFlow pull has no authority. Email/domain noise belongs only in `crm.ingested_domain` and must never create, promote into, source-ref, FK to, or otherwise associate with customers.
+**Why:** the tracker is a working surface over companywide Master Data, not an independent source of business truth.
+**Do not change because:** do not write new canonical values from unreviewed tracker text, and do not restore the superseded rule that PLM APIs arbitrate licensing truth. Start at the [companywide application and task map](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/application-map.md); use `docs/MASTER_DATA.md` only for DAM implementation details.
 
 ### Sibling file scans need a 10-minute lease/expiry
 

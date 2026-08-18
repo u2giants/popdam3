@@ -69,6 +69,10 @@ popdam3/
 
 ## Documentation
 
+Companywide business rules are indexed by topic in
+[companywide application and task map](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/application-map.md).
+Use its PopDAM/PopSG row or task map to load only the relevant rules.
+
 | Doc | What it covers |
 |-----|----------------|
 | [AGENTS.md](AGENTS.md) | **Start here.** Full developer guide: project summary, repo structure, task navigation, identifiers, deployment, quirks. |
@@ -94,7 +98,7 @@ popdam3/
 
 ## Critical rules
 
-1. **Never change file timestamps.** Before any operation touching a file, record mtime + birthtime. After the operation, verify and restore. See [docs/PROJECT_BIBLE.md](docs/PROJECT_BIBLE.md).
+1. **Never change file timestamps.** The companywide rule is [Digital assets and file integrity](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-assets-and-file-integrity.md). PopDAM implementation details are in [docs/PROJECT_BIBLE.md](docs/PROJECT_BIBLE.md).
 
 2. **Canonical path format in the DB:** POSIX style, no leading slash, no trailing slash. See [docs/PATH_UTILS.md](docs/PATH_UTILS.md).
 

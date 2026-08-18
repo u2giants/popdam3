@@ -18,6 +18,8 @@ touching huge PSD/AI files and producing thumbnails near the storage.
 
 ---
 ## Golden Rule: Timestamp Preservation (Stop-The-World)
+Companywide business authority: [Digital assets and file integrity](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-assets-and-file-integrity.md). This section defines the Bridge Agent's implementation.
+
 The Bridge Agent must never leave a file with modified timestamps due to processing.
 
 ### Required behavior
@@ -257,12 +259,4 @@ All results are sent to the edge function in a single call to `bulk_insert_pdf_t
 ---
 
 ## 9) Golden Rule: File Date Preservation (Non-Negotiable)
-**The Bridge Agent must NEVER modify the created or modified date of any source file.**
-
-Before any file operation (read for hashing, read for thumbnailing):
-1. `stat()` the file and record `mtime` + `birthtime`.
-2. After the operation, `stat()` again.
-3. If timestamps changed, immediately restore them via `utimes()`.
-4. If restoration fails: **STOP processing**, report a critical error to the cloud API, and refuse to process further files until an admin resolves the issue.
-
-This is a hard stop — not a warning. File dates are sacred for licensor compliance and version tracking.
+This section previously repeated the Golden Rule. Follow the companywide authority and the Bridge Agent implementation at the top of this document.

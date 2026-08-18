@@ -132,18 +132,24 @@ Plain English:
 
 After approving/dismissing a value, the UI removes it immediately from the dropdown and future refreshes exclude rows whose `match_notes.manual_resolution.field_key` matches that field.
 
-## Canonical Source Decision
+## Source authority
 
-As of 2026-06-24, the user clarified that PLM APIs are canonical for:
+This document describes how the DAM screen implements Master Data. It does not own a
+separate business rule for source authority.
 
-- licensors
-- properties
-- customers
+- Customer identity follows
+  [`shared-db/docs/shared-database-vision.md`](../shared-db/docs/shared-database-vision.md).
+- Licensor, Property, Character, Style Guide, Franchise, licensed-Asset, and licensing
+  source authority follow
+  [`shared-db/docs/core-master-data-consolidation-aim.md`](../shared-db/docs/core-master-data-consolidation-aim.md).
+- The 2026-06-24 statement that PLM APIs are canonical for Licensors and Properties is
+  **Historical**. The settled 2026-08-16 rule says authorized licensor sources own official
+  names, ownership, and direct relationships; ColdLion controls Property Active/Inactive
+  only; the stale DesignFlow pull has no authority.
 
-Do not treat arbitrary customer-looking strings as canonical Master Data customer
-matches without PLM reconciliation. Canonical customers now live in
-`core.customer`; confirmed PLM-backed customers have a `designflow_plm` source
-ref in `core.company_source_ref` and `is_potential = false`.
+Do not treat arbitrary customer-looking strings as canonical Customer matches. Canonical
+Customers live in `core.customer`; confirmed ERP-backed Customers have the appropriate
+source reference and `is_potential = false`.
 
 1Password item:
 

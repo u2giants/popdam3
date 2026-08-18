@@ -282,4 +282,4 @@ Start, stop, queue, or update a bulk operation. Returns HTTP 409 if a conflictin
 
 ## 4) File Date Preservation Rule
 
-All timestamps reported by the agent (`modified_at`, `file_created_at`) must be the original filesystem values. The agent must never cause these to change on disk. If a file operation inadvertently modifies timestamps, the agent must restore them and report a critical error if restoration fails. See `docs/PROJECT_BIBLE.md`.
+The companywide business rule is [Digital assets and file integrity](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-assets-and-file-integrity.md). This API reports the original filesystem values in `modified_at` and `file_created_at`; PopDAM enforcement and failure behavior are defined in `docs/PROJECT_BIBLE.md`.

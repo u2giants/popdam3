@@ -643,4 +643,4 @@ Audit Logs: Add last_scanned_at to the assets table to track which files are sti
 ---
 
 ## 7) Golden Rule: File Date Preservation
-`modified_at` and `file_created_at` are filesystem-sourced timestamps. The DAM must NEVER cause these to change on the source file. The Bridge Agent must record original timestamps before touching a file and restore them after. If restoration fails, processing must halt. See PROJECT_BIBLE.md §15 for full details.
+`modified_at` and `file_created_at` hold original filesystem timestamps. Business authority: [Digital assets and file integrity](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-assets-and-file-integrity.md). PopDAM enforcement is defined at the top of `PROJECT_BIBLE.md`.

@@ -248,4 +248,4 @@ Three separate edge-function surfaces, never mixed:
 
 ## Golden Rule: file-date preservation
 
-The Bridge Agent must **never** modify file timestamps (mtime/birthtime) on source art. The NAS volume mount should be `:ro` (read-only) wherever possible. Full rule: `docs/PROJECT_BIBLE.md` §15.
+Business authority: [Digital assets and file integrity](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-assets-and-file-integrity.md). PopDAM enforces it through the Bridge Agent and a read-only NAS mount wherever possible; implementation details are in `docs/PROJECT_BIBLE.md`.

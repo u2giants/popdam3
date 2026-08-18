@@ -1,5 +1,11 @@
 # PopSG File Tags — Detailed Implementation Plan
 
+> **Business authority moved 2026-08-18:** Companywide rules for tag authority,
+> provenance, canonicalization, rejection, search, and AI evidence live in
+> [Digital-asset classification, tags, and source evidence](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-asset-classification-and-tags.md).
+> This file is an implementation proposal and evidence record. Its unapproved vocabulary,
+> thresholds, permissions, and rollout choices remain Proposed.
+
 **Status:** Proposed implementation plan
 
 **Application:** PopSG (`https://sg.designflow.app`)

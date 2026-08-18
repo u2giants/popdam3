@@ -134,4 +134,4 @@ Normalization: Always strip trailing slashes from both the prefix and the relati
 ---
 
 ## 8) Golden Rule: File Date Preservation
-When any component reads a file (for path resolution, hashing, or thumbnailing), it must not alter the file's `mtime` or `birthtime`. The Bridge Agent must record and restore timestamps around any file access. See PROJECT_BIBLE.md §15.
+The companywide business rule is [Digital assets and file integrity](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-assets-and-file-integrity.md). This module must preserve `mtime` and `birthtime`; see `PROJECT_BIBLE.md` for PopDAM implementation details.

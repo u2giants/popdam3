@@ -1,5 +1,9 @@
 # fix: PopSG licensor/property tagging — handoff
 
+> **Historical implementation record:** Current business authority is
+> [Digital-asset classification, tags, and source evidence](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-asset-classification-and-tags.md)
+> plus [Licensing Master Data](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/licensing-master-data.md).
+
 _Written 2026-07-24. Owner of this workstream: the AI session that fixed PopSG
 deterministic licensor/property tag matching. This handoff is self-contained for a
 developer with ZERO prior context. Delete it only when the "Remaining work" items

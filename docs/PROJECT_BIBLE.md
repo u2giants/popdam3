@@ -5,6 +5,8 @@ If anything conflicts with this file, **this file wins**.
 
 ---
 ## Golden Rule: Never Change File Timestamps (Hard Stop)
+Companywide business authority: [Digital assets and file integrity](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/digital-assets-and-file-integrity.md). This section defines PopDAM's implementation.
+
 PopDAM must **never** permanently change a file’s timestamps (created/modified).  
 Before **any** operation that touches a file (thumbnail extraction, metadata read/write, sidecar creation, etc.), the worker must record the file’s original timestamps (mtime + birthtime/ctime where available). After the operation, the worker must verify timestamps are unchanged and, if the OS altered them, **restore them to the original values**.
 
@@ -237,15 +239,4 @@ When implementing changes:
 ---
 
 ## 15) Golden Rule: File Date Preservation (Non-Negotiable)
-**This DAM must NEVER modify the created or modified date of any source file on the NAS.**
-
-The Bridge Agent operates in **read-only** mode against source art. If any operation (thumbnail generation, hashing, scanning) causes the OS to update a file's `mtime` or `birthtime`:
-
-1. **Record the original timestamps** (via `stat()`) **before** touching the file.
-2. **Restore the original timestamps** (via `utimes()`) **immediately after**.
-3. If restoration fails:
-   - **STOP all processing** (do not continue to the next file).
-   - Report a **critical error** to the cloud API with details: which file, what the timestamps were before/after, and why restoration failed.
-   - The agent must remain stopped until an admin acknowledges/resolves the issue.
-
-This rule exists because design teams rely on file dates for version tracking, audit trails, and licensor compliance. A DAM that silently alters file dates is worse than no DAM at all.
+This section previously repeated the Golden Rule. The companywide authority and PopDAM implementation are linked at the top of this document; that rule applies here without a second copy.
