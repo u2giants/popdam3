@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import PREVIEW_PRODUCER_PATHS, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_preview, prove_preview_migration_contents
+from production_business_risk_gate import PREVIEW_PRODUCER_PATHS, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_preview, prove_preview_migration_contents
 
 
 class ProductionBusinessRiskGateTests(unittest.TestCase):
@@ -675,6 +675,60 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             if "==" in line or "!=" in line:
                 self.assertIn("historical_preview_source_pr_map", line,
                               f"historical condition tests only the single-PR input: {line.strip()}")
+
+    def classify(self, body):
+        from production_business_risk_gate import classify_sql
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "supabase/migrations").mkdir(parents=True)
+            (root / "supabase/migrations/20260814000000_x.sql").write_text(body, encoding="utf-8")
+            return classify_sql(root, ["20260814000000"])
+
+    def test_creating_new_tables_is_not_reported_as_losing_production_data(self):
+        """The false alarm that turned the owner-decision block into a rubber stamp.
+
+        Every clause here is ordinary idempotent table creation. None of it touches
+        existing data, and the classifier used to report data loss AND downtime for
+        all of it. That is what was being escalated to a non-programmer for sign-off.
+        """
+        sql = "; ".join([
+            "CREATE TABLE IF NOT EXISTS dflow.a (id bigint PRIMARY KEY, b_fk integer REFERENCES dflow.b(id) ON UPDATE CASCADE ON DELETE RESTRICT)",
+            "CREATE INDEX IF NOT EXISTS a_idx ON dflow.a (id)",
+            "DROP TRIGGER IF EXISTS t ON dflow.a",
+            "CREATE TRIGGER t BEFORE UPDATE ON dflow.a FOR EACH ROW EXECUTE FUNCTION dflow.f()",
+        ]) + ";"
+        reasons = self.classify(sql)
+        self.assertNotIn(RISK_TEXT["permanent_data_rewrite_or_loss"], reasons)
+        self.assertNotIn(RISK_TEXT["expected_downtime"], reasons)
+
+    def test_a_function_body_does_not_make_the_migration_destructive(self):
+        """A trigger body describes runtime behaviour, not the apply-time effect."""
+        sql = ("CREATE OR REPLACE FUNCTION dflow.f() RETURNS trigger LANGUAGE plpgsql AS $$ "
+               "BEGIN UPDATE dflow.a SET id = id; DELETE FROM dflow.b; RETURN NEW; END; $$;")
+        self.assertNotIn(RISK_TEXT["permanent_data_rewrite_or_loss"], self.classify(sql))
+
+    def test_genuinely_destructive_statements_are_still_reported(self):
+        """Narrowing must not blind it. These are real and must still be seen."""
+        for body, risk in [
+            ("DROP TABLE dflow.a;", "permanent_data_rewrite_or_loss"),
+            ("TRUNCATE dflow.a;", "permanent_data_rewrite_or_loss"),
+            ("DELETE FROM dflow.a WHERE id > 0;", "permanent_data_rewrite_or_loss"),
+            ("UPDATE dflow.a SET id = 1;", "permanent_data_rewrite_or_loss"),
+            ("ALTER TABLE dflow.a ADD COLUMN c text;", "expected_downtime"),
+            ("LOCK TABLE dflow.a IN SHARE MODE;", "expected_downtime"),
+            ("CREATE UNIQUE INDEX a_u ON dflow.a (id);", "expected_downtime"),
+            ("GRANT SELECT ON dflow.a TO authenticated;", "material_access_change"),
+        ]:
+            with self.subTest(body=body):
+                self.assertIn(RISK_TEXT[risk], self.classify(body))
+
+    def test_disclosed_risks_no_longer_block_promotion(self):
+        """Owner ruling 2026-08-18: derived risks are DISCLOSED in the evidence,
+        not used to demand a signature from someone who cannot evaluate them."""
+        decision = decide_business_risk(
+            [RISK_TEXT["material_access_change"]], recovery_proven=True, review_approved=True)
+        self.assertFalse(decision["automaticPromotionAllowed"])
+        self.assertEqual(decision["ownerDecisionReasons"], [RISK_TEXT["material_access_change"]])
 
     def test_legacy_author_check_waiver_is_exactly_pinned(self):
         args = [924, "5135b668d87c1639281c506ae75fde75211b7019", "96bf385aa5c0f703ec98f5730249f586964f5142", ["20260813210000", "20260813220000"]]

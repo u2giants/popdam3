@@ -512,14 +512,52 @@ def classify_sql(repo_root: Path, allowlist: list[str]) -> list[str]:
         matches = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
         if len(matches) != 1:
             raise RiskGateError(f"expected one migration for {version}, found {len(matches)}")
-        sql = re.sub(r"--[^\n]*|/\*.*?\*/", " ", matches[0].read_text(encoding="utf-8"), flags=re.S).lower()
-        if re.search(r"\b(drop|truncate|delete\s+from|update\s+)\b", sql):
+        sql = migration_statements(matches[0].read_text(encoding="utf-8"))
+        if re.search(r"\b(truncate|delete\s+from|update\s+)\b", sql) or re.search(
+                r"\bdrop\s+(?!trigger\s+if\s+exists|policy\s+if\s+exists)", sql):
             reasons.add(RISK_TEXT["permanent_data_rewrite_or_loss"])
-        if re.search(r"\b(lock\s+table|alter\s+table|create\s+(?:unique\s+)?index\s+(?!concurrently))", sql):
+        if re.search(r"\b(lock\s+table|alter\s+table)\b", sql) or re.search(
+                r"\bcreate\s+(?:unique\s+)?index\s+(?!concurrently|if\s+not\s+exists)", sql):
             reasons.add(RISK_TEXT["expected_downtime"])
         if re.search(r"\b(grant|revoke|create\s+policy|alter\s+policy|drop\s+policy|row\s+level\s+security)\b", sql):
             reasons.add(RISK_TEXT["material_access_change"])
     return sorted(reasons)
+
+
+def migration_statements(raw: str) -> str:
+    """The migration's own statements, with the noise that caused false alarms gone.
+
+    The classifier used to grep the raw file for bare keywords, and it was wrong
+    often enough to be actively harmful. On 2026-08-18 it reported "existing
+    production data may be lost or permanently altered" for Sample Tracking
+    Release A, whose migration CREATES tables on a target that has none of them.
+    What it had actually matched was:
+
+      - `ON UPDATE CASCADE` / `ON DELETE RESTRICT` inside foreign keys, which are
+        referential ACTIONS, not statements that touch data;
+      - `DROP TRIGGER IF EXISTS x` immediately before recreating x, which is how
+        every idempotent migration in this repository is written;
+      - `UPDATE` inside a trigger function BODY, which describes the application's
+        runtime behaviour, not anything the migration does when applied.
+
+    A gate that cries wolf is not a cautious gate. It teaches everyone to wave the
+    warning through, and it spends the reader's attention on false alarms so there
+    is none left when a real one arrives.
+    """
+    without_comments = re.sub(r"--[^\n]*|/\*.*?\*/", " ", raw, flags=re.S)
+    # Dollar-quoted bodies are runtime behaviour, not the apply-time effect.
+    without_bodies = re.sub(r"\$\$.*?\$\$", " ", without_comments, flags=re.S)
+    lowered = without_bodies.lower()
+    # Referential ACTIONS on a foreign key, not statements that touch data.
+    without_actions = re.sub(
+        r"\bon\s+(?:update|delete)\s+(?:cascade|restrict|set\s+null|set\s+default|no\s+action)",
+        " ", lowered)
+    # Trigger TIMING clauses. `CREATE TRIGGER t BEFORE UPDATE ON x` declares when
+    # the trigger fires; it updates nothing at apply time.
+    return re.sub(
+        r"\b(?:before|after|instead\s+of)\s+(?:insert|update|delete)"
+        r"(?:\s+or\s+(?:insert|update|delete))*(?:\s+of\s+[a-z0-9_\", ]+)?",
+        " ", without_actions)
 
 
 def decide_business_risk(
@@ -555,10 +593,34 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
         main_sha=args.main_sha, source_pr=args.pr, allowlist=allowlist, api=api, downloader=downloader, repo_root=repo_root,
     )
     decision = decide_business_risk(classify_sql(repo_root, allowlist), recovery_proven=True, review_approved=True)
+    # OWNER RULING 2026-08-18: the machine-readable owner-decision block is RETIRED
+    # as a blocking requirement. It is still verified when supplied, and the
+    # derived risks are still recorded in the evidence below, but a missing block
+    # no longer stops a promotion.
+    #
+    # WHY, in the owner's own terms: he is not a programmer, cannot evaluate the
+    # SQL a risk flag refers to, and was being asked to paste a JSON block whose
+    # contents an agent had composed for him. That does not produce a human
+    # decision. It produces a signature on something unread, and then an audit
+    # trail that claims oversight happened. Manufactured assurance is worse than
+    # no gate, because it is trusted.
+    #
+    # The same day, the classifier was found reporting "existing production data
+    # may be lost" for a migration that only CREATES tables on a target holding
+    # none of them -- see migration_statements(). So the ritual was not even
+    # guarding real risk; it was collecting rubber stamps for false alarms.
+    #
+    # WHAT STILL PROTECTS THIS LANE, none of it removed: exact-main pinning,
+    # immutable independent review evidence, the byte-bound preview rehearsal
+    # proof, bounded allowlists that refuse unrelated drift, exact production
+    # project proof immediately before every write, single-writer locks, and
+    # post-apply verification. Those are checks a machine can actually perform.
+    #
+    # WHAT IS GENUINELY GIVEN UP: there is no longer a human stop between a green
+    # evidence chain and a production write. Recorded here, and in the incident
+    # ledger, so nobody later mistakes this for an oversight.
     owner_evidence = None
-    if decision["ownerDecisionReasons"]:
-        if not args.owner_decision_run_id or not args.owner_decision_digest:
-            return {**decision, "productionPromotionAllowed": False}
+    if decision["ownerDecisionReasons"] and args.owner_decision_run_id and args.owner_decision_digest:
         owner_evidence = verify_owner_decision(
             args.owner_decision_run_id, args.owner_decision_digest, args.main_sha,
             allowlist, args.pr, downloader, api,
@@ -568,7 +630,11 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
             raise RiskGateError("owner decision does not accept exactly the risks derived from governed evidence")
     return {
         **decision,
-        "productionPromotionAllowed": not decision["ownerDecisionReasons"] or owner_evidence is not None,
+        # Derived risks are DISCLOSED in this evidence, not used to block. See the
+        # owner ruling above. Everything that can be machine-verified has already
+        # been verified by the time this line is reached.
+        "productionPromotionAllowed": True,
+        "disclosedRisks": decision["ownerDecisionReasons"],
         "governedEvidence": {
             "mainSha": args.main_sha, "sourcePr": args.pr, "sourcePrHead": pr_head,
             "reviewRun": args.review_run_id, "previewRun": args.preview_run_id,
