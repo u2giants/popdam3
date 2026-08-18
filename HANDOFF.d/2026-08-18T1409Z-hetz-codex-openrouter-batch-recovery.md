@@ -30,7 +30,7 @@ Write a zero-context plan to make OpenRouter Batch API tagging restart-safe and 
 - Planning baseline after fetch: `origin/main` `bbfaeee7` on 2026-08-18; fetch again.
 - Issue [#92](https://github.com/u2giants/popdam3/issues/92) tracks work.
 - Implementation not started; all plan rows open.
-- Plan/handoff will be committed after Grok review/self-audit; final SHA must be added before close.
+- Plan, docs, and this handoff were committed and pushed to `main` in `03cbf71c`. No application code changed, so no runtime deployment was required. Issue #92 remains open because implementation has not started.
 - Grok 4.6 session `openrouter-batch-recovery-plan` cost $0.54548818 across three reviews. The first two reviews found and closed material gaps, including blind UI/API writers. Final verdict: **SAFE FOR ZERO-CONTEXT IMPLEMENTATION**.
 
 ## 4. Everything we tried that did NOT work
@@ -72,6 +72,18 @@ No documented provider idempotency/search; compact JSON size must be measured; s
 
 ## Handoff self-audit
 
-Street-new continuation: **Yes**, §§1-3 and plan provide system/goal/state. Equal effectiveness: **Yes**, §§4-6 preserve failures/findings/actions. Failed work: **Yes**, §4. Concrete verified next steps: **Yes**, §6. Defined terms/IDs/access: **Yes**, §§1,3,5,8. §0 sweep: **Yes**, every conditional owner ruling is promoted there.
+1. **Could a street-new developer continue without asking a question? Yes.** §§1-3 define the product, trigger, repositories, deployed baseline, planning SHA, issue, and unfinished state; §6 and the linked plan give the exact execution order.
+2. **Could they continue as effectively as this session can? Yes.** §§4-5 preserve both earlier failed fixes, the memory-only root cause, Grok's findings, the lease protocol, writer risks, cursor/counter traps, and provider limits.
+3. **Are failed attempts and reasons included? Yes.** §4 names exact variant lookup, normal chat submission, the remaining long in-memory poll, and the rejected replacements, with the linked plan §7 carrying full reasoning.
+4. **Is every next step concrete and verifiable? Yes.** §6 contains seven ordered steps with a “you'll know it worked when” gate; the plan §§9-10 specify files, behavior, and tests.
+5. **Are terms, identifiers, paths, URLs, and SHAs defined? Yes.** §§1,3,5,8 identify both repositories, Supabase, Railway, OpenRouter state, issue #92, commits, commands, and secret location without values.
+6. **Was the §0 owner-decision sweep run? Yes.** Re-reading §§1-9 found no sentence requiring Albert's approval or judgment. Implementation is already authorized; provider uncertainty has a fail-closed rule rather than an owner choice. §0 therefore correctly says none and records settled decisions not to re-ask.
 
-Final synthesis: (1) comprehensive for a newcomer: **Yes**, §§1-9 plus plan; (2) all current knowledge: **Yes**, §§3-6; (3) every goal/state/failure/decision/risk/action/evidence: **Yes**, handoff plus plan's 13 sections; (4) Albert sees every decision in §0: **Yes**, line-by-line sweep found none current and promotes the conditional future ruling. **Handoff self-audit passed.**
+Final synthesis:
+
+1. **Is this comprehensive enough for a brand-new developer? Yes.** §§1-9 plus the reciprocal plan contain the full background, current state, implementation sequence, and proof gates.
+2. **Can they continue as well as this session can now? Yes.** §§3-6 preserve all verified evidence and all three Grok review rounds, including the non-obvious blind writers and rollback danger.
+3. **Is every relevant detail present for flawless execution? Yes.** Goals, intended outcome, state, failures, locked decisions, constraints, risks, exact actions, tests, commit, issue, and verification evidence are split deliberately between this handoff and the linked 13-section plan.
+4. **Would Albert see every needed decision by reading only §0? Yes.** A line-by-line sweep of §§1-9 found zero current decisions for him; all implementation choices are settled and issue #92 is open for execution evidence, not approval.
+
+**Handoff self-audit passed.**
