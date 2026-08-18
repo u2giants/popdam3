@@ -273,6 +273,8 @@ The main checkout contains many pre-existing modified/untracked files, including
 - Preview URL/project reference: `rjyboqwcdzcocqgmsyel`.
 - Production URL/project reference: `qsllyeztdwjgirsysgai`.
 - Production Cloud SQL is a different system and remains read-only under its separate rules; it is not part of these Supabase promotions.
+- **Secrets sweep:** completed. The session diff and unexplained files were checked for newly introduced credentials; nothing new requires storage in 1Password.
+- **Documentation pass:** completed. No standing document outside this handoff was found to be newly false because of this closeout. The generic reviewer findings were already recorded in `u2giants/ai-devops/fix_reviewer_system.md`.
 
 ## 9. Open questions and risks
 
