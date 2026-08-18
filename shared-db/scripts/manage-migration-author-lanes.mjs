@@ -40,7 +40,20 @@ export const REVIEWERS = Object.freeze([
 //
 // 'glm-5.3' occupies the SAME rotation slot 'glm-5.2' held, so ACTIVE_REVIEWERS
 // keeps its length and order and the round robin does not skip or repeat a turn.
-export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2'])
+//
+// PAUSED 2026-08-18 (owner instruction): 'glm-5.3'. Three consecutive
+// provider_unavailable failures in one afternoon -- sequences 161, 164 and 167 --
+// each creating a session that never produced a turn, and each costing a governed
+// reviewer replacement. Pausing stops the rotation handing work to a dead provider.
+// This is a PAUSE, not a retirement: restore it by deleting 'glm-5.3' from this
+// list once the provider answers a probe. The name stays in REVIEWERS so its past
+// verdicts remain readable evidence.
+//
+// NOTE: with glm-5.3 paused, ACTIVE_REVIEWERS is down to grok-4.6 and kimi-k3.
+// ai-grok-review holds a per-REPOSITORY in-flight lock, so only one Grok review
+// runs at a time here. Two active reviewers is thin; see the reviewer-capacity
+// issue before assuming a third is available.
+export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2', 'glm-5.3'])
 export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>!RETIRED_REVIEWERS.includes(row.name)))
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
