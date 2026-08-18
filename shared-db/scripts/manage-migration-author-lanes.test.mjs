@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -217,8 +217,28 @@ function reviewIo(){
 test('reviewer cursor advances atomically through the durable round robin',()=>{
   const io=reviewIo(), names=[]
   for(let n=1;n<=5;n++)names.push(assignNextReviewer({issue:n,pr:100+n,headSha:`abcdef${n}`},io).reviewer)
-  assert.deepEqual(names,['grok-4.6','glm-5.2','kimi-k3','grok-4.6','glm-5.2'])
+  assert.deepEqual(names,['grok-4.6','glm-5.3','kimi-k3','grok-4.6','glm-5.3'])
   assert.ok(io.refs.has(REVIEW_CURSOR_REF))
+})
+
+test('retired reviewer names stay resolvable so historical review evidence never orphans',()=>{
+  // Reviewer names are read back out of permanent coordination refs and looked up
+  // in REVIEWERS. One of those lookups is not null-guarded, so deleting a retired
+  // name turns every historical review record into a crash. Renaming glm-5.2 to
+  // glm-5.3 in place would have done exactly that.
+  for(const retired of RETIRED_REVIEWERS){
+    const row=REVIEWERS.find((r)=>r.name===retired)
+    assert.ok(row,`retired reviewer ${retired} must remain readable in REVIEWERS`)
+    assert.ok(row.wrapper,`retired reviewer ${retired} must still resolve to a wrapper`)
+    assert.ok(!ACTIVE_REVIEWERS.some((r)=>r.name===retired),`${retired} must not receive new work`)
+  }
+})
+
+test('the active rotation is exactly the current models, in a stable order',()=>{
+  // Order and length are the round robin. A change here silently reassigns every
+  // in-flight sequence to a different reviewer, so it must be asserted, not assumed.
+  assert.deepEqual(ACTIVE_REVIEWERS.map((r)=>r.name),['grok-4.6','glm-5.3','kimi-k3'])
+  assert.equal(REVIEWERS.find((r)=>r.name==='glm-5.3').wrapper,'ai-glm')
 })
 
 test('reviewer assignment retry returns the same assignment without advancing',()=>{
@@ -247,8 +267,8 @@ const replacementRequest={...failedReview,failedSequence:1,failureCode:'insuffic
 
 test('terminal provider failure advances exactly once and retry is idempotent',()=>{
   const io=failedReviewIo(), first=replaceFailedReviewer(replacementRequest,io), second=replaceFailedReviewer(replacementRequest,io)
-  assert.equal(first.sequence,2);assert.equal(first.reviewer,'glm-5.2');assert.deepEqual(second,first)
-  assert.equal(assignNextReviewer(failedReview,io).reviewer,'glm-5.2')
+  assert.equal(first.sequence,2);assert.equal(first.reviewer,'glm-5.3');assert.deepEqual(second,first)
+  assert.equal(assignNextReviewer(failedReview,io).reviewer,'glm-5.3')
   assert.equal(assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io).reviewer,'kimi-k3')
 })
 

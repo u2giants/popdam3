@@ -17,12 +17,31 @@ export const REVIEW_CURSOR_REF = 'refs/db-coordination/reviewer-round-robin'
 export const REVIEW_FAILURE_REF_PREFIX = 'refs/db-review-failures'
 export const REVIEW_REPLACEMENT_REF_PREFIX = 'refs/db-review-replacements'
 export const REVIEWERS = Object.freeze([
-  { name:'grok-4.6', wrapper:'ai-grok-review' }, { name:'glm-5.2', wrapper:'ai-glm' },
+  { name:'grok-4.6', wrapper:'ai-grok-review' }, { name:'glm-5.3', wrapper:'ai-glm' },
   { name:'kimi-k3', wrapper:'ai-kimi' }, { name:'qwen-3.8-max', wrapper:'ai-qwen' },
+  { name:'glm-5.2', wrapper:'ai-glm' },
 ])
 // Keep REVIEWERS as the historical evidence registry. Paused providers remain
 // readable forever, but only ACTIVE_REVIEWERS can receive new work.
-export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>row.name!=='qwen-3.8-max'))
+//
+// WHY 'glm-5.2' IS STILL LISTED BUT NOT ACTIVE
+// -------------------------------------------
+// The `ai-glm` wrapper has pinned MODEL=glm-5.3 (ai-devops/bin/ai-glm), so every
+// review routed through it was ALREADY running on 5.3 while this registry
+// recorded it as 'glm-5.2'. The model was right; the label was wrong, and the
+// label is what lands in durable review evidence. Corrected here at the source.
+//
+// 'glm-5.2' is deliberately NOT deleted. Reviewer names are read back out of
+// permanent coordination refs (`parseReviewCursor` -> `REVIEWERS.find(...)`), so
+// every historical GLM review recorded before this change still has to resolve to
+// a wrapper. One of those lookups is not null-guarded, so a missing name is a
+// crash, not a graceful miss. Retired names stay readable forever; only
+// ACTIVE_REVIEWERS receives new work -- the same pattern used to pause Qwen.
+//
+// 'glm-5.3' occupies the SAME rotation slot 'glm-5.2' held, so ACTIVE_REVIEWERS
+// keeps its length and order and the round robin does not skip or repeat a turn.
+export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2'])
+export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>!RETIRED_REVIEWERS.includes(row.name)))
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
   'preview-recovery': 'refs/db-coordination/preview',
