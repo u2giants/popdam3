@@ -29,3 +29,22 @@ test("healthy account catalog rejects a missing model", async () => {
     await assert.rejects(() => getModelCapabilities("key", "vendor/missing"), /not available in the OpenRouter account catalog/);
   } finally { globalThis.fetch = original; }
 });
+
+test("accepts an exact batch variant when the guardrail does not expose its base model", async () => {
+  resetCapabilityCacheForTests();
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    data: [{
+      id: "google/gemini-3.7-flash:batch",
+      architecture: { input_modalities: ["text", "image"] },
+      supported_parameters: ["tools", "tool_choice", "structured_outputs", "response_format"],
+    }],
+  }), { status: 200 });
+  try {
+    const profile = await getModelCapabilities("key", "google/gemini-3.7-flash:batch");
+    assert.equal(profile.modelId, "google/gemini-3.7-flash:batch");
+    assert.equal(profile.imageInput, true);
+    assert.equal(profile.structuredOutputs, true);
+    assert.deepEqual(buildStructuredOutputPlan(profile), ["json_schema", "json_object", "tool_named", "tool_required", "tool_auto"]);
+  } finally { globalThis.fetch = original; }
+});

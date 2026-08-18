@@ -55,6 +55,7 @@ function mergeOverride(profile: ModelCapabilities, override?: CapabilityOverride
 }
 
 export async function getModelCapabilities(apiKey: string, modelId: string, overrides: CapabilityOverrides = {}): Promise<ModelCapabilities> {
+  const selected = modelId.trim();
   const bare = baseModelId(modelId);
   let source: CapabilitySource = "live";
   try {
@@ -78,20 +79,24 @@ export async function getModelCapabilities(apiKey: string, modelId: string, over
       logger.warn("openrouter: capability catalog unavailable; using bounded compatibility plan", { model: bare, error: String(error) });
     }
   }
-  const raw = cache?.models.get(bare) as { architecture?: { input_modalities?: string[] }; supported_parameters?: string[] } | undefined;
+  // OpenRouter guardrails can expose a priced variant (for example :batch)
+  // without exposing its standard-price base model. Preserve the exact ID for
+  // the account-catalog lookup, then fall back to the base ID for accounts that
+  // authorize the model family rather than listing each virtual variant.
+  const raw = (cache?.models.get(selected) ?? cache?.models.get(bare)) as { architecture?: { input_modalities?: string[] }; supported_parameters?: string[] } | undefined;
   if (cache && !raw && source !== "unknown") {
-    throw new Error(`Model ${bare} is not available in the OpenRouter account catalog`);
+    throw new Error(`Model ${selected || bare} is not available in the OpenRouter account catalog`);
   }
   const params = raw?.supported_parameters ?? [];
   const profile: ModelCapabilities = raw ? {
-    modelId: bare,
+    modelId: selected || bare,
     imageInput: raw.architecture?.input_modalities?.includes("image") ?? false,
     tools: boolParam(params, "tools"), toolChoice: boolParam(params, "tool_choice"),
     toolChoiceModes: boolParam(params, "tool_choice") ? ["named", "required", "auto"] : [],
     structuredOutputs: boolParam(params, "structured_outputs"),
     jsonObject: boolParam(params, "response_format"), prefer: [], source, fetchedAt: new Date(cache?.fetchedAt ?? Date.now()).toISOString(),
   } : {
-    modelId: bare, imageInput: null, tools: null, toolChoice: null,
+    modelId: selected || bare, imageInput: null, tools: null, toolChoice: null,
     toolChoiceModes: [], structuredOutputs: null, jsonObject: null, prefer: [], source: "unknown", fetchedAt: new Date().toISOString(),
   };
   const builtIn = DEFAULT_OVERRIDES[bare];
