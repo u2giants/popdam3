@@ -433,7 +433,22 @@ def prove_preview(
     historical = texts.get("historical-preview-source.json")
     if historical:
         record = json.loads(historical)
-        if record != verify_historical_preview(source_pr, main_sha, ",".join(allowlist), repo_root, api):
+        # A v2 record names a source PR PER VERSION, for a batch assembled over
+        # several pull requests. The map is re-derived and compared whole, so a
+        # forged mapping cannot pass: every version must still be proven added by
+        # the PR it names, and a version's file is only ever "added" once in
+        # history.
+        source_map = record.get("sourcePrMap") if isinstance(record, dict) else None
+        if source_map is not None:
+            if not isinstance(source_map, dict) or not source_map:
+                raise RiskGateError("historical preview source map is unreadable")
+            rendered = ",".join(f"{version}:{source_map[version]}" for version in sorted(source_map))
+            derived = verify_historical_preview(
+                None, main_sha, ",".join(allowlist), repo_root, api, source_map=rendered
+            )
+        else:
+            derived = verify_historical_preview(source_pr, main_sha, ",".join(allowlist), repo_root, api)
+        if record != derived:
             raise RiskGateError("historical preview source proof does not match current governed evidence")
         # The historical no-write path proves nothing by applying, so it keeps
         # its exact-main requirement unchanged.
