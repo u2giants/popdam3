@@ -333,15 +333,30 @@ spanning 2019–2026):
   rows with a real `salesOrderNo` had `custPONumber` populated. Zero exceptions either way, which
   points to one deliberate state rather than sporadic missing data.
 - **`prodReferenceNo` ending in `COS` occurs only on unlinked rows** — 95 of 550, and 0 of 497.
-  Some of those lines are visibly not regular production (`SAMPLECHRG` "SAMPLE CHARGE",
-  `FOILCORNER` "FOIL CORNERS", quantities of 4–15), but others are ordinary runs of thousands.
+  **ANSWERED 2026-08-17: these are sample production runs** — extra pieces of a customer's item
+  made for the licensor (contractual samples) or for ourselves (DAVID samples). Owner ruling and
+  reporting consequences: [`business-rules-erp-data.md`](business-rules-erp-data.md) §1. Their
+  quantities confirm it — median **4**, max **15**, against a median of 2,000 on linked lines.
+  `salesOrderNo = 0` on a `COS` line is **correct and expected**, not missing data.
+- **`COS` explains only 95 of the 550.** The other **455 rows (248 order-lines)** are unlinked with
+  no `COS` marker and ordinary production volumes (median **430**, max **15,600**), mostly
+  `POECA`/`POE` types in division `CW001`, with a customer still named. **That group is still
+  unexplained** and is the live question with ColdLion.
 - **The rate swings wildly by week and is unexplained:** 91% (2019-06-03), 48% (2021-03-01),
   42% (2023-11-06), **0%** (2024-07-01), 34% (2025-04-07), 1% (2026-01-05), 64% (2026-08-03).
 
-**Practical guidance until ColdLion answers:** never join on `salesOrderNo = 0`, and do not assume
-those rows are customer-less — carry `customerCode` through. Do not classify them as "stock
-production" in any report; we do not yet know what they are. The `COS` suffix is a **lead, not a
-rule** — do not build logic on it yet.
+**Practical guidance:** never join on `salesOrderNo = 0`, and do not assume those rows are
+customer-less — carry `customerCode` through, remembering that on a `COS` line the customer named is
+the customer of the *original* order, not the recipient of the samples.
+
+- **`COS` lines: classify as sample production**, separately from customer purchases. They are a
+  real cost with no matching customer revenue, so folding them into either bucket distorts margin.
+  Rule and consequences: [`business-rules-erp-data.md`](business-rules-erp-data.md) §1.
+- **The other 455 unlinked rows: still do not classify them** as samples, stock production, or
+  customer orders. We do not yet know what they are.
+- **Do not write a `COS`-only "is this a sample?" test.** Sample production also appears with a
+  `CONTR` item-code suffix (e.g. `VSZ851WAJGCONTR`, "DC COMICS CANVAS SAMPLES", qty 15, no `COS`
+  reference) and as the item `SAMPLECHRG`. At least three conventions exist.
 
 ### 5.6 Negative quantities and costs are real
 

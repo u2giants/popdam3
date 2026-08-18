@@ -3,7 +3,8 @@
 --
 -- Covers migrations 20260810010000_popdam_order_list_contract.sql and
 --   20260810060000_popdam_order_list_source_pair_nulls_distinct.sql and
---   20260810100000_link_dam_order_line_cross_item_ambiguity.sql.
+--   20260810100000_link_dam_order_line_cross_item_ambiguity.sql and
+--   20260818141220_popdam_bulk_order_line_relink.sql.
 --
 -- HOW TO RUN
 --   Against PREVIEW rjyboqwcdzcocqgmsyel ONLY, as the migration owner role:
@@ -90,6 +91,16 @@ begin
       v_pass := v_pass + 1;
     end if;
   end loop;
+
+  v_name := 'public.relink_dam_order_lines_bulk(integer)';
+  if has_function_privilege('anon', v_name, 'execute')
+     or has_function_privilege('authenticated', v_name, 'execute') then
+    v_fail := v_fail + 1; raise notice 'FAIL bulk relink is executable outside service_role';
+  elsif not has_function_privilege('service_role', v_name, 'execute') then
+    v_fail := v_fail + 1; raise notice 'FAIL service_role cannot execute bulk relink';
+  else
+    v_pass := v_pass + 1;
+  end if;
 
   raise notice '=== B. HEADER COLUMNS ON plm.production_order ===';
   foreach v_col in array array[
@@ -227,7 +238,8 @@ begin
 
   raise notice '=== G. FUNCTIONS, AND NO DELETE PATH ===';
   foreach v_name in array array[
-    'public.create_dam_order','public.update_dam_order','public.link_dam_order_line'
+    'public.create_dam_order','public.update_dam_order','public.link_dam_order_line',
+    'public.relink_dam_order_lines_bulk'
   ] loop
     if not exists (
       select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -254,7 +266,7 @@ begin
   for v_name in
     select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
-      and p.proname in ('create_dam_order','update_dam_order','link_dam_order_line')
+      and p.proname in ('create_dam_order','update_dam_order','link_dam_order_line','relink_dam_order_lines_bulk')
   loop
     if exists (
       select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -365,10 +377,19 @@ declare
   v_line_g  uuid;
   v_line_d  uuid;
   v_line_u  uuid;
+  v_line_m  uuid;
+  v_line_na uuid;
+  v_bulk_l  uuid := '00000000-0000-0000-0000-000000000001';
+  v_bulk_g  uuid := '00000000-0000-0000-0000-000000000002';
+  v_bulk_d  uuid := '00000000-0000-0000-0000-000000000003';
+  v_bulk_u  uuid := '00000000-0000-0000-0000-000000000004';
+  v_bulk_x  uuid := '00000000-0000-0000-0000-000000000005';
   v_txt     text;
   v_got     uuid;
   v_n       integer;
   v_bool    boolean;
+  v_result  jsonb;
+  v_snapshot text;
 begin
   -- ------------------------------------------------------------------ fixtures ------
   insert into core.customer (name) values ('OrderList Contract Test Customer')
@@ -488,6 +509,32 @@ begin
     (v_order, '5', 'CROSSSKU1', 3, 'licensed', 'dam_order_list_contract_test', 'ct-line-cross')
   returning id into v_line_x;
 
+  insert into plm.production_order_line
+    (production_order_id, line_number, sku, quantity_ordered, source_style_type,
+     source_system, source_id, item_id, master_data_match_status)
+  values
+    (v_order, '6', 'NCV3SP1', 1, 'licensed', 'dam_order_list_contract_test', 'ct-line-manual', v_item_l, 'manual')
+  returning id into v_line_m;
+
+  insert into plm.production_order_line
+    (production_order_id, line_number, sku, quantity_ordered, source_style_type,
+     source_system, source_id, master_data_match_status)
+  values
+    (v_order, '7', 'NCV3SP1', 1, 'licensed', 'dam_order_list_contract_test', 'ct-line-na', 'not_applicable')
+  returning id into v_line_na;
+
+  -- Fixed near-zero UUIDs make p_limit=5 select only these fixtures even on shared
+  -- preview. The test must never lock or relink unrelated preview order lines.
+  insert into plm.production_order_line
+    (id, production_order_id, line_number, sku, quantity_ordered, source_style_type,
+     source_system, source_id, master_data_match_status)
+  values
+    (v_bulk_l, v_order, 'B1', 'NCV3SP1', 1, 'licensed', 'dam_order_list_contract_test', 'ct-bulk-l', 'unmatched'),
+    (v_bulk_g, v_order, 'B2', 'BFC02GABB', 1, 'generic', 'dam_order_list_contract_test', 'ct-bulk-g', 'ambiguous'),
+    (v_bulk_d, v_order, 'B3', 'DUPSKU1', 1, 'licensed', 'dam_order_list_contract_test', 'ct-bulk-d', 'unmatched'),
+    (v_bulk_u, v_order, 'B4', 'NOSUCHSKU', 1, 'licensed', 'dam_order_list_contract_test', 'ct-bulk-u', 'unmatched'),
+    (v_bulk_x, v_order, 'B5', 'CROSSSKU1', 1, 'licensed', 'dam_order_list_contract_test', 'ct-bulk-x', 'ambiguous');
+
   -- All four RPC-created lines exist. This is the regression guard for the NULLS NOT DISTINCT bug:
   -- before 20260810060000 the second line raised 23505 and no order survived at all.
   select count(*) into v_n from plm.production_order_line
@@ -519,13 +566,63 @@ begin
   then v_pass := v_pass + 1;
   else v_fail := v_fail + 1; raise notice 'FAIL the created order has no primary source ref row'; end if;
 
-  -- A new line starts with no product and says so.
+  -- A new RPC-created line starts with no product and says so.
   select count(*) into v_n from plm.production_order_line
    where production_order_id = v_order and item_id is null
      and master_data_match_status = 'not_applicable'
      and source_system = 'popdam_order_list';
   if v_n = 4 then v_pass := v_pass + 1;
   else v_fail := v_fail + 1; raise notice 'FAIL expected 4 unlinked new lines, got %', v_n; end if;
+
+  -- ------------------------------------------------------ 1b. bulk exact relink ------
+  v_result := public.relink_dam_order_lines_bulk(5);
+  if (v_result ->> 'linked')::integer = 3
+     and (v_result ->> 'ties_left')::integer = 1
+     and (v_result ->> 'no_candidate')::integer = 1
+     and (v_result -> 'before' ->> 'ambiguous')::integer = 2
+     and (v_result -> 'before' ->> 'unmatched')::integer = 3
+     and (v_result -> 'after' ->> 'matched')::integer = 3
+     and (v_result -> 'after' ->> 'ambiguous')::integer = 1
+     and (v_result -> 'after' ->> 'unmatched')::integer = 1 then
+    v_pass := v_pass + 1;
+  else
+    v_fail := v_fail + 1; raise notice 'FAIL bulk relink returned wrong counts: %', v_result;
+  end if;
+
+  if (select count(*) from plm.production_order_line
+      where (id = v_bulk_l and item_id = v_item_l and master_data_match_status = 'matched')
+         or (id = v_bulk_g and item_id = v_item_g and master_data_match_status = 'matched'
+             and metadata ->> 'pre_bulk_relink_match_status' = 'ambiguous')
+         or (id = v_bulk_d and item_id = v_item_d and master_data_match_status = 'matched')) = 3 then
+    v_pass := v_pass + 1;
+  else
+    v_fail := v_fail + 1; raise notice 'FAIL bulk relink did not link the three exact unique rows';
+  end if;
+
+  if exists (select 1 from plm.production_order_line where id = v_bulk_x and item_id is null and master_data_match_status = 'ambiguous')
+     and exists (select 1 from plm.production_order_line where id = v_bulk_u and item_id is null and master_data_match_status = 'unmatched')
+     and exists (select 1 from plm.production_order_line where id = v_line_m and item_id = v_item_l and master_data_match_status = 'manual')
+     and exists (select 1 from plm.production_order_line where id = v_line_na and item_id is null and master_data_match_status = 'not_applicable') then
+    v_pass := v_pass + 1;
+  else
+    v_fail := v_fail + 1; raise notice 'FAIL bulk relink changed a tie, no-candidate, manual, or not-applicable row';
+  end if;
+
+  select md5(jsonb_agg(to_jsonb(x) order by x.id)::text) into v_snapshot
+  from (select id, item_id, master_data_match_status, metadata, updated_at
+        from plm.production_order_line where id in (v_bulk_u, v_bulk_x)) x;
+  v_result := public.relink_dam_order_lines_bulk(2);
+  select md5(jsonb_agg(to_jsonb(x) order by x.id)::text) into v_txt
+  from (select id, item_id, master_data_match_status, metadata, updated_at
+        from plm.production_order_line where id in (v_bulk_u, v_bulk_x)) x;
+  if (v_result ->> 'linked')::integer = 0 and v_snapshot = v_txt then v_pass := v_pass + 1;
+  else v_fail := v_fail + 1; raise notice 'FAIL second bulk run was not idempotent: %', v_result; end if;
+
+  begin
+    perform public.relink_dam_order_lines_bulk(-1);
+    v_fail := v_fail + 1; raise notice 'FAIL bulk relink accepted negative limit';
+  exception when invalid_parameter_value then v_pass := v_pass + 1;
+  end;
 
   -- item_id is not in the whitelist, so create_dam_order must refuse it outright.
   begin
@@ -643,7 +740,9 @@ begin
   perform public.link_dam_order_line(v_line_d, null, 'ambiguous');
   update plm.production_order_line set master_data_match_status = 'unmatched' where id = v_line_u;
   select count(*) into v_n from api.dam_order_list
-   where order_id = v_order and master_data_match_status in ('ambiguous','unmatched');
+   where order_id = v_order
+     and order_line_id in (v_line_d, v_line_u)
+     and master_data_match_status in ('ambiguous','unmatched');
   if v_n = 2 then v_pass := v_pass + 1;
   else v_fail := v_fail + 1; raise notice 'FAIL ambiguous/unmatched rows not readable through the view (got %)', v_n; end if;
 
@@ -690,8 +789,8 @@ begin
   else v_fail := v_fail + 1; raise notice 'FAIL void did not record actor/reason'; end if;
 
   select count(*) into v_n from plm.production_order_line where production_order_id = v_order;
-  if v_n = 5 then v_pass := v_pass + 1;
-  else v_fail := v_fail + 1; raise notice 'FAIL voiding destroyed lines (% of 5 remain)', v_n; end if;
+  if v_n = 12 then v_pass := v_pass + 1;
+  else v_fail := v_fail + 1; raise notice 'FAIL voiding destroyed lines (% of 12 remain)', v_n; end if;
 
   -- A partial patch must not blank fields it did not mention.
   perform public.update_dam_order(v_order, jsonb_build_object('mbl','MBL-123'), '[]'::jsonb);

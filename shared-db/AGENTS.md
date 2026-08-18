@@ -1384,6 +1384,16 @@ traps that will silently corrupt a load if you skip it:
 - **`lineInvoiceQty` / `lineOpenQty` are zero in all 5,874 sampled rows**, as is `depositPerc`
   on `prodHistory`. A report built on them reads zero and looks like a business fact.
 
+**What the ERP data MEANS** (as opposed to its shape) lives in
+[`docs/business-rules-erp-data.md`](docs/business-rules-erp-data.md) — a new file, because this
+repo documented shape thoroughly and meaning not at all, and a session already inferred a business
+rule wrongly from field populations. First entry, an owner ruling: a `prodReferenceNo` ending
+**`COS`** marks **sample production** — extra pieces of a customer's item made for the licensor
+(contractual samples) or for POP Creations itself (DAVID samples). They carry real cost with no
+customer revenue, so classify them separately; `salesOrderNo = 0` on them is correct, not missing
+data. **Never infer a business rule from field populations and write it down as fact** — put it in
+the shape doc labelled as an inference until the owner confirms it.
+
 Also: the feed spans **four divisions** (`CW001`, `EH001`, `EP001`, `SP001`), not just `EH001` —
 a short window shows only `EH001` and misleads. `1900-01-01` is the empty-date marker
 (**owner-confirmed 2026-08-14 — settled, do not re-raise**), and `salesOrderNo = 0` on
