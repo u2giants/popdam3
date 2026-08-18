@@ -1,18 +1,18 @@
 ---
 issue: 1137
-status: BLOCKED
-owner: claude/division-code-qa (session ended; blocked on Albert's division-2 ruling)
+status: OPEN
+owner: claude/division-code-qa (session ended; no decision outstanding — engineering work remains)
 ---
 
-# Division codes: Q&A closed, cleanup blocked on ONE owner decision
+# Division codes: Q&A closed, no decision outstanding, three fixes ready to build
 
 - **Written:** 2026-08-17T2146Z
 - **Machine / agent:** al8960ofc / claude
 - **Worktree:** `C:\repos\shared-db-worktrees\division-code-mapping-qa-757b4a`
-- **Status:** BLOCKED (see frontmatter) — documentation complete and merged; **no database
-  change made or pending**; three actions are ready to build, four are blocked, and the
-  blocker that matters is the owner's decision in §5.
-- **Owner of the open item:** Albert Hazan (a decision, not a task)
+- **Status:** OPEN — documentation complete and merged; **no database change made or
+  pending**; four actions ready to build, three still blocked on engineering grounds.
+- **Owner decisions outstanding: NONE.** The division-2 question in §5 was answered by
+  ColdLion itself on 2026-08-17 — see that section.
 - **Contact for the rest:** Uma (DesignFlow developer) — nothing outstanding from him
 
 ---
@@ -100,37 +100,76 @@ integer are not one of the three clean pairs. Full query is in the round-2 doc.
 because that is what Uma asked for. RFQs, art pieces, style-guide links, PopDAM and reporting
 views were **not**. "Unreferenced" here means "no item uses it", not "nothing uses it".
 
-## 5. THE BLOCKER — one decision, owed by Albert
+## 5. Division 2 — a MIXED legacy bucket; resolve per item from ColdLion
 
-**78% of item history sits in DesignFlow division `2`.**
+**The claim that needed checking:** 78% of item history — 15,185 of 19,463 rows of
+`dflow."itemHeader"` — carries `div_code_fk = 2`, a division everyone calls dead.
 
-| `div_code_fk` | Division | Items | Active |
-|---|---|---|---|
-| **2** | Everyday — the "deprecated" one | **15,185** | **0** |
-| 1 | POP Lic | 2,770 | 393 |
-| 8 | Spruce Lic | 766 | 176 |
-| 9 | Spruce non-Lic | 740 | 458 |
-| `NULL` | — | 2 | 0 |
+**Why that first looked like a contradiction.** `plm."divisionCode"` says id `2`'s
+`external_divisoncode` is `CW001`, while the agreed rule says id `2` is dead and must never
+be accepted as a division code. It was written up as a decision for Albert.
 
-Two rules we hold contradict each other:
+**It was never a contradiction.** `div_code_fk` holds **DesignFlow's own numbering**, not
+ColdLion codes. ColdLion has exactly four divisions — `CW001`, `EH001`, `SP001` and the
+retired `EP001` — and **no division `2`, ever**. Our own data shows it: every `div_code_fk = 2`
+row has its ColdLion text column `div_code` **empty**, while ids 1 / 8 / 9 carry their codes.
 
-- `plm."divisionCode"` says id `2`'s `external_divisoncode` **is** `CW001`.
-- The agreed rule says id `2` is dead and must never be accepted as a division code.
+| `div_code_fk` | `div_code` (ColdLion text) | Items |
+|---|---|---|
+| **2** | **(empty on all 15,185)** | 15,185 |
+| 1 | `CW001` | 2,437 |
+| 8 | `SP001` | 755 |
+| 9 | `EH001` | 731 |
+| 1 | (empty) | 333 |
 
-**Until this is answered, `public.erp_items_current.division_code` (17,703 NULL rows) must
-not be backfilled.** Options put to Albert, recommendation first:
+**The wrong turn, recorded so it is not repeated.** On 2026-08-17, 19 division-2 items were
+looked up individually — 6 newest plus 13 random — and **all 19 returned `CW001`**. The
+conclusion drawn was "id `2` → `CW001`". That was published and it is **wrong**: 19 is too few
+and the newest-first half was biased.
 
-1. **Treat division-2 items as `CW001` / POP Lic** — what the bridge table itself says;
-   preserves history; none of those items are active. *Recommended.*
-2. Leave their division blank — honest, but they stay invisible to division reporting.
-3. Exclude them from the item key entirely — cleanest forward, loses the history.
+**The proper check, 2026-08-18.** The full ColdLion catalogue was swept (97 pages, **19,326
+items**) and a 250-item random sample of division-2 items matched against it:
 
-**As of this writing Albert has NOT answered.** Do not pick one on his behalf.
+| ColdLion says | Count | Share |
+|---|---|---|
+| `CW001` | 208 | 83.5% |
+| `EH001` | 21 | 8.4% |
+| `SP001` | 17 | 6.8% |
+| `EP001` | 3 | 1.2% |
+| absent from ColdLion | 1 | 0.4% |
+
+**Conclusion: division `2` is a mixed legacy bucket spanning every ColdLion division.** A
+blanket map to `CW001` would misfile about **1 item in 6 — roughly 2,500 rows**.
+
+**Owner ruling (Albert Hazan, 2026-08-18): "go according to ColdLion".** Resolve each item's
+division **from ColdLion by item number** — never from `div_code_fk`, never from a mapping
+table. `plm."divisionCode"` stays correct for the three live ids; it has nothing honest to say
+about id `2`. `2` must never be *stored* in a shared PLM table. For the ~0.4% of items ColdLion
+does not return, leave `division_code` NULL rather than guess, and count them in the run
+summary.
+
+**Reproduce it:** `tools/sync-coldlion-items.mjs` exports `collectItems(apiKey)`, which sweeps
+the whole catalogue (97 pages, ~90 seconds); `tools/coldlion-sync-common.mjs` exports
+`readColdlionApiKey()` and `COLDLION_BASE_URL` for single lookups
+(`GET /items?companyCode=EDGEHOME&itemNo=<no>`, header `X-API-Key`). Never paste the key
+anywhere. **Do not conclude anything from a handful of item lookups** — that is exactly the
+mistake above.
+
+### A separate discrepancy the same check exposed — NOT a division problem
+
+ColdLion marks **18,866 of 19,326** catalogue items `active = Y`; our mirror marks roughly
+**1,000** active. These are probably not the same question — ColdLion's flag reads like
+"record not deleted", DesignFlow's like "currently in the line". Applying ColdLion's flag
+literally would mark nearly everything live. **Check `itemAvailable` and `itemDiscontinued`
+first.** No owner, no issue yet. **Do not fold it into division work.**
+
+Also from that sweep: `CW001` 12,914 · `EH001` 3,860 · `SP001` 2,101 · `EP001` **451**.
+`EP001` is retired but **not empty**.
 
 ## 6. Exact next actions
 
 **Ready to build now** (each needs a shared-db migration via the normal branch+PR+preview
-process — none has been written):
+process — none has been written). Action 6 below joins this group as of 2026-08-17:
 
 1. **Fix the 5 live rows** — set `divisionCode_id_fk = 1` on `mg_id` 3120, 3121, 3580, 3581,
    3582. Do **not** rewrite their text to `SP001`; that rule is withdrawn twice over.
@@ -141,14 +180,21 @@ process — none has been written):
    Approved outright. Note this is a **DesignFlow-owned** table; confirm ownership before
    writing (see §0.0-B of `AGENTS.md` on who owns which rows).
 
-**Blocked, with the reason:**
+**Blocked, with the reason (all engineering, no decisions):**
 
-4. **The 217-row Block A fix** — blocked twice: 142 of the 217 are referenced by division-2
+4. **The 217-row Block A fix** — blocked twice, and now *more* suspect: it re-files those
+   rows into `9`/`EH001`, but ColdLion says the division-2 items referencing them are
+   `CW001`. Blocked because: 142 of the 217 are referenced by division-2
    items, and the update creates 142 duplicate rows on `(division, mgTypeCode, mg_code)` with
    no unique constraint to stop it (see the 271-conflicts doc).
 5. **Delete the 4 empty rows** — blocked: 3 of them (`mg_id` 2, 3, 4) carry **573** item
    references between them. They look like junk. They are not.
-6. **Backfill `erp_items_current.division_code`** — blocked on §5.
+6. ~~Blocked on §5.~~ **Backfill `erp_items_current.division_code` — UNBLOCKED, but resolve
+   per item.** Join each item to the ColdLion catalogue **by item number** and take its
+   `divisionCode`. Do **not** translate `div_code_fk`; ids 1/8/9 are safe but `2` is mixed.
+   Needs a migration and a preview run. *Verify:* every filled value is one of
+   `CW001`/`SP001`/`EH001`/`EP001`; the count left NULL equals the count of items ColdLion
+   does not return, and that count is reported, not hidden.
 7. **A `CHECK` constraint on division shape** — must be last; cannot be enforced while 363
    rows violate it.
 
@@ -222,6 +268,6 @@ exists yet (§6 preamble and §8, added), and did not record where the ColdLion 
 
 **Tracking issue:** [#1137](https://github.com/u2giants/shared-db/issues/1137).
 
-**Delete this file when:** issue #1137 is closed — Albert has answered §5, and actions 1, 2, 3 and 6 are merged and
+**Delete this file when:** issue #1137 is closed and actions 1, 2, 3 and 6 are merged and
 verified. Actions 4, 5, 7, 8 and 9 may outlive it — if so, move them to a fresh handoff rather
 than keeping this one alive.
