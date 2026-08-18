@@ -16,6 +16,7 @@ from production_migration_guard import (  # noqa: E402
     PREVIEW_ONLY_HISTORICAL_RESTORATIONS,
     BUNDLE_20260804,
     FR_HELD_20260803,
+    FR_COMPATIBILITY_VERSIONS,
     FR_REMOVAL_VERSIONS,
     MANIFEST_FILENAME,
     GuardError,
@@ -343,7 +344,7 @@ class GuardTests(unittest.TestCase):
         # complete set and REJECTS every proper subset that still holds one of
         # the two 6.5 versions.
         removal = {"20260810010000", "20260810050000"}
-        full = sorted(FR_HELD_20260803 | removal)
+        full = sorted(FR_HELD_20260803 | FR_COMPATIBILITY_VERSIONS | removal)
         with patch("production_migration_guard.FR_REMOVAL_VERSIONS", removal):
             self.assertEqual(parse_allowlist(",".join(full)), full)
             for size in range(1, len(full)):

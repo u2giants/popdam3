@@ -159,6 +159,12 @@ FR_HELD_20260803 = {
 # NOT delete the co-presence check to "unblock" a promotion.
 FR_REMOVAL_VERSIONS: set[str] = set()
 
+# Narrow prerequisite that lets the held owner-ruling migration cross the
+# licensing guard only under its exact migration identity. It remains held with
+# the FR bundle and is not itself removal work, so it must never make an empty
+# FR_REMOVAL_VERSIONS set appear complete.
+FR_COMPATIBILITY_VERSIONS = {"20260817225127"}
+
 
 # ---------------------------------------------------------------------------
 # SECURITY CO-PRESENCE RULES (added 2026-08-10, issue #660)
@@ -785,7 +791,7 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
     # subcommand can route around it.
     held = FR_HELD_20260803 & set(values)
     if held:
-        required = FR_HELD_20260803 | FR_REMOVAL_VERSIONS
+        required = FR_HELD_20260803 | FR_COMPATIBILITY_VERSIONS | FR_REMOVAL_VERSIONS
         missing = sorted(required - set(values))
         if not FR_REMOVAL_VERSIONS:
             raise GuardError(
@@ -805,8 +811,9 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
                 "FR ship set in parts: this allowlist has "
                 f"{', '.join(sorted(held & set(values)))} but is missing "
                 f"{', '.join(missing)}. The permitted event is exactly one -- a "
-                "single bounded apply carrying 20260802170000, 20260802171000 "
-                "and the FR removal migrations together, in dependency order. "
+                "single bounded apply carrying the FR compatibility migration, "
+                "20260802170000, 20260802171000 and the FR removal migrations "
+                "together, in dependency order. "
                 "Include the full set or none of it."
             )
     # Security co-presence (issue #660). ONE-DIRECTIONAL by design -- see the
