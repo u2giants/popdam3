@@ -72,13 +72,18 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 export const MIGRATIONS_DIR = 'supabase/migrations'
 
 /**
- * The two projects this repo owns, matching the refs hard-coded in
- * .github/workflows/*.yml. Named rather than free-form so a typo cannot silently
- * point a "production" check at something that is not production.
+ * The two projects this repo owns. Named rather than free-form so a typo cannot
+ * silently point a "production" check at something that is not production.
+ *
+ * PREVIEW CHANGES WHEN THE BRANCH IS REBUILT. On 2026-08-18 rjyboqwcdzcocqgmsyel was
+ * deleted and replaced. The workflow now reads the repository variable
+ * PREVIEW_PROJECT_REF; this constant must be updated in the SAME change, or this check
+ * silently measures drift against a project nobody uses. It fails closed (Unknown, exit
+ * 2) against a project that no longer exists, which is how the stale value was caught.
  */
 export const PROJECT_REFS = {
   production: 'qsllyeztdwjgirsysgai',
-  preview: 'rjyboqwcdzcocqgmsyel',
+  preview: 'mvpkijzfmfcxhnzqogzs',
 }
 
 /** Thrown when an input cannot be gathered. Never swallowed into a green result. */

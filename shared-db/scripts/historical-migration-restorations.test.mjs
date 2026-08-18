@@ -6,7 +6,7 @@ test('pins the one authenticated preview historical restoration',()=>{
   const row=HISTORICAL_RESTORATIONS['20260817150944']
   assert.equal(row.name,'sync_dflow_columns_onto_plm_designflow_copies')
   assert.equal(row.creatorSha256,'ede9ab5ebdcbbb7af5760ff9ce653aa402b0c53a41e2ee9bdf18121204e58b9a')
-  assert.equal(row.previewProject,'rjyboqwcdzcocqgmsyel')
+  assert.equal(row.previewProject,'mvpkijzfmfcxhnzqogzs')
   assert.deepEqual(row.objects,['table plm.rfqitem','table plm.gridviewstate','table plm.itemdetail'])
 })
 

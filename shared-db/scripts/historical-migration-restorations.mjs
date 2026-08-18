@@ -7,7 +7,7 @@ export const HISTORICAL_RESTORATIONS = Object.freeze({
   '20260817150944': Object.freeze({
     filename: 'supabase/migrations/20260817150944_sync_dflow_columns_onto_plm_designflow_copies.sql',
     name: 'sync_dflow_columns_onto_plm_designflow_copies',
-    previewProject: 'rjyboqwcdzcocqgmsyel',
+    previewProject: 'mvpkijzfmfcxhnzqogzs',
     creatorSha256: 'ede9ab5ebdcbbb7af5760ff9ce653aa402b0c53a41e2ee9bdf18121204e58b9a',
     statementCount: 1,
     statementBytes: 3213,
