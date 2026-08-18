@@ -57,6 +57,8 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # Held historical FR ruling is superseded by guarded forward 20260818174350.
+    "20260802171000",
     # #853/#868 unsafe transaction-framed bridge cutover. The explicit COMMIT
     # can commit DDL before Supabase inserts its migration-ledger row. A pinned
     # CLI 2.105.0 disposable failure test proved SQL present + ledger absent.
@@ -143,14 +145,25 @@ BUNDLE_20260804 = {
 # combined promotion parses. Until then FR_REMOVAL_VERSIONS is empty, so any
 # allowlist containing either held version is refused -- which is exactly right,
 # because the one legal event cannot yet be assembled.
+#
+# ***** THE VERSION STRINGS BELOW ARE A SAFETY CONTROL, NOT A FILE INDEX. *****
+#
+# Issue #1182: on 2026-08-18 `--supersede-active-claim-version` renamed the
+# guarded forward migration from 20260817232425 to 20260818174350 and this set
+# was NOT updated. The old string then named nothing, and the file that really
+# existed sat in NO hold set at all -- one allowlist away from leaving `FR`
+# inactive on production forever. Nothing caught it but an independent review.
+#
+# If you rename or re-reserve a migration that appears here, you MUST change it
+# here in the same commit. `test_every_hold_set_member_is_a_real_migration_file`
+# now fails the build if you forget.
 FR_HELD_20260803 = {
     # plm.import_master_data preserves curated licensor/property status.
     "20260802170000",
-    # The FRIENDS TV / FRIDA KAHLO ruling. Sets core.licensor `FR` to
-    # status = 'inactive' -- a remedy the REMOVAL ruling supersedes. Promoting
-    # it alone leaves production at rest in `inactive`, the state the owner
-    # rejected, with no undo.
-    "20260802171000",
+    # Fresh guarded replacement for held historical version 20260802171000.
+    # RE-RESERVED 2026-08-18 from 20260817232425 (issue #1182). The old string
+    # names no file; never reintroduce it here.
+    "20260818174350",
 }
 
 # The `FR` removal migrations. EMPTY ON PURPOSE -- as of 2026-08-09 no removal
@@ -163,7 +176,22 @@ FR_REMOVAL_VERSIONS: set[str] = set()
 # licensing guard only under its exact migration identity. It remains held with
 # the FR bundle and is not itself removal work, so it must never make an empty
 # FR_REMOVAL_VERSIONS set appear complete.
+#
+# IT IS HELD IN ITS OWN RIGHT, NOT ONLY AS A COMPANION (fixed 2026-08-18, #1145
+# review). AGENTS.md 6.5 says in terms: "Neither 20260802170000, compatibility
+# prerequisite 20260817225127, nor guarded replacement 20260818174350 may reach
+# production until the FR removal work is ready with them. Not alone, not as a
+# subset." The rule is the owner's; the code used to enforce it only when an
+# FR_HELD member was ALSO in the allowlist, so `20260817225127` promoted ALONE
+# parsed clean. The prose is authoritative, so `parse_allowlist` now triggers
+# the 6.5 refusal on ANY member of FR_SHIP_SET_HOLD, this set included.
 FR_COMPATIBILITY_VERSIONS = {"20260817225127"}
+
+# Every version AGENTS.md 6.5 holds. Presence of ANY ONE of these in an
+# allowlist triggers the 6.5 co-presence rule. Removal members are required to
+# complete a legal ship set but are not themselves a trigger, because until
+# FR_REMOVAL_VERSIONS is populated there is nothing to trigger on.
+FR_SHIP_SET_HOLD = FR_HELD_20260803 | FR_COMPATIBILITY_VERSIONS
 
 
 # ---------------------------------------------------------------------------
@@ -789,19 +817,31 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
     # AGENTS.md section 6.5: the two held versions ship WITH the FR removal work
     # or not at all. Enforced in the same single choke point as 6.8, so no
     # subcommand can route around it.
-    held = FR_HELD_20260803 & set(values)
+    #
+    # TRIGGERED BY THE WHOLE HOLD SET, NOT ONLY FR_HELD_20260803 (2026-08-18).
+    # 6.5's prose holds the compatibility prerequisite 20260817225127 by name and
+    # "not alone, not as a subset". The old trigger was `FR_HELD_20260803` only,
+    # so an allowlist of just 20260817225127 parsed clean -- the code was
+    # narrower than the owner ruling it claims to enforce. The prose wins.
+    #
+    # EVERY VERSION NAMED IN THESE MESSAGES IS DERIVED FROM THE SETS ABOVE. Do
+    # not hardcode a version string here again: issue #1182 happened because a
+    # rename updated one place and left the literals behind.
+    held = FR_SHIP_SET_HOLD & set(values)
     if held:
-        required = FR_HELD_20260803 | FR_COMPATIBILITY_VERSIONS | FR_REMOVAL_VERSIONS
+        required = FR_SHIP_SET_HOLD | FR_REMOVAL_VERSIONS
         missing = sorted(required - set(values))
+        ship_set = ", ".join(sorted(FR_SHIP_SET_HOLD))
         if not FR_REMOVAL_VERSIONS:
             raise GuardError(
                 "AGENTS.md 6.5 (OWNER RULING, 2026-08-03) holds "
-                f"{', '.join(sorted(held))}: neither 20260802170000 nor "
-                "20260802171000 may reach production by any route until the FR "
+                f"{', '.join(sorted(held))}: none of {ship_set} "
+                "may reach production by any route until the FR "
                 "'FRIENDS TV' removal work ships with them, as ONE bounded "
-                "apply in dependency order. No FR removal migration exists yet, "
-                "so that combined change cannot be assembled and this allowlist "
-                "is refused. Drop both versions from the allowlist. Do NOT edit "
+                "apply in dependency order. Not alone, not as a subset. No FR "
+                "removal migration exists yet, so that combined change cannot "
+                "be assembled and this allowlist is refused. Drop those "
+                "versions from the allowlist. Do NOT edit "
                 "this guard to unblock them -- author the removal migrations "
                 "and register their versions in FR_REMOVAL_VERSIONS."
             )
@@ -812,7 +852,7 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
                 f"{', '.join(sorted(held & set(values)))} but is missing "
                 f"{', '.join(missing)}. The permitted event is exactly one -- a "
                 "single bounded apply carrying the FR compatibility migration, "
-                "20260802170000, 20260802171000 and the FR removal migrations "
+                f"{ship_set} and the FR removal migrations "
                 "together, in dependency order. "
                 "Include the full set or none of it."
             )

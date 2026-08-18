@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import production_migration_guard  # noqa: E402
 from production_migration_guard import (  # noqa: E402
     HARD_BLOCKED,
     PREVIEW_ONLY_HISTORICAL_RESTORATIONS,
@@ -18,7 +19,9 @@ from production_migration_guard import (  # noqa: E402
     FR_HELD_20260803,
     FR_COMPATIBILITY_VERSIONS,
     FR_REMOVAL_VERSIONS,
+    FR_SHIP_SET_HOLD,
     MANIFEST_FILENAME,
+    VERSION_RE,
     GuardError,
     assert_bounded,
     compute_content_manifest,
@@ -221,7 +224,7 @@ class GuardTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(GuardError):
                 parse_allowlist(value)
 
-    def test_the_block_list_is_exactly_these_four(self) -> None:
+    def test_the_block_list_is_exactly_these_five(self) -> None:
         # Three kinds, deliberately together. 20260726190000/20260726200000 are the
         # already-applied Master Data pair. 20260729120000 is the third kind:
         # never applied, and applying it would REGRESS a live production security
@@ -235,6 +238,7 @@ class GuardTests(unittest.TestCase):
                 "20260726200000",
                 "20260729120000",
                 "20260816045130",
+                "20260802171000",
             },
         )
 
@@ -331,11 +335,54 @@ class GuardTests(unittest.TestCase):
             parse_allowlist(",".join(batch))
         message = str(caught.exception)
         self.assertIn("6.5", message)
-        self.assertIn("20260802170000", message)
-        self.assertIn("20260802171000", message)
-        # An allowlist with neither held version still parses, so the rule is
+        for version in sorted(FR_SHIP_SET_HOLD):
+            self.assertIn(version, message)
+        # An allowlist with no held version still parses, so the rule is
         # targeted and not a blanket refusal.
         parse_allowlist(",".join(BATCH_18))
+
+    def test_the_real_guarded_forward_version_is_refused_by_name(self) -> None:
+        """Issue #1182, the regression this test exists for.
+
+        On 2026-08-18 the guarded forward migration was re-reserved from
+        20260817232425 to 20260818174350. The guard kept the OLD string, which
+        named no file, and the file that really existed was in no hold set at
+        all. An allowlist of exactly this one version parsed clean and would
+        have left `core.licensor` FR inactive on production indefinitely --
+        the state AGENTS.md 6.5 forbids.
+
+        This asserts the LITERAL version, on purpose. Deriving it from the set
+        would pass no matter what the set contained, which is precisely how the
+        hole stayed open.
+        """
+        self.assertIn("20260818174350", FR_HELD_20260803)
+        self.assertNotIn("20260817232425", FR_HELD_20260803)
+        with self.assertRaises(GuardError) as caught:
+            parse_allowlist("20260818174350")
+        self.assertIn("6.5", str(caught.exception))
+
+    def test_the_compatibility_prerequisite_is_refused_alone(self) -> None:
+        """AGENTS.md 6.5 holds 20260817225127 by name: "Not alone."
+
+        Until 2026-08-18 the 6.5 refusal triggered only when an FR_HELD member
+        was already in the allowlist, so the compatibility prerequisite on its
+        own parsed clean -- the code was narrower than the owner ruling it
+        claims to enforce. The prose is authoritative.
+        """
+        self.assertEqual(FR_REMOVAL_VERSIONS, set())
+        for version in sorted(FR_COMPATIBILITY_VERSIONS):
+            with self.subTest(version=version), self.assertRaises(GuardError) as caught:
+                parse_allowlist(version)
+            self.assertIn("6.5", str(caught.exception))
+
+    def test_every_member_of_the_fr_hold_set_is_refused_alone(self) -> None:
+        """No member of the 6.5 hold set may ever be promotable on its own."""
+        self.assertEqual(FR_REMOVAL_VERSIONS, set())
+        self.assertEqual(FR_SHIP_SET_HOLD, FR_HELD_20260803 | FR_COMPATIBILITY_VERSIONS)
+        for version in sorted(FR_SHIP_SET_HOLD):
+            with self.subTest(version=version), self.assertRaises(GuardError) as caught:
+                parse_allowlist(version)
+            self.assertIn("6.5", str(caught.exception))
 
     def test_the_fr_ship_set_must_be_complete_once_removal_migrations_exist(self) -> None:
         # The future legal event: the two held versions promoted together WITH
@@ -349,7 +396,7 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(parse_allowlist(",".join(full)), full)
             for size in range(1, len(full)):
                 for subset in itertools.combinations(full, size):
-                    if not (FR_HELD_20260803 & set(subset)):
+                    if not (FR_SHIP_SET_HOLD & set(subset)):
                         # Not a 6.5 allowlist at all; nothing to enforce.
                         continue
                     with self.subTest(subset=subset), self.assertRaises(GuardError) as caught:
@@ -2557,6 +2604,72 @@ class AtomicBatchTests(unittest.TestCase):
         known = set(local_migrations(REPO))
         for name, members in BATCHES.items():
             self.assertEqual(members - known, set(), name)
+
+    def test_every_hold_set_member_is_a_real_migration_file(self) -> None:
+        """THE TEST THAT WOULD HAVE CAUGHT ISSUE #1182 OUTRIGHT.
+
+        Every decision-making version set in the guard is discovered by
+        introspection, not listed here, so a set added tomorrow is covered
+        without anybody remembering to extend this test. That matters more than
+        it looks: the sibling above covered only ATOMIC_BATCHES, so when the
+        2026-08-18 supersession left `20260817232425` in FR_HELD_20260803 while
+        renaming the file to `20260818174350`, nothing failed. The stale string
+        gated nothing and the real file was in no hold set at all.
+
+        A version string in any of these sets is a SAFETY CONTROL. A phantom
+        entry is worse than an absent one: it reads as protection and enforces
+        nothing.
+        """
+        known = set(local_migrations(REPO))
+        checked: list[str] = []
+
+        for name, value in sorted(vars(production_migration_guard).items()):
+            if name.startswith("_") or not name.isupper():
+                continue
+            if not isinstance(value, (set, frozenset)):
+                continue
+            if not value or not all(
+                isinstance(item, str) and VERSION_RE.fullmatch(item) for item in value
+            ):
+                continue
+            checked.append(name)
+            self.assertEqual(
+                set(value) - known,
+                set(),
+                f"{name} names version(s) with no migration file. If a migration "
+                "was renamed or re-reserved, update this set in the SAME commit "
+                "(AGENTS.md 6.5, issue #1182).",
+            )
+
+        # The discovery itself must not silently stop finding anything -- an
+        # empty sweep would make this test permanently green and useless.
+        for required in ("HARD_BLOCKED", "FR_HELD_20260803", "FR_COMPATIBILITY_VERSIONS"):
+            self.assertIn(required, checked)
+
+        # The structured rule tables are not plain sets, so they are swept
+        # explicitly rather than left to the introspection above.
+        for create, fixes, _why in CO_PRESENCE_RULES:
+            self.assertIn(create, known, f"co-presence create {create}")
+            self.assertEqual(set(fixes) - known, set(), f"co-presence fixes of {create}")
+        for name, _basis, _why, members in ATOMIC_BATCHES:
+            self.assertEqual(set(members) - known, set(), f"atomic batch {name}")
+
+    def test_no_retired_version_string_is_still_gating(self) -> None:
+        """`20260817232425` was re-reserved away on 2026-08-18 (issue #1182).
+
+        It must never again appear in a guard set. Comments explaining the
+        history are fine and deliberate; a SET MEMBER is not.
+        """
+        retired = "20260817232425"
+        for name, value in sorted(vars(production_migration_guard).items()):
+            if not name.isupper() or not isinstance(value, (set, frozenset)):
+                continue
+            self.assertNotIn(retired, value, name)
+        for create, fixes, _why in CO_PRESENCE_RULES:
+            self.assertNotEqual(create, retired)
+            self.assertNotIn(retired, fixes)
+        for name, _basis, _why, members in ATOMIC_BATCHES:
+            self.assertNotIn(retired, members, name)
 
     def test_no_atomic_member_is_hard_blocked_or_FR_held(self) -> None:
         """A batch that can never be completed would be a permanent refusal."""
