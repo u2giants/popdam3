@@ -16,8 +16,13 @@
 import { logger } from "./logger.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
 const OPENROUTER_GENERATION_URL = "https://openrouter.ai/api/v1/generation";
 const DEFAULT_TIMEOUT_MS = 60_000;
+const BATCH_COMPLETION_TIMEOUT_MS = 24 * 60 * 60_000;
+const BATCH_POLL_INTERVAL_MS = 5_000;
+const BATCH_COLLECT_WINDOW_MS = 25;
+const MAX_BATCH_REQUESTS = 100;
 const MAX_RETRIES = 2;
 
 export class OpenRouterError extends Error {
@@ -94,6 +99,30 @@ export interface ChatCompletionResult {
     total_tokens?: number;
   };
 }
+
+interface PendingBatchRequest {
+  apiKey: string;
+  request: ChatCompletionRequest;
+  timeoutMs: number;
+  resolve: (result: ChatCompletionResult) => void;
+  reject: (error: unknown) => void;
+}
+
+interface OpenRouterBatchResultItem {
+  custom_id?: string;
+  response?: { status_code?: number; body?: unknown };
+  error?: unknown;
+}
+
+interface OpenRouterBatchRecord {
+  id?: string;
+  status?: string;
+  results?: OpenRouterBatchResultItem[];
+  error?: unknown;
+}
+
+const pendingBatchQueues = new Map<string, PendingBatchRequest[]>();
+let batchCustomIdSequence = 0;
 
 /** One upstream endpoint OpenRouter tried, in order. Includes failed legs. */
 export interface OpenRouterAttempt {
@@ -330,6 +359,202 @@ async function enrichProviderInfo(apiKey: string, info: OpenRouterProviderInfo, 
   }
 }
 
+function openRouterHeaders(apiKey: string): Record<string, string> {
+  return {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": "https://popdam.com",
+    "X-Title": "popdam3",
+    "X-OpenRouter-Metadata": "enabled",
+  };
+}
+
+async function parseChatCompletionResult(
+  apiKey: string,
+  data: Record<string, unknown>,
+  headers: Headers,
+  timeoutMs: number,
+): Promise<ChatCompletionResult> {
+  const choices = data.choices as Array<{
+    message?: {
+      content?: string;
+      tool_calls?: Array<{ function: { name: string; arguments: string } }>;
+    };
+  }> | undefined;
+  const choice = choices?.[0]?.message;
+  if (!choice) throw new Error("OpenRouter returned no choices");
+
+  const providerInfo = await enrichProviderInfo(apiKey, collectProviderInfo(headers, data), timeoutMs);
+  if (choice.tool_calls && choice.tool_calls.length > 0) {
+    let toolCalls: ToolCallResult[];
+    try {
+      toolCalls = choice.tool_calls.map((tc) => ({
+        name: tc.function.name,
+        arguments: JSON.parse(tc.function.arguments),
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const parseError = new Error(`Malformed tool call JSON: ${message}`);
+      (parseError as Error & { providerInfo?: OpenRouterProviderInfo }).providerInfo = providerInfo;
+      throw parseError;
+    }
+    return {
+      id: typeof data.id === "string" ? data.id : undefined,
+      model: typeof data.model === "string" ? data.model : undefined,
+      providerInfo,
+      toolCalls,
+      usage: data.usage as ChatCompletionResult["usage"],
+    };
+  }
+
+  return {
+    id: typeof data.id === "string" ? data.id : undefined,
+    model: typeof data.model === "string" ? data.model : undefined,
+    content: choice.content || "",
+    providerInfo,
+    usage: data.usage as ChatCompletionResult["usage"],
+  };
+}
+
+function unwrapBatchRecord(payload: unknown): OpenRouterBatchRecord {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  const record = payload as Record<string, unknown>;
+  const value = record.data && typeof record.data === "object" && !Array.isArray(record.data)
+    ? record.data
+    : record;
+  return value as OpenRouterBatchRecord;
+}
+
+function batchErrorText(value: unknown): string {
+  if (typeof value === "string") return value;
+  try { return JSON.stringify(value); } catch { return String(value); }
+}
+
+async function runOpenRouterBatch(items: PendingBatchRequest[]): Promise<void> {
+  const apiKey = items[0].apiKey;
+  const baseModel = baseModelId(items[0].request.model);
+  const requests = items.map((item) => {
+    const customId = `popdam-${Date.now()}-${++batchCustomIdSequence}`;
+    const body = { ...item.request, model: baseModel };
+    // The discounted Gemini batch endpoint does not advertise temperature.
+    // Omitting it also keeps repair requests compatible with batch-only models.
+    delete body.temperature;
+    return { custom_id: customId, body };
+  });
+
+  let createdResponse: Response;
+  try {
+    createdResponse = await fetch(OPENROUTER_BATCH_URL, {
+      method: "POST",
+      headers: openRouterHeaders(apiKey),
+      signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify({ endpoint: "/v1/chat/completions", model: baseModel, requests }),
+    });
+  } catch (error) {
+    items.forEach((item) => item.reject(error));
+    return;
+  }
+  const createdText = await createdResponse.text();
+  if (!createdResponse.ok) {
+    const error = new OpenRouterError(createdResponse.status, createdText);
+    items.forEach((item) => item.reject(error));
+    return;
+  }
+  const created = unwrapBatchRecord(parseJsonRecord(createdText));
+  if (!created.id) {
+    const error = new Error(`OpenRouter Batch API returned no batch ID: ${createdText.slice(0, 300)}`);
+    items.forEach((item) => item.reject(error));
+    return;
+  }
+  logger.info("openrouter batch: submitted", { batchId: created.id, model: baseModel, requests: requests.length });
+
+  const deadline = Date.now() + Math.max(BATCH_COMPLETION_TIMEOUT_MS, ...items.map((item) => item.timeoutMs));
+  let completed: OpenRouterBatchRecord | null = null;
+  while (Date.now() < deadline) {
+    let pollResponse: Response;
+    try {
+      pollResponse = await fetch(`${OPENROUTER_BATCH_URL}/${encodeURIComponent(created.id)}`, {
+        headers: openRouterHeaders(apiKey),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (error) {
+      logger.warn("openrouter batch: status poll failed; retrying", { batchId: created.id, error: String(error) });
+      await new Promise((resolve) => setTimeout(resolve, BATCH_POLL_INTERVAL_MS));
+      continue;
+    }
+    const pollText = await pollResponse.text();
+    if (!pollResponse.ok) {
+      const error = new OpenRouterError(pollResponse.status, pollText);
+      items.forEach((item) => item.reject(error));
+      return;
+    }
+    const record = unwrapBatchRecord(parseJsonRecord(pollText));
+    if (record.status === "completed") {
+      completed = record;
+      break;
+    }
+    if (["failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
+      const error = new Error(`OpenRouter batch ${created.id} ${record.status}: ${batchErrorText(record.error)}`);
+      items.forEach((item) => item.reject(error));
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, BATCH_POLL_INTERVAL_MS));
+  }
+  if (!completed) {
+    const error = new Error(`OpenRouter batch ${created.id} did not finish within 24 hours`);
+    items.forEach((item) => item.reject(error));
+    return;
+  }
+
+  const byId = new Map((completed.results ?? []).map((result) => [result.custom_id, result]));
+  await Promise.all(requests.map(async (submitted, index) => {
+    const pending = items[index];
+    const result = byId.get(submitted.custom_id);
+    if (!result) {
+      pending.reject(new Error(`OpenRouter batch ${created.id} omitted result ${submitted.custom_id}`));
+      return;
+    }
+    const status = result.response?.status_code ?? 500;
+    if (status < 200 || status >= 300 || result.error) {
+      pending.reject(new OpenRouterError(status, batchErrorText(result.error ?? result.response?.body)));
+      return;
+    }
+    const body = result.response?.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      pending.reject(new Error(`OpenRouter batch ${created.id} returned an invalid response body`));
+      return;
+    }
+    try {
+      pending.resolve(await parseChatCompletionResult(apiKey, body as Record<string, unknown>, new Headers(), pending.timeoutMs));
+    } catch (error) {
+      pending.reject(error);
+    }
+  }));
+}
+
+function flushBatchQueue(queueKey: string): void {
+  const queued = pendingBatchQueues.get(queueKey) ?? [];
+  pendingBatchQueues.delete(queueKey);
+  for (let offset = 0; offset < queued.length; offset += MAX_BATCH_REQUESTS) {
+    void runOpenRouterBatch(queued.slice(offset, offset + MAX_BATCH_REQUESTS));
+  }
+}
+
+function batchChatCompletion(apiKey: string, request: ChatCompletionRequest, timeoutMs: number): Promise<ChatCompletionResult> {
+  const queueKey = `${apiKey}\u0000${baseModelId(request.model)}`;
+  return new Promise((resolve, reject) => {
+    const queue = pendingBatchQueues.get(queueKey);
+    const pending = { apiKey, request, timeoutMs, resolve, reject };
+    if (queue) {
+      queue.push(pending);
+      if (queue.length >= MAX_BATCH_REQUESTS) flushBatchQueue(queueKey);
+    } else {
+      pendingBatchQueues.set(queueKey, [pending]);
+      setTimeout(() => flushBatchQueue(queueKey), BATCH_COLLECT_WINDOW_MS);
+    }
+  });
+}
+
 // ── Main call ────────────────────────────────────────────────────────────────
 
 export async function chatCompletion(
@@ -337,6 +562,9 @@ export async function chatCompletion(
   request: ChatCompletionRequest,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<ChatCompletionResult> {
+  if (request.model.trim().endsWith(":batch")) {
+    return batchChatCompletion(apiKey, request, timeoutMs);
+  }
   // Some models don't support the specific-function or "required" tool_choice forms.
   // Fall back through the compatibility ladder when an upstream provider
   // explicitly rejects the requested tool_choice value. Providers return this
@@ -362,13 +590,7 @@ export async function chatCompletion(
     try {
       response = await fetch(OPENROUTER_URL, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://popdam.com",
-          "X-Title": "popdam3",
-          "X-OpenRouter-Metadata": "enabled",
-        },
+        headers: openRouterHeaders(apiKey),
         signal: AbortSignal.timeout(timeoutMs),
         body: JSON.stringify(currentRequest),
       });
@@ -382,63 +604,8 @@ export async function chatCompletion(
     }
 
     if (response.ok) {
-      const data = await response.json() as {
-        id?: string;
-        model?: string;
-        provider?: string;
-        provider_name?: string;
-        endpoint?: string;
-        endpoint_name?: string;
-        choices?: Array<{
-          message?: {
-            content?: string;
-            tool_calls?: Array<{
-              function: { name: string; arguments: string };
-            }>;
-          };
-        }>;
-        usage?: {
-          prompt_tokens?: number;
-          completion_tokens?: number;
-          total_tokens?: number;
-        };
-      };
-
-      const choice = data.choices?.[0]?.message;
-      if (!choice) {
-        throw new Error("OpenRouter returned no choices");
-      }
-
-      const providerInfo = await enrichProviderInfo(
-        apiKey,
-        collectProviderInfo(response.headers, data as Record<string, unknown>),
-        timeoutMs,
-      );
-
-      if (choice.tool_calls && choice.tool_calls.length > 0) {
-        let toolCalls: ToolCallResult[];
-        try {
-          toolCalls = choice.tool_calls.map((tc) => ({
-            name: tc.function.name,
-            arguments: JSON.parse(tc.function.arguments),
-          }));
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          const parseError = new Error(`Malformed tool call JSON: ${message}`);
-          (parseError as Error & { providerInfo?: OpenRouterProviderInfo }).providerInfo = providerInfo;
-          throw parseError;
-        }
-
-        return {
-          id: data.id,
-          model: data.model,
-          providerInfo,
-          toolCalls,
-          usage: data.usage,
-        };
-      }
-
-      return { id: data.id, model: data.model, content: choice.content || "", providerInfo, usage: data.usage };
+      const data = await response.json() as Record<string, unknown>;
+      return parseChatCompletionResult(apiKey, data, response.headers, timeoutMs);
     }
 
     if (response.status === 429) {
