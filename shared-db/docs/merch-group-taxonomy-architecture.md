@@ -24,7 +24,9 @@ authorized licensor sources own official names, ownership, and direct relationsh
 ColdLion controls Property Active/Inactive only; the stale DesignFlow pull has no authority.
 
 **Business rule added 2026-08-18:** §4.2.1 defines the relationship between
-`mgCategory` and the real MG01 product types from `MerchGroup_Rework.xlsx`.
+`mgCategory` and the real MG01 product types from `MerchGroup_Rework.xlsx`. Database
+normalization is tracked in issue #1163; until that lands, the rule is authoritative even
+though the database still carries `mgCategory` as nullable text on merchandise-group rows.
 
 **Who this is for:** an engineer who needs implementation history after first reading the
 applicable companywide topic in [`business-rules/application-map.md`](business-rules/application-map.md).
@@ -355,10 +357,14 @@ sheet `Final Version`, columns A–C:
 That is seven categories covering nineteen MG01 product types. The workbook labels the
 category `Prod Category- (no one sees this)`: applications may use it for filtering,
 validation, reporting, or dependency rules, but the product-facing classification remains
-the actual MG01 product type.
+the actual MG01 product type. The `Sizes` sheet independently demonstrates the dependency:
+size lists are grouped by the MG01 codes that belong to Wall, Tabletop, and Workspace.
 
 The lookup must preserve company and division context when resolving a live merchandise-
-group row. MG codes are not globally safe across all types and divisions (§3.2c).
+group row. MG codes are not globally safe across all types and divisions (§3.2c). The
+normalized `core.*` implementation requested in issue #1163 must therefore link categories
+to the real MG01 merchandise-group identities, while enforcing that a product type cannot
+silently belong to two categories.
 
 ### 4.3 Division-conditional validation — the cleanest statement of the model
 
