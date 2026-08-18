@@ -383,6 +383,33 @@ export function readRefAfterWrite(ref, expectedSha, io = githubIo, attempts = 12
   return null
 }
 
+// GitHub's pull-request head and file list are eventually consistent in the same
+// way a custom ref is: a push that HAS landed can still be read back as the
+// pre-push state for several seconds. Asked once, that stale answer is
+// indistinguishable from a push that never happened. On 2026-08-18 three
+// consecutive version supersessions rolled themselves back for exactly that
+// reason, and each rollback permanently burned a migration version reservation
+// that can never be reused (issue #1165).
+//
+// Retry ONLY an exactly-stale answer: the head we pushed from, and/or the single
+// migration version we renamed from. Every other answer — a third head somebody
+// else pushed, zero migrations, two migrations, an unrelated version — is a real
+// conflict and fails closed on the FIRST read with no retry at all. The last
+// attempt still asserts exactly, so an API that never catches up refuses rather
+// than proceeding on an unproven readback.
+export function readPrAfterPush(pr, expected, io = githubIo, attempts = 12) {
+  const {head, version, branch, staleHead, staleVersion} = expected
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const live = io.getPr(pr), versions = migrationVersions(io.getPrFiles(pr))
+    const headSha = live?.head?.sha
+    if (live?.state === 'open' && headSha === head && live?.head?.ref === branch && versions.length === 1 && versions[0] === version) return live
+    const staleReadback = live?.state === 'open' && live?.head?.ref === branch && (headSha === staleHead || headSha === head) && versions.length === 1 && (versions[0] === staleVersion || versions[0] === version)
+    if (!staleReadback || attempt === attempts) return null
+    ;(io.wait ?? ((ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)))(Math.min(250 * attempt, 2000))
+  }
+  return null
+}
+
 export function acquireMutex(ownerSha, io = githubIo, attempts = 100) {
   for (let attempt=1; attempt<=attempts; attempt++) {
     if(io.readRef(MUTEX_RECOVERY_ACTIVE_REF))throw new LaneError('author mutex recovery is active; retry after it finishes')
@@ -536,8 +563,8 @@ export function supersedeActiveClaimVersion(options,now=new Date(),io=githubIo){
     const newBody=replaceClaimVersion(before.body,request.oldVersion,newVersion);bodyChanged=true;io.updateIssue(request.claim,{body:newBody})
     const after=io.getIssue(request.claim),afterLease=parseAuthorLease(after.body,now)
     if(after.body!==newBody||afterLease.version!==newVersion||afterLease.owner!==lease.owner||afterLease.branch!==lease.branch||afterLease.worktree!==lease.worktree||afterLease.objects.join('|')!==lease.objects.join('|'))throw new LaneError('claim readback changed fields outside its fenced version')
-    const livePr=io.getPr(request.pr),liveVersions=migrationVersions(io.getPrFiles(request.pr))
-    if(livePr?.head?.sha!==newHead||liveVersions.length!==1||liveVersions[0]!==newVersion)throw new LaneError('PR did not expose exactly the new reserved migration')
+    const livePr=readPrAfterPush(request.pr,{head:newHead,version:newVersion,branch:request.branch,staleHead:request.headSha,staleVersion:request.oldVersion},io)
+    if(!livePr)throw new LaneError('PR did not expose exactly the new reserved migration')
     if(io.readRef(`refs/db-claims/${request.oldVersion}`)!==oldReservation||!io.readRef(`refs/db-claims/${newVersion}`))throw new LaneError('permanent reservation readback changed')
     supersessionSha=io.makeOwnerCommit(`db-coordination claim-version-superseded issue=${request.issue} claim=${request.claim} pr=${request.pr} old=${request.oldVersion} new=${newVersion} old-ref=${oldReservation} head=${newHead}`)
     if(!io.createRef(supersessionRef,supersessionSha)||readRefAfterWrite(supersessionRef,supersessionSha,io)!==supersessionSha)throw new LaneError('durable version supersession evidence could not be created and read back')

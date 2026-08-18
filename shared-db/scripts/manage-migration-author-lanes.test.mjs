@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -848,6 +848,71 @@ test('general active-claim version supersession is idempotent from immutable evi
   const second=supersedeActiveClaimVersion(reversionArgs,NOW,io)
   assert.equal(second.idempotent,true);assert.equal(second.newVersion,first.newVersion);assert.equal(second.newHead,first.newHead)
   assert.equal(io.refs.get(`refs/db-claims/${io.old}`),'1'.repeat(40));assert.equal(io.refs.get(`refs/db-claims/${io.fresh}`),'2'.repeat(40))
+})
+
+// Issue #1165. A stale PR readback after a landed push is eventual consistency,
+// not a failed push, and treating it as failure permanently burns a migration
+// version reservation on every attempt.
+function stalingReversionIo(staleReads,{foreignHead=null,extraVersion=null}={}){
+  const io=reversionIo(),waits=[]
+  io.wait=(ms)=>{waits.push(ms)}
+  const push=io.commitAndPushReversion
+  io.commitAndPushReversion=(...args)=>{
+    const head=push(...args),freshPr=io.getPr,freshFiles=io.getPrFiles
+    let remaining=staleReads
+    io.getPr=()=>remaining>0?({state:'open',head:{sha:foreignHead??io.head,ref:'codex/issue-764-sequence-repair'}}):freshPr()
+    io.getPrFiles=()=>{
+      if(remaining<=0)return freshFiles()
+      remaining-=1
+      const files=[{filename:`supabase/migrations/${io.old}_repair.sql`}]
+      if(extraVersion)files.push({filename:`supabase/migrations/${extraVersion}_other.sql`})
+      return files
+    }
+    return head
+  }
+  return Object.assign(io,{waits})
+}
+
+test('version supersession rides out a bounded stale PR readback instead of burning the reservation',()=>{
+  const io=stalingReversionIo(3),result=supersedeActiveClaimVersion(reversionArgs,NOW,io)
+  assert.equal(result.newVersion,io.fresh);assert.equal(result.newHead,io.newHead);assert.equal(result.idempotent,false)
+  assert.equal(parseAuthorLease(io.issue.body,NOW).version,io.fresh)
+  assert.equal(io.refs.get(`refs/db-claims/${io.old}`),'1'.repeat(40));assert.equal(io.refs.get(`refs/db-claims/${io.fresh}`),'2'.repeat(40))
+  assert.equal(io.waits.length,3)
+})
+
+test('version supersession still refuses and rolls back when the PR readback never catches up',()=>{
+  const io=stalingReversionIo(Number.MAX_SAFE_INTEGER),original=io.issue.body,rewrites=[]
+  io.rewriteVersion=(_,from,to)=>{rewrites.push([from,to])}
+  assert.throws(()=>supersedeActiveClaimVersion(reversionArgs,NOW,io),/did not expose exactly the new reserved migration/)
+  assert.equal(io.issue.body,original)
+  assert.deepEqual(rewrites,[[io.old,io.fresh],[io.fresh,io.old]])
+  assert.equal(io.waits.length,11)
+})
+
+test('version supersession fails closed on the FIRST read for anything that is not exactly stale',()=>{
+  const foreign=stalingReversionIo(5,{foreignHead:'f'.repeat(40)})
+  assert.throws(()=>supersedeActiveClaimVersion(reversionArgs,NOW,foreign),/did not expose exactly the new reserved migration/)
+  assert.equal(foreign.waits.length,0)
+  const collided=stalingReversionIo(5,{extraVersion:'20260816130000'})
+  assert.throws(()=>supersedeActiveClaimVersion(reversionArgs,NOW,collided),/did not expose exactly the new reserved migration/)
+  assert.equal(collided.waits.length,0)
+})
+
+test('readPrAfterPush accepts every partially-propagated combination and no other',()=>{
+  const head='b'.repeat(40),staleHead='a'.repeat(40),branch='codex/x',version='20260816120000',staleVersion='20260816044638'
+  const expected={head,version,branch,staleHead,staleVersion}
+  const io=(sha,files,state='open',ref=branch)=>({wait:()=>{},getPr:()=>({state,head:{sha,ref}}),getPrFiles:()=>files.map((v)=>({filename:`supabase/migrations/${v}_x.sql`}))})
+  assert.ok(readPrAfterPush(1,expected,io(head,[version]),1))
+  for(const [sha,files] of [[staleHead,[staleVersion]],[staleHead,[version]],[head,[staleVersion]]]){
+    assert.equal(readPrAfterPush(1,expected,io(sha,files),1),null,'a stale combination must not be accepted as proof')
+    assert.ok(readPrAfterPush(1,expected,{...io(sha,files),getPr:()=>({state:'open',head:{sha:head,ref:branch}}),getPrFiles:()=>[{filename:`supabase/migrations/${version}_x.sql`}]},2))
+  }
+  assert.equal(readPrAfterPush(1,expected,io('c'.repeat(40),[version]),12),null)
+  assert.equal(readPrAfterPush(1,expected,io(head,[]),12),null)
+  assert.equal(readPrAfterPush(1,expected,io(head,[version,staleVersion]),12),null)
+  assert.equal(readPrAfterPush(1,expected,io(head,[version],'closed'),12),null)
+  assert.equal(readPrAfterPush(1,expected,io(head,[version],'open','other/branch'),12),null)
 })
 
 test('general version supersession CLI binds every identity field',()=>{
