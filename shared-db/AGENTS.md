@@ -8,6 +8,17 @@
 
 # AGENTS.md — cross-app coordination playbook
 
+## Companywide business rules
+
+Business logic is organized by business topic, not by application. Before
+changing behavior, definitions, permissions, workflows, calculations, or source
+authority, start at
+[`docs/business-rules/application-map.md`](docs/business-rules/application-map.md)
+and load only the topics the task touches. Application repos may link to these
+rules but must not maintain competing copies. The collection, status, correction,
+and dissemination process is
+[`docs/business-rules/README.md`](docs/business-rules/README.md).
+
 ## Historical item merchandise-group classification
 
 Before interpreting `full_item_master.csv`, changing item-description parsing, or reporting historical MG match counts, read [`docs/item-description-mg-classification-process.md`](docs/item-description-mg-classification-process.md). The active remediation plan is [`plan_item_description_mg_taxonomy_repair.md`](plan_item_description_mg_taxonomy_repair.md); follow its STATUS table and do not recreate the unsafe provisional/fuzzy method. The permanent rule is: parse every description into product type, size, licensor, property, and artwork; build independent post-May-13 maps for MG01, MG01+MG02, and MG01+MG02+MG03; then match old product types from three levels to two to one. A failed full-key match is never an MG01 failure.
@@ -15,7 +26,7 @@ Before interpreting `full_item_master.csv`, changing item-description parsing, o
 ## Active contracts and implementation plans
 
 - PopDAM OrderList linked to Master Data: [`plan_popdam_order_list.md`](plan_popdam_order_list.md). Read its STATUS table first. Do not re-derive or re-plan completed steps.
-- **Settled licensing Master Data architecture (read before any Licensor, Property, Character, Style Guide, Asset, or Franchise work):** [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md). Owner ruling 2026-08-16: authorized licensor scrapes are canonical for Property spelling, Property ownership, Characters, Style Guides, Asset metadata, Franchises, and direct source-published relationships. ColdLion decides Property Active/Inactive only. New scrape Properties and reviewed ColdLion create-new rows start Potential; a ColdLion-only proposal needs Licensing confirmation of name and owning Licensor before creation, then guarded membership may make it Active. The one stale DesignFlow pull has no authority. Authorized licensor scrapes run weekly. This is a central architecture contract, not an issue or proposal.
+- **Companywide business rules (read before interpreting business meaning):** start at [`docs/business-rules/application-map.md`](docs/business-rules/application-map.md). Licensing Master Data starts at [`docs/business-rules/licensing-master-data.md`](docs/business-rules/licensing-master-data.md); its detailed architecture remains in [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md).
 - **Licensing Master Data implementation:** [`plan_licensing_master_data_implementation.md`](plan_licensing_master_data_implementation.md). Read its STATUS table first and start at the named fresh-session step. It supersedes conflicting execution assumptions in older Character/Style Guide and ColdLion plans without deleting their historical evidence.
 - OrderList source contract: [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md), with formula detail in [`docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md`](docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md). Owner ruling: Google OrderList and future Coldlion rows are the same orders; `plm.item` is the ultimate item list. One canonical order/line must retain separate Google and Coldlion source refs.
 
@@ -1403,9 +1414,17 @@ a short window shows only `EH001` and misleads. `1900-01-01` is the empty-date m
 
 ### 6.1 Merch groups / licensors / properties — read this before touching them
 
-Anything involving licensor, property, big theme, little theme, style guide, art type,
-art source, artist, age group, or `mgTypeCode` must start at
-[`docs/merch-group-taxonomy-architecture.md`](docs/merch-group-taxonomy-architecture.md).
+Start from the business object, not the old shared table:
+
+- Licensor, Property, Character, Style Guide, Franchise, licensed Asset, source authority,
+  or Property Active/Inactive starts at
+  [`docs/business-rules/licensing-master-data.md`](docs/business-rules/licensing-master-data.md).
+- MG01–MG14, `mgCategory`, product type/subtype, big theme, little theme, art type,
+  art source, artist, age group, division meaning, or `mgTypeCode` starts at
+  [`docs/business-rules/merchandise-and-product-taxonomy.md`](docs/business-rules/merchandise-and-product-taxonomy.md).
+
+The merchandise-group document explains legacy shape. It does not override the settled
+2026-08-16 licensing authority rules.
 
 For the active ColdLion Licensor/Property source cutover, read the STATUS table in
 [`plan_coldlion_licensor_property_accelerated_cutover.md`](plan_coldlion_licensor_property_accelerated_cutover.md)
@@ -1453,7 +1472,7 @@ must not overlap ColdLion Phase 7.
 **If your work touches characters, style guides, or royalty rates, read
 [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
 FIRST.** Read its historical measurements under the controlling 2026-08-16 architecture in
-[`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md).
+[`docs/business-rules/licensing-master-data.md`](docs/business-rules/licensing-master-data.md).
 There are **two axes, and chaining them is the classic bug**: Licensor-to-Property is one-to-many;
 Property-to-Character is many-to-many; and style is many-to-many — **a style guide holds many
 characters and a character appears in many style guides**. A style guide is *not* a level

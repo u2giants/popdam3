@@ -1,5 +1,9 @@
 # Business rules for reading ERP data
 
+> **Business authority moved 2026-08-18:** The companywide entry point is
+> [`business-rules/erp-orders-and-source-meaning.md`](business-rules/erp-orders-and-source-meaning.md).
+> This file retains the detailed field-by-field source audit and evidence.
+
 **What this is:** the *business meaning* behind ColdLion ERP fields and codes — the things no
 amount of querying can tell you, because they live in how POP Creations actually operates.
 

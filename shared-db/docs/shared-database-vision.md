@@ -1,5 +1,11 @@
 # Shared Database Vision
 
+> **Business authority moved 2026-08-18:** Companywide definitions of Customers,
+> Contacts, Departments, Factories/Vendors, Licensors as organizations, and ingested
+> email domains live in
+> [`business-rules/customers-contacts-and-organizations.md`](business-rules/customers-contacts-and-organizations.md).
+> This file retains architecture, migration reasoning, and evidence.
+
 This repo exists to move POP from several overlapping app backends into one shared Supabase database that powers four enterprise applications:
 
 - DAM: digital asset management, style groups, style guides, render/processing work, and asset-to-product links.

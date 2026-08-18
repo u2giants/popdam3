@@ -1,33 +1,30 @@
 # Style guides, characters, and royalty rates
 
-> **Controlling architecture changed 2026-08-16.** The settled licensing Master Data
-> contract is [`core-master-data-consolidation-aim.md`](core-master-data-consolidation-aim.md).
+> **Business authority moved 2026-08-18.** The companywide licensing rule is
+> [`business-rules/licensing-master-data.md`](business-rules/licensing-master-data.md).
 > Authorized licensor scrapes now control canonical Property spelling and ownership,
 > Characters, Style Guides, Asset metadata, Franchises, and direct source-published
 > relationships. ColdLion controls Property Active/Inactive only. DesignFlow has no
 > authority. A Character may belong to multiple Properties. Any contrary statement below
 > is retained only as historical investigation and must not be implemented.
 
-> **PopSG execution boundary:** This document remains the authority for the
-> business meaning and relationships described below. The single bounded
+> **PopSG execution boundary:** This document is historical evidence and implementation detail.
+> The single bounded
 > execution plan for reconciling PopSG folder-derived Property observations is
 > [`../fix_popsg_property_taxonomy_reconciliation.md`](../fix_popsg_property_taxonomy_reconciliation.md).
 > Apply this document's rules through that plan rather than creating a second
 > reconciliation workstream. The executable phases are named `PSG-0` through
-> `PSG-7`; this document supplies business authority, not a parallel checklist.
+> `PSG-7`; this document is not a parallel rulebook.
 
-**Status:** historical evidence and royalty-detail authority, subordinate to the central
-2026-08-16 licensing architecture. Data measurements in §4 were taken live against production
+**Status:** Historical. Current royalty meaning is in the central business-rule page. Data measurements in §4 were taken live against production
 Supabase `qsllyeztdwjgirsysgai` on 2026-07-23.
 
-**Who this is for:** anyone about to touch characters, style guides, licensed properties, or
-royalty reporting. Read this *before* [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md)
-if your work involves characters — that document covers the merch-group classification spine
-and does not describe the style-guide model at all.
+**Who this is for:** anyone researching historical implementation after first reading
+[`business-rules/licensing-master-data.md`](business-rules/licensing-master-data.md).
 
 **Why it exists:** an AI session on 2026-07-23 was migrating the legacy licensing tables into
 `core.character` and got the model wrong in two specific ways. Both errors are recorded in §6
-so nobody repeats them. The owner's corrections are the substance of this document.
+so nobody repeats them. Current decisions have been promoted to the central topic.
 
 ---
 
@@ -284,8 +281,9 @@ core.style_guide_character  (style_guide_id → core.style_guide,
 
 Key points:
 
-- **`core.character.property_id` stays a single FK and is correct.** Do not widen it to
-  many-to-many, and do not repoint it at a style guide. Axis 1 is genuinely linear.
+- **Historical, superseded 2026-08-16:** this document previously said
+  `core.character.property_id` should stay a single relationship. The current business rule
+  allows a Character to belong to multiple Properties.
 - **`core.style_guide_character` is where multiplicity lives.** Batman = 1 character row +
   15 bridge rows.
 - **Sub-style guides** are modelled as `parent_style_guide_id` self-reference on the style guide,

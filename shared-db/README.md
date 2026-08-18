@@ -14,6 +14,10 @@ Planning and migration repo for the unified POP shared database on Supabase.
 
 This repo holds schema mapping, relationship design, migration gaps, Supabase migrations, branch verification notes, and cutover preparation for consolidating DAM, CRM, PM, and the operational PLM data needed by those apps into one Supabase project.
 
+## Companywide business rules
+
+Business rules are owned by the business, not by an application. Start with the [application and task map](docs/business-rules/application-map.md) to load only the topics relevant to the work. The [business-rules home](docs/business-rules/README.md) defines how rules are collected, approved, stored, corrected, and shared with every application.
+
 ## DB Data Admin hostname
 
 `https://data.designflow.app` belongs exclusively to **DB Data Admin**, whose
