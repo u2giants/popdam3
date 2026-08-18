@@ -1,5 +1,7 @@
 # Bulk Job System
 
+> Active implementation plan: [`../plan_openrouter_batch_restart_recovery.md`](../plan_openrouter_batch_restart_recovery.md). Read its STATUS table before changing asynchronous OpenRouter Image Tagging recovery.
+
 Bulk operations are orchestrated by a **persistent Node.js worker running on Railway** (`apps/worker/`), not by the `bulk-job-runner` Supabase edge function. The edge function is a deployed no-op stub kept for backward compatibility (see quirk #19 in [docs/KNOWN_QUIRKS.md](KNOWN_QUIRKS.md)).
 
 The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`WORKER_POLL_INTERVAL_MS`, configurable). When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no Supabase edge-function timeout constraint — it runs until the operation completes, the user stops it, or it errors. The pg_cron schedule that previously called the edge function every minute was removed in migration `20260322000000`.
