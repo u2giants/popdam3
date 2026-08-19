@@ -97,6 +97,22 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 > transient server fault and **retry it forever**. Branch on the wire status and on the `message`
 > text, never on the body's `status`.
 
+> ### ⚠️⚠️ The default `prodHistory` response is INCOMPLETE — fetch every `stageCode`
+> **Without `stageCode`, `prodHistory` returns only the `ISS` (issued) lines.** Verified 2026-08-18:
+> for 2026-08-03..09 the default returned 67 rows, identical to `stageCode=ISS`, while
+> `stageCode=REC` returned **21 rows with ZERO key overlap** — rows that appear nowhere in the
+> default. For 2024-07-01..07: default 144, `REC` a further 159.
+>
+> `REC` lines are the **receipts** (what actually arrived), carried as separate lines of the same
+> production orders. Order 22717: line 1 `ISS` ordered 4,800; line 2 `REC` received 4,548. Omitting
+> `REC` loses every short shipment and every receipt date in the dataset.
+>
+> **Fetch `ISS`, `REC` and `INTRAN` explicitly and record which stage each row came from** — the
+> payload does not say. `INTRAN` returned 0 rows in the windows tested but is named by ColdLion.
+> `OPEN`, `CLOSED`, `SHIP`, `CAN`, `PEND`, `NEW`, `COMP`, `WIP`, `APPR` all returned nothing. **The
+> authoritative list of stage codes has not been confirmed — ask ColdLion before the full load.**
+> Business meaning: [`business-rules-erp-data.md`](business-rules-erp-data.md) §4.
+
 > ### ⚠️ There is no paging on these two endpoints
 > Unlike `/items` and the other paged endpoints, these return a **plain JSON array**, not the
 > `content` / `last` / `totalElements` envelope. `page` and `size` are **silently ignored** —
@@ -297,20 +313,26 @@ always populated):** `seasonCode`, `freightForwarderCode`, `udf02`, `udf03`, `ud
 Every field the spec declares was returned, and no undeclared field appeared — the spec and the
 payload agree exactly on both endpoints.
 
-### 5.2 ⚠️ Two quantity fields are always zero
+### 5.2 ⚠️ `lineInvoiceQty` is always zero; `lineOpenQty` is RARE, not zero
 
-On `orderHistory`, **`lineInvoiceQty` and `lineOpenQty` were 0 in all 5,874 rows.** Despite the
-names, they carry no signal in this feed. The quantity fields that *do* carry signal:
+On `orderHistory`, **`lineInvoiceQty` was 0 in every row tested** (5,874 in the census, 442 in a
+later four-week sample). Despite the name it carries no signal here.
 
-- `lineQty` — always populated, 1 to 20,016. This is the real order quantity.
-- `lineCancelledQty` — non-zero on 1,405 of 5,874 rows.
-- `linePickQty` / `unshippedQty` / `subQty` — non-zero on only 8 rows.
+> **CORRECTION 2026-08-18.** This section previously said `lineOpenQty` was zero in all 5,874 rows
+> too, and treated that as a property of the field. **It is not.** A later 442-row sample found
+> `lineOpenQty` **non-zero on 11 rows, up to 250**. The original measurement was right about its
+> sample and wrong as a general claim. Keep the field and expect occasional values.
 
-Any report built on "open" or "invoiced" quantity from this endpoint would silently read zero
-for everything. Added as a question to ColdLion.
+ColdLion's explanation (JamieLynn, 2026-08-18): these endpoints break data down to component level,
+and invoice/open quantities are not carried down that far. The fields that *do* carry shipment
+reality are **`unshippedQty`** and **`linePickQty`**. Full table and reporting guidance:
+[`business-rules-erp-data.md`](business-rules-erp-data.md) §7.
 
-Same pattern on `prodHistory`: **`depositPerc` is 0 in all 3,411 rows** and `totalProdCost` is
-0 in 3,218 of them, while `extCost` is populated and meaningful.
+Measured across 442 rows (2021–2026): `lineQty` 442/442 non-zero; `lineCancelledQty` 60;
+`unshippedQty` 66; `linePickQty` 55; `lineOpenQty` 11; `lineInvoiceQty` **0**.
+
+Same pattern on `prodHistory`: **`depositPerc` is 0 in all rows tested** and `totalProdCost` is 0 in
+3,218 of 3,411, while `extCost` is populated and meaningful.
 
 ### 5.3 `1900-01-01` is the empty-date marker — CONFIRMED
 
@@ -328,66 +350,63 @@ will be wrong.
 `custCancelDate` on **1,518 of 3,411** rows, and `lastVendorDesc` on 167. `orderHistory`
 returned **no nulls at all** — it uses `""`. A loader must handle both empty conventions.
 
-### 5.5 `salesOrderNo = 0` means "no linked sales order" — but NOT "no customer"
+### 5.5 `salesOrderNo = 0` — largely EXPLAINED 2026-08-18
 
-On `prodHistory`, `salesOrderNo` is 0 on **1,510 of 3,411** rows in the original census. Reading 0
-as a foreign key would create ~1,500 broken links per sample, so **treat 0 as "no link"**.
+Treat 0 as **"no linked sales order"**: never join on it. Beyond that, ColdLion has now explained
+most of it, and there are **three distinct causes**:
 
-> **Correction, 2026-08-17.** An earlier version of this section called these rows "stock
-> production not raised against a specific customer order". **That inference was wrong** and is
-> retracted. `customerCode` is populated on **534 of 550** such rows — a customer *is* named; only
-> the sales order is absent. The correct statement is the narrow one: no linked sales order.
+1. **Age.** Hard-linking customer POs to production orders began around **2022–2023**; before that
+   `custPONumber` was manual, and earlier still barely used. Unlinked share by week: 91% (2019-06),
+   48% (2021-03), 42% (2023-11), **0%** (2024-07), 1% (2026-01). Not a defect — rules §5.
+2. **Stage.** `INTRAN` and `REC` lines never carry the customer PO or the sales-order link; it does
+   not carry down from `ISS`. Every `REC` row tested was unlinked with an empty `custPONumber`.
+   Attribute a receipt via `prodOrderNo` back to its `ISS` line — rules §4.
+3. **`COS` sample production**, which legitimately has no customer order — rules §1.
 
-Deeper evidence gathered 2026-08-17 when ColdLion asked for examples (1,047 rows across five weeks
-spanning 2019–2026):
+**What is still unexplained:** a small recent residue. In 2026-08-03..09, of 43 unlinked `ISS` rows,
+**33 are `COS`** and **10 are not** — all customer AMA030, references D3568/D3569, ordered
+2026-08-05, quantities 152–1,200. Recent, ordinary-looking, and unlinked. That is the remaining
+question with ColdLion.
 
-- **The correlation with `custPONumber` is perfect, in both directions.** All **550** rows with
-  `salesOrderNo = 0` had empty `custPONumber`, `custStartDate` and `custCancelDate`; all **497**
-  rows with a real `salesOrderNo` had `custPONumber` populated. Zero exceptions either way, which
-  points to one deliberate state rather than sporadic missing data.
-- **`prodReferenceNo` ending in `COS` occurs only on unlinked rows** — 95 of 550, and 0 of 497.
-  **ANSWERED 2026-08-17: these are sample production runs** — extra pieces of a customer's item
-  made for the licensor (contractual samples) or for ourselves (DAVID samples). Owner ruling and
-  reporting consequences: [`business-rules-erp-data.md`](business-rules-erp-data.md) §1. Their
-  quantities confirm it — median **4**, max **15**, against a median of 2,000 on linked lines.
-  `salesOrderNo = 0` on a `COS` line is **correct and expected**, not missing data.
-- **`COS` explains only 95 of the 550.** The other **455 rows (248 order-lines)** are unlinked with
-  no `COS` marker and ordinary production volumes (median **430**, max **15,600**), mostly
-  `POECA`/`POE` types in division `CW001`, with a customer still named. **That group is still
-  unexplained** and is the live question with ColdLion.
-- **The rate swings wildly by week and is unexplained:** 91% (2019-06-03), 48% (2021-03-01),
-  42% (2023-11-06), **0%** (2024-07-01), 34% (2025-04-07), 1% (2026-01-05), 64% (2026-08-03).
+> **Correction, 2026-08-17.** An earlier version called these rows "stock production not raised
+> against a specific customer order". **Wrong and retracted.** `customerCode` is populated on
+> **534 of 550** such rows — a customer *is* named; only the sales order is absent.
 
-**Practical guidance:** never join on `salesOrderNo = 0`, and do not assume those rows are
-customer-less — carry `customerCode` through, remembering that on a `COS` line the customer named is
-the customer of the *original* order, not the recipient of the samples.
-
-- **`COS` lines: classify as sample production**, separately from customer purchases. They are a
-  real cost with no matching customer revenue, so folding them into either bucket distorts margin.
-  Rule and consequences: [`business-rules-erp-data.md`](business-rules-erp-data.md) §1.
-- **The other 455 unlinked rows: still do not classify them** as samples, stock production, or
-  customer orders. We do not yet know what they are.
-- **Do not write a `COS`-only "is this a sample?" test.** Sample production also appears with a
-  `CONTR` item-code suffix (e.g. `VSZ851WAJGCONTR`, "DC COMICS CANVAS SAMPLES", qty 15, no `COS`
-  reference) and as the item `SAMPLECHRG`. At least three conventions exist.
+**Practical guidance:** carry `customerCode` through (on a `COS` line it names the customer of the
+*original* order, not the sample recipient). Record the stage each row came from, so an unlinked
+`REC` receipt is never confused with an unlinked `ISS` order. Report pre-2022 purchase-to-sales
+joins as progressively incomplete rather than as zero.
 
 ### 5.6 Negative quantities and costs are real
 
 `linePickQty`, `unshippedQty` and `subQty` reach **-564**; `prodCost`, `extCost` and
 `lastProdCost` reach **-85**. Returns or credits. Do not add non-negative constraints.
 
-### 5.7 Production-side prepack taxonomy is unreliable; use the sales side
+### 5.7 Merch groups: `merchGroup*` is the assortment, `ppkMerchGroup*` is the component
 
-`ppkMerchGroup01`–`06` were **completely blank on 140 of 1,774** production component rows and
-partially blank on another 243 — including styles whose groups are fully populated on the order
-side. Order-side `subMerchGroup01`–`06` was never completely blank (219 of 1,985 partially).
+**Structure confirmed by ColdLion (2026-08-18) and verified here:** `merchGroup01`–`14` describe the
+**assortment (master) SKU**; `ppkMerchGroup01`–`14` describe the **component (sub) SKU**. Across 139
+multi-component lines, `merchGroup01`–`04` were identical for every component in **139 of 139**
+cases, while `ppkMerchGroup01`–`04` varied in **61**.
 
-**Therefore:** treat `orderHistory` as the better source for what a component style *is*, and
-do not treat the two sides as equal authorities on taxonomy. This is consistent with the
-standing merch-group rules — see
-[`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md), and remember
-that `mgTypeCode` meaning varies by division, which matters more here now that we know the feed
-spans four divisions.
+> **CORRECTION 2026-08-18.** This section previously framed the production side as simply
+> "unreliable" next to the order side. That was the wrong diagnosis. On prepack rows it is the
+> **assortment-level** groups that are mostly blank — `merchGroup01`/`02`/`03` populated on only
+> **14%**, against `ppkMerchGroup01`–`06` on **84–88%**. `merchGroup04` (size) is the exception at
+> **97%**. An assortment master is deliberately generic; licensor, theme and artwork live on the
+> pieces inside.
+
+**Therefore: read component taxonomy from `ppkMerchGroup*`, and never fall back to `merchGroup*`
+when it is blank** — blank there is correct for an assortment, not missing data. Reporting rule:
+[`business-rules-erp-data.md`](business-rules-erp-data.md) §6.
+
+The genuinely unexplained residue is the **~12–16% of component rows where `ppkMerchGroup*` is also
+blank** (140 of 1,774 fully blank in the census). Still open with ColdLion.
+
+Order-side `subMerchGroup01`–`06` remains the cleanest source of all — never completely blank in the
+census (219 of 1,985 partially). `mgTypeCode` meaning varies by division, which matters more here
+now that the feed is known to span four divisions — see
+[`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md).
 
 ## 6. Questions with ColdLion — answered and outstanding
 
@@ -405,25 +424,26 @@ owner 2026-08-14 (§5.3).
 
 ### ⬜ Still outstanding
 
-Drafted in [`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-history-endpoints-questions.md),
-not yet sent. **None of these blocks the load** — every one changes how a field is modelled, not
-whether the pull can run.
+Drafted in [`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-history-endpoints-questions.md).
+**None of these blocks the load.**
 
+1. **The authoritative list of `stageCode` values.** New and the most useful of these — we know
+   `ISS` and `REC` are real and `INTRAN` is named, but a stage we do not know about is a stage we
+   silently never fetch (§2, [`business-rules-erp-data.md`](business-rules-erp-data.md) §4).
+2. **The ~12–16% of component rows where `ppkMerchGroup*` is blank**, after the assortment-vs-
+   component structure is accounted for (§5.7).
+3. **Recent non-`COS` unlinked lines.** ColdLion's historical explanation covers the old ones, but
+   10 rows in 2026-08 are `ISS`-stage, not `COS`, recent, and unlinked — all customer AMA030,
+   references D3568/D3569, ordered 2026-08-05 (§5.5).
+4. **How far back the history goes**, to size the one-time load (§7).
 
-1. `ppkMerchGroup*` blank rate on production — known gap? (§5.7)
-2. `lineInvoiceQty` / `lineOpenQty` always zero, and `depositPerc` likewise — not exposed here? (§5.2)
-3. Confirm `salesOrderNo=0` means "no linked sales order", and whether there is a rule explaining
-   *why* a given line has none (§5.5). **ColdLion asked for examples on 2026-08-17; ten are in the
-   draft note, with the `custPONumber` correlation and the `COS` reference-suffix lead.**
+### ✅ Answered by ColdLion (JamieLynn), 2026-08-18 — all verified here
 
-Worth adding when the note is sent, arising from the 2026-08-17 changes:
-
-5. **The 7-day-cap refusal returns a malformed error** — HTTP 400 on the wire but `"status": 500`
-   and `"Internal Server Error"` in the body (§2). Worth telling them, since it invites clients to
-   retry a permanent input error as if it were a transient fault.
-6. **`lastProdCost` still fans out** where two historical production records share the maximum
-   `lastProdDate` (§4.3). Harmless for us now that `prodLineSeq` exists, but they may want to know
-   the de-duplication is not quite complete.
+| Question | Answer | Where |
+|---|---|---|
+| `ppkMerchGroup*` blank rate | `merchGroup*` = assortment SKU, `ppkMerchGroup*` = component SKU. Confirmed: master groups identical across components 139/139; component groups vary in 61 | §5.7, rules §6 |
+| `lineInvoiceQty`/`lineOpenQty` always zero | Not carried at component level; use `unshippedQty`/`linePickQty` instead | §5.2, rules §7 |
+| Non-`COS` `salesOrderNo = 0` | Hard-linking POs to production orders began ~2022–2023; `custPONumber` was manual before that, and drops off entirely on `INTRAN`/`REC` stages | §5.5, rules §4–§5 |
 
 ## 7. What has NOT been checked
 

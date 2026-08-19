@@ -1550,9 +1550,15 @@ ColdLion mirror — a previous session got this wrong).
 **ColdLion purchase/sales history (`prodHistory` / `orderHistory`) — read the shape doc before
 writing any loader.** These two endpoints (new to us 2026-08-14) carry order history for buying
 and selling. Their payload is documented from live probing in
-[`docs/coldlion-history-endpoints-shape.md`](docs/coldlion-history-endpoints-shape.md). Four
+[`docs/coldlion-history-endpoints-shape.md`](docs/coldlion-history-endpoints-shape.md). Five
 traps that will silently corrupt a load if you skip it:
 
+- **⚠️ The default `prodHistory` response is INCOMPLETE.** Without `stageCode` you get only the
+  `ISS` (issued) lines; `stageCode=REC` returns receipt lines with **zero overlap** with the
+  default (verified twice). Omitting it loses everything about what actually *arrived* — order
+  22717 ordered 4,800 and received 4,548, and only the `ISS` half is in the default response.
+  Fetch `ISS`, `REC` and `INTRAN`, and **record which stage each row came from** because the
+  payload does not say.
 - **Hard 7-day window cap (since 2026-08-17).** `fromDate`–`toDate` must be **within 7 days,
   inclusive**, on both endpoints; wider is refused outright. Month-wide calls that worked on
   2026-08-14 now fail. **The refusal is malformed** — HTTP 400 on the wire but `"status": 500` /

@@ -3,135 +3,118 @@
 **Status:** draft for Albert's review. Not sent. Send from Albert, not from an AI session.
 **Subject line suggestion:** Questions on the new prodHistory / orderHistory endpoints
 
-> ### ✅ 2026-08-17 — ColdLion already answered two of these; both are now REMOVED from the note
+> ### ✅ Answered so far — REMOVED from the note, do not re-ask
 >
-> - **Production-order line number** (was Q1, the blocker): they added **`prodLineSeq`** and now
->   select the maximum `lastProdDate`. Verified live.
-> - **Paging / rate limits** (was Q5): `fromDate`–`toDate` must be **within 7 days inclusive**;
->   ~2 seconds per window from their office. Verified live.
+> - **Production-order line number** → `prodLineSeq` added (2026-08-17).
+> - **Paging / rate limits** → 7-day window cap (2026-08-17).
+> - **`subUpc`** → rarely assigned to prepack components; one Walmart assortment. Keep the column.
+> - **`ppkMerchGroup*` blanks** → assortment vs component SKU (JamieLynn, 2026-08-18).
+> - **`lineInvoiceQty`/`lineOpenQty`** → not carried at component level; use `unshippedQty`.
+> - **Old unlinked lines** → hard-linking began ~2022–2023; the link drops on `INTRAN`/`REC`.
 >
-> **Do not re-ask either.** Detail and evidence:
-> [`coldlion-history-endpoints-shape.md`](../coldlion-history-endpoints-shape.md) §2, §3, §4.3.
-> What remains below is four field-modelling confirmations plus two new observations from their
-> changes. **Nothing here blocks the historical load** — send it when convenient.
+> Evidence for all of it: [`coldlion-history-endpoints-shape.md`](../coldlion-history-endpoints-shape.md)
+> and [`business-rules-erp-data.md`](../business-rules-erp-data.md).
+> **The live asks are now the `stageCode` list and the 10 recent unlinked AMA030 lines.**
 
 ---
 
-Hi,
+Hi JamieLynn,
 
-Thanks for adding `prodLineSeq` and the 7-day window limit so quickly — we've confirmed both on
-our side. `prodLineSeq` resolves the duplicate-row question completely: production order 23825
-now returns 4 rows for its 4 component styles instead of 8, and separate buy lines on one order
-are cleanly distinguishable. The 7-day windows come back in about a second for us, so a chunked
-historical pull is straightforward now.
+Thank you — all three answers landed, and each one resolved something. Checking them against the
+data turned up one thing we had badly wrong on our side, which I have noted below in case it
+matters to other API users too.
 
-A few smaller questions remain from mapping the payloads. **None of these blocks us**, they just
-determine how we store each field.
+**The stage answer was the most valuable thing anyone has told us about this feed.** Following it
+up, we discovered that `prodHistory` without a `stageCode` returns **only the `ISS` lines**. Asking
+for `stageCode=REC` returns rows that appear nowhere in the default response — 21 extra rows for one
+week in August, 159 extra for a week in July 2024, with no overlap at all. So our whole picture of
+"what we bought" was missing everything about what actually **arrived**. Production order 22717 is
+the clearest example: `ISS` line 1 ordered 4,800, `REC` line 2 received 4,548, and only the first
+half was visible to us.
 
-**1. Is `subUpc` expected to be populated?**
+Two questions on that, and they are now the only things we need before loading history:
 
-On `orderHistory`, `subUpc` came back empty on every one of the 1,985 prepack component rows
-we sampled, across seven separate months between 2019 and 2026. We just want to confirm it's
-genuinely unused rather than something we're failing to request, so we know whether to keep a
-place for it.
+**1. What is the full list of valid `stageCode` values?**
 
-**2. Should the prepack merchandise groups on `prodHistory` be blank as often as they are?**
+We have confirmed `ISS` and `REC` return data, and you mentioned `INTRAN` (it returned no rows in
+the weeks we tried, which may just be timing). We tried `OPEN`, `CLOSED`, `SHIP`, `CAN`, `PEND`,
+`NEW`, `COMP`, `WIP` and `APPR` and none returned anything. Since a stage we do not know about is a
+stage we would silently never fetch, we would rather have the authoritative list than guess.
 
-On `orderHistory`, the component-level groups (`subMerchGroup01`–`06`) are populated
-consistently. On `prodHistory`, the equivalent `ppkMerchGroup01`–`14` fields were completely
-blank on 140 of 1,774 component rows in the same sample, and partially blank on another 243,
-including cases where the very same style code has full groups on the order side. Is that a
-known gap on the production side, or a sign we should be joining to the item master for those
-values instead of reading them from this payload?
+**2. Is there any way to tell from a row which stage it came from?**
 
-**3. On `orderHistory`, are `lineInvoiceQty` and `lineOpenQty` populated for anyone?**
+The stage is not in the payload as far as we can see, so we only know it from the request we made.
+We will record it ourselves as we load, but if there is a field we have missed, that would be safer.
 
-Both came back as `0` on every one of the 5,874 rows we sampled, across all four divisions and
-all seven months, while `lineQty` and `lineCancelledQty` are populated normally. We'd rather
-confirm they're simply not carried on this endpoint than build a report on them and quietly
-read zero everywhere. Same question, less urgently, for `depositPerc` on `prodHistory`, which
-was `0` on all 3,411 rows.
+**3. On the sales-order link — your explanation covers nearly all of it.**
 
-**4. On `prodHistory`, what does `salesOrderNo = 0` mean on non-sample production?**
+The dates line up exactly with what you said about hard-linking starting around 2022/2023: 91% of
+lines unlinked in June 2019, 48% in March 2021, 42% in November 2023, and **0% in July 2024**. And
+every `REC` line we looked at was unlinked with an empty `custPONumber`, exactly as you described.
 
-Thank you for the explanation of the `COS` suffix — contractual samples for the licensor and DAVID
-samples for ourselves. That fits what we see exactly: those lines run 3 to 15 pieces against a
-median of 2,000 on ordinary lines, and they are all unlinked, which now makes sense. We will report
-them separately from customer purchases. **No further questions on `COS`.**
+One small group is left over that your explanation does not seem to cover: **10 recent lines that
+are `ISS` stage, not `COS` samples, and still unlinked** — all customer AMA030, references D3568 and
+D3569, ordered 2026-08-05, quantities from 152 to 1,200. Is there another way a recent issued line
+ends up without a sales order, or are these something specific?
 
-What we are still unsure about is the much larger group that has no sales order and **no** `COS`
-marker. In a sample of 1,047 rows across five weeks between 2019 and 2026:
+**4. Merch groups — your instinct was right, with one twist.**
 
-- 497 rows had a real `salesOrderNo`.
-- 550 had `salesOrderNo = 0`. Of those, **95 are the `COS` sample lines** you described — understood.
-- The remaining **455 rows (248 distinct order-lines)** are unlinked, not `COS`, and look like
-  perfectly ordinary production: quantities from 1 to 15,600 with a **median of 430**, mostly
-  `POECA` and `POE` production types in division `CW001`, with a customer named on nearly all of
-  them.
+You asked whether groups 1-4 were populated consistently, and whether we were seeing assortment-SKU
+data rather than sub-SKU data. Confirmed: on multi-component lines, `merchGroup01`–04 are identical
+across every component (139 of 139 lines), while `ppkMerchGroup01`–04 vary between components in 61
+of them. So `merchGroup*` is the assortment and `ppkMerchGroup*` is the piece, just as you thought.
 
-Examples of that remaining group, all `companyCode=EDGEHOME`:
+The twist is which side is blank. On prepack rows it is the **assortment** groups that are mostly
+empty — `merchGroup01`, `02` and `03` populated on only about 14% of rows, against 84–88% for
+`ppkMerchGroup01`–06. Only `merchGroup04` (size) is consistently filled, at 97%. That makes sense to
+us: an assortment master is generic and the licensor and theme live on the pieces inside. We will
+read component taxonomy from `ppkMerchGroup*` and stop treating a blank assortment group as missing
+data.
 
-  Order 20016, line 1, ref d0561, CW001, 2019-06-03, item VSZ851B, qty 1600, vendor 417, customer MOD010
-  Order 20016, line 2, ref d0561, CW001, 2019-06-03, item VSZ851C, qty 1000, vendor 417, customer MOD010
-  Order 20017, line 1, ref d0553, CW001, 2019-06-03, item VSZ851B, qty 1600, vendor 417, customer MOD010
-  Order 20818, line 1, ref b0247, EP001, 2021-03-03, item ACMPRM1, qty 15600, vendor SKPHL, customer (blank)
-  Order 20821, line 41, ref D1201, CW001, 2021-03-01, item HGP83DYMM01, qty 12, vendor CNFLW, customer BIG226
-  Order 23852, line 12, ref D3321, CW001, 2026-01-08, item FOILCORNER, qty 7600, vendor CNHDL, customer MOD010
+That leaves a much smaller question: roughly 12–16% of component rows have `ppkMerchGroup*` blank
+too. Is that expected, or worth a look?
 
-For contrast, a normal linked row: order 23825, line 3, ref D3320, item AAW2A02,
-`salesOrderNo` 7127555, `custPONumber` 668120603.
+**5. Quantities — answered, thank you.**
 
-Two other observations that may help:
+You were right that the invoice and open quantities are not carried at component level, and right
+that there are shipped/unshipped fields: we see `unshippedQty` and `linePickQty` populated
+(66 and 55 rows out of 442 respectively, mostly on prepack lines). We will build shipment reporting
+on those and treat `lineInvoiceQty` as unavailable here. Small correction to our earlier note:
+`lineOpenQty` **is** occasionally populated — 11 rows out of 442, up to 250 — so we will keep it.
 
-- The correlation with `custPONumber` is perfect in both directions. Every one of the 550 unlinked
-  rows also has an empty `custPONumber`, `custStartDate` and `custCancelDate`; every one of the 497
-  linked rows has `custPONumber` populated. That looks deliberate rather than sporadic.
-- The unlinked share swings hugely by week and we cannot explain it: 91% in the first week of June
-  2019, 0% in the first week of July 2024, 64% in the first week of August 2026.
-
-So: for a line that is not a `COS` sample, is `salesOrderNo = 0` a deliberate "no sales order for
-this line", and is there a rule that tells us why? We want to avoid either lumping these in with
-customer orders or dropping them.
-
-**4b. Are there other ways a sample run can be identified?**
-
-Related to the above: we found sample production marked in two other ways, neither using a `COS`
-reference. Order 20019, lines 2 and 3, reference d0550, carry the marker in the **item code** —
-`VSZ851MABPCONTR` and `VSZ851WAJGCONTR` ("DC COMICS CANVAS SAMPLES"), both 15 pieces. And order
-22236, reference D2313, uses the item `SAMPLECHRG` "SAMPLE CHARGE". Are these older conventions for
-the same thing, or something different? We want our "is this a sample?" rule to catch all of them,
-not just `COS`.
-
-**5. Two small things we noticed in the new behaviour, in case they're useful to you.**
+**6. Two small things from your recent changes, in case they are useful.**
 
 - When a date range is wider than 7 days, the refusal comes back as HTTP 400 on the wire, but the
-  JSON body says `"status": 500` and `"error": "Internal Server Error"`, with the actual
-  explanation in `message`. We're handling it fine, but a client that trusts the body would treat
-  a permanent input error as a temporary server fault and keep retrying it.
+  JSON body says `"status": 500` and `"error": "Internal Server Error"`, with the real explanation
+  in `message`. We handle it fine, but a client trusting the body would treat a permanent input
+  error as a temporary server fault and retry it forever.
 - `lastProdCost` still comes back twice for a few older orders where two production records share
-  the same latest `lastProdDate` — for example order 20872, line 1, component CTZHS0MSC01, with
-  3.09 and 3.64. `prodLineSeq` means this no longer causes us any trouble; flagging it only in
-  case the de-duplication was meant to cover it.
+  the same latest `lastProdDate` — for example order 20872, line 1, component CTZHS0MSC01, with 3.09
+  and 3.64. `prodLineSeq` means this causes us no trouble now; flagging it only in case the
+  de-duplication was meant to cover it.
 
-**6. One planning question, whenever convenient.**
+**7. One planning question, whenever convenient.**
 
-How far back does the history go? We've pulled data as early as June 2019 successfully and haven't
-looked further back. Knowing the earliest date with real data would let us size the one-time load
-exactly instead of scanning for the boundary.
+How far back does the history go? We have pulled data as early as June 2019 and have not looked
+further back. Knowing the earliest date with real data would let us size the one-time load exactly
+instead of scanning for the boundary.
 
-Thanks very much,
+Thanks again — the stage point in particular saved us from loading a materially incomplete history.
+
 Albert
 
 ---
 
 ## Notes for the session sending this (not part of the note)
 
-- **Nothing in this note blocks the load any more.** The two blockers (line number, rate limits)
-  were answered on 2026-08-17 and removed. Q1–Q4 change how we model individual fields; Q5 is
-  courtesy feedback on their new behaviour; Q6 sizes the one-time pull.
-- Q6 is the only one whose answer we actually need before the historical load finishes, and even
-  then only to avoid scanning backwards for the earliest data ourselves.
-- Every number quoted above is from the probe runs recorded in
-  [`coldlion-history-endpoints-shape.md`](../coldlion-history-endpoints-shape.md). If that
-  doc is re-verified and the numbers move, update them here before sending.
+- **The `stageCode` list is now the one answer worth waiting for** before the full historical load.
+  Everything else can be loaded around. Loading without knowing the valid stages risks a
+  systematically incomplete dataset, which is much worse than a delayed one.
+- Q3 (the 10 AMA030 lines) and Q4's tail (12-16% blank component groups) change how we classify
+  rows, not whether we can load them.
+- Q6 is courtesy feedback on their behaviour; Q7 sizes the pull.
+- Every number quoted above is from probe runs recorded in
+  [`coldlion-history-endpoints-shape.md`](../coldlion-history-endpoints-shape.md) and
+  [`business-rules-erp-data.md`](../business-rules-erp-data.md). If those are re-verified and the
+  numbers move, update them here before sending.
 - Do not include the API key, the key's 1Password location, or any internal system names.
