@@ -46,6 +46,16 @@ AI sessions from breaking each other through the one database they all depend on
 > under §6.4.
 > **Any other session with a STRUCTURE change opens a GitHub issue and stops:**
 > `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
+> ⛔ **EVERY issue this repo receives carries the `db-work` label AND a `db-work-scope`
+> block — no exceptions, including bug reports, tooling defects and CI complaints
+> that feel unrelated to the queue.** `--label db-work` is not optional decoration and
+> a body block is not a substitute for it: the orchestrator finds work by label, so an
+> unlabelled issue is invisible no matter how well its body is written. That is not
+> hypothetical — #1188, #1238, #1242, #1266 and #1268 all carried valid scope blocks and
+> were still missed for weeks because nobody labelled them. If `gh issue create` fails
+> and you retry, re-check the label on the issue you actually created. The queue audit
+> (`--queue-audit`) now reads **every** open issue, prints `UNLABELLED ISSUES` and exits
+> `2` until each one is labelled.
 > ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07) and is now a short pointer file.
 > **It stays on disk on purpose — retired means "pointer plus guard", not "deleted".** The
 > required check `Intake pointer guard`

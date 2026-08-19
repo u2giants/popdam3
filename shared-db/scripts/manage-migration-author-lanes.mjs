@@ -121,12 +121,19 @@ export function parseQueueScope(body = '') {
   return { status, workType, route, priority, dependencies, objects: objects.length ? validateClaimObjects(objects) : [] }
 }
 
+export const COORDINATION_LABELS = new Set(['db-claim','orchestrator-marker'])
+export const WORK_LABEL = 'db-work'
+
 function overlaps(a, b) { const right = new Set(b); return a.some((x)=>right.has(x)) }
 
 export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number)) {
   const openNumbers = new Set(allOpenIssueNumbers.map(Number))
-  const skipped = [], unclassified = [], malformed = [], candidates = []
+  const skipped = [], unclassified = [], malformed = [], unlabelled = [], candidates = []
   for (const issue of issues) {
+    // githubIo always supplies a labels array, so real audits always run this
+    // check; callers that pass no labels at all are asserting they carry no
+    // label information rather than asserting the label is absent.
+    if (Array.isArray(issue.labels) && !issue.labels.includes(WORK_LABEL)) unlabelled.push(issue.number)
     let scope
     try { scope = parseQueueScope(issue.body) } catch (error) { malformed.push({ issue:issue.number, reason:error.message }); continue }
     if (!scope) { unclassified.push(issue.number); continue }
@@ -155,7 +162,7 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
   }
   const emptyLanes = queues.filter((q)=>!q.active).length
   const dispatchable = queues.filter((q)=>!q.active && q.queued.length).map((q)=>q.queued[0])
-  return { queues, skipped, unclassified, malformed, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length }
+  return { queues, skipped, unclassified, malformed, unlabelled, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length }
 }
 
 export class LaneError extends Error {}
@@ -293,9 +300,17 @@ export const githubIo = {
     const rows = ghPaginated(`repos/${REPO}/issues?state=open&labels=db-claim&per_page=100`)
     return rows.filter((x) => !x.pull_request).map((x) => ({ number: x.number, title: x.title, body: x.body, url: x.html_url }))
   },
-  openWorkIssues() {
-    const rows = ghPaginated(`repos/${REPO}/issues?state=open&labels=db-work&per_page=100`)
-    return rows.filter((x)=>!x.pull_request).map((x)=>({ number:x.number, title:x.title, body:x.body, labels:(x.labels??[]).map((l)=>l.name) }))
+  // EVERY open issue is audited, not just the ones somebody remembered to
+  // label. Filtering on `labels=db-work` here is what let issues #1188, #1238,
+  // #1242, #1266 and #1268 sit unlabelled and therefore invisible to the queue
+  // audit while carrying a valid db-work-scope block. Coordination issues
+  // (db-claim, orchestrator-marker) are the only exclusions; a missing db-work
+  // label on anything else is now a reported defect, never a silent skip.
+  openWorkIssues(pager = ghPaginated) {
+    const rows = pager(`repos/${REPO}/issues?state=open&per_page=100`)
+    return rows.filter((x)=>!x.pull_request)
+      .map((x)=>({ number:x.number, title:x.title, body:x.body, labels:(x.labels??[]).map((l)=>l.name) }))
+      .filter((x)=>!x.labels.some((name)=>COORDINATION_LABELS.has(name)))
   },
   openIssueNumbers() { return ghPaginated(`repos/${REPO}/issues?state=open&per_page=100`).filter((x)=>!x.pull_request).map((x)=>x.number) },
   prSources() { return gatherOpenPrObjects(REPO) },
@@ -1127,8 +1142,9 @@ export function main(argv, now = new Date(), io = githubIo) {
       const result = buildDynamicQueues(io.openWorkIssues(), claims, now, io.openIssueNumbers())
       console.log(JSON.stringify(result,null,2))
       if (result.dispatchable.length) { console.error(`REFILL REQUIRED NOW: dispatch issue(s) ${result.dispatchable.map((n)=>`#${n}`).join(', ')}`); return 2 }
-      if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify every open db-work issue before claiming no eligible work exists'); return 2 }
-      return result.malformed.length ? 2 : 0
+      if (result.unlabelled.length) console.error(`UNLABELLED ISSUES: add the \`${WORK_LABEL}\` label to ${result.unlabelled.map((n)=>`#${n}`).join(', ')} — an unlabelled issue is invisible to every label-filtered query`)
+      if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify and label every open issue before claiming no eligible work exists'); return 2 }
+      return result.malformed.length || result.unlabelled.length ? 2 : 0
     }
     if (o.releaseClaim) {
       if (!o.confirmFinished || !o.owner) throw new LaneError('--release-claim requires exact --owner and --confirm-finished')

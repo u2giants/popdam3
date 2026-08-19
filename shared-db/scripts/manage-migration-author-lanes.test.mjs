@@ -1102,3 +1102,29 @@ test('REAL GIT: failed migration rename restores all content edits before return
   assert.equal(existsSync(oldFile),true);assert.equal(existsSync(path.join(repo,'supabase/migrations',`${fresh}_repair.sql`)),false)
   assert.equal(readFileSync(oldFile,'utf8'),`-- version ${old}\nselect 1;\n`);assert.equal(readFileSync(path.join(repo,'docs/reversion.md'),'utf8'),`reserved version ${old}\n`)
 }))
+
+test('an open issue with no db-work label is reported and blocks an empty-lane claim',()=>{
+  const issues=[
+    {number:70,title:'labelled',labels:['db-work'],body:scope('ready','repo-maintenance','repo-maintenance',5)},
+    {number:71,title:'unlabelled but classified',labels:[],body:scope('ready','repo-maintenance','repo-maintenance',5)},
+    {number:72,title:'unlabelled and unclassified',labels:['bug'],body:'no scope block here'},
+  ]
+  const result=buildDynamicQueues(issues,[],NOW)
+  assert.deepEqual(result.unlabelled,[71,72])
+  assert.deepEqual(result.unclassified,[72])
+  assert.equal(result.fullyAudited,false)
+})
+
+test('openWorkIssues audits every open issue and excludes only coordination issues',()=>{
+  const rows=[
+    {number:80,title:'work',body:'b',labels:[{name:'db-work'}]},
+    {number:81,title:'unlabelled',body:'b',labels:[]},
+    {number:82,title:'claim',body:'b',labels:[{name:'db-claim'}]},
+    {number:83,title:'marker',body:'b',labels:[{name:'orchestrator-marker'}]},
+    {number:84,title:'pr',body:'b',labels:[],pull_request:{}},
+  ]
+  const calls=[]
+  const result=githubIo.openWorkIssues((endpoint)=>{calls.push(endpoint);return rows})
+  assert.deepEqual(result.map((x)=>x.number),[80,81])
+  assert.ok(calls.every((endpoint)=>!/labels=/.test(endpoint)),'the audit must not filter by label')
+})
