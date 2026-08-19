@@ -288,7 +288,8 @@ $$;
 
 -- =====================================================================================
 -- D. RLS IS ON, AND THE GRANTS ARE THE IMMUTABILITY MECHANISM.
---    anon and authenticated get NOTHING. service_role gets SELECT everywhere,
+--    anon gets NOTHING. authenticated gets SELECT and only SELECT, gated by the
+--    <table>_plm_read policy added for issue #1249. service_role gets SELECT everywhere,
 --    INSERT on the 16 snapshot tables, and MUST NOT hold UPDATE or DELETE anywhere --
 --    that absence is what makes a landed row immutable.
 --    (15 -> 16 snapshot tables with #757's plm.nbcu_asset_ip_family; nbcu_capture is
@@ -312,11 +313,33 @@ begin
     if v_n <> 1 then v_fail := v_fail+1; raise warning 'FAIL RLS not enabled on plm.%', t;
     else v_pass := v_pass+1; end if;
 
-    -- Nothing at all for the browser roles.
+    -- Nothing at all for anon.
     select count(*) into v_n from information_schema.role_table_grants
-     where table_schema='plm' and table_name=t and grantee in ('anon','authenticated');
+     where table_schema='plm' and table_name=t and grantee = 'anon';
     if v_n <> 0 then v_fail := v_fail+1;
-      raise warning 'FAIL plm.% grants % privilege(s) to anon/authenticated', t, v_n;
+      raise warning 'FAIL plm.% grants % privilege(s) to anon', t, v_n;
+    else v_pass := v_pass+1; end if;
+
+    -- CHANGED BY MIGRATION 20260819151510 (issue #1249, the owner ruling "scrape data
+    -- should be visible to Licensing department users"). This assertion used to require
+    -- that `authenticated` held nothing. It now holds SELECT and only SELECT, and a
+    -- `<table>_plm_read` RLS policy -- not the grant -- decides who that SELECT actually
+    -- returns rows to. Who is admitted is proved behaviourally in
+    -- supabase/tests/wildbrain_nbcu_licensing_read_access_contracts.sql; what this file
+    -- keeps asserting is that the grant did not widen past reads.
+    select count(*) into v_n from information_schema.role_table_grants
+     where table_schema='plm' and table_name=t
+       and grantee='authenticated' and privilege_type='SELECT';
+    if v_n <> 1 then v_fail := v_fail+1;
+      raise warning 'FAIL plm.% does not grant SELECT to authenticated (issue #1249)', t;
+    else v_pass := v_pass+1; end if;
+
+    select count(*) into v_n from information_schema.role_table_grants
+     where table_schema='plm' and table_name=t
+       and grantee='authenticated' and privilege_type<>'SELECT';
+    if v_n <> 0 then v_fail := v_fail+1;
+      raise warning 'FAIL plm.% grants % non-SELECT privilege(s) to authenticated -- '
+        '#1249 widened READS only', t, v_n;
     else v_pass := v_pass+1; end if;
 
     -- THE IMMUTABILITY ASSERTION.
@@ -1017,8 +1040,22 @@ $$;
 --    one catalog view -- and covers the four PostgreSQL 17 bits that predate the original
 --    revoke migration (REFERENCES, TRIGGER, MAINTAIN, TRUNCATE).
 --
---    The table must NOT be reachable by the browser roles and must NOT be exposed
---    through any api.* view or public wrapper function.
+--    `anon` must hold NOTHING on the table. `authenticated` must hold SELECT AND ONLY
+--    SELECT -- never a write -- and which signed-in accounts that SELECT actually returns
+--    rows to is decided by the `nbcu_asset_ip_family_plm_read` RLS policy added by
+--    migration 20260819151510 for issue #1249, Albert Hazan's ruling that "scrape data
+--    should be visible to Licensing department users". That policy admits administrator,
+--    `plm` app access, and the sales/licensing roles, and it is proved behaviourally --
+--    by becoming each principal in turn -- in
+--    supabase/tests/wildbrain_nbcu_licensing_read_access_contracts.sql.
+--
+--    DO NOT "RESTORE" A DENY-ALL POSTURE HERE. Until 2026-08-19 this header said the
+--    table must not be reachable by the browser roles at all, and that was correct until
+--    the owner decided otherwise. Re-tightening these assertions would quietly undo his
+--    ruling and lock Licensing back out.
+--
+--    The table must still NOT be exposed through any api.* view or public wrapper
+--    function; `plm` is not PostgREST-exposed and a read surface is a separate decision.
 -- =====================================================================================
 do $$
 declare
@@ -1044,22 +1081,44 @@ begin
     else v_pass := v_pass+1; end if;
   end loop;
 
-  -- I3. anon and authenticated can do NOTHING AT ALL. Licensed NBCU source material is
-  --     not exposed to the browser without an explicit access decision.
-  foreach r in array array['anon','authenticated'] loop
-    foreach p in array array['SELECT','INSERT','UPDATE','DELETE','REFERENCES','TRIGGER','TRUNCATE'] loop
-      if has_table_privilege(r,'plm.nbcu_asset_ip_family',p) then
-        v_fail := v_fail+1;
-        raise warning 'I3 FAIL: % holds % on plm.nbcu_asset_ip_family', r, p;
-      else v_pass := v_pass+1; end if;
-    end loop;
+  -- I3. anon can do NOTHING AT ALL, and `authenticated` may READ and nothing more.
+  --
+  --     THE EXPLICIT ACCESS DECISION ARRIVED. Until 2026-08-19 this block required that
+  --     `authenticated` hold nothing either, on the stated grounds that licensed NBCU
+  --     source material is not exposed without an explicit access decision. Albert Hazan
+  --     then made one, verbatim: "scrape data should be visible to Licensing department
+  --     users" (issue #1249). Migration 20260819151510 grants `authenticated` SELECT and
+  --     adds a `<table>_plm_read` policy carrying the house predicate, so the GRANT is no
+  --     longer what keeps this data confidential -- the POLICY is. Who the policy admits
+  --     is proved behaviourally, by becoming each principal, in
+  --     supabase/tests/wildbrain_nbcu_licensing_read_access_contracts.sql. What this
+  --     block still owns is the other half: SELECT only, never a write.
+  foreach p in array array['SELECT','INSERT','UPDATE','DELETE','REFERENCES','TRIGGER','TRUNCATE'] loop
+    if has_table_privilege('anon','plm.nbcu_asset_ip_family',p) then
+      v_fail := v_fail+1;
+      raise warning 'I3 FAIL: anon holds % on plm.nbcu_asset_ip_family', p;
+    else v_pass := v_pass+1; end if;
+  end loop;
+
+  if not has_table_privilege('authenticated','plm.nbcu_asset_ip_family','SELECT') then
+    v_fail := v_fail+1;
+    raise warning 'I3 FAIL: authenticated holds no SELECT on plm.nbcu_asset_ip_family '
+      '(issue #1249)';
+  else v_pass := v_pass+1; end if;
+
+  foreach p in array array['INSERT','UPDATE','DELETE','REFERENCES','TRIGGER','TRUNCATE'] loop
+    if has_table_privilege('authenticated','plm.nbcu_asset_ip_family',p) then
+      v_fail := v_fail+1;
+      raise warning 'I3 FAIL: authenticated holds % on plm.nbcu_asset_ip_family -- #1249 '
+        'widened READS only', p;
+    else v_pass := v_pass+1; end if;
   end loop;
 
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema='plm' and table_name='nbcu_asset_ip_family'
-     and grantee in ('anon','authenticated','PUBLIC');
+     and grantee in ('anon','PUBLIC');
   if v_n <> 0 then v_fail := v_fail+1;
-    raise warning 'I3 FAIL: anon/authenticated/PUBLIC hold % grant(s)', v_n;
+    raise warning 'I3 FAIL: anon/PUBLIC hold % grant(s)', v_n;
   else v_pass := v_pass+1; end if;
 
   -- I4. RLS is enabled.

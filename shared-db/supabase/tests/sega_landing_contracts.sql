@@ -1658,14 +1658,20 @@ declare
   -- whose 19 plm.peanuts_* tables made this test fail with 19 classification changes. The
   -- view extension was correct and this expectation was stale. Nothing else in this file
   -- was touched. Same failure mode as #1195.
+  -- 2026-08-19: the {wildbrain_,wildbrain} row was added by the author of #1239 / #1240,
+  -- whose migration 20260819151536 finally classified the 11 plm.wildbrain_* tables the
+  -- WildBrain landing never registered here. This test did exactly what it was built to
+  -- do: it failed with 11 "v_map does not know its prefix" warnings, naming this array and
+  -- the one-row fix. Nothing else in this file was touched. Same failure mode as #1195.
   v_map text[][] := array[
-    ['dcp\_%',     'disney'],
-    ['opa\_%',     'disney'],
-    ['pmt\_%',     'paramount'],
-    ['nbcu\_%',    'nbcu'],
-    ['wb\_%',      'warner'],
-    ['erp\_%',     'coldlion'],
-    ['peanuts\_%', 'peanuts']
+    ['dcp\_%',       'disney'],
+    ['opa\_%',       'disney'],
+    ['pmt\_%',       'paramount'],
+    ['nbcu\_%',      'nbcu'],
+    ['wb\_%',        'warner'],
+    ['erp\_%',       'coldlion'],
+    ['peanuts\_%',   'peanuts'],
+    ['wildbrain\_%', 'wildbrain']
   ];
 begin
   for r in

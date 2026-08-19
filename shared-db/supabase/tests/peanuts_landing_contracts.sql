@@ -1344,7 +1344,12 @@ declare
     ['wb\_%',      'warner'],
     ['erp\_%',     'coldlion'],
     ['sega\_%',    'sega'],
-    ['peanuts\_%', 'peanuts']
+    ['peanuts\_%', 'peanuts'],
+    -- 2026-08-19: added by the author of #1239 / #1240 with migration 20260819151536,
+    -- which classified the 11 plm.wildbrain_* tables the WildBrain landing never
+    -- registered in the view. This block failed first, naming this array. One row, and
+    -- nothing else in this file changed.
+    ['wildbrain\_%', 'wildbrain']
   ];
 begin
   -- Every pre-existing source keeps its classification. If a Peanuts branch had been

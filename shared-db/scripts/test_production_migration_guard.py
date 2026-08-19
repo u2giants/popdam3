@@ -1864,12 +1864,81 @@ class ApplyLaneTests(unittest.TestCase):
         self.assertEqual(WORKFLOW_TEXT.count('if [ -n "$ATOMIC_VERSION" ]'), 4)
         self.assertNotIn("jq -e", WORKFLOW_TEXT)
 
-    def test_every_apply_job_installs_and_proves_psql(self) -> None:
-        for job_name in ("preview", "production-dry-run", "production-apply-review", "production-apply"):
+    def test_every_apply_job_proves_a_working_psql_before_touching_a_database(self) -> None:
+        """No apply job may reach a database without a PROVED PostgreSQL client.
+
+        This test used to pin the literal `apt-get install -y postgresql-client`
+        -- the MECHANISM -- and so it broke the moment #1261 replaced that
+        mechanism with one that skips apt when the runner image already carries
+        the client. What the assertion was actually protecting is the GUARANTEE
+        underneath it: every apply lane proves a working client, by executing it,
+        before it links to preview or production, and the job dies if it cannot.
+
+        So this asserts the guarantee and says nothing about how the client is
+        obtained. Swap apt for a container image, a cache, or a tarball and this
+        still passes. Delete the `psql --version` proof gate, let any success
+        path out of the step skip it, drop the exit-1, lose the named
+        infrastructure annotation, or move the step after the database link, and
+        it still FAILS.
+        """
+        for job_name in (
+            "preview",
+            "production-dry-run",
+            "production-apply-review",
+            "production-apply",
+        ):
             with self.subTest(job=job_name):
-                joined = "\n".join(_steps(_job(job_name)))
-                self.assertIn("apt-get install -y postgresql-client", joined)
-                self.assertIn("psql --version", joined)
+                steps = _steps(_job(job_name))
+                # The gate is the FIRST step that executes the client. Later
+                # steps run psql too; what matters is that the job cannot get
+                # past this one without a client that actually works.
+                client_steps = [
+                    (k, s) for k, s in enumerate(steps) if "psql --version" in s
+                ]
+                self.assertTrue(
+                    client_steps, "no step in this job ever executes the client"
+                )
+                index, step = client_steps[0]
+
+                # (1) The gate is unconditional and cannot be waved through.
+                self.assertNotIn("continue-on-error", step)
+                self.assertNotIn("if:", step)
+
+                # (2) EVERY success path out of the step is preceded by an actual
+                #     execution of the client since the previous success -- a
+                #     present binary is never accepted as a working one.
+                commands = _run_block_commands(step)
+                proofs = [k for k, c in enumerate(commands) if "psql --version" in c]
+                successes = [k for k, c in enumerate(commands) if c == "exit 0"]
+                self.assertTrue(successes, "the step must have a success path")
+                self.assertGreaterEqual(
+                    len(proofs),
+                    2,
+                    "the skip path and the install path must each prove the client",
+                )
+                previous = -1
+                for success in successes:
+                    self.assertTrue(
+                        [p for p in proofs if previous < p < success],
+                        f"success at command {success} is not gated on proving the client",
+                    )
+                    previous = success
+
+                # (3) Exhausting every route to a client FAILS the job, loudly and
+                #     by name, so an infrastructure stall is never read as a
+                #     verdict on the change under review (issue #1261).
+                self.assertEqual(
+                    commands[-1], "exit 1", "the step must end by failing the job"
+                )
+                annotation = commands[-2]
+                self.assertIn("::error::CI INFRASTRUCTURE:", annotation)
+                self.assertIn("PostgreSQL client unavailable", annotation)
+                self.assertIn("NO MIGRATION WAS APPLIED", annotation)
+
+                # (4) The proof happens BEFORE any database is linked.
+                links = [k for k, s in enumerate(steps) if "supabase link" in s]
+                self.assertTrue(links, "expected a database link step in this job")
+                self.assertLess(index, min(links))
 
     def test_retired_orderlist_migration_is_hard_blocked(self) -> None:
         self.assertIn("20260816045130", HARD_BLOCKED)

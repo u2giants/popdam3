@@ -290,10 +290,34 @@ begin
 
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'wildbrain\_%'
-     and grantee in ('anon','authenticated','PUBLIC');
+     and grantee in ('anon','PUBLIC');
   if v_n <> 0 then
     v_fail := v_fail + 1;
-    raise warning 'FAIL % grant(s) to anon/authenticated/PUBLIC survive', v_n;
+    raise warning 'FAIL % grant(s) to anon/PUBLIC survive', v_n;
+  end if;
+
+  -- CHANGED BY MIGRATION 20260819151510 (issue #1249, the owner ruling "scrape data
+  -- should be visible to Licensing department users"). This block asserted that
+  -- `authenticated` held NOTHING on the eleven wildbrain tables. It now holds SELECT on
+  -- all eleven and nothing else, and an RLS policy -- not the grant -- decides who that
+  -- SELECT actually returns rows to. The behavioural half of that ruling lives in
+  -- supabase/tests/wildbrain_nbcu_licensing_read_access_contracts.sql; what stays here is
+  -- the half this file has always owned: the grant must not have widened past reads.
+  select count(*) into v_n from information_schema.role_table_grants
+   where table_schema = 'plm' and table_name like 'wildbrain\_%'
+     and grantee = 'authenticated' and privilege_type = 'SELECT';
+  if v_n <> 11 then
+    v_fail := v_fail + 1;
+    raise warning 'FAIL expected 11 SELECT grants to authenticated (issue #1249), found %', v_n;
+  end if;
+
+  select count(*) into v_n from information_schema.role_table_grants
+   where table_schema = 'plm' and table_name like 'wildbrain\_%'
+     and grantee = 'authenticated' and privilege_type <> 'SELECT';
+  if v_n <> 0 then
+    v_fail := v_fail + 1;
+    raise warning 'FAIL authenticated holds % non-SELECT grant(s) on wildbrain tables -- '
+      '#1249 widened READS only', v_n;
   end if;
 
   -- RLS enabled on all eleven, and one read policy each.
@@ -1763,6 +1787,456 @@ begin
   raise notice 'F14: a present-but-null loader count is refused by name, not skipped.';
 end;
 $$;
+
+-- =====================================================================================
+-- I and F15. WILDBRAIN PARITY -- issues #1239 and #1240, claim #1254.
+-- Added with migration 20260819151536.
+-- =====================================================================================
+
+-- I. api.source_capture_inventory MUST CLASSIFY plm.wildbrain_* (#1239).
+--
+--    Before 20260819151536 every wildbrain table fell through the classifier's `else`
+--    arm to source_system 'other' with count_basis 'retained_only' and the note "no
+--    source-specific latest-complete contract is defined for this table". That was not a
+--    missing answer, it was a WRONG one: WildBrain has exactly the NBCU/Sega/Peanuts
+--    latest-complete contract, which the rest of this file exercises at length.
+--
+--    THIS BLOCK GOES RED ON THE PRE-FIX VIEW at the first assertion, and it also goes red
+--    if a later author re-derives this view from a stale body: I3 pins the Peanuts arms,
+--    which a body copied from 20260819015333 would silently drop.
+do $$
+declare
+  v_tables integer;
+  v_n      integer;
+  v_cols   text;
+  v_i      integer;
+  v_want   text;
+  v_got    text;
+  r        record;
+  -- The classification rule, restated INDEPENDENTLY of the view, in the order the view
+  -- tests it (dcp/opa first; first match wins). Written out here on purpose: a test that
+  -- asked the view what it thinks and then agreed would be a tautology. This is the same
+  -- single-map structure used by F1 in sega_landing_contracts.sql and G in
+  -- peanuts_landing_contracts.sql -- a new landing schema adds ONE row to each.
+  v_map text[][] := array[
+    ['dcp\_%',       'disney'],
+    ['opa\_%',       'disney'],
+    ['pmt\_%',       'paramount'],
+    ['nbcu\_%',      'nbcu'],
+    ['wb\_%',        'warner'],
+    ['erp\_%',       'coldlion'],
+    ['sega\_%',      'sega'],
+    ['peanuts\_%',   'peanuts'],
+    ['wildbrain\_%', 'wildbrain']
+  ];
+begin
+  raise notice '=== I. api.source_capture_inventory CLASSIFIES WILDBRAIN ===';
+
+  -- I1. Every wildbrain table is classified 'wildbrain', and the count is the real number
+  --     of base tables rather than a literal that would drift. The literal 11 is asserted
+  --     separately below so this cannot pass vacuously on an empty schema.
+  select count(*) into v_tables
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'plm' and c.relkind = 'r' and c.relname like 'wildbrain\_%';
+  if v_tables <> 11 then
+    raise exception
+      'I1 FAILED: % plm.wildbrain_* base tables exist, expected 11. If the WildBrain table set legitimately changed, update this number AND check that api.source_capture_inventory still classifies every one of them.',
+      v_tables;
+  end if;
+  select count(*) into v_n from api.source_capture_inventory
+   where table_name like 'wildbrain\_%' and source_system = 'wildbrain';
+  if v_n <> v_tables then
+    raise exception
+      'I1 FAILED: only % of % wildbrain tables are classified as ''wildbrain'' -- the rest still fall through to ''other''',
+      v_n, v_tables;
+  end if;
+
+  -- I2. EVERY plm table, against v_map. Walking only wildbrain_ would let a slip over
+  --     NBCU, Disney, Paramount, Warner, Coldlion, Sega or Peanuts through: the WildBrain
+  --     branch was inserted into a `case`, and a `case` is order-sensitive, so the
+  --     regression has to cover the arms this change sits next to as well as its own.
+  for r in select c.relname
+             from pg_class c join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'plm' and c.relkind = 'r'
+  loop
+    v_want := 'other';
+    for v_i in 1 .. array_length(v_map, 1) loop
+      if r.relname like v_map[v_i][1] then
+        v_want := v_map[v_i][2];
+        exit;
+      end if;
+    end loop;
+
+    v_got := (select source_system from api.source_capture_inventory
+               where table_name = r.relname);
+    if v_got is distinct from v_want then
+      if v_want = 'other' and v_got is distinct from 'other' then
+        raise exception
+          'I2 FAILED: plm.% is classified as ''%'' but v_map in this block does not know its prefix. If you are landing a new source, add one row to v_map above -- do not delete this check.',
+          r.relname, v_got;
+      end if;
+      raise exception 'I2 FAILED: plm.% classifies as %, expected %',
+        r.relname, v_got, v_want;
+    end if;
+  end loop;
+
+  -- I3. THE STALE-BODY TRIPWIRE. This view has been replaced four times. A
+  --     `create or replace` derived from an older migration would pass I1 and I2 -- the
+  --     Peanuts tables would simply read 'other', which v_map would have to be wrong for
+  --     anyone to notice -- so pin the arms that a stale derivation would delete.
+  if (select count(*) from api.source_capture_inventory
+       where table_name like 'peanuts\_%' and count_basis = 'latest_complete') = 0 then
+    raise exception
+      'I3 FAILED: the Peanuts latest-complete arms are gone. Whoever last replaced api.source_capture_inventory derived it from a body older than 20260819125713 and reverted that work.';
+  end if;
+  if (select count(*) from api.source_capture_inventory
+       where table_name like 'sega\_%' and count_basis = 'latest_complete') = 0 then
+    raise exception
+      'I3 FAILED: the Sega latest-complete arms are gone -- same stale-derivation failure as above, one migration further back.';
+  end if;
+
+  -- I4. Every wildbrain table is on the latest_complete basis, and none is left on the
+  --     'retained_only' fall-through with the generic note that made the old answer
+  --     misleading rather than absent.
+  select count(*) into v_n from api.source_capture_inventory
+   where table_name like 'wildbrain\_%' and count_basis <> 'latest_complete';
+  if v_n <> 0 then
+    raise exception 'I4 FAILED: % wildbrain tables are not on the latest_complete basis', v_n;
+  end if;
+  select count(*) into v_n from api.source_capture_inventory
+   where table_name like 'wildbrain\_%'
+     and count_note like 'Retained rows only%';
+  if v_n <> 0 then
+    raise exception
+      'I4 FAILED: % wildbrain tables still carry the generic retained-only note', v_n;
+  end if;
+  select count(*) into v_n from api.source_capture_inventory
+   where table_name like 'wildbrain\_%'
+     and count_note not like '%WildBrain capture%';
+  if v_n <> 0 then
+    raise exception
+      'I4 FAILED: % wildbrain tables do not state the WildBrain counting rule', v_n;
+  end if;
+
+  -- I5. The ten output columns keep their names and order, so SELECT * consumers do not
+  --     shift, and the read grants are unchanged -- anon must still not read this view.
+  select string_agg(column_name, ',' order by ordinal_position) into v_cols
+    from information_schema.columns
+   where table_schema = 'api' and table_name = 'source_capture_inventory';
+  if v_cols <> 'source_system,table_name,row_count,carries_resolution,table_comment,'
+             || 'retained_row_count,latest_complete_row_count,count_basis,'
+             || 'latest_complete_status,count_note' then
+    raise exception 'I5 FAILED: the view output columns changed shape: %', v_cols;
+  end if;
+  if has_table_privilege('anon', 'api.source_capture_inventory', 'SELECT')
+     or not has_table_privilege('authenticated', 'api.source_capture_inventory', 'SELECT')
+     or not has_table_privilege('service_role', 'api.source_capture_inventory', 'SELECT') then
+    raise exception 'I5 FAILED: the view read grants changed';
+  end if;
+
+  -- I6. And every plm base table still appears exactly once. A view edit that dropped
+  --     rows would pass every loop above, which only checks the rows that ARE there.
+  if (select count(*) from api.source_capture_inventory)
+     <> (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = 'plm' and c.relkind = 'r') then
+    raise exception 'I6 FAILED: the view no longer reports one row per plm table';
+  end if;
+
+  raise notice 'I: 11 wildbrain tables classified, every other source unchanged, columns and grants intact.';
+end;
+$$;
+
+-- I7. THE COUNTING RULE ITSELF, not just its label. Publish a capture that is newer than
+--     every other capture in this file, and prove latest_complete_row_count follows THAT
+--     capture -- and that a later REJECTED capture does not become the answer.
+--
+--     Earlier sections have already published complete captures, so "no complete capture
+--     yields NULL" cannot be observed at this point in the transaction; it is asserted in
+--     the migration's own verification block against a database with none. What is
+--     provable here is the harder half: that the view tracks the NEWEST complete one.
+do $$
+declare
+  v_new   uuid;
+  v_rej   uuid;
+  r       record;
+  v_full  jsonb := '{"eras":1,"creative_groups":0,"asset_categories":0,"asset_natures":0,
+                     "characters":0,"assets":0,"asset_characters":0,"guides":0,
+                     "guide_aliases":0,"asset_guides":0}'::jsonb;
+begin
+  raise notice '=== I7. THE WILDBRAIN LATEST-COMPLETE COUNT FOLLOWS THE NEWEST CAPTURE ===';
+
+  v_new := plm.begin_wildbrain_capture(
+    p_capture_key            => 'zztest-wildbrain:I7-new',
+    p_source_repository      => 'u2giants/zztest-fixture',
+    p_source_commit_sha      => repeat('e', 40),
+    p_source_manifest_sha256 => repeat('e', 64),
+    p_portal_base_url        => 'https://zztest.example.invalid/',
+    p_source_captured_at     => timestamptz '2099-01-01 00:00:00+00',
+    p_expected_counts        => v_full,
+    p_raw_summary            => '{"fixture":true}'::jsonb,
+    p_created_by             => 'zztest',
+    p_pagination_verified    => true
+  );
+  insert into plm.wildbrain_era
+    (capture_id, era_source_id, parent_era_source_id, era_label, normalized_era_label,
+     is_root, raw)
+  values (v_new, 'ZZTEST-I7-ROOT', null, 'ZZTEST I7 Root', 'zztest i7 root', true, '{}'::jsonb);
+  perform plm.finalize_wildbrain_capture(v_new, null, '[]'::jsonb);
+  if (select status from plm.wildbrain_capture where id = v_new) <> 'complete' then
+    raise exception 'I7 FAILED: the fixture capture did not publish: %',
+      (select error_summary from plm.wildbrain_capture where id = v_new);
+  end if;
+
+  select * into r from api.source_capture_inventory where table_name = 'wildbrain_era';
+  if r.latest_complete_status <> 'complete' then
+    raise exception 'I7 FAILED: wildbrain_era latest_complete_status is %, expected complete',
+      r.latest_complete_status;
+  end if;
+  if r.latest_complete_row_count <> 1 then
+    raise exception
+      'I7 FAILED: wildbrain_era latest_complete_row_count is %, expected 1 -- the view is not counting the newest complete capture',
+      r.latest_complete_row_count;
+  end if;
+  if r.retained_row_count <= r.latest_complete_row_count then
+    raise exception
+      'I7 FAILED: retained (%) is not greater than latest-complete (%) -- earlier sections landed eras in other captures, so the two must differ; the view is reporting retained rows under a latest-complete label',
+      r.retained_row_count, r.latest_complete_row_count;
+  end if;
+
+  select * into r from api.source_capture_inventory where table_name = 'wildbrain_capture';
+  if r.latest_complete_row_count <> 1 then
+    raise exception 'I7 FAILED: wildbrain_capture latest_complete_row_count is %, expected 1',
+      r.latest_complete_row_count;
+  end if;
+
+  -- A NEWER capture that is REJECTED must not become the answer. This is the half of the
+  -- contract that a `status <> ''abandoned''` style filter would silently break.
+  v_rej := plm.begin_wildbrain_capture(
+    p_capture_key            => 'zztest-wildbrain:I7-rejected',
+    p_source_repository      => 'u2giants/zztest-fixture',
+    p_source_commit_sha      => repeat('f', 40),
+    p_source_manifest_sha256 => repeat('f', 64),
+    p_portal_base_url        => 'https://zztest.example.invalid/',
+    p_source_captured_at     => timestamptz '2099-06-01 00:00:00+00',
+    p_expected_counts        => '{"eras":9,"creative_groups":0,"asset_categories":0,
+                                  "asset_natures":0,"characters":0,"assets":0,
+                                  "asset_characters":0,"guides":0,"guide_aliases":0,
+                                  "asset_guides":0}'::jsonb,
+    p_raw_summary            => '{"fixture":true}'::jsonb,
+    p_created_by             => 'zztest',
+    p_pagination_verified    => true
+  );
+  perform plm.finalize_wildbrain_capture(v_rej, null, '[]'::jsonb);
+  if (select status from plm.wildbrain_capture where id = v_rej) <> 'rejected' then
+    raise exception 'I7 FAILED: the fixture rejection did not reject';
+  end if;
+
+  select * into r from api.source_capture_inventory where table_name = 'wildbrain_era';
+  if r.latest_complete_row_count <> 1 then
+    raise exception
+      'I7 FAILED: a NEWER REJECTED capture changed wildbrain_era latest_complete_row_count to % -- rejected attempts must stay retained-only',
+      r.latest_complete_row_count;
+  end if;
+
+  raise notice 'I7: the wildbrain latest-complete count follows the newest COMPLETE capture and ignores a newer rejected one.';
+end;
+$$;
+
+-- F15. THE EXTRA-KEY SWEEP (#1240). A KEY OUTSIDE THE TEN ENTITY NAMES MUST OBEY THE SAME
+--      RULE -- IN THE STORED expected_counts AND IN THE LOADER'S REPORTED COUNTS.
+--
+--      Before 20260819151536 the gate applied its type / non-negative-integer / range rule
+--      to its ten known keys and to nothing else, while plm.begin_wildbrain_capture's own
+--      comment promised those values were "refused again at the publication gate, which
+--      re-reads the stored object rather than trusting that this ran". For any other key
+--      that promise was unenforced, and expected_counts is an ordinary jsonb column that a
+--      later statement can UPDATE after begin_ has run -- which is exactly what this test
+--      does, because that is the only way the shape can exist.
+--
+--      EVERY CASE BELOW PUBLISHES CLEAN WITHOUT THE SWEEP. Delete the two sweep loops from
+--      plm.finalize_wildbrain_capture and each capture here reaches status 'complete' and
+--      this block goes RED on the first assertion. That is the property that makes it a
+--      test of the guard rather than a test of the surrounding code.
+do $$
+declare
+  v_cap    uuid;
+  v_status text;
+  v_err    jsonb;
+  v_shape  jsonb;
+  v_code   text;
+  i        integer;
+  v_clean  jsonb := '{"eras":0,"creative_groups":0,"asset_categories":0,"asset_natures":0,
+                      "characters":0,"assets":0,"asset_characters":0,"guides":0,
+                      "guide_aliases":0,"asset_guides":0}'::jsonb;
+  -- The five shapes the rule names, covering all three branches of the sweep. A JSON
+  -- string that LOOKS
+  -- numeric is included on purpose: '"12"' casts cleanly through ::numeric, so a sweep
+  -- that tested only the cast would accept it as a count.
+  v_shapes jsonb[] := array['"12"'::jsonb, 'null'::jsonb, '-1'::jsonb, '1.5'::jsonb,
+                            '9223372036854775808'::jsonb];
+  v_codes  text[]  := array['expected_count_not_a_number',
+                            'expected_count_not_a_number',
+                            'expected_count_not_a_nonnegative_integer',
+                            'expected_count_not_a_nonnegative_integer',
+                            'expected_count_out_of_range'];
+begin
+  raise notice '=== F15. THE EXTRA-KEY SWEEP ===';
+
+  for i in 1 .. array_length(v_shapes, 1) loop
+    v_shape := v_shapes[i];
+    v_code  := v_codes[i];
+
+    v_cap := plm.begin_wildbrain_capture(
+      p_capture_key            => 'zztest-wildbrain:F15-exp-' || i,
+      p_source_repository      => 'u2giants/zztest-fixture',
+      p_source_commit_sha      => repeat('d', 40),
+      p_source_manifest_sha256 => repeat('d', 64),
+      p_portal_base_url        => 'https://zztest.example.invalid/',
+      p_source_captured_at     => timestamptz '2026-07-03 00:00:00+00',
+      p_expected_counts        => v_clean,
+      p_raw_summary            => '{"fixture":true}'::jsonb,
+      p_created_by             => 'zztest',
+      p_pagination_verified    => true
+    );
+
+    -- THE SHAPE HAS TO BE INTRODUCED HERE, NOT AT begin_. begin_ refuses all five, which
+    -- is exactly why the gap existed: the only way a bad extra key can reach the gate is
+    -- a write to the column after the capture was opened, and the gate is the only thing
+    -- that re-reads it. This UPDATE is the realistic path, not a contrivance.
+    update plm.wildbrain_capture
+       set expected_counts = expected_counts || jsonb_build_object('zztest_future_entity', v_shape)
+     where id = v_cap;
+
+    -- No exception handler ON PURPOSE. If the sweep ever casts before it type-tests, the
+    -- raise lands here and this test goes red at the raise -- which is the wedge (#1221),
+    -- and hiding it behind a handler would turn the defect into a pass.
+    perform plm.finalize_wildbrain_capture(v_cap, null, '[]'::jsonb);
+
+    select status, error_summary into v_status, v_err
+      from plm.wildbrain_capture where id = v_cap;
+    if v_status = 'loading' then
+      raise exception
+        'F15 FAILED: extra-key shape % left the capture WEDGED in loading -- the sweep cast before it type-tested',
+        v_shape;
+    end if;
+    if v_status <> 'rejected' then
+      raise exception
+        'F15 FAILED: an extra expected_counts key holding % reached status % -- the sweep is missing',
+        v_shape, v_status;
+    end if;
+    if not exists (select 1 from jsonb_array_elements(v_err) e
+                    where e ->> 'code' = v_code
+                      and e ->> 'entity' = 'zztest_future_entity') then
+      raise exception 'F15 FAILED: shape % was rejected, but not as % for zztest_future_entity: %',
+        v_shape, v_code, v_err;
+    end if;
+  end loop;
+
+  -- The reported side, same rule, different code prefix.
+  for i in 1 .. array_length(v_shapes, 1) loop
+    v_shape := v_shapes[i];
+    v_code  := replace(v_codes[i], 'expected_', 'reported_');
+
+    v_cap := plm.begin_wildbrain_capture(
+      p_capture_key            => 'zztest-wildbrain:F15-rep-' || i,
+      p_source_repository      => 'u2giants/zztest-fixture',
+      p_source_commit_sha      => repeat('d', 40),
+      p_source_manifest_sha256 => repeat('d', 64),
+      p_portal_base_url        => 'https://zztest.example.invalid/',
+      p_source_captured_at     => timestamptz '2026-07-04 00:00:00+00',
+      p_expected_counts        => v_clean,
+      p_raw_summary            => '{"fixture":true}'::jsonb,
+      p_created_by             => 'zztest',
+      p_pagination_verified    => true
+    );
+    perform plm.finalize_wildbrain_capture(
+      v_cap, jsonb_build_object('zztest_future_entity', v_shape), '[]'::jsonb);
+
+    select status, error_summary into v_status, v_err
+      from plm.wildbrain_capture where id = v_cap;
+    if v_status = 'loading' then
+      raise exception
+        'F15 FAILED: reported extra-key shape % left the capture WEDGED in loading', v_shape;
+    end if;
+    if v_status <> 'rejected' then
+      raise exception
+        'F15 FAILED: a reported extra key holding % reached status % -- the reported-side sweep is missing',
+        v_shape, v_status;
+    end if;
+    if not exists (select 1 from jsonb_array_elements(v_err) e
+                    where e ->> 'code' = v_code
+                      and e ->> 'entity' = 'zztest_future_entity') then
+      raise exception
+        'F15 FAILED: reported shape % was rejected, but not as % for zztest_future_entity: %',
+        v_shape, v_code, v_err;
+    end if;
+  end loop;
+
+  -- THE HEALTHY CASE, WHICH A REFUSAL TEST ALONE CANNOT PROVE. A sweep that rejected
+  -- everything outside the ten would satisfy every assertion above while making the gate
+  -- unusable. A LEGITIMATE extra key -- a whole, non-negative, in-range number, on both
+  -- sides at once -- must still publish, and the ten entity keys must still compare.
+  v_cap := plm.begin_wildbrain_capture(
+    p_capture_key            => 'zztest-wildbrain:F15-ok',
+    p_source_repository      => 'u2giants/zztest-fixture',
+    p_source_commit_sha      => repeat('d', 40),
+    p_source_manifest_sha256 => repeat('d', 64),
+    p_portal_base_url        => 'https://zztest.example.invalid/',
+    p_source_captured_at     => timestamptz '2026-07-05 00:00:00+00',
+    p_expected_counts        => v_clean || '{"zztest_future_entity": 7}'::jsonb,
+    p_raw_summary            => '{"fixture":true}'::jsonb,
+    p_created_by             => 'zztest',
+    p_pagination_verified    => true
+  );
+  perform plm.finalize_wildbrain_capture(
+    v_cap, '{"zztest_future_entity": 7}'::jsonb, '[]'::jsonb);
+  select status, error_summary into v_status, v_err
+    from plm.wildbrain_capture where id = v_cap;
+  if v_status <> 'complete' then
+    raise exception
+      'F15 FAILED: a legitimate whole-number extra key did not publish (status %, %) -- the sweep is refusing keys it has no business refusing',
+      v_status, v_err;
+  end if;
+
+  -- And the sweep must NEVER double-report one of the ten. F14 already proves a JSON-null
+  -- reported `assets` is named loader_observed_count_not_a_number; if the sweep did not
+  -- skip the entity keys it would ALSO emit reported_count_not_a_number for the same key,
+  -- which would silently change what a consumer matching on codes sees.
+  v_cap := plm.begin_wildbrain_capture(
+    p_capture_key            => 'zztest-wildbrain:F15-noskip',
+    p_source_repository      => 'u2giants/zztest-fixture',
+    p_source_commit_sha      => repeat('d', 40),
+    p_source_manifest_sha256 => repeat('d', 64),
+    p_portal_base_url        => 'https://zztest.example.invalid/',
+    p_source_captured_at     => timestamptz '2026-07-06 00:00:00+00',
+    p_expected_counts        => v_clean,
+    p_raw_summary            => '{"fixture":true}'::jsonb,
+    p_created_by             => 'zztest',
+    p_pagination_verified    => true
+  );
+  perform plm.finalize_wildbrain_capture(v_cap, '{"assets": null}'::jsonb, '[]'::jsonb);
+  select status, error_summary into v_status, v_err
+    from plm.wildbrain_capture where id = v_cap;
+  if exists (select 1 from jsonb_array_elements(v_err) e
+              where e ->> 'code' in ('reported_count_not_a_number',
+                                     'reported_count_not_a_nonnegative_integer',
+                                     'reported_count_out_of_range')
+                and e ->> 'entity' = 'assets') then
+    raise exception
+      'F15 FAILED: the sweep also reported one of the TEN entity keys -- it is not skipping them: %',
+      v_err;
+  end if;
+  if not exists (select 1 from jsonb_array_elements(v_err) e
+                  where e ->> 'code' = 'loader_observed_count_not_a_number'
+                    and e ->> 'entity' = 'assets') then
+    raise exception
+      'F15 FAILED: the entity-key check for a null reported assets count stopped firing: %', v_err;
+  end if;
+
+  raise notice 'F15: extra keys obey the full rule on both sides, a legitimate extra key still publishes, and the ten entity keys are never double-reported.';
+end;
+$$;
+
 
 do $$
 begin
