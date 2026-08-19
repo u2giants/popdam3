@@ -278,8 +278,21 @@ always populated):** `seasonCode`, `freightForwarderCode`, `udf02`, `udf03`, `ud
 `udfDate01`, `udfDate02`, `merchGroup11`–`14`, `merchGroup09Desc`–`14Desc`, `prepackDimCode`,
 `ppkMerchGroup11`–`14`, `ppkMerchGroup07Desc`–`14Desc`, `itemImage`.
 
-`subUpc` on `orderHistory` deserves its own line: **0 populated out of 1,985** component rows
-across seven years. It is a dead field, not sparse data.
+> ### ⚠️ `subUpc` is RARE, not dead — keep the column (ANSWERED 2026-08-17)
+> Measured: **0 populated out of 1,985** component rows across seven years, which an earlier
+> version of this doc called "a dead field, not sparse data" and told loaders to drop.
+> **That was wrong.** ColdLion's answer, relayed by Albert:
+>
+> > "you don't often assign UPCs to prepack components. I can remember one instance of an
+> > assortment we shipped for Walmart where we did but that's it"
+>
+> So the field is genuinely **sparse by business practice**, not broken and not unused. A real
+> value can appear, and when it does it is meaningful — a customer (Walmart) required
+> component-level barcodes on an assortment.
+>
+> **Keep `subUpc` on load.** Dropping it would silently discard the rare case, and the rare case is
+> exactly the interesting one. Do not build anything that *depends* on it being populated. Business
+> rule: [`business-rules-erp-data.md`](business-rules-erp-data.md) §3.
 
 Every field the spec declares was returned, and no undeclared field appeared — the spec and the
 payload agree exactly on both endpoints.
@@ -384,6 +397,8 @@ spans four divisions.
 |---|---|---|
 | **Production-order line number** (was the one true blocker) | `prodLineSeq` **added**; the duplicated prod reference number was the cause; ColdLion now selects the maximum `lastProdDate` | Yes — §4.3. Present on 1,475/1,475 rows; order 23825 went from 8 rows to 4 |
 | **Paging / rate limits for a bulk pull** | `fromDate`–`toDate` must be **within 7 days (inclusive)**; ~2 seconds per 7-day window from their office | Yes — §2 (8 days refused, 7 accepted) and §3 (0.1–1.4s typical here) |
+| **Is `subUpc` ever populated?** | Rarely. UPCs are not usually assigned to prepack components; one known case, a Walmart assortment | Consistent with 0/1,985 measured — **keep the column**, see §5.1 |
+| **What does a `COS` production PO mean?** | Sample production: extra pieces of a customer's item made for the licensor (contractual samples) or internally (DAVID samples) | Yes — quantities 3–15, median 4, all unlinked. [`business-rules-erp-data.md`](business-rules-erp-data.md) §1 |
 
 **Also settled, not to be asked again:** `1900-01-01` as the empty-date marker — confirmed by the
 owner 2026-08-14 (§5.3).
@@ -394,10 +409,10 @@ Drafted in [`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-
 not yet sent. **None of these blocks the load** — every one changes how a field is modelled, not
 whether the pull can run.
 
-1. `subUpc` never populated — dead field or missing request? (§5.1)
-2. `ppkMerchGroup*` blank rate on production — known gap? (§5.7)
-3. `lineInvoiceQty` / `lineOpenQty` always zero, and `depositPerc` likewise — not exposed here? (§5.2)
-4. Confirm `salesOrderNo=0` means "no linked sales order", and whether there is a rule explaining
+
+1. `ppkMerchGroup*` blank rate on production — known gap? (§5.7)
+2. `lineInvoiceQty` / `lineOpenQty` always zero, and `depositPerc` likewise — not exposed here? (§5.2)
+3. Confirm `salesOrderNo=0` means "no linked sales order", and whether there is a rule explaining
    *why* a given line has none (§5.5). **ColdLion asked for examples on 2026-08-17; ten are in the
    draft note, with the `custPONumber` correlation and the `COS` reference-suffix lead.**
 

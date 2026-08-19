@@ -1,9 +1,5 @@
 # Business rules for reading ERP data
 
-> **Business authority moved 2026-08-18:** The companywide entry point is
-> [`business-rules/erp-orders-and-source-meaning.md`](business-rules/erp-orders-and-source-meaning.md).
-> This file retains the detailed field-by-field source audit and evidence.
-
 **What this is:** the *business meaning* behind ColdLion ERP fields and codes — the things no
 amount of querying can tell you, because they live in how POP Creations actually operates.
 
@@ -85,3 +81,29 @@ MOD010, with no sales order attached.
 `salesOrderNo = 0` query. Until it is answered, do not classify these rows as samples, as stock
 production, or as customer orders. See
 [`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-history-endpoints-questions.md).
+
+## 3. `subUpc` on prepack components — sparse by practice, not unused
+
+> **ColdLion, relayed by Albert Hazan, 2026-08-17:**
+>
+> "you don't often assign UPCs to prepack components. I can remember one instance of an assortment
+> we shipped for Walmart where we did but that's it"
+
+**What it means.** Component-level barcodes are the exception, not the rule. POP Creations barcodes
+the assortment (the master item the customer buys), not usually each style inside it. A component
+UPC appears only when a customer demands it — the known case being a **Walmart** assortment.
+
+**What it implies for reporting:**
+
+1. **Keep the field.** An empty `subUpc` is the normal, correct state and means "no component-level
+   barcode was assigned", not "data missing".
+2. **A populated `subUpc` is a signal worth noticing** — it marks an assortment where a retailer
+   required component barcoding, which is a customer-requirement fact, not just a code.
+3. **Never make it required, and never key on it.** Any join or match that assumes it is present
+   will match almost nothing.
+
+**Corrects an earlier inference.** Measuring 0 populated out of 1,985 component rows, an earlier
+version of the shape doc concluded `subUpc` was "a dead field, not sparse data" and told loaders to
+drop the column. **Wrong** — and a good illustration of why this file exists: no amount of counting
+empty values distinguishes "never used" from "used once, for Walmart, five years ago". Only the
+business knows.
