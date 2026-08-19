@@ -2852,6 +2852,54 @@ blast-radius work. Before `core.property`, `core.character`, `core.property_char
   target is Universe B, and the "how do we group `core.licensor`'s 26 mixed codes into four
   portal licensors" question is moot, because that table is on the deletion path.
 
+### 6.17 OWNER RULING — DesignFlow's numeric division ids are WRONG and do NOT come to this database; the ColdLion division CODE is the only division there is (Albert Hazan, 2026-08-19)
+
+**His words, in chat, 2026-08-19, after the live ColdLion feed was checked against the
+DesignFlow item headers:**
+
+> "Designflow's division numbers (1, 2, 7, 9) were wrong and will not be moving to the new
+> Supabase db. Coldlion is correct"
+
+#### What the evidence showed, and why the ruling settles it
+
+Issue #1137 had been blocked for two days on "what does DesignFlow division `2` mean", because
+`plm."divisionCode"` mapped id `2` to `CW001` while the agreed rule said id `2` was dead.
+Both answers were wrong, because the question was wrong. Measured 2026-08-19, read-only,
+against `http://x5.coldlion.com/EhpApi`:
+
+- All **19,994** live ColdLion items carry a real division code — `CW001` 13,219, `EH001`
+  4,084, `SP001` 2,217, `EP001` 474. **None is blank and there is no numeric division at all**;
+  the API has no divisions endpoint.
+- Matching all **15,185** `plm."itemHeader"` rows with `div_code_fk = 2` to the live feed by
+  `item_num_id` resolved **15,183** of them (the 2 misses have a blank item number): `CW001`
+  11,175, `EH001` 2,395, `SP001` 1,140, `EP001` 473.
+- So the bridge row saying "id 2 means CW001" is wrong for **4,008 items, 26% of them**. A
+  single-value backfill was never going to be right, whichever value was picked.
+
+#### The rule
+
+1. **DesignFlow division ids `1`, `2`, `7` and `9` — and the numeric division id space as a
+   whole — are WRONG and are NOT migrating to this database.** Do not model them, do not carry
+   them across as a legacy column, do not build a bridge or lookup table to preserve them, and
+   do not write a migration that repairs them in place. They stop at the DesignFlow boundary.
+2. **The ColdLion division CODE is the division.** `CW001`, `EH001`, `SP001`, `EP001` — a
+   four-plus-three character code from the live feed, sourced per item, never a constant and
+   never an id.
+3. **Backfills read the feed, keyed on `item_num_id`.** Never assign a division from a mapping
+   table, a majority vote, or "what the old id used to mean".
+4. This is the §6.15/§6.16 canon applied to divisions: **ColdLion is what we actually use, so
+   ColdLion wins.** A DesignFlow-vs-ColdLion division disagreement is not a finding to
+   investigate; ColdLion is right by definition.
+
+#### What this voids on issue #1137
+
+Withdrawn outright, because they all repair the numeric id space: setting
+`divisionCode_id_fk = 1` on five `mg_id` rows; setting `is_divcode_active = false` on
+`plm."divisionCode"` ids `2` and `7`; the 217-row Block A fix; deleting the 4 empty rows; and
+the `CHECK` constraint on division shape. The `erp_items_current.division_code` backfill goes
+ahead as a **feed-sourced** backfill. Normalising `itemHeader.compan_code_fk` is a company
+code, not a division, and is unaffected.
+
 ### 6.16 OWNER RULING — licence CONTRACTS are NOT a source for this database, and licence TERM and TERRITORY do not belong in it at all (Albert Hazan, 2026-08-19)
 
 **His words, in chat, 2026-08-19, in reply to four questions about the NBCU Schedule "B" contract:**
