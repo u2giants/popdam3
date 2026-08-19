@@ -422,6 +422,11 @@ now that the feed is known to span four divisions — see
 **Also settled, not to be asked again:** `1900-01-01` as the empty-date marker — confirmed by the
 owner 2026-08-14 (§5.3).
 
+**Full register, including older non-endpoint questions:**
+[`coldlion-open-questions.md`](coldlion-open-questions.md).
+**Stage-discovery evidence:**
+[`verification/coldlion-prodhistory-stage-discovery-20260819/README.md`](verification/coldlion-prodhistory-stage-discovery-20260819/README.md).
+
 ### ⬜ Still outstanding
 
 Drafted in [`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-history-endpoints-questions.md).

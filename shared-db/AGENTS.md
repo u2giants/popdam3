@@ -1594,6 +1594,12 @@ traps that will silently corrupt a load if you skip it:
 - **`lineInvoiceQty` / `lineOpenQty` are zero in all 5,874 sampled rows**, as is `depositPerc`
   on `prodHistory`. A report built on them reads zero and looks like a business fact.
 
+**Every open ColdLion question lives in one register:**
+[`docs/coldlion-open-questions.md`](docs/coldlion-open-questions.md) — what is blocking, what is
+merely open, what is already ANSWERED (do not re-ask), and which owner rulings keep getting
+re-litigated. Check it before asking Albert or ColdLion anything, and move answers into its §4
+rather than deleting them.
+
 **What the ERP data MEANS** (as opposed to its shape) lives in
 [`docs/business-rules-erp-data.md`](docs/business-rules-erp-data.md) — a new file, because this
 repo documented shape thoroughly and meaning not at all, and a session already inferred a business

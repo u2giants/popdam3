@@ -16,6 +16,33 @@ Companions, both verified against live calls — read before implementing:
 - [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md) — why
   `mgTypeCode` cannot be hardcoded.
 
+> ## ⚠️ CORRECTION ADDED 2026-08-19 — `prod_history` needs a STAGE dimension this draft does not have
+>
+> Added by a different session (al8960ofc/claude, the one that probed the endpoints), **without
+> otherwise touching this draft.** The finding post-dates it by a day.
+>
+> **`GET /prodHistory` without `stageCode` returns only the `ISS` (issued) lines.** `stageCode=REC`
+> returns **receipt** lines that appear nowhere in the default response — zero key overlap, verified
+> across four windows. Order 22717 ordered 4,800 on its `ISS` line and received 4,548 on its `REC`
+> line; only the first is in the default response. Full evidence:
+> [`verification/coldlion-prodhistory-stage-discovery-20260819/README.md`](verification/coldlion-prodhistory-stage-discovery-20260819/README.md).
+>
+> **Three changes this design needs:**
+>
+> 1. **A `stage_code` column on `coldlion.prod_history_line` and `..._component`.** The stage is
+>    **not in the payload** — it is knowable only from the request that fetched the row, so the
+>    loader must stamp it. Without it, ordered and received quantities are indistinguishable.
+> 2. **`stage_code` in the natural key**, or at minimum a documented decision not to. Measured:
+>    `(prod_order_no, prod_line_seq)` does **not** collide across stages (0 collisions in three
+>    windows). That makes this failure *silent* — the table accepts both stages without error and
+>    every `SUM(prod_order_qty)` double-counts. No key violation will warn you.
+> 3. **The fetch plan must iterate stages**, not just date windows: `ISS`, `REC`, `INTRAN` at
+>    minimum. The authoritative list of stage codes is **not yet confirmed by ColdLion** and is the
+>    top outstanding question — see [`coldlion-open-questions.md`](coldlion-open-questions.md).
+>
+> Everything else in this draft is unaffected. Its `last*` split, its `prodLineSeq` grain, and its
+> "sum to `prepackQty`" assertion all still hold.
+
 ---
 
 ## 1. What this layer is, and what it must never become

@@ -13,7 +13,8 @@ only the business can tell you what it means.
 implies for reporting. Do not add an inferred rule to this file. Inferences belong in the shape
 docs, clearly labelled as inferences, until someone with authority confirms them.
 
-Related: [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) (data shape),
+Related: [`coldlion-open-questions.md`](coldlion-open-questions.md) (what is still unanswered),
+[`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) (data shape),
 [`coldlion-erp-api-reference.md`](coldlion-erp-api-reference.md) (the API itself),
 [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md) (taxonomy).
 
