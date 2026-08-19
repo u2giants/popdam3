@@ -745,6 +745,32 @@ four rules below are non-negotiable for any database change.
    review plus three rebuttals. If material disagreement remains, stop the merge
    and ask Albert one concise decision. Never send secrets or licensed rows.
 
+   **A verdict with no coverage statement is not review evidence** (issue #1220,
+   fixed wrapper-side in `ai-devops` PR #43). Two wrappers could finish a run
+   having produced no findings and no verdict at all and still exit 0, and one
+   printed a complete five-finding review as a bare two-line `VERDICT: APPROVE`
+   because it discarded everything above the verdict heading. The wrappers now
+   emit the whole body and exit non-zero when no verdict was reached, so the
+   evidence is guaranteed to be PRINTED. Nothing can guarantee it is READ, and
+   that half is this repository's job:
+
+   - **Never record a bare verdict.** An `APPROVE` with no findings and no
+     statement of what was actually examined is a wrapper or provider failure,
+     not a clean review. Treat it as `verdict=none` and use
+     `--replace-failed-reviewer` exactly as for a transport failure.
+   - **Require the reviewer to say what it covered** — which files, which
+     migrations, which conditions — not merely what it concluded. A review whose
+     coverage cannot be checked cannot be relied on to have missed nothing.
+   - **If a wrapper's stdout looks truncated, read the raw provider stream before
+     recording anything.** The failure that prompted this rule was recoverable in
+     full from `stream.jsonl` after the wrapper had already printed two lines. Both
+     recovered reviews were posted to their PRs in full, with the recovery method
+     stated, so the audit trail records what was checked rather than the wrapper's
+     summary of it. Do the same.
+   - **Silence is never approval.** The failure mode here is silent and biased
+     toward "looks approved", which is exactly the shape that gets waved through
+     under time pressure.
+
    **Reviewer transport failures never pause the queue.** Run reviewer wrappers
    from the full-access orchestrator process, not from a delegated sandbox. Before
    starting, prove the selected wrapper can read its own authentication file and
