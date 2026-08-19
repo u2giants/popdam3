@@ -388,7 +388,7 @@ re-deriving it:
   **new** objects elsewhere, not the power to write DesignFlow. Those grants are a real
   production-infrastructure exposure and #705 records them; they are simply not a write path
   into `designflow`.
-- [`scripts/capture-postgres-schema.sql`](scripts/capture-postgres-schema.sql) line 66 sets
+- [`scripts/capture-postgres-schema.sql`](scripts/capture-postgres-schema.sql) sets
   `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, which is why that particular run
   could not have written. It is a session-scoped guard that the same session can reset to
   `READ WRITE`, so it is **never** a substitute for the proof rule for any other credential.
@@ -428,7 +428,7 @@ changes for it and do not re-raise it as a blocker.
   `op read 'op://vibe_coding/tcaf3o3u2cx52g6ivvczxbhola/DB_PASSWORD'`. The password is in a
   **custom field named `DB_PASSWORD`**, not `credential`. 1Password item IDs can be re-keyed
   mid-session, so if that ID 404s, re-resolve by title with
-  `op item list --vault vibe_coding --format json` (same pattern as §9, `AGENTS.md:1946-1963`).
+  `op item list --vault vibe_coding --format json` (same pattern as §9 of this file).
   Never write the
   value anywhere.
 
@@ -819,8 +819,155 @@ four rules below are non-negotiable for any database change.
    session** (seen 2026-07-27: 17 PopPIM migrations blocked all preview
    dry-runs until PR #271 landed).
 2. **Preview database first. Production never receives untested schema.** Apply
-   every migration to the preview branch (`rjyboqwcdzcocqgmsyel`), prove it
-   works, *then* promote to production (`qsllyeztdwjgirsysgai`).
+   every migration to the preview branch, prove it works, *then* promote to
+   production (`qsllyeztdwjgirsysgai`). The preview project ref is NOT written
+   down here: preview is rebuilt from time to time and its ref changes when it
+   is — `rjyboqwcdzcocqgmsyel` was deleted on 2026-08-18. The current ref lives
+   in the repository variable `PREVIEW_PROJECT_REF`, and every lane of *Shared
+   Supabase Migrations* reads it from there. An unset variable is refused there,
+   never defaulted. Do not read that as a repository-wide fact: several older
+   workflows (`generate-database-types.yml`,
+   `preview-ledger-orphan-reconciliation.yml`, the `coldlion-*` workflows) still
+   hard-code the **deleted** ref `rjyboqwcdzcocqgmsyel` and pin themselves to it.
+   That predates #1213 and is not fixed by it.
+
+   **Post-merge rehearsal (the normal order).** Merge first, then rehearse on
+   preview from merged `main`, then promote. Dispatch *Shared Supabase
+   Migrations* with `target=preview`, `mode=apply`,
+   `merged_preview_source_pr=<the merged PR>`, `commit_sha=<the current main
+   tip>` and `preview_allowlist=<the exact versions>`. Do NOT pass `claim_pr`:
+   a merged pull request has no live author claim, and naming both is refused.
+
+   The exclusive preview lock for that run is authorised by **merge-commit
+   ancestry of the main tip**, not by a live author claim — the guarded merge
+   released the claim and deleted the branch, which is exactly why the rule
+   above used to be unexecutable (#1208). It is the same `refs/db-coordination/preview`
+   lock, so it is mutually exclusive with an ordinary preview run and with a
+   historical recovery — every lane that writes preview holds one ref, and this
+   lane adds no second door.
+
+   **What that lock does NOT do, stated exactly.** It does not exclude a merge
+   or a production promotion. `EXCLUSIVE_REFS` gives merge and production their
+   own refs, and only two cross-checks exist — both inside `acquireExclusive` in
+   [`scripts/manage-migration-author-lanes.mjs`](scripts/manage-migration-author-lanes.mjs),
+   findable by their refusal text rather than by a line number, which drifts:
+   a promotion waits for the merge ref (`a guarded merge is active; production
+   promotion must wait`), and a merge waits for the production ref
+   (`production promotion is active; merges are frozen`). Nothing in
+   either direction reads the preview ref. That is pre-existing behaviour of the
+   ordinary preview lane, unchanged here — an earlier draft of this section
+   claimed the exclusion existed, and it never did. Promotions are serialised
+   among themselves by the workflow `concurrency` group, not by this lock.
+
+   The lock fails closed if the PR is not merged, if its
+   merge commit is not carried by the main tip, if the named versions were not
+   *added* by that PR, or if GitHub state cannot be read.
+
+   The evidence that run uploads carries the exact commit it checked out and the
+   preview project ref it wrote to, and the production gate checks both. A
+   rehearsal against a preview database that has since been rebuilt is therefore
+   no longer proof for a production write.
+
+   **A rehearsal runs ONCE. Do not re-run it — recover it.** An applied version
+   can never be applied again, so there is no second bite. If the versions are
+   already in preview's ledger, both ways of trying again are refused, and both
+   refusals are correct:
+
+   * **A fresh dispatch** fails at *Hard guard preflight*: the versions are now
+     in preview's ledger and the guard refuses to re-apply an applied version.
+     The run's conclusion becomes `failure`, and the production gate accepts
+     evidence only from a run whose status is `completed` and whose conclusion is
+     `success`.
+   * **GitHub's "Re-run jobs"** keeps the same run id, so a second
+     `preview-migration-apply-<sha>` upload lands on that one run. The gate
+     requires *exactly one* apply artifact per run — two make the applied commit
+     ambiguous, and an ambiguous commit is not provenance — so it refuses rather
+     than pick one.
+
+   First check whether you need a second run at all: if the original rehearsal
+   completed successfully, its artifact is still the proof, and the promotion
+   should simply name that run in `preview_run_id`. If it did not, **the way
+   forward is the historical-recovery lane, not a weakened guard.** Dispatch
+   `target=preview`, `mode=apply` with `historical_preview_source_pr` (or
+   `historical_preview_source_pr_map` for a batch authored across several pull
+   requests), **`historical_preview_original_run_map`**, plus
+   `commit_sha=<current main tip>` and the same `preview_allowlist`. That lane
+   performs **no database write**.
+
+   `historical_preview_original_run_map` is `version:runId` pairs naming the
+   preview run that **originally applied** each version, and it is **required**.
+   It is not bookkeeping: because a recovery run writes nothing, it can produce
+   no content manifest of its own, so the production gate goes and reads the
+   named run's manifest and byte-compares the digest it recorded against the file
+   on exact main. Find the run id in the Actions history — it is the successful
+   `apply` run whose artifact is `preview-migration-apply-<sha>` for that batch.
+
+   **The named run is pinned on BOTH of its commits.** The commit it advertised
+   in its artifact name *and* `head_sha`, the ref GitHub read the workflow file
+   from, must each be a commit of the authoring pull request or a commit exact
+   main contains, and each must carry the **same producer files as the merge
+   commit of the pull request that authored that version** — a commit the gate
+   re-derives from GitHub, never one the promoter supplies. Without that second
+   pin, anyone who can dispatch this workflow could push a branch whose copy of
+   it performs no database write, hand-write a ledger delta and a content
+   manifest naming exact main's digest, name that run as the "original apply",
+   and promote bytes preview never executed. Pinning the two commits **to each
+   other** — the #1213 round-5 wording, removed in round 7 — was a no-op: one
+   commit used for both pins compared nothing at all (round 6, finding 1).
+
+   A producer file that **did not exist yet** at the merge commit is skipped,
+   and only when it is absent from *both* commits. The producer list grows, so
+   an old recovery cannot be required to carry files added later; a file present
+   on one side only is a real difference in the machinery that ran, and is
+   refused. Absence is read from each commit's **git tree**, so it is a proved
+   fact rather than an inference from a failed API read, and an unreadable or
+   truncated tree refuses (#1213 round 7, finding 1).
+
+   **What this lane proves, stated exactly.** A real, successful run of this
+   workflow, whose dispatch ref and whose checkout both carry the producer code
+   of the merge commit that landed the version, added each named version to
+   *a* preview ledger and recorded a digest equal to the bytes on exact main; and
+   a merged pull request added each version.
+
+   **What it does not prove, and do not let anyone tell you otherwise.**
+   (a) That preview's *catalog* matches its ledger — a half-applied or
+   hand-repaired preview looks identical from here.
+   (b) That **today's** machinery produced the evidence. The original run's
+   producer code is pinned to the authoring pull request's **merge commit**,
+   never to today's main, because an older commit necessarily carries older
+   producer files and that rule would refuse every genuine recovery. It is *not*
+   pinned to the run's own checkout: round 6 of the #1213 review showed that one
+   attacker-chosen pull-request commit used as both the dispatch ref and the
+   checkout compares nothing at all, and this repository squash-merges, so every
+   commit ever pushed to a pull request stays citable forever.
+   (c) **Which preview database it was.** The original run is deliberately not
+   required to bind to the current `PREVIEW_PROJECT_REF`: preview
+   `rjyboqwcdzcocqgmsyel` was deleted and rebuilt as `mvpkijzfmfcxhnzqogzs` on
+   2026-08-18, so requiring it would refuse every recovery that exists, including
+   the stranded merges this lane was built for. A binding it *does* carry must be
+   readable and must not name the production project. The residual: the ledger
+   half of this lane can be satisfied by one database and the byte half by
+   another if a version reappears in the current preview by restore, clone, or a
+   later apply of different bytes.
+
+   The earlier wording here — "as strong as the claim lane was on the day of that
+   rehearsal" — was **withdrawn as false** in #1213 round 5 and must not return in
+   any file. The claim lane pins both of a run's commits to exact main, so a
+   doctored intermediate commit can never be the promoted rehearsal; this lane
+   pins them to the authoring pull request's merge commit, which is weaker at
+   least in the specific, named ways listed above. Do NOT read that list as
+   exhaustive: no code can establish an exhaustive negative about an attack
+   surface, and the "and in no other way" tail this sentence used to carry was
+   removed in #1213 round 7 for claiming one.
+
+   **If a version's file changed after its rehearsal, this lane will refuse it,
+   and that refusal is correct** — preview never ran the bytes you are asking
+   production to apply. The way forward there is a new migration, never a
+   recovery.
+
+   If you find yourself editing a guard, an `if:` condition or an artifact name
+   to make a re-run go through, stop. That is how the trap this section exists to
+   describe was built in the first place (#1194, #1208). Open an issue instead.
 3. **Additive by default (expand, then contract).** Adding a column or table
    cannot break another app. **Renaming or dropping** one that another app reads
    *will*. Default to additive changes. Only rename/drop after explicit owner
@@ -1905,13 +2052,13 @@ superseded by this section:**
 
 | Where it still says the opposite | Exact text | Status |
 | --- | --- | --- |
-| `supabase/migrations/20260722170000_db_data_admin_single_record_updates.sql`, lines 36–38 | `-- Refused here: name/code (source vocabulary), is_potential (trigger-owned), PLM status (…), aliases, source refs, related Customer, Licensor/Property, merge, bulk, deletion.` | **Applied migration — DO NOT EDIT IT.** |
-| `apps/db-data-admin/src/LicensorTree.tsx`, line 152 (orphan panel copy) | "The relationship is DesignFlow-owned; do not repair it here." | Superseded; correct by a FORWARD change when the curation path is built. |
+| `supabase/migrations/20260722170000_db_data_admin_single_record_updates.sql` (the `-- Refused here:` comment) | `-- Refused here: name/code (source vocabulary), is_potential (trigger-owned), PLM status (…), aliases, source refs, related Customer, Licensor/Property, merge, bulk, deletion.` | **Applied migration — DO NOT EDIT IT.** |
+| `apps/db-data-admin/src/LicensorTree.tsx` (orphan panel copy) | "The relationship is DesignFlow-owned; do not repair it here." | Superseded; correct by a FORWARD change when the curation path is built. |
 
 Both were verified verbatim against the tree on 2026-08-03. Near-identical "the edge is
-DesignFlow-owned" wording also appears in `20260722203000_db_data_admin_licensor_property_tree.sql`
-(lines 11 and 382), in `20260727154500_db_data_admin_bounded_production_forward.sql` (line 1601),
-and in `apps/db-data-admin/tests/browser/grid.spec.ts` (line 17). All of it is superseded as
+DesignFlow-owned" wording also appears in `20260722203000_db_data_admin_licensor_property_tree.sql`,
+in `20260727154500_db_data_admin_bounded_production_forward.sql`,
+and in `apps/db-data-admin/tests/browser/grid.spec.ts`. All of it is superseded as
 **policy**; the migrations remain accurate as **history**.
 
 **The never-edit-an-applied-migration rule still wins.** `20260722170000` is applied. An applied
@@ -2226,7 +2373,7 @@ may exist under many licensors. `core.property` is keyed `(licensor_id, code)`
 
 > **This corrected a wrong assumption the orchestrator held on 2026-08-06, and that assumption is
 > baked into at least one committed tool.** `tools/validate-licensing-answers.mjs` (the property
-> lookup around lines 86–92) resolves a property with `where p.code = any($1)` — no licensor scope.
+> lookup) resolves a property with `where p.code = any($1)` — no licensor scope.
 > It selects the licensor name and then discards it; only `r.code` is used. It is safe **only**
 > because today's `core.property` copy is crippled (256 rows, one row per code). **Repairing the feed
 > before fixing that query would introduce silent wrong-licensor binding.** Fix the scoping FIRST.
@@ -2882,7 +3029,7 @@ have already happened in this repo, more than once.
    them produces instructions like *"re-parent code `CC` under Disney"* that are
    not meaningful. Owner-confirmed by Albert Hazan, **2026-08-06**. See also
    `AGENTS.md` §6 (merch-group codes are unique only within
-   `(division, mgTypeCode)`) and `fix_item_taxonomy_wiring.md:147`.
+   `(division, mgTypeCode)`) and `fix_item_taxonomy_wiring.md`.
 10. **Worktree counts in this repo are per-MACHINE and go stale immediately — always
     re-measure, never quote.** Measured on **`al8960ofc`, 2026-08-06**:
     **3 worktrees** — the `C:\repos\shared-db` main checkout plus two live

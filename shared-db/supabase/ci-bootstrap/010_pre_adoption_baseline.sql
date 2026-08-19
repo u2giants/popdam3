@@ -24,6 +24,22 @@
 -- So it lives here, outside supabase/migrations/, and is applied only by
 -- .github/workflows/database-contract-tests.yml.
 --
+-- DELIBERATE OMISSION -- public.update_bulk_operation / public.update_bulk_operations_batch
+-- ---------------------------------------------------------------------------------
+-- Both used to be captured here. They are now owned by
+-- supabase/migrations/*_popdam_bulk_operation_revision_lease.sql
+-- (deliberately matched by NAME, not by version: this migration has been re-reserved
+--  three times as later versions landed on main, and each rename left this comment
+--  pointing at a file that no longer existed -- see issue #1182)
+-- (issue #1171), which drops the old three-argument update_bulk_operation and creates a
+-- six-argument compare-and-swap/submission-lease version in its place.
+--
+-- Because this file is applied AFTER pass 1, re-capturing the pre-adoption bodies here
+-- would (a) leave TWO update_bulk_operation overloads so that every legacy two- or
+-- three-argument call fails with "function ... is not unique", and (b) silently replace
+-- the guarded update_bulk_operations_batch body with the unguarded one, so CI would prove
+-- the opposite of the contract. Do not re-add them when this snapshot is regenerated.
+--
 -- HOW IT IS APPLIED (two-pass replay -- read the workflow)
 -- -------------------------------------------------------
 -- PASS 1 replays every migration from empty and records which fail.
@@ -4289,82 +4305,6 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.update_bulk_operation(p_op_key text, p_op_state jsonb, p_only_if_status text DEFAULT NULL::text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE
-  v_current jsonb;
-  v_existing_status text;
-BEGIN
-  -- Serialize all writers on the BULK_OPERATIONS config key
-  PERFORM pg_advisory_xact_lock(hashtext('BULK_OPERATIONS'));
-
-  -- Read current value
-  SELECT value INTO v_current
-  FROM admin_config
-  WHERE key = 'BULK_OPERATIONS';
-
-  v_current := COALESCE(v_current, '{}'::jsonb);
-
-  -- Conditional update: only proceed if current status matches expected
-  IF p_only_if_status IS NOT NULL THEN
-    v_existing_status := v_current->p_op_key->>'status';
-    IF v_existing_status IS DISTINCT FROM p_only_if_status THEN
-      -- Return current state unchanged (caller can detect no-op)
-      RETURN v_current;
-    END IF;
-  END IF;
-
-  -- Atomically set the single operation key
-  v_current := jsonb_set(v_current, ARRAY[p_op_key], p_op_state);
-
-  -- Upsert into admin_config
-  INSERT INTO admin_config (key, value, updated_at)
-  VALUES ('BULK_OPERATIONS', v_current, now())
-  ON CONFLICT (key) DO UPDATE
-    SET value = EXCLUDED.value,
-        updated_at = EXCLUDED.updated_at;
-
-  RETURN v_current;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.update_bulk_operations_batch(p_updates jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE
-  v_current jsonb;
-  v_key text;
-BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext('BULK_OPERATIONS'));
-
-  SELECT value INTO v_current
-  FROM admin_config
-  WHERE key = 'BULK_OPERATIONS';
-
-  v_current := COALESCE(v_current, '{}'::jsonb);
-
-  -- Merge each key from p_updates into the current state
-  FOR v_key IN SELECT jsonb_object_keys(p_updates) LOOP
-    v_current := jsonb_set(v_current, ARRAY[v_key], p_updates->v_key);
-  END LOOP;
-
-  INSERT INTO admin_config (key, value, updated_at)
-  VALUES ('BULK_OPERATIONS', v_current, now())
-  ON CONFLICT (key) DO UPDATE
-    SET value = EXCLUDED.value,
-        updated_at = EXCLUDED.updated_at;
-
-  RETURN v_current;
-END;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -6321,82 +6261,6 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.update_bulk_operation(p_op_key text, p_op_state jsonb, p_only_if_status text DEFAULT NULL::text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE
-  v_current jsonb;
-  v_existing_status text;
-BEGIN
-  -- Serialize all writers on the BULK_OPERATIONS config key
-  PERFORM pg_advisory_xact_lock(hashtext('BULK_OPERATIONS'));
-
-  -- Read current value
-  SELECT value INTO v_current
-  FROM admin_config
-  WHERE key = 'BULK_OPERATIONS';
-
-  v_current := COALESCE(v_current, '{}'::jsonb);
-
-  -- Conditional update: only proceed if current status matches expected
-  IF p_only_if_status IS NOT NULL THEN
-    v_existing_status := v_current->p_op_key->>'status';
-    IF v_existing_status IS DISTINCT FROM p_only_if_status THEN
-      -- Return current state unchanged (caller can detect no-op)
-      RETURN v_current;
-    END IF;
-  END IF;
-
-  -- Atomically set the single operation key
-  v_current := jsonb_set(v_current, ARRAY[p_op_key], p_op_state);
-
-  -- Upsert into admin_config
-  INSERT INTO admin_config (key, value, updated_at)
-  VALUES ('BULK_OPERATIONS', v_current, now())
-  ON CONFLICT (key) DO UPDATE
-    SET value = EXCLUDED.value,
-        updated_at = EXCLUDED.updated_at;
-
-  RETURN v_current;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.update_bulk_operations_batch(p_updates jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE
-  v_current jsonb;
-  v_key text;
-BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext('BULK_OPERATIONS'));
-
-  SELECT value INTO v_current
-  FROM admin_config
-  WHERE key = 'BULK_OPERATIONS';
-
-  v_current := COALESCE(v_current, '{}'::jsonb);
-
-  -- Merge each key from p_updates into the current state
-  FOR v_key IN SELECT jsonb_object_keys(p_updates) LOOP
-    v_current := jsonb_set(v_current, ARRAY[v_key], p_updates->v_key);
-  END LOOP;
-
-  INSERT INTO admin_config (key, value, updated_at)
-  VALUES ('BULK_OPERATIONS', v_current, now())
-  ON CONFLICT (key) DO UPDATE
-    SET value = EXCLUDED.value,
-        updated_at = EXCLUDED.updated_at;
-
-  RETURN v_current;
-END;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -7258,12 +7122,6 @@ grant EXECUTE on function public.update_asset_checkouts_updated_at() to anon;
 grant EXECUTE on function public.update_asset_checkouts_updated_at() to authenticated;
 grant EXECUTE on function public.update_asset_checkouts_updated_at() to public;
 grant EXECUTE on function public.update_asset_checkouts_updated_at() to service_role;
-grant EXECUTE on function public.update_bulk_operation(p_op_key text, p_op_state jsonb, p_only_if_status text) to authenticated;
-grant EXECUTE on function public.update_bulk_operation(p_op_key text, p_op_state jsonb, p_only_if_status text) to service_role;
-grant EXECUTE on function public.update_bulk_operation(p_op_key text, p_op_state jsonb, p_only_if_status text) to postgres;
-grant EXECUTE on function public.update_bulk_operations_batch(p_updates jsonb) to service_role;
-grant EXECUTE on function public.update_bulk_operations_batch(p_updates jsonb) to authenticated;
-grant EXECUTE on function public.update_bulk_operations_batch(p_updates jsonb) to postgres;
 grant EXECUTE on function public.update_updated_at_column() to postgres;
 grant EXECUTE on function public.update_updated_at_column() to anon;
 grant EXECUTE on function public.update_updated_at_column() to authenticated;

@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import time
 import zipfile
+from collections import namedtuple
 from pathlib import Path
 from typing import Any, Callable
 
@@ -23,9 +24,17 @@ from production_apply_review_evidence import verify as verify_review
 from production_migration_guard import parse_remote_versions
 from production_review_allowlist import normalize_review_allowlist
 from historical_preview_recovery import verify as verify_historical_preview
+from preview_instance_binding import verify as verify_preview_instance_binding
 from production_owner_decision_evidence import TRANSIENT_GITHUB_ERRORS, verify_artifact as verify_owner_decision
 
 REPOSITORY = "u2giants/shared-db"
+# The production database's identity. It is deliberately a constant and NOT
+# configurable: this value exists so the gate can refuse evidence that claims a
+# PRODUCTION write was a preview rehearsal. The PREVIEW ref is the opposite --
+# preview is rebuilt from time to time, so it is supplied per run and is never
+# defaulted. See --preview-project-ref.
+PRODUCTION_PROJECT_REF = "qsllyeztdwjgirsysgai"
+PREVIEW_APPLY_ARTIFACT = re.compile(r"^preview-migration-apply-([0-9a-f]{40})$")
 PREVIEW_WORKFLOW = ".github/workflows/shared-supabase-migrations.yml"
 ACTIVATION_SCHEMA = "shared-db-production-risk-activation/v1"
 ACTIVE_SCHEMA = "shared-db-production-risk-activation/v2"
@@ -146,15 +155,63 @@ def prove_activation(
         raise RiskGateError("forward-test proof does not match the activated record")
 
 
-def select_preview_artifact(payload: Any, run_id: int, expected_name: str) -> dict[str, Any]:
+def preview_applied_commit(payload: Any, run_id: int) -> tuple[dict[str, Any], str]:
+    """Read the commit the rehearsal ACTUALLY checked out, from the artifact name.
+
+    The old code derived this from the run's ``head_sha``.  That is the ref the
+    workflow FILE was read from, which for a ``--ref main`` dispatch is not the
+    commit the job checked out and applied.  The preview job names its evidence
+    artifact after ``git rev-parse HEAD`` of its own checkout, so the artifact
+    name is the one place the applied commit is already recorded -- and it is
+    recorded by the same upload that carries the evidence, so it cannot be
+    swapped for another run's.
+
+    Exactly one apply artifact must exist.  Two would mean the run's identity is
+    ambiguous, and an ambiguous commit is not provenance.
+    """
     artifacts = payload.get("artifacts") if isinstance(payload, dict) else None
-    matches = [a for a in artifacts or [] if isinstance(a, dict) and a.get("name") == expected_name]
+    if not isinstance(artifacts, list):
+        raise RiskGateError("preview run artifacts are unreadable")
+    matches = [
+        (a, PREVIEW_APPLY_ARTIFACT.match(str(a.get("name", ""))))
+        for a in artifacts if isinstance(a, dict)
+    ]
+    matches = [(a, m) for a, m in matches if m]
     if len(matches) != 1:
-        raise RiskGateError(f"expected exactly one preview artifact {expected_name!r}")
-    artifact = matches[0]
+        raise RiskGateError(
+            f"expected exactly one preview-migration-apply-<commit> artifact on run {run_id}, found {len(matches)}"
+        )
+    artifact, match = matches[0]
     if artifact.get("expired") is not False or artifact.get("workflow_run", {}).get("id") != run_id:
         raise RiskGateError("preview artifact is expired or belongs to another run")
-    return artifact
+    return artifact, match.group(1)
+
+
+def prove_applied_commit_is_main_line(
+    applied_commit: str, main_sha: str, api: Callable[[str], Any]
+) -> None:
+    """Accept a rehearsal commit that exact main CONTAINS, and nothing else.
+
+    ARGUMENT ORDER IS THE ENTIRE CHECK.  GitHub's ``compare/{base}...{head}``
+    reports how HEAD relates to BASE.  With ``base = applied_commit`` and
+    ``head = main_sha``, ``status == "ahead"`` means main is ahead of the applied
+    commit -- i.e. the applied commit is an ancestor of main.  Inverted, the same
+    literal check would accept a DESCENDANT of main, which is unmerged code.
+    ``test_compare_url_argument_order_is_asserted`` fails if the arguments are
+    swapped, and ``test_descendant_of_main_is_refused`` fails if the meaning is.
+    """
+    try:
+        comparison = api(f"repos/{REPOSITORY}/compare/{applied_commit}...{main_sha}")
+    except Exception as exc:  # noqa: BLE001 - unreadable ancestry must fail closed
+        raise RiskGateError("preview run ancestry is unreadable") from exc
+    if not isinstance(comparison, dict):
+        raise RiskGateError("preview run ancestry is unreadable")
+    status, behind = comparison.get("status"), comparison.get("behind_by")
+    if not isinstance(behind, int) or status not in {"ahead", "identical"} or behind != 0:
+        raise RiskGateError(
+            f"preview run commit {applied_commit} is not contained in the history of exact main "
+            f"{main_sha} (compare status {status!r}, behind_by {behind!r})"
+        )
 
 
 def canonical_sha256(path: Path) -> str:
@@ -193,6 +250,14 @@ def prove_preview_migration_contents(
     dry = texts.get("preview-dry-run.txt", "")
     apply = texts.get("preview-apply.txt", "")
     if historical:
+        # A RECOVERY RUN WRITES NOTHING, so it has no bounded checkout and no
+        # content manifest of its own -- there is nothing here to byte-compare
+        # against. The byte binding for this lane is NOT waived; it is performed
+        # against the ORIGINAL apply run's manifest, in
+        # `prove_historical_original_apply_runs`, which prove_preview calls
+        # before this function. What remains here is what a recovery run CAN
+        # prove: the file is on exact main, the proof names it, and preview's
+        # ledger held it both before and after without moving.
         for version in allowlist:
             matches = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
             if len(matches) != 1:
@@ -314,7 +379,7 @@ def prove_preview_migration_contents(
 #
 # Therefore: pin everything the preview job runs, plus the local modules those
 # entry points import, plus the config that routes which apply path is taken.
-# `test_preview_producer_paths_cover_every_executed_script` fails if a new
+# `test_preview_producer_paths_cover_the_whole_executed_closure` fails if a new
 # script is wired into the workflow and not added here, so this list cannot
 # silently fall behind.
 PREVIEW_PRODUCER_PATHS = (
@@ -334,10 +399,104 @@ PREVIEW_PRODUCER_PATHS = (
     # separately demands run head == exact main; pinned so that coupling cannot
     # silently loosen later.
     "scripts/historical_preview_recovery.py",
+    # Writes the instance binding INTO the evidence artifact. If this file could
+    # differ from exact main, the applied commit and the preview project ref in
+    # the evidence would be whatever a doctored checkout chose to write.
+    "scripts/preview_instance_binding.py",
     # Data, not code, but it routes which apply mechanism the rehearsal
     # exercises. Pinned for rehearsal fidelity.
     "config/atomic-migration-allowlist.json",
+    # READ, NOT EXECUTED -- and therefore invisible to the executed-closure
+    # walk, which follows invocations and imports. The Supabase CLI reads this
+    # file on every `link`, `migration list` and `db push` the preview job runs,
+    # in $GITHUB_WORKSPACE and again inside the bounded checkout. It tells the
+    # CLI which project it believes it is operating on and how to behave, so a
+    # version of it that differs from exact main can shape every evidence byte
+    # the artifact carries, and nothing in the artifact restates it.
+    # `test_preview_producer_paths_cover_runtime_read_data_files` fails if any
+    # sibling data file appears under supabase/ or config/ without being pinned
+    # here or given a written, checkable exemption.
+    "supabase/config.toml",
 )
+
+
+# ---------------------------------------------------------------------------
+# Runtime-READ data files.
+#
+# The executed-closure test walks scripts the preview job RUNS, and their
+# imports. It cannot see a file merely READ at runtime by a tool -- the Supabase
+# CLI, `jq`, `psql`. `supabase/config.toml` was exactly that: read by the CLI on
+# every preview command, pinned by neither commit and covered by no test.
+#
+# The two directories below are the ONLY repository data surfaces the preview
+# job's executed closure touches. That premise is not asserted by comment:
+# `test_preview_runtime_data_dirs_are_the_only_data_surface` scans the executed
+# closure's own source and the preview job text for a read of any OTHER
+# top-level repository directory, so a data file added at `policy/`, `types/` or
+# the repository root fails instead of quietly escaping both walks below.
+#
+# Every file under them must be either pinned in PREVIEW_PRODUCER_PATHS above,
+# or carry a written reason here for why it cannot shape preview evidence. The
+# reasons are checked against the filesystem, so a file added later cannot slip
+# in silently -- it fails the test until someone pins it or writes down why.
+PREVIEW_RUNTIME_DATA_DIRS = ("supabase", "config")
+
+PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
+    "supabase/migrations": (
+        "The PAYLOAD, not a producer. It cannot be pinned to exact main and must "
+        "not be: in the pre-merge claim lane the pull-request head legitimately "
+        "carries migration files that do not exist on main yet, so a "
+        "blob-equality pin would refuse every honest rehearsal. It is byte-bound "
+        "instead, on every lane and with no exception: on the claim and "
+        "merged-main lanes prove_preview_migration_contents compares the digest "
+        "in the promoted run's own content manifest against the repository copy, "
+        "and on the historical-recovery lane -- which writes nothing and so has "
+        "no manifest of its own -- prove_historical_original_apply_runs compares "
+        "the digest recorded by the run that ORIGINALLY applied each version. "
+        "prove_pr_authored additionally requires every allowlisted version to "
+        "have been added by the named source pull request, and it is re-run "
+        "during re-derivation (source_pr_commits only collects commit SHAs). "
+        "The one limit, stated plainly: the original run's producer code is not "
+        "re-pinned to today's main, because an older commit necessarily carries "
+        "older producer files; it is pinned to that pull request's merge commit."
+    ),
+    "supabase/tests": (
+        "Never read by the preview job. Its only readers are the separate "
+        "database-contract-tests.yml workflow and scripts/check-sql.sh, which "
+        "runs in the validate-only job -- already a PREVIEW_JOB_EXCLUSION whose "
+        "not-in-the-preview-job premise is asserted by "
+        "test_preview_producer_paths_cover_the_whole_executed_closure."
+    ),
+    "supabase/ci-bootstrap": (
+        "Never read by the preview job. Read only by database-contract-tests.yml, "
+        "which builds a throwaway database, touches neither preview nor "
+        "production, and produces no preview evidence artifact."
+    ),
+    "docs": (
+        "Named by a producer, but never OPENED by one, in exactly three places. "
+        "scripts/manage-migration-author-lanes.mjs passes 'docs' to `git grep -l` "
+        "and `git add` as a PATHSPEC when it renames an author's migration "
+        "version, so git decides which files exist there and the process opens "
+        "nothing; that rename also runs inside a temporary author worktree, not "
+        "the bounded checkout the evidence artifact is built from. "
+        "scripts/production_migration_guard.py cites a docs filename inside a "
+        "GuardError message, which is prose for a human, not a read. Found by the "
+        "constructed-read walk added in #1213 round 5, which reports a top-level "
+        "directory a producer names even when the child path is assembled at "
+        "runtime and so never appears as a whole literal. THIS REASON IS CHECKED, "
+        "not merely written: test_the_docs_exemption_is_verified_against_every_"
+        "producer_that_names_it inventories all three sites and fails on a fourth "
+        "or on any read shape beside them (#1213 round 9, finding 2 -- until then "
+        "this reason was verified by nothing, because the surface test filters "
+        "reasons on a fixed phrase this one does not use)."
+    ),
+    "config/production-risk-policy-activation.json": (
+        "Never read by the preview job. It is read by the production-apply jobs "
+        "and by this gate itself, both of which check out exact main and prove "
+        "HEAD == origin/main before executing; prove_activation additionally "
+        "re-reads it against main. Pinning it here would assert nothing new."
+    ),
+}
 
 
 def blob_sha(path: str, ref: str, api: Callable[[str], Any]) -> str:
@@ -351,17 +510,165 @@ def blob_sha(path: str, ref: str, api: Callable[[str], Any]) -> str:
     return sha
 
 
+def tracked_paths_at(ref: str, api: Callable[[str], Any]) -> frozenset:
+    """Every file path a commit's tree contains, as a POSITIVE fact.
+
+    ABSENCE MUST BE PROVED, NOT INFERRED FROM AN ERROR. The producer list grows
+    over time, so a producer file added this year does not exist at a merge
+    commit from last year. The comparison below has to tell "this file is not in
+    that tree" apart from "GitHub would not answer" -- and a 404 from the
+    Contents API cannot be told apart from a permissions or transport failure by
+    reading its message text. So the tree itself is read once per commit: the
+    read either succeeds, in which case membership is a fact, or it fails and
+    the gate refuses. A truncated tree is refused for the same reason -- a path
+    missing from a truncated listing is not evidence that it is missing from the
+    commit.
+    """
+    try:
+        # `recursive=1` IS LOAD-BEARING, NOT A CONVENIENCE. Without it GitHub
+        # returns only the TOP-LEVEL entries -- `scripts`, `config`, `supabase`,
+        # `.github` -- none of which equals a `PREVIEW_PRODUCER_PATHS` entry. The
+        # absence rule below would then fire for every producer and the pin would
+        # compare nothing at all while every test stayed green (#1213 round 8,
+        # finding 1). `test_the_tree_read_is_recursive` pins this URL and
+        # `prove_preview_producer_matches_main` refuses a walk that compared
+        # nothing, so the no-op is caught twice.
+        tree = api(f"repos/{REPOSITORY}/git/trees/{ref}?recursive=1")
+    except Exception as exc:  # noqa: BLE001 - unreadable tree must fail closed
+        raise RiskGateError(f"the file tree of {ref} is unreadable") from exc
+    if not isinstance(tree, dict) or not isinstance(tree.get("tree"), list):
+        raise RiskGateError(f"the file tree of {ref} is unreadable")
+    if tree.get("truncated"):
+        raise RiskGateError(
+            f"the file tree of {ref} is truncated; producer absence cannot be proved from it"
+        )
+    return frozenset(
+        entry["path"] for entry in tree["tree"]
+        if isinstance(entry, dict) and isinstance(entry.get("path"), str)
+    )
+
+
+# A comparison target this gate has proved for itself, never a bare flag.
+# `kind` is one of:
+#   "exact-main"      -- the commit being promoted; must BE `main_sha`.
+#   "authored-merge"  -- the merge commit of the pull request that authored the
+#                        version being recovered; must be contained in the
+#                        history of `main_sha`.
+ProvedTarget = namedtuple("ProvedTarget", ("kind", "sha"))
+
+
+def exact_main(main_sha: str) -> ProvedTarget:
+    return ProvedTarget("exact-main", main_sha)
+
+
+def authored_merge(merge_sha: str) -> ProvedTarget:
+    return ProvedTarget("authored-merge", merge_sha)
+
+
 def prove_preview_producer_matches_main(
-    run_head: str, main_sha: str, api: Callable[[str], Any]
+    ref: str, target: ProvedTarget, main_sha: str, api: Callable[[str], Any], *,
+    what: str = "preview run", against: str = "exact main",
 ) -> None:
-    """Refuse a rehearsal produced by code that exact main does not carry."""
-    if run_head == main_sha:
-        return
-    for path in PREVIEW_PRODUCER_PATHS:
-        if blob_sha(path, run_head, api) != blob_sha(path, main_sha, api):
+    """Refuse a rehearsal produced by code that exact main does not carry.
+
+    TWO DIFFERENT COMMITS EXECUTE IN ONE PREVIEW RUN, and both must be pinned:
+
+    * ``run["head_sha"]`` -- the ref the ``workflow_dispatch`` was aimed at.
+      GitHub reads the WORKFLOW FILE from there, so this commit decides which
+      steps exist at all. A doctored YAML here can skip the apply entirely and
+      write matching ledgers, apply logs, content manifest and instance binding
+      by hand.
+    * the commit named in the artifact name -- what ``actions/checkout`` put in
+      the workspace, i.e. the SCRIPTS the honest workflow then executes.
+
+    Pinning only one leaves the other free. #1194 pinned only the dispatch ref
+    and could not find the artifact; the first version of #1213 pinned only the
+    checkout and let a forged branch dispatch a fabricated rehearsal that named
+    main as its applied commit. Both are pinned now.
+
+    THE TARGET IS NOT ALWAYS MAIN, AND IT IS NOT AN HONOUR-SYSTEM FLAG. On the
+    claim and merged-main lanes both commits are pinned to exact main. On the
+    historical-recovery lane the two commits of an ORIGINAL run are each pinned
+    to the MERGE COMMIT of the pull request that authored the version. Round 7
+    of the #1213 review showed that a `target_is_proved=True` boolean asserted
+    that provenance without checking it, so any later caller could pass two
+    equal attacker-chosen commits and skip every blob read. The target is now
+    TAGGED, and THIS FUNCTION re-derives the tag rather than believing it:
+    `exact-main` must literally be the `main_sha` being promoted, and
+    `authored-merge` must be contained in the history of that `main_sha`
+    (`prove_applied_commit_is_main_line`, the same ancestry check used
+    elsewhere). A commit the promoter invented satisfies neither. What this
+    function does NOT re-derive -- that an `authored-merge` target is the merge
+    commit of the pull request that authored THIS version -- stays the caller's
+    job via `prove_pr_authored`, and is not claimed here.
+
+    IDENTITY IS NOT EVIDENCE ON ITS OWN. When both commits are equal there is
+    nothing to compare: round 5 pinned the original run's two commits TO EACH
+    OTHER, and one attacker-chosen commit used for both then satisfied the pin
+    without a single blob being read (round 6, finding 1). Equality is accepted
+    only after the target above has been validated, so the commit standing in
+    for the comparison is one this gate proved, not one the promoter picked.
+
+    A PRODUCER FILE MAY POSTDATE THE TARGET. `PREVIEW_PRODUCER_PATHS` grows;
+    `scripts/preview_instance_binding.py` was added by this very pull request
+    and does not exist at the merge commits of #984, #992 or #1126, the exact
+    recoveries this lane was built for. Refusing on its absence killed every
+    honest old recovery (round 7, finding 1). A path absent from BOTH trees is
+    therefore skipped -- neither run could have executed a file that does not
+    exist, and a doctored producer that DOES exist at both commits is still
+    compared byte for byte. A path present on ONE side only is refused: that is
+    a real difference in the machinery that ran. That skip is the one rule here
+    that can quietly do nothing, so the walk COUNTS what it compared and refuses
+    a run in which nothing was: two different commits always share at least one
+    producer file, and zero comparisons means the tree listing lied about what
+    the commits contain rather than that the pin passed.
+    """
+    if target.kind not in {"exact-main", "authored-merge"}:
+        raise RiskGateError(
+            f"{what} was compared against an untagged target ({target.kind!r})"
+        )
+    if not isinstance(target.sha, str) or not re.fullmatch(r"[0-9a-f]{40}", target.sha):
+        raise RiskGateError(f"{what} was compared against a malformed target commit")
+    if target.kind == "exact-main":
+        if target.sha != main_sha:
             raise RiskGateError(
-                f"preview run produced evidence with a different {path} than exact main"
+                f"{what} names an 'exact main' target {target.sha} that is not the "
+                f"exact main {main_sha} being promoted"
             )
+    else:
+        prove_applied_commit_is_main_line(target.sha, main_sha, api)
+    if ref == target.sha:
+        return
+    present_at_ref = tracked_paths_at(ref, api)
+    present_at_target = tracked_paths_at(target.sha, api)
+    compared = 0
+    for path in PREVIEW_PRODUCER_PATHS:
+        at_ref, at_target = path in present_at_ref, path in present_at_target
+        if not at_ref and not at_target:
+            continue
+        if at_ref != at_target:
+            raise RiskGateError(
+                f"{what} produced evidence with {path} "
+                f"{'present' if at_ref else 'absent'} where {against} has it "
+                f"{'present' if at_target else 'absent'}"
+            )
+        if blob_sha(path, ref, api) != blob_sha(path, target.sha, api):
+            raise RiskGateError(
+                f"{what} produced evidence with a different {path} than {against}"
+            )
+        compared += 1
+    # A PIN THAT COMPARED NOTHING IS NOT A PIN. The skip above is the only rule
+    # in this function that can silently do nothing, and anything that makes both
+    # trees look empty -- a non-recursive tree URL, a renamed producer list, a
+    # listing shape GitHub changes -- turns every producer into a skip and lets
+    # this function return success without reading one byte. Two commits that
+    # differ must have at least one producer file in common to compare, so zero
+    # is never an honest outcome here.
+    if not compared:
+        raise RiskGateError(
+            f"{what} was compared against {against} without a single producer file "
+            f"being read; the producer pin proved nothing"
+        )
 
 
 def source_pr_commits(
@@ -389,8 +696,269 @@ def source_pr_commits(
     return {sha for sha in allowed if sha}
 
 
+def artifact_texts(artifact: dict, downloader: Callable[[int, Path], None]) -> dict[str, str]:
+    """Download one evidence artifact and read its files by BASENAME.
+
+    The upload preserves directory structure (`bounded-preview/supabase/...`),
+    so every reader in this file keys on the basename. Kept in one place so the
+    original-run reader and the promoted-run reader cannot drift apart.
+    """
+    with tempfile.TemporaryDirectory(prefix="production-risk-original-") as temp:
+        zip_path = Path(temp, "evidence.zip")
+        downloader(artifact["id"], zip_path)
+        with zipfile.ZipFile(zip_path) as archive:
+            return {
+                Path(name).name: archive.read(name).decode("utf-8", errors="strict")
+                for name in archive.namelist() if not name.endswith("/")
+            }
+
+
+def prove_historical_original_apply_runs(
+    *, record: dict, allowlist: list[str], repo_root: Path, main_sha: str,
+    api: Callable[[str], Any], downloader: Callable[[int, Path], None],
+) -> None:
+    """Byte-bind a historical recovery to the run that ACTUALLY applied the bytes.
+
+    THE HOLE THIS CLOSES. A recovery run performs no database write: it prints
+    main's filenames and re-reads preview's ledger. Left there, the lane proved
+    authorship and ledger presence and NOTHING about bytes -- so the sequence
+    "rehearse harmless bytes A, amend the file to destructive bytes B, merge,
+    recover proof, promote B" passed every check, at the last gate before a
+    production write on a database nine applications share.
+
+    The fix is not to trust the recovery run harder. It is to make the recovery
+    record NAME the preview run that originally applied each version, and then to
+    read that run's own evidence:
+
+      * it must be a completed, successful, dispatched run of this workflow;
+      * it must carry exactly one unexpired `preview-migration-apply-<sha>`
+        artifact -- the same cardinality rule the promoted run is held to, since
+        two would make its identity ambiguous;
+      * it must NOT itself be a recovery run, or a recovery could cite a
+        recovery forever and never touch a byte;
+      * preview's ledger must have GAINED the version across it, which is what
+        distinguishes a run that applied the migration from a run that merely
+        named it;
+      * BOTH commits it ran must belong to the pull request the record says
+        authored the version, or to exact main's own history -- the checkout it
+        advertised in its artifact name AND ``head_sha``, the ref GitHub read the
+        workflow file from;
+      * BOTH of those commits must carry the SAME producer files as the MERGE
+        COMMIT of the pull request that authored the version, so neither a
+        doctored workflow advertising an honest checkout nor one doctored commit
+        used for both pins can pass; and
+      * the digest THAT run recorded for the version must equal the bytes on
+        exact main.
+
+    WHAT IT DELIBERATELY DOES NOT DO. It does not pin the original run's producer
+    files to TODAY'S main. It cannot: an older commit necessarily carries older
+    producer files, so that rule would refuse every genuine recovery, including
+    the one this lane exists for. It pins both of the original run's commits to
+    the MERGE COMMIT of the pull request that authored the version instead -- a
+    commit this gate re-derives and has already proved merged and an ancestor of
+    exact main, so it is not the promoter's to choose. Nor does it require the
+    original run to have written to the CURRENT preview database: preview was
+    deleted and rebuilt on 2026-08-18, so that rule would refuse every recovery
+    that exists.
+
+    THE LIMIT, STATED ACCURATELY. The #1213 round-5 review retired the previous
+    wording -- "as strong as the ordinary claim lane was on the day of the
+    rehearsal" -- because it is false of a run created TODAY and then named as
+    the original. What this function proves is: a real, successful run of THIS
+    workflow, dispatched from and checked out at commits carrying the producer
+    code of the merge commit that landed this version, moved preview's ledger for
+    this version and recorded a digest equal to exact main's bytes. What it does
+    not prove is WHICH preview instance that was, or that today's machinery
+    produced the evidence. Both limits are written down here, in
+    PREVIEW_RUNTIME_DATA_EXEMPTIONS and in AGENTS.md rather than glossed.
+
+    A version whose file changed after its rehearsal can no longer be recovered.
+    That is the correct outcome and the entire point: preview never ran those
+    bytes, so production must not be told that it did.
+    """
+    runs = record.get("originalApplyRuns")
+    if not isinstance(runs, dict) or not runs:
+        raise RiskGateError(
+            "historical preview recovery does not name the original apply run for each "
+            "version; a recovery is never accepted without a byte binding"
+        )
+    # DEFENCE IN DEPTH, AND UNREACHABLE END TO END -- SAID OUT LOUD SO NOBODY
+    # SCORES IT AS TESTED. This guard and the two below it (the run-id shape and
+    # the source-pull-request shape) restate rules `parse_original_run_map` and
+    # `parse_source_map` in scripts/historical_preview_recovery.py already
+    # enforce, and re-derivation runs those parsers BEFORE this function is
+    # called. So a record that would trip any of the three is refused earlier,
+    # with a different message, and no test can drive these lines through
+    # `prove_preview`.
+    #
+    # They stay, because this function is also importable and callable on its
+    # own and must not assume its caller validated anything. But "the suite goes
+    # red if I delete it" is FALSE for all three, and #1213 round 9 is precisely
+    # about not calling such a line tested. The rules themselves ARE tested,
+    # per condition, in `PerConditionParserTests` in
+    # scripts/test_historical_preview_recovery.py -- which is where the five
+    # refusal paths of `parse_original_run_map` got their first negative tests of
+    # any kind.
+    if sorted(runs) != sorted(allowlist):
+        raise RiskGateError(
+            "historical original-run map does not cover exactly the promoted allowlist"
+        )
+    source_map = record.get("sourcePrMap")
+    for version in allowlist:
+        run_id = runs.get(version)
+        if isinstance(run_id, bool) or not isinstance(run_id, int) or run_id <= 0:
+            raise RiskGateError(f"historical original apply run for {version} is not a run id")
+        source_pr = source_map.get(version) if isinstance(source_map, dict) else record.get("sourcePr")
+        if not isinstance(source_pr, int) or isinstance(source_pr, bool):
+            raise RiskGateError(f"historical recovery names no source pull request for {version}")
+        # RESOLVED BEFORE ANYTHING IS READ. Without a usable merge commit there is
+        # no commit the promoter cannot choose to pin against, so the lane fails
+        # closed here rather than reaching the pin with nothing to compare to.
+        merge_shas = record.get("sourceMergeShas")
+        merge_sha = (
+            merge_shas.get(version) if isinstance(merge_shas, dict)
+            else record.get("sourceMergeSha")
+        )
+        if not isinstance(merge_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", merge_sha):
+            raise RiskGateError(
+                f"historical recovery names no usable source merge commit for {version}; "
+                "the original apply run cannot be pinned"
+            )
+        try:
+            run = api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
+        except Exception as exc:  # noqa: BLE001 - unreadable original run must fail closed
+            raise RiskGateError(f"original apply run {run_id} is unreadable") from exc
+        expected = {
+            "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
+            "path": PREVIEW_WORKFLOW,
+        }
+        for key, value in expected.items():
+            if not isinstance(run, dict) or run.get(key) != value:
+                raise RiskGateError(f"original apply run {run_id} for {version} has wrong {key}")
+        artifact, original_commit = preview_applied_commit(
+            api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id
+        )
+        if original_commit not in source_pr_commits(source_pr, "", main_sha, api):
+            prove_applied_commit_is_main_line(original_commit, main_sha, api)
+        # THE WORKFLOW THAT EXECUTED, on this side too. `original_commit` is only
+        # what the job CHOSE to advertise in its artifact name; `run["head_sha"]`
+        # is the ref GitHub read the workflow FILE from, and no part of the
+        # artifact can restate it. Without these lines a branch whose copy of the
+        # workflow skips the database write and hand-writes a ledger delta plus a
+        # content manifest naming exact main's digest could be dispatched TODAY,
+        # named as the "original apply", and promoted -- the #1213 first-head
+        # forge, moved onto the new field. (#1213 review, round 5, finding 1.)
+        run_head = run.get("head_sha")
+        if not isinstance(run_head, str) or not re.fullmatch(r"[0-9a-f]{40}", run_head):
+            raise RiskGateError(
+                f"original apply run {run_id} for {version} does not name the commit whose "
+                "workflow executed (head_sha)"
+            )
+        if run_head not in source_pr_commits(source_pr, "", main_sha, api):
+            prove_applied_commit_is_main_line(run_head, main_sha, api)
+        # PINNED TO THE MERGE COMMIT, NOT TO EACH OTHER AND NOT TO TODAY'S MAIN.
+        # Round 5 pinned these two commits to each other, and the round-6 review
+        # showed that one commit used for BOTH pins compares nothing: this
+        # repository squash-merges, so every commit that was ever on the
+        # authoring pull request stays in its commits listing forever -- even
+        # after the branch is deleted, and even to be dispatched again afterwards
+        # -- and a doctored intermediate commit was therefore citable as both the
+        # dispatch ref and the checkout.
+        #
+        # `merge_sha` is the merge commit of the pull request that authored THIS
+        # version. `prove_pr_authored` has already proved it merged and an
+        # ancestor of the exact main being promoted, and it is re-derived above
+        # rather than taken from the artifact, so the promoter cannot choose it.
+        # This is NOT "pin to today's main": a later change to the gate on main
+        # still recovers, an honest apply from the pull-request tip still matches
+        # because squash/merge carries those producer files onto the merge
+        # commit, and a doctored intermediate commit does not match the workflow
+        # that actually landed. (#1213 review, round 6, finding 1.)
+        for commit, role in ((run_head, "dispatched at"), (original_commit, "checked out at")):
+            prove_preview_producer_matches_main(
+                commit, authored_merge(merge_sha), main_sha, api,
+                what=f"original apply run {run_id} {role} {commit}",
+                against=f"the merge commit {merge_sha} of the pull request that authored {version}",
+            )
+        texts = artifact_texts(artifact, downloader)
+        if texts.get("historical-preview-source.json"):
+            raise RiskGateError(
+                f"original apply run {run_id} for {version} is itself a historical recovery; "
+                "a recovery is only ever bound to a run that actually applied bytes"
+            )
+        with tempfile.TemporaryDirectory(prefix="production-risk-original-ledger-") as ledger_temp:
+            before_path = Path(ledger_temp, "before.txt")
+            after_path = Path(ledger_temp, "after.txt")
+            before_path.write_text(texts.get("preview-ledger-before.txt", ""), encoding="utf-8")
+            after_path.write_text(texts.get("preview-ledger-after.txt", ""), encoding="utf-8")
+            gained = parse_remote_versions(after_path) - parse_remote_versions(before_path)
+        if version not in gained:
+            raise RiskGateError(
+                f"original apply run {run_id} did not apply {version} to preview "
+                "(its ledger delta does not add that version)"
+            )
+        # THE DATABASE THE ORIGINAL RUN WROTE TO. Decided explicitly in the #1213
+        # round-5 review and deliberately NOT required to be the current preview:
+        # preview `rjyboqwcdzcocqgmsyel` was deleted and rebuilt as
+        # `mvpkijzfmfcxhnzqogzs` on 2026-08-18, so EVERY original apply run that
+        # exists ran against the predecessor instance. Requiring a match with the
+        # current `PREVIEW_PROJECT_REF` would refuse one hundred percent of the
+        # recoveries this lane was built for. What IS required is that a binding,
+        # when the original run's producer code was new enough to write one, is
+        # readable and does not name the PRODUCTION project -- evidence of a
+        # production write is never a preview rehearsal, at any age. Absence is
+        # accepted only because the pin above now proves the executing workflow
+        # was the genuine workflow at that checkout, so a MISSING binding means an
+        # old producer rather than a suppressed field.
+        #
+        # THE RESIDUAL, WRITTEN DOWN RATHER THAN GLOSSED: an original run against
+        # the deleted preview can still be cited, so if the version reappears in
+        # the CURRENT preview's ledger by some route other than an apply of these
+        # bytes -- a restore, a clone, or a later apply of different bytes -- the
+        # ledger half of this lane is satisfied by one database and the byte half
+        # by another. The byte half is still pinned to exact main, so production
+        # cannot be handed bytes nobody rehearsed; what is not proved is that the
+        # CURRENT preview ran them.
+        instance = texts.get("preview-instance.json")
+        if instance:
+            try:
+                binding = json.loads(instance)
+            except (json.JSONDecodeError, TypeError) as exc:
+                raise RiskGateError(
+                    f"original apply run {run_id} for {version} carries an unreadable "
+                    "preview instance binding"
+                ) from exc
+            if not isinstance(binding, dict):
+                raise RiskGateError(
+                    f"original apply run {run_id} for {version} carries a preview instance "
+                    "binding that is not an object"
+                )
+            if binding.get("previewProjectRef") == PRODUCTION_PROJECT_REF:
+                raise RiskGateError(
+                    f"original apply run {run_id} for {version} was performed against the "
+                    "PRODUCTION project; that is not a preview rehearsal"
+                )
+        recorded = preview_content_manifest(texts).get(version)
+        if not isinstance(recorded, str) or not re.fullmatch(r"[0-9a-f]{64}", recorded):
+            raise RiskGateError(
+                f"original apply run {run_id} recorded no usable digest for {version}"
+            )
+        matches = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
+        if len(matches) != 1:
+            raise RiskGateError(
+                f"allowlisted migration {version} is absent or ambiguous on exact main"
+            )
+        if recorded != manifest_sha256(matches[0]):
+            raise RiskGateError(
+                f"preview applied different bytes than exact main for {version}: original "
+                f"apply run {run_id} recorded {recorded}, exact main is "
+                f"{manifest_sha256(matches[0])}. Preview never ran the bytes being promoted."
+            )
+
+
 def prove_preview(
-    *, run_id: int, digest: str, pr_head: str, main_sha: str, source_pr: int, allowlist: list[str], api: Callable[[str], Any],
+    *, run_id: int, digest: str, pr_head: str, main_sha: str, source_pr: int, allowlist: list[str],
+    preview_project_ref: str, merge_commit_sha: str, api: Callable[[str], Any],
     downloader: Callable[[int, Path], None], repo_root: Path,
 ) -> None:
     run = api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
@@ -399,8 +967,25 @@ def prove_preview(
         "path": PREVIEW_WORKFLOW,
     }
     for key, value in expected.items():
-        if run.get(key) != value:
+        # `isinstance` FIRST, as the twin loop in
+        # `prove_historical_original_apply_runs` already does. Without it a
+        # GitHub response that is a list, a string or null crashes here with
+        # `AttributeError: 'list' object has no attribute 'get'` instead of
+        # refusing with a message an operator can act on. An unhandled traceback
+        # is not a refusal: it says nothing about WHAT was wrong, and the two
+        # loops must not disagree about how a malformed payload is handled.
+        # (#1213 round 9, author's per-condition hunt.)
+        if not isinstance(run, dict) or run.get(key) != value:
             raise RiskGateError(f"preview run has wrong {key}")
+    # THE COMMIT THAT ACTUALLY RAN, not the ref the workflow file was read from.
+    # `run["head_sha"]` is the latter, and on a post-merge rehearsal dispatched
+    # against main the two are different commits. Pinning provenance and the
+    # producing code to head_sha therefore pinned the wrong thing, and the
+    # artifact lookup -- which uses the checked-out commit -- would then fail
+    # anyway. Both now use the same commit, read from the artifact name.
+    artifact, applied_commit = preview_applied_commit(
+        api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id
+    )
     # PROVENANCE, not identity: the rehearsal must belong to THIS piece of work.
     # Any commit of the source pull request qualifies, plus exact main for the
     # historical-recovery path. What the rehearsal actually applied is proved by
@@ -408,15 +993,35 @@ def prove_preview(
     # permanently stranded any promotion that had a follow-up commit -- including
     # the generated types this repository is supposed to refresh after a schema
     # change, which cannot be committed before the preview it describes.
-    if run.get("head_sha") not in source_pr_commits(source_pr, pr_head, main_sha, api):
-        raise RiskGateError("preview run does not belong to the source pull request")
-    # Belonging to the PR is not enough. The run must also have been produced by
-    # the same apply machinery exact main carries, or its artifact is
-    # self-attestation rather than evidence. See PREVIEW_PRODUCER_PATHS.
-    prove_preview_producer_matches_main(run["head_sha"], main_sha, api)
-    name = f"preview-migration-apply-{run['head_sha']}"
-    artifact = select_preview_artifact(
-        api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id, name
+    #
+    # A POST-MERGE REHEARSAL runs from a main commit that is NOT a commit of the
+    # source PR, so it is accepted on the second branch: a commit exact main
+    # contains. That is strictly stronger than PR membership -- it is code that
+    # is already merged -- and the producer pin below still binds the machinery
+    # to exact main, so the checkout that ran cannot have been a doctored one.
+    if applied_commit not in source_pr_commits(source_pr, pr_head, main_sha, api):
+        prove_applied_commit_is_main_line(applied_commit, main_sha, api)
+    # Belonging to the PR (or to main's own history) is not enough. The run must
+    # also have been produced by the same apply machinery exact main carries, or
+    # its artifact is self-attestation rather than evidence. See
+    # PREVIEW_PRODUCER_PATHS.
+    prove_preview_producer_matches_main(
+        applied_commit, exact_main(main_sha), main_sha, api,
+        what="preview run checked out at " + applied_commit,
+    )
+    # THE WORKFLOW THAT EXECUTED. The artifact name is what the job CHOSE to
+    # advertise as its checkout; the dispatch ref is what GitHub read the
+    # workflow file from, and no part of the artifact can lie about it. A forged
+    # branch that checks out main, skips the apply and writes matching evidence
+    # is refused here and nowhere else.
+    run_head = run.get("head_sha")
+    if not isinstance(run_head, str) or not re.fullmatch(r"[0-9a-f]{40}", run_head):
+        raise RiskGateError(
+            "preview run does not name the commit whose workflow executed (head_sha)"
+        )
+    prove_preview_producer_matches_main(
+        run_head, exact_main(main_sha), main_sha, api,
+        what="preview run dispatched at " + run_head,
     )
     if artifact.get("digest") != digest:
         raise RiskGateError("preview artifact digest does not match the pinned digest")
@@ -438,21 +1043,51 @@ def prove_preview(
         # forged mapping cannot pass: every version must still be proven added by
         # the PR it names, and a version's file is only ever "added" once in
         # history.
-        source_map = record.get("sourcePrMap") if isinstance(record, dict) else None
+        if not isinstance(record, dict):
+            raise RiskGateError("historical preview source proof is unreadable")
+        source_map = record.get("sourcePrMap")
+        # THE ORIGINAL-RUN MAP IS AN INPUT TO THE RE-DERIVATION, not something
+        # the re-derivation can check -- the same is already true of the source
+        # map. Re-deriving it proves only that the record is internally
+        # consistent. What proves the map is honest is
+        # `prove_historical_original_apply_runs` below, which goes and reads each
+        # named run's own evidence. A record naming a run that did not apply the
+        # version, or that recorded different bytes, is refused there.
+        original_runs = record.get("originalApplyRuns")
+        if not isinstance(original_runs, dict) or not original_runs:
+            raise RiskGateError(
+                "historical preview recovery does not name the original apply run for each "
+                "version; a recovery is never accepted without a byte binding"
+            )
+        rendered_runs = ",".join(
+            f"{version}:{original_runs[version]}" for version in sorted(original_runs)
+        )
         if source_map is not None:
             if not isinstance(source_map, dict) or not source_map:
                 raise RiskGateError("historical preview source map is unreadable")
             rendered = ",".join(f"{version}:{source_map[version]}" for version in sorted(source_map))
             derived = verify_historical_preview(
-                None, main_sha, ",".join(allowlist), repo_root, api, source_map=rendered
+                None, main_sha, ",".join(allowlist), repo_root, api, source_map=rendered,
+                original_run_map=rendered_runs,
             )
         else:
-            derived = verify_historical_preview(source_pr, main_sha, ",".join(allowlist), repo_root, api)
+            derived = verify_historical_preview(
+                source_pr, main_sha, ",".join(allowlist), repo_root, api,
+                original_run_map=rendered_runs,
+            )
         if record != derived:
             raise RiskGateError("historical preview source proof does not match current governed evidence")
+        # THE BYTES. Without this the recovery lane proves authorship and ledger
+        # presence only, and "rehearse A, amend to B, merge, recover, promote B"
+        # walks through the last gate before a production write.
+        prove_historical_original_apply_runs(
+            record=record, allowlist=allowlist, repo_root=repo_root, main_sha=main_sha,
+            api=api, downloader=downloader,
+        )
         # The historical no-write path proves nothing by applying, so it keeps
-        # its exact-main requirement unchanged.
-        if run.get("head_sha") != main_sha:
+        # its exact-main requirement unchanged -- now judged against the commit
+        # the job really checked out rather than the workflow-file ref.
+        if applied_commit != main_sha:
             raise RiskGateError("preview run has wrong head_sha")
     with tempfile.TemporaryDirectory(prefix="production-risk-ledger-") as ledger_temp:
         before_path, after_path = Path(ledger_temp, "before.txt"), Path(ledger_temp, "after.txt")
@@ -463,6 +1098,19 @@ def prove_preview(
         texts=texts, allowlist=allowlist, repo_root=repo_root,
         before_versions=before_versions, after_versions=after_versions,
         historical=bool(historical),
+    )
+    # WHICH DATABASE, AND FROM WHICH COMMIT. Everything above proves a migration
+    # applied cleanly somewhere, built by code exact main carries. Only this
+    # proves it was THIS preview project, and that the commit named in the
+    # artifact NAME is the commit the job itself recorded inside the evidence --
+    # two independent sources that must agree. Preview rjyboqwcdzcocqgmsyel was
+    # deleted and rebuilt on 2026-08-18; without this, its proof would still be
+    # good for a production write today.
+    verify_preview_instance_binding(
+        texts.get("preview-instance.json"),
+        applied_commit=applied_commit, preview_project_ref=preview_project_ref,
+        production_project_ref=PRODUCTION_PROJECT_REF, run_id=run_id, allowlist=allowlist,
+        source_pr=source_pr, merge_commit_sha=merge_commit_sha,
     )
 
 
@@ -479,7 +1127,7 @@ def is_pinned_historical_disney_source(
 
 def prove_pr_and_checks(
     pr_number: int, main_sha: str, allowlist: list[str], api: Callable[[str], Any], repo_root: Path
-) -> str:
+) -> tuple[str, str]:
     pr = api(f"repos/{REPOSITORY}/pulls/{pr_number}")
     if pr.get("merged") is not True or pr.get("merge_commit_sha") is None:
         raise RiskGateError("source PR is not merged")
@@ -503,7 +1151,7 @@ def prove_pr_and_checks(
         missing = [name for name in missing if name != "Migration author lease"]
     if missing:
         raise RiskGateError(f"required exact-head checks are not successful: {', '.join(missing)}")
-    return head
+    return head, str(pr["merge_commit_sha"])
 
 
 def classify_sql(repo_root: Path, allowlist: list[str]) -> list[str]:
@@ -578,7 +1226,7 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
     allowlist = normalize_review_allowlist(args.allowlist)
     activation = load_activation(args.activation)
     prove_activation(activation, main_sha=args.main_sha, api=api, repo_root=repo_root)
-    pr_head = prove_pr_and_checks(args.pr, args.main_sha, allowlist, api, repo_root)
+    pr_head, pr_merge_commit = prove_pr_and_checks(args.pr, args.main_sha, allowlist, api, repo_root)
     with tempfile.TemporaryDirectory(prefix="production-risk-review-") as temp:
         review_path = verify_review(
             run_id_text=str(args.review_run_id), expected_digest=args.review_digest,
@@ -590,7 +1238,9 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
         return {"automaticPromotionAllowed": False, "ownerDecisionReasons": [RISK_TEXT["unresolved_material_objection"]]}
     prove_preview(
         run_id=args.preview_run_id, digest=args.preview_digest, pr_head=pr_head,
-        main_sha=args.main_sha, source_pr=args.pr, allowlist=allowlist, api=api, downloader=downloader, repo_root=repo_root,
+        main_sha=args.main_sha, source_pr=args.pr, allowlist=allowlist,
+        preview_project_ref=args.preview_project_ref, merge_commit_sha=pr_merge_commit,
+        api=api, downloader=downloader, repo_root=repo_root,
     )
     decision = decide_business_risk(classify_sql(repo_root, allowlist), recovery_proven=True, review_approved=True)
     # OWNER RULING 2026-08-18: the machine-readable owner-decision block is RETIRED
@@ -638,6 +1288,7 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
         "governedEvidence": {
             "mainSha": args.main_sha, "sourcePr": args.pr, "sourcePrHead": pr_head,
             "reviewRun": args.review_run_id, "previewRun": args.preview_run_id,
+            "previewProjectRef": args.preview_project_ref,
             "allowlist": allowlist,
             "ownerDecision": owner_evidence,
         },
@@ -655,6 +1306,11 @@ def main() -> int:
     parser.add_argument("--review-digest", required=True)
     parser.add_argument("--preview-run-id", type=int, required=True)
     parser.add_argument("--preview-digest", required=True)
+    # NOT DEFAULTED, EVER. Preview is rebuilt from time to time and its project
+    # ref changes when it is; a literal in this file is what stranded the lane on
+    # 2026-08-18. The workflow passes the repository variable PREVIEW_PROJECT_REF,
+    # which is the same value the preview job writes to.
+    parser.add_argument("--preview-project-ref", required=True)
     # GitHub Actions supplies an omitted optional workflow input as an empty
     # string.  Keep it as text so the established no-risk automatic path can
     # reach assess(); a material-risk path still rejects the missing value.

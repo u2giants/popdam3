@@ -58,6 +58,17 @@ export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>!RETIRED_R
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
   'preview-recovery': 'refs/db-coordination/preview',
+  // POST-MERGE REHEARSAL. Deliberately the SAME ref as the ordinary preview
+  // lane, so a rehearsal and an ordinary preview run can never both hold
+  // preview -- no new interaction and no new hatch. NOTE WHAT THIS REF DOES NOT
+  // DO: it is not cross-checked against `merge` or `production` in either
+  // direction (the only cross-checks are the two `EXCLUSIVE_REFS` reads below,
+  // promotion-waits-for-merge and merge-waits-for-production). A rehearsal is
+  // therefore NOT excluded from a guarded merge or a promotion. That is
+  // pre-existing behaviour of the preview lane which this kind inherits
+  // unchanged; an earlier comment here claimed the exclusion existed (#1213
+  // round 7 audit).
+  'preview-rehearsal': 'refs/db-coordination/preview',
   merge: 'refs/db-coordination/merge',
   production: 'refs/db-coordination/production',
 })
@@ -301,6 +312,12 @@ export const githubIo = {
   },
   mainSha() { return ghJson(['api', `repos/${REPO}/git/ref/heads/main`])?.object?.sha ?? null },
   getCommit(sha) { return ghJson(['api', `repos/${REPO}/git/commits/${sha}`]) },
+  // ARGUMENT ORDER IS THE WHOLE CHECK. GitHub's compare endpoint is
+  // `compare/{base}...{head}` and reports how HEAD relates to BASE. Passing the
+  // merge commit as BASE and the main tip as HEAD is what makes `ahead` mean
+  // "main contains the merge commit". Inverted, `ahead` would mean the exact
+  // opposite and would accept unmerged code. See compareCommits tests.
+  compareCommits(baseSha, headSha) { return ghJson(['api', `repos/${REPO}/compare/${baseSha}...${headSha}`]) },
   makeOwnerCommit(message) {
     const head = ghJson(['api', `repos/${REPO}/git/ref/heads/main`])?.object?.sha
     if (!head) throw new LaneError('GitHub main ref has no commit SHA')
@@ -967,6 +984,43 @@ export function recoverSameOwnerSplit(options, now = new Date(), io = githubIo) 
   } finally { if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io) }
 }
 
+// Every migration version a pull request ADDED. `added` only, deliberately: a
+// rehearsal is allowed to apply versions this PR authored, never one it merely
+// touched, renamed or inherited from another claim.
+export function addedMigrationVersions(files) {
+  if (!Array.isArray(files)) throw new LaneError('pull request files are unreadable; a post-merge preview rehearsal never assumes them')
+  return files
+    .filter((file) => file?.status === 'added')
+    .map((file) => /^supabase\/migrations\/(\d{14})_[^/]+\.sql$/.exec(file.filename ?? file.path ?? '')?.[1])
+    .filter(Boolean)
+}
+
+// THE AUTHORISATION for a post-merge rehearsal, in place of a live branch claim.
+// Stated as what it enforces rather than as a strength ranking: a branch claim
+// proves someone intends to merge; this proves the work IS merged and IS carried
+// by the main tip being rehearsed. It does not prove anything a branch claim
+// proves about WHO is rehearsing -- the preview lock, not this function, is what
+// keeps two rehearsals apart.
+export function assertMergeCommitInMainHistory(mergeSha, mainSha, io = githubIo) {
+  let comparison
+  try {
+    // base = the merge commit, head = the main tip. NEVER the other way round.
+    comparison = io.compareCommits?.(mergeSha, mainSha)
+  } catch (error) {
+    throw new LaneError(`merge-commit ancestry is unreadable (${error.message}); a post-merge preview rehearsal never assumes it`)
+  }
+  if (!comparison || typeof comparison.status !== 'string' || !Number.isInteger(comparison.behind_by)) {
+    throw new LaneError('merge-commit ancestry is unreadable; a post-merge preview rehearsal never assumes it')
+  }
+  // `identical` is the ordinary case: the merge just happened and its commit IS
+  // the tip. `ahead` means later commits landed on top. `behind_by` must be zero
+  // in both, which is what refuses a diverged or rewritten history.
+  if (comparison.behind_by !== 0 || !['identical', 'ahead'].includes(comparison.status)) {
+    throw new LaneError(`merge commit ${mergeSha} is not contained in the history of main tip ${mainSha} (compare status ${comparison.status}, behind_by ${comparison.behind_by})`)
+  }
+  return comparison
+}
+
 export function acquireExclusive(kind, metadata, io = githubIo) {
   const ref = EXCLUSIVE_REFS[kind]
   if (!ref) throw new LaneError(`unknown exclusive lane: ${kind}`)
@@ -978,6 +1032,29 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
     if (kind === 'production') {
       if (metadata.headSha !== io.mainSha?.()) throw new LaneError('production lane requires the exact current main SHA')
       if (io.readRef(EXCLUSIVE_REFS.merge)) throw new LaneError('a guarded merge is active; production promotion must wait')
+    } else if (kind === 'preview-rehearsal') {
+      // POST-MERGE PREVIEW REHEARSAL -- the path that makes "merge first, then
+      // rehearse on preview from merged main, then promote" executable. There is
+      // no live author claim to point at: the guarded merge released the claim
+      // and deleted the branch. Authorisation comes from merge-commit ancestry
+      // of the current main tip instead. Every failure below is fail-closed and
+      // names exactly what was missing.
+      const mainSha = io.mainSha?.()
+      if (!mainSha) throw new LaneError('post-merge preview rehearsal cannot read the current main tip; GitHub state is unreadable')
+      if (metadata.headSha !== mainSha) throw new LaneError(`post-merge preview rehearsal requires the exact current main SHA (asked for ${metadata.headSha}, main is ${mainSha})`)
+      let pr
+      try { pr = io.getPr?.(metadata.pr) } catch (error) { throw new LaneError(`post-merge preview rehearsal cannot read pull request #${metadata.pr} (${error.message})`) }
+      if (!pr) throw new LaneError(`post-merge preview rehearsal cannot read pull request #${metadata.pr}`)
+      if (pr.merged !== true || !pr.merge_commit_sha) throw new LaneError(`post-merge preview rehearsal requires an already-merged source PR; #${metadata.pr} is not merged`)
+      assertMergeCommitInMainHistory(pr.merge_commit_sha, mainSha, io)
+      const versions = (metadata.versions ?? []).map((v) => String(v).trim()).filter(Boolean)
+      if (!versions.length) throw new LaneError('post-merge preview rehearsal requires the exact migration versions it will apply')
+      if (versions.some((v) => !/^\d{14}$/.test(v))) throw new LaneError('post-merge preview rehearsal versions must each be an exact 14-digit migration version')
+      let files
+      try { files = io.getPrFiles?.(metadata.pr) } catch (error) { throw new LaneError(`post-merge preview rehearsal cannot read the files of pull request #${metadata.pr} (${error.message})`) }
+      const added = addedMigrationVersions(files)
+      const missing = versions.filter((v) => !added.includes(v))
+      if (missing.length) throw new LaneError(`post-merge preview rehearsal versions were not added by pull request #${metadata.pr}: ${missing.join(', ')}`)
     } else if (kind === 'preview-recovery') {
       if (metadata.headSha !== io.mainSha?.()) throw new LaneError('historical preview recovery requires the exact current main SHA')
       const pr = io.getPr?.(metadata.pr)
@@ -1018,11 +1095,12 @@ function parseArgs(argv) {
     else if (a === '--renew-claim') out.renewClaim = true
     else if (a === '--reversion-active-claim' || a === '--supersede-active-claim-version') out.reversionClaim = true
     else if (a === '--confirm-stale') out.confirmStale = true
-    else if (/^--acquire-(preview|preview-recovery|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
-    else if (/^--release-(preview|preview-recovery|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
+    else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
+    else if (/^--release-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
     else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--claim-number','--failed-sequence','--failure-code','--old-version','--reviewer','--wrapper'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if(a==='--confirm-no-verdict')out.confirmNoVerdict=true
     else if(a==='--confirm-no-artifact')out.confirmNoArtifact=true
+    else if (a === '--versions') { out.versions = next(i).split(',').map((v)=>v.trim()).filter(Boolean); i++ }
     else if (a === '--objects') { out.objects.push(...next(i).split(',').map((v)=>v.trim()).filter(Boolean)); i++ }
     else if (a === '--lease-hours') { out.leaseHours = Number(next(i)); i++ }
     else throw new LaneError(`unknown argument: ${a}`)
@@ -1041,7 +1119,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.reversionClaim){console.log(JSON.stringify(reversionActiveClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.replaceFailedReviewer){console.log(JSON.stringify(replaceFailedReviewer(o,io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}
-    if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha }, io), null, 2)); return 0 }
+    if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions }, io), null, 2)); return 0 }
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }
     const claims = io.openClaims()
     if(o.assignReviewer){console.log(JSON.stringify(assignNextReviewer({issue:o.issue,pr:o.pr,headSha:o.headSha},io),null,2));return 0}
