@@ -1701,6 +1701,29 @@ counts, flash cards, 2019–2020), *not* a mis-keyed `EH001`. Never "correct" it
 **573 item references** between them. Deleting them on sight is the mistake this section exists
 to prevent.
 
+**OWNER CONFIRMATION (Albert Hazan, in chat, 2026-08-19).** Verbatim: *"Coldlion has the
+correct data. We only have 4 divisions: cw001, ep001, eh001, sp001. And ep001 has been retired
+and will not be used in our systems."*
+
+Three things this settles for good:
+
+1. **ColdLion is authoritative for division, full stop.** Not `div_code_fk`, not a mapping
+   table, not the DesignFlow id space. This confirms the 2026-08-18 ruling above rather than
+   changing it.
+2. **The division list is CLOSED at four codes** — `CW001`, `EP001`, `EH001`, `SP001`. A
+   division value outside that set is a data defect, not a new division. Do not add one
+   without a fresh owner ruling.
+3. **`EP001` is retired and will NOT be used going forward.** It stays a real historical
+   division (the 2019–2020 book/education line) and must never be "corrected" to `EH001`,
+   but nothing new lands in it. New or backfilled rows must not be assigned `EP001`; a
+   pipeline that would assign it is producing a wrong answer and must fail loudly rather than
+   write it. Historical `EP001` rows stay exactly as they are — this is not licence to
+   rewrite or delete them.
+
+**No further questions are owed to Uma on division codes.** Her 2026-08-13 and 2026-08-17
+answers plus this confirmation cover the ground; issue #903 (the unsent 8-question briefing)
+is closed as superseded.
+
 ### 6.2 Coldlion `/vendors` — wrong table, now FIXED upstream (2026-07-22)
 
 `core.factory` = **merchandise vendors (factories)**. Coldlion's `/vendors` endpoint was returning a
@@ -2683,6 +2706,72 @@ migrations. All of it predates this rule and all of it is already public. It is 
 future sessions know the sweep was done and the result was consciously accepted, not missed.
 Removing any of it from the working tree does not remove it from history, so removal buys
 nothing and costs review risk. **Do not start a cleanup pass without a fresh owner ruling.**
+
+### 6.15 OWNER RULING — there are exactly TWO kinds of property list, and `core.property` (Universe A) is to be DELETED (Albert Hazan, 2026-08-19)
+
+**His words, in chat, 2026-08-19:**
+
+> "Delete list A completely. There should be 2 types of lists: the lists that are the
+> direct results of scrapes from the licensor websites, and the list that comes in from
+> the Coldlion api. The scrape lists show what properties we are licensed for, and the
+> Coldlion list shows which ones we actually use."
+
+**This is the settled architecture for licensed properties and characters. Do not re-ask it,
+and do not propose a third list.**
+
+#### The two kinds, and what each one MEANS
+
+| kind | source | business meaning | do not use it for |
+|---|---|---|---|
+| **Scrape lists** | direct captures from the licensor portals (Disney OPA, Warner STARLABS, NBCU Creative Assets, Paramount Creative Library, Peanuts/Tenovos, Sesame/NetX, WildBrain, Sega) | **what we are LICENSED for** | what we actually make |
+| **ColdLion list** | the ColdLion ERP API feed | **which licensed properties we ACTUALLY USE** | what we are allowed to use |
+
+Neither is a subset the other can be derived from. A property can be licensed and unused,
+and an appearance in ColdLion that matches no scrape row is a finding, not a row to invent.
+
+#### What "list A" is, and why it dies
+
+"List A" is **Universe A** from issue #865:
+
+- `core.property` — 256 rows, uuid keys, **no source-ID columns at all**
+- `core.character` — empty
+- `core.property_character` — empty
+- linked to `core.licensor` (26 uuid rows) via `property_licensor_id_fkey`
+
+It is hand-made. It carries none of the licensors' own primary keys, so it can never be
+matched row-for-row against a portal capture, and 16 of its rows are stored at CHARACTER
+grain in a table named `property`. It satisfies neither of the two kinds above.
+
+**Universe B survives** — `core.properties_and_characters` (10,122 rows, integer keys,
+`source_licensed_property_id` / `source_character_id`), `core.property_character_associations`
+(9,622 rows), keyed to `core."licenseList"`. Membership in the portal captures is **proven,
+not assumed**: 112/112 sampled Disney OPA `characterID` values present, 6/6 sampled Warner
+STARLABS `characters.csv:source_id` values present. `licenseList` 13 (`CC`) is the one known
+exception — synthetic hand-made IDs (`COKE-CHAR-00n`), not portal-derived.
+
+#### The deletion is NOT authorized to just happen
+
+The ruling settles the DESTINATION. It does not waive §4.2, the migration process, or the
+blast-radius work. Before `core.property`, `core.character`, `core.property_character` and
+(if it proves unused) `core.licensor` are dropped:
+
+1. Prove which applications read them. `core.licensor`'s 26 codes are referenced by more
+   than the property tables; do not assume it dies with them.
+2. Land the drop as a normal shared-db migration — branch, PR, preview rehearsal, guarded
+   merge, production evidence chain.
+3. Anything genuinely worth keeping out of the 256 rows must be moved to a surviving list
+   FIRST, with its licensor source ID attached, or it is gone.
+
+**Do not drop anything on the strength of this section alone.**
+
+#### What this ruling immediately settles
+
+- **#640** — the licensor reconciliation runs against **Universe B**, never Universe A.
+  A run against Universe A reports enormous meaningless gaps and ignores the 10,122 rows
+  that already carry the licensors' own keys.
+- **#865** — answered and closed. Both of its questions are resolved: the reconciliation
+  target is Universe B, and the "how do we group `core.licensor`'s 26 mixed codes into four
+  portal licensors" question is moot, because that table is on the deletion path.
 
 ## 7. When two apps need conflicting database changes
 
