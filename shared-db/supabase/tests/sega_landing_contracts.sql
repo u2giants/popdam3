@@ -1640,6 +1640,33 @@ declare
   v_prior text;
   v_fail  integer := 0;
   v_seen  integer := 0;
+  v_i     integer;
+  -- THE ONE PLACE A NEW LANDING SCHEMA TOUCHES THIS FILE.
+  --
+  -- Prefix -> source_system, in the same order api.source_capture_inventory tests them
+  -- (dcp/opa before the rest; first match wins). This test asserts that the view still
+  -- classifies every PRE-EXISTING source exactly as it did -- that is the tripwire, and
+  -- it must keep firing.
+  --
+  -- A new licensor landing legitimately adds tables and a new classifier arm to the view.
+  -- That is not a regression, but it MUST NOT pass silently either, or the tripwire stops
+  -- meaning anything. So: add exactly ONE row here for your prefix, and nothing else in
+  -- this file changes. The failure message below names this array so the next author does
+  -- not have to find it by reading the whole block.
+  --
+  -- 2026-08-19: the {peanuts_,peanuts} row was added by the author of #1217 / PR #1234,
+  -- whose 19 plm.peanuts_* tables made this test fail with 19 classification changes. The
+  -- view extension was correct and this expectation was stale. Nothing else in this file
+  -- was touched. Same failure mode as #1195.
+  v_map text[][] := array[
+    ['dcp\_%',     'disney'],
+    ['opa\_%',     'disney'],
+    ['pmt\_%',     'paramount'],
+    ['nbcu\_%',    'nbcu'],
+    ['wb\_%',      'warner'],
+    ['erp\_%',     'coldlion'],
+    ['peanuts\_%', 'peanuts']
+  ];
 begin
   for r in
     select c.relname, v.source_system
@@ -1661,17 +1688,33 @@ begin
       continue;
     end if;
     v_seen := v_seen + 1;
-    v_prior := case
-      when r.relname like 'dcp\_%' or r.relname like 'opa\_%' then 'disney'
-      when r.relname like 'pmt\_%' then 'paramount'
-      when r.relname like 'nbcu\_%' then 'nbcu'
-      when r.relname like 'wb\_%' then 'warner'
-      when r.relname like 'erp\_%' then 'coldlion'
-      else 'other'
-    end;
+
+    -- Resolve the expected classification from v_map, declared ONCE above. The map is
+    -- written here independently of the view, which is what makes this a tripwire rather
+    -- than a tautology: if the view starts calling a pre-existing source something else,
+    -- the two disagree and this fails.
+    v_prior := 'other';
+    for v_i in 1 .. array_length(v_map, 1) loop
+      if r.relname like v_map[v_i][1] then
+        v_prior := v_map[v_i][2];
+        exit;
+      end if;
+    end loop;
+
     if r.source_system <> v_prior then
       v_fail := v_fail + 1;
-      raise warning 'F1 FAIL: plm.% is now % but was %', r.relname, r.source_system, v_prior;
+      -- Two different failures, told apart, because the fix differs. A pre-existing
+      -- source that changed classification is a REGRESSION. A table the map has never
+      -- heard of that the view classifies as something is a NEW LANDING SCHEMA whose
+      -- author has not added their line to v_map yet -- say so, and say exactly where.
+      if v_prior = 'other' and r.source_system <> 'other' then
+        raise warning
+          'F1 FAIL: plm.% is classified as ''%'' by api.source_capture_inventory but v_map in this block does not know its prefix. If you are landing a new source, add one row to v_map above -- do not delete this check.',
+          r.relname, r.source_system;
+      else
+        raise warning 'F1 FAIL: plm.% is now % but was %',
+          r.relname, r.source_system, v_prior;
+      end if;
     end if;
   end loop;
 
@@ -1685,7 +1728,8 @@ begin
   if v_fail > 0 then
     raise exception 'F1 FAILED (% classification changes)', v_fail;
   end if;
-  raise notice 'F1 passed: % pre-existing tables unchanged, 12 sega tables classified', v_seen;
+  raise notice
+    'F1 passed: % non-sega tables match v_map, 12 sega tables classified', v_seen;
 end;
 $$;
 
