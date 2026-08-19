@@ -823,13 +823,13 @@ four rules below are non-negotiable for any database change.
    production (`qsllyeztdwjgirsysgai`). The preview project ref is NOT written
    down here: preview is rebuilt from time to time and its ref changes when it
    is — `rjyboqwcdzcocqgmsyel` was deleted on 2026-08-18. The current ref lives
-   in the repository variable `PREVIEW_PROJECT_REF`, and every lane of *Shared
-   Supabase Migrations* reads it from there. An unset variable is refused there,
-   never defaulted. Do not read that as a repository-wide fact: several older
-   workflows (`generate-database-types.yml`,
-   `preview-ledger-orphan-reconciliation.yml`, the `coldlion-*` workflows) still
-   hard-code the **deleted** ref `rjyboqwcdzcocqgmsyel` and pin themselves to it.
-   That predates #1213 and is not fixed by it.
+   in the repository variable `PREVIEW_PROJECT_REF`, and **every** workflow that
+   targets preview reads it from there. An unset variable is refused, never
+   defaulted. The older workflows that used to hard-code the deleted ref
+   (`generate-database-types.yml`, `preview-ledger-orphan-reconciliation.yml`,
+   the `coldlion-*` workflows) were converted to the same pattern, and
+   `scripts/check-workflow-preview-ref.test.mjs` now fails the *Shared Supabase
+   Migrations* guard job if any workflow pins a preview ref literal again.
 
    **Post-merge rehearsal (the normal order).** Merge first, then rehearse on
    preview from merged `main`, then promote. Dispatch *Shared Supabase
