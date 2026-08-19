@@ -35,18 +35,38 @@ MG10 means Demographic, also called Age Group, in the three current divisions. I
 | Wall | A Stretched/Box; B Framed; C Plaque; D Functional; E Other Wall |
 | Tabletop | F Block; G Box; H Photo Frames; J Object; K Other Tabletop |
 | Clock | M Clocks |
-| Storage | N Soft Storage; P Hard Storage; R Other storage |
+| Storage | N Soft Storage; P Hard Storage; R Other storage; Q TBD storage |
 | Workspace | S Stationery org; T Desk Acc; U Other workspace |
 | Floor | V Floor coverings |
 | Garden | W Garden |
 
-That is seven categories covering the nineteen MG01 Product Types represented in `MerchGroup_Rework.xlsx`. The live taxonomy contains a twentieth MG01 within each division that the workbook does not map. Its category is **Unknown** and must not be guessed. Category constrains dependent choices such as valid sizes. A Product Type may not belong to two categories unless the business explicitly changes this rule.
+Seven categories cover **twenty** MG01 Product Types. Category constrains dependent choices such as valid sizes. A Product Type may not belong to two categories unless the business explicitly changes this rule.
+
+**Q TBD storage — Settled, owner ruling by Albert Hazan on 2026-08-18.** `Q TBD storage` is a real Product Type and its category is **Storage**. This replaces the earlier statement that a twentieth Product Type existed in every division with an **Unknown** category; that statement was wrong on both counts. `MerchGroup_Rework.xlsx` carries only the other nineteen, so the workbook still needs updating by the business to match the ruling. Until it does, **this recorded ruling is the authority for `Q`, not the workbook.**
+
+### Division scope of a Product Type
+
+**Settled — verified against the live taxonomy on 2026-08-18.** The nineteen workbook Product Types each exist once in each of the three current divisions `CW001`, `EH001` and `SP001`. `Q TBD storage` exists in `CW001` only.
+
+Therefore an MG01 code alone never identifies a Product Type. **Division is always required** to resolve one, and a Product Type is not guaranteed to be offered in every division.
+
+### Known trap: capitalisation
+
+The live Product Type descriptions do not match the workbook's capitalisation — the live taxonomy reads `Other tabletop`, `Soft storage` and `Desk acc` where the workbook reads `Other Tabletop`, `Soft Storage` and `Desk Acc`. Any comparison between the two must ignore case and surrounding spaces. Treating them as different names has already caused one near-miss.
+
+### Historical: retired Product Type rows
+
+**Historical.** The Product Type list has been rebuilt at least once, and the pre-rebuild rows still exist in an inactive state rather than being deleted. The same letter has meant different things in different eras: a 2019 `A` meant `LEATHER/COWHIDE`, while the live `A` means `Stretched/Box`.
+
+These inactive rows are **not** a live taxonomy conflict. The workbook and the live active set agree. Never cite a retired row as evidence that the current taxonomy disagrees with itself.
 
 ## Description classification
 
 Historical item descriptions must be interpreted into separate facts: Product Type, size, Licensor, Property, and artwork wording. Matching starts with the most specific supported combination and falls back carefully. Failure of a full multi-level match is not evidence that MG01 failed.
 
 The categorization method changed after business closed on May 13, 2025. Items created before May 14, 2025 are historical. Items created May 14, 2025 or later are the trusted learning population. Moving that boundary requires written business approval.
+
+**Two different dates — do not confuse them. Settled, verified live on 2026-08-18.** The May 14, 2025 boundary above is the **item** boundary and applies to items only. Separately, the merchandise-group Product Type rows themselves were rebuilt in a single batch that carries a stored creation date of **2025-04-07**, and every Product Type row predating that rebuild is now inactive. Anyone reconciling the taxonomy against stored dates must not expect the May 14 boundary to appear on merchandise-group rows. The two dates answer different questions: one asks which items can be trusted for learning, the other asks when the Product Type list was last rebuilt.
 
 Do not infer current product meaning from historical single-letter ERP values without the approved remediation method.
 

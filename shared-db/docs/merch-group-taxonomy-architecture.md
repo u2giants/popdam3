@@ -23,10 +23,15 @@ settled 2026-08-16 business rules in
 authorized licensor sources own official names, ownership, and direct relationships;
 ColdLion controls Property Active/Inactive only; the stale DesignFlow pull has no authority.
 
-**Business rule added 2026-08-18:** §4.2.1 defines the relationship between
-`mgCategory` and the real MG01 product types from `MerchGroup_Rework.xlsx`. Database
-normalization is tracked in issue #1163; until that lands, the rule is authoritative even
-though the database still carries `mgCategory` as nullable text on merchandise-group rows.
+**Business rule added 2026-08-18:** §4.2.1 defines the relationship between `mgCategory`
+and the real MG01 product types from `MerchGroup_Rework.xlsx`. That relationship is now
+**normalized in the database** (issue #1163): `core.mg_category` holds the seven categories
+and `core.mg_category_merch_group` links each category to the real MG01 merchandise-group
+rows, per division, by `mg_id` rather than by the MG letter code. Resolve an item's
+category by walking from its MG01 row through that link table. The free-text `mgCategory`
+columns on `core."merchGroup"` and `core."merchGroupMaster"` are **still there and
+untouched**: they are an upstream mirror field, not the master, and issue #1163 does not
+maintain them.
 
 **Who this is for:** an engineer who needs implementation history after first reading the
 applicable companywide topic in [`business-rules/application-map.md`](business-rules/application-map.md).
@@ -329,42 +334,60 @@ getPropertyByLicense(selectedTitle) {
 
 ### 4.2.1 `mgCategory` groups MG01 product types
 
-`mgCategory` is a hidden product-category grouping above MG01. It is not an MG number,
+`mgCategory` is a **hidden product-category grouping above MG01**. It is not an MG number,
 not another row in the MG01 → MG02 → MG03 `parent_id` chain, and not a replacement for an
-actual product type. It groups the real MG01 product types into broader business categories
-and constrains dependent choices such as valid sizes.
+actual product type. Its purpose is to group the real MG01 product types into broader
+business categories and to constrain dependent choices such as valid sizes.
 
 The relationship is **one category to many MG01 product types**, with **each MG01 product
 type belonging to exactly one category**. An item's category is inherited from its selected
 MG01 product type. MG02 and MG03 refine that product type; they do not choose or override
-the category. A repeated category on MG02 or MG03 source rows must agree with their MG01
-ancestor.
+the category. If `mgCategory` is repeated on MG02 or MG03 source rows, it must agree with
+the category assigned through their MG01 ancestor.
 
-Authoritative mapping from
+Authoritative mapping. Nineteen of the twenty rows come from
 [`MerchGroup_Rework.xlsx`](verification/item-mg-reclassification-20260814/data/MerchGroup_Rework.xlsx),
-sheet `Final Version`, columns A–C:
+sheet `Final Version`, columns A–C. The twentieth, `Q` TBD storage, comes from an **owner
+ruling by Albert Hazan on 2026-08-18**: `Q` is real and belongs under Storage.
 
 | `mgCategory` | MG01 codes and actual product types |
 |---|---|
 | **Wall** | `A` Stretched/Box; `B` Framed; `C` Plaque; `D` Functional; `E` Other Wall |
 | **Tabletop** | `F` Block; `G` Box; `H` Photo Frames; `J` Object; `K` Other Tabletop |
 | **Clock** | `M` Clocks |
-| **Storage** | `N` Soft Storage; `P` Hard Storage; `R` Other storage |
+| **Storage** | `N` Soft Storage; `P` Hard Storage; `R` Other storage; `Q` TBD storage |
 | **Workspace** | `S` Stationery org; `T` Desk Acc; `U` Other workspace |
 | **Floor** | `V` Floor coverings |
 | **Garden** | `W` Garden |
 
-That is seven categories covering nineteen MG01 product types. The workbook labels the
-category `Prod Category- (no one sees this)`: applications may use it for filtering,
+That is **7 categories covering 20 MG01 product types**. The workbook deliberately labels
+the category as `Prod Category- (no one sees this)`: applications may use it for filtering,
 validation, reporting, or dependency rules, but the product-facing classification remains
 the actual MG01 product type. The `Sizes` sheet independently demonstrates the dependency:
 size lists are grouped by the MG01 codes that belong to Wall, Tabletop, and Workspace.
 
-The lookup must preserve company and division context when resolving a live merchandise-
-group row. MG codes are not globally safe across all types and divisions (§3.2c). The
-normalized `core.*` implementation requested in issue #1163 must therefore link categories
-to the real MG01 merchandise-group identities, while enforcing that a product type cannot
-silently belong to two categories.
+**The workbook does not yet carry `Q`.** `MerchGroup_Rework.xlsx` is a business-owned binary
+and is not edited from this repository; the business must add `Q TBD storage` under Storage
+so the two agree. Until that happens the authority for `Q` is the recorded owner ruling in
+[`business-rules/merchandise-and-product-taxonomy.md`](business-rules/merchandise-and-product-taxonomy.md),
+not the workbook. A reader who finds only nineteen rows in the workbook has found a stale
+workbook, not a wrong mapping.
+
+**Division scope differs per product type.** Verified live against production
+`qsllyeztdwjgirsysgai` (read-only) on 2026-08-18: each of the nineteen workbook product
+types exists as an active MG01 row once in **each** of `CW001`, `EH001` and `SP001`, while
+`Q` TBD storage exists in **`CW001` only**. The mapping is therefore not a uniform
+20 × 3 grid: the authoritative list declares, per product type, the divisions it is expected
+in, giving 19 × 3 + 1 = 58 expected (product type, division) cells today. A declared cell
+that does not resolve is a defect and stops the seed; a product type resolving in a division
+the list did not declare is reported as correct-but-undeclared data, and widening the
+declaration is a follow-up governed change.
+
+The category lookup must preserve company/division context when resolving a live
+merchandise-group row. MG codes are not globally safe keys across all merch-group types and
+divisions (§3.2c). The normalized `core.*` implementation requested in issue #1163 must
+therefore link categories to the real MG01 merchandise-group identities, while enforcing
+that a product type cannot silently belong to two categories.
 
 ### 4.3 Division-conditional validation — the cleanest statement of the model
 
