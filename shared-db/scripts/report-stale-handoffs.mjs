@@ -30,7 +30,7 @@ export const TRACKING_TITLE = "HANDOFF.d hygiene — files whose issue is alread
 const TRACKING_LABEL = "db-work";
 
 /** Build the report body. Pure, so the wording is testable. */
-export function renderReport({ stale, unlabelled, total, generatedAt }) {
+export function renderReport({ stale, cited = [], unlabelled, total, generatedAt }) {
   const lines = [
     "_Maintained automatically by `scripts/report-stale-handoffs.mjs`. This issue is edited in place, never duplicated._",
     "",
@@ -40,13 +40,13 @@ export function renderReport({ stale, unlabelled, total, generatedAt }) {
     "",
   ];
 
-  if (stale.length === 0 && unlabelled.length === 0) {
+  if (stale.length === 0 && cited.length === 0 && unlabelled.length === 0) {
     lines.push("✅ **Nothing stale.** Every handoff file points at an open issue.", "");
   }
 
   if (stale.length > 0) {
     lines.push(
-      `### ${stale.length} file(s) whose issue is CLOSED`,
+      `### ${stale.length} file(s) whose issue is CLOSED and which nothing open still cites`,
       "",
       "The owner named below is the session that created the file. If that session is gone, any",
       "orchestrator may retire the file — but say so in the pull request rather than deleting it silently.",
@@ -54,6 +54,23 @@ export function renderReport({ stale, unlabelled, total, generatedAt }) {
       "| File | Issue | Owner |",
       "|---|---|---|",
       ...stale.map((s) => `| \`${s.path}\` | #${s.issue} (closed) | \`${s.owner ?? "unknown"}\` |`),
+      "",
+    );
+  }
+
+  if (cited.length > 0) {
+    lines.push(
+      `### ⚠️ ${cited.length} file(s) whose issue is closed but which OPEN issues still cite`,
+      "",
+      "**Do NOT retire these.** Their own issue is finished, but the open issues listed below point at",
+      "them for full context, so deleting the file would strand live work. Retire one only after the",
+      "issues citing it are closed, or after their context has been moved somewhere that survives.",
+      "",
+      "| File | Its issue | Still cited by |",
+      "|---|---|---|",
+      ...cited.map(
+        (c) => `| \`${c.path}\` | #${c.issue} (closed) | ${c.citedBy.map((n) => `#${n}`).join(", ")} |`,
+      ),
       "",
     );
   }
@@ -74,9 +91,25 @@ export function renderReport({ stale, unlabelled, total, generatedAt }) {
   return lines.join("\n");
 }
 
-/** Classify every handoff file. `issueState` is injected so tests stay offline. */
-export function classify(files, issueState) {
+/**
+ * Classify every handoff file. `issueState` and `citedByOpenIssues` are injected so tests
+ * stay offline.
+ *
+ * A file whose own issue is closed is NOT automatically retirable. On 2026-08-19 this
+ * report nominated `2026-08-19T0050Z-al8960ofc-claude-orchestrator-closeout.md` for
+ * retirement because its index issue #1205 was closed — while SEVEN open issues (#1199
+ * through #1211) cited that exact file for their full context. Deleting it would have
+ * stranded all seven. A hygiene job that tells you to delete live context is worse than
+ * no hygiene job, so cited files get their own section that says "do not retire".
+ *
+ * `citedByOpenIssues(path)` returns the open issue numbers whose body mentions the file.
+ * It defaults to "nothing cites it", which keeps the old behaviour for any caller that
+ * has no way to ask GitHub — deliberately the LOUD default, since the alternative
+ * (assume everything is cited) would silence the report entirely.
+ */
+export function classify(files, issueState, citedByOpenIssues = () => []) {
   const stale = [];
+  const cited = [];
   const unlabelled = [];
   for (const { path, text } of files) {
     const parsed = parseFrontMatter(text);
@@ -85,11 +118,14 @@ export function classify(files, issueState) {
       unlabelled.push(path);
       continue;
     }
-    if (issueState(issue) === "CLOSED") {
-      stale.push({ path, issue, owner: parsed.ok ? parsed.data.owner : undefined });
-    }
+    if (issueState(issue) !== "CLOSED") continue;
+
+    const owner = parsed.ok ? parsed.data.owner : undefined;
+    const citedBy = citedByOpenIssues(path).filter((n) => n !== issue);
+    if (citedBy.length > 0) cited.push({ path, issue, owner, citedBy });
+    else stale.push({ path, issue, owner });
   }
-  return { stale, unlabelled, total: files.length };
+  return { stale, cited, unlabelled, total: files.length };
 }
 
 // --------------------------------------------------------------------------
@@ -123,7 +159,26 @@ function main() {
     return cache.get(n);
   };
 
-  const result = classify(files, issueState);
+  // Which OPEN issues cite a handoff file? Fetched ONCE for the whole repo rather than
+  // per file, so this adds a single API call. Matching is on the basename, because issues
+  // cite these files both with and without the `HANDOFF.d/` prefix.
+  let openIssues = [];
+  try {
+    openIssues = JSON.parse(
+      sh(`gh issue list --repo ${repo} --state open --limit 500 --json number,body`),
+    );
+  } catch {
+    console.error(
+      "::warning::open issues could not be read; every closed-issue file will be reported as retirable. " +
+        "Check each one for citations by hand before deleting it.",
+    );
+  }
+  const citedByOpenIssues = (path) => {
+    const base = path.split("/").pop();
+    return openIssues.filter((i) => (i.body ?? "").includes(base)).map((i) => i.number);
+  };
+
+  const result = classify(files, issueState, citedByOpenIssues);
   const body = renderReport({ ...result, generatedAt: new Date().toISOString() });
   console.log(body);
 
@@ -133,7 +188,7 @@ function main() {
     sh(`gh issue list --repo ${repo} --state open --label ${TRACKING_LABEL} --limit 200 --json number,title`),
   ).find((i) => i.title === TRACKING_TITLE);
 
-  if (result.stale.length === 0 && result.unlabelled.length === 0) {
+  if (result.stale.length === 0 && result.cited.length === 0 && result.unlabelled.length === 0) {
     if (existing) {
       sh(`gh issue close ${existing.number} --repo ${repo} --comment "Nothing stale — every handoff file points at an open issue."`);
       console.log(`Closed tracking issue #${existing.number}: nothing stale.`);
