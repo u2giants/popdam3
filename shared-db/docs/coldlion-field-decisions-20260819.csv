@@ -1,0 +1,532 @@
+feed,field,decision,fill_pct,writeback_wanted,writeback_possible,note
+items,createdTime,ingest,100,,,
+items,createdUser,ignore,100,,,
+items,modTime,ingest,100,,,
+items,modUser,ignore,100,,,
+items,companyCode,ingest,100,,,
+items,divisionCode,ingest,100,,,
+items,itemNo,ingest,100,,,
+items,itemDesc,ingest,97.7,,,
+items,itemStatus,ingest,46.2,,,
+items,seasonCode,ingest,24.7,,,
+items,uomCode,ignore,100,,,
+items,sizeRangeCode,ignore,98.3,,,
+items,merchGroup01,ingest,87.3,,,
+items,merchGroup02,ingest,86.2,,,
+items,merchGroup03,ingest,86.8,,,
+items,merchGroup04,ingest,91.5,,,
+items,merchGroup05,ingest,73.8,,,
+items,merchGroup06,ingest,78.8,,,
+items,merchGroup07,ingest,14.3,,,
+items,merchGroup08,ingest,26.2,,,
+items,merchGroup09,ingest,5.5,,,
+items,merchGroup10,ingest,13.2,,,
+items,merchGroup11,ingest,0,,,ALWAYS EMPTY in sample
+items,merchGroup12,ingest,0,,,ALWAYS EMPTY in sample
+items,udf01,ingest,22.8,,,
+items,udf02,ingest,6.3,,,
+items,udf03,ingest,22.5,,,
+items,udf04,ingest,20.2,,,
+items,udfDate01,ingest,0.7,,,very rare
+items,udfDate02,ingest,0.7,,,very rare
+items,itemContent,ignore,0,,,ALWAYS EMPTY in sample
+items,retailPrice,ingest,17,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,itemLength,ingest,50,,,
+items,itemWidth,ingest,50,,,
+items,itemHeight,ingest,27,,,
+items,itemWeight,ingest,26.7,,,
+items,measurementUOM,ignore,0,,,ALWAYS EMPTY in sample
+items,weightUOM,ignore,0,,,ALWAYS EMPTY in sample
+items,innerPackQty,ingest,61.3,,,
+items,originCountry,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,itemCost,ingest,13.8,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,htsNumber,ingest,8.3,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,royaltyCode,ingest,71.7,,,
+items,cartonQty,ingest,88.8,,,
+items,itemPriceA,ingest,2,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,itemPriceB,ingest,2,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,itemPriceC,ingest,2,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,itemPriceD,ingest,2,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,itemPriceE,ignore,0,,,ALWAYS EMPTY in sample
+items,itemPriceF,ignore,0,,,ALWAYS EMPTY in sample
+items,itemPriceG,ignore,0,,,ALWAYS EMPTY in sample
+items,baseQty,ignore,100,,,
+items,itemPriceH,ignore,0,,,ALWAYS EMPTY in sample
+items,itemNote,ingest,0.2,,,very rare
+items,designNo,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,allowedSizes,ignore,23.5,,,
+items,replenishSource,ignore,0,,,ALWAYS EMPTY in sample
+items,replenishPolicy,ignore,0,,,ALWAYS EMPTY in sample
+items,poLeadTime,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,mfgLeadTime,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,reOrderQty,ignore,0,,,ALWAYS EMPTY in sample
+items,reOrderPoint,ignore,0,,,ALWAYS EMPTY in sample
+items,onHandMin,ignore,0,,,ALWAYS EMPTY in sample
+items,onHandMax,ignore,0,,,ALWAYS EMPTY in sample
+items,vendorCode,ignore,0,,,ALWAYS EMPTY in sample
+items,sellingPrice,ingest,10.5,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,packType,ignore,0,,,ALWAYS EMPTY in sample
+items,oldItemNo,ignore,0,,,ALWAYS EMPTY in sample
+items,royaltyCode2,ingest,0,,,ALWAYS EMPTY in sample
+items,udfInt01,ignore,0,,,ALWAYS EMPTY in sample
+items,udfNum01,ignore,0,,,ALWAYS EMPTY in sample
+items,taxCatCode,ignore,0,,,ALWAYS EMPTY in sample
+items,taxExempt,ignore,0,,,ALWAYS EMPTY in sample
+items,cartonPackType,ignore,76.5,,,
+items,cartonCode,ignore,0,,,ALWAYS EMPTY in sample
+items,cartonLength,ingest,25,,,
+items,cartonWidth,ingest,25,,,
+items,cartonHeight,ingest,25,,,
+items,comparePrice,ingest,24.3,,,
+items,itemDisplayDesc,ingest,93.3,,,
+items,nonInventoryItem,ingest,98.8,,,
+items,dutiable,ignore,0,,,ALWAYS EMPTY in sample
+items,chargeFreight,ignore,0,,,ALWAYS EMPTY in sample
+items,merchGroup13,ingest,0,,,ALWAYS EMPTY in sample
+items,merchGroup14,ingest,0,,,ALWAYS EMPTY in sample
+items,itemVolume,ingest,24.3,,,
+items,commodityCode,ignore,23.2,,,
+items,sizeExplosionCode,ignore,0,,,ALWAYS EMPTY in sample
+items,active,ingest,99.8,,,
+items,dSCat,ignore,0,,,ALWAYS EMPTY in sample
+items,itemAvailable,ingest,98.8,,,
+items,itemDiscontinued,ingest,98.8,,,
+items,catalog01,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog02,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog03,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog04,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog05,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog06,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog07,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog08,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog09,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog10,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog11,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog12,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog13,ignore,0,,,ALWAYS EMPTY in sample
+items,catalog14,ignore,0,,,ALWAYS EMPTY in sample
+items,excludeShippingAdvice,ignore,53.3,,,
+items,cartonWeight,ingest,25,,,
+items,salesPersonCode1,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,salesPersonCode2,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,costComponent1,ignore,0,,,ALWAYS EMPTY in sample
+items,costComponent2,ignore,0,,,ALWAYS EMPTY in sample
+items,costComponent3,ignore,0,,,ALWAYS EMPTY in sample
+items,productManager,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,htsNumber2,ingest,0.5,yes,yes (PUT /items),very rare we can overwrite and send back to Coldlion
+items,costComponent4,ignore,0,,,ALWAYS EMPTY in sample
+items,costComponent5,ignore,0,,,ALWAYS EMPTY in sample
+items,brandAssuranceNo,ingest,35.7,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,movieArt,ingest,77,,,
+items,characterLikeness,ingest,99.3,,,
+items,contractSampleSentDate,ingest,0.7,yes,yes (PUT /items),very rare we can overwrite and send back to Coldlion
+items,contractSampleDate,ingest,2.5,yes,yes (PUT /items),we can overwrite and send back to Coldlion
+items,annualSampleSentDate,ingest,0.7,yes,yes (PUT /items),very rare we can overwrite and send back to Coldlion
+items,annualSampleDate,ingest,0.7,yes,yes (PUT /items),very rare we can overwrite and send back to Coldlion
+items,contractSampleQty,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,annualSampleQty,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,giftWrap,ignore,77,,,
+items,preproApproved,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,preproApprovedDate,ingest,0.7,yes,yes (PUT /items),very rare we can overwrite and send back to Coldlion
+items,characterList,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,mGCategory,ingest,0,yes,yes (PUT /items),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+items,hasImage,ingest,100,,,
+itemDetails,createdTime,ingest,100,,,
+itemDetails,createdUser,ignore,100,,,
+itemDetails,modTime,ingest,100,,,
+itemDetails,modUser,ignore,100,,,
+itemDetails,companyCode,ingest,100,,,
+itemDetails,divisionCode,ingest,100,,,
+itemDetails,itemNo,ingest,100,,,
+itemDetails,colorCode,ignore,100,,,
+itemDetails,labelCode,ingest,65,,,
+itemDetails,dimCode,ignore,1.4,,,very rare
+itemDetails,prePackCode,ingest,11.5,,,
+itemDetails,sizeCode,ignore,100,,,
+itemDetails,upc,ingest,43.1,,,
+itemDetails,ean,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,gtin,ignore,0.9,,,very rare
+itemDetails,itemStatus,ingest,29.2,,,
+itemDetails,uomCode,ignore,100,,,
+itemDetails,retailPrice,ingest,10,yes,yes (PUT /itemDetails),we can overwrite and send back to Coldlion
+itemDetails,itemCost,ingest,34.5,,,
+itemDetails,merchGroup01,ingest,88,,,
+itemDetails,merchGroup02,ingest,76.2,,,
+itemDetails,merchGroup03,ingest,76.3,,,
+itemDetails,merchGroup04,ingest,91.5,,,
+itemDetails,merchGroup05,ingest,92.2,,,
+itemDetails,merchGroup06,ingest,88.6,,,
+itemDetails,udf01,ingest,21.5,,,
+itemDetails,udf02,ingest,3,,,
+itemDetails,udf03,ingest,20.7,,,
+itemDetails,udf04,ingest,20.7,,,
+itemDetails,udfDate01,ingest,0.7,,,very rare
+itemDetails,udfDate02,ingest,0.7,,,very rare
+itemDetails,htsNumber,ingest,3.1,yes,yes (PUT /itemDetails),we can overwrite and send back to Coldlion
+itemDetails,itemLength,ingest,94,,,
+itemDetails,itemWidth,ingest,93.9,,,
+itemDetails,itemHeight,ingest,93.9,,,
+itemDetails,itemWeight,ingest,93.9,,,
+itemDetails,measurementUOM,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,itemWeightUom,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,innerPackQty,ingest,81.9,,,
+itemDetails,royaltyCode,ingest,33.3,,,
+itemDetails,merchGroup07,ingest,3.5,,,
+itemDetails,merchGroup08,ingest,5.6,,,
+itemDetails,merchGroup09,ingest,0,,,ALWAYS EMPTY in sample
+itemDetails,merchGroup10,ingest,4,,,
+itemDetails,merchGroup11,ingest,0,,,ALWAYS EMPTY in sample
+itemDetails,merchGroup12,ingest,0,,,ALWAYS EMPTY in sample
+itemDetails,itemPriceA,ingest,0.5,,,very rare
+itemDetails,itemPriceB,ingest,0.5,,,very rare
+itemDetails,itemPriceC,ingest,0.5,,,very rare
+itemDetails,itemPriceD,ingest,0.5,,,very rare
+itemDetails,itemPriceE,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,itemPriceF,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,itemPriceG,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,itemPriceH,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,cartonQty,ingest,99.2,,,
+itemDetails,baseQty,ignore,100,,,
+itemDetails,itemPkey,ingest,100,,,
+itemDetails,sizeSeq,ignore,19.3,,,
+itemDetails,generateUPC,ignore,100,,,
+itemDetails,sizeAllowed,ignore,19.3,,,
+itemDetails,shareUPC,ignore,100,,,
+itemDetails,vendorCode,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,sellingPrice,ingest,9.5,,,
+itemDetails,itemContent,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,reservedQty,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,packType,ignore,0.2,,,very rare
+itemDetails,royaltyCode2,ingest,0,,,ALWAYS EMPTY in sample
+itemDetails,udfInt01,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,udfNum01,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,cartonPackType,ignore,21,,,
+itemDetails,cartonCode,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,nMFCCode,ingest,24,,,
+itemDetails,cartonLength,ingest,69.3,,,
+itemDetails,cartonWidth,ingest,69.7,,,
+itemDetails,cartonHeight,ingest,69.3,,,
+itemDetails,comparePrice,ignore,18.4,,,
+itemDetails,warehouseSKU,ignore,100,,,
+itemDetails,itemVolume,ingest,18.4,,,
+itemDetails,dutiable,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,seasonCode,ingest,0,,,ALWAYS EMPTY in sample
+itemDetails,merchGroup13,ingest,0,,,ALWAYS EMPTY in sample
+itemDetails,merchGroup14,ingest,0,,,ALWAYS EMPTY in sample
+itemDetails,sizeExplosionCode,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,dSCat,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,active,ingest,100,,,
+itemDetails,itemAvailable,ingest,100,,,
+itemDetails,itemDiscontinued,ingest,100,,,
+itemDetails,catalog01,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog02,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog03,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog04,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog05,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog06,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog07,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog08,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog09,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog10,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog11,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog12,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog13,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,catalog14,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,edi832Proc,ignore,81.3,,,
+itemDetails,edi832ProcDate,ignore,0.2,,,very rare
+itemDetails,upcGeneratedTime,ignore,100,,,
+itemDetails,cartonWeight,ingest,69.4,,,
+itemDetails,salesPersonCode1,ingest,0,yes,yes (PUT /itemDetails),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+itemDetails,salesPersonCode2,ingest,0,yes,yes (PUT /itemDetails),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+itemDetails,costComponent1,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,costComponent2,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,costComponent3,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,glSku,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,htsNumber2,ignore,0,yes,yes (PUT /itemDetails),ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+itemDetails,costComponent4,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,costComponent5,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,isbn,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,variantSKU,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,cartonPallets,ignore,0,,,ALWAYS EMPTY in sample
+itemDetails,actualDims,ingest,100,,,
+orderHistory,cancelDate,ingest,100,,,
+orderHistory,companyCode,ingest,100,,,
+orderHistory,customerCode,ingest,100,,,
+orderHistory,poNumber,ingest,100,,,
+orderHistory,salesOrderNo,ingest,100,,,
+orderHistory,salesPersonCode1,ingest,100,,,
+orderHistory,startDate,ingest,100,,,
+orderHistory,divisionCode,ingest,100,,,
+orderHistory,itemNo,ingest,100,,,
+orderHistory,colorCode,ignore,100,,,
+orderHistory,labelCode,ingest,99.2,,,
+orderHistory,dimCode,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,prePackCode,ingest,72.5,,,
+orderHistory,sizeCode,ignore,100,,,
+orderHistory,linePrice,ingest,99.8,,,
+orderHistory,lineInvoiceQty,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,lineQty,ingest,100,,,
+orderHistory,lineOpenQty,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,linePickQty,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,lineCancelledQty,ingest,0.8,,,owner ruling 2026-08-19: FLIPPED to ingest. The 0.8% fill figure was measured on too small a window; a wider 951-row sample gave 11.5% and a 5874-row census gave 24%. Cancelled quantity is real signal - do not re-drop it on the 0.8% number
+orderHistory,itemDesc,ingest,100,,,
+orderHistory,merchGroup01,ignore,61,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup02,ignore,60.4,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup03,ignore,60.4,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup04,ignore,100,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup05,ignore,27.1,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup06,ignore,27.5,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,brandAssuranceNo,ingest,89.6,yes,NO - ColdLion has no write endpoint,we can overwrite and send back to Coldlion
+orderHistory,shortItemNo,ingest,62.7,,,
+orderHistory,unshippedQty,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,invoiceNoString,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,invoiceDateString,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,prepackQty,ingest,72.5,,,
+orderHistory,quantity,ingest,72.5,,,
+orderHistory,subItemNo,ingest,72.5,,,
+orderHistory,subColorCode,ignore,72.5,,,
+orderHistory,subLabelCode,ingest,72.5,,,
+orderHistory,subDimCode,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,subSizeCode,ignore,72.5,,,
+orderHistory,subQty,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,subMerchGroup05,ingest,70.8,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+orderHistory,subMerchGroup06,ingest,72.5,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+orderHistory,subMerchGroup01,ingest,70.3,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+orderHistory,subMerchGroup02,ingest,70.3,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+orderHistory,subMerchGroup03,ingest,70.3,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+orderHistory,subMerchGroup04,ingest,72.5,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+orderHistory,customerDesc,ingest,100,,,
+orderHistory,itemImage,ignore,0,,,ALWAYS EMPTY in sample
+orderHistory,subUpc,ingest,24.8,,,
+orderHistory,merchGroup05Desc,ignore,97.9,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup06Desc,ignore,97.9,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup01Desc,ignore,97.9,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup02Desc,ignore,97.2,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup03Desc,ignore,97.2,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,merchGroup04Desc,ignore,100,,,D2: line-level item attribute (identical on 519/519 order lines)
+orderHistory,warehouseCode,ingest,100,,,
+orderHistory,prodCost,ingest,100,,,
+orderHistory,prodReferenceNo,ingest,99.2,,,
+orderHistory,udf01,ignore,100,,,
+prodHistory,prodOrderNo,ingest,100,,,
+prodHistory,prodLineSeq,ingest,100,,,
+prodHistory,companyCode,ingest,100,,,
+prodHistory,divisionCode,ingest,100,,,
+prodHistory,customerCode,ingest,100,,,
+prodHistory,prodTypeCode,ingest,100,,,
+prodHistory,seasonCode,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,shipDate,ingest,100,,,
+prodHistory,shipCancelDate,ingest,0,,,ALWAYS EMPTY in sample
+prodHistory,origShipDate,ingest,100,,,
+prodHistory,origDueDate,ingest,100,,,
+prodHistory,origShipCancelDate,ingest,0,,,ALWAYS EMPTY in sample
+prodHistory,prodOrderDate,ingest,100,,,
+prodHistory,prodCountry,ingest,98.5,,,
+prodHistory,freightForwarderCode,ingest,0,,,ALWAYS EMPTY in sample
+prodHistory,currencyCode,ignore,12.1,,,
+prodHistory,warehouseCode,ingest,100,,,
+prodHistory,udf01,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,udf02,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,udf03,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,udf04,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,udfDate01,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,udfDate02,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,vendorCode,ingest,100,,,
+prodHistory,arrivalPortCode,ingest,0,,,ALWAYS EMPTY in sample
+prodHistory,salesOrderNo,ingest,83,,,
+prodHistory,prodReferenceNo,ingest,100,,,
+prodHistory,colorCode,ignore,100,,,
+prodHistory,dimCode,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,dueDate,ingest,100,,,
+prodHistory,itemNo,ingest,100,,,
+prodHistory,labelCode,ingest,98.5,,,
+prodHistory,prePackCode,ingest,73.9,,,
+prodHistory,prodCost,ingest,100,,,
+prodHistory,sizeCode,ignore,100,,,
+prodHistory,uomCode,ignore,83,,,
+prodHistory,merchGroup01,ignore,40.3,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup02,ignore,40,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup03,ignore,40,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup04,ignore,98.5,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup05,ignore,24.2,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup06,ignore,23.3,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup07,ignore,14.5,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup08,ignore,14.5,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup09,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup10,ignore,14.5,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup11,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup12,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup13,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup14,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,warehouseSku,ingest,100,,,
+prodHistory,prodOrderQty,ingest,100,,,
+prodHistory,itemDetailUdf01,ignore,1.2,,,very rare
+prodHistory,itemDetailUdf02,ignore,1.2,,,very rare
+prodHistory,merchGroup01Desc,ignore,40.3,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup02Desc,ignore,40,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup03Desc,ignore,40,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup04Desc,ignore,98.5,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup05Desc,ignore,23.3,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup06Desc,ignore,23.3,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup07Desc,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup08Desc,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup09Desc,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup10Desc,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup11Desc,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup12Desc,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup13Desc,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,merchGroup14Desc,ignore,0,,,D2: line-level item attribute (identical on 519/519 order lines)
+prodHistory,customerDesc,ingest,100,,,
+prodHistory,itemDetailUdf03,ignore,1.2,,,very rare
+prodHistory,itemDetailUdf04,ignore,1.2,,,very rare
+prodHistory,totalProdCost,ingest,16.4,,,
+prodHistory,depositPerc,ingest,0,yes,NO - ColdLion has no write endpoint,ALWAYS EMPTY in sample we can overwrite and send back to Coldlion
+prodHistory,extCost,ingest,100,,,
+prodHistory,receiveDate,ingest,84.5,,,
+prodHistory,custPONumber,ingest,83,,,
+prodHistory,custStartDate,ingest,83,,,
+prodHistory,custCancelDate,ingest,83,,,
+prodHistory,vendorDesc,ingest,100,,,
+prodHistory,colorDesc,ignore,100,,,
+prodHistory,payTermDesc,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,prepackQty,ingest,73.9,,,
+prodHistory,prepackItemNo,ingest,73.9,,,
+prodHistory,prepackColorCode,ignore,73.9,,,
+prodHistory,prepackLabelCode,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,prepackDimCode,ingest,0,,,ALWAYS EMPTY in sample
+prodHistory,prepackDivisionCode,ingest,73.9,,,
+prodHistory,prepackSizeCode,ignore,73.9,,,
+prodHistory,totalPpkQty,ingest,73.9,,,
+prodHistory,ppkDetailQty,ingest,73.9,,,
+prodHistory,ppkDetailCost,ingest,73.9,,,
+prodHistory,ppkDetailQty2,ingest,73.9,,,
+prodHistory,prepackItemPKey,ingest,58.2,,,
+prodHistory,ppkMerchGroup01,ingest,58.2,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup02,ingest,57.6,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup03,ingest,57.6,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup04,ingest,58.2,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup05,ingest,57,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup06,ingest,58.2,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup07,ingest,40.3,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup08,ingest,42.1,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup09,ingest,1.2,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup10,ingest,40.9,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup11,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup12,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup13,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup14,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup01Desc,ingest,58.2,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup02Desc,ingest,57.6,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup03Desc,ingest,57.6,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup04Desc,ingest,58.2,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup05Desc,ingest,57,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup06Desc,ingest,57,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup07Desc,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup08Desc,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup09Desc,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup10Desc,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup11Desc,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup12Desc,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup13Desc,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,ppkMerchGroup14Desc,ingest,0,,,component-grain merch group - D2 does NOT apply (history-shape doc 4.1/5.7)
+prodHistory,itemImage,ignore,0,,,ALWAYS EMPTY in sample
+prodHistory,itemDesc,ingest,83,,,
+prodHistory,subItemNo,ingest,100,,,
+prodHistory,shortItemNo,ingest,1.8,,,very rare
+prodHistory,lastProdRefNo,ingest,100,,,
+prodHistory,lastDueDate,ingest,100,,,
+prodHistory,lastProdDate,ingest,100,,,
+prodHistory,lastWarehouseCode,ingest,100,,,
+prodHistory,lastVendorCode,ingest,100,,,
+prodHistory,lastVendorDesc,ingest,100,,,
+prodHistory,lastProdCost,ingest,100,,,
+prodHistory,linePrice,ingest,83,,,
+merchGroupHeaders,createdTime,ingest,100,,,
+merchGroupHeaders,createdUser,ignore,100,,,
+merchGroupHeaders,modTime,ingest,100,,,
+merchGroupHeaders,modUser,ignore,100,,,
+merchGroupHeaders,companyCode,ingest,100,,,
+merchGroupHeaders,divisionCode,ingest,100,,,
+merchGroupHeaders,mgTypeCode,ingest,100,,,
+merchGroupHeaders,mgTypeDesc,ingest,100,,,
+merchGroupDetails,createdTime,ingest,100,,,
+merchGroupDetails,createdUser,ignore,100,,,
+merchGroupDetails,modTime,ingest,100,,,
+merchGroupDetails,modUser,ignore,100,,,
+merchGroupDetails,companyCode,ingest,100,,,
+merchGroupDetails,divisionCode,ingest,100,,,
+merchGroupDetails,mgTypeCode,ingest,100,,,
+merchGroupDetails,mgCode,ingest,100,,,
+merchGroupDetails,mgDesc,ingest,100,,,
+merchGroupDetails,itemNoCode,ingest,100,,,
+merchGroupDetails,mgCategory,ingest,100,,,
+merchGroupDetails,mgCode2,ingest,100,,,
+merchGroupDetails,active,ingest,100,,,
+customers,createdTime,ingest,100,,,
+customers,createdUser,ignore,100,,,
+customers,modTime,ingest,100,,,
+customers,modUser,ignore,100,,,
+customers,companyCode,ingest,100,,,
+customers,customerCode,ingest,100,,,
+customers,active,ingest,100,,,
+customers,address1,ignore,100,,,
+customers,address2,ignore,36.8,,,
+customers,aRCustomerCode,ignore,4.4,,,
+customers,city,ignore,97.1,,,
+customers,countryCode,ignore,75,,,
+customers,customerDesc,ingest,100,,,
+customers,customerTypeCode,ignore,0,,,ALWAYS EMPTY in sample
+customers,faxNo,ignore,0,,,ALWAYS EMPTY in sample
+customers,phoneNo,ignore,10.3,,,
+customers,state,ignore,95.6,,,
+customers,useConsolidatedInvoice,ignore,0,,,ALWAYS EMPTY in sample
+customers,zipCode,ignore,97.1,,,
+customers,parentCustomerCode,ignore,0,,,ALWAYS EMPTY in sample
+customers,customerDBA,ignore,0,,,ALWAYS EMPTY in sample
+customers,udf01,ignore,4.4,,,
+customers,udf02,ignore,0,,,ALWAYS EMPTY in sample
+customers,udf03,ignore,0,,,ALWAYS EMPTY in sample
+customers,udf04,ignore,0,,,ALWAYS EMPTY in sample
+customers,udfDate01,ignore,0,,,ALWAYS EMPTY in sample
+customers,udfDate02,ignore,0,,,ALWAYS EMPTY in sample
+customers,oldCustomerCode,ignore,0,,,ALWAYS EMPTY in sample
+customers,vendorNumber,ingest,22.1,,,
+customers,address3,ignore,0,,,ALWAYS EMPTY in sample
+customers,regionCode,ignore,0,,,ALWAYS EMPTY in sample
+customers,dsCat,ignore,0,,,ALWAYS EMPTY in sample
+customers,salesPersonCode1,ignore,64.7,,,
+customers,salesPersonCode2,ignore,0,,,ALWAYS EMPTY in sample
+customers,commissionPerc1,ignore,64.7,,,
+customers,commissionPerc2,ignore,0,,,ALWAYS EMPTY in sample
+customers,factorCode,ignore,64.7,,,
+customers,currencyCode,ignore,38.2,,,
+customers,glCode,ignore,0,,,ALWAYS EMPTY in sample
+vendors,createdTime,ingest,100,,,
+vendors,createdUser,ignore,100,,,
+vendors,modTime,ingest,100,,,
+vendors,modUser,ignore,100,,,
+vendors,companyCode,ingest,100,,,
+vendors,vendorCode,ingest,100,,,
+vendors,vendorDesc,ingest,99,,,
+vendors,address1,ignore,94.9,,,
+vendors,address2,ignore,75.5,,,
+vendors,city,ingest,69.4,,,
+vendors,state,ignore,6.1,,,
+vendors,zipCode,ignore,60.2,,,
+vendors,phoneNo,ignore,44.9,,,
+vendors,faxNo,ignore,15.3,,,
+vendors,email,ignore,54.1,,,
+vendors,udf01,ignore,46.9,,,
+vendors,udf02,ignore,0,,,ALWAYS EMPTY in sample
+vendors,udf03,ignore,0,,,ALWAYS EMPTY in sample
+vendors,udf04,ignore,0,,,ALWAYS EMPTY in sample
+vendors,udfDate01,ignore,0,,,ALWAYS EMPTY in sample
+vendors,udfDate02,ignore,0,,,ALWAYS EMPTY in sample
+vendors,countryCode,ingest,93.9,,,
+vendors,active,ingest,100,,,
+vendors,address3,ignore,36.7,,,
+vendors,payTermCode,ignore,1,,,very rare
+vendors,glCode,ignore,0,,,ALWAYS EMPTY in sample
+vendors,separateCheck,ignore,100,,,
+vendors,femaExpDate,ingest,68.4,yes,NO - ColdLion has no write endpoint,we can overwrite and send back to Coldlion
+vendors,nbcExpDate,ingest,16.3,yes,NO - ColdLion has no write endpoint,we can overwrite and send back to Coldlion

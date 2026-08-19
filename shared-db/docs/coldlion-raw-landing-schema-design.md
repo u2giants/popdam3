@@ -144,6 +144,14 @@ collides across types inside one division (`1P` is both a licensor and a propert
 | `coldlion.item_merch_group` | one merch-group slot on an item | + slot_no (01–14) |
 | `coldlion.item_detail` | one SKU | company_code, division_code, item_no, color_code, size_code |
 
+> **Owner ruling, Albert Hazan, 2026-08-19 — land ALL FOURTEEN slots.** A live
+> probe on 2026-08-19 measured slots 11-14 as empty in every sampled item across
+> all three divisions (and empty on both history feeds too). That measurement is
+> correct and is NOT a reason to drop them. The row-per-slot design means an
+> unused slot costs nothing — it simply produces no row — while a slot omitted
+> from the loader would silently discard real data the day ColdLion starts
+> populating it. Load 01 through 14. Do not "optimise" this back down to 10.
+
 The 14 merch-group slots become 14 rows, not 14 columns, so slot meaning can be resolved
 per division against `merch_group_header` without hardcoding. `item_header` carries `has_image`
 (Y/N) — the cheap way to know image coverage without touching `/itemImages`.

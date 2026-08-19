@@ -59,6 +59,30 @@ produces. Existing rows in a division do not mean that division sells that
 category. Where the two disagree, this ruling governs the business meaning, and
 the stale taxonomy rows should be reviewed by the business.
 
+### Division identity is the letter code, never a number
+
+**Settled — owner ruling by Albert Hazan, 2026-08-19.** A division is identified
+by its ColdLion letter code — `CW001`, `SP001`, `EH001` (and retired `EP001`) —
+and by nothing else. ColdLion itself keys divisions this way, and we follow it.
+
+**Numeric division identifiers are not to be used as identity anywhere new.**
+DesignFlow carries its own numeric division ids (`div_code_fk` = 1, 2, ...) and
+some existing tables carry a numeric `divisionCode_id_fk`. Those are legacy
+internal keys of the older system. They must not be introduced into new tables,
+new feeds, or new contracts, and must not be treated as the division's real
+identity.
+
+Why this matters: the numeric ids do not survive the trip between systems. The
+same division answers to different numbers in different places, and DesignFlow's
+numeric division `2` is a mixed historical bucket that does not correspond to any
+one current ColdLion division at all. The letter code is the only identifier that
+means the same thing on both sides.
+
+Applies to: the `coldlion` landing schema (already compliant — it stores
+`division_code text`), every new ColdLion feed table, and any new cross-system
+contract. Existing legacy columns are not retired by this ruling; they are simply
+not the identity, and nothing new depends on them.
+
 ## Division changes the meaning
 
 `mgTypeCode` has no meaning by itself. Always interpret the pair of Division and `mgTypeCode`.
