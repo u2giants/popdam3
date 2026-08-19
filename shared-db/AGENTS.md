@@ -1502,6 +1502,16 @@ before believing a red X still applies, to every `paths:`-filtered workflow in t
 
 ### 5.2-A A SECOND flavour of false red: the job never ran at all (hosted-runner starvation, added 2026-08-12, issue #513)
 
+**A THIRD flavour, now removed at the root (2026-08-19, issue #1266).** CI used to
+`apt-get install ripgrep` before running the SQL guards. A hosted-runner package-mirror
+stall then held `SQL migration guards` `in_progress` for **42 minutes** on a 26-line docs
+PR (#1264), and a retry wrapper only turned that into a 6-minute named failure. The guards
+never needed ripgrep: `check-sql.sh` used it for five fixed-string searches that plain
+`grep -qF` performs identically. **CI installs no packages for the SQL guards any more —
+do not reintroduce an `apt-get` step to add a convenience tool.** Every job in every
+workflow also now carries a `timeout-minutes` ceiling, so a stalled step fails on its own
+budget instead of blocking merges for hours.
+
 Dated evidence: on **2026-08-06**, `Cross-PR object collision` on **PR #466** went **red after 44
 minutes without ever executing a step**. The job annotation read:
 

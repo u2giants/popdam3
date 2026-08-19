@@ -388,11 +388,11 @@ for file in "${required_files[@]}"; do
   test -f "$migration_dir/$file"
 done
 
-rg --quiet "create schema if not exists app" "$migration_dir/20260621150714_foundation.sql"
-rg --quiet "create table core.company" "$migration_dir/20260621150815_app_core.sql"
-rg --quiet "create table pim.product" "$migration_dir/20260621151024_domain_tables.sql"
-rg --quiet "create or replace view api.pm_product_board" "$migration_dir/20260621151155_api_rls_realtime.sql"
-rg --quiet "enable row level security" "$migration_dir/20260621151155_api_rls_realtime.sql"
+grep -qF "create schema if not exists app" "$migration_dir/20260621150714_foundation.sql"
+grep -qF "create table core.company" "$migration_dir/20260621150815_app_core.sql"
+grep -qF "create table pim.product" "$migration_dir/20260621151024_domain_tables.sql"
+grep -qF "create or replace view api.pm_product_board" "$migration_dir/20260621151155_api_rls_realtime.sql"
+grep -qF "enable row level security" "$migration_dir/20260621151155_api_rls_realtime.sql"
 
 if [[ -n "${DATABASE_URL:-}" ]]; then
   command -v psql >/dev/null
