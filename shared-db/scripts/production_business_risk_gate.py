@@ -83,6 +83,53 @@ def gh_json(endpoint: str, *, runner=subprocess.run, sleep=time.sleep, attempts=
         sleep(2 ** attempt)
 
 
+def api_object(api: Callable[[str], Any], endpoint: str) -> dict[str, Any]:
+    """Read an endpoint that MUST return a JSON object, or refuse by name.
+
+    Issue #1218: several call sites did `api(...).get(...)` or `payload["key"]`
+    directly. A well-formed response of an unexpected SHAPE — a list where an object
+    was expected — raised AttributeError, and a missing key raised KeyError. Neither
+    is in main()'s except tuple, so the last gate before a production write died with a
+    raw Python traceback instead of the deliberate ::error:: refusal every other path
+    emits. It stayed fail-closed, but an operator reading a traceback concludes "the
+    gate is broken" and reaches for a workaround, where one reading a named refusal
+    does not.
+    """
+    payload = api(endpoint)
+    if not isinstance(payload, dict):
+        raise RiskGateError(
+            f"GitHub returned a {type(payload).__name__}, not an object, for {endpoint}"
+        )
+    return payload
+
+
+def api_list(api: Callable[[str], Any], endpoint: str) -> list[Any]:
+    """Read an endpoint that MUST return a JSON array, or refuse by name. See api_object."""
+    payload = api(endpoint)
+    if not isinstance(payload, list):
+        raise RiskGateError(
+            f"GitHub returned a {type(payload).__name__}, not an array, for {endpoint}"
+        )
+    return payload
+
+
+def api_field(payload: dict[str, Any], key: str, endpoint: str) -> Any:
+    """Read a REQUIRED key, naming the endpoint and the field when it is absent."""
+    if key not in payload:
+        raise RiskGateError(f"the {endpoint} payload had no {key}")
+    return payload[key]
+
+
+def api_sublist(payload: dict[str, Any], key: str, endpoint: str) -> list[Any]:
+    """Read a required key that MUST hold an array, naming what was wrong."""
+    value = api_field(payload, key, endpoint)
+    if not isinstance(value, list):
+        raise RiskGateError(
+            f"the {endpoint} payload had a {type(value).__name__} for {key}, not an array"
+        )
+    return value
+
+
 def download_artifact(artifact_id: int, destination: Path) -> None:
     with destination.open("wb") as handle:
         subprocess.run(
@@ -138,8 +185,8 @@ def prove_activation(
 ) -> None:
     if data.get("active") is False:
         raise RiskGateError("new production policy is not activated; the old exact owner-approval rule remains mandatory")
-    shared_pr = api(f"repos/{REPOSITORY}/pulls/{data['shared_db_pr']}")
-    ai_pr = api(f"repos/u2giants/ai-devops/pulls/{data['ai_devops_pr']}")
+    shared_pr = api_object(api, f"repos/{REPOSITORY}/pulls/{data['shared_db_pr']}")
+    ai_pr = api_object(api, f"repos/u2giants/ai-devops/pulls/{data['ai_devops_pr']}")
     if shared_pr.get("merged") is not True or shared_pr.get("merge_commit_sha") != data["shared_db_merge_sha"]:
         raise RiskGateError("shared-db policy PR merge is not proved")
     if ai_pr.get("merged") is not True or ai_pr.get("merge_commit_sha") != data["ai_devops_merge_sha"]:
@@ -1128,21 +1175,25 @@ def is_pinned_historical_disney_source(
 def prove_pr_and_checks(
     pr_number: int, main_sha: str, allowlist: list[str], api: Callable[[str], Any], repo_root: Path
 ) -> tuple[str, str]:
-    pr = api(f"repos/{REPOSITORY}/pulls/{pr_number}")
-    if pr.get("merged") is not True or pr.get("merge_commit_sha") is None:
+    pr_endpoint = f"repos/{REPOSITORY}/pulls/{pr_number}"
+    pr = api_object(api, pr_endpoint)
+    merge_commit_sha = api_field(pr, "merge_commit_sha", pr_endpoint)
+    if pr.get("merged") is not True or merge_commit_sha is None:
         raise RiskGateError("source PR is not merged")
-    head = pr.get("head", {}).get("sha")
+    head_obj = pr.get("head")
+    head = head_obj.get("sha") if isinstance(head_obj, dict) else None
     if not re.fullmatch(r"[0-9a-f]{40}", str(head)):
         raise RiskGateError("source PR has no exact head")
     subprocess.run(
-        ["git", "merge-base", "--is-ancestor", pr["merge_commit_sha"], main_sha],
+        ["git", "merge-base", "--is-ancestor", merge_commit_sha, main_sha],
         cwd=repo_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
-    checks = api(f"repos/{REPOSITORY}/commits/{head}/check-runs?per_page=100").get("check_runs", [])
+    checks_endpoint = f"repos/{REPOSITORY}/commits/{head}/check-runs?per_page=100"
+    checks = api_sublist(api_object(api, checks_endpoint), "check_runs", checks_endpoint)
     conclusions = {c.get("name"): c.get("conclusion") for c in checks if isinstance(c, dict)}
     missing = sorted(name for name in REQUIRED_CHECKS if conclusions.get(name) != "success")
     historical_source = is_pinned_historical_disney_source(
-        pr_number, head, pr.get("merge_commit_sha"), allowlist
+        pr_number, head, merge_commit_sha, allowlist
     )
     if historical_source:
         # The author-lease workflow did not exist when this exact PR merged. Its
@@ -1151,7 +1202,7 @@ def prove_pr_and_checks(
         missing = [name for name in missing if name != "Migration author lease"]
     if missing:
         raise RiskGateError(f"required exact-head checks are not successful: {', '.join(missing)}")
-    return head, str(pr["merge_commit_sha"])
+    return head, str(merge_commit_sha)
 
 
 def classify_sql(repo_root: Path, allowlist: list[str]) -> list[str]:
@@ -1321,6 +1372,23 @@ def main() -> int:
         result = assess(args)
     except (RiskGateError, OSError, ValueError, subprocess.CalledProcessError, zipfile.BadZipFile) as exc:
         print(f"::error::Production business-risk gate rejected evidence: {exc}")
+        return 2
+    except Exception as exc:  # noqa: BLE001 - see below
+        # BACKSTOP, not the fix (issue #1218). The shape assumptions this gate makes
+        # about GitHub payloads are normalised at the read sites, in api_object /
+        # api_list / api_field / api_sublist, so that each refusal names the endpoint
+        # and the field. This clause exists only so that a defect nobody anticipated
+        # still produces a deliberate ::error:: refusal rather than a raw traceback.
+        #
+        # It does NOT weaken the gate: the exit code is still 2, so nothing is promoted.
+        # It names the exception TYPE, because an operator who sees this line is looking
+        # at a bug in the gate itself and needs to be told that rather than left to guess
+        # which piece of evidence was bad.
+        print(
+            f"::error::Production business-risk gate FAILED CLOSED on an unexpected "
+            f"{type(exc).__name__}: {exc}. This is a defect in the gate, not a verdict on "
+            f"the evidence. Nothing was promoted. Do not retry it -- fix the gate."
+        )
         return 2
     print(json.dumps(result, sort_keys=True))
     return 0 if result.get("productionPromotionAllowed", result["automaticPromotionAllowed"]) else 3

@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_historical_original_apply_runs, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS
+from production_business_risk_gate import api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_historical_original_apply_runs, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS
 
 
 def tree_ref(endpoint):
@@ -485,6 +485,84 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 api_for({"merged": True, "merge_commit_sha": merge_sha,
                          "head": {"sha": head}}, {"check_runs": []}), root,
             )
+
+    # ------------------------------------------------------------------
+    # Issue #1218: a well-formed GitHub response of an unexpected SHAPE must
+    # produce a NAMED ::error:: refusal, not a raw traceback.
+    #
+    # `api(...).get("check_runs", [])` raised AttributeError when the endpoint
+    # returned a JSON list, and `pr["merge_commit_sha"]` raised KeyError when the
+    # key was absent. Neither type is in main()'s except tuple, so the last gate
+    # before a production write died with a traceback. It stayed fail-closed, but
+    # a traceback names nothing, and an operator reading one concludes the gate is
+    # broken and reaches for a workaround.
+    # ------------------------------------------------------------------
+
+    def test_an_array_where_an_object_was_expected_refuses_by_endpoint_name(self):
+        with self.assertRaisesRegex(RiskGateError, r"returned a list, not an object, for repos/x/pulls/1"):
+            api_object(lambda _: [], "repos/x/pulls/1")
+
+    def test_an_object_where_an_array_was_expected_refuses_by_endpoint_name(self):
+        with self.assertRaisesRegex(RiskGateError, r"returned a dict, not an array, for repos/x/commits"):
+            api_list(lambda _: {}, "repos/x/commits")
+
+    def test_a_missing_required_field_names_the_endpoint_and_the_field(self):
+        with self.assertRaisesRegex(RiskGateError, r"the repos/x/pulls/1 payload had no merge_commit_sha"):
+            api_field({}, "merge_commit_sha", "repos/x/pulls/1")
+
+    def test_a_required_field_of_the_wrong_type_names_what_was_wrong(self):
+        with self.assertRaisesRegex(RiskGateError, r"had a str for check_runs, not an array"):
+            api_sublist({"check_runs": "oops"}, "check_runs", "repos/x/checks")
+
+    def test_null_is_still_a_present_field_and_is_not_reported_missing(self):
+        # `merge_commit_sha: null` is GitHub saying "not merged", which the caller
+        # must handle as a merge refusal -- NOT as a malformed payload. Conflating
+        # the two would give an operator the wrong thing to go and look at.
+        self.assertIsNone(api_field({"merge_commit_sha": None}, "merge_commit_sha", "e"))
+
+    def test_a_pull_request_payload_that_is_a_list_refuses_instead_of_crashing(self):
+        main = "3" * 40
+
+        def api(endpoint):
+            return [] if "check-runs" not in endpoint else {"check_runs": []}
+
+        with self.assertRaisesRegex(RiskGateError, "not an object"):
+            prove_pr_and_checks(1, main, ["20260814000000"], api, Path.cwd())
+
+    def test_a_pull_request_payload_missing_merge_commit_sha_refuses_by_name(self):
+        main = "3" * 40
+
+        def api(endpoint):
+            if "check-runs" in endpoint:
+                return {"check_runs": []}
+            return {"merged": True, "head": {"sha": "1" * 40}}
+
+        with self.assertRaisesRegex(RiskGateError, "had no merge_commit_sha"):
+            prove_pr_and_checks(1, main, ["20260814000000"], api, Path.cwd())
+
+    def test_a_check_runs_payload_that_is_a_list_refuses_instead_of_crashing(self):
+        main = "3" * 40
+        head = "1" * 40
+        temp, root, real_main, merge_sha = self.historical_repo()
+
+        def api(endpoint):
+            if "check-runs" in endpoint:
+                return []
+            return {"merged": True, "merge_commit_sha": merge_sha, "head": {"sha": head}}
+
+        with temp, self.assertRaisesRegex(RiskGateError, "not an object"):
+            prove_pr_and_checks(1, real_main, ["20260814000000"], api, root)
+
+    def test_a_pull_request_head_that_is_not_an_object_refuses_rather_than_crashing(self):
+        main = "3" * 40
+
+        def api(endpoint):
+            if "check-runs" in endpoint:
+                return {"check_runs": []}
+            return {"merged": True, "merge_commit_sha": main, "head": "not-an-object"}
+
+        with self.assertRaisesRegex(RiskGateError, "source PR has no exact head"):
+            prove_pr_and_checks(1, main, ["20260814000000"], api, Path.cwd())
 
     def test_the_sql_classifier_refuses_an_absent_or_ambiguous_migration(self):
         """The classifier must never silently classify nothing.
