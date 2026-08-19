@@ -12,6 +12,53 @@ Product classification is a real business hierarchy:
 
 Beyond MG01 through MG03, a merchandise-group slot can describe another business dimension. Its meaning depends on the Division, as defined below. A code from one dimension must not be treated as a substitute for another.
 
+## Product categories we produce
+
+**Settled — owner ruling by Albert Hazan, 2026-08-19.**
+
+We produce seven product categories today:
+
+1. Wall Art
+2. Tabletop Decor
+3. Clocks
+4. Storage
+5. Workspace
+6. Floor Coverings
+7. Garden
+
+An eighth category, **Stationery**, is in development. Nothing has been sold in
+Stationery yet, so Stationery will **not** appear in ColdLion. Its absence from
+ColdLion is expected and is not a data gap.
+
+Note: these seven are the same seven as the `mgCategory` groupings below
+(`Wall`, `Tabletop`, `Clock`, `Storage`, `Workspace`, `Floor`, `Garden`).
+"Workspace" already contains an MG01 Product Type named `S Stationery org`
+(stationery organizers). That is a Workspace product type, **not** the new
+Stationery category. Do not treat the two as the same thing.
+
+## What each division produces
+
+**Settled — owner ruling by Albert Hazan, 2026-08-19.** Three divisions apply
+to this system.
+
+| Division | Code | Licensed? | Categories produced |
+|---|---|---|---|
+| POP | `CW001` | Licensed designs only | Wall Art, Tabletop Decor, Clocks |
+| Spruce Licensed | `SP001` | Licensed designs only | Storage, Workspace, Floor Coverings, Garden, and eventually Stationery |
+| Spruce Generic | `EH001` | Generic (non-licensed) designs only | All eight categories |
+
+So licensed-versus-generic is decided by the division, and the two licensed
+divisions split the categories between them with no overlap: POP takes the
+three wall/tabletop/clock categories, Spruce Licensed takes the rest.
+
+**Conflict flagged, not resolved.** "Division scope of a Product Type" below
+records that the nineteen workbook Product Types each exist once in **all
+three** current divisions. That is a statement about which taxonomy rows exist
+in the database. This ruling is a statement about what the business actually
+produces. Existing rows in a division do not mean that division sells that
+category. Where the two disagree, this ruling governs the business meaning, and
+the stale taxonomy rows should be reviewed by the business.
+
 ## Division changes the meaning
 
 `mgTypeCode` has no meaning by itself. Always interpret the pair of Division and `mgTypeCode`.
