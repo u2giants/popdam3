@@ -1691,6 +1691,26 @@ three live ids; it simply has nothing honest to say about id `2`.
 
 **Also settled:** `EP001` is a **real retired book/education division** (grade bands, page
 counts, flash cards, 2019–2020), *not* a mis-keyed `EH001`. Never "correct" it to `EH001`.
+`EP001` is retired but **not empty**: the full ColdLion sweep (2026-08-18, 97 pages,
+**19,326 items**) still returns **451** items under it. Catalogue by division: `CW001` 12,914 ·
+`EH001` 3,860 · `SP001` 2,101 · `EP001` 451.
+
+**Never judge "is this item still sold" from `is_item_active` (checked 2026-08-19).** That
+DesignFlow app-level boolean is **NULL on 18,186 of 19,463 rows** — NULL means *nobody set it*,
+not "inactive". Reading it as inactive produced a false alarm that ColdLion and the mirror
+disagree about the catalogue. **They agree.** The mirror carries ColdLion's own fields:
+
+| Field | ColdLion | `dflow."itemHeader"` |
+|---|---|---|
+| `active` | Y 18,866 / N 459 | `item_active_status` Y 18,979 / N 453 |
+| `itemDiscontinued` | Y **546** | `discont_status` Y **546** (exact) |
+| `itemAvailable` | N 11 | `item_avail_status` N 8 |
+
+Spot-checked item by item on 11 items flagged discontinued / inactive / unavailable — all
+matched. **Use `item_active_status` and `discont_status`.** ColdLion's own "currently sellable"
+set is `active = Y` **and** `itemDiscontinued = N` **and** `itemAvailable = Y` → **18,397 of
+19,326**. ColdLion retires very little (546 discontinued in total), so a narrower
+"in the current line" list does not exist there and must come from elsewhere.
 
 **Before touching any `core."merchGroup"` division value**, read all three, in this order:
 1. [`docs/division-code-answers-from-uma-20260813.md`](docs/division-code-answers-from-uma-20260813.md) — the answers, with two withdrawn fix rules

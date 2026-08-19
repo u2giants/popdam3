@@ -155,15 +155,23 @@ the whole catalogue (97 pages, ~90 seconds); `tools/coldlion-sync-common.mjs` ex
 anywhere. **Do not conclude anything from a handful of item lookups** — that is exactly the
 mistake above.
 
-### A separate discrepancy the same check exposed — NOT a division problem
+### The "active flag disagreement" — RESOLVED, it never existed (2026-08-19)
 
-ColdLion marks **18,866 of 19,326** catalogue items `active = Y`; our mirror marks roughly
-**1,000** active. These are probably not the same question — ColdLion's flag reads like
-"record not deleted", DesignFlow's like "currently in the line". Applying ColdLion's flag
-literally would mark nearly everything live. **Check `itemAvailable` and `itemDiscontinued`
-first.** No owner, no issue yet. **Do not fold it into division work.**
+I reported that ColdLion and the mirror disagree about what is sold. **They do not.** I had
+compared ColdLion's `active` against `is_item_active`, a DesignFlow app boolean that is **NULL
+on 18,186 of 19,463 rows** — unset, not inactive.
 
-Also from that sweep: `CW001` 12,914 · `EH001` 3,860 · `SP001` 2,101 · `EP001` **451**.
+The mirror carries ColdLion's own fields and they agree: `active` Y 18,866 vs
+`item_active_status` Y 18,979; `itemDiscontinued` Y **546** vs `discont_status` Y **546**
+(exact); `itemAvailable` N 11 vs `item_avail_status` N 8. Verified item by item on 11 flagged
+items — all matched.
+
+**Rule for the next session: never judge "still sold" from `is_item_active`.** Use
+`item_active_status` / `discont_status`. ColdLion's sellable set is `active=Y` +
+`itemDiscontinued=N` + `itemAvailable=Y` = **18,397 of 19,326**; it retires very little, so a
+tighter "current line" list is a business question, not a data fix.
+
+Catalogue from the same sweep: `CW001` 12,914 · `EH001` 3,860 · `SP001` 2,101 · `EP001` 451.
 `EP001` is retired but **not empty**.
 
 ## 6. Exact next actions

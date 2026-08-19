@@ -247,20 +247,37 @@ Two consequences remain:
    four ColdLion divisions rather than sitting in `EH001`. This makes the Block A fix more
    suspect, not less.
 
-#### A separate discrepancy found by the same check (NOT a division problem)
+#### The "active flag" gap: RESOLVED — it was a reading error, not a disagreement (2026-08-19)
 
-ColdLion marks **18,866 of its 19,326 catalogue items** `active = Y`. Our mirror marks roughly
-**1,000** items active. These are almost certainly **not the same question**: ColdLion's flag
-reads like "record not deleted", DesignFlow's like "currently in the line". Applying ColdLion's
-`active` literally would mark nearly the whole catalogue live, which is not what anyone means.
+An earlier version of this section claimed ColdLion and the DesignFlow mirror disagree about
+what is currently sold, on the basis that ColdLion marks ~18,866 items active while "our mirror
+marks about 1,000". **That comparison was wrong.** The ~1,000 came from `is_item_active`, a
+DesignFlow **app-level boolean that is NULL on 18,186 of 19,463 rows**. NULL there means nobody
+ever set it — not "inactive".
 
-**Before acting on it, check `itemAvailable` and `itemDiscontinued`** on the ColdLion item
-payload — those are the likelier equivalents. Out of scope for division work; do not "fix" it
-as part of one.
+The mirror carries ColdLion's own fields, and they agree:
+
+| Field | ColdLion (19,326 items) | `dflow."itemHeader"` (19,463 rows) | Verdict |
+|---|---|---|---|
+| `active` | Y 18,866 / N 459 | `item_active_status` Y 18,979 / N 453 | matches; mirror holds 137 more rows |
+| `itemDiscontinued` | Y **546** | `discont_status` Y **546** | **exact match** |
+| `itemAvailable` | N 11 / Y 19,303 | `item_avail_status` N 8 | matches |
+
+Spot-checked item by item on 11 items ColdLion flags discontinued, inactive or unavailable
+(`11X173DPP`, `11X17NOFRAME`, `164`, `17P1AV14`, `1EWTMB1`, `1MABSESFB`, `20`, `21`, `202SP`,
+`203RM`, `ABCY04`) — **every field matched on every item.**
+
+**Which field to use:** `item_active_status` and `discont_status` on the mirror, or `active` /
+`itemDiscontinued` from ColdLion. **Never `is_item_active`.**
+
+**What ColdLion considers currently sellable:** `active = Y` AND `itemDiscontinued = N` AND
+`itemAvailable = Y` → **18,397 of 19,326** (`CW001` 12,066 · `EH001` 3,831 · `SP001` 2,101 ·
+`EP001` 399). ColdLion retires very little — 546 discontinued in the entire catalogue — so if a
+narrower "in the current line" list is wanted, ColdLion does not hold it and it must come from
+somewhere else. That is a business question, not a data defect.
 
 **Catalogue totals from the same sweep (2026-08-18):** `CW001` 12,914 · `EH001` 3,860 ·
-`SP001` 2,101 · `EP001` 451. **`EP001` is retired but not empty** — it still returns 451 items,
-which contradicts the assumption that retirement emptied it.
+`SP001` 2,101 · `EP001` 451. **`EP001` is retired but not empty.**
 
 ### Finding 2: EP001 is a real retired book and education division
 
@@ -437,8 +454,8 @@ ColdLion" (2026-08-18). See
 
 **Still open, but as engineering work rather than decisions:** the Block A fix (now doubly
 suspect), the 3 blank-division rows holding 573 references, widening the reference check
-beyond `itemHeader`, and the active-flag disagreement between ColdLion and the DesignFlow
-mirror.
+beyond `itemHeader`. (The "active-flag disagreement" turned out not to exist — see the
+resolution in finding 1.)
 
 ---
 

@@ -26,7 +26,7 @@ table before implementing, and do not re-derive any of it.
 | `plm."divisionCode"` is the single source of truth; the hardcoded map in `designflow-data-syncing/helpers/utility.js` is a second one | 🟡 **AGREED, NOT YET FIXED** (change lives in the app repo, not here) | round-2 doc, answer 9 |
 | **78% of item headers (15,185 of 19,463) carry `div_code_fk = 2`** — a DesignFlow-only id ColdLion has never had. It is a **mixed legacy bucket**: 83.5% `CW001`, 8.4% `EH001`, 6.8% `SP001`, 1.2% `EP001` (250-item random sample vs the full catalogue) | ✅ **RESOLVED 2026-08-18** — resolve per item from ColdLion by item number; **never blanket-map `2`** (would misfile ~2,500 rows) | round-2 doc, finding 1 resolved |
 | `EP001` is retired but **not empty** — ColdLion still returns 451 items under it | ✅ **MEASURED 2026-08-18** | round-2 doc, finding 1 resolved |
-| ColdLion marks 18,866 of 19,326 items active; the mirror marks ~1,000. Probably not the same question — check `itemAvailable` / `itemDiscontinued` | ⬜ **OPEN, unowned — not a division problem** | round-2 doc, finding 1 resolved |
+| "ColdLion and the mirror disagree on which items are active" | ✅ **FALSE ALARM, closed 2026-08-19.** They agree exactly (`discont_status` 546 = `itemDiscontinued` 546). The gap came from reading `is_item_active`, an app boolean NULL on 93% of rows. **Never use it**; use `item_active_status` / `discont_status` | round-2 doc, finding 1 resolved |
 
 **Where a fresh session starts:** §7b is still the implementation spec and is unaffected —
 this plan ingests **from ColdLion**, which returns `CW001`/`SP001`/`EH001` directly, so the
