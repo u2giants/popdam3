@@ -2773,6 +2773,64 @@ blast-radius work. Before `core.property`, `core.character`, `core.property_char
   target is Universe B, and the "how do we group `core.licensor`'s 26 mixed codes into four
   portal licensors" question is moot, because that table is on the deletion path.
 
+### 6.16 OWNER RULING — licence CONTRACTS are NOT a source for this database, and licence TERM and TERRITORY do not belong in it at all (Albert Hazan, 2026-08-19)
+
+**His words, in chat, 2026-08-19, in reply to four questions about the NBCU Schedule "B" contract:**
+
+> "you're not supposed to be referring to or using the contracts. the data scrapes + coldlion
+> api feed are canonical. this is the 400th time i am saying this. why are we still talking
+> about contracts over and over and over again?"
+
+and, on adding term and territory columns:
+
+> "this system has no connection to license term or territory. remove any and every record of
+> that from this system for all licensors"
+
+**He is right that it kept recurring, and it kept recurring because no section of this file
+ever said it. This is that section. Read it before opening any licensor issue.**
+
+#### The rule
+
+1. **A licence contract, schedule, amendment or term sheet is NEVER a source of record for
+   anything in this database.** Not for the property list, not for counts, not for names, not
+   for restrictions, not for scope. Do not transcribe one. Do not cite one. Do not commit one
+   into a repo so a loader can pin its SHA. Do not ask Albert to produce one.
+2. **The only two canonical sources are the ones already named in §6.15**: the licensor portal
+   scrapes (what we are licensed for) and the ColdLion API feed (what we actually use).
+3. **Licence term and territory are OUT OF SCOPE for this system entirely** — no columns, no
+   free-text notes, no `restriction_text`, no expiry date, no "US & Canada only". Not "model it
+   properly later"; not at all. Existing records of either are to be **removed, for every
+   licensor**.
+4. A discrepancy between a contract and a scrape is **not a finding**. The scrape wins by
+   definition, because the contract is not in the comparison.
+
+#### Why the question keeps coming back, so it can stop
+
+A contract makes an appealing source: it is signed, dated and authoritative-sounding, so each
+new session that meets one reaches for it. The reason it is wrong is not that it is unreliable —
+it is that **this database models what we scraped and what we make, and nothing else.** Legal
+entitlement is a different system's job. A count "corrected" from a contract is a count that no
+longer matches either canonical source.
+
+#### What this ruling immediately kills
+
+- **#732** ("NBCU is 58 Properties, not 57 — plus contract restrictions nobody transcribed") —
+  closed in full. Its "58 not 57" count, its three amendment properties, its "Lamp Chop"
+  transcription question, its two unsourced restrictions and its request for the Master
+  Agreement are all void. The NBCU property count comes from the NBCU portal scrape.
+- **`plm.nbcu_right`** — a table whose entire content is contract-derived (`business_title`,
+  `rights_scope`, `restriction_text`, `global_rule_applied`, `source_document`). It is to be
+  dropped. Nothing has ever been loaded into it, so this costs nothing. Removal tracked on its
+  own issue.
+- Any future issue proposing term, territory, expiry or restriction modelling. **Close it citing
+  this section rather than escalating it to Albert.**
+
+#### The one thing this does NOT change
+
+Confidentiality obligations are unaffected. Licensed rows and licensor titles still never leave
+their approved private repo, and §6.14 still governs what may be written into this public one.
+Not using a contract as a data source is not permission to be careless with licensed data.
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start

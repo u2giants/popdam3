@@ -1324,6 +1324,202 @@ end;
 $$;
 
 
+-- (v) A WHOLE NUMBER THAT IS NOT A BIGINT LITERAL MUST BE REFUSED BY NAME -- IT MUST NOT
+--     WEDGE THE CAPTURE. (issue #1222, the same defect as #1221 on the WildBrain gate.)
+--
+--     (ii) and (iii) above cover values the guards reject as the wrong TYPE or outside the
+--     non-negative-integer RANGE. These are the values that pass BOTH and then die on the
+--     cast, which is the opposite failure direction and operationally worse:
+--
+--       {"assets": 1.0}  -- a JSON number, and 1.0 = trunc(1.0), so both guards are
+--                           satisfied. `->>` renders it as the TEXT '1.0', and
+--                           '1.0'::bigint raises `invalid input syntax for type bigint`.
+--       {"assets": 9223372036854775808} / 1e20 -- whole and non-negative, stored happily by
+--                           begin_sega_capture, then `bigint out of range` at the cast.
+--
+--     A raise inside finalize aborts BEFORE the rejection row is written: error_summary is
+--     never persisted, status never leaves 'loading', and a retry with the same stored JSON
+--     dies identically. The capture is WEDGED and the operator sees a bare PostgreSQL cast
+--     error instead of the named refusal this design promises. `1.0` is not exotic -- any
+--     loader arithmetic that yields a numeric rather than an integer emits it.
+--
+--     There is NO exception handler in this block on purpose. On the pre-fix function the
+--     first iteration raises and this test goes red at the raise, which is precisely the
+--     behaviour under test. It asserts three things per shape: finalize did not raise, the
+--     capture reached a TERMINAL status rather than staying in 'loading', and the refusal
+--     is NAMED.
+do $$
+declare
+  v_id     uuid;
+  v_cap    plm.sega_capture%rowtype;
+  v_full   jsonb :=
+    ('{"properties":0,"property_licensors":0,"catalogs":0,"style_guide_candidates":0,'
+     || '"character_candidates":0,"character_evidence":0,"assets":0,"tags":0,'
+     || '"asset_catalogs":0,"asset_tags":0,"asset_properties":0}')::jsonb;
+  v_shape  jsonb;
+  v_code   text;
+  v_shapes jsonb[] := array['1.0'::jsonb, '9223372036854775808'::jsonb, '1e20'::jsonb];
+  -- 1.0 is a genuine, satisfiable claim of one asset, and zero assets landed, so its honest
+  -- verdict is a mismatch. The two oversized values cannot be a row count at all. The two
+  -- sides of the gate name their codes differently, so both lists are written out rather
+  -- than derived from one another -- a derivation would silently accept a renamed code.
+  v_codes  text[]  := array['count_mismatch',
+                            'expected_count_out_of_range','expected_count_out_of_range'];
+  v_rcodes text[]  := array['reported_count_mismatch',
+                            'reported_count_out_of_range','reported_count_out_of_range'];
+  i integer;
+begin
+  for i in 1 .. array_length(v_shapes, 1) loop
+    v_shape := v_shapes[i];
+    v_code  := v_codes[i];
+
+    -- Through the FRONT DOOR. begin_sega_capture's guard is a numeric truncation test, so
+    -- it accepts every one of these -- which is exactly why the gate has to survive them.
+    v_id := plm.begin_sega_capture(
+      'ZZTEST-sega-E2Nv' || i || ':' || repeat('5', 40), 'ZZTEST-repo',
+      repeat('5', 40), repeat('5', 64), 'https://example.invalid',
+      '2099-09-05Z'::timestamptz, jsonb_set(v_full, '{assets}', v_shape),
+      '{}'::jsonb, 'ZZTEST', false, true, true, true);
+
+    perform plm.finalize_sega_capture(v_id, v_full, '[]'::jsonb);
+
+    select * into v_cap from plm.sega_capture where id = v_id;
+    if v_cap.status = 'loading' then
+      raise exception
+        'E2Nv FAILED: an expected assets count of % left the capture WEDGED in loading',
+        v_shape;
+    end if;
+    if v_cap.status <> 'rejected' then
+      raise exception 'E2Nv FAILED: an expected assets count of % reached status %',
+        v_shape, v_cap.status;
+    end if;
+    if not (v_cap.error_summary
+            @> jsonb_build_array(jsonb_build_object('code', v_code, 'entity', 'assets'))) then
+      raise exception 'E2Nv FAILED: expected shape % was rejected, but not as %: %',
+        v_shape, v_code, v_cap.error_summary;
+    end if;
+
+    -- And the identical values on the loader-REPORTED side, which has its own cast.
+    v_id := plm.begin_sega_capture(
+      'ZZTEST-sega-E2Nvr' || i || ':' || repeat('6', 40), 'ZZTEST-repo',
+      repeat('6', 40), repeat('6', 64), 'https://example.invalid',
+      '2099-09-06Z'::timestamptz, v_full, '{}'::jsonb, 'ZZTEST', false, true, true, true);
+
+    perform plm.finalize_sega_capture(
+      v_id, jsonb_set(v_full, '{assets}', v_shape), '[]'::jsonb);
+
+    select * into v_cap from plm.sega_capture where id = v_id;
+    if v_cap.status = 'loading' then
+      raise exception
+        'E2Nv FAILED: a reported assets count of % left the capture WEDGED in loading',
+        v_shape;
+    end if;
+    if v_cap.status <> 'rejected' then
+      raise exception 'E2Nv FAILED: a reported assets count of % reached status %',
+        v_shape, v_cap.status;
+    end if;
+    if not (v_cap.error_summary
+            @> jsonb_build_array(jsonb_build_object(
+                 'code', v_rcodes[i], 'entity', 'assets'))) then
+      raise exception 'E2Nv FAILED: reported shape % was rejected, but not as %: %',
+        v_shape, v_rcodes[i], v_cap.error_summary;
+    end if;
+  end loop;
+
+  -- The ordinary path must still publish. Without this, a fix that broke every integer
+  -- expectation would satisfy every assertion above while nothing could ever complete.
+  -- DELIBERATELY THE OLDEST source_captured_at IN THIS FILE. This is the only capture the
+  -- E2N sections COMPLETE, and api.source_capture_inventory reports the latest complete
+  -- capture ordered by source_captured_at -- so a 2099-09 date here would quietly become
+  -- "current" and section F2, which asserts its own newest complete capture, would fail on
+  -- a fixture collision that has nothing to do with what it tests.
+  v_id := plm.begin_sega_capture(
+    'ZZTEST-sega-E2Nv-ok:' || repeat('7', 40), 'ZZTEST-repo',
+    repeat('7', 40), repeat('7', 64), 'https://example.invalid',
+    '2099-01-05Z'::timestamptz, v_full, '{}'::jsonb, 'ZZTEST', false, true, true, true);
+  perform plm.finalize_sega_capture(v_id, v_full, '[]'::jsonb);
+  select * into v_cap from plm.sega_capture where id = v_id;
+  if v_cap.status <> 'complete' then
+    raise exception
+      'E2Nv FAILED: an ordinary integer expectation no longer publishes (status %, %)',
+      v_cap.status, v_cap.error_summary;
+  end if;
+
+  raise notice
+    'E2N (v) passed: float and oversized counts refuse by name on both sides; no capture is wedged';
+end;
+$$;
+
+-- (vi) THE EXTRA-KEY SWEEP IS NOT TYPE-ONLY. A key outside the eleven entity names whose
+--      value is -1, 1.5 or past bigint is a JSON NUMBER, so the old type-only sweep ignored
+--      it. Neither shape can skip an entity count, so this was never a publication hole --
+--      but the sweep's stated claim is that EVERY key outside the eleven is covered, and a
+--      guard whose comment overstates what it does is how the next reader is misled. The
+--      sweep now applies the identical type / non-negative-integer / range rule.
+do $$
+declare
+  v_id     uuid;
+  v_cap    plm.sega_capture%rowtype;
+  v_full   jsonb :=
+    ('{"properties":0,"property_licensors":0,"catalogs":0,"style_guide_candidates":0,'
+     || '"character_candidates":0,"character_evidence":0,"assets":0,"tags":0,'
+     || '"asset_catalogs":0,"asset_tags":0,"asset_properties":0}')::jsonb;
+  v_shape  jsonb;
+  v_code   text;
+  v_shapes jsonb[] := array['-1'::jsonb, '1.5'::jsonb, '9223372036854775808'::jsonb];
+  v_codes  text[]  := array['expected_count_not_a_nonnegative_integer',
+                            'expected_count_not_a_nonnegative_integer',
+                            'expected_count_out_of_range'];
+  v_rcodes text[]  := array['reported_count_not_a_nonnegative_integer',
+                            'reported_count_not_a_nonnegative_integer',
+                            'reported_count_out_of_range'];
+  i integer;
+begin
+  for i in 1 .. array_length(v_shapes, 1) loop
+    v_shape := v_shapes[i];
+    v_code  := v_codes[i];
+
+    v_id := plm.begin_sega_capture(
+      'ZZTEST-sega-E2Nvi' || i || ':' || repeat('8', 40), 'ZZTEST-repo',
+      repeat('8', 40), repeat('8', 64), 'https://example.invalid',
+      '2099-09-08Z'::timestamptz, v_full, '{}'::jsonb, 'ZZTEST', false, true, true, true);
+
+    -- begin_ only inspects the eleven entity keys, so the extra key is injected the way a
+    -- future loader would supply it: by writing the stored object.
+    update plm.sega_capture
+       set expected_counts = expected_counts
+                             || jsonb_build_object('zztest_future_entity', v_shape)
+     where id = v_id;
+
+    perform plm.finalize_sega_capture(
+      v_id, v_full || jsonb_build_object('zztest_future_entity', v_shape), '[]'::jsonb);
+
+    select * into v_cap from plm.sega_capture where id = v_id;
+    if v_cap.status <> 'rejected' then
+      raise exception
+        'E2Nvi FAILED: an extra expected_counts key of % was tolerated (status %)',
+        v_shape, v_cap.status;
+    end if;
+    if not (v_cap.error_summary
+            @> jsonb_build_array(jsonb_build_object(
+                 'code', v_code, 'entity', 'zztest_future_entity'))) then
+      raise exception 'E2Nvi FAILED: extra expected key % was rejected, but not as %: %',
+        v_shape, v_code, v_cap.error_summary;
+    end if;
+    -- The loader-reported side carries its own copy of the sweep and its own codes.
+    if not (v_cap.error_summary
+            @> jsonb_build_array(jsonb_build_object(
+                 'code', v_rcodes[i], 'entity', 'zztest_future_entity'))) then
+      raise exception 'E2Nvi FAILED: extra reported key % was rejected, but not as %: %',
+        v_shape, v_rcodes[i], v_cap.error_summary;
+    end if;
+  end loop;
+
+  raise notice
+    'E2N (vi) passed: the extra-key sweep enforces the integer and range rule, not type alone';
+end;
+$$;
+
 -- E3. The table itself refuses a hand-built 'complete' capture that breaks the rule, so
 -- the guarantee does not depend on the function being the only writer.
 do $$

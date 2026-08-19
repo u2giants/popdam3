@@ -1436,6 +1436,334 @@ begin
 end;
 $$;
 
+-- =====================================================================================
+-- F11 - F14. FOLLOW-UPS FROM THE INDEPENDENT REVIEW OF PR #1214 (issues #1221, #1222).
+-- Added with migration 20260819112524.
+-- =====================================================================================
+
+-- F11. A WHOLE-NUMBER EXPECTED COUNT THAT IS NOT A BIGINT LITERAL MUST BE REFUSED BY
+--      NAME -- IT MUST NOT WEDGE THE CAPTURE.
+--
+--      `1.0` is a JSON number and `1.0 = trunc(1.0)`, so it passes the type guard AND the
+--      non-negative-integer guard. The gate then used to do `(v_exp ->> 'assets')::bigint`,
+--      which casts the TEXT '1.0' and raises `invalid input syntax for type bigint`.
+--      A raise inside finalize aborts before the rejection row is written, so the capture
+--      never becomes 'rejected' and never becomes 'complete': it sits in 'loading' forever
+--      and every retry with the same stored JSON dies identically. Same for a whole number
+--      past bigint. `1.0` is not exotic -- any loader arithmetic yielding a numeric emits it.
+--
+--      THIS TEST GOES RED ON THE PRE-FIX FUNCTION, with a raw cast error rather than an
+--      assertion, which is exactly the operator experience being fixed. It asserts three
+--      separate things: that finalize did NOT raise, that the capture reached a TERMINAL
+--      status rather than staying in 'loading', and that the refusal is NAMED.
+do $$
+declare
+  v_cap    uuid;
+  v_status text;
+  v_err    jsonb;
+  v_shape  jsonb;
+  v_code   text;
+  -- 1.0 is a satisfiable expectation of one asset and zero assets land, so its honest
+  -- verdict is a count mismatch. The two oversized values cannot be a row count at all.
+  v_shapes jsonb[] := array['1.0'::jsonb,
+                            '9223372036854775808'::jsonb, '1e20'::jsonb];
+  v_codes  text[]  := array['count_mismatch',
+                            'expected_count_out_of_range','expected_count_out_of_range'];
+  i integer;
+begin
+  raise notice '=== F11. A FLOAT OR OVERSIZED EXPECTED COUNT IS NAMED, NOT A RAW CAST ===';
+  for i in 1 .. array_length(v_shapes, 1) loop
+    v_shape := v_shapes[i];
+    v_code  := v_codes[i];
+
+    -- Through the FRONT DOOR. begin_ checks numeric truncation, so it accepts every one of
+    -- these -- which is precisely why the gate has to survive them.
+    v_cap := plm.begin_wildbrain_capture(
+      p_capture_key            => 'zztest-wildbrain:F11-' || i,
+      p_source_repository      => 'u2giants/zztest-fixture',
+      p_source_commit_sha      => repeat('c', 40),
+      p_source_manifest_sha256 => repeat('c', 64),
+      p_portal_base_url        => 'https://zztest.example.invalid/',
+      p_source_captured_at     => timestamptz '2026-07-02 00:00:00+00',
+      p_expected_counts        => jsonb_build_object(
+                                    'eras', 0, 'creative_groups', 0, 'asset_categories', 0,
+                                    'asset_natures', 0, 'characters', 0,
+                                    'asset_characters', 0, 'guides', 0, 'guide_aliases', 0,
+                                    'asset_guides', 0)
+                                  || jsonb_build_object('assets', v_shape),
+      p_raw_summary            => '{"fixture":true}'::jsonb,
+      p_created_by             => 'zztest',
+      p_pagination_verified    => true
+    );
+
+    -- No exception handler here ON PURPOSE. If finalize raises, this test must go RED at
+    -- the raise -- that IS the wedge. Swallowing it would hide the defect under test.
+    perform plm.finalize_wildbrain_capture(v_cap, null, '[]'::jsonb);
+
+    select status, error_summary into v_status, v_err
+      from plm.wildbrain_capture where id = v_cap;
+
+    if v_status = 'loading' then
+      raise exception
+        'F11 FAILED: an expected assets count of % left the capture WEDGED in loading', v_shape;
+    end if;
+    if v_status <> 'rejected' then
+      raise exception 'F11 FAILED: an expected assets count of % reached status %',
+        v_shape, v_status;
+    end if;
+    if not exists (select 1 from jsonb_array_elements(v_err) e
+                    where e ->> 'code' = v_code and e ->> 'entity' = 'assets') then
+      raise exception 'F11 FAILED: shape % was rejected, but not as %: %',
+        v_shape, v_code, v_err;
+    end if;
+  end loop;
+
+  -- THE HEALTHY CASE, AND IT USES A FLOAT ON PURPOSE. If ::numeric::bigint had broken the
+  -- ordinary path, every assertion above would still pass while nothing could ever
+  -- complete again -- so a refusal test alone does not prove this fix. `0.0` assets with
+  -- zero assets landed is an HONEST agreement: it must publish, not be refused, and on the
+  -- pre-fix function it raised instead. Every other key here is a plain integer, so this
+  -- also pins that they still compare correctly.
+  v_cap := plm.begin_wildbrain_capture(
+    p_capture_key            => 'zztest-wildbrain:F11-ok',
+    p_source_repository      => 'u2giants/zztest-fixture',
+    p_source_commit_sha      => repeat('c', 40),
+    p_source_manifest_sha256 => repeat('c', 64),
+    p_portal_base_url        => 'https://zztest.example.invalid/',
+    p_source_captured_at     => timestamptz '2026-07-02 00:00:00+00',
+    p_expected_counts        => '{"eras":0,"creative_groups":0,"asset_categories":0,
+                                  "asset_natures":0,"characters":0,"assets":0.0,
+                                  "asset_characters":0,"guides":0,"guide_aliases":0,
+                                  "asset_guides":0}'::jsonb,
+    p_raw_summary            => '{"fixture":true}'::jsonb,
+    p_created_by             => 'zztest',
+    p_pagination_verified    => true
+  );
+  perform plm.finalize_wildbrain_capture(v_cap, null, '[]'::jsonb);
+  select status, error_summary into v_status, v_err
+    from plm.wildbrain_capture where id = v_cap;
+  if v_status <> 'complete' then
+    raise exception
+      'F11 FAILED: a truthful float expectation of 0.0 assets did not publish (status %, %)',
+      v_status, v_err;
+  end if;
+
+  raise notice 'F11: float and oversized expected counts refuse by name; a truthful float publishes; no capture is wedged.';
+end;
+$$;
+
+-- F12. THE ONE-ROOT GATE MUST NOT DEPEND ON A CHECK CONSTRAINT SOMEWHERE ELSE IN THE FILE.
+--
+--      G2 used to count `is_root`; G3 walks from `parent_era_source_id is null`. Those are
+--      the same set of rows ONLY while wildbrain_era_root_matches_parent_chk exists, and
+--      the gate never re-asserted it. So this test DELETES THAT CHECK -- inside the test
+--      transaction, which is rolled back -- and proves the gate still refuses two trees.
+--      Deleting it is the whole point: a guard that holds only because a separate
+--      constraint happens to still be there is the defect class of #1219.
+--
+--      The shape: R (root, no parent), S (no parent, is_root FALSE), C (child of S).
+--      Every count matches, the partial unique index `where is_root` sees exactly one row,
+--      and the reachability walk seeds from BOTH parent-null rows and reaches all three --
+--      so on the PRE-FIX function this capture PUBLISHES TWO DISJOINT ERA TREES AS ONE
+--      LICENSED PROPERTY. That is what makes this test red without the fix.
+do $$
+declare
+  v_cap    uuid;
+  v_status text;
+  v_err    jsonb;
+begin
+  raise notice '=== F12. TWO PARENT-NULL TREES ARE REFUSED EVEN WITHOUT THE CHECK ===';
+
+  alter table plm.wildbrain_era drop constraint wildbrain_era_root_matches_parent_chk;
+
+  v_cap := plm.begin_wildbrain_capture(
+    p_capture_key            => 'zztest-wildbrain:F12',
+    p_source_repository      => 'u2giants/zztest-fixture',
+    p_source_commit_sha      => repeat('f', 40),
+    p_source_manifest_sha256 => repeat('f', 64),
+    p_portal_base_url        => 'https://zztest.example.invalid/',
+    p_source_captured_at     => timestamptz '2026-08-02 00:00:00+00',
+    p_expected_counts        => '{"eras":3,"creative_groups":0,"asset_categories":0,
+                                  "asset_natures":0,"characters":0,"assets":0,
+                                  "asset_characters":0,"guides":0,"guide_aliases":0,
+                                  "asset_guides":0}'::jsonb,
+    p_raw_summary            => '{"fixture":true}'::jsonb,
+    p_created_by             => 'zztest',
+    p_pagination_verified    => true
+  );
+
+  insert into plm.wildbrain_era
+    (capture_id, era_source_id, parent_era_source_id, era_label,
+     normalized_era_label, is_root, raw)
+  values
+    (v_cap, 'ZZTEST-ERA-F12-R', null,
+     'ZZTEST Era F12 R', 'zztest era f12 r', true,  '{}'::jsonb),
+    (v_cap, 'ZZTEST-ERA-F12-S', null,
+     'ZZTEST Era F12 S', 'zztest era f12 s', false, '{}'::jsonb),
+    (v_cap, 'ZZTEST-ERA-F12-C', 'ZZTEST-ERA-F12-S',
+     'ZZTEST Era F12 C', 'zztest era f12 c', false, '{}'::jsonb);
+  set constraints all immediate;
+  set constraints all deferred;
+
+  perform plm.finalize_wildbrain_capture(v_cap, null, '[]'::jsonb);
+
+  select status, error_summary into v_status, v_err
+    from plm.wildbrain_capture where id = v_cap;
+
+  if v_status <> 'rejected' then
+    raise exception
+      'F12 FAILED: two disjoint era trees PUBLISHED as one property (status %) once the CHECK was dropped',
+      v_status;
+  end if;
+  -- BOTH of the gate's own reasons must be named. Asserting only one would let a future
+  -- edit close half the shape and still look green.
+  if not exists (select 1 from jsonb_array_elements(v_err) e
+                  where e ->> 'code' = 'multiple_root_eras') then
+    raise exception
+      'F12 FAILED: a second parent-null tree was not named multiple_root_eras: %', v_err;
+  end if;
+  if not exists (select 1 from jsonb_array_elements(v_err) e
+                  where e ->> 'code' = 'era_root_flag_disagrees_with_parent') then
+    raise exception
+      'F12 FAILED: an is_root flag contradicting its own parentage was not named: %', v_err;
+  end if;
+
+  -- Put the schema back before any later section runs. The fixture rows have to go first:
+  -- they are exactly what the constraint forbids.
+  delete from plm.wildbrain_era where capture_id = v_cap;
+  delete from plm.wildbrain_capture where id = v_cap;
+  alter table plm.wildbrain_era
+    add constraint wildbrain_era_root_matches_parent_chk
+    check (is_root = (parent_era_source_id is null));
+
+  raise notice 'F12: the one-root gate stands on its own, not on a deletable CHECK.';
+end;
+$$;
+
+-- F13. THE CYCLE WALK MUST TERMINATE WHEN THERE IS A ROOT *AND* A DISJOINT LOOP.
+--      F9 lands a cycle with NO root, so the recursive branch of the walk never runs at
+--      all -- it proves the verdict but not the termination. This is the interesting
+--      shape: a real root R that the walk expands, plus a disjoint A -> B -> A loop it
+--      must never enter. If the walk could follow the loop it would not return.
+do $$
+declare
+  v_cap    uuid;
+  v_status text;
+  v_err    jsonb;
+begin
+  raise notice '=== F13. A ROOT PLUS A DISJOINT LOOP: THE WALK TERMINATES AND REJECTS ===';
+  v_cap := plm.begin_wildbrain_capture(
+    p_capture_key            => 'zztest-wildbrain:F13',
+    p_source_repository      => 'u2giants/zztest-fixture',
+    p_source_commit_sha      => repeat('9', 40),
+    p_source_manifest_sha256 => repeat('9', 64),
+    p_portal_base_url        => 'https://zztest.example.invalid/',
+    p_source_captured_at     => timestamptz '2026-08-03 00:00:00+00',
+    p_expected_counts        => '{"eras":4,"creative_groups":0,"asset_categories":0,
+                                  "asset_natures":0,"characters":0,"assets":0,
+                                  "asset_characters":0,"guides":0,"guide_aliases":0,
+                                  "asset_guides":0}'::jsonb,
+    p_raw_summary            => '{"fixture":true}'::jsonb,
+    p_created_by             => 'zztest',
+    p_pagination_verified    => true
+  );
+
+  insert into plm.wildbrain_era
+    (capture_id, era_source_id, parent_era_source_id, era_label,
+     normalized_era_label, is_root, raw)
+  values
+    (v_cap, 'ZZTEST-ERA-F13-R', null,
+     'ZZTEST Era F13 R', 'zztest era f13 r', true,  '{}'::jsonb),
+    (v_cap, 'ZZTEST-ERA-F13-K', 'ZZTEST-ERA-F13-R',
+     'ZZTEST Era F13 K', 'zztest era f13 k', false, '{}'::jsonb),
+    (v_cap, 'ZZTEST-ERA-F13-A', 'ZZTEST-ERA-F13-B',
+     'ZZTEST Era F13 A', 'zztest era f13 a', false, '{}'::jsonb),
+    (v_cap, 'ZZTEST-ERA-F13-B', 'ZZTEST-ERA-F13-A',
+     'ZZTEST Era F13 B', 'zztest era f13 b', false, '{}'::jsonb);
+  set constraints all immediate;
+  set constraints all deferred;
+
+  perform plm.finalize_wildbrain_capture(v_cap, null, '[]'::jsonb);
+
+  select status, error_summary into v_status, v_err
+    from plm.wildbrain_capture where id = v_cap;
+  if v_status <> 'rejected' then
+    raise exception
+      'F13 FAILED: a capture with a root and a disjoint era loop reached status %', v_status;
+  end if;
+  if not exists (select 1 from jsonb_array_elements(v_err) e
+                  where e ->> 'code' = 'era_cycle_or_unreachable'
+                    and (e ->> 'reachable_from_root')::bigint = 2
+                    and (e ->> 'eras')::bigint = 4) then
+    raise exception
+      'F13 FAILED: the unreachable loop was not named with its measured counts: %', v_err;
+  end if;
+  -- There IS a root here, so the no-root code must NOT fire. F9 covers that other verdict;
+  -- asserting its absence keeps the two shapes from collapsing into one message.
+  if exists (select 1 from jsonb_array_elements(v_err) e
+              where e ->> 'code' = 'no_root_era') then
+    raise exception
+      'F13 FAILED: a capture WITH a root was also reported as having none: %', v_err;
+  end if;
+
+  raise notice 'F13: the walk expands the root, never enters the loop, and rejects.';
+end;
+$$;
+
+-- F14. A JSON-NULL IN THE LOADER-REPORTED observed_counts MUST ALSO BE A DISAGREEMENT.
+--      The same trap as F8, on the other argument: `?` says the key is supplied and every
+--      comparison against the resulting SQL NULL is UNKNOWN, so the loader's claim would go
+--      unchecked. The code closes it, but until now no test ever passed that shape -- so a
+--      future edit could reopen it with no red line anywhere. #1219 exists because this
+--      exact defect kept being reintroduced by copying, which is why the missing test
+--      mattered more than usual.
+do $$
+declare
+  v_cap    uuid;
+  v_status text;
+  v_err    jsonb;
+begin
+  raise notice '=== F14. A JSON-NULL REPORTED COUNT IS A DISAGREEMENT ===';
+  v_cap := plm.begin_wildbrain_capture(
+    p_capture_key            => 'zztest-wildbrain:F14',
+    p_source_repository      => 'u2giants/zztest-fixture',
+    p_source_commit_sha      => repeat('7', 40),
+    p_source_manifest_sha256 => repeat('7', 64),
+    p_portal_base_url        => 'https://zztest.example.invalid/',
+    p_source_captured_at     => timestamptz '2026-08-04 00:00:00+00',
+    p_expected_counts        => '{"eras":0,"creative_groups":0,"asset_categories":0,
+                                  "asset_natures":0,"characters":0,"assets":0,
+                                  "asset_characters":0,"guides":0,"guide_aliases":0,
+                                  "asset_guides":0}'::jsonb,
+    p_raw_summary            => '{"fixture":true}'::jsonb,
+    p_created_by             => 'zztest',
+    p_pagination_verified    => true
+  );
+
+  -- Everything else about this capture publishes -- the closing block of F11 completes the
+  -- identical fixture. The ONLY unusable thing here is the loader's null claim.
+  perform plm.finalize_wildbrain_capture(v_cap, '{"assets": null}'::jsonb, '[]'::jsonb);
+
+  select status, error_summary into v_status, v_err
+    from plm.wildbrain_capture where id = v_cap;
+  if v_status <> 'rejected' then
+    raise exception
+      'F14 FAILED: a JSON-null reported assets count reached status % -- the claim was never checked',
+      v_status;
+  end if;
+  if not exists (select 1 from jsonb_array_elements(v_err) e
+                  where e ->> 'code' = 'loader_observed_count_not_a_number'
+                    and e ->> 'entity' = 'assets'
+                    and e ->> 'json_type' = 'null') then
+    raise exception
+      'F14 FAILED: the rejection did not name loader_observed_count_not_a_number for assets: %',
+      v_err;
+  end if;
+
+  raise notice 'F14: a present-but-null loader count is refused by name, not skipped.';
+end;
+$$;
+
 do $$
 begin
   raise notice '=== WILDBRAIN LANDING CONTRACT TESTS: ALL SECTIONS PASSED ===';
