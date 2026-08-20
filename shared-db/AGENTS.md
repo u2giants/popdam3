@@ -1797,8 +1797,38 @@ Three things this settles for good:
    division (the 2019–2020 book/education line) and must never be "corrected" to `EH001`,
    but nothing new lands in it. New or backfilled rows must not be assigned `EP001`; a
    pipeline that would assign it is producing a wrong answer and must fail loudly rather than
-   write it. Historical `EP001` rows stay exactly as they are — this is not licence to
-   rewrite or delete them.
+   write it.
+
+   > ### ⚠️ EXTENDED the same day — `EP001` is FILTERED OUT of new ingest entirely (Albert Hazan, in chat, 2026-08-19, later)
+   >
+   > The paragraph above originally ended *"Historical `EP001` rows stay exactly as they are —
+   > this is not licence to rewrite or delete them."* That sentence is **withdrawn for NEW
+   > ingest** and survives only for rows we already hold.
+   >
+   > He was shown the exact consequence before ruling — that the ColdLion plan's history depth
+   > is **2019-01-01 to today** (decision D9), which is precisely the period `EP001` was
+   > trading, so filtering it at the loader means the seven-year backfill captures **none** of
+   > that division's sales or purchase history — and he chose to filter it out completely
+   > anyway. This confirms decision **D11** in
+   > [`docs/plan_coldlion-landing-phases-2-6.md`](docs/plan_coldlion-landing-phases-2-6.md).
+   >
+   > **What this means, by table:**
+   >
+   > - **New ColdLion landing tables (`coldlion.*`) and every loader:** filter `EP001` at the
+   >   loader on every feed, master and history alike. Do not land it.
+   > - **Rows we already hold:** unchanged. This is still not licence to rewrite or delete
+   >   existing `EP001` data. It is a rule about what we bring IN.
+   > - **The `public.erp_items_current.division_code` backfill (#1137):** an item ColdLion
+   >   reports as `EP001` gets **`NULL`**, not `EP001` and not a substituted division.
+   >     ⚠️ **This last line is a DERIVATION, not his words.** He ruled on filtering; the
+   >     `NULL` is the only reading that neither invents a division nor smuggles `EP001` in
+   >     through a different table. It reverses the #1137 comment posted earlier the same day,
+   >     which said to record `EP001` where ColdLion reports it. If a future session needs
+   >     those rows, re-ask him — it is one cheap question, and roughly 1.2% of the
+   >     division-2 sample is affected.
+   >
+   > **Accepted, stated cost:** the 2019–2020 book/education line's transaction history is not
+   > captured. Recovering it later means re-running the whole seven-year pull.
 
 **No further questions are owed to Uma on division codes.** Her 2026-08-13 and 2026-08-17
 answers plus this confirmation cover the ground; issue #903 (the unsent 8-question briefing)
