@@ -54,9 +54,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    lane, and it must name every exact database object. Non-structural work must
    not claim database objects.
 
-   **Work whose exit is REJECT — `application-data`, `source-data`,
-   `curated-master-data` — must also carry a `return_to:` line naming the owning
-   repository as an `owner/repo` slug** (AGENTS.md §0.0-C):
+   **Work whose exit is REJECT — `application-data` and `source-data` — must
+   also carry a `return_to:` line naming the owning repository as an
+   `owner/repo` slug** (AGENTS.md §0.0-C). `curated-master-data` does NOT: §6.4
+   governs it inside this repo, so it forks to a sub-agent here and never
+   leaves:
 
    ````text
    ```db-work-scope

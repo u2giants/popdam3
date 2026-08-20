@@ -151,6 +151,14 @@ test('a non-structural issue parked at blocked is still reported rather than sil
   assert.deepEqual(result.dispatchable,[])
 })
 
+test('curated Master Data forks inside this repo and is never returned to an application repo',()=>{
+  assert.equal(queueExit('curated-master-data'),'fork')
+  assert.equal(requiresReturnAddress('curated-master-data'),false)
+  const result=buildDynamicQueues([{number:80,title:'outside-sourced property load',body:scope('ready','curated-master-data','curated-master-data-governance',10)}],[],NOW)
+  assert.equal(result.notOrchestratorWork[0].exit,'fork')
+  assert.equal(result.notOrchestratorWork[0].needsReturnAddress,false)
+})
+
 test('a reject exit without a return address is reported and fails the audit',()=>{
   const noAddress=scope('ready','application-data','application-session',6)
   const addressed=noAddress.replace('route: application-session','route: application-session\nreturn_to: u2giants/popdam3')

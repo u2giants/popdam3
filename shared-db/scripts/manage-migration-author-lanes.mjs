@@ -171,7 +171,12 @@ const ROUTES_BY_WORK_TYPE = Object.freeze({
 export const NON_STRUCTURAL_EXITS = Object.freeze({
   'application-data': 'reject',
   'source-data': 'reject',
-  'curated-master-data': 'reject',
+  // FORK, not REJECT. Curated Master Data is governed INSIDE this repo by 6.4:
+  // it binds the AI session doing the typing and never leaves for an
+  // application repo. It exits by fork because it must not occupy a
+  // migration-author lane and must not be worked in the orchestrator's own
+  // context - not because it belongs to somebody else.
+  'curated-master-data': 'fork',
   'repo-maintenance': 'fork',
   documentation: 'fork',
   'security-settings': 'fork',

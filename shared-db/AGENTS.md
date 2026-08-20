@@ -302,12 +302,14 @@ objects listed, dispatched to a sub-agent in an isolated worktree as usual.
 
 **No → it has exactly two exits, and `accept` is never one of them.**
 
-- **REJECT** — the work belongs to another repository and must leave this queue. `application-data`,
-  `source-data` and `curated-master-data`. **Rejection FORWARDS the task; it never merely closes
-  it** — see "A reject is a forward" below. (Curated Master Data keeps its own governance under
-  §6.4 — it is rejected *from the migration-author queue*, not waved through.)
+- **REJECT** — the work belongs to another repository and must leave this queue. `application-data`
+  and `source-data`. **Rejection FORWARDS the task; it never merely closes it** — see "A reject is
+  a forward" below.
 - **FORK** — genuinely this repo's work, but not shape work: CI guards, migration tooling, scripts,
-  docs, audits, incident write-ups (`repo-maintenance`, `documentation`, `security-settings`).
+  docs, audits, incident write-ups (`repo-maintenance`, `documentation`, `security-settings`) —
+  **and curated Master Data** (`curated-master-data`), which §6.4 governs *inside* this repo and
+  which never leaves for an application repo. It forks because it must not occupy a
+  migration-author lane, not because somebody else owns it.
   Hand it to a **fresh session with an empty context window** — a worktree sub-agent, exactly as a
   migration is dispatched. The orchestrator does not read the code, does not debug it, and does not
   "just fix it quickly".
