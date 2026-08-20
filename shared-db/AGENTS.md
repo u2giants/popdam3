@@ -1146,11 +1146,26 @@ rule closes that evidence gap, not a mistake.
 
 ```text
 Production: qsllyeztdwjgirsysgai
-Preview:    rjyboqwcdzcocqgmsyel   (Supabase branch "shared-db-schema-rehearsal")
+Preview:    mvpkijzfmfcxhnzqogzs   (Supabase branch "shared-db-schema-rehearsal")
 ```
 
+⚠️ **`rjyboqwcdzcocqgmsyel` IS THE OLD PREVIEW AND IS DELETED.** It was destroyed and
+rebuilt as `mvpkijzfmfcxhnzqogzs` on 2026-08-18, and this block still named it as
+current until 2026-08-20 — under a heading telling you to compare against these exact
+characters. A session following that literally would have **rejected the real preview as
+wrong**. If you find that string anywhere presented as current, it is stale: §4.2 above
+and §5 already say it was deleted, and this block disagreed with both of them.
+
+**Preview's ref is CONFIGURED, never a literal.** The authority is the repository
+variable `PREVIEW_PROJECT_REF` (`gh variable list --repo u2giants/shared-db`), because
+preview gets rebuilt and its ref changes when it does — which is exactly how this block
+went stale. Five workflows were once pinned to the deleted ref and could only fail; a
+guard now asserts that no workflow carries a literal. **Do the same yourself: read the
+variable, do not copy the characters above into anything executable.** They are here to
+be compared against, not to be pasted.
+
 **Trap that has misled sessions:** preview is a Supabase **branch**, not a standalone
-project, so `rjyboqwcdzcocqgmsyel` **does not appear in `supabase projects list`**. Its
+project, so the preview ref **does not appear in `supabase projects list`**. Its
 absence from that listing is evidence of nothing — it is not proof that you are on
 production, and it is not proof that preview is gone. Use `supabase branches list` /
 `list_branches` if you need to see it, and use the checks above to establish where you
