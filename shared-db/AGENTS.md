@@ -674,6 +674,13 @@ rules below are the operative summary.
    (#1321): that lane cannot recover a POST-merge rehearsal** — it pins producer files to the
    authoring PR's merge commit, so a later main tip fails the pin, and the only way through is to
    supersede the migration with byte-identical SQL. Read the full text before relying on either.
+   ⚠️ **NARROWED, 2026-08-20 (orchestrator marker #1338): the lane DOES recover a post-merge
+   rehearsal when the rehearsal ran AT the authoring merge commit.** Recovered cleanly that day for
+   `20260820165926` (preview recovery run 32402833543, then production apply 32402996954) with
+   `historical_preview_source_pr` + `historical_preview_original_run_map`. **The discriminator is
+   not pre-merge versus post-merge — it is whether anything merged BETWEEN the authoring merge
+   commit and the rehearsal.** Rehearse in the same breath as the merge and the pin holds; let
+   another PR land first and it does not. Do not pay a supersession before trying the lane.
 
 3. **Additive by default (expand, then contract).** Adding a column or table cannot break another
    app. **Renaming or dropping** one another app reads *will*. Only rename/drop after explicit

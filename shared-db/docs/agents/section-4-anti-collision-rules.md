@@ -297,7 +297,23 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    .github/workflows/shared-supabase-migrations.yml than the merge commit"*. No
    database write occurred. The only way through was to **supersede** the
    migration with byte-identical SQL (`20260820142402`), which costs a migration
-   version and a fresh review round. **The paragraph below is still correct for a
+   version and a fresh review round.
+
+   ⚠️ **NARROWED, 2026-08-20 (orchestrator marker #1338).** The claim above is too broad. The lane
+   **DOES** recover a post-merge rehearsal **when the rehearsal ran AT the authoring merge commit**.
+   Measured that day on `20260820165926` (PR #1335): merged via the guarded lane to `1247d125`,
+   rehearsed immediately from that exact tip, then an unrelated PR (#1340) moved main and changed
+   `scripts/manage-migration-author-lanes.mjs`. The production gate refused on the producer-file
+   pin, re-rehearsing was impossible (`BLOCKED: already applied on production`), and the recovery
+   lane then **succeeded** — run 32402833543 — because the rehearsal commit *was* the authoring
+   merge commit. Production applied as run 32402996954.
+   **So the discriminator is not pre-merge versus post-merge. It is whether anything merged BETWEEN
+   the authoring merge commit and the rehearsal.** `20260819011639` failed because ten producer
+   files changed in between; it may well have been recoverable had it been rehearsed promptly.
+   **Practical rule: rehearse in the same breath as the merge.** Do not pay a supersession — which
+   costs a version and a fresh review round — before trying the lane.
+
+   **The paragraph below is still correct for a
    PRE-merge rehearsal, which is what the lane was built for. Read #1321 before
    relying on it for anything rehearsed after its pull request merged.**
 
