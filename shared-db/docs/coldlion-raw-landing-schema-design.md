@@ -1,5 +1,11 @@
 # Coldlion raw landing layer — grain-by-grain design (DRAFT for the orchestrator)
 
+> ### 🧭 ColdLion front door
+> New to ColdLion, or about to conclude something is broken/unknown? Start at
+> [`coldlion.md`](coldlion.md), and **check
+> [`coldlion-open-questions.md`](coldlion-open-questions.md) before asking ColdLion anything** —
+> twelve questions are already answered there.
+
 **Status:** draft design, no migration written. Requires an orchestrator issue before any
 structural work starts.
 **Author session:** 2026-08-18.

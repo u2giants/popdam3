@@ -8,6 +8,13 @@ ones. This is the single register. **Last reviewed: 2026-08-19.**
 **JamieLynn** (API/data) or **Uma** (division/company codes), **from Albert** — never sent by an AI
 session. Some questions are for **Albert** as owner, not for ColdLion; those are marked.
 
+> ### ⛔ Read §4 (ANSWERED) BEFORE drafting any question.
+> On 2026-08-19 a session measured the two always-zero quantity fields for an afternoon and
+> drafted a question about them. **That question was answered on 2026-08-18 and was already in
+> §4.** The session had read four ColdLion documents; none of them pointed here. Those documents
+> now carry a banner, and [`coldlion.md`](coldlion.md) is the front door. Re-asking an answered
+> question wastes ColdLion's goodwill, which is a finite resource we depend on.
+
 **Rules for this file:**
 - When something is answered, **move it to §4 with the answer and the date** — do not delete it, or
   it gets re-asked.
@@ -42,6 +49,8 @@ column accepts all three and silently triples-counts quantities with no key viol
 | 2.4 | **Does `orderHistory` have a hidden dimension too?** It has no `stageCode`, but nobody has proved its default response is complete. After §1.1, assume nothing. | us first, then JamieLynn | verification doc §8 |
 | 2.5 | **Admit the 66 unmatched ColdLion property codes?** 51 still active. ColdLion has **no expiry flag**, so a blanket admission resurrects lapsed licences. Includes `EX` (THE EXORCIST) and `LB` (THE LOST BOYS). | **Albert (owner decision)** | `coldlion-unmatched-properties-by-licensor-20260731.md`; do **not** re-ask Laura, she already answered |
 | 2.6 | **Do lapsed licences need an expiry/active flag from ColdLion at all?** The absence is the root cause behind 2.5 and behind repeated taxonomy churn. Currently worked around, never asked. | JamieLynn | `merch-group-taxonomy-architecture.md` |
+| 2.7 | **How do we tell two sales-order lines apart?** `orderHistory` has no line number — confirmed against the live spec, 59 fields, none of them a sequence. `(salesOrderNo, itemNo, labelCode, subItemNo)` is unique across 1,671 rows spanning 2019-2026, so the **component** grain is solved. But 28 groups sharing `(salesOrderNo, itemNo, labelCode)` carry genuinely different `linePrice` or `lineQty` — either ColdLion allows two lines of the same item at different prices with no field to distinguish them, or those are duplicate rows. **This is the sales-side twin of the question they solved for production with `prodLineSeq` on 2026-08-17.** | JamieLynn | `plan_coldlion-landing-phases-2-6.md` step 4; measurements in this session's evidence |
+| 2.8 | **The alternatives given for the invoiced/open quantity question are also always zero.** Follow-up to the 2026-08-18 answer in §4 ("not carried at component level; use `unshippedQty` / `linePickQty`"). Measured across 1,671 rows, 8 windows, 2019-2026: `lineInvoiceQty` 0%, `lineOpenQty` 0%, **`linePickQty` 0%, `unshippedQty` 0%, `subQty` 0%**. Only `lineQty` (100%) and `lineCancelledQty` (17.2%) carry signal. So the redirect did not resolve it — where does invoiced and open quantity actually live? | JamieLynn | this session's 1,671-row sample; original answer in §4 |
 
 ## 3. Reported to ColdLion as observations — no answer needed
 

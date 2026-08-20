@@ -1,5 +1,11 @@
 # Coldlion ERP (Edge Home) API — Reference & Sync Map
 
+> ### 🧭 ColdLion front door
+> New to ColdLion, or about to conclude something is broken/unknown? Start at
+> [`coldlion.md`](coldlion.md), and **check
+> [`coldlion-open-questions.md`](coldlion-open-questions.md) before asking ColdLion anything** —
+> twelve questions are already answered there.
+
 **Purpose:** authoritative map of the Coldlion "CLAPIServerEhp" API used to import Edge
 Home ERP data into the shared Supabase backend (`qsllyeztdwjgirsysgai`). Derived from the
 live OpenAPI spec plus real calls made 2026-07-15. **Endpoint map re-verified against the
