@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -328,22 +328,19 @@ test('reviewer replacement rejects a mismatched original assignment',()=>{
   assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence:99},io),/does not match/)
 })
 
-// THE SAME-PROVIDER WRAPAROUND REFUSE. replaceFailedReviewer picks
-// ACTIVE_REVIEWERS[(sequence-1) % N] and REFUSES when that lands on the provider that
-// just failed. It is correct and fail-closed -- retrying a dead provider is worse --
-// but it means a replacement can be unavailable, and the operator needs to know
-// exactly when.
+// THE SAME-PROVIDER WRAPAROUND, NOW SKIPPED (#1297). replaceFailedReviewer starts at
+// ACTIVE_REVIEWERS[(sequence-1) % N] but SKIPS any provider that already failed on
+// this exact head, advancing the durable cursor past it. It used to REFUSE instead,
+// which stranded a failed review with no replacement at all after N-1 assignments,
+// for ANY N -- and after the #1290 roster change that was TWO intervening
+// assignments, the natural rest point of a three-name parallel dispatch (Grok takes
+// a PR and holds ai-grok-review's per-repo in-flight lock, GLM the next, Muse the
+// third, cursor on a multiple of three).
 //
-// It fires after N-1 assignments since the failure, for ANY N. Going from the
-// two-name roster to the three-name roster in #1290 moved that from ONE intervening
-// assignment to TWO. It did NOT remove it. An earlier version of this test asserted
-// `ACTIVE_REVIEWERS.length % 2 !== 0` as though odd length were the fix; a review
-// showed that is a false invariant, and it is deliberately not asserted here.
-//
-// Two intervening assignments is not an exotic case: it is the natural rest point of a
-// three-name parallel dispatch. Grok takes a PR (and holds ai-grok-review's per-repo
-// in-flight lock), GLM takes the next, Muse takes the third, and the cursor sits on a
-// multiple of three. Both halves are pinned below, with the exact successor named.
+// Roster length was never the fix. An earlier version of this test asserted
+// `ACTIVE_REVIEWERS.length % 2 !== 0` as though odd length were; a review showed that
+// is a false invariant, and it is deliberately not asserted here. Both halves are
+// pinned below, with the exact successor named in each case.
 test('one intervening assignment gives a failed reviewer a named replacement',()=>{
   assert.equal(ACTIVE_REVIEWERS.length,3,'this test describes the three-reviewer rotation')
   const io=failedReviewIo()
@@ -352,12 +349,48 @@ test('one intervening assignment gives a failed reviewer a named replacement',()
   assert.equal(replacement.reviewer,'muse-spark-1.2-contributor')
 })
 
-test('N-1 intervening assignments still strand a replacement on the failed provider',()=>{
+test('N-1 intervening assignments skip the failed provider instead of stranding the replacement',()=>{
+  assert.equal(ACTIVE_REVIEWERS.length,3,'this test describes the three-reviewer rotation')
   const io=failedReviewIo()
   for(let n=0;n<ACTIVE_REVIEWERS.length-1;n+=1){
     assignNextReviewer({issue:20+n,pr:120+n,headSha:`abcde${n}f`},io)
   }
-  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/same failed provider/)
+  // The cursor now sits on a multiple of three, so the plain modulo would compute
+  // back to grok-4.6 -- the provider that just failed. The selection skips it and
+  // advances the durable cursor one extra step to the next active name.
+  const cursorBefore=parseReviewCursor(io.getCommit(io.refs.get(REVIEW_CURSOR_REF)))
+  const replacement=replaceFailedReviewer(replacementRequest,io)
+  assert.equal(replacement.reviewer,'glm-5.3')
+  assert.equal(replacement.sequence,cursorBefore.sequence+2)
+  assert.equal(parseReviewCursor(io.getCommit(io.refs.get(REVIEW_CURSOR_REF))).sequence,replacement.sequence)
+  // Governed guarantees survive the skip: the retry is byte-identical.
+  assert.deepEqual(replaceFailedReviewer(replacementRequest,io),replacement)
+})
+
+test('a chained replacement skips TWO already-failed providers to reach the last name',()=>{
+  const io=failedReviewIo()
+  for(let n=0;n<ACTIVE_REVIEWERS.length-1;n+=1){
+    assignNextReviewer({issue:30+n,pr:130+n,headSha:`abcdf${n}f`},io)
+  }
+  // grok-4.6 failed, then its replacement glm-5.3 fails too. The rotation position
+  // computes back to grok-4.6, so selection must skip BOTH names (offset 2) to land
+  // on muse-spark-1.2-contributor. This is the deepest skip the roster allows.
+  const first=replaceFailedReviewer(replacementRequest,io)
+  assert.equal(first.reviewer,'glm-5.3')
+  assignNextReviewer({issue:40,pr:140,headSha:'abcdf9f'},io)
+  const cursorBefore=parseReviewCursor(io.getCommit(io.refs.get(REVIEW_CURSOR_REF)))
+  const second=replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io)
+  assert.equal(second.reviewer,'muse-spark-1.2-contributor')
+  assert.equal(second.sequence,cursorBefore.sequence+3)
+  assert.deepEqual(replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io),second)
+})
+
+test('replacement refuses only when every other active reviewer already failed on this head',()=>{
+  const io=failedReviewIo()
+  const first=replaceFailedReviewer(replacementRequest,io)
+  const second=replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io)
+  assert.notEqual(first.reviewer,second.reviewer)
+  assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence:second.sequence},io),/no other active reviewer/)
 })
 
 test('reviewer replacement rejects a substantive exact-head verdict',()=>{

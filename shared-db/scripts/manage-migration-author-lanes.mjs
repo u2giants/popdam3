@@ -93,20 +93,18 @@ export const REVIEWERS = Object.freeze([
 //
 // WHAT THREE NAMES DOES AND DOES NOT FIX. An earlier draft of this block claimed an
 // odd-length rotation removes the `replaceFailedReviewer` same-provider trap. THAT
-// CLAIM WAS FALSE and a review caught it (#1290 review, High). The refuse below --
-// `next durable reviewer is the same failed provider` -- fires whenever there have
-// been N-1 assignments since the failure, for ANY N. Going from two names to three
-// only moves the collision from ONE intervening assignment to TWO. Two is exactly
-// the natural rest point of a three-name parallel dispatch: Grok takes a PR, GLM
-// takes the next, Muse takes the third, the cursor lands on a multiple of three, and
-// a Grok failure then computes back to Grok and is refused.
+// CLAIM WAS FALSE and a review caught it (#1290 review, High). The old refuse --
+// `next durable reviewer is the same failed provider` -- fired whenever there had
+// been N-1 assignments since the failure, for ANY N, so three names only moved the
+// collision from ONE intervening assignment to TWO. Do not re-add an odd-length
+// safety claim here; roster length was never the fix.
 //
-// So a third name genuinely buys CAPACITY -- three reviews can be in flight, and for
-// most of 2026-08-19 the rotation was effectively Grok alone because ai-grok-review
-// holds a per-REPOSITORY in-flight lock. It does NOT buy freedom from the wraparound
-// refuse. The real fix is to SKIP the failed provider when selecting a replacement,
-// which is a change to a governed fail-closed function and is tracked separately.
-// Do not re-add an odd-length safety claim here.
+// The actual fix landed in #1297: `replaceFailedReviewer` now SKIPS every provider
+// that already failed on the exact head and advances the cursor past it, refusing
+// only when no other active reviewer is left. Roster length therefore buys CAPACITY
+// -- three reviews in flight, and for most of 2026-08-19 the rotation was
+// effectively Grok alone because ai-grok-review holds a per-REPOSITORY in-flight
+// lock -- and nothing else.
 //
 // Capacity is worth having on its own terms: twice on 2026-08-19 a second reviewer
 // overturned the first's conclusion, once by refuting an author's design rationale
@@ -754,8 +752,23 @@ export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCo
       return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))
     }))throw new LaneError('an existing verdict for the exact head forbids reviewer replacement')
     const failureSha=io.makeOwnerCommit(`db-coordination reviewer-failure issue=${request.issue} pr=${request.pr} head=${request.headSha} sequence=${request.failedSequence} reviewer=${original.reviewer} code=${failureCode} verdict=none artifact=none`)
-    const sequence=cursor.sequence+1, reviewer=ACTIVE_REVIEWERS[(sequence-1)%ACTIVE_REVIEWERS.length]
-    if(reviewer.name===original.reviewer)throw new LaneError('next durable reviewer is the same failed provider; replacement refuses to retry it')
+    // SKIP, DO NOT REFUSE (#1297). The rotation position is only a starting point.
+    // Every provider that already failed on THIS exact head is excluded, and the
+    // cursor is advanced past each excluded name so the durable sequence still
+    // moves forward monotonically and stays consistent with the sequence this
+    // replacement allocates. (Byte-identical retries come from the create-only
+    // replacement ref read above, not from this advancement.)
+    // Refuse only when no other active reviewer is left.
+    const bySequence=new Map([[initial.sequence,initial.reviewer],...parsedReplacements.map((row)=>[row.sequence,row.reviewer])])
+    const failedNames=new Set([original.reviewer])
+    for(const row of parsedReplacements){const name=bySequence.get(row.failedSequence);if(name)failedNames.add(name)}
+    let sequence=null, reviewer=null
+    for(let offset=0;offset<ACTIVE_REVIEWERS.length;offset+=1){
+      const candidateSequence=cursor.sequence+1+offset, candidate=ACTIVE_REVIEWERS[(candidateSequence-1)%ACTIVE_REVIEWERS.length]
+      if(failedNames.has(candidate.name))continue
+      sequence=candidateSequence;reviewer=candidate;break
+    }
+    if(!reviewer)throw new LaneError('no other active reviewer is available; every active provider has already failed on this exact head')
     const cursorReplacementSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
     const replacementSha=io.makeOwnerCommit(`db-coordination reviewer-replacement sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha} failed-sequence=${request.failedSequence} prior-sequence=${cursor.sequence} failure-ref=${failureSha}`)
     let failureCreated=false, cursorUpdated=false
