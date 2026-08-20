@@ -53,10 +53,8 @@ column accepts all three and silently triples-counts quantities with no key viol
 | # | Question | For | Evidence | Sent / awaiting reply since |
 |---|---|---|---|---|
 | 2.2 | **~12–16% of component rows have `ppkMerchGroup*` blank**, after the assortment-vs-component split is accounted for. Expected, or worth a look? | JamieLynn | shape §5.7, rules §6 | Sent — in the email JamieLynn answered on 08-18/08-19; this part was not addressed. **Re-sent in the 2026-08-20 email.** |
-| 2.3 | **How far back does the history go?** June 2019 returns data; no earlier boundary searched. Answering it sizes the one-time load instead of us scanning backwards. | JamieLynn | shape §7 | **Not sent.** Never put to ColdLion. |
 | 2.4 | **Does `orderHistory` have a hidden dimension too?** It has no `stageCode`, but nobody has proved its default response is complete. After §1.1, assume nothing. | us first, then JamieLynn | verification doc §8 | **Not sent — ours to answer first.** Prove it ourselves before asking. |
-| 2.5 | **Admit the 66 unmatched ColdLion property codes?** 51 still active. ColdLion has **no expiry flag**, so a blanket admission resurrects lapsed licences. Includes `EX` (THE EXORCIST) and `LB` (THE LOST BOYS). | **Albert (owner decision)** | `coldlion-unmatched-properties-by-licensor-20260731.md`; do **not** re-ask Laura, she already answered | **Not a ColdLion question.** Owner decision, with Albert. Do not re-ask Laura. |
-| 2.6 | **Do lapsed licences need an expiry/active flag from ColdLion at all?** The absence is the root cause behind 2.5 and behind repeated taxonomy churn. Currently worked around, never asked. | JamieLynn | `merch-group-taxonomy-architecture.md` | **Not sent.** Never put to ColdLion. |
+| 2.6 | **Do lapsed licences need an expiry/active flag from ColdLion at all?** The absence is the root cause behind 2.5 and behind repeated taxonomy churn. Currently worked around, never asked. | JamieLynn | `merch-group-taxonomy-architecture.md` | **SENT by Albert — no reply ever received.** Date not recorded. An earlier version of this file wrongly said "never sent"; that was this session guessing. **Re-sent in the 2026-08-20 email.** |
 | 2.7 | **How do we tell two sales-order lines apart?** `orderHistory` has no line number — confirmed against the live spec, 59 fields, none of them a sequence. `(salesOrderNo, itemNo, labelCode, subItemNo)` is unique across 1,671 rows spanning 2019-2026, so the **component** grain is solved. But 28 groups sharing `(salesOrderNo, itemNo, labelCode)` carry genuinely different `linePrice` or `lineQty` — either ColdLion allows two lines of the same item at different prices with no field to distinguish them, or those are duplicate rows. **This is the sales-side twin of the question they solved for production with `prodLineSeq` on 2026-08-17.** | JamieLynn | `plan_coldlion-landing-phases-2-6.md` step 4; measurements in this session's evidence | **In the 2026-08-20 email.** Awaiting reply. |
 | 2.8 | **The alternatives given for the invoiced/open quantity question are also always zero.** Follow-up to the 2026-08-18 answer in §4 ("not carried at component level; use `unshippedQty` / `linePickQty`"). Measured across 1,671 rows, 8 windows, 2019-2026: `lineInvoiceQty` 0%, `lineOpenQty` 0%, **`linePickQty` 0%, `unshippedQty` 0%, `subQty` 0%**. Only `lineQty` (100%) and `lineCancelledQty` (17.2%) carry signal. So the redirect did not resolve it — where does invoiced and open quantity actually live? | JamieLynn | this session's 1,671-row sample; original answer in §4 | **In the 2026-08-20 email.** Awaiting reply. |
 | 2.9 | **Could fixed value-lists go into Swagger?** Prompted by the `stageCode` list: a stage we do not know about is one we would never request and never notice was missing. Applies to any field with a fixed set of valid values. Convenience, not a blocker. | JamieLynn | §4 stageCode answer | **In the 2026-08-20 email.** Awaiting reply. |
@@ -81,11 +79,26 @@ column accepts all three and silently triples-counts quantities with no key viol
 | What are the valid `stageCode` values? | **Exactly three: `ISS`, `INTRAN`, `REC`.** All verified to carry rows | JamieLynn, 2026-08-19 · verified, rules §4 |
 | The 10 recent unlinked AMA030 lines | **AMA030 is Amazon.** Amazon orders are stock for their warehouse, not presold, so they have no customer PO. Verified 10 of 10 unlinked | JamieLynn, 2026-08-19 · verified, rules §8 |
 | Why do older lines have `salesOrderNo = 0`? | Hard-linking POs to production orders began ~**2022–2023**; `custPONumber` was manual before, and drops off entirely on `INTRAN`/`REC` | JamieLynn, 2026-08-18 · verified, rules §4–5 |
+| **How far back does the history go?** | **2019-01-01.** History starts there; that is the load boundary. Albert has stated this repeatedly and it was already locked as D9 of `plan_coldlion-landing-phases-2-6.md` — the register simply failed to record it, and listed it as open. **Not a ColdLion question and never was.** | **Albert, restated 2026-08-20** |
+| **Admit the 66 unmatched ColdLion property codes?** | **YES — admit all 66.** Paired with a requirement: the **DB Data Admin** application (`data.designflow.app`) gets a control to mark a property inactive **on our side**, since ColdLion has no expiry flag and never will. Admitting without that control is what everyone was afraid of. See §5 | **Albert, 2026-08-20** |
 | Is `1900-01-01` the empty-date marker? | Yes | Albert, 2026-08-14 |
 | Division/company code meanings | Answered in two rounds | Uma, 2026-08-13 and 2026-08-17 · `division-code-*.md` |
 | Was `/vendors` the wrong table? | Yes — ColdLion swapped it to the factory table; 97 rows, all active | ColdLion, 2026-07-22 |
 
 ## 5. Not questions — owner rulings that keep getting re-litigated
+
+- **The 66 unmatched ColdLion property codes ARE admitted (Albert, 2026-08-20).** All 66, including
+  the 51 still marked active in ColdLion. The long-standing objection — that ColdLion has no licence
+  expiry flag, so admitting them resurrects lapsed licences such as `EX` (THE EXORCIST) and `LB`
+  (THE LOST BOYS) — is answered by owning the flag ourselves rather than by refusing the rows.
+  **The paired requirement is not optional:** the **DB Data Admin** application (`data.designflow.app`) must gain a control to set a
+  property inactive on our side. `core.property.status` already supports it — it is an
+  `entity_status` enum accepting `active, inactive, archived, deleted, potential`, and all 256 live
+  rows are currently `active` (verified read-only against production 2026-08-20). **So this needs no
+  schema change**, only the UI control and whatever guard decides who may flip it. Do not queue it as
+  structural database work.
+- **History depth is 2019-01-01.** Settled repeatedly by Albert, most recently 2026-08-20. It is D9
+  of the landing plan. Stop listing it as an open question.
 
 - **Do NOT ask Albert to rotate the ColdLion API key.** He does not administer ColdLion. Ruling
   2026-08-09; the exposure remains a recorded fact. See `coldlion-erp-api-reference.md`.
