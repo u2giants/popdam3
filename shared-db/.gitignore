@@ -30,6 +30,18 @@ __pycache__/
 *.pyc
 .ai-review*.txt
 
+# Delegate-model review EVIDENCE PACKETS (ai-grok-review, ai-glm, ai-muse, ai-qwen).
+# The wrappers build this directory in the working tree to hand the reviewer the
+# change under review. It is session scratch and must never be committable.
+#
+# This was previously ignored ONLY by `.git/info/exclude`, which is machine-local
+# and is not part of the repository, so a fresh clone or any other machine would
+# have offered the packet as an untracked commit candidate. The line below is
+# NOT redundant with `.ai-review*.txt` above: that pattern matches a FILE named
+# `.ai-review<something>.txt`, and the packet is a DIRECTORY containing
+# MANIFEST.md and patch.diff.
+.ai-review/
+
 # Delegate-model review reports (ai-glm, ai-grok-review, ai-deepseek-agent).
 # The wrappers refuse to write a report unless this path is ignored, because a
 # review is session scratch and must never be committable.
