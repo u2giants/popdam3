@@ -302,10 +302,10 @@ objects listed, dispatched to a sub-agent in an isolated worktree as usual.
 
 **No → it has exactly two exits, and `accept` is never one of them.**
 
-- **REJECT** — the work belongs to another session and must leave this queue.
-  `application-data`, `source-data` and `curated-master-data`. Comment on the issue naming the
-  owning session, and close it. (Curated Master Data keeps its own governance under §6.4 — it is
-  rejected *from the migration-author queue*, not waved through.)
+- **REJECT** — the work belongs to another repository and must leave this queue. `application-data`,
+  `source-data` and `curated-master-data`. **Rejection FORWARDS the task; it never merely closes
+  it** — see "A reject is a forward" below. (Curated Master Data keeps its own governance under
+  §6.4 — it is rejected *from the migration-author queue*, not waved through.)
 - **FORK** — genuinely this repo's work, but not shape work: CI guards, migration tooling, scripts,
   docs, audits, incident write-ups (`repo-maintenance`, `documentation`, `security-settings`).
   Hand it to a **fresh session with an empty context window** — a worktree sub-agent, exactly as a
@@ -314,6 +314,30 @@ objects listed, dispatched to a sub-agent in an isolated worktree as usual.
 
 There is no third exit and no size exemption. "It is only a one-line doc fix" is precisely how an
 orchestrator context fills up.
+
+### A reject is a forward, not a closed door
+
+A closed issue is not a delivered task. The session that filed it has almost always ended by the
+time it is triaged, so a closing comment is read by nobody and the work is simply lost. Rejection
+therefore moves the task to the repository that owns it:
+
+1. **Every non-structural issue whose exit is REJECT carries a `return_to:` line** in its
+   `db-work-scope` block — the owning repository as an `owner/repo` slug. A malformed slug is a
+   hard parse error. A **missing** one is reported by `--queue-audit` as `NO RETURN ADDRESS` and
+   makes the audit exit `2`, so an unaddressed reject cannot sit quietly.
+2. **Return it with the guarded command**, never by hand:
+
+       node scripts/manage-migration-author-lanes.mjs --return-issue <n>
+
+   It files the full issue body in the owning repository **first**, then comments the new issue's
+   URL here, then closes this one. **That order is the safety property** — any failure at any step
+   leaves the issue here open and untouched, so a task can never vanish between the two repos. The
+   closing comment always carries a live link, and a second return is refused.
+3. **Only the return path may close a rejected issue.** Closing one by hand, without a
+   `RETURNED TO <url>` comment, is the exact failure this section exists to prevent.
+
+FORK items are never lost either — they stay open, dispatched to a fresh sub-agent like any other
+work, and remain in the audit until that work is done.
 
 ### What the orchestrator's own window is for
 
@@ -327,6 +351,9 @@ block listing every open issue that fails the shape test, each stamped `REJECT` 
 `[blocked on owner decision]` where the route is `owner-only`. These items previously sat silently
 in `skipped` and accumulated. The block is a worklist, not a failure — it does not change the exit
 code — but an orchestrator that leaves items standing in it is carrying other people's work.
+
+The block prints **before** the refill line, not after it, so a queue that has dispatchable work
+cannot hide it — that ordering is deliberate.
 
 An issue with **no** `db-work-scope` block at all is `unclassified`: it is not admitted, it is not
 worked, and it already blocks an empty-lane claim. Classify it or send it back.

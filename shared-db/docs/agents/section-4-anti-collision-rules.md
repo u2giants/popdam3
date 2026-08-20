@@ -54,6 +54,28 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    lane, and it must name every exact database object. Non-structural work must
    not claim database objects.
 
+   **Work whose exit is REJECT — `application-data`, `source-data`,
+   `curated-master-data` — must also carry a `return_to:` line naming the owning
+   repository as an `owner/repo` slug** (AGENTS.md §0.0-C):
+
+   ````text
+   ```db-work-scope
+   status: ready
+   work_type: application-data
+   route: application-session
+   return_to: u2giants/popdam3
+   priority: 40
+   depends_on:
+   ````
+   ```
+
+   A malformed slug is a hard parse error; a missing one is reported as
+   `NO RETURN ADDRESS` and makes `--queue-audit` exit `2`. Return the issue with
+   `node scripts/manage-migration-author-lanes.mjs --return-issue <n>`, which
+   files it in the owning repository first and only then closes it here. Never
+   close a rejected issue by hand. `return_to` is forbidden on structural work,
+   which stays here.
+
    Outside-sourced writes into curated `core.*` Master Data use
    `work_type: curated-master-data` and
    `route: curated-master-data-governance`. This preserves §6.4 governance but

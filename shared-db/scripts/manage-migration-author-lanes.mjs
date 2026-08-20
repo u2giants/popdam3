@@ -157,6 +157,17 @@ export const NON_STRUCTURAL_EXITS = Object.freeze({
   'security-settings': 'fork',
 })
 
+// A REJECT exit must MOVE the task, never merely decline it. `return_to` is the
+// forwarding address: the repository whose session owns the work. Rejecting
+// without one closes the issue into silence, because the session that filed it
+// has usually already ended and nobody reads the notification.
+export const RETURN_ADDRESS_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
+export const RETURNED_MARKER = 'RETURNED TO'
+
+export function requiresReturnAddress(workType) {
+  return NON_STRUCTURAL_EXITS[workType] === 'reject'
+}
+
 export function queueExit(workType) {
   if (workType === 'structural') return 'accept'
   const exit = NON_STRUCTURAL_EXITS[workType]
@@ -196,7 +207,13 @@ export function parseQueueScope(body = '') {
   if (workType === 'structural' && !objects.length) throw new LaneError('structural db-work-scope must list exact objects')
   if (workType !== 'structural' && objects.length) throw new LaneError(`${workType} db-work-scope must not claim database objects`)
   if (route === 'owner-only' && status !== 'owner-decision') throw new LaneError('owner-only route requires status owner-decision')
-  return { status, workType, route, priority, dependencies, objects: objects.length ? validateClaimObjects(objects) : [] }
+  // Present-but-malformed is a hard error; absent is reported by the audit as a
+  // missing return address rather than thrown, so one unaddressed issue cannot
+  // make every other open issue unauditable.
+  const returnTo = fields.get('return_to') ?? null
+  if (returnTo !== null && !RETURN_ADDRESS_PATTERN.test(returnTo)) throw new LaneError('db-work-scope return_to must be an owner/repo slug')
+  if (returnTo !== null && workType === 'structural') throw new LaneError('structural db-work-scope must not carry a return_to address')
+  return { status, workType, route, priority, dependencies, returnTo, objects: objects.length ? validateClaimObjects(objects) : [] }
 }
 
 export const COORDINATION_LABELS = new Set(['db-claim','orchestrator-marker'])
@@ -227,6 +244,8 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
         route: scope.route,
         exit: queueExit(scope.workType),
         blockedOnOwner: scope.route === 'owner-only',
+        returnTo: scope.returnTo,
+        needsReturnAddress: requiresReturnAddress(scope.workType) && !scope.returnTo,
       })
     }
     if (scope.status !== 'ready') { skipped.push({ issue:issue.number, reason:`status:${scope.status}`, workType:scope.workType, route:scope.route }); continue }
@@ -255,6 +274,44 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
   const emptyLanes = queues.filter((q)=>!q.active).length
   const dispatchable = queues.filter((q)=>!q.active && q.queued.length).map((q)=>q.queued[0])
   return { queues, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length }
+}
+
+// RETURN PATH (AGENTS.md 0.0-C). A rejected task is forwarded to the repository
+// that owns it and only then closed here, so the closing comment always carries
+// a live link to where the work actually went. Order is the whole safety
+// property: the mirror issue is created FIRST, and any failure leaves this issue
+// open and untouched. Never reorder these three steps.
+export function returnIssueToOwner(number, io, { alreadyReturned } = {}) {
+  const issue = io.getIssue(number)
+  if (!issue) throw new LaneError(`issue #${number} could not be read`)
+  if (issue.state && String(issue.state).toLowerCase() === 'closed') throw new LaneError(`issue #${number} is already closed`)
+  const scope = parseQueueScope(issue.body)
+  if (!scope) throw new LaneError(`issue #${number} carries no db-work-scope block, so its owner is unknown`)
+  if (queueExit(scope.workType) !== 'reject') throw new LaneError(`issue #${number} is ${scope.workType} work, which exits by fork, not by return`)
+  if (!scope.returnTo) throw new LaneError(`issue #${number} has no return_to address; add one before returning it`)
+  const priorComments = alreadyReturned ?? io.getIssueComments(number).map((comment)=>comment.body ?? '')
+  const prior = priorComments.find((body)=>body.includes(RETURNED_MARKER))
+  if (prior) throw new LaneError(`issue #${number} was already returned: ${prior.trim()}`)
+
+  const body = [
+    `Returned from ${REPO}#${number} by the shared-db orchestrator.`,
+    '',
+    `This is **${scope.workType}** work. Under the shared-db admission test (AGENTS.md 0.0-C) it changes the CONTENTS of the shared database, not its SHAPE, so the session working in this repository owns it outright — no shared-db issue, no dispatch, no migration.`,
+    '',
+    `Original issue: https://github.com/${REPO}/issues/${number}`,
+    '',
+    '---',
+    '',
+    issue.body ?? '',
+  ].join('\n')
+  const url = io.createIssueIn(scope.returnTo, issue.title, body)
+  if (!url) throw new LaneError('the owning repository did not return an issue URL; nothing was closed here')
+
+  io.commentIssue(number, `${RETURNED_MARKER} ${url}
+
+This is ${scope.workType} work and belongs to ${scope.returnTo} (AGENTS.md 0.0-C). It has been filed there and is closed here. It is not abandoned — follow the link.`)
+  io.closeIssue(number)
+  return { issue: number, returnedTo: scope.returnTo, url, workType: scope.workType }
 }
 
 export class LaneError extends Error {}
@@ -461,6 +518,9 @@ export const githubIo = {
   updateRef(ref, sha) { gh(['api','-X','PATCH',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`,'-f',`sha=${sha}`,'-F','force=true']) },
   reserveVersion() { return JSON.parse(execFileSync(process.execPath, ['scripts/check-dispatch-collision.mjs', '--reserve-version', '--json'], { encoding: 'utf8' })) },
   createClaim(title, body) { return gh(['issue', 'create', '--repo', REPO, '--label', 'db-claim', '--title', `CLAIM: ${title}`, '--body', body]).trim() },
+  createIssueIn(repo, title, body) { return gh(['issue','create','--repo',repo,'--title',title,'--body',body]).trim() },
+  commentIssue(number, body) { gh(['issue','comment',String(number),'--repo',REPO,'--body',body]) },
+  closeIssue(number) { gh(['issue','close',String(number),'--repo',REPO]) },
   closeClaim(number) { gh(['issue', 'close', String(number), '--repo', REPO, '--comment', 'Expired migration-author lease closed by guarded cleanup. Its migration version remains unavailable.']) },
   reversionFiles(worktree,oldVersion) {
     let referenced=[]
@@ -1204,6 +1264,7 @@ function parseArgs(argv) {
     if (a === '--claim') out.claim = true
     else if (a === '--audit') out.audit = true
     else if (a === '--queue-audit') out.queueAudit = true
+    else if (a === '--return-issue') out.returnIssue = Number(argv[++i])
     else if (a === '--assign-reviewer') out.assignReviewer = true
     else if (a === '--replace-failed-reviewer') out.replaceFailedReviewer = true
     else if (a === '--reviewer-preflight') out.reviewerPreflight = true
@@ -1245,23 +1306,29 @@ export function main(argv, now = new Date(), io = githubIo) {
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }
     const claims = io.openClaims()
     if(o.assignReviewer){console.log(JSON.stringify(assignNextReviewer({issue:o.issue,pr:o.pr,headSha:o.headSha},io),null,2));return 0}
+    if (o.returnIssue) { console.log(JSON.stringify(returnIssueToOwner(o.returnIssue, io), null, 2)); return 0 }
     if (o.queueAudit) {
       const result = buildDynamicQueues(io.openWorkIssues(), claims, now, io.openIssueNumbers())
       console.log(JSON.stringify(result,null,2))
-      if (result.dispatchable.length) { console.error(`REFILL REQUIRED NOW: dispatch issue(s) ${result.dispatchable.map((n)=>`#${n}`).join(', ')}`); return 2 }
-      // Reported as a standing worklist, not a failure: these issues are real
-      // work that simply is not the orchestrator's to do in its own window.
-      // Exit code is unchanged so a healthy audit still returns 0.
+      // Printed BEFORE the refill early-return: a queue with any dispatchable
+      // work would otherwise hide this list entirely, which is exactly how these
+      // items accumulated unseen in the first place.
       if (result.notOrchestratorWork.length) {
         console.error('NOT ORCHESTRATOR WORK: these open issues fail the shape test (AGENTS.md 0.0-C). Reject or fork each one; never work it here.')
         for (const item of result.notOrchestratorWork) {
           const owner = item.blockedOnOwner ? ' [blocked on owner decision]' : ''
-          console.error(`  #${item.issue} ${item.exit.toUpperCase()} — work_type ${item.workType}, route ${item.route}${owner}`)
+          const address = item.exit === 'reject'
+            ? (item.returnTo ? ` -> ${item.returnTo}` : ' -> NO RETURN ADDRESS: add `return_to: owner/repo` before returning it')
+            : ''
+          console.error(`  #${item.issue} ${item.exit.toUpperCase()} — work_type ${item.workType}, route ${item.route}${owner}${address}`)
         }
+        const unaddressed = result.notOrchestratorWork.filter((item)=>item.needsReturnAddress)
+        if (unaddressed.length) console.error(`NO RETURN ADDRESS on ${unaddressed.map((item)=>`#${item.issue}`).join(', ')} — a reject with no forwarding address closes into silence. Return each with --return-issue <n> once addressed.`)
       }
+      if (result.dispatchable.length) { console.error(`REFILL REQUIRED NOW: dispatch issue(s) ${result.dispatchable.map((n)=>`#${n}`).join(', ')}`); return 2 }
       if (result.unlabelled.length) console.error(`UNLABELLED ISSUES: add the \`${WORK_LABEL}\` label to ${result.unlabelled.map((n)=>`#${n}`).join(', ')} — an unlabelled issue is invisible to every label-filtered query`)
       if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify and label every open issue before claiming no eligible work exists'); return 2 }
-      return result.malformed.length || result.unlabelled.length ? 2 : 0
+      return result.malformed.length || result.unlabelled.length || result.notOrchestratorWork.some((item)=>item.needsReturnAddress) ? 2 : 0
     }
     if (o.releaseClaim) {
       if (!o.confirmFinished || !o.owner) throw new LaneError('--release-claim requires exact --owner and --confirm-finished')
@@ -1289,7 +1356,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       for(const problem of malformed)console.error(`MALFORMED ${problem}`)
       return malformed.length || occupied>MAX_AUTHOR_LANES ? 2 : 0
     }
-    if (!o.claim) throw new LaneError('choose --claim, --audit, --queue-audit, --cleanup-stale, or an exclusive-lane command')
+    if (!o.claim) throw new LaneError('choose --claim, --audit, --queue-audit, --return-issue, --cleanup-stale, or an exclusive-lane command')
     for (const k of ['task','owner','branch','worktree']) if (!o[k]) throw new LaneError(`--${k} is required`)
     if (!o.objects.length) throw new LaneError('--objects must name every database object exactly')
     o.leaseHours ??= DEFAULT_LEASE_HOURS

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -73,7 +73,7 @@ const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody
 const scope = (status, workType, route, priority, objects=[], depends='') => `\`\`\`db-work-scope\nstatus: ${status}\nwork_type: ${workType}\nroute: ${route}\npriority: ${priority}\ndepends_on: ${depends}\nobjects:\n${objects.map((x)=>`  - ${x}`).join('\n')}\n\`\`\``
 
 test('queue scope keeps status, work type, and route separate',()=>{
-  assert.deepEqual(parseQueueScope(scope('ready','structural','shared-db-orchestrator',9,['table core.a'],'#12, 13')), {status:'ready',workType:'structural',route:'shared-db-orchestrator',priority:9,dependencies:[12,13],objects:['table core.a']})
+  assert.deepEqual(parseQueueScope(scope('ready','structural','shared-db-orchestrator',9,['table core.a'],'#12, 13')), {status:'ready',workType:'structural',route:'shared-db-orchestrator',priority:9,dependencies:[12,13],returnTo:null,objects:['table core.a']})
   assert.throws(()=>parseQueueScope(scope('ready','structural','shared-db-orchestrator',1)),/must list exact objects/)
   assert.throws(()=>parseQueueScope(scope('waiting','structural','shared-db-orchestrator',1,['table core.a'])),/status must be/)
   assert.throws(()=>parseQueueScope(scope('ready','source-data','shared-db-orchestrator',1)),/not valid/)
@@ -149,6 +149,59 @@ test('a non-structural issue parked at blocked is still reported rather than sil
   const result=buildDynamicQueues([{number:54,title:'parked',body:scope('blocked','documentation','repo-maintenance',5)}],[],NOW)
   assert.deepEqual(result.notOrchestratorWork.map((x)=>x.exit),['fork'])
   assert.deepEqual(result.dispatchable,[])
+})
+
+test('a reject exit without a return address is reported and fails the audit',()=>{
+  const noAddress=scope('ready','application-data','application-session',6)
+  const addressed=noAddress.replace('route: application-session','route: application-session\nreturn_to: u2giants/popdam3')
+  assert.equal(requiresReturnAddress('application-data'),true)
+  assert.equal(requiresReturnAddress('repo-maintenance'),false)
+  const result=buildDynamicQueues([{number:60,title:'rows',body:noAddress},{number:61,title:'rows',body:addressed}],[],NOW)
+  const [missing,present]=result.notOrchestratorWork
+  assert.equal(missing.needsReturnAddress,true)
+  assert.equal(missing.returnTo,null)
+  assert.equal(present.needsReturnAddress,false)
+  assert.equal(present.returnTo,'u2giants/popdam3')
+})
+
+test('return_to is validated when present and never allowed on structural work',()=>{
+  assert.throws(()=>parseQueueScope(scope('ready','application-data','application-session',1).replace('route: application-session','route: application-session\nreturn_to: not a repo')),/owner\/repo slug/)
+  assert.throws(()=>parseQueueScope(scope('ready','structural','shared-db-orchestrator',1,['table core.a']).replace('priority: 1','return_to: u2giants/popdam3\npriority: 1')),/must not carry a return_to/)
+})
+
+test('returning a rejected issue files it in the owning repo BEFORE closing it here',()=>{
+  const calls=[]
+  const io={
+    getIssue:()=>({number:70,title:'PopDAM rows are wrong',body:scope('ready','application-data','application-session',6).replace('route: application-session','route: application-session\nreturn_to: u2giants/popdam3'),state:'open'}),
+    getIssueComments:()=>[],
+    createIssueIn:(repo,title,body)=>{calls.push(['create',repo,title]);assert.match(body,/Original issue/);return 'https://github.com/u2giants/popdam3/issues/9'},
+    commentIssue:(n,b)=>{calls.push(['comment',n,b]);assert.ok(b.includes(RETURNED_MARKER))},
+    closeIssue:(n)=>calls.push(['close',n]),
+  }
+  const result=returnIssueToOwner(70,io)
+  assert.equal(result.url,'https://github.com/u2giants/popdam3/issues/9')
+  assert.deepEqual(calls.map((c)=>c[0]),['create','comment','close'])
+})
+
+test('a failed mirror creation leaves the rejected issue open and untouched',()=>{
+  const calls=[]
+  const base={
+    getIssue:()=>({number:71,title:'t',body:scope('ready','application-data','application-session',6).replace('route: application-session','route: application-session\nreturn_to: u2giants/popdam3'),state:'open'}),
+    getIssueComments:()=>[],
+    commentIssue:(n)=>calls.push(['comment',n]),
+    closeIssue:(n)=>calls.push(['close',n]),
+  }
+  assert.throws(()=>returnIssueToOwner(71,{...base,createIssueIn:()=>{throw new Error('gh failed')}}),/gh failed/)
+  assert.throws(()=>returnIssueToOwner(71,{...base,createIssueIn:()=>''}),/did not return an issue URL/)
+  assert.deepEqual(calls,[])
+})
+
+test('return refuses fork work, a missing address, and a second return',()=>{
+  const io=(body,comments=[])=>({getIssue:()=>({number:72,title:'t',body,state:'open'}),getIssueComments:()=>comments,createIssueIn:()=>{throw new Error('must not be called')},commentIssue:()=>{},closeIssue:()=>{}})
+  assert.throws(()=>returnIssueToOwner(72,io(scope('ready','repo-maintenance','repo-maintenance',5))),/exits by fork/)
+  assert.throws(()=>returnIssueToOwner(72,io(scope('ready','application-data','application-session',5))),/no return_to address/)
+  const addressed=scope('ready','application-data','application-session',5).replace('route: application-session','route: application-session\nreturn_to: u2giants/popdam3')
+  assert.throws(()=>returnIssueToOwner(72,io(addressed,[{body:`${RETURNED_MARKER} https://github.com/u2giants/popdam3/issues/9`}])),/already returned/)
 })
 
 test('dependency on an open non-db-work issue prevents dispatch',()=>{
