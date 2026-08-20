@@ -142,6 +142,28 @@ const ROUTES_BY_WORK_TYPE = Object.freeze({
   'security-settings': new Set(['owner-only','repo-maintenance']),
 })
 
+// ORCHESTRATOR ADMISSION TEST (AGENTS.md 0.0-C). A parsed scope block that is
+// not `structural` has exactly two exits and `accept` is never one of them:
+// REJECT sends it back to the session that owns those rows, FORK hands it to a
+// fresh session with an empty context window. The orchestrator's own context is
+// reserved for triage, dispatch, review and merge, so it must never work one of
+// these itself no matter how small it looks.
+export const NON_STRUCTURAL_EXITS = Object.freeze({
+  'application-data': 'reject',
+  'source-data': 'reject',
+  'curated-master-data': 'reject',
+  'repo-maintenance': 'fork',
+  documentation: 'fork',
+  'security-settings': 'fork',
+})
+
+export function queueExit(workType) {
+  if (workType === 'structural') return 'accept'
+  const exit = NON_STRUCTURAL_EXITS[workType]
+  if (!exit) throw new LaneError(`no orchestrator exit is defined for work_type ${workType}`)
+  return exit
+}
+
 export function parseQueueScope(body = '') {
   const fences=[...body.matchAll(/```db-work-scope\s*\n([\s\S]*?)```/g)]
   if (!fences.length) return null
@@ -184,7 +206,7 @@ function overlaps(a, b) { const right = new Set(b); return a.some((x)=>right.has
 
 export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number)) {
   const openNumbers = new Set(allOpenIssueNumbers.map(Number))
-  const skipped = [], unclassified = [], malformed = [], unlabelled = [], candidates = []
+  const skipped = [], unclassified = [], malformed = [], unlabelled = [], candidates = [], notOrchestratorWork = []
   for (const issue of issues) {
     // githubIo always supplies a labels array, so real audits always run this
     // check; callers that pass no labels at all are asserting they carry no
@@ -193,6 +215,20 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     let scope
     try { scope = parseQueueScope(issue.body) } catch (error) { malformed.push({ issue:issue.number, reason:error.message }); continue }
     if (!scope) { unclassified.push(issue.number); continue }
+    // Recorded before the status check so a non-structural issue parked at
+    // `blocked` or `owner-decision` is still reported with its exit. Silently
+    // parked items are how non-shape work accumulated in the queue until an
+    // orchestrator eventually read one and did it in its own context.
+    if (scope.workType !== 'structural') {
+      notOrchestratorWork.push({
+        issue: issue.number,
+        title: issue.title,
+        workType: scope.workType,
+        route: scope.route,
+        exit: queueExit(scope.workType),
+        blockedOnOwner: scope.route === 'owner-only',
+      })
+    }
     if (scope.status !== 'ready') { skipped.push({ issue:issue.number, reason:`status:${scope.status}`, workType:scope.workType, route:scope.route }); continue }
     if (scope.workType !== 'structural' || scope.route !== 'shared-db-orchestrator') {
       skipped.push({ issue:issue.number, reason:'not-migration-author-work', workType:scope.workType, route:scope.route }); continue
@@ -218,7 +254,7 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
   }
   const emptyLanes = queues.filter((q)=>!q.active).length
   const dispatchable = queues.filter((q)=>!q.active && q.queued.length).map((q)=>q.queued[0])
-  return { queues, skipped, unclassified, malformed, unlabelled, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length }
+  return { queues, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length }
 }
 
 export class LaneError extends Error {}
@@ -1213,6 +1249,16 @@ export function main(argv, now = new Date(), io = githubIo) {
       const result = buildDynamicQueues(io.openWorkIssues(), claims, now, io.openIssueNumbers())
       console.log(JSON.stringify(result,null,2))
       if (result.dispatchable.length) { console.error(`REFILL REQUIRED NOW: dispatch issue(s) ${result.dispatchable.map((n)=>`#${n}`).join(', ')}`); return 2 }
+      // Reported as a standing worklist, not a failure: these issues are real
+      // work that simply is not the orchestrator's to do in its own window.
+      // Exit code is unchanged so a healthy audit still returns 0.
+      if (result.notOrchestratorWork.length) {
+        console.error('NOT ORCHESTRATOR WORK: these open issues fail the shape test (AGENTS.md 0.0-C). Reject or fork each one; never work it here.')
+        for (const item of result.notOrchestratorWork) {
+          const owner = item.blockedOnOwner ? ' [blocked on owner decision]' : ''
+          console.error(`  #${item.issue} ${item.exit.toUpperCase()} — work_type ${item.workType}, route ${item.route}${owner}`)
+        }
+      }
       if (result.unlabelled.length) console.error(`UNLABELLED ISSUES: add the \`${WORK_LABEL}\` label to ${result.unlabelled.map((n)=>`#${n}`).join(', ')} — an unlabelled issue is invisible to every label-filtered query`)
       if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify and label every open issue before claiming no eligible work exists'); return 2 }
       return result.malformed.length || result.unlabelled.length ? 2 : 0

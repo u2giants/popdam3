@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -119,6 +119,36 @@ test('status and non-structural routes never consume a migration-author lane',()
   assert.deepEqual(result.dispatchable,[])
   assert.equal(result.skipped.length,5)
   assert.equal(result.fullyAudited,true)
+})
+
+test('every non-structural work type exits as reject or fork and never as accept',()=>{
+  assert.equal(queueExit('structural'),'accept')
+  for(const [workType,exit] of Object.entries(NON_STRUCTURAL_EXITS)){
+    assert.ok(exit==='reject'||exit==='fork',`${workType} must exit reject or fork`)
+    assert.equal(queueExit(workType),exit)
+  }
+  assert.throws(()=>queueExit('invented-work-type'),/no orchestrator exit is defined/)
+})
+
+test('the queue audit names every open issue that fails the shape test with its exit',()=>{
+  const issues=[
+    {number:50,title:'structure',body:scope('ready','structural','shared-db-orchestrator',9,['table core.a'])},
+    {number:51,title:'row cleanup',body:scope('ready','application-data','application-session',8)},
+    {number:52,title:'ci guard defect',body:scope('ready','repo-maintenance','repo-maintenance',7)},
+    {number:53,title:'owner question',body:scope('owner-decision','security-settings','owner-only',6)},
+  ]
+  const result=buildDynamicQueues(issues,[],NOW)
+  assert.deepEqual(result.notOrchestratorWork.map((x)=>x.issue),[51,52,53])
+  assert.deepEqual(result.notOrchestratorWork.map((x)=>x.exit),['reject','fork','fork'])
+  assert.equal(result.notOrchestratorWork.find((x)=>x.issue===53).blockedOnOwner,true)
+  assert.equal(result.notOrchestratorWork.some((x)=>x.issue===50),false)
+  assert.deepEqual(result.dispatchable,[50])
+})
+
+test('a non-structural issue parked at blocked is still reported rather than silently skipped',()=>{
+  const result=buildDynamicQueues([{number:54,title:'parked',body:scope('blocked','documentation','repo-maintenance',5)}],[],NOW)
+  assert.deepEqual(result.notOrchestratorWork.map((x)=>x.exit),['fork'])
+  assert.deepEqual(result.dispatchable,[])
 })
 
 test('dependency on an open non-db-work issue prevents dispatch',()=>{

@@ -45,7 +45,9 @@ AI sessions from breaking each other through the one database they all depend on
 > orchestrator govern the *shape* of the database — schema, tables, columns, views, functions,
 > triggers, RLS, indexes, migrations. An application session changing its own *rows* does not
 > belong here and must not open an issue for it. The one exception is curated Master Data
-> under §6.4.
+> under §6.4. **§0.0-C is the orchestrator's own admission test**: anything that fails the shape
+> test is REJECTED (it belongs to another session) or FORKED to a fresh sub-agent — never worked
+> in the orchestrator's own context window.
 > **Any other session with a STRUCTURE change opens a GitHub issue and stops:**
 > `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
 > ⛔ **EVERY issue this repo receives carries the `db-work` label AND a `db-work-scope`
@@ -278,6 +280,56 @@ application's own row writes elsewhere in the database into orchestrator work.
 *Am I changing the shape of the database, or the contents of it?* Shape → this repo, orchestrator,
 branch, preview, PR. Contents → your own application session, with §4.2 proof, unless the target
 is curated Master Data.
+
+## 0.0-C The orchestrator admission test — what it may keep in its own context
+
+§0.0-B says what this repo governs. **This section says what the orchestrator session is allowed
+to spend its own context window on**, which is a narrower thing and was never written down. Two
+leaks made orchestrator sessions long and slow: other sessions filed anything with "db" in it and
+labelled it `db-work`, and orchestrators read those items and did the work themselves instead of
+handing it out.
+
+### The test
+
+Before opening, accepting, or acting on any item, answer one question:
+
+> **Does this change the SHAPE of the database** — a schema, table, column, type, view, function
+> or RPC, trigger, row-security policy, grant, index, constraint, extension, publication, storage
+> policy, or a migration that ships one of those?
+
+**Yes → accept.** It is queue work: `work_type: structural`, `route: shared-db-orchestrator`, exact
+objects listed, dispatched to a sub-agent in an isolated worktree as usual.
+
+**No → it has exactly two exits, and `accept` is never one of them.**
+
+- **REJECT** — the work belongs to another session and must leave this queue.
+  `application-data`, `source-data` and `curated-master-data`. Comment on the issue naming the
+  owning session, and close it. (Curated Master Data keeps its own governance under §6.4 — it is
+  rejected *from the migration-author queue*, not waved through.)
+- **FORK** — genuinely this repo's work, but not shape work: CI guards, migration tooling, scripts,
+  docs, audits, incident write-ups (`repo-maintenance`, `documentation`, `security-settings`).
+  Hand it to a **fresh session with an empty context window** — a worktree sub-agent, exactly as a
+  migration is dispatched. The orchestrator does not read the code, does not debug it, and does not
+  "just fix it quickly".
+
+There is no third exit and no size exemption. "It is only a one-line doc fix" is precisely how an
+orchestrator context fills up.
+
+### What the orchestrator's own window is for
+
+Triage, dispatch, review, merge, and the promotion protocol. Nothing else. Every unit of actual
+work — structural or forked — happens in a sub-agent's context, not this one.
+
+### How it is enforced
+
+`node scripts/manage-migration-author-lanes.mjs --queue-audit` prints a **`NOT ORCHESTRATOR WORK`**
+block listing every open issue that fails the shape test, each stamped `REJECT` or `FORK`, with
+`[blocked on owner decision]` where the route is `owner-only`. These items previously sat silently
+in `skipped` and accumulated. The block is a worklist, not a failure — it does not change the exit
+code — but an orchestrator that leaves items standing in it is carrying other people's work.
+
+An issue with **no** `db-work-scope` block at all is `unclassified`: it is not admitted, it is not
+worked, and it already blocks an empty-lane claim. Classify it or send it back.
 
 ## 0.1 Database schema ownership is not deployment-secret ownership
 
