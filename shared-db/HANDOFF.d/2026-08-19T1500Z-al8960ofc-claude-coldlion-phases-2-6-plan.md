@@ -151,11 +151,29 @@ plan; this list is the plain-English version.
    66-code admission, not after it. No schema change needed: `core.property.status` already accepts
    `inactive`.
 
-## 7. Where the evidence lives
+## 7. Where the evidence lives — and what is NOT kept
 
-All measurements are in §6 of the plan with the method to re-derive them. The sample-bearing CSVs
-Albert marked up are **not in the repo** — this repo is public and they carry licensor names, item
-descriptions, vendor emails and customer names. They are in Albert's Dropbox at `ai/`.
+Measurements are split across three files. Do not look for all of them in one place; an earlier
+version of this section pointed only at the plan and would have sent a reader to the wrong file.
+
+| Finding | Where it is recorded |
+|---|---|
+| The original 7 findings (division in the feed, wrong item key, 519/519 merch-group match, 26% orphan order lines) | §6 of [`../docs/plan_coldlion-landing-phases-2-6.md`](../docs/plan_coldlion-landing-phases-2-6.md), each with the method to re-derive it |
+| **`linePrice` is per component**, and the sales-order line/component keys, verified on 1,671 rows | [`../docs/coldlion-history-endpoints-shape.md`](../docs/coldlion-history-endpoints-shape.md) §4.4, with the worked example |
+| **Blank component merch groups by year** — 624 rows 2019-2023 with zero blanks, 2024 11.7%, 2025 16.1% | Register entry 2.2 in [`../docs/coldlion-open-questions.md`](../docs/coldlion-open-questions.md), with the sample orders |
+| Every field's fill rate, per feed | [`../docs/coldlion-field-decisions-20260819.csv`](../docs/coldlion-field-decisions-20260819.csv) |
+
+⚠️ **The raw API samples are NOT kept.** The 1,671-row `orderHistory` sample and the 2,088-row
+`prodHistory` sample lived in a session scratchpad that is deleted when the session ends. Only the
+conclusions survive. **To re-derive any of the above you must re-pull**, which is cheap for master
+feeds and costs one request per 7-day window for the history feeds. The method is in each record
+above; the numbers were never taken on faith.
+
+⚠️ **The marked-up CSVs Albert filled in are NOT in the repo** — this repository is **public** and
+the sample columns carry licensor names, item descriptions, vendor email addresses and customer
+names. They are in Albert's Dropbox under `ai/`. The committed
+`coldlion-field-decisions-20260819.csv` is the same decisions with every sample value stripped.
+Do not commit the originals.
 
 ## 8. Delete this file when
 
