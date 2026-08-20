@@ -20,6 +20,7 @@ export const REVIEWERS = Object.freeze([
   { name:'grok-4.6', wrapper:'ai-grok-review' }, { name:'glm-5.3', wrapper:'ai-glm' },
   { name:'kimi-k3', wrapper:'ai-kimi' }, { name:'qwen-3.8-max', wrapper:'ai-qwen' },
   { name:'glm-5.2', wrapper:'ai-glm' },
+  { name:'muse-spark-1.2-contributor', wrapper:'ai-muse' },
 ])
 // Keep REVIEWERS as the historical evidence registry. Paused providers remain
 // readable forever, but only ACTIVE_REVIEWERS can receive new work.
@@ -38,22 +39,79 @@ export const REVIEWERS = Object.freeze([
 // crash, not a graceful miss. Retired names stay readable forever; only
 // ACTIVE_REVIEWERS receives new work -- the same pattern used to pause Qwen.
 //
-// 'glm-5.3' occupies the SAME rotation slot 'glm-5.2' held, so ACTIVE_REVIEWERS
-// keeps its length and order and the round robin does not skip or repeat a turn.
+// 'glm-5.3' occupies the SAME rotation slot 'glm-5.2' held, so no in-flight
+// sequence is reassigned out of order. It no longer keeps ACTIVE_REVIEWERS at the
+// same LENGTH -- issue #1290 changed the length from two to three. See the
+// ROTATION SLOTS block below, which is the accurate statement.
 //
-// PAUSED 2026-08-18 (owner instruction): 'glm-5.3'. Three consecutive
-// provider_unavailable failures in one afternoon -- sequences 161, 164 and 167 --
-// each creating a session that never produced a turn, and each costing a governed
-// reviewer replacement. Pausing stops the rotation handing work to a dead provider.
-// This is a PAUSE, not a retirement: restore it by deleting 'glm-5.3' from this
-// list once the provider answers a probe. The name stays in REVIEWERS so its past
-// verdicts remain readable evidence.
+// RESTORED 2026-08-20 (owner instruction, issue #1290): 'glm-5.3'.
+// ITS PAUSE ON 2026-08-18 WAS A FALSE DIAGNOSIS, and the diagnosis is the lesson.
+// The three `provider_unavailable` failures -- sequences 161, 164 and 167 -- were not
+// the remote provider being down. `ai-glm doctor` showed every check passing EXCEPT
+// `health endpoint answers`, because the LOCAL `opencode` server was not running.
+// `opencode-glm-launch` fixed it in about thirty seconds, and glm-5.3 then produced a
+// full 10 KB review with a coverage statement on the first attempt. One stopped local
+// process cost a two-day reviewer outage.
 //
-// NOTE: with glm-5.3 paused, ACTIVE_REVIEWERS is down to grok-4.6 and kimi-k3.
-// ai-grok-review holds a per-REPOSITORY in-flight lock, so only one Grok review
-// runs at a time here. Two active reviewers is thin; see the reviewer-capacity
-// issue before assuming a third is available.
-export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2', 'glm-5.3'])
+// WHY THAT COULD HAPPEN, and what is being done about it: `provider_unavailable`
+// conflates "the remote provider is down" (wait) with "a local dependency of the
+// wrapper is not running" (thirty-second fix), and PAUSING a reviewer requires no
+// evidence about which of the two it was while RESTORING one requires a probe. The
+// cheap check is demanded only on the path nobody is in a hurry to take. A pause entry
+// below must therefore NAME the failing health check, or state explicitly that the
+// health check passed and the failure was elsewhere. Tracked as #1287 here and
+// ai-devops#45 (each wrapper self-checks the dependencies it owns) upstream.
+//
+// PAUSED 2026-08-20 (owner instruction, issue #1290): 'kimi-k3'. ELEVEN terminal
+// failures against FIVE successes in a single session, in three distinct modes:
+// findings discarded above the verdict heading (1), usage-limit exhaustion (1), and
+// nine consecutive 6-second `exit 127` deaths. Health check: NOT the cause in the
+// glm-5.3 sense -- the `exit 127` deaths are the wrapper's own launch failing, which
+// is a local fault, but it is kimi's wrapper and it was not repairable in session.
+// Reviewer issue `20260820T004602Z-edge-dev-kimi-k3-385556` carries the raw evidence.
+// This is a PAUSE, not a retirement.
+//
+// ADDED 2026-08-20 (owner instruction, issue #1290): 'muse-spark-1.2-contributor'.
+// A registry addition, not an un-pause -- it was never listed. On the head-to-head
+// trial it produced a complete seven-point review ending in `VERDICT: APPROVE`.
+// KNOWN DEFECT, and the caller must handle it: the wrapper's verdict DETECTION fails
+// and writes "This is not a review result" over correct work. It SAVES the output, so
+// every such result is fully recoverable -- READ THE SAVED ARTIFACT before recording
+// any Muse failure, and never record a bare "incomplete" from this wrapper without
+// having read the raw provider stream.
+//
+// NOT ADDED, deliberately: 'gemini-3.7-flash-high'. `ai-gemini doctor` passes, so the
+// install is sound, but two attempts produced `no usable Gemini verdict` and then a
+// bare `PASS` with an EMPTY report. Two attempts is thin evidence and an empty report
+// is the worst possible failure mode for a review gate. Retry only after someone
+// establishes why the report comes back empty. This supersedes the narrower #1203.
+//
+// ROTATION SLOTS. 'glm-5.3' still occupies the slot 'glm-5.2' held. Muse is APPENDED,
+// so it takes the slot kimi-k3's pause vacates in ACTIVE_REVIEWERS rather than
+// displacing anyone. ACTIVE_REVIEWERS is therefore ['grok-4.6','glm-5.3',
+// 'muse-spark-1.2-contributor'] -- THREE names instead of two.
+//
+// WHAT THREE NAMES DOES AND DOES NOT FIX. An earlier draft of this block claimed an
+// odd-length rotation removes the `replaceFailedReviewer` same-provider trap. THAT
+// CLAIM WAS FALSE and a review caught it (#1290 review, High). The refuse below --
+// `next durable reviewer is the same failed provider` -- fires whenever there have
+// been N-1 assignments since the failure, for ANY N. Going from two names to three
+// only moves the collision from ONE intervening assignment to TWO. Two is exactly
+// the natural rest point of a three-name parallel dispatch: Grok takes a PR, GLM
+// takes the next, Muse takes the third, the cursor lands on a multiple of three, and
+// a Grok failure then computes back to Grok and is refused.
+//
+// So a third name genuinely buys CAPACITY -- three reviews can be in flight, and for
+// most of 2026-08-19 the rotation was effectively Grok alone because ai-grok-review
+// holds a per-REPOSITORY in-flight lock. It does NOT buy freedom from the wraparound
+// refuse. The real fix is to SKIP the failed provider when selecting a replacement,
+// which is a change to a governed fail-closed function and is tracked separately.
+// Do not re-add an odd-length safety claim here.
+//
+// Capacity is worth having on its own terms: twice on 2026-08-19 a second reviewer
+// overturned the first's conclusion, once by refuting an author's design rationale
+// using the author's own test fixture. A rotation of one is not a rotation.
+export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2', 'kimi-k3'])
 export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>!RETIRED_REVIEWERS.includes(row.name)))
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
