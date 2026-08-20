@@ -922,6 +922,20 @@ four rules below are non-negotiable for any database change.
      ambiguous, and an ambiguous commit is not provenance — so it refuses rather
      than pick one.
 
+   ⚠️ **SUPERSEDED IN PART, 2026-08-20 (#1321): the historical-recovery lane
+   CANNOT recover a POST-MERGE rehearsal — i.e. evidence produced by the order
+   this very document mandates.** The lane pins the original run's producer files
+   to the AUTHORING PULL REQUEST'S MERGE COMMIT. A post-merge rehearsal runs from
+   a LATER main tip, so any producer file that changed in between (ten did, in one
+   day) makes the pin fail. Measured on `20260819011639`: merged, correct,
+   six-times reviewed, and refused — *"produced evidence with a different
+   .github/workflows/shared-supabase-migrations.yml than the merge commit"*. No
+   database write occurred. The only way through was to **supersede** the
+   migration with byte-identical SQL (`20260820142402`), which costs a migration
+   version and a fresh review round. **The paragraph below is still correct for a
+   PRE-merge rehearsal, which is what the lane was built for. Read #1321 before
+   relying on it for anything rehearsed after its pull request merged.**
+
    First check whether you need a second run at all: if the original rehearsal
    completed successfully, its artifact is still the proof, and the promotion
    should simply name that run in `preview_run_id`. If it did not, **the way
