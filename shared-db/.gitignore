@@ -44,8 +44,57 @@ __pycache__/
 
 # Delegate-model review reports (ai-glm, ai-grok-review, ai-deepseek-agent).
 # The wrappers refuse to write a report unless this path is ignored, because a
-# review is session scratch and must never be committable.
-.ai/reviews/
+# NEW review is session scratch and must never be committable.
+#
+# THE EXCEPTIONS BELOW ARE DELIBERATE AND MUST NOT BE DELETED (#1304).
+# 25 reviews were committed on purpose, across 14 separate commits, BEFORE this
+# rule existed, and they are CITED BY PATH from permanent records that can never
+# be edited: `supabase/migrations/20260729180000_revoke_anon_execute_style_
+# tracker_and_cover_procedures.sql` names one in its header, and so do
+# `docs/security/public-schema-execute-audit.md`,
+# `docs/status-snapshot-and-change-log.md`,
+# `docs/verification/production-apply-set-and-rehearsal-20260809.md` and a PopSG
+# owner-approval record. Removing them breaks about a dozen citations in the
+# permanent record and leaves the reasoning behind settled decisions readable
+# only in Git history.
+#
+# Nothing automated reads them: the production evidence gate uses a checksummed
+# workflow artifact, not these files. The loss would be the written record of WHY,
+# which is exactly the thing that cannot be reconstructed later.
+#
+# A session reading only the line above once ran `rm -rf .ai` on the strength of
+# it and deleted all 25. They were restored from Git, but only because `git
+# status` was read. The list is here so the next session cannot make that
+# mistake: what is tracked is named, and everything else stays scratch.
+#
+# DO NOT add new entries here. A new review is scratch. If a review must become
+# permanent evidence, copy it to `docs/` under a name that says what it decides.
+.ai/reviews/*
+!.ai/reviews/20260729-public-execute-lockdown-glm.md
+!.ai/reviews/20260802-taxonomy-alert-ack-rpc-glm52.md
+!.ai/reviews/20260809-a2b-rehearsal-rerun-codex.md
+!.ai/reviews/20260809-pr608-apply-set-grok45.md
+!.ai/reviews/20260811-batch-b3-production-apply.md
+!.ai/reviews/20260811-ec137b2-skill-corrections-codex-gpt56.md
+!.ai/reviews/automatic-gates-provider-neutral-correction.md
+!.ai/reviews/automatic-gates-repo-implementation-compact.md
+!.ai/reviews/automatic-production-gates-implementation-prompt.md
+!.ai/reviews/automatic-production-gates-plan-prompt.md
+!.ai/reviews/coldlion-go-forward-glm.md
+!.ai/reviews/glm-automatic-production-gates-plan-20260812T114715Z.md
+!.ai/reviews/glm-automatic-production-gates-plan-20260812T115228Z.md
+!.ai/reviews/glm-brief.md
+!.ai/reviews/glm-pr608-blocker2-neutralize-vs-gate-20260809T184538Z.md
+!.ai/reviews/glm-report.md
+!.ai/reviews/glm52-coldlion-recurring-feed-plan-brief.md
+!.ai/reviews/glm52-coldlion-recurring-feed-plan-review.md
+!.ai/reviews/glm52-import-authority-20260803.md
+!.ai/reviews/phase6-glm-rereview.md
+!.ai/reviews/phase6-glm-review.md
+!.ai/reviews/phase6-parser-glm-review.md
+!.ai/reviews/psg4-glm52-review-brief.md
+!.ai/reviews/psg4-glm52-review.md
+!.ai/reviews/vendor-sync-plan-glm-2026-07-22.md
 .ai/runs/
 .ai/tmp/
 

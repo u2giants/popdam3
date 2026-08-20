@@ -1,5 +1,12 @@
 # Keep generated workbooks and intermediate results out of Git.
 # The owner approved publishing the two source files under data/ on 2026-08-15.
+#
+# The two `product_type_dictionary` outputs are TRACKED on purpose and are named
+# below (#1304). They are the reviewed result of this reclassification, not a
+# regenerable intermediate: `README.md` documents them as the deliverable and the
+# item-description taxonomy work reads them. Ignored-but-tracked is a trap -- a
+# cleanup that trusts the `*` above would delete a reviewed output -- so the
+# exception is written down rather than left to memory.
 *
 !.gitignore
 !README.md
@@ -9,3 +16,5 @@
 !data/README.md
 !data/full_item_master.csv
 !data/MerchGroup_Rework.xlsx
+!product_type_dictionary.csv
+!product_type_dictionary.summary.json

@@ -1,0 +1,15 @@
+{
+  "source_rows": 19302,
+  "dictionary_wordings": 15570,
+  "status_counts": {
+    "alias": 12877,
+    "needs_review": 2467,
+    "placeholder": 226
+  },
+  "row_counts_by_status": {
+    "alias": 15709,
+    "needs_review": 2635,
+    "placeholder": 958
+  },
+  "accepted_families": 283
+}
