@@ -36,9 +36,9 @@ Companions, both verified against live calls — read before implementing:
 >    `(prod_order_no, prod_line_seq)` does **not** collide across stages (0 collisions in three
 >    windows). That makes this failure *silent* — the table accepts both stages without error and
 >    every `SUM(prod_order_qty)` double-counts. No key violation will warn you.
-> 3. **The fetch plan must iterate stages**, not just date windows: `ISS`, `REC`, `INTRAN` at
->    minimum. The authoritative list of stage codes is **not yet confirmed by ColdLion** and is the
->    top outstanding question — see [`coldlion-open-questions.md`](coldlion-open-questions.md).
+> 3. **The fetch plan must iterate stages**, not just date windows: `ISS`, `INTRAN` and `REC`. **The stage list is authoritative as of 2026-08-19 — ColdLion confirms there are
+>    exactly three: `ISS`, `INTRAN`, `REC`.** All three carry real rows, so the fetch plan is
+>    3 stages × N seven-day windows per endpoint, not N.
 >
 > Everything else in this draft is unaffected. Its `last*` split, its `prodLineSeq` grain, and its
 > "sum to `prepackQty`" assertion all still hold.

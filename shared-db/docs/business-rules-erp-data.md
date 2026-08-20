@@ -143,10 +143,15 @@ is invisible unless `REC` is fetched deliberately.
 
 **What it implies:**
 
-1. **Fetch every stage explicitly.** Confirmed live so far: `ISS` and `REC`. `INTRAN` is named by
-   ColdLion but returned 0 rows in the windows tested — treat it as valid and fetch it. Probing
-   `OPEN`, `CLOSED`, `SHIP`, `CAN`, `PEND`, `NEW`, `COMP`, `WIP`, `APPR` returned nothing; the full
-   list of valid codes has **not** been confirmed by ColdLion and should be.
+1. **Fetch all three stages explicitly — the list is now AUTHORITATIVE.**
+   > **ColdLion (JamieLynn), 2026-08-19: "all The stages are: ISS, INTRAN, REC."**
+   >
+   > There are exactly three. No other stage code exists, so nothing is being silently missed.
+
+   All three carry real rows. `INTRAN` was invisible in early probing (0 rows in four windows) but
+   **does return data** — 7 rows for 2026-07-27 and **129** for 2024-07-01, verified 2026-08-19. It
+   is a transient state, so whether a window has `INTRAN` rows depends on when you ask. Like `REC`,
+   every `INTRAN` row tested was unlinked with no `custPONumber`.
 2. **Record which stage each row came from.** Nothing in the payload itself says — the stage is only
    known from the request that fetched it. Without it, ordered and received quantities are
    indistinguishable and will be double-counted as one purchase.
@@ -240,3 +245,52 @@ must come from elsewhere.
 `lineOpenQty` is populated on 11 of 442 rows in a different sample. `lineInvoiceQty` remains
 all-zero everywhere tested. A second illustration of the rule at the top of this file — absence in
 a sample is not absence in the data.
+
+## 8. Amazon orders are stock production and legitimately have no sales order
+
+> **ColdLion (JamieLynn), relayed by Albert, 2026-08-19:**
+>
+> "customer code AMA030 is Amazon. Amazon orders are stock (not presold, for inventory) and do not
+> have customer POs. They're stock to Amazon's warehouse."
+
+**What it means.** Goods for Amazon are produced **to stock, not against a customer order**. We
+manufacture, ship into Amazon's warehouse, and the sale happens later. There is no customer PO to
+record, so `salesOrderNo = 0` and `custPONumber` empty are **correct**, not a broken link.
+
+**Verified 2026-08-19:** across four sampled weeks, **10 of 10** `AMA030` production lines were
+unlinked, none had a `custPONumber`, all were `prodTypeCode = StockCa` into warehouse `AMACN`.
+Every other major customer in the same sample was at 0% unlinked (DOL900 120 rows, OTP480 94,
+ROS010 16, OLL629 10 — all linked).
+
+**What it implies for reporting:**
+
+1. **Three economically different things now share `salesOrderNo = 0`** and must not be lumped
+   together:
+   - **`COS` samples** (§1) — cost with **no revenue ever**.
+   - **Stock production for Amazon** — cost with **revenue later**, once Amazon sells it.
+   - **Historical rows** (§5) and **`INTRAN`/`REC` lines** (§4) — linked in reality, just not
+     recorded as such.
+   A margin report that treats all four the same will be wrong in three different directions.
+2. **Unsold stock is inventory, not a loss.** Amazon production without a matching sales order is
+   the normal state at the moment of manufacture.
+3. **Do not use `customerCode` alone to decide "was this presold".** Amazon is named as the customer
+   on lines that were never presold to anyone.
+
+> ### ⚠️ Do NOT infer stock production from `prodTypeCode`
+> The obvious-looking shortcut is wrong. `prodTypeCode` starting with `Stock` (`StockCa`, `StockCA`,
+> `StockNY`) does **not** mean unlinked: in 2024+ data, **130 `Stock*` rows produced only 10
+> unlinked ones (8%)** — customer DOL900 alone has **120 linked `Stock*` rows**. The Amazon
+> arrangement is a **customer-level business fact**, not a production-type flag. Note also that the
+> same code appears as both `StockCa` and `StockCA` — case varies.
+
+**A partial vindication, honestly recorded.** The first version of the shape doc guessed these
+unlinked rows were "stock production not raised against a specific customer order". That was
+retracted on 2026-08-17 as an unfounded inference, and retracting it was right — it was applied to
+all 550 unlinked rows, most of which are historical or sample lines. For the **Amazon subset
+specifically** the guess turns out to describe reality. A guess that happens to be right about one
+slice is still not a documented rule; this one is now a rule because ColdLion said so.
+
+**Residue after all four causes:** in 2024+ `ISS`, non-`COS`, non-Amazon data, **6 unlinked lines
+out of 803 (0.7%)** remain unexplained — orders 23034 (HLL770, qty 3,024 and 4,032), 23039/23040
+(ATH160, qty 1 each), 23044 (BOX030, qty 1) and 23852 (MOD010, `FOILCORNER`, qty 7,600). The qty-1
+lines look like charges rather than production. Not worth chasing unless a report trips over them.

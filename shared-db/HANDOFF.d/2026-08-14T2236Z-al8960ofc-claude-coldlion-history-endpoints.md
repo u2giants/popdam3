@@ -9,6 +9,31 @@ owner: al8960ofc/claude-coldlion-history-endpoints-13b4f3 (session ended)
 **Written:** 2026-08-14T2236Z · **Updated:** 2026-08-17 (same session — ColdLion answered two
 questions; see §0) · **Machine:** al8960ofc · **Agent:** claude · **Status:** OPEN
 
+## 0-B. UPDATE 2026-08-19 (later) — NOTHING IS BLOCKED ANY MORE
+
+ColdLion answered the last two open questions. Both verified.
+
+1. **"all The stages are: ISS, INTRAN, REC."** The list is authoritative and closed — nothing is
+   being silently missed. All three carry real rows. `INTRAN` had looked dead (0 rows in four
+   windows) but returned **129 rows for 2024-07-01**; it is transient, so a few quiet weeks are not
+   evidence of an unused stage. **The historical pull is 3 stages × ~370 windows for `prodHistory`
+   plus ~370 for `orderHistory` — about 1,480 requests, not 740.**
+2. **`AMA030` is Amazon, and Amazon production is stock**, made for their warehouse rather than
+   presold, so it has no customer PO. That was the last unexplained group of unlinked rows
+   (10 of 10 unlinked, verified). Rules §8.
+
+**Four distinct causes of `salesOrderNo = 0` are now documented**, and they are economically
+different — samples (no revenue ever), Amazon stock (revenue later), historical rows and
+`INTRAN`/`REC` lines (linked in reality). A report treating them alike is wrong three ways.
+**Do not infer stock production from `prodTypeCode`:** `Stock*` rows are 92% linked.
+
+**Residual, tiny:** 6 unlinked lines out of 803 in 2024+ non-`COS` non-Amazon data (0.7%), three of
+them quantity-1 charge-like lines. Not worth chasing.
+
+**State of the work:** the shape is fully documented and every blocking question is answered. What
+remains is building the loader, which is another session's job (issue #1031), and Albert sending a
+short courtesy note that blocks nothing.
+
 ## 0-A. UPDATE 2026-08-19 — READ THIS FIRST: the feed is bigger than this handoff says
 
 Three ColdLion answers (JamieLynn, via Albert) and the follow-up probing changed the picture again.

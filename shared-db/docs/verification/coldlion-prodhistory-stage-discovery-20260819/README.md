@@ -76,17 +76,29 @@ we paid for".
 4. **`salesOrderNo = 0` on a REC row is correct**, not missing data. Attribute a receipt to a
    customer order via `prodOrderNo` back to the `ISS` line — never via `salesOrderNo`.
 
-## 6. Which stage codes exist
+## 6. Which stage codes exist — ANSWERED 2026-08-19
 
-**Confirmed to return data:** `ISS`, `REC`.
-**Named by ColdLion, returned 0 rows in the windows tested:** `INTRAN` (in transit) — plausibly just
-timing, treat as valid and fetch it.
-**Probed and returned nothing:** `OPEN`, `CLOSED`, `SHIP`, `SHP`, `CLS`, `CAN`, `PEND`, `NEW`,
-`COMP`, `WIP`, `APPR`, `IN TRAN`, `INT`.
+> **ColdLion (JamieLynn), relayed by Albert:** "all The stages are: ISS, INTRAN, REC."
 
-> **⚠️ This list is empirical, not authoritative.** An unknown stage code is a stage we would never
-> fetch and never miss. **Ask ColdLion for the definitive list before the full historical load** —
-> this is the single most valuable outstanding question about these endpoints.
+**Exactly three. The list is authoritative and closed.** The worry recorded here on 2026-08-19 —
+that an unknown stage would be silently missed — is resolved.
+
+| Stage | Meaning | Rows seen |
+|---|---|---|
+| `ISS` | issued — what we ordered | the default response; 67–662 rows per week sampled |
+| `INTRAN` | in transit | **7** for 2026-07-27, **129** for 2024-07-01; 0 in six other windows |
+| `REC` | received — what arrived | 21–579 rows per week sampled |
+
+**`INTRAN` nearly got written off.** It returned 0 rows in the first four windows probed, and an
+earlier draft of this file recorded it as "named by ColdLion but 0 rows so far". It does carry data;
+it is simply a **transient** state, so whether a window has any depends on when you ask. Had the
+stage list not been confirmed, a loader could easily have quietly dropped `INTRAN`.
+
+Probed and returned nothing, now known to be invalid rather than empty: `OPEN`, `CLOSED`, `SHIP`,
+`SHP`, `CLS`, `CAN`, `PEND`, `NEW`, `COMP`, `WIP`, `APPR`, `IN TRAN`, `INT`.
+
+**Fetch plan consequence:** the historical pull is **3 stages × ~370 seven-day windows** for
+`prodHistory`, plus ~370 for `orderHistory` — roughly **1,480 requests**, not 740.
 
 ## 7. Reproducing it
 
@@ -103,9 +115,8 @@ Remember the **7-day window cap** — a wider range is refused.
 
 ## 8. What this does NOT establish
 
-- **Whether `INTRAN` ever returns rows.** Not seen yet; 0 rows in four windows is not proof of
-  absence, only of absence in those windows.
-- **Whether other stages exist.** See §6 — empirical only.
+- ~~Whether `INTRAN` ever returns rows~~ — **answered 2026-08-19: yes** (129 rows for 2024-07-01).
+- ~~Whether other stages exist~~ — **answered 2026-08-19: no, there are exactly three.**
 - **Whether `orderHistory` has an equivalent hidden dimension.** It has no `stageCode` parameter, but
   no one has proved its default response is complete. **Worth checking before the load.**
 - **Whether stage membership is stable over time.** A line presumably moves `ISS` → `INTRAN` → `REC`

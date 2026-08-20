@@ -1575,11 +1575,12 @@ and selling. Their payload is documented from live probing in
 traps that will silently corrupt a load if you skip it:
 
 - **⚠️ The default `prodHistory` response is INCOMPLETE.** Without `stageCode` you get only the
-  `ISS` (issued) lines; `stageCode=REC` returns receipt lines with **zero overlap** with the
-  default (verified twice). Omitting it loses everything about what actually *arrived* — order
-  22717 ordered 4,800 and received 4,548, and only the `ISS` half is in the default response.
-  Fetch `ISS`, `REC` and `INTRAN`, and **record which stage each row came from** because the
-  payload does not say.
+  `ISS` (issued) lines. **There are exactly three stages — `ISS`, `INTRAN`, `REC`** (authoritative,
+  ColdLion 2026-08-19) and all three carry real rows with **zero key overlap** between them.
+  Omitting them loses everything about what actually *arrived* — order 22717 ordered 4,800 and
+  received 4,548, and only the `ISS` half is in the default. **Fetch all three and record which
+  stage each row came from**, because the payload does not say and the keys do not collide, so a
+  stage-blind table triple-counts quantities with no error. The pull is 3 stages × N windows.
 - **Hard 7-day window cap (since 2026-08-17).** `fromDate`–`toDate` must be **within 7 days,
   inclusive**, on both endpoints; wider is refused outright. Month-wide calls that worked on
   2026-08-14 now fail. **The refusal is malformed** — HTTP 400 on the wire but `"status": 500` /

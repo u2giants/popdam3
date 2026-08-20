@@ -16,33 +16,27 @@ session. Some questions are for **Albert** as owner, not for ColdLion; those are
 
 ---
 
-## 1. BLOCKING — answer before the historical load runs
+## 1. BLOCKING — none
 
-### 1.1 What is the authoritative list of `stageCode` values? *(ColdLion / JamieLynn)*
+> **Cleared 2026-08-19.** The last blocker (the authoritative `stageCode` list) was answered:
+> **"all The stages are: ISS, INTRAN, REC."** — ColdLion (JamieLynn). All three verified to carry
+> real rows. **Nothing now blocks the historical load.**
 
-**Why it blocks:** `GET /prodHistory` without `stageCode` returns **only `ISS` lines**;
-`stageCode=REC` returns receipt rows that appear nowhere in the default response. A stage we do not
-know about is one we would never fetch **and never miss** — the load would look complete and be
-missing an entire category of rows.
+The one remaining stage-related nicety, not blocking:
 
-Confirmed to return data: `ISS`, `REC`. Named by ColdLion but 0 rows so far: `INTRAN`. Probed and
-empty: `OPEN`, `CLOSED`, `SHIP`, `CAN`, `PEND`, `NEW`, `COMP`, `WIP`, `APPR`.
+### 1.1 Is there a field identifying which stage a row is in? *(ColdLion / JamieLynn)*
+
+Nothing in the payload distinguishes an `ISS` row from an `INTRAN` or `REC` row; the stage is known
+only from the request. We stamp it on load, so this is a safety net, not a need. **Related and more
+important than it sounds:** row keys do **not** collide across stages, so a table without a stage
+column accepts all three and silently triples-counts quantities with no key violation to warn you.
 
 **Evidence:** [`verification/coldlion-prodhistory-stage-discovery-20260819/README.md`](verification/coldlion-prodhistory-stage-discovery-20260819/README.md).
-**Drafted in:** [`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-history-endpoints-questions.md) Q1.
-
-### 1.2 Is there a field identifying which stage a row is in? *(ColdLion / JamieLynn)*
-
-Nothing in the payload distinguishes an `ISS` row from a `REC` row; the stage is known only from the
-request. We will stamp it on load, but a real field would be safer. **Related and equally
-important:** row keys do **not** collide across stages, so a table without a stage column accepts
-both and silently double-counts quantities.
 
 ## 2. Open, not blocking — these change how data is modelled or reported
 
 | # | Question | For | Evidence |
 |---|---|---|---|
-| 2.1 | **10 recent unlinked lines the historical explanation misses** — `ISS` stage, not `COS`, customer AMA030, refs D3568/D3569, ordered 2026-08-05, qty 152–1,200, no `salesOrderNo`. Another route to an unlinked recent line, or something specific? | JamieLynn | shape §5.5 |
 | 2.2 | **~12–16% of component rows have `ppkMerchGroup*` blank**, after the assortment-vs-component split is accounted for. Expected, or worth a look? | JamieLynn | shape §5.7, rules §6 |
 | 2.3 | **How far back does the history go?** June 2019 returns data; no earlier boundary searched. Answering it sizes the one-time load instead of us scanning backwards. | JamieLynn | shape §7 |
 | 2.4 | **Does `orderHistory` have a hidden dimension too?** It has no `stageCode`, but nobody has proved its default response is complete. After §1.1, assume nothing. | us first, then JamieLynn | verification doc §8 |
@@ -66,6 +60,8 @@ both and silently double-counts quantities.
 | What does a `COS` production PO mean? | **Sample production** — extra pieces for the licensor (contractual samples) or internal use (DAVID samples) | Albert, 2026-08-17 · rules §1 |
 | Why are `ppkMerchGroup*` blank so often? | `merchGroup*` = assortment SKU, `ppkMerchGroup*` = component SKU. The **assortment** groups are the blank ones; a master is generic | JamieLynn, 2026-08-18 · verified, rules §6 |
 | Are `lineInvoiceQty`/`lineOpenQty` populated? | Not carried at component level; use `unshippedQty` / `linePickQty` | JamieLynn, 2026-08-18 · verified, rules §7 |
+| What are the valid `stageCode` values? | **Exactly three: `ISS`, `INTRAN`, `REC`.** All verified to carry rows | JamieLynn, 2026-08-19 · verified, rules §4 |
+| The 10 recent unlinked AMA030 lines | **AMA030 is Amazon.** Amazon orders are stock for their warehouse, not presold, so they have no customer PO. Verified 10 of 10 unlinked | JamieLynn, 2026-08-19 · verified, rules §8 |
 | Why do older lines have `salesOrderNo = 0`? | Hard-linking POs to production orders began ~**2022–2023**; `custPONumber` was manual before, and drops off entirely on `INTRAN`/`REC` | JamieLynn, 2026-08-18 · verified, rules §4–5 |
 | Is `1900-01-01` the empty-date marker? | Yes | Albert, 2026-08-14 |
 | Division/company code meanings | Answered in two rounds | Uma, 2026-08-13 and 2026-08-17 · `division-code-*.md` |

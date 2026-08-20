@@ -107,11 +107,12 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 > production orders. Order 22717: line 1 `ISS` ordered 4,800; line 2 `REC` received 4,548. Omitting
 > `REC` loses every short shipment and every receipt date in the dataset.
 >
-> **Fetch `ISS`, `REC` and `INTRAN` explicitly and record which stage each row came from** — the
-> payload does not say. `INTRAN` returned 0 rows in the windows tested but is named by ColdLion.
-> `OPEN`, `CLOSED`, `SHIP`, `CAN`, `PEND`, `NEW`, `COMP`, `WIP`, `APPR` all returned nothing. **The
-> authoritative list of stage codes has not been confirmed — ask ColdLion before the full load.**
-> Business meaning: [`business-rules-erp-data.md`](business-rules-erp-data.md) §4.
+> **There are exactly three stages: `ISS`, `INTRAN`, `REC`** — authoritative, ColdLion 2026-08-19.
+> Fetch all three and **record which stage each row came from**; the payload does not say. All three
+> carry real rows: `INTRAN` looked empty in early probing but returned 129 rows for 2024-07-01 (it
+> is a transient state, so it depends when you ask). Every `INTRAN` and `REC` row tested was
+> unlinked with no `custPONumber`. Business meaning:
+> [`business-rules-erp-data.md`](business-rules-erp-data.md) §4.
 
 > ### ⚠️ There is no paging on these two endpoints
 > Unlike `/items` and the other paged endpoints, these return a **plain JSON array**, not the
@@ -362,11 +363,14 @@ most of it, and there are **three distinct causes**:
    not carry down from `ISS`. Every `REC` row tested was unlinked with an empty `custPONumber`.
    Attribute a receipt via `prodOrderNo` back to its `ISS` line — rules §4.
 3. **`COS` sample production**, which legitimately has no customer order — rules §1.
+4. **Stock production for Amazon** (`AMA030`). Amazon goods are made to stock for their warehouse,
+   not presold, so there is no customer PO. Verified 10 of 10 unlinked. **This is what the 10
+   "unexplained" 2026-08 rows were** — rules §8. Do **not** generalise it from `prodTypeCode`:
+   `Stock*` types are 92% linked (DOL900 alone has 120 linked `Stock*` rows).
 
-**What is still unexplained:** a small recent residue. In 2026-08-03..09, of 43 unlinked `ISS` rows,
-**33 are `COS`** and **10 are not** — all customer AMA030, references D3568/D3569, ordered
-2026-08-05, quantities 152–1,200. Recent, ordinary-looking, and unlinked. That is the remaining
-question with ColdLion.
+**Residue after all four causes:** 6 unlinked lines out of 803 in 2024+ `ISS` non-`COS` non-Amazon
+data (0.7%) — orders 23034, 23039, 23040, 23044, 23852. Three are quantity-1 lines that look like
+charges. Not worth chasing unless a report trips over them.
 
 > **Correction, 2026-08-17.** An earlier version called these rows "stock production not raised
 > against a specific customer order". **Wrong and retracted.** `customerCode` is populated on
