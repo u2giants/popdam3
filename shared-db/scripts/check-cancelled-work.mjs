@@ -120,6 +120,34 @@ export function validateTable(table = CANCELLED) {
 // Detection
 // ---------------------------------------------------------------------------
 
+/**
+ * Removed lines only, as a Set of trimmed text, from a unified diff.
+ *
+ * WHY THIS EXISTS (added 2026-08-20, issue #1331).
+ *
+ * The guard scans ADDED lines. A pure RELOCATION — moving a block of text from one file to
+ * another in the same pull request — adds every one of those lines, so a cancelled instruction
+ * that was already sitting in the repository looks brand new and the guard fails a change that
+ * introduced nothing at all.
+ *
+ * That is exactly what happened splitting the 234 KB `AGENTS.md`: §6.14 quotes the cancelled
+ * "make the repo private" instruction in order to explain why it is cancelled, and moving that
+ * ruling to `docs/owner-rulings.md` tripped this check.
+ *
+ * THE TRADE-OFF, STATED PLAINLY. A line is exempt only when the IDENTICAL trimmed text is also
+ * removed somewhere in the same diff. Net presence of the cancelled text in the repository is
+ * therefore unchanged, which is what this guard actually protects. It does NOT exempt reworded
+ * text, and it does NOT exempt a line that is merely similar — the match is exact.
+ */
+export function removedLines(diff) {
+  const out = new Set()
+  for (const line of String(diff).split('\n')) {
+    if (line.startsWith('--- a/')) continue
+    if (line.startsWith('-') && !line.startsWith('---')) out.add(line.slice(1).trim())
+  }
+  return out
+}
+
 /** Added lines only, with their file, from a unified diff. */
 export function addedLines(diff) {
   const out = []
@@ -145,11 +173,14 @@ export function addedLines(diff) {
  */
 export function findReintroduced(diff, table = CANCELLED, { skipFiles = [] } = {}) {
   const lines = addedLines(diff)
+  const relocated = removedLines(diff)
   const findings = []
 
   lines.forEach((line, i) => {
     if (!line.file) return
     if (skipFiles.some((f) => line.file === f)) return
+    // A pure relocation adds text that the same diff also removes. See removedLines().
+    if (relocated.has(line.text.trim())) return
 
     const context = [lines[i - 1], line, lines[i + 1]]
       .filter((l) => l && l.file === line.file)

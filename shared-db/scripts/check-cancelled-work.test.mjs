@@ -15,6 +15,7 @@ import assert from 'node:assert/strict'
 import {
   CANCELLED,
   addedLines,
+  removedLines,
   findReintroduced,
   formatReport,
   main,
@@ -155,3 +156,36 @@ test('the report names the ruling and the reason, not just the match', () => {
   assert.match(report, /branch protection/i)
   assert.match(report, /Do not work around this check/)
 })
+
+test('a pure relocation is not a reintroduction (issue #1331)', () => {
+  // The SAME line removed from one file and added to another: net presence unchanged.
+  const diff = [
+    '--- a/AGENTS.md',
+    '+++ b/AGENTS.md',
+    '-> on its own would make the repo private again, which silently destroys branch protection',
+    '--- a/docs/owner-rulings.md',
+    '+++ b/docs/owner-rulings.md',
+    '+> on its own would make the repo private again, which silently destroys branch protection',
+  ].join('\n')
+  assert.equal(findReintroduced(diff).length, 0)
+})
+
+test('a genuinely NEW cancelled instruction is still caught even when other text moves', () => {
+  const diff = [
+    '--- a/AGENTS.md',
+    '+++ b/AGENTS.md',
+    '-some unrelated line that moved',
+    '--- a/docs/plan.md',
+    '+++ b/docs/plan.md',
+    '+some unrelated line that moved',
+    '+Next step: make u2giants/shared-db private so the extract is not public.',
+  ].join('\n')
+  assert.ok(findReintroduced(diff).length > 0)
+})
+
+test('removedLines collects trimmed removed text and ignores the --- header', () => {
+  const s = removedLines('--- a/x.md\n-  spaced line  \n+kept\n')
+  assert.ok(s.has('spaced line'))
+  assert.equal(s.has('x.md'), false)
+})
+
