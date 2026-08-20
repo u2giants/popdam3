@@ -317,6 +317,7 @@ export async function handleBulkAiTag(
   opState: OpState,
   tagAll: boolean,
   dependencies: AiTagHandlerDependencies = {},
+  requireAssetIds = false,
 ): Promise<BatchResult> {
   const client = (dependencies.client ?? db()) as AiTagRpcClient;
   const configuredBatchSize = dependencies.batchSize ?? config.aiBatchSize;
@@ -327,6 +328,10 @@ export async function handleBulkAiTag(
   const rawCursor = opState.cursor;
   const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;
   const assetIds = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
+
+  if (requireAssetIds && (!assetIds || assetIds.length === 0)) {
+    return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
+  }
 
   // Fast path: tag specific assets by ID (used for single-asset re-tag from UI)
   if (assetIds && assetIds.length > 0) {

@@ -302,10 +302,27 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 
-async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
+const SINGLE_AI_TAG_PREFIX = "ai-tag-single-";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function scopeSingleAssetTag(opKey: string, opState: OpState): OpState | null {
+  if (!opKey.startsWith(SINGLE_AI_TAG_PREFIX)) return null;
+  const assetId = opKey.slice(SINGLE_AI_TAG_PREFIX.length);
+  if (!UUID_PATTERN.test(assetId)) return null;
+  return {
+    ...opState,
+    params: { ...opState.params, asset_ids: [assetId] },
+  };
+}
+
+export async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
   // Handle dynamic single-asset tagging keys (ai-tag-single-{uuid})
   if (opKey.startsWith("ai-tag-single-")) {
-    return handleBulkAiTag(opState, true);
+    const scopedState = scopeSingleAssetTag(opKey, opState);
+    if (!scopedState) {
+      return { ok: false, done: true, error: "Single-asset tag operation has an invalid asset ID" };
+    }
+    return handleBulkAiTag(scopedState, true, {}, true);
   }
 
   switch (opKey) {

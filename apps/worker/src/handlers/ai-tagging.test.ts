@@ -130,3 +130,18 @@ test("group-scoped mode passes all mode and explicit group IDs", async () => {
   assert.equal(calls[0].p_mode, "all");
   assert.deepEqual(calls[0].p_group_ids, [groupId]);
 });
+
+test("required asset scope fails closed before querying the whole library", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const result = await handleBulkAiTag(
+    { status: "running" },
+    true,
+    { client: fakeClient([], calls), tagAsset: async () => ({ outcome: "tagged" }) },
+    true,
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.done, true);
+  assert.match(result.error ?? "", /no asset ID/i);
+  assert.equal(calls.length, 0);
+});
