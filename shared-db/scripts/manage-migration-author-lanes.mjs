@@ -53,14 +53,27 @@ export const REVIEWERS = Object.freeze([
 // full 10 KB review with a coverage statement on the first attempt. One stopped local
 // process cost a two-day reviewer outage.
 //
-// WHY THAT COULD HAPPEN, and what is being done about it: `provider_unavailable`
-// conflates "the remote provider is down" (wait) with "a local dependency of the
-// wrapper is not running" (thirty-second fix), and PAUSING a reviewer requires no
-// evidence about which of the two it was while RESTORING one requires a probe. The
-// cheap check is demanded only on the path nobody is in a hurry to take. A pause entry
-// below must therefore NAME the failing health check, or state explicitly that the
-// health check passed and the failure was elsewhere. Tracked as #1287 here and
-// ai-devops#45 (each wrapper self-checks the dependencies it owns) upstream.
+// WHY THAT COULD HAPPEN, and what was done about it (#1287, CLOSED by the three
+// changes below; ai-devops#45 fixed the wrapper half upstream):
+//
+//   1. `provider_unavailable` conflated "the remote provider is down" (wait) with
+//      "a local dependency of the wrapper is not running" (thirty-second fix).
+//      `local_dependency_unavailable` is now a separate terminal code -- see
+//      TERMINAL_FAILURE_CODES -- and `replaceFailedReviewer` REFUSES to spend a
+//      rotation slot on one until the operator states the local fault cannot be
+//      fixed on this machine. A working provider no longer collects permanent
+//      failure evidence because a background process stopped.
+//   2. Recording a local fault now REQUIRES naming the failing check, and the name
+//      is written into the immutable failure evidence. A failure record that
+//      cannot say what broke is a guess, and the last guess cost two days.
+//   3. `reviewerExecutionPreflight` runs the wrapper's own `doctor` and quotes the
+//      failing check, so the operator is told "your local server is down, start
+//      it" instead of a wrong verdict about a model. It refuses outright rather
+//      than report ready on a probe it never ran.
+//
+// A pause entry below must still NAME the failing health check, or state explicitly
+// that the health check passed and the failure was elsewhere. That rule is now
+// enforced in code for the local-fault path, not left to the writer's memory.
 //
 // PAUSED 2026-08-20 (owner instruction, issue #1290): 'kimi-k3'. ELEVEN terminal
 // failures against FIVE successes in a single session, in three distinct modes:
@@ -128,6 +141,13 @@ export const EXCLUSIVE_REFS = Object.freeze({
   merge: 'refs/db-coordination/merge',
   production: 'refs/db-coordination/production',
 })
+
+// Terminal reviewer failure codes. `local_dependency_unavailable` is separate
+// from `provider_unavailable` on purpose: the first is a fault on THIS machine
+// and is usually a thirty-second fix, the second is the provider being down and
+// means waiting. Collapsing them is what produced a two-day pause of a working
+// reviewer (#1287). Keep them distinct.
+export const TERMINAL_FAILURE_CODES = Object.freeze(['insufficient_quota','provider_unavailable','local_dependency_unavailable','wrapper_terminal_failure','turn_limit_cancelled'])
 
 export const QUEUE_STATUSES = new Set(['ready','blocked','owner-decision'])
 export const QUEUE_WORK_TYPES = new Set(['structural','curated-master-data','application-data','source-data','repo-maintenance','documentation','security-settings'])
@@ -558,7 +578,119 @@ export const githubIo = {
   localHead(worktree){return execFileSync('git',['-C',worktree,'rev-parse','HEAD'],{encoding:'utf8'}).trim()},
   localClean(worktree){return execFileSync('git',['-C',worktree,'status','--porcelain'],{encoding:'utf8'}).split(/\r?\n/).filter(Boolean).every((line)=>line.slice(3).replaceAll('\\','/').startsWith('.ai/')) },
   currentMaxVersion(worktree){return execFileSync('git',['-C',worktree,'ls-tree','-r','--name-only','origin/main'],{encoding:'utf8'}).split(/\r?\n/).map((f)=>/^supabase\/migrations\/(\d{14})_/.exec(f)?.[1]).filter(Boolean).sort().at(-1)},
-  commandAvailable(command){try{execFileSync(process.platform==='win32'?'where.exe':'which',[command],{stdio:'ignore'});return true}catch{return false}},
+  commandAvailable(command){return Boolean(resolveCommandPath(command))},
+  // Ask the wrapper's own `doctor` whether it can actually work RIGHT NOW.
+  // Every wrapper prints one `PASS <check>` / `FAIL <check>` line per check, so
+  // the failing check can be quoted verbatim instead of guessed at. Exit status
+  // alone is not enough: the operator needs to be told WHICH check failed.
+  //
+  // WINDOWS. Every reviewer wrapper on Albert's machines is a `.cmd` shim, and
+  // `execFileSync` CANNOT spawn a `.cmd` directly -- it fails ENOENT even though
+  // `where.exe` finds the file. Caught by an independent review before this
+  // shipped: the probe would have failed on every review on Windows and reported
+  // a LOCAL FAULT for a provider that was fine, which is the exact misdiagnosis
+  // this whole change exists to end. Resolve the real path and route a batch
+  // shim through `cmd.exe /c`. No shell string is built, so nothing here is
+  // interpolated into a command line.
+  reviewerDoctor(wrapper){
+    const resolved=resolveCommandPath(wrapper)
+    if(!resolved)return {ok:false,failingChecks:[`${wrapper} is not on PATH`]}
+    const {file,args}=doctorSpawnPlan(resolved)
+    let output=''
+    try{output=execFileSync(file,args,{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:REVIEWER_DOCTOR_TIMEOUT_MS})}
+    catch(error){
+      if(error?.code==='ETIMEDOUT')return {ok:false,failingChecks:[`doctor did not answer within ${REVIEWER_DOCTOR_TIMEOUT_MS/1000}s`]}
+      output=`${error?.stdout??''}${error?.stderr??''}`
+      const failed=parseDoctorFailures(output)
+      if(failed.length)return {ok:false,failingChecks:failed}
+      return {ok:false,failingChecks:[`doctor could not be run (${error?.code??`exit ${error?.status}`}) and named no check`]}
+    }
+    return summarizeDoctorOutput(output)
+  },
+}
+
+// A wrapper's doctor is a local probe; it must never hang a governed lane.
+// An empty or unparseable override must NOT silently become 0 or NaN: Node treats
+// both as "no timeout", so a hung doctor would hang the lane instead of being
+// refused -- a silent failure produced by the very setting meant to prevent one.
+export const REVIEWER_DOCTOR_TIMEOUT_MS = (()=>{
+  const raw=process.env.REVIEWER_DOCTOR_TIMEOUT_MS
+  if(raw===undefined||String(raw).trim()==='')return 60000
+  const value=Number(raw)
+  if(!Number.isFinite(value)||value<=0)throw new LaneError(`REVIEWER_DOCTOR_TIMEOUT_MS must be a positive number of milliseconds; got "${raw}". Left unchecked this disables the timeout and a hung doctor hangs a governed lane.`)
+  return value
+})()
+
+// Every reviewer wrapper reports one line per check: `PASS  <check>` or
+// `FAIL  <check>`. Return the names of the failing ones, in order.
+export function parseDoctorFailures(output=''){
+  return String(output).split(/\r?\n/).map((line)=>/^\s*FAIL\s+(.*\S)\s*$/.exec(line)?.[1]).filter(Boolean)
+}
+
+// SILENCE IS NOT A PASS -- but an unfamiliar format is not a failure either.
+//
+// This runs only on a ZERO exit; a non-zero exit is refused by the caller before
+// it gets here. Three cases, measured against the real wrappers on edge-dev:
+//
+//   ai-glm / ai-muse   print `PASS  <check>` / `FAIL  <check>` lines. A FAIL wins
+//                      over any number of PASSes.
+//   ai-grok-review     prints NO check lines at all -- key/value lines and an
+//                      `auth : OK` footer -- and signals health purely by exit
+//                      status. Refusing that would have blocked a healthy Grok on
+//                      every review, which is the false local-fault diagnosis this
+//                      whole change exists to end. So when a wrapper answers with
+//                      output in a format we do not recognise AND exits 0, its own
+//                      exit status is its verdict; `format` records that we could
+//                      not read the detail.
+//   nothing at all     proves nothing. A wrapper that quietly stops reporting must
+//                      never be read as healthy forever. Refused.
+//
+// Do not "tidy" the third case into a pass, and do not tighten the second one
+// without first running `doctor` on every ACTIVE_REVIEWERS wrapper and pasting the
+// output into the change. Both halves were established that way.
+export function summarizeDoctorOutput(output=''){
+  const failed=parseDoctorFailures(output)
+  if(failed.length)return {ok:false,failingChecks:failed,format:'checks'}
+  const passed=String(output).split(/\r?\n/).filter((line)=>/^\s*PASS\s+\S/.test(line)).length
+  if(passed)return {ok:true,failingChecks:[],format:'checks'}
+  if(String(output).trim())return {ok:true,failingChecks:[],format:'unrecognized'}
+  return {ok:false,failingChecks:['doctor reported nothing at all; nothing was proved'],format:'silent'}
+}
+
+// How a resolved wrapper path is actually spawned. A Windows `.cmd`/`.bat` shim
+// must go through the command interpreter; everything else is executed directly.
+// Kept separate from the spawn so the rule can be tested for both platforms on
+// either platform.
+export function doctorSpawnPlan(resolved,platform=process.platform){
+  if(platform==='win32'&&/\.(cmd|bat)$/i.test(resolved))return {file:process.env.ComSpec||'cmd.exe',args:['/d','/s','/c',resolved,'doctor']}
+  return {file:resolved,args:['doctor']}
+}
+
+// The single place a wrapper name becomes a real path.
+//
+// ON WINDOWS THE FIRST LINE IS OFTEN THE WRONG ONE. `where.exe ai-grok-review`
+// prints BOTH `...\\ai-grok-review` (an extension-less bash script Windows cannot
+// execute at all) and `...\\ai-grok-review.cmd` (the shim the shell actually runs,
+// via PATHEXT). Taking the first line made the probe fail ENOENT for two of the
+// three active reviewers and report them as local faults while they were healthy.
+// Caught by spot-checking every wrapper after an independent review asked for it,
+// having already been burned once by the same class of bug.
+//
+// So mirror what the shell does: prefer the first candidate whose extension is in
+// PATHEXT, and fall back to the first line when none qualifies.
+export function pickExecutableCandidate(candidates,platform=process.platform,pathext=process.env.PATHEXT){
+  const list=candidates.filter(Boolean)
+  if(platform!=='win32')return list[0]??null
+  const exts=String(pathext||'.COM;.EXE;.BAT;.CMD').split(';').map((e)=>e.trim().toLowerCase()).filter(Boolean)
+  const runnable=list.find((p)=>exts.some((e)=>p.toLowerCase().endsWith(e)))
+  return runnable??list[0]??null
+}
+
+export function resolveCommandPath(command,platform=process.platform){
+  try{
+    const out=execFileSync(platform==='win32'?'where.exe':'which',[command],{encoding:'utf8',stdio:['ignore','pipe','ignore']})
+    return pickExecutableCandidate(out.split(/\r?\n/).map((line)=>line.trim()),platform)
+  }catch{return null}
 }
 
 export function acquireRef(ref, ownerSha, io = githubIo) {
@@ -791,20 +923,57 @@ function requireReplacementEvidence(replacement,io){
   if(io.readRef(ref)!==replacement.failureSha)throw new LaneError('immutable reviewer failure evidence is missing or changed')
 }
 
-export function reviewerExecutionPreflight({reviewer,wrapper,worktree,headSha},io=githubIo){
+// THE PREFLIGHT MUST PROVE THE PROVIDER ANSWERS, NOT JUST THAT A FILE EXISTS.
+//
+// It used to check `commandAvailable(wrapper)` and nothing more -- the wrapper
+// binary is on PATH, so the preflight passed. Every review then died at
+// execution with a generic `provider_unavailable`: a message about the MODEL
+// that was actually about a stopped local service on this machine.
+//
+// That misdiagnosis benched glm-5.3 for two days (2026-08-18 to 2026-08-20) on
+// three `provider_unavailable` failures at sequences 161, 164 and 167. The
+// provider was fine the whole time; its local OpenCode server was not running,
+// and `ai-glm doctor` said so in one line. During that window the rotation was
+// effectively one reviewer, and a rotation of one is not a rotation.
+//
+// So the probe runs the wrapper's own `doctor` and QUOTES the failing check.
+// Never soften this into a warning and never drop the check name: a pause that
+// cannot say what failed is a guess, and the last guess cost two days.
+export function reviewerExecutionPreflight({reviewer,wrapper,worktree,headSha,skipDoctor},io=githubIo){
   const approved=ACTIVE_REVIEWERS.find((row)=>row.name===reviewer)
   if(!approved||approved.wrapper!==wrapper)throw new LaneError('reviewer preflight requires an approved reviewer and its exact wrapper')
   if(!/^[0-9a-f]{40}$/i.test(String(headSha??''))||!worktree)throw new LaneError('reviewer preflight requires an exact 40-character head SHA and worktree')
   if(!io.commandAvailable?.(wrapper))throw new LaneError(`reviewer preflight cannot execute ${wrapper}`)
   if(io.localHead(worktree)!==headSha)throw new LaneError('reviewer preflight worktree is not at the exact assigned head')
   if(!io.localClean(worktree))throw new LaneError('reviewer preflight worktree is dirty')
-  return {reviewer,wrapper,worktree,headSha,ready:true}
+  let doctor=null
+  if(!skipDoctor){
+    // No doctor probe available is NOT a pass. Say so rather than reporting
+    // ready:true on evidence that was never collected.
+    if(typeof io.reviewerDoctor!=='function')throw new LaneError(`reviewer preflight cannot probe ${wrapper}: this io has no reviewerDoctor. Nothing was proved about the provider; do not record a failure against the reviewer.`)
+    doctor=io.reviewerDoctor(wrapper)
+    if(!doctor?.ok){
+      const checks=(doctor?.failingChecks??[]).map((c)=>`"${c}"`).join(', ')||'an unnamed check'
+      throw new LaneError(`reviewer preflight: ${wrapper} doctor reports ${checks} -- this is a LOCAL dependency fault on this machine, not a ${reviewer} provider fault. Fix the local service and retry the same reviewer. Do NOT pause ${reviewer} and do NOT record provider_unavailable against it.`)
+    }
+  }
+  return {reviewer,wrapper,worktree,headSha,ready:true,doctorChecked:!skipDoctor,failingChecks:doctor?.failingChecks??[]}
 }
 
-export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCode,confirmNoVerdict,confirmNoArtifact},io=githubIo){
+export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCode,failingCheck,confirmLocalDependencyUnfixable,confirmNoVerdict,confirmNoArtifact},io=githubIo){
   const request={issue:Number(issue),pr:Number(pr),headSha:String(headSha??''),failedSequence:Number(failedSequence)}
   if(!Number.isInteger(request.issue)||!Number.isInteger(request.pr)||!/^[0-9a-f]{40}$/i.test(request.headSha)||!Number.isInteger(request.failedSequence))throw new LaneError('reviewer replacement requires exact issue, PR, 40-character head SHA, and failed sequence')
-  if(!['insufficient_quota','provider_unavailable','wrapper_terminal_failure','turn_limit_cancelled'].includes(String(failureCode??'')))throw new LaneError('reviewer replacement requires a recognized terminal provider/tool failure code')
+  if(!TERMINAL_FAILURE_CODES.includes(String(failureCode??'')))throw new LaneError(`reviewer replacement requires a recognized terminal provider/tool failure code (${TERMINAL_FAILURE_CODES.join(', ')})`)
+  // A LOCAL fault is not the reviewer's fault. Replacing on one spends a
+  // rotation slot and records permanent evidence against a provider that was
+  // working, which is exactly how glm-5.3 was benched for two days. The named
+  // failing check is required so the evidence says what actually broke, and a
+  // replacement is only issued once the operator states plainly that the local
+  // fault cannot be fixed on this machine right now.
+  if(String(failureCode)==='local_dependency_unavailable'){
+    if(!String(failingCheck??'').trim())throw new LaneError('local_dependency_unavailable requires --failing-check naming the exact doctor check that failed. A failure record that cannot name the failing check is a guess.')
+    if(!confirmLocalDependencyUnfixable)throw new LaneError(`this is a LOCAL dependency fault ("${String(failingCheck).trim()}"), not a provider fault. Fix it on this machine and retry the SAME reviewer -- a replacement spends a rotation slot and records permanent evidence against a provider that is working. If it genuinely cannot be fixed here, re-run with --confirm-local-dependency-unfixable.`)
+  }else if(String(failingCheck??'').trim())throw new LaneError('--failing-check applies only to local_dependency_unavailable')
   if(!confirmNoVerdict||!confirmNoArtifact)throw new LaneError('reviewer replacement requires explicit confirmation that the failed session produced no verdict and no artifact')
   const assignmentRef=`refs/db-review-assignments/${request.issue}-${request.pr}-${request.headSha}`
   const failureRef=`${REVIEW_FAILURE_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${request.failedSequence}`
@@ -847,7 +1016,11 @@ export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCo
       const body=String(row.body??''), tied=row.commit_id===request.headSha||body.includes(request.headSha)
       return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))
     }))throw new LaneError('an existing verdict for the exact head forbids reviewer replacement')
-    const failureSha=io.makeOwnerCommit(`db-coordination reviewer-failure issue=${request.issue} pr=${request.pr} head=${request.headSha} sequence=${request.failedSequence} reviewer=${original.reviewer} code=${failureCode} verdict=none artifact=none`)
+    // The failing check rides along in the immutable evidence, so a later reader
+    // can tell a real provider outage from a stopped local service without
+    // re-deriving it from memory.
+    const checkNote=String(failingCheck??'').trim()?` failing-check=${String(failingCheck).trim().replace(/\s+/g,'_')}`:''
+    const failureSha=io.makeOwnerCommit(`db-coordination reviewer-failure issue=${request.issue} pr=${request.pr} head=${request.headSha} sequence=${request.failedSequence} reviewer=${original.reviewer} code=${failureCode}${checkNote} verdict=none artifact=none`)
     // SKIP, DO NOT REFUSE (#1297). The rotation position is only a starting point.
     // Every provider that already failed on THIS exact head is excluded, and the
     // cursor is advanced past each excluded name so the durable sequence still
@@ -1280,7 +1453,9 @@ function parseArgs(argv) {
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--claim-number','--failed-sequence','--failure-code','--old-version','--reviewer','--wrapper'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if(a==='--confirm-local-dependency-unfixable')out.confirmLocalDependencyUnfixable=true
+    else if(a==='--skip-doctor')out.skipDoctor=true
     else if(a==='--confirm-no-verdict')out.confirmNoVerdict=true
     else if(a==='--confirm-no-artifact')out.confirmNoArtifact=true
     else if (a === '--versions') { out.versions = next(i).split(',').map((v)=>v.trim()).filter(Boolean); i++ }

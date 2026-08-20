@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -356,14 +356,164 @@ test('terminal provider failure advances exactly once and retry is idempotent',(
   assert.equal(assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io).reviewer,'muse-spark-1.2-contributor')
 })
 
+const preflightIo=()=>({commandAvailable:()=>true,localHead:()=>failedReview.headSha,localClean:()=>true,reviewerDoctor:()=>({ok:true,failingChecks:[]})})
+const preflightRequest={reviewer:'grok-4.6',wrapper:'ai-grok-review',worktree:'C:/review',headSha:failedReview.headSha}
+
 test('reviewer execution preflight enforces approved wrapper, clean worktree, and exact head',()=>{
-  const io={commandAvailable:()=>true,localHead:()=>failedReview.headSha,localClean:()=>true}
-  const request={reviewer:'grok-4.6',wrapper:'ai-grok-review',worktree:'C:/review',headSha:failedReview.headSha}
+  const io=preflightIo(), request=preflightRequest
   assert.equal(reviewerExecutionPreflight(request,io).ready,true)
   assert.throws(()=>reviewerExecutionPreflight({...request,wrapper:'ai-qwen'},io),/exact wrapper/)
   assert.throws(()=>reviewerExecutionPreflight(request,{...io,commandAvailable:()=>false}),/cannot execute/)
   assert.throws(()=>reviewerExecutionPreflight(request,{...io,localHead:()=> 'f'.repeat(40)}),/exact assigned head/)
   assert.throws(()=>reviewerExecutionPreflight(request,{...io,localClean:()=>false}),/dirty/)
+})
+
+// THE TWO-DAY BENCH (#1287). glm-5.3 was paused on three `provider_unavailable`
+// failures while the provider was working: its local OpenCode server was not
+// running and `ai-glm doctor` said so in one line. The preflight passed because
+// it only checked that the wrapper binary existed. These tests pin the probe and
+// the wording, because the wording is what stops the next wrong pause.
+test('preflight refuses a LOCAL dependency fault and quotes the failing check',()=>{
+  const io={...preflightIo(),reviewerDoctor:()=>({ok:false,failingChecks:['health endpoint answers']})}
+  assert.throws(()=>reviewerExecutionPreflight(preflightRequest,io),/health endpoint answers/)
+  assert.throws(()=>reviewerExecutionPreflight(preflightRequest,io),/LOCAL dependency fault/)
+  // It must say plainly that the reviewer is not at fault, or the next operator
+  // pauses a working provider exactly as before.
+  assert.throws(()=>reviewerExecutionPreflight(preflightRequest,io),/not a grok-4.6 provider fault/)
+  assert.throws(()=>reviewerExecutionPreflight(preflightRequest,io),/Do NOT pause grok-4.6/)
+})
+
+test('preflight refuses to report ready on evidence it never collected',()=>{
+  const {reviewerDoctor,...noDoctor}=preflightIo()
+  assert.throws(()=>reviewerExecutionPreflight(preflightRequest,noDoctor),/has no reviewerDoctor/)
+  // An explicit opt-out is allowed, but the result says the probe did not run
+  // rather than implying the provider was proved healthy.
+  const skipped=reviewerExecutionPreflight({...preflightRequest,skipDoctor:true},noDoctor)
+  assert.equal(skipped.ready,true);assert.equal(skipped.doctorChecked,false)
+  assert.equal(reviewerExecutionPreflight(preflightRequest,preflightIo()).doctorChecked,true)
+})
+
+test('a doctor that names no failing check still refuses, and unnamed is not a pass',()=>{
+  const io={...preflightIo(),reviewerDoctor:()=>({ok:false,failingChecks:[]})}
+  assert.throws(()=>reviewerExecutionPreflight(preflightRequest,io),/an unnamed check/)
+})
+
+// A WINDOWS SHIM CANNOT BE SPAWNED DIRECTLY, and getting this wrong would have
+// made the new preflight refuse EVERY review on Albert's machines with a false
+// local-fault diagnosis -- the exact misdiagnosis this change exists to end.
+// Caught by an independent review before it shipped; `execFileSync('ai-glm',...)`
+// fails ENOENT on win32 even though `where.exe` finds the file.
+test('a Windows .cmd wrapper is spawned through the command interpreter',()=>{
+  const win=doctorSpawnPlan('C:/Users/ahazan/.local/bin/ai-glm.cmd','win32')
+  assert.match(win.file,/cmd\.exe$/i)
+  assert.deepEqual(win.args.slice(-2),['C:/Users/ahazan/.local/bin/ai-glm.cmd','doctor'])
+  assert.ok(win.args.includes('/c'),'a batch shim must be run with cmd /c')
+  assert.deepEqual(doctorSpawnPlan('C:/tools/ai-glm.BAT','win32').args.slice(-2),['C:/tools/ai-glm.BAT','doctor'])
+  // Anything that is not a batch shim, on any platform, is executed directly.
+  assert.deepEqual(doctorSpawnPlan('/usr/local/bin/ai-glm','linux'),{file:'/usr/local/bin/ai-glm',args:['doctor']})
+  assert.deepEqual(doctorSpawnPlan('C:/tools/ai-glm.exe','win32'),{file:'C:/tools/ai-glm.exe',args:['doctor']})
+  // A .cmd path on a non-Windows platform is NOT special-cased into cmd.exe.
+  assert.deepEqual(doctorSpawnPlan('/opt/ai-glm.cmd','linux'),{file:'/opt/ai-glm.cmd',args:['doctor']})
+})
+
+test('SILENCE IS NOT A PASS, but an unfamiliar format is not a failure',()=>{
+  // Real ai-muse output shape.
+  assert.deepEqual(summarizeDoctorOutput('PASS  health endpoint answers'),{ok:true,failingChecks:[],format:'checks'})
+  // A failing check always wins over any number of passing ones.
+  assert.deepEqual(summarizeDoctorOutput('PASS  a\nFAIL  b\nPASS  c'),{ok:false,failingChecks:['b'],format:'checks'})
+  // Nothing at all proves nothing.
+  assert.equal(summarizeDoctorOutput('').ok,false)
+  assert.equal(summarizeDoctorOutput('   \n\n').ok,false)
+  assert.match(summarizeDoctorOutput('').failingChecks[0],/nothing at all/)
+  assert.equal(summarizeDoctorOutput('').format,'silent')
+  // REAL ai-grok-review output: no check lines anywhere, health signalled by exit
+  // status alone. Refusing this would block a healthy Grok on every review.
+  const grok=['grok binary   : /c/Users/ahazan/.grok/bin/grok','grok version  : grok 1.0.5 (5115b46bc9) [stable]','model         : grok-4.6','','auth          : OK (grok models succeeded)'].join('\n')
+  assert.deepEqual(summarizeDoctorOutput(grok),{ok:true,failingChecks:[],format:'unrecognized'})
+  // An unrecognised format is still refused when it names a failing check.
+  assert.equal(summarizeDoctorOutput(grok+'\nFAIL  auth').ok,false)
+})
+
+// `where.exe` lists an extension-less bash script BEFORE the .cmd shim for most
+// wrappers here. Windows cannot execute the former at all, so taking the first
+// line reported ai-grok-review and ai-muse as local faults while both were
+// healthy -- the same false diagnosis this change exists to end, twice over.
+test('on Windows the runnable shim is chosen, not the unrunnable script listed first',()=>{
+  const both=['C:/Users/ahazan/.local/bin/ai-grok-review','C:/Users/ahazan/.local/bin/ai-grok-review.cmd']
+  assert.equal(pickExecutableCandidate(both,'win32','.COM;.EXE;.BAT;.CMD'),both[1])
+  // On a POSIX machine the extension-less file IS the executable; do not reorder.
+  assert.equal(pickExecutableCandidate(['/usr/local/bin/ai-grok-review'],'linux'),'/usr/local/bin/ai-grok-review')
+  assert.equal(pickExecutableCandidate(both,'linux'),both[0])
+  // Nothing runnable: fall back to the first line rather than pretending it is missing.
+  assert.equal(pickExecutableCandidate(['C:/tools/ai-glm.sh'],'win32','.COM;.EXE;.BAT;.CMD'),'C:/tools/ai-glm.sh')
+  assert.equal(pickExecutableCandidate([],'win32'),null)
+  // A missing PATHEXT must not disable the preference.
+  assert.equal(pickExecutableCandidate(both,'win32',undefined),both[1])
+})
+
+test('REVIEWER_DOCTOR_TIMEOUT_MS is a real positive timeout',()=>{
+  // Node treats 0 and NaN as "no timeout", so a blank or broken override would
+  // silently let a hung doctor hang a governed lane.
+  assert.ok(Number.isFinite(REVIEWER_DOCTOR_TIMEOUT_MS)&&REVIEWER_DOCTOR_TIMEOUT_MS>0)
+})
+
+test('resolveCommandPath returns the first candidate, or null when absent',()=>{
+  assert.equal(resolveCommandPath('definitely-not-a-real-command-1287'),null)
+  const node=resolveCommandPath('node')
+  assert.ok(node&&node.length>0,'node must resolve on any machine running this suite')
+  assert.ok(!/\r|\n/.test(node),'the resolved path must be a single trimmed line')
+})
+
+test('parseDoctorFailures returns only the failing check names, in order',()=>{
+  const output=['PASS  pinned OpenCode is installed','FAIL  health endpoint answers','PASS  1Password command is available','FAIL  exact model is available'].join('\n')
+  assert.deepEqual(parseDoctorFailures(output),['health endpoint answers','exact model is available'])
+  assert.deepEqual(parseDoctorFailures('PASS  everything'),[])
+  assert.deepEqual(parseDoctorFailures(''),[])
+  assert.deepEqual(parseDoctorFailures('FAIL  trailing spaces   '),['trailing spaces'])
+})
+
+test('local_dependency_unavailable is a distinct terminal code and must name what failed',()=>{
+  assert.ok(TERMINAL_FAILURE_CODES.includes('local_dependency_unavailable'))
+  assert.ok(TERMINAL_FAILURE_CODES.includes('provider_unavailable'))
+  const io=failedReviewIo(), local={...replacementRequest,failureCode:'local_dependency_unavailable'}
+  assert.throws(()=>replaceFailedReviewer(local,io),/requires --failing-check/)
+  // Named but not confirmed unfixable: refuse, and tell the operator to fix the
+  // machine and retry the SAME reviewer rather than spend a rotation slot.
+  const named={...local,failingCheck:'health endpoint answers'}
+  assert.throws(()=>replaceFailedReviewer(named,io),/LOCAL dependency fault/)
+  assert.throws(()=>replaceFailedReviewer(named,io),/retry the SAME reviewer/)
+  // Nothing was recorded against the working provider.
+  assert.equal([...io.refs.keys()].some((ref)=>ref.startsWith('refs/db-review-failures/')),false)
+  assert.equal([...io.refs.keys()].some((ref)=>ref.startsWith(REVIEW_REPLACEMENT_REF_PREFIX)),false)
+})
+
+test('a confirmed-unfixable local fault replaces and writes the failing check into the evidence',()=>{
+  const io=failedReviewIo()
+  const done=replaceFailedReviewer({...replacementRequest,failureCode:'local_dependency_unavailable',failingCheck:'health endpoint answers',confirmLocalDependencyUnfixable:true},io)
+  assert.equal(done.reviewer,'glm-5.3')
+  const failureRef=[...io.refs.keys()].find((ref)=>ref.startsWith('refs/db-review-failures/'))
+  const message=io.getCommit(io.refs.get(failureRef)).message
+  assert.match(message,/code=local_dependency_unavailable/)
+  assert.match(message,/failing-check=health_endpoint_answers/)
+})
+
+test('a confirmed-unfixable local replacement is idempotent with the same flags',()=>{
+  const io=failedReviewIo()
+  const request={...replacementRequest,failureCode:'local_dependency_unavailable',failingCheck:'health endpoint answers',confirmLocalDependencyUnfixable:true}
+  const first=replaceFailedReviewer(request,io)
+  assert.deepEqual(replaceFailedReviewer(request,io),first)
+  // The evidence is written once, not once per retry.
+  assert.equal([...io.refs.keys()].filter((ref)=>ref.startsWith('refs/db-review-failures/')).length,1)
+})
+
+test('--failing-check is refused for every code that is not a local fault',()=>{
+  const io=failedReviewIo()
+  assert.throws(()=>replaceFailedReviewer({...replacementRequest,failingCheck:'health endpoint answers'},io),/applies only to local_dependency_unavailable/)
+  // An ordinary provider failure still records no failing-check field at all.
+  const done=replaceFailedReviewer(replacementRequest,io)
+  const failureRef=[...io.refs.keys()].find((ref)=>ref.startsWith('refs/db-review-failures/'))
+  assert.ok(done.replacementSha)
+  assert.doesNotMatch(io.getCommit(io.refs.get(failureRef)).message,/failing-check/)
 })
 
 test('paused Qwen evidence remains readable but Qwen receives no new assignment',()=>{
