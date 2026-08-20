@@ -1570,3 +1570,161 @@ changes for it and do not re-raise it as a blocker.
 the ruling and the privilege analysis are on issue **#705**. That capture's README describes
 the waiver as "for this capture only" and "not a general waiver"; **this section supersedes
 that wording** — the exception is standing, on the terms above.
+
+---
+
+## 4.2 OWNER RULING
+
+> Moved from `AGENTS.md` §4.2 on 2026-08-20 (issue #1331, PR #1212). Text unchanged. The
+> operative rule is restated in full in `AGENTS.md` §4.2 so no session has to click through to
+> be safe.
+
+**4.2 OWNER RULING — prove which database you are connected to before any destructive statement (Albert Hazan, 2026-08-02)**
+
+
+> "agents should be required to prove which database they're connected to before any delete or update"
+> — Albert Hazan, 2026-08-02
+
+This is a standing rule, ruled by the owner. **It is settled — do not re-ask it, do not
+treat it as an AI's preference, and do not weaken it.** (It was raised once before and the
+owner did not answer; that non-answer was correctly recorded as *not* approval. He has now
+ruled.)
+
+**Why it exists.** It was proposed after a 442-row `DELETE FROM ingest.raw_record` ran
+against **production** `qsllyeztdwjgirsysgai` on 2026-07-31 while the session believed it
+was on preview. The owner has separately ruled that **that delete was intended and correct
+and is NOT an incident** (§6.3) — no restore, no PITR, no corrective migration. The rule
+exists because, to everyone watching, a correct delete on production was *indistinguishable
+from an accidental one*: nothing in the record proved which database the statement hit. The
+rule closes that evidence gap, not a mistake.
+
+**The rule.**
+
+1. **Before every `DELETE`, `UPDATE`, `DROP`, `TRUNCATE`, `ALTER`, or any other statement
+   that writes, changes, or removes data, schema, or privileges (including `INSERT`, `GRANT`
+   and `CREATE`), or any action that sets such a change in motion indirectly — calling a
+   mutating function or RPC, a REST request, a script, a CI workflow, or asking another
+   person, including the owner, to run it — in ANY environment, preview and production
+   alike, the agent must prove which database the statement is about to run against. One
+   proof covers everything submitted in the same tool call as the check or in the
+   immediately following tool call (a batch, a migration file, a `db push`); it never
+   carries further.** Preview being "the safe one" is not an exemption: the proof
+   requirement is unconditional. **§0.0-B does not narrow this.** An application session
+   that owns its own data writes still owes the proof on every one of them: §0.0-B decides
+   *who authorises* a statement, §4.2 decides *that you know where it lands*. Both bind.
+2. **"Prove" means an explicit check of the live connection target, executed immediately
+   before the statement.** It is not an assumption, not a memory, not a check made earlier in
+   the session, not a `.sql` filename, not a branch name, not a doc, not a plan that said
+   "preview". Any tool call, environment change, reconnect, or turn boundary between the
+   check and the statement invalidates the check — redo it.
+3. **The proof must be stated in the agent's report** — the message it gives the owner (or
+   the orchestrator) at the end of the turn — quoting the value it actually
+   observed (the project ref or URL) and the statement it authorised. A report of a
+   destructive statement without a quoted, immediately-preceding target proof is an
+   incomplete report.
+
+**The concrete mechanisms this repo has — use these, not a substitute:**
+
+- **Supabase MCP:** call `get_project_url` **FIRST**, in the same turn, immediately before
+  the statement. Note the trap: `get_project_url` takes **no project parameter** — it
+  reports whatever project the MCP server is bound to, and in this repo that binding **may
+  be PRODUCTION**. Passing a project ref to `execute_sql`/`apply_migration` does not make
+  those tools target it; the server binding wins. This is exactly why the check must be a
+  call, not an inference.
+- **CLI / `psql` / Node `pg` work:** read `cat supabase/.temp/project-ref` and verify it
+  **before EVERY push or connection**, not once per session. `supabase link` can be re-run
+  by any other step, worktree, or concurrent session, so a ref read ten minutes ago proves
+  nothing about the connection you are about to use.
+
+**The two refs, in full — compare against these characters, not against "looks like preview":**
+
+```text
+Production: qsllyeztdwjgirsysgai
+Preview:    mvpkijzfmfcxhnzqogzs   (Supabase branch "shared-db-schema-rehearsal")
+```
+
+⚠️ **`rjyboqwcdzcocqgmsyel` IS THE OLD PREVIEW AND IS DELETED.** It was destroyed and
+rebuilt as `mvpkijzfmfcxhnzqogzs` on 2026-08-18, and this block still named it as
+current until 2026-08-20 — under a heading telling you to compare against these exact
+characters. A session following that literally would have **rejected the real preview as
+wrong**. If you find that string anywhere presented as current, it is stale: §4.2 above
+and §5 already say it was deleted, and this block disagreed with both of them.
+
+**Preview's ref is CONFIGURED, never a literal.** The authority is the repository
+variable `PREVIEW_PROJECT_REF` (`gh variable list --repo u2giants/shared-db`), because
+preview gets rebuilt and its ref changes when it does — which is exactly how this block
+went stale. Five workflows were once pinned to the deleted ref and could only fail; a
+guard now asserts that no workflow carries a literal. **Do the same yourself: read the
+variable, do not copy the characters above into anything executable.** They are here to
+be compared against, not to be pasted.
+
+**Trap that has misled sessions:** preview is a Supabase **branch**, not a standalone
+project, so the preview ref **does not appear in `supabase projects list`**. Its
+absence from that listing is evidence of nothing — it is not proof that you are on
+production, and it is not proof that preview is gone. Use `supabase branches list` /
+`list_branches` if you need to see it, and use the checks above to establish where you
+actually are.
+
+---
+
+## 4.3 OWNER RULING
+
+> Moved from `AGENTS.md` §4.3 on 2026-08-20 (issue #1331, PR #1212). Text unchanged.
+
+**4.3 OWNER RULING — issues, handovers and plans point at the LIVE reading, never at a number (Albert Hazan, 2026-08-11)**
+
+
+> "Create a standing rule that issues point at the live reading."
+> — Albert Hazan, 2026-08-11
+
+`HANDOFF.md` already says no document wins by name or by date — re-derive from `git`/`gh`.
+That was never written down for **issues**, which is where sessions actually pick up work,
+and the cost showed up in one day: #773 said production was **53** migrations behind when a
+live read the same day said **57** of 433 files; #712 said "63 behind, now 53" and both
+numbers were already wrong; #712's out-of-order example named **one** version pair when the
+live read found **48**; #736 claimed to index every open owner decision and was stale by
+~14 hours, missing at least four newer issues; and #710/#773 carried a **B3/B4 overlap** —
+two versions listed in both batches — that only a live read caught.
+
+**The rule: state the COMMAND that yields the figure, not the figure.**
+
+**What counts as a live figure** — anything `git`, `gh` or a database query can answer right
+now: migration file counts; applied and unapplied counts; ledger position; row counts; batch
+membership; open issue and PR lists; branch, worktree and SHA state; "max applied version".
+If a number would change without anyone editing the document, it is a live figure.
+
+**Quote these commands instead** (these are the ones proven correct):
+
+```bash
+git ls-tree origin/main --name-only supabase/migrations/   # migration files on main
+gh issue list --repo u2giants/shared-db --label db-work    # open db work
+gh pr list --state open                                    # open PRs
+```
+
+⚠️ **Never `ls supabase/migrations/`.** The shared checkout is usually parked on another
+branch, so `ls` silently reports that branch's files as if they were `main`'s. This exact
+error was made on 2026-08-11. Always `git ls-tree origin/main`, after a `git fetch`.
+
+⚠️ **The production ledger is applied OUT OF ORDER.** The highest applied version implies
+NOTHING about what is applied beneath it — on 2026-08-11, 48 unapplied versions sorted below
+the max applied one. **Any document that reasons from a high-water mark is wrong.** Compare
+the two full lists, never the two maxima.
+
+**When a number genuinely must appear** — for human readability, or because it is a decision
+input — stamp it and mark it as perishable:
+
+```text
+57 of 433 unapplied [SNAPSHOT 2026-08-11T14:20Z — `git ls-tree origin/main --name-only
+supabase/migrations/` + `supabase migration list` on production. RE-DERIVE BEFORE ACTING.]
+```
+
+A snapshot without the timestamp, the source command and the re-derive marker is a defect —
+fix it when you see it. And no session may act on a snapshot it did not re-derive itself.
+
+⛔ **Do not propose a CI check that compares documents to GitHub issues.** It has been
+proposed twice, built once (B13) and deleted once, and three models re-reviewed it on
+2026-08-13 and rejected every variant. The reasoning, the verified false-positive rates and
+the one narrower check that could earn its place later are in
+[`docs/artifact-consistency-checker-rejected-20260813.md`](docs/artifact-consistency-checker-rejected-20260813.md).
+The mitigation for unsourced figures is this section plus the plan standard's rule that a
+status row marked done must cite an artifact, never a bare number.

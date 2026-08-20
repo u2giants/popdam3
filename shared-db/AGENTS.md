@@ -60,19 +60,12 @@ AI sessions from breaking each other through the one database they all depend on
 > `2` until each one is labelled.
 > ⚠️ **`COORDINATOR_INTAKE.md` is RETIRED** (2026-08-07) and is now a short pointer file.
 > **It stays on disk on purpose — retired means "pointer plus guard", not "deleted".** The
-> required check `Intake pointer guard`
-> ([`.github/workflows/intake-pointer-guard.yml`](.github/workflows/intake-pointer-guard.yml))
-> fails any PR that regrows a queue in it **and also fails if the file is missing**, because a
-> deleted pointer sends the next stale machine looking for somewhere else to append. Do not
-> write into it and do not delete it. **Keep it under 40 lines and 4 KB** — the guard enforces
-> that too, so do not answer a question by adding prose here; add it to AGENTS.md and link.
+> required check `Intake pointer guard` fails any PR that regrows a queue in it **and also fails
+> if the file is missing**. Do not write into it and do not delete it; keep it under 40 lines and
+> 4 KB. ⚠️ **Do not confuse it with `backlog-queue-sync`**, the deleted check `HANDOFF.md`'s
+> `## BACKLOG` note refers to (removed in `534b20f`). Reading that note as "the intake guard is
+> gone" leads straight to deleting a file a required check demands (issue #657).
 >
-> ⚠️ **Two different checks, do not confuse them.** `HANDOFF.md`'s `## BACKLOG` note says "the
-> CI check that enforced this is deleted". That is TRUE, and it means **`backlog-queue-sync`**
-> — the check that required every `B<n>` backlog item to also appear in this file's
-> `## REQUEST QUEUE`. It was removed in commit `534b20f`. It is **NOT** the `Intake pointer
-> guard`, which is live, required and green. Reading that sentence as "the intake guard is
-> gone" leads straight to deleting a file a required check demands. (Issue #657.)
 > **The standing facts an incoming session needs — silent duplicate-version skips, the
 > production-bound Supabase MCP, preview as a shared mutable resource, and the ban on
 > background task chips — are now §12 of THIS file**, re-homed 2026-08-07 ahead of the
@@ -535,13 +528,17 @@ four rules below are non-negotiable for any database change.
 
 ## 4. The five anti-collision rules (shared database)
 
-1. **Up to three unrelated migrations may be authored at once. Preview, merges,
-   and production promotion remain one at a time.** This is Albert's owner ruling
-   of 2026-08-14. Concurrent authors must use isolated worktrees, exact object
-   claims and centrally reserved versions. A fourth author is refused.
+**Full text, including the whole migration-author-lane and reviewer machinery, the post-merge
+preview rehearsal and its recovery lane:
+[`docs/agents/section-4-anti-collision-rules.md`](docs/agents/section-4-anti-collision-rules.md).
+Read it in full before you claim a lane, author a migration, or rehearse on preview.** The five
+rules below are the operative summary.
 
-   **Do not open a migration file first.** Acquire an author lane, object claim
-   and unique 14-digit version as one dispatch operation:
+1. **Up to three unrelated migrations may be authored at once. Preview, merges, and production
+   promotion remain one at a time** (owner ruling, 2026-08-14). A fourth author is refused.
+
+   **Do not open a migration file first.** Acquire an author lane, an exact object claim, and a
+   centrally reserved 14-digit version as one dispatch operation:
 
    ```bash
    node scripts/manage-migration-author-lanes.mjs --claim \
@@ -550,401 +547,76 @@ four rules below are non-negotiable for any database change.
      --objects "<every exact object written, comma-separated>"
    ```
 
-   Allocation is serialized across computers by a GitHub-backed lock. The command
-   fails closed if claims are unreadable, objects overlap an open claim or pull
-   request, GitHub is unavailable, version reservation fails, or three author
-   lanes are occupied. Older claims count until they are explicitly released.
-   The created issue body is authoritative and machine-readable. Never hand-edit
-   its fenced blocks. The permanent version ref prevents reuse even after a lease
-   ends; the lease only controls who occupies an author lane.
+   Allocation is serialized across computers by a GitHub-backed lock and **fails closed**. The
+   created issue body is authoritative and machine-readable — **never hand-edit its fenced
+   blocks.**
 
-   Audit lanes with `node scripts/manage-migration-author-lanes.mjs --audit`.
-   Audit and refill the three dynamic queues with
-   `node scripts/manage-migration-author-lanes.mjs --queue-audit`. Every open
-   `db-work` issue must contain one authoritative block:
+   - **If you cannot list the objects up front, your task is read-only** — and read-only work
+     cannot collide.
+   - **An open claim is a lock, not a note.** Close it when the work merges or is abandoned.
+     **Expiry never unlocks an object**, and a reserved version is never freed for reuse.
+   - **Preview and merge need their own exclusive GitHub-backed leases**, acquired separately;
+     a clean author lane does not grant preview. Instructions in chat are not a lock.
+   - **Never run `supabase migration repair --status reverted`** when preview aborts with
+     `Remote migration versions not found in local migrations directory` — those rows are another
+     team's applied work. Land or coordinate the other branch instead. A migration left
+     rehearsed-but-unmerged blocks everyone, so **open its PR the same session.**
+   - Every open `db-work` issue carries one authoritative `db-work-scope` block. Only
+     `ready + structural + shared-db-orchestrator` can enter an author lane, and it must name
+     every exact object. Outside-sourced writes into curated `core.*` Master Data use
+     `curated-master-data` / `curated-master-data-governance` — §6.4 governance, never a lane.
+   - **A verdict with no coverage statement is not review evidence** (issue #1220). An `APPROVE`
+     with no findings and no statement of what was examined is a wrapper or provider failure, not
+     a clean review — treat it as `verdict=none` and use `--replace-failed-reviewer`. **Silence is
+     never approval.**
+   - Reviewer rotation, the business-risk gate, and the transport-failure rule (**a wrapper that
+     cannot authenticate is a transport failure, not a review — replace it, never pause the
+     queue; a real `REVISE` is never a transport failure**) are in the full text.
 
-   ````text
-   ```db-work-scope
-   status: ready
-   work_type: structural
-   route: shared-db-orchestrator
-   priority: 100
-   depends_on:
-   objects:
-     - table schema.name
-   ````
-   ```
+   The `Cross-PR object collision` CI check is only the backstop. By the time it fires, somebody's
+   session is already wasted — on 2026-07-31, three of four were.
 
-   Status, work type, and route are independent. Allowed statuses are `ready`,
-   `blocked`, and `owner-decision`. Allowed work types are `structural`,
-   `curated-master-data`, `application-data`, `source-data`, `repo-maintenance`,
-   `documentation`, and `security-settings`. There is no default route. Only
-   `ready + structural + shared-db-orchestrator` can enter a migration-author
-   lane, and it must name every exact database object. Non-structural work must
-   not claim database objects.
+2. **Preview database first. Production never receives untested schema.** Apply every migration to
+   the preview branch, prove it works, *then* promote to production (`qsllyeztdwjgirsysgai`).
 
-   Outside-sourced writes into curated `core.*` Master Data use
-   `work_type: curated-master-data` and
-   `route: curated-master-data-governance`. This preserves §6.4 governance but
-   never grants a migration-author lane. Source-data review such as NBCU rights
-   classification uses `work_type: source-data` and
-   `route: source-data-session`, even while `status: owner-decision`. Changing
-   only the status after Albert answers can never change its owner route.
+   ⚠️ **The preview project ref is deliberately NOT written down here.** Preview is rebuilt from
+   time to time and its ref changes when it is — `rjyboqwcdzcocqgmsyel` was deleted on 2026-08-18.
+   The current ref lives in the repository variable `PREVIEW_PROJECT_REF`, every workflow that
+   targets preview reads it from there, an unset variable is refused rather than defaulted, and
+   `scripts/check-workflow-preview-ref.test.mjs` fails the guard job if any workflow pins a literal
+   again.
 
-   Exact object overlap forms a serial queue; unrelated object
-   groups fill up to three author lanes. When a claim releases, rerun the queue
-   audit and dispatch every reported `REFILL REQUIRED NOW` issue in the same
-   turn. Never wait for Albert to ask or approve routine dispatch. Ask him only
-   for a genuine business ruling or material production risk. Recompute after
-   every merge. Preview and merge stay globally serialized.
+   **Merge first, then rehearse on preview from merged `main`, then promote.** A rehearsal runs
+   **once** — an applied version can never be applied again, so a re-dispatch and a GitHub
+   "Re-run jobs" are both refused, and both refusals are correct. If a rehearsal must be recovered,
+   use the historical-recovery lane, never a weakened guard. ⚠️ **Superseded in part, 2026-08-20
+   (#1321): that lane cannot recover a POST-merge rehearsal** — it pins producer files to the
+   authoring PR's merge commit, so a later main tip fails the pin, and the only way through is to
+   supersede the migration with byte-identical SQL. Read the full text before relying on either.
 
-   An empty author lane is valid only when the audit has classified every open
-   `db-work` issue and reports no eligible issue for it. Unclassified, malformed,
-   blocked, owner-decision, and every non-structural work type never consume a
-   lane; unclassified or malformed issues also prevent a claim that no work
-   exists. While an author waits for CI, review, preview, or merge, continue safe
-   local work or prepare the next queued issue without creating overlapping
-   migration files.
+3. **Additive by default (expand, then contract).** Adding a column or table cannot break another
+   app. **Renaming or dropping** one another app reads *will*. Only rename/drop after explicit
+   owner sign-off and a checked deprecation across all dependent apps.
 
-   After an issue reaches an exact reviewed head, atomically assign its external
-   reviewer with:
+4. **New timestamped migration files only.** Each change is a new `YYYYMMDDHHMMSS_*.sql` file.
+   **Never edit a migration that has already been applied anywhere** — that is how two sessions
+   silently clobber each other.
 
-   ```bash
-   node scripts/manage-migration-author-lanes.mjs --assign-reviewer \
-     --issue <issue> --pr <pr> --head-sha <exact-head>
-   ```
+5. **Never reuse a timestamp — a duplicate SILENTLY SKIPS a migration.** The ledger
+   (`supabase_migrations.schema_migrations`) keys on the **version alone, not the filename**. If
+   two migrations share a timestamp, the first to apply claims the version and **the other is
+   treated as already-applied and never runs. No error, no warning.** It has happened twice
+   (`20260722220000`, `20260728160000`); the first left `dflow.sample_shipment_item` missing from
+   production while the ledger claimed success.
 
-   For new assignments, the machine-independent cursor rotates Grok 4.6 → GLM
-   5.2 → Kimi K3 → repeat. Qwen 3.8 Max is paused until an explicit owner
-   instruction restores it. Historical Qwen assignments, failures, and
-   replacement evidence remain readable and must be recovered or replaced
-   through `scripts/manage-migration-author-lanes.mjs`, never hand-edited. Use
-   only the wrapper returned by the manager and its fixed model settings. Reuse
-   one named session for rebuttals. Require
-   a current exact-head re-read and `APPROVE` or `REVISE` with evidence. Verify
-   every claim independently. Relay disagreements with
-   `templates/delegation/debate-turn.md`, stopping at agreement or the initial
-   review plus three rebuttals. If material disagreement remains, stop the merge
-   and ask Albert one concise decision. Never send secrets or licensed rows.
+   **A duplicate also blocks every future push forever** with
+   `duplicate key value violates unique constraint "schema_migrations_pkey"`.
 
-   **A verdict with no coverage statement is not review evidence** (issue #1220,
-   fixed wrapper-side in `ai-devops` PR #43). Two wrappers could finish a run
-   having produced no findings and no verdict at all and still exit 0, and one
-   printed a complete five-finding review as a bare two-line `VERDICT: APPROVE`
-   because it discarded everything above the verdict heading. The wrappers now
-   emit the whole body and exit non-zero when no verdict was reached, so the
-   evidence is guaranteed to be PRINTED. Nothing can guarantee it is READ, and
-   that half is this repository's job:
-
-   - **Never record a bare verdict.** An `APPROVE` with no findings and no
-     statement of what was actually examined is a wrapper or provider failure,
-     not a clean review. Treat it as `verdict=none` and use
-     `--replace-failed-reviewer` exactly as for a transport failure.
-   - **Require the reviewer to say what it covered** — which files, which
-     migrations, which conditions — not merely what it concluded. A review whose
-     coverage cannot be checked cannot be relied on to have missed nothing.
-   - **If a wrapper's stdout looks truncated, read the raw provider stream before
-     recording anything.** The failure that prompted this rule was recoverable in
-     full from `stream.jsonl` after the wrapper had already printed two lines. Both
-     recovered reviews were posted to their PRs in full, with the recovery method
-     stated, so the audit trail records what was checked rather than the wrapper's
-     summary of it. Do the same.
-   - **Silence is never approval.** The failure mode here is silent and biased
-     toward "looks approved", which is exactly the shape that gets waved through
-     under time pressure.
-
-   **Reviewer transport failures never pause the queue.** Run reviewer wrappers
-   from the full-access orchestrator process, not from a delegated sandbox. Before
-   starting, prove the selected wrapper can read its own authentication file and
-   create its session directory. A permission denial, missing authentication,
-   provider quota error, or wrapper timeout with no verdict is a transport failure,
-   not a review. Stop that process, record `verdict=none` and `artifact=none`, and
-   immediately use `--replace-failed-reviewer` with the matching terminal failure
-   code. Continue with the manager-selected replacement from the full-access
-   orchestrator in the same turn. Never leave an author, preview, merge, or
-   production lane waiting on a reviewer process that cannot authenticate or
-   write its own state. A real `REVISE` verdict is not a transport failure and
-   must never be replaced.
-
-   Append objective reviewer evidence through an `ai-devops` PR to
-   `models_comparison_grok_kim_glm.md`: issue/PR, requested and proven model,
-   verdict, confirmed/disproved findings, defects, false positives, policy/tool
-   adherence, continuity, latency, turns, and only metrics the wrapper reports.
-   Kimi headless metrics and returned model are unavailable; never invent them.
-   After review approval, green checks, preview proof, and guarded merge, the
-   production workflow runs `scripts/production_business_risk_gate.py`. It
-   derives the result from the exact merged PR and required checks, immutable
-   review artifact, pinned preview-apply artifact and ledger, current-main SQL,
-   and the activation record. Caller-written booleans or prose are never
-   evidence. Automatically promote only when those governed records prove: no
-   existing data is deleted or permanently rewritten, no expected user downtime,
-   no material access change, a tested credible recovery path, and no unresolved
-   material objection. Ambiguous SQL stops for Albert. Ask him one plain
-   business-risk question. Never ask him to approve migration numbers, project
-   identifiers, SQL, or other technical details. This policy cannot authorize
-   its own rollout. `config/production-risk-policy-activation.json` remains
-   inactive, and the older exact-approval rule remains binding, until #1015 is
-   independently reviewed, both PRs are merged, the installed skill hash matches
-   canonical ai-devops, and the forward-test proof hash is recorded. The gate
-   verifies those facts again before it can permit automatic promotion.
-   Record Qwen High as requested, but never override the wrapper's qualified
-   fixed configuration.
-
-   Audit reports malformed claims without hiding the healthy ones; allocation
-   still refuses while any malformed claim exists. **Expiry never unlocks an
-   object.** Renew active work or explicitly release a claim after proving its
-   branch/worktree/PR is finished. Cleanup may report stale work, but it must not
-   silently close it. A reserved version is never freed for reuse because an
-   abandoned version may already exist in preview's ledger.
-
-   **If you cannot list the objects up front, your task is read-only** — and read-only work cannot
-   collide. Close your claim when the work merges or is abandoned; an open claim
-   is a lock on those objects, not a note.
-
-   This runs BEFORE the work. The `Cross-PR object collision` CI check is the
-   backstop AFTER it, and by the time that one fires, somebody's session is
-   already wasted — on 2026-07-31, three of four were.
-
-   Before preview and again before merge, acquire the exclusive GitHub-backed
-   `preview` or `merge` lease. Instructions in chat are not a lock. Fetch `origin/main`, update the branch
-   from newly merged `main`, and re-run the version/object checks and all existing
-   SQL/cross-PR guards. A clean author lane does not grant access to preview.
-   The orchestrator grants the single preview lane, then the single merge lane.
-   Release each stage lease explicitly when that stage ends. Required CI rejects
-   a migration PR unless its exact version and normalized objects match a live,
-   branch-bound author claim; merge CI also requires that PR's merge lease.
-   **The concrete symptom when this rule is broken:** the preview branch is
-   persistent, so its ledger holds every branch that ever ran `db push` —
-   including unmerged ones. A `main`-based checkout then cannot dry-run against
-   preview at all; it aborts with `Remote migration versions not found in local
-   migrations directory` and suggests `supabase migration repair --status
-   reverted …`. **Never run that repair** — those rows belong to another team's
-   applied work, and clearing them leaves the objects in place so their next
-   push collides. Land or coordinate the other branch instead. Full procedure:
-   [`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](docs/ai-session-instructions/shared-supabase-branch-workflow.md)
-   → "When preview holds another workstream's unmerged rehearsal". A migration
-   left rehearsed-but-unmerged blocks everyone, so **open its PR the same
-   session** (seen 2026-07-27: 17 PopPIM migrations blocked all preview
-   dry-runs until PR #271 landed).
-2. **Preview database first. Production never receives untested schema.** Apply
-   every migration to the preview branch, prove it works, *then* promote to
-   production (`qsllyeztdwjgirsysgai`). The preview project ref is NOT written
-   down here: preview is rebuilt from time to time and its ref changes when it
-   is — `rjyboqwcdzcocqgmsyel` was deleted on 2026-08-18. The current ref lives
-   in the repository variable `PREVIEW_PROJECT_REF`, and **every** workflow that
-   targets preview reads it from there. An unset variable is refused, never
-   defaulted. The older workflows that used to hard-code the deleted ref
-   (`generate-database-types.yml`, `preview-ledger-orphan-reconciliation.yml`,
-   the `coldlion-*` workflows) were converted to the same pattern, and
-   `scripts/check-workflow-preview-ref.test.mjs` now fails the *Shared Supabase
-   Migrations* guard job if any workflow pins a preview ref literal again.
-
-   **Post-merge rehearsal (the normal order).** Merge first, then rehearse on
-   preview from merged `main`, then promote. Dispatch *Shared Supabase
-   Migrations* with `target=preview`, `mode=apply`,
-   `merged_preview_source_pr=<the merged PR>`, `commit_sha=<the current main
-   tip>` and `preview_allowlist=<the exact versions>`. Do NOT pass `claim_pr`:
-   a merged pull request has no live author claim, and naming both is refused.
-
-   The exclusive preview lock for that run is authorised by **merge-commit
-   ancestry of the main tip**, not by a live author claim — the guarded merge
-   released the claim and deleted the branch, which is exactly why the rule
-   above used to be unexecutable (#1208). It is the same `refs/db-coordination/preview`
-   lock, so it is mutually exclusive with an ordinary preview run and with a
-   historical recovery — every lane that writes preview holds one ref, and this
-   lane adds no second door.
-
-   **What that lock does NOT do, stated exactly.** It does not exclude a merge
-   or a production promotion. `EXCLUSIVE_REFS` gives merge and production their
-   own refs, and only two cross-checks exist — both inside `acquireExclusive` in
-   [`scripts/manage-migration-author-lanes.mjs`](scripts/manage-migration-author-lanes.mjs),
-   findable by their refusal text rather than by a line number, which drifts:
-   a promotion waits for the merge ref (`a guarded merge is active; production
-   promotion must wait`), and a merge waits for the production ref
-   (`production promotion is active; merges are frozen`). Nothing in
-   either direction reads the preview ref. That is pre-existing behaviour of the
-   ordinary preview lane, unchanged here — an earlier draft of this section
-   claimed the exclusion existed, and it never did. Promotions are serialised
-   among themselves by the workflow `concurrency` group, not by this lock.
-
-   The lock fails closed if the PR is not merged, if its
-   merge commit is not carried by the main tip, if the named versions were not
-   *added* by that PR, or if GitHub state cannot be read.
-
-   The evidence that run uploads carries the exact commit it checked out and the
-   preview project ref it wrote to, and the production gate checks both. A
-   rehearsal against a preview database that has since been rebuilt is therefore
-   no longer proof for a production write.
-
-   **A rehearsal runs ONCE. Do not re-run it — recover it.** An applied version
-   can never be applied again, so there is no second bite. If the versions are
-   already in preview's ledger, both ways of trying again are refused, and both
-   refusals are correct:
-
-   * **A fresh dispatch** fails at *Hard guard preflight*: the versions are now
-     in preview's ledger and the guard refuses to re-apply an applied version.
-     The run's conclusion becomes `failure`, and the production gate accepts
-     evidence only from a run whose status is `completed` and whose conclusion is
-     `success`.
-   * **GitHub's "Re-run jobs"** keeps the same run id, so a second
-     `preview-migration-apply-<sha>` upload lands on that one run. The gate
-     requires *exactly one* apply artifact per run — two make the applied commit
-     ambiguous, and an ambiguous commit is not provenance — so it refuses rather
-     than pick one.
-
-   ⚠️ **SUPERSEDED IN PART, 2026-08-20 (#1321): the historical-recovery lane
-   CANNOT recover a POST-MERGE rehearsal — i.e. evidence produced by the order
-   this very document mandates.** The lane pins the original run's producer files
-   to the AUTHORING PULL REQUEST'S MERGE COMMIT. A post-merge rehearsal runs from
-   a LATER main tip, so any producer file that changed in between (ten did, in one
-   day) makes the pin fail. Measured on `20260819011639`: merged, correct,
-   six-times reviewed, and refused — *"produced evidence with a different
-   .github/workflows/shared-supabase-migrations.yml than the merge commit"*. No
-   database write occurred. The only way through was to **supersede** the
-   migration with byte-identical SQL (`20260820142402`), which costs a migration
-   version and a fresh review round. **The paragraph below is still correct for a
-   PRE-merge rehearsal, which is what the lane was built for. Read #1321 before
-   relying on it for anything rehearsed after its pull request merged.**
-
-   First check whether you need a second run at all: if the original rehearsal
-   completed successfully, its artifact is still the proof, and the promotion
-   should simply name that run in `preview_run_id`. If it did not, **the way
-   forward is the historical-recovery lane, not a weakened guard.** Dispatch
-   `target=preview`, `mode=apply` with `historical_preview_source_pr` (or
-   `historical_preview_source_pr_map` for a batch authored across several pull
-   requests), **`historical_preview_original_run_map`**, plus
-   `commit_sha=<current main tip>` and the same `preview_allowlist`. That lane
-   performs **no database write**.
-
-   `historical_preview_original_run_map` is `version:runId` pairs naming the
-   preview run that **originally applied** each version, and it is **required**.
-   It is not bookkeeping: because a recovery run writes nothing, it can produce
-   no content manifest of its own, so the production gate goes and reads the
-   named run's manifest and byte-compares the digest it recorded against the file
-   on exact main. Find the run id in the Actions history — it is the successful
-   `apply` run whose artifact is `preview-migration-apply-<sha>` for that batch.
-
-   **The named run is pinned on BOTH of its commits.** The commit it advertised
-   in its artifact name *and* `head_sha`, the ref GitHub read the workflow file
-   from, must each be a commit of the authoring pull request or a commit exact
-   main contains, and each must carry the **same producer files as the merge
-   commit of the pull request that authored that version** — a commit the gate
-   re-derives from GitHub, never one the promoter supplies. Without that second
-   pin, anyone who can dispatch this workflow could push a branch whose copy of
-   it performs no database write, hand-write a ledger delta and a content
-   manifest naming exact main's digest, name that run as the "original apply",
-   and promote bytes preview never executed. Pinning the two commits **to each
-   other** — the #1213 round-5 wording, removed in round 7 — was a no-op: one
-   commit used for both pins compared nothing at all (round 6, finding 1).
-
-   A producer file that **did not exist yet** at the merge commit is skipped,
-   and only when it is absent from *both* commits. The producer list grows, so
-   an old recovery cannot be required to carry files added later; a file present
-   on one side only is a real difference in the machinery that ran, and is
-   refused. Absence is read from each commit's **git tree**, so it is a proved
-   fact rather than an inference from a failed API read, and an unreadable or
-   truncated tree refuses (#1213 round 7, finding 1).
-
-   **What this lane proves, stated exactly.** A real, successful run of this
-   workflow, whose dispatch ref and whose checkout both carry the producer code
-   of the merge commit that landed the version, added each named version to
-   *a* preview ledger and recorded a digest equal to the bytes on exact main; and
-   a merged pull request added each version.
-
-   **What it does not prove, and do not let anyone tell you otherwise.**
-   (a) That preview's *catalog* matches its ledger — a half-applied or
-   hand-repaired preview looks identical from here.
-   (b) That **today's** machinery produced the evidence. The original run's
-   producer code is pinned to the authoring pull request's **merge commit**,
-   never to today's main, because an older commit necessarily carries older
-   producer files and that rule would refuse every genuine recovery. It is *not*
-   pinned to the run's own checkout: round 6 of the #1213 review showed that one
-   attacker-chosen pull-request commit used as both the dispatch ref and the
-   checkout compares nothing at all, and this repository squash-merges, so every
-   commit ever pushed to a pull request stays citable forever.
-   (c) **Which preview database it was.** The original run is deliberately not
-   required to bind to the current `PREVIEW_PROJECT_REF`: preview
-   `rjyboqwcdzcocqgmsyel` was deleted and rebuilt as `mvpkijzfmfcxhnzqogzs` on
-   2026-08-18, so requiring it would refuse every recovery that exists, including
-   the stranded merges this lane was built for. A binding it *does* carry must be
-   readable and must not name the production project. The residual: the ledger
-   half of this lane can be satisfied by one database and the byte half by
-   another if a version reappears in the current preview by restore, clone, or a
-   later apply of different bytes.
-
-   The earlier wording here — "as strong as the claim lane was on the day of that
-   rehearsal" — was **withdrawn as false** in #1213 round 5 and must not return in
-   any file. The claim lane pins both of a run's commits to exact main, so a
-   doctored intermediate commit can never be the promoted rehearsal; this lane
-   pins them to the authoring pull request's merge commit, which is weaker at
-   least in the specific, named ways listed above. Do NOT read that list as
-   exhaustive: no code can establish an exhaustive negative about an attack
-   surface, and the "and in no other way" tail this sentence used to carry was
-   removed in #1213 round 7 for claiming one.
-
-   **If a version's file changed after its rehearsal, this lane will refuse it,
-   and that refusal is correct** — preview never ran the bytes you are asking
-   production to apply. The way forward there is a new migration, never a
-   recovery.
-
-   If you find yourself editing a guard, an `if:` condition or an artifact name
-   to make a re-run go through, stop. That is how the trap this section exists to
-   describe was built in the first place (#1194, #1208). Open an issue instead.
-3. **Additive by default (expand, then contract).** Adding a column or table
-   cannot break another app. **Renaming or dropping** one that another app reads
-   *will*. Default to additive changes. Only rename/drop after explicit owner
-   sign-off and a checked deprecation across all dependent apps.
-4. **New timestamped migration files only.** Each change is a new
-   `YYYYMMDDHHMMSS_*.sql` file. Never edit a migration that has already been
-   applied anywhere — that is how two sessions silently clobber each other.
-5. **Never reuse a timestamp — a duplicate SILENTLY SKIPS a migration.**
-   Supabase's ledger (`supabase_migrations.schema_migrations`) keys on the
-   **version (the timestamp) alone — not the filename**. If two migrations share
-   one timestamp, whichever applies first claims that version and **the other is
-   treated as already-applied and never runs**. No error, no warning.
-   *This actually happened (2026-07-22):* `20260722220000` was used by BOTH the
-   PopSG trigram-index migration and the Sample Tracking
-   `restore_dflow_sample_shipment_item` migration. Production recorded 220000 as
-   the PopSG one and skipped the table restore, so `dflow.sample_shipment_item`
-   never existed in production and the whole dependent feature (movements,
-   closeouts, views) could never apply — while the ledger claimed success.
-   *It happened again (2026-07-28):* `20260728160000` was used by BOTH
-   `clickup_incremental_task_import` and `popdam_user_tables_foreign_keys`. See
-   the second-order failure below.
-   **This is now enforced in CI** — `scripts/check-sql.sh` fails the PR on any
-   duplicate version, so you no longer have to remember the manual check
-   (`ls supabase/migrations | cut -c1-14 | sort | uniq -d`, which must print
-   nothing). **Before trusting a migration:** confirm the OBJECT exists
-   (`to_regclass`), never just the ledger row.
-
-   **A duplicate has a SECOND failure mode that outlives the skip: it blocks
-   every future push.** The ledger holds one row per version, so the CLI matches
-   that row to one of the two files and reports the other as pending *forever*.
-   Every `supabase db push` then tries to re-insert the version and aborts:
-
-   ```text
-   ERROR: duplicate key value violates unique constraint "schema_migrations_pkey"
-   Key (version)=(20260728160000) already exists.
-   ```
-
-   `supabase migration list` shows it plainly — the same version twice, once
-   matched and once with an empty REMOTE column.
-
-   Fixing a collision — choose by whether the loser's content has landed yet:
-   - **Not yet applied anywhere:** re-timestamp the loser (pure rename) so it
-     sorts after the winner, keeping dependent migrations in order.
-   - **Already landed via a later re-issue:** **delete** the superseded file.
-     Re-timestamping it would apply stale DDL *after* the newer fixes and
-     `create or replace` the corrected objects back to their old bodies. This
-     was the 2026-07-29 resolution for `20260728160000`: the ClickUp half had
-     been re-issued as `20260728174500` and then fixed by `20260728181500`, so
-     renumbering it would have reverted the fixes.
-
-   Deleting the loser is safe for the ledger **only because the winner keeps the
-   version** — the CLI still finds a local file for every `schema_migrations`
-   row, so it does not abort with `Remote migration versions not found in local
-   migrations directory`.
-
+   Now enforced in CI by `scripts/check-sql.sh`. **Before trusting any migration, confirm the
+   OBJECT exists (`to_regclass`) — never just the ledger row.** Fixing a collision: re-timestamp
+   the loser if its content has not landed anywhere; **delete** it if the content already landed
+   via a later re-issue (re-timestamping would apply stale DDL over the newer fixes). Worked
+   detail in the full text.
 ## 4.1 App-specific attributes go in per-app extension tables (decided 2026-07-17)
 
 When an app needs a field on a shared canonical entity (`core.customer`,
@@ -971,148 +643,33 @@ own schema: `crm.customer_ext`, `dam.customer_ext`, `pim.factory_ext`, etc.
 Full implementation guide (DDL template, per-app sections, rollout order):
 [`docs/per-app-extension-tables-plan.md`](docs/per-app-extension-tables-plan.md).
 
-## 4.2 OWNER RULING — prove which database you are connected to before any destructive statement (Albert Hazan, 2026-08-02)
+## 4.2 OWNER RULING — moved
 
-> "agents should be required to prove which database they're connected to before any delete or update"
-> — Albert Hazan, 2026-08-02
+> **4.2 OWNER RULING — prove which database you are connected to before any destructive statement (Albert Hazan, 2026-08-02)**
+> Full ruling: [`docs/owner-rulings.md`](docs/owner-rulings.md#42-owner-ruling). Moved 2026-08-20 (issue #1331); text unchanged.
+>
+> **The operative rule, in full, so nobody has to click through to be safe.** Before any statement
+> that writes, changes or removes data, schema or privileges — `INSERT`, `UPDATE`, `DELETE`,
+> `TRUNCATE`, `DROP`, `ALTER`, `GRANT`, `CREATE`, a mutating function or RPC, a script, a CI
+> workflow, or asking a person including the owner to run one — **in ANY environment, preview and
+> production alike, prove which database it is about to run against.** Preview being "the safe one"
+> is not an exemption, and **§0.0-B does not narrow this**: §0.0-B decides who authorises a
+> statement, §4.2 decides that you know where it lands.
+>
+> **"Prove" means an explicit check of the live connection target, executed immediately before the
+> statement** — never an assumption, a memory, an earlier check, a filename, a branch name, or a
+> plan that said "preview". One proof covers what is submitted in the same tool call or the
+> immediately following one; **any tool call, reconnect or turn boundary in between invalidates it
+> — redo it.** It is settled: do not re-ask it and do not weaken it. The full ruling carries the
+> incident behind it and the exact queries that count as proof.
+## 4.3 OWNER RULING — moved
 
-This is a standing rule, ruled by the owner. **It is settled — do not re-ask it, do not
-treat it as an AI's preference, and do not weaken it.** (It was raised once before and the
-owner did not answer; that non-answer was correctly recorded as *not* approval. He has now
-ruled.)
-
-**Why it exists.** It was proposed after a 442-row `DELETE FROM ingest.raw_record` ran
-against **production** `qsllyeztdwjgirsysgai` on 2026-07-31 while the session believed it
-was on preview. The owner has separately ruled that **that delete was intended and correct
-and is NOT an incident** (§6.3) — no restore, no PITR, no corrective migration. The rule
-exists because, to everyone watching, a correct delete on production was *indistinguishable
-from an accidental one*: nothing in the record proved which database the statement hit. The
-rule closes that evidence gap, not a mistake.
-
-**The rule.**
-
-1. **Before every `DELETE`, `UPDATE`, `DROP`, `TRUNCATE`, `ALTER`, or any other statement
-   that writes, changes, or removes data, schema, or privileges (including `INSERT`, `GRANT`
-   and `CREATE`), or any action that sets such a change in motion indirectly — calling a
-   mutating function or RPC, a REST request, a script, a CI workflow, or asking another
-   person, including the owner, to run it — in ANY environment, preview and production
-   alike, the agent must prove which database the statement is about to run against. One
-   proof covers everything submitted in the same tool call as the check or in the
-   immediately following tool call (a batch, a migration file, a `db push`); it never
-   carries further.** Preview being "the safe one" is not an exemption: the proof
-   requirement is unconditional. **§0.0-B does not narrow this.** An application session
-   that owns its own data writes still owes the proof on every one of them: §0.0-B decides
-   *who authorises* a statement, §4.2 decides *that you know where it lands*. Both bind.
-2. **"Prove" means an explicit check of the live connection target, executed immediately
-   before the statement.** It is not an assumption, not a memory, not a check made earlier in
-   the session, not a `.sql` filename, not a branch name, not a doc, not a plan that said
-   "preview". Any tool call, environment change, reconnect, or turn boundary between the
-   check and the statement invalidates the check — redo it.
-3. **The proof must be stated in the agent's report** — the message it gives the owner (or
-   the orchestrator) at the end of the turn — quoting the value it actually
-   observed (the project ref or URL) and the statement it authorised. A report of a
-   destructive statement without a quoted, immediately-preceding target proof is an
-   incomplete report.
-
-**The concrete mechanisms this repo has — use these, not a substitute:**
-
-- **Supabase MCP:** call `get_project_url` **FIRST**, in the same turn, immediately before
-  the statement. Note the trap: `get_project_url` takes **no project parameter** — it
-  reports whatever project the MCP server is bound to, and in this repo that binding **may
-  be PRODUCTION**. Passing a project ref to `execute_sql`/`apply_migration` does not make
-  those tools target it; the server binding wins. This is exactly why the check must be a
-  call, not an inference.
-- **CLI / `psql` / Node `pg` work:** read `cat supabase/.temp/project-ref` and verify it
-  **before EVERY push or connection**, not once per session. `supabase link` can be re-run
-  by any other step, worktree, or concurrent session, so a ref read ten minutes ago proves
-  nothing about the connection you are about to use.
-
-**The two refs, in full — compare against these characters, not against "looks like preview":**
-
-```text
-Production: qsllyeztdwjgirsysgai
-Preview:    mvpkijzfmfcxhnzqogzs   (Supabase branch "shared-db-schema-rehearsal")
-```
-
-⚠️ **`rjyboqwcdzcocqgmsyel` IS THE OLD PREVIEW AND IS DELETED.** It was destroyed and
-rebuilt as `mvpkijzfmfcxhnzqogzs` on 2026-08-18, and this block still named it as
-current until 2026-08-20 — under a heading telling you to compare against these exact
-characters. A session following that literally would have **rejected the real preview as
-wrong**. If you find that string anywhere presented as current, it is stale: §4.2 above
-and §5 already say it was deleted, and this block disagreed with both of them.
-
-**Preview's ref is CONFIGURED, never a literal.** The authority is the repository
-variable `PREVIEW_PROJECT_REF` (`gh variable list --repo u2giants/shared-db`), because
-preview gets rebuilt and its ref changes when it does — which is exactly how this block
-went stale. Five workflows were once pinned to the deleted ref and could only fail; a
-guard now asserts that no workflow carries a literal. **Do the same yourself: read the
-variable, do not copy the characters above into anything executable.** They are here to
-be compared against, not to be pasted.
-
-**Trap that has misled sessions:** preview is a Supabase **branch**, not a standalone
-project, so the preview ref **does not appear in `supabase projects list`**. Its
-absence from that listing is evidence of nothing — it is not proof that you are on
-production, and it is not proof that preview is gone. Use `supabase branches list` /
-`list_branches` if you need to see it, and use the checks above to establish where you
-actually are.
-
-## 4.3 OWNER RULING — issues, handovers and plans point at the LIVE reading, never at a number (Albert Hazan, 2026-08-11)
-
-> "Create a standing rule that issues point at the live reading."
-> — Albert Hazan, 2026-08-11
-
-`HANDOFF.md` already says no document wins by name or by date — re-derive from `git`/`gh`.
-That was never written down for **issues**, which is where sessions actually pick up work,
-and the cost showed up in one day: #773 said production was **53** migrations behind when a
-live read the same day said **57** of 433 files; #712 said "63 behind, now 53" and both
-numbers were already wrong; #712's out-of-order example named **one** version pair when the
-live read found **48**; #736 claimed to index every open owner decision and was stale by
-~14 hours, missing at least four newer issues; and #710/#773 carried a **B3/B4 overlap** —
-two versions listed in both batches — that only a live read caught.
-
-**The rule: state the COMMAND that yields the figure, not the figure.**
-
-**What counts as a live figure** — anything `git`, `gh` or a database query can answer right
-now: migration file counts; applied and unapplied counts; ledger position; row counts; batch
-membership; open issue and PR lists; branch, worktree and SHA state; "max applied version".
-If a number would change without anyone editing the document, it is a live figure.
-
-**Quote these commands instead** (these are the ones proven correct):
-
-```bash
-git ls-tree origin/main --name-only supabase/migrations/   # migration files on main
-gh issue list --repo u2giants/shared-db --label db-work    # open db work
-gh pr list --state open                                    # open PRs
-```
-
-⚠️ **Never `ls supabase/migrations/`.** The shared checkout is usually parked on another
-branch, so `ls` silently reports that branch's files as if they were `main`'s. This exact
-error was made on 2026-08-11. Always `git ls-tree origin/main`, after a `git fetch`.
-
-⚠️ **The production ledger is applied OUT OF ORDER.** The highest applied version implies
-NOTHING about what is applied beneath it — on 2026-08-11, 48 unapplied versions sorted below
-the max applied one. **Any document that reasons from a high-water mark is wrong.** Compare
-the two full lists, never the two maxima.
-
-**When a number genuinely must appear** — for human readability, or because it is a decision
-input — stamp it and mark it as perishable:
-
-```text
-57 of 433 unapplied [SNAPSHOT 2026-08-11T14:20Z — `git ls-tree origin/main --name-only
-supabase/migrations/` + `supabase migration list` on production. RE-DERIVE BEFORE ACTING.]
-```
-
-A snapshot without the timestamp, the source command and the re-derive marker is a defect —
-fix it when you see it. And no session may act on a snapshot it did not re-derive itself.
-
-⛔ **Do not propose a CI check that compares documents to GitHub issues.** It has been
-proposed twice, built once (B13) and deleted once, and three models re-reviewed it on
-2026-08-13 and rejected every variant. The reasoning, the verified false-positive rates and
-the one narrower check that could earn its place later are in
-[`docs/artifact-consistency-checker-rejected-20260813.md`](docs/artifact-consistency-checker-rejected-20260813.md).
-The mitigation for unsourced figures is this section plus the plan standard's rule that a
-status row marked done must cite an artifact, never a bare number.
-
+> **4.3 OWNER RULING — issues, handovers and plans point at the LIVE reading, never at a number (Albert Hazan, 2026-08-11)**
+> Full ruling: [`docs/owner-rulings.md`](docs/owner-rulings.md#43-owner-ruling). Moved 2026-08-20 (issue #1331); text unchanged.
+>
+> In one line: **never paste a measured count into a document.** Name the query, the view, or the
+> dashboard that produces it, so the reader gets today's number instead of the day-you-wrote-it
+> number.
 ## 5. The `shared-db` merge protocol (the checklist the AI runs)
 
 Merge a `shared-db` PR **only when every item is true**:
@@ -1247,79 +804,44 @@ git status --short              # uncommitted migration files in the working tre
 If anything looks like in-progress database work, **stop and serialize** — land
 it (or ask the owner) before adding your own schema change.
 
-**Currently in flight (as of 2026-07-15): the ERP mirror relocation.** The
-Coldlion ERP pull tables (`public.erp_*`, `public.prod_order_*`) are being moved
-out of `public` into the designed `ingest` / `plm` / `api` layers. The full
-5-phase plan, current state, and rationale live in
-[`fix_schema_for_api.md`](fix_schema_for_api.md) (repo root). **Phase 1 is done
-and live in production** (`api.plm_item_list` serving view + `style_tracker_rows_with_bridge`
-repointed; migration `20260715193000_erp_phase1_api_plm_item_list.sql`). Phases
-2–5 are pending. Before touching `erp_*`, `prod_order_*`, `api.plm_item_list`,
-`plm.item`, `plm.production_order*`, or `plm.refresh_style_tracker_item_bridge()`,
-read that plan first and continue it in order — do not start a parallel ERP
-schema change. Note the still-open source decision (keep sourcing **through
-dflow** for free enrichment vs. pull **Coldlion directly**) documented in
-[`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md);
-it affects Phase 3.
+**Currently in flight: the ERP mirror relocation.** The Coldlion ERP pull tables (`public.erp_*`,
+`public.prod_order_*`) are being moved out of `public` into the designed `ingest` / `plm` / `api`
+layers. Phase 1 is live in production; phases 2–5 are pending. **Before touching `erp_*`,
+`prod_order_*`, `api.plm_item_list`, `plm.item`, `plm.production_order*` or
+`plm.refresh_style_tracker_item_bridge()`, read [`fix_schema_for_api.md`](fix_schema_for_api.md)
+and continue it in order** — do not start a parallel ERP schema change. Full text, including the
+still-open source decision that affects Phase 3:
+[`docs/agents/section-6-in-flight-long-form.md`](docs/agents/section-6-in-flight-long-form.md).
 
-**Which entities are on ColdLion vs. still on DesignFlow?** Do not re-derive this by
-querying — it has cost multiple sessions already. The answer, with row counts, blockers,
-and the `plm.*_import` vs `plm.erp_*` naming rule, is in
-[`docs/master-data-cutover-scoreboard.md`](docs/master-data-cutover-scoreboard.md).
-Short version: **customer and vendor are cut over to ColdLion; licensor and property are
-not** (and `plm.licensor_import` / `plm.property_import` are DesignFlow staging, *not* a
-ColdLion mirror — a previous session got this wrong).
+**Which entities are on ColdLion vs. still on DesignFlow?** Do not re-derive this by querying — it
+has cost multiple sessions already. The answer, with row counts, blockers, and the
+`plm.*_import` vs `plm.erp_*` naming rule, is in
+[`docs/master-data-cutover-scoreboard.md`](docs/master-data-cutover-scoreboard.md). Short version:
+**customer and vendor are cut over to ColdLion; licensor and property are not** (and
+`plm.licensor_import` / `plm.property_import` are DesignFlow staging, *not* a ColdLion mirror — a
+previous session got this wrong).
 
-**ColdLion purchase/sales history (`prodHistory` / `orderHistory`) — read the shape doc before
-writing any loader.** These two endpoints (new to us 2026-08-14) carry order history for buying
-and selling. Their payload is documented from live probing in
-[`docs/coldlion-history-endpoints-shape.md`](docs/coldlion-history-endpoints-shape.md). Five
-traps that will silently corrupt a load if you skip it:
+**ColdLion — anything at all: start at [`docs/coldlion.md`](docs/coldlion.md)**, and read
+[`docs/coldlion-open-questions.md`](docs/coldlion-open-questions.md) before asking ColdLion or
+Albert anything or calling a field broken. Twelve questions are already answered there.
 
-- **⚠️ The default `prodHistory` response is INCOMPLETE.** Without `stageCode` you get only the
-  `ISS` (issued) lines. **There are exactly three stages — `ISS`, `INTRAN`, `REC`** (authoritative,
-  ColdLion 2026-08-19) and all three carry real rows with **zero key overlap** between them.
-  Omitting them loses everything about what actually *arrived* — order 22717 ordered 4,800 and
-  received 4,548, and only the `ISS` half is in the default. **Fetch all three and record which
-  stage each row came from**, because the payload does not say and the keys do not collide, so a
-  stage-blind table triple-counts quantities with no error. The pull is 3 stages × N windows.
-- **Hard 7-day window cap (since 2026-08-17).** `fromDate`–`toDate` must be **within 7 days,
-  inclusive**, on both endpoints; wider is refused outright. Month-wide calls that worked on
-  2026-08-14 now fail. **The refusal is malformed** — HTTP 400 on the wire but `"status": 500` /
-  `"Internal Server Error"` in the body — so a loader that trusts the body retries a permanent
-  input error forever. Branch on the wire status, never the body's.
-- **They are NOT paged.** They return a plain array and **silently ignore `page`/`size`**
-  (`size=5` returned 265 rows). A paging loop re-fetches the same rows forever. Chunk by date.
-- **`prodHistory` row identity is `(prodOrderNo, prodLineSeq, prepackItemNo)`.** `prodLineSeq` was
-  added 2026-08-17 and **resolved the old duplicate-row ambiguity** — distinct `prodLineSeq` means
-  distinct real buy lines, never merge them. Any remaining duplicate differs only in `last*`
-  lookup fields and is safe to collapse (verified: 98 of 98). **Do not build or resurrect the old
-  quantity-comparison heuristic** — §4.3 of the doc explains why it is obsolete.
-- **`lineInvoiceQty` / `lineOpenQty` are zero in all 5,874 sampled rows**, as is `depositPerc`
-  on `prodHistory`. A report built on them reads zero and looks like a business fact.
-
-**Every open ColdLion question lives in one register:**
-[`docs/coldlion-open-questions.md`](docs/coldlion-open-questions.md) — what is blocking, what is
-merely open, what is already ANSWERED (do not re-ask), and which owner rulings keep getting
-re-litigated. Check it before asking Albert or ColdLion anything, and move answers into its §4
-rather than deleting them.
+**ColdLion purchase/sales history (`prodHistory` / `orderHistory`) — read
+[`docs/coldlion-history-endpoints-shape.md`](docs/coldlion-history-endpoints-shape.md) before
+writing any loader.** ⚠️ **The default `prodHistory` response is INCOMPLETE**: without `stageCode`
+you get only the `ISS` lines, there are exactly three stages (`ISS`, `INTRAN`, `REC`) with **zero
+key overlap**, and a stage-blind table triple-counts quantities with no error. The other four traps
+— the hard 7-day window cap whose refusal is malformed, the endpoints silently ignoring
+`page`/`size`, the `(prodOrderNo, prodLineSeq, prepackItemNo)` row identity, and the fields that
+read zero in every sampled row — are stated in full in
+[`docs/agents/section-6-in-flight-long-form.md`](docs/agents/section-6-in-flight-long-form.md).
 
 **What the ERP data MEANS** (as opposed to its shape) lives in
-[`docs/business-rules-erp-data.md`](docs/business-rules-erp-data.md) — a new file, because this
-repo documented shape thoroughly and meaning not at all, and a session already inferred a business
-rule wrongly from field populations. **That file holds business meaning ONLY** — no
-implementation advice, no build notes; those belong on the workstream's GitHub issue. First entry,
-an owner ruling: a `prodReferenceNo` ending
-**`COS`** marks **sample production** — extra pieces of a customer's item made for the licensor
-(contractual samples) or for POP Creations itself (DAVID samples). They carry real cost with no
-customer revenue, so classify them separately; `salesOrderNo = 0` on them is correct, not missing
-data. **Never infer a business rule from field populations and write it down as fact** — put it in
-the shape doc labelled as an inference until the owner confirms it.
-
-Also: the feed spans **four divisions** (`CW001`, `EH001`, `EP001`, `SP001`), not just `EH001` —
-a short window shows only `EH001` and misleads. `1900-01-01` is the empty-date marker
-(**owner-confirmed 2026-08-14 — settled, do not re-raise**), and `salesOrderNo = 0` on
-`prodHistory` means "no linked sales order", not a broken link.
+[`docs/business-rules-erp-data.md`](docs/business-rules-erp-data.md). **Never infer a business rule
+from field populations and write it down as fact** — label it an inference until the owner
+confirms it. Three settled facts a session keeps re-deriving: a `prodReferenceNo` ending **`COS`**
+marks **sample production** (real cost, no customer revenue — `salesOrderNo = 0` there is correct);
+the feed spans **four divisions** (`CW001`, `EH001`, `EP001`, `SP001`), not just `EH001`; and
+`1900-01-01` is the empty-date marker (owner-confirmed 2026-08-14 — settled, do not re-raise).
 
 > ### 📕 The rulings themselves moved to [`docs/owner-rulings.md`](docs/owner-rulings.md) on 2026-08-20.
 > Nothing was deleted and **the numbers are unchanged** — `§6.4` still means `§6.4`. This index is
@@ -1347,7 +869,6 @@ a short window shows only `EH001` and misleads. `1900-01-01` is the empty-date m
 | **6.15** | OWNER RULING — there are exactly TWO kinds of property list, and `core.property` (Universe A) is to be DELETED (Albert Hazan, 2026-08-19) | [read](docs/owner-rulings.md#615-owner-ruling-there-are-exactly-two-kinds-of-property-list-and-coreproperty-universe-a-is-to-be-deleted-albert-hazan-2026-08-19) |
 | **6.17** | OWNER RULING — DesignFlow's numeric division ids are WRONG and do NOT come to this database; the ColdLion division CODE is the only division there is (Albert Hazan, 2026-08-19) | [read](docs/owner-rulings.md#617-owner-ruling-designflows-numeric-division-ids-are-wrong-and-do-not-come-to-this-database-the-coldlion-division-code-is-the-only-division-there-is-albert-hazan-2026-08-19) |
 | **6.16** | OWNER RULING — licence CONTRACTS are NOT a source for this database, and licence TERM and TERRITORY do not belong in it at all (Albert Hazan, 2026-08-19) | [read](docs/owner-rulings.md#616-owner-ruling-licence-contracts-are-not-a-source-for-this-database-and-licence-term-and-territory-do-not-belong-in-it-at-all-albert-hazan-2026-08-19) |
-
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
@@ -1358,9 +879,13 @@ to the owner in plain English and let them choose order.
 ## 8. Project references
 
 ```text
-Preview project ref:  rjyboqwcdzcocqgmsyel   (Supabase branch "shared-db-schema-rehearsal")
+Preview project ref:    read the repository variable PREVIEW_PROJECT_REF — never a literal
 Production project ref: qsllyeztdwjgirsysgai
 ```
+
+⚠️ **Do not write a preview project ref down anywhere.** Preview is rebuilt from time to time and
+its ref changes when it is; `rjyboqwcdzcocqgmsyel` was deleted on 2026-08-18 and this block still
+named it as current until 2026-08-20. See §4 rule 2.
 
 Never commit anon keys, service-role keys, database passwords, or `.env` files.
 
@@ -1380,92 +905,45 @@ API surface for every app and would require RLS on every `dam` table.
 
 ## 9. Supabase CLI and database credential runbook
 
-Use the canonical credentials in 1Password. Do not work around auth failures with
-manual SQL, dashboard edits, copied browser tokens, embedded remote URLs, or
-one-off connection strings. If the normal path fails, fix the credential/tool
-login path and then prove it with `supabase projects list`, `supabase link`, and
-`supabase db push --dry-run`.
+**Full runbook — every credential, the canonical login/link flow, and the Windows traps —
+[`docs/agents/runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md).
+Read it when you are about to connect, not at session start.** The headlines:
 
-Production items in the `vibe_coding` vault:
-
-```text
-Supabase CLI Personal Access Token
-Supabase DB Password - shared POP database
-Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)
-```
-
-Canonical production login/link flow:
-
-```bash
-SUPABASE_ACCESS_TOKEN="$(op read 'op://vibe_coding/Supabase CLI Personal Access Token/SUPABASE_ACCESS_TOKEN')"
-supabase login --token "$SUPABASE_ACCESS_TOKEN"
-supabase projects list
-
-PROD_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase DB Password - shared POP database/password')"
-supabase link --project-ref qsllyeztdwjgirsysgai --password "$PROD_DB_PASSWORD"
-supabase db push --dry-run
-```
-
-Important gotchas from the 2026-07-08 PopDAM style-group repair:
-
-- Setting `SUPABASE_ACCESS_TOKEN=...` for one command may still leave the
-  installed CLI unauthorized. Run `supabase login --token ...` and verify with
-  `supabase projects list` before deciding the PAT is bad.
-- A DB password that works through `supabase link --password` can look rejected
-  if a child process reads an unexported shell variable. Export or pass the
-  variable in the same command before building URLs or invoking Node scripts.
-- Direct IPv6 database connections can fail from some hosts. Prefer the linked
-  Supabase CLI path for migrations. If a direct connection is required, use the
-  Supabase pooler host `aws-1-us-east-1.pooler.supabase.com`, port `6543`, user
-  `postgres.qsllyeztdwjgirsysgai`, database `postgres`, with the same production
-  DB password.
-- After fixing or rotating any credential, update the matching 1Password item
-  notes so the next AI session sees the durable usage path.
-
-Gotchas added 2026-07-16 (each cost real time; all verified):
-
-- **`psql` is NOT installed on the Windows dev machines.** Do not plan an ad-hoc
-  query path around it. Use Node + the `pg` package (install it into a scratch dir)
-  against the pooler above, as user `postgres.qsllyeztdwjgirsysgai`. This is how the
-  Coldlion import and its verification were actually run.
-- **`op run --env-file <(echo …)` (process substitution) fails on Windows.** The
-  native `op.exe` cannot read the msys `/proc/<pid>/fd/<n>` path
-  (`The system cannot find the path specified`). Write a real temp env-file holding
-  only the `op://` reference. See `docs/coldlion-erp-api-reference.md` → Reproduce.
-- **Never route the 1Password MCP `op_run` tool through `bash` on Windows.** A bare
-  `bash` there is **WSL**, and WSL does not inherit the injected Windows env, so
-  secrets arrive as empty strings and the call fails in a way that looks like a
-  broken tool. `op_run` is fine — use a native child: `command` runs via cmd.exe
-  (`%VAR%`), or PowerShell (`$env:VAR`), or `node` (`process.env.VAR`). Its `argv`
-  form is a direct spawn with **no shell** (no `$VAR`/`%VAR%` expansion, no
-  builtins). Resolved secrets are redacted from output as `«REDACTED:NAME»`.
-  Background: `u2giants/ai-devops` → `templates/system/machine-atlas.md`.
-- **General rule these share:** presence is not capability. A tool answering
-  `--version` (or a reference resolving) proves nothing about whether the operation
-  works. Exercise the real operation before trusting it — and before blaming a tool
-  for an empty result, confirm the platform, resolved executable, shell, cwd, and
-  environment boundary you are actually running in.
-
-Preview branch credentials live in 1Password item
-`Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)`.
-Use the same pattern: authenticate the CLI with the Supabase PAT, then link to
-preview project `rjyboqwcdzcocqgmsyel` with that branch's database password
-before running preview dry-runs or pushes.
-
-**That title cannot be used in an `op://` reference** (verified 2026-07-29): the
-parentheses are invalid in a secret reference and `op read` fails with
-`invalid character in secret reference: '('`. Address the item by **ID** instead —
-the password lives in the `DB_PASSWORD` field:
-
-```bash
-PREVIEW_DB_PASSWORD="$(op read 'op://vibe_coding/qbvfk7umc3n75ejekd65zwd4ty/DB_PASSWORD')"
-supabase link --project-ref rjyboqwcdzcocqgmsyel --password "$PREVIEW_DB_PASSWORD"
-```
-
-Item IDs can be re-keyed by 1Password, so if that ID 404s, re-resolve it with
-`op item list --vault vibe_coding --format json` and match on the title.
-
+- **Use the canonical credentials in 1Password vault `vibe_coding`.** Never work around an auth
+  failure with manual SQL, dashboard edits, copied browser tokens, or one-off connection strings.
+  Fix the login path, then prove it with `supabase projects list`, `supabase link`, and
+  `supabase db push --dry-run`. **Fetch 1Password items serially — never fan out `op read`.**
+- Production project `qsllyeztdwjgirsysgai`. **The preview project ref is not written down** —
+  read it from the repository variable `PREVIEW_PROJECT_REF` (see §4 rule 2).
+- **`psql` is NOT installed on the Windows dev machines.** Use Node + `pg` against the pooler
+  (`aws-1-us-east-1.pooler.supabase.com:6543`, user `postgres.qsllyeztdwjgirsysgai`).
+- **Never route the 1Password `op_run` tool through `bash` on Windows** — a bare `bash` there is
+  WSL, which does not inherit the injected environment, so secrets arrive empty and it looks like
+  a broken tool. Use cmd.exe, PowerShell, or `node`.
+- The preview-credentials item title contains parentheses and **cannot be used in an `op://`
+  reference** — address it by item ID. IDs can be re-keyed; re-resolve by title if one 404s.
+- **Presence is not capability.** A tool answering `--version` proves nothing about whether the
+  operation works. Exercise the real operation before trusting it.
 ## 10. Where to read more
+
+**The long form of this file lives in [`docs/agents/`](docs/agents/) and
+[`docs/owner-rulings.md`](docs/owner-rulings.md).** `AGENTS.md` was cut from 234 KB to under 80 KB
+across issue #1331 and PR #1212, because it is loaded in full at the start of every session.
+**Nothing was resolved or deleted in either move — the full text is verbatim in these files**, and
+each section above points at the one that carries it. **Section numbers never change**; supersede
+in place, the way §6.13-A supersedes §6.13. CI workflow comments and
+`scripts/production_migration_guard.py` cite these numbers.
+
+| File | Carries |
+| --- | --- |
+| [`docs/agents/section-4-anti-collision-rules.md`](docs/agents/section-4-anti-collision-rules.md) | §4 in full — migration author lanes, object claims, reviewer rotation, the business-risk gate, the preview rehearsal and its recovery lane |
+| [`docs/agents/section-6-in-flight-long-form.md`](docs/agents/section-6-in-flight-long-form.md) | The §6 in-flight narrative in full — ERP mirror relocation, cutover scoreboard, the five ColdLion history traps, ERP business meaning |
+| [`docs/agents/runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md) | §9, §10.1–§10.3, §11 in full — credentials, CLI, hosted-Supabase traps |
+| [`docs/owner-rulings.md`](docs/owner-rulings.md) | §6.1–§6.17, §0.1-A, §4.2, §4.3 in full — every owner ruling with its reasoning, incident and measured numbers |
+| [`docs/production-promotion-procedure.md`](docs/production-promotion-procedure.md) | §5.1 in full — the bounded-checkout recipe and the production apply lane |
+
+**Where `AGENTS.md` and a long-form file differ in wording, `AGENTS.md` wins** — it is the
+authoritative statement of policy.
 
 - App rewrite guides: [`docs/ai-session-instructions/`](docs/ai-session-instructions/README.md)
 - Shared branch workflow: [`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](docs/ai-session-instructions/shared-supabase-branch-workflow.md)
@@ -1484,122 +962,29 @@ Item IDs can be re-keyed by 1Password, so if that ID 404s, re-resolve it with
   [`fix_characters_style_guides.md`](fix_characters_style_guides.md) — **read that table first; do
   not re-derive or re-plan the phases.**
 
-## 10.3 A CLI runner that "succeeds" silently on Windows — check the entry guard (added 2026-07-31)
+## 10.1–10.3 and §11 — traps that cost real time (full text in the runbook)
 
-A Node CLI in `tools/` that builds its direct-invocation guard **by hand** does nothing on
-Windows and **exits 0**:
+**Full text:
+[`docs/agents/runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md).**
+Read the relevant part when you hit the situation. The headlines, so you recognise it:
 
-```js
-// BROKEN — always false on Windows
-import.meta.url === `file://${process.argv[1].replace(/\\/g, "/")}`
-```
-
-`import.meta.url` yields `file:///C:/…` (three slashes); the hand-built string yields
-`file://C:/…` (two). No output, no error, **no `ingest.sync_run` row** — it reads as success.
-`tools/sync-coldlion-vendors.mjs` shipped this and any Windows run since 2026-07-22 imported
-nothing while looking fine (fixed 2026-07-31, PR #334). **Always use
-`pathToFileURL(process.argv[1]).href`.** Every other tool in `tools/` already did.
-
-Related, unfixed: those runners tell you to install `pg` in a scratch dir and set `NODE_PATH`.
-**`NODE_PATH` is CommonJS-only** — `await import("pg")` resolves relative to the tool's own
-location, so this does not work for ESM tools.
-
-## 10.1 Clean-slate local replay is unsupported — use the dependency closure
-
-Applying every migration in filename order against an empty local Postgres **cannot
-work, and never could**. This is by design, not a bug, and not something to "fix".
-
-Roughly 170 of the migration files are intentionally **empty markers**. They exist so
-the Supabase CLI ledger lines up with objects that were created *before* `shared-db`
-became canonical (legacy PopDAM/DesignFlow tables). Nothing in this repo ever creates
-those objects. So on a from-scratch database, every later migration that references one
-fails. A full replay produces ~63 failures of exactly this class: `assets`,
-`style_groups`, `style_guide_files`, `style_tracker_rows`, `licensors`, `user_roles`,
-`admin_config`, the `dflow.sample*` / `plm.sample*` families, `has_app_access()`, and
-`supabase_migrations.schema_migrations`.
-
-**Do not read this as a migration ordering bug.** Two separate AI sessions burned time
-concluding that `20260323165935_assets_updated_at_trigger.sql` ran before
-`20260326212850_assets_add_updated_at_column.sql`. Both of those files are empty markers.
-They cannot fail. The filenames merely look misordered.
-
-**Deploys are not affected.** CI links to a live project and runs `supabase db push`,
-which applies only migrations missing from that project's ledger. The markers are already
-recorded there, so they are skipped. Production remains dry-run + allowlist bounded.
-
-**To exercise a migration locally**, apply only its dependency closure, not the whole set.
-For anything touching the core domain tables that is:
-
-```
-20260621150714_foundation.sql
-20260621150815_app_core.sql
-20260621151024_domain_tables.sql
-20260621151155_api_rls_realtime.sql
-<your migration>
-```
-
-plus a shim for what hosted Supabase provides and stock Postgres does not: schema `auth`
-with a minimal `auth.users` table and `auth.jwt()` / `auth.uid()` / `auth.role()`
-functions, and the roles `service_role`, `authenticated`, `anon`, `supabase_admin`
-(some migrations also want `authenticator`, an `extensions` schema with `pg_trgm`, and
-`storage` tables). `scripts/check-sql.sh` plus `supabase db push --dry-run` against
-preview remain the authoritative gates.
-
-**Known limitation:** because of the above, this repo alone cannot rebuild the shared
-project from nothing. That is a disaster-recovery gap, not a day-to-day one. Closing it
-would need a checked-in baseline schema dump (new file outside `migrations/`, so it would
-not violate the never-edit-a-prior-migration rule). Not done as of 2026-07-29.
-
-## 10.2 Grants in `public` are locked down by default (added 2026-07-29 — READ THIS BEFORE CREATING A FUNCTION)
-
-**A behaviour change landed on preview AND production on 2026-07-29. It affects every
-migration that creates a function in `public`, in every workstream.**
-
-An event trigger, `lock_down_new_public_function_execute_trg`, now fires on every
-`CREATE FUNCTION` / `CREATE PROCEDURE` in schema `public` and immediately revokes EXECUTE
-from **PUBLIC and `anon`**. The `public`-schema default privileges for role `postgres` no
-longer grant EXECUTE to `anon`/`authenticated` either.
-
-**What this means for you:** a new function in `public` is reachable by **nobody except
-`postgres` and `service_role`** unless your migration grants it explicitly. Always state
-the grant:
-
-```sql
-create or replace function public.f(...) ... ;
-
-revoke execute on function public.f(...) from public, anon, authenticated;
-grant  execute on function public.f(...) to service_role;   -- and/or authenticated
-```
-
-Notes and traps:
-
-- The trigger revokes `anon`/PUBLIC only — **never `authenticated`** — deliberately, so a
-  later `create or replace` that merely patches a function body cannot silently strip an
-  app-facing grant. Do not "improve" it to include `authenticated`.
-- Because `create or replace` reports the `CREATE FUNCTION` tag, it **does** re-strip
-  `anon`. If a function must genuinely be anon-callable, re-grant *after* the create.
-- Its failures are `raise warning` only, so a failed revoke shows up in the Postgres log
-  and nowhere else. There is **no automated alarm yet** that the lockdown still holds.
-- `anon` holds schema `USAGE` on **`public` only** — every other schema is closed to it at
-  the schema level. That is why `public` is the schema that matters here.
-- **Views ignore RLS unless created with `security_invoker = true`.** A view owned by
-  `postgres` (which is `BYPASSRLS`) runs as owner and defeats the RLS on its base tables,
-  and a view has no RLS of its own — so the GRANT is the only guard. Three views leaked
-  ~16,600 rows to `anon` this way. When you add a view over an RLS-protected table, either
-  set `security_invoker = true` or revoke `anon`/PUBLIC explicitly, and verify with the
-  anon key.
-
-Full background, the audit queries to re-run, and what was deliberately left alone:
-[`docs/security/public-schema-execute-audit.md`](docs/security/public-schema-execute-audit.md)
-and [`docs/security/public-schema-anon-read-audit.md`](docs/security/public-schema-anon-read-audit.md).
-
-**Still pending on production:** `20260729120000_lock_down_public_security_definer_execute.sql`
-hard-codes `revoke ... on function public.sync_clickup_tasks(...)`, which does not exist on
-production yet. Promote it **together with or after** the ClickUp migrations
-(`20260728174500...`), never before, or the apply aborts with `undefined_function`. Its
-production-safe equivalent (`20260729130000`) is already applied, so nothing is exposed in
-the meantime.
-
+- **§10.1 Clean-slate local replay is unsupported — use the dependency closure.** Applying every
+  migration in filename order against an empty local Postgres **cannot work and never could**.
+  About 170 files are intentionally **empty markers** lining the ledger up with objects created
+  before `shared-db` became canonical; nothing here ever creates them. A full replay produces ~63
+  failures of exactly that class. This is by design — not a bug, not something to "fix".
+- **§10.2 Grants in `public` are locked down by default (since 2026-07-29) — READ THIS BEFORE
+  CREATING A FUNCTION.** An event trigger revokes EXECUTE from PUBLIC and `anon` on every new
+  `public` function. **A new function in `public` is reachable by nobody except `postgres` and
+  `service_role` unless your migration grants it explicitly.**
+- **§10.3 A Node CLI in `tools/` that hand-builds its direct-invocation guard does nothing on
+  Windows and exits 0.** A silent success is worse than a failure. Check the entry guard before
+  believing a runner "succeeded".
+- **§11 Hosted-Supabase gotchas.** **PostgREST schema exposure is control-plane config, NOT SQL** —
+  `alter role authenticator set pgrst.db_schemas` does not take effect on hosted Supabase; use the
+  Management API `PATCH /v1/projects/{ref}/postgrest`. It is per-project: re-confirm after any
+  restore/clone and set it on preview too. If supabase-js suddenly 404s on `api.*`/`crm.*`, check
+  this first. **`service_role` has no rights on non-`public` schemas by default.**
 ## 11b. The role is called ORCHESTRATOR (renamed 2026-08-07)
 
 **One word for the role, and the word is orchestrator.** Owner instruction, Albert Hazan,
@@ -1759,57 +1144,3 @@ have already happened in this repo, more than once.
     gated. §4.2's connection-target proof still applies to every data write regardless.
 
 ---
-
-## 11. Hosted-Supabase gotchas (do not relearn these the hard way)
-
-These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones.
-
-- **PostgREST schema exposure is control-plane config, NOT SQL.** The
-  `alter role authenticator set pgrst.db_schemas = ...` + `notify pgrst,'reload config'`
-  statements in `20260621151419_crm_rls_realtime.sql` do **not** take effect on
-  hosted Supabase — the platform overrides them. To expose non-default schemas
-  (`api, crm, pim, core`) you must call the Management API:
-  `PATCH https://api.supabase.com/v1/projects/{ref}/postgrest`
-  with `{"db_schema":"public,graphql_public,api,crm,pim,core"}`. It is a per-project
-  setting; **re-confirm it after any project restore/clone**, and set it on the
-  preview branch too. If supabase-js suddenly 404s on `api.*`/`crm.*`, check this first.
-- **`service_role` has no rights on non-`public` schemas by default.** Server-side
-  scripts/workers using the service-role key get "permission denied for schema core/crm"
-  until granted. The grants live in `20260621164759_service_role_grants.sql`
-  (usage + ALL on tables/sequences for `app, core, crm, pim, plm, ingest, api`,
-  plus default privileges). Re-run/verify after adding new schemas.
-- **Supabase Auth has one `site_url`; every app needs explicit redirect allowlist entries.**
-  The production project's Auth `site_url` is `https://crm.designflow.app`, so OAuth
-  flows for PM/DAM/SG/master-data apps must pass an explicit app-origin `redirectTo`
-  and that origin must be in `uri_allow_list`. Keep bare origin, trailing-slash origin,
-  and `/**` wildcard entries for `crm`, `crm-dev`, `pm`, `pm-dev`, `pm-ci`, `dam`,
-  `sg`, and `master` designflow hosts. If Microsoft SSO from one app lands on CRM,
-  check `GET /v1/projects/qsllyeztdwjgirsysgai/config/auth` before changing frontend
-  routing.
-- **Ingested domains are never customers.** `crm.ingested_domain` is CRM-private
-  email triage data only. It must not FK to, promote into, source-ref, join as,
-  feed picker lists for, or otherwise associate with `core.customer`. The
-  corrective migration `20260629034500_remove_ingested_domain_customer_association.sql`
-  removed `api.customer_list`, `crm.promote_ingested_domain(...)`,
-  `crm.ingested_domain.promoted_customer_id`, and all legacy-ingest source refs
-  customer source refs after 3,741 polluted refs were found in production.
-- **`unique nulls not distinct (external_source, external_id)`** on `crm.*` and
-  `core.*` tables means you cannot bulk-insert many rows with both columns NULL —
-  the second NULL/NULL row collides. Importers must set a real
-  `external_source` and a unique `external_id` per row.
-- **Cross-schema FKs (e.g. `crm.department.company_id → core.company`) are real and
-  enforced**, but PostgREST embed syntax (`select=...,company:company_id(...)`)
-  may report "no relationship found" because the schema cache does not auto-detect
-  cross-schema FKs. The constraint is still there — verify with `pg_constraint`,
-  not with a failed embed.
-- **An RLS policy is NOT a table GRANT.** A `for all`/`crm_write`-style policy lets
-  a role write *rows it is allowed to*, but Postgres still checks the table-level
-  privilege first. The baseline only ran `grant select on all tables in schema crm
-  to authenticated` (reads), and `grant ... on all tables` does not cover tables
-  created later. So a browser `insert`/`update`/`delete` against a `crm.*` table that
-  has `crm_write` but no DML grant fails with `permission denied for table ... (42501)`
-  — distinct from an RLS rejection (`new row violates row-level security policy`).
-  Every directly-written `crm.*` table needs an explicit `grant insert, update, delete
-  ... to authenticated` alongside its policy; see
-  `20260715220500_grant_crm_write_dml_to_authenticated.sql` and
-  `docs/app-migration-notes/popcrm-web-20260716.md`.
