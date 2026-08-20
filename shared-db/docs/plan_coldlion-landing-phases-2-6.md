@@ -598,10 +598,12 @@ The existing suite must stay green — that is what CI runs on the PR.
    same thing: compute `source_hash` over the complete fetched record before projection, and store
    that same complete record in `new_raw`. History tables write no `change_log` rows at all, so D5
    remains fully in force there — an `ignore` decision on the history feeds is still permanent.
-5. **Does `merchGroupDetails.active` exist?** The owner's live sample says yes, 100% filled. The API
-   reference says the payload has no active flag anywhere. The reference is dated 2026-07-23 and is
-   probably stale, but step 2's verification query depends on the column. Confirm against the live
-   spec and correct the reference in the same PR.
+5. ~~Does `merchGroupDetails.active` exist?~~ **CLOSED 2026-08-20 — yes, it does.** A live pull of
+   `/merchGroupDetails` on 2026-08-19 returned `active` populated on 100% of rows. The API
+   reference's claim that the payload has no active flag is **stale** (dated 2026-07-23) and should
+   be corrected when someone next touches that file. Step 2's verification query is therefore valid
+   as written. Note this does **not** mean ColdLion has a licence-expiry flag — it does not, and
+   that remains true.
 6. **When a merch-group slot is cleared on an item, is the child row deleted?** Upsert-only leaves a
    stale slot and therefore silently wrong taxonomy. Decide and state it in the table comment.
 7. **Which `last*` copy wins** when a re-pull yields two rows differing only in those fields? The

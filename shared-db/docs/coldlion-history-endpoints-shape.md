@@ -284,6 +284,41 @@ and fixed the fan-out at the source within days. **The heuristic was never built
 looking for it in the code, and do not resurrect the quantity-comparison logic; `prodLineSeq` makes
 it obsolete and strictly worse.
 
+### 4.4 `linePrice` is PER COMPONENT, not per line — and it is the sales-order line key (2026-08-20)
+
+**ColdLion (JamieLynn), 2026-08-20:** *"because most orders are placed at assortment level ...
+if there's a Prepack, system takes line quantity, divides it into the component quantities and
+shows the quantity and pricing of each component."*
+
+So on a prepack line, every component row repeats the same `lineQty` and carries **its own**
+`linePrice`. Two rows on one order with the same item and different prices are **not two lines**.
+
+Worked example — sales order `7121866`, item `VSZ4812`, customer `ROS010`, prepack `PPK1557`:
+
+| Row | `lineQty` | `linePrice` | `subItemNo` |
+|---|---|---|---|
+| 1 | 3200 | 4.08 | `VPZ8FKGAM01` |
+| 2 | 3200 | 5.28 | `VSZ48DYPN03` |
+| 3 | 3200 | 5.28 | `VSZ48MVSP03` |
+| 4 | 3200 | 5.28 | `VSZ48SESC01` |
+
+**This settles the sales-order line key**, which the payload does not carry
+(`orderHistory` has 59 fields and no line number — confirmed against the live spec):
+
+- **Line:** `(salesOrderNo, itemNo, labelCode)`
+- **Component:** `+ subItemNo`
+
+Verified on 1,671 rows across 8 windows, 2019-2026: 196 groups have more than one row, and
+**no field other than `linePrice` varies inside any of them**. `labelCode` is required — drop it
+and the component key collides 10 times in the same sample.
+
+⚠️ **Consequences a loader must respect:**
+- **Never sum `linePrice` across a line.** It is a per-piece price, not a line total.
+- **Never treat differing `linePrice` as two lines.** That was the trap; it cost this
+  investigation a day and produced a wrong "blocked" verdict in the landing plan.
+- ColdLion does have a `Line #` on Sales Order internally, but it is **not exposed in the API**.
+  Register question 2.10 asks for it. Until then the derived key above is what we use.
+
 ## 5. Field-level findings that change the data model
 
 ### 5.1 Fields that are always empty — do not create columns for them
