@@ -684,12 +684,9 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
         const ops = configRow?.value as Record<string, any> | undefined;
         const op = ops?.[opKey];
         if (!op || op.status === "completed") {
-          try {
-            await supabase.rpc("update_bulk_operation", {
-              p_op_key: opKey,
-              p_op_state: { status: "idle" },
-            });
-          } catch { /* best-effort cleanup */ }
+          // Keep the completed operation record. Replacing it with {status:"idle"}
+          // can erase a protected provider-job pointer and is refused by the
+          // restart-safety database contract.
           queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
           toast("AI tagging complete");
           return;

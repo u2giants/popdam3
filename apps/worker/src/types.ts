@@ -39,6 +39,25 @@ export interface OpState {
   last_successful_cursor?: number | string;
   retry_page_size?: number;
   last_substage?: string;
+  state_revision?: number;
+  external_job?: OpenRouterBatchJobState;
+}
+
+export type OpenRouterBatchPhase =
+  | "prepared"
+  | "submitting"
+  | "pending"
+  | "applying"
+  | "ambiguous_submission";
+
+export interface OpenRouterBatchJobState {
+  phase: OpenRouterBatchPhase;
+  provider_batch_id?: string;
+  submission_owner?: string;
+  lease_expires_at?: string;
+  /** One-time receipt returned by the lease claim. Never persisted by the database. */
+  lease_token?: string;
+  [key: string]: unknown;
 }
 
 export interface BatchResult {

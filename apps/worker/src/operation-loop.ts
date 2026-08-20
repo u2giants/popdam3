@@ -15,6 +15,7 @@
 import { db } from "./supabase.js";
 import { logger } from "./logger.js";
 import type { BatchResult, OpState } from "./types.js";
+import { hasSubmissionLeaseReceipt, isGuardedEnvelope } from "./operation-lease.js";
 import { handleBulkAiTag } from "./handlers/ai-tagging.js";
 import { handleAiTagBakeoff } from "./handlers/ai-tag-bakeoff.js";
 import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
@@ -346,18 +347,50 @@ async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
  * Returns true if the state was successfully written (or if onlyIfRunning=false).
  * Returns false if the write was rejected because the op is no longer "running".
  */
-async function persistOpState(opKey: string, opState: OpState, onlyIfRunning = false): Promise<boolean> {
+interface PersistOptions {
+  onlyIfRunning?: boolean;
+  expectedRevision?: number;
+  submissionOwner?: string;
+  leaseSeconds?: number;
+  requireLeaseReceipt?: boolean;
+}
+
+export async function persistOpState(
+  opKey: string,
+  opState: OpState,
+  onlyIfRunningOrOptions: boolean | PersistOptions = false,
+): Promise<boolean> {
+  const options: PersistOptions = typeof onlyIfRunningOrOptions === "boolean"
+    ? { onlyIfRunning: onlyIfRunningOrOptions }
+    : onlyIfRunningOrOptions;
   const client = db();
   const params: Record<string, unknown> = {
     p_op_key: opKey,
     p_op_state: opState,
   };
-  if (onlyIfRunning) {
+  if (options.onlyIfRunning) {
     params.p_only_if_status = "running";
   }
+  if (options.expectedRevision !== undefined) params.p_expected_revision = options.expectedRevision;
+  if (options.submissionOwner !== undefined) params.p_submission_owner = options.submissionOwner;
+  if (options.leaseSeconds !== undefined) params.p_lease_seconds = options.leaseSeconds;
   const { data, error } = await client.rpc("update_bulk_operation", params);
-  if (error || !data) return true; // on error, don't bail — let the interrupt check handle it
-  if (!onlyIfRunning) return true;
+  if (error) {
+    logger.error("persist operation failed", { opKey, error: error.message });
+    return false;
+  }
+
+  const guarded = options.expectedRevision !== undefined || options.submissionOwner !== undefined;
+  if (guarded) {
+    if (!isGuardedEnvelope(data) || !data.ok) return false;
+    // A successful lease extension is not proof of ownership. Only the one caller
+    // receiving the one-time receipt may submit a provider job.
+    if (options.requireLeaseReceipt && !hasSubmissionLeaseReceipt(data)) return false;
+    return true;
+  }
+
+  if (!data) return false;
+  if (!options.onlyIfRunning) return true;
   // Check if our write was applied: the returned state should have status="running"
   const allOps = data as Record<string, OpState>;
   return allOps[opKey]?.status === "running";

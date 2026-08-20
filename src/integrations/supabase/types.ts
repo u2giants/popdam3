@@ -3909,7 +3909,14 @@ export type Database = {
         Returns: Json
       }
       update_bulk_operation: {
-        Args: { p_only_if_status?: string; p_op_key: string; p_op_state: Json }
+        Args: {
+          p_expected_revision?: number
+          p_lease_seconds?: number
+          p_only_if_status?: string
+          p_op_key: string
+          p_op_state: Json
+          p_submission_owner?: string
+        }
         Returns: Json
       }
       update_bulk_operations_batch: { Args: { p_updates: Json }; Returns: Json }
