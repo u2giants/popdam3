@@ -65,11 +65,34 @@ plan; this list is the plain-English version.
 
 ## 5. What did NOT work — do not repeat these
 
-- **`gh pr merge` in a retry loop.** `main` has 9 required checks and other sessions merge often, so
-  the branch kept going stale and the loop burned ~35 minutes. Use
-  `gh api -X PUT repos/u2giants/shared-db/pulls/<n>/update-branch`, then poll `mergeStateStatus`
-  until `CLEAN`. Do not `git checkout` to update the branch — the working tree may belong to another
-  session, and it did change underneath this one mid-task.
+- **`gh pr merge` in a retry loop — the CAUSE IS NOW FIXED; read this before concluding the gate is
+  broken again.** `main` has 9 required checks (~4 min). Until 2026-08-19 it ALSO required a branch
+  to be up to date, so every merge by another session reset every waiting PR and restarted its
+  checks — ~35 min lost on PR #1243 and ~25 min on #1263, with no check ever failing. Branch
+  protection now has **`strict: false`** (owner-authorized 2026-08-19; recorded with revert criteria
+  and the exact restore command in issue #1286). All 9 checks and `enforce_admins` are unchanged.
+  If a PR still will not merge, diagnose the actual failing check — do not assume staleness, and do
+  not loop.
+- **Diagnosing a wedged check from its NAME.** On 2026-08-19 `SQL migration guards` sat pending for
+  ~2 hours and this session reported "the guards check is hung". That was wrong: the guards *job*
+  finished in 1 minute. The run was wedged on its step **"Install SQL check dependencies"** — an
+  unbounded `apt-get` against slow Ubuntu mirrors. The same root cause failed the Playwright install
+  on the `verify` check in the same hour, so what looked like two problems was one. **Already
+  fixed:** PR #1265 (merged 2026-08-19) skips the install when the tool is present and bounds it at
+  60s/120s; PR #1270 does the same for Playwright. Always open the failing STEP via
+  `gh api repos/u2giants/shared-db/actions/runs/<id>/attempts/1/jobs` — never judge from the check
+  name.
+- **Proposing `paths:` filters so docs-only PRs skip the heavy checks.** This session recommended it
+  to the owner before reading the workflows, and had to withdraw it. **The repo already forbids
+  them**, in AGENTS.md §5.2 and in explicit comments in `shared-supabase-migrations.yml`,
+  `tools-offline-tests.yml` and `coldlion-promotion-contract-tests.yml`. Two proven failure modes:
+  a path-filtered workflow creates **no check run at all**, so a required context stays pending
+  forever and can never block a merge (PRs #328/#307); and a guard that scans more than its trigger
+  watches reports **stale verdicts** — the 2026-07-31 domain-ownership incident, where fixing
+  `HANDOFF.md` did not re-run the check and `main` stayed red on an already-corrected failure.
+  `scripts/check-domain-ownership.mjs` enumerates every tracked text file including `docs/**`, so a
+  docs-only PR is precisely the case that must still be scanned. Do not re-propose this without
+  reading §5.2 first.
 - **Per-item ColdLion lookups** to compare order fields against the item master. Many returned no
   rows and it wasted calls. Pull the full item master per division (`size=2000`) and join locally.
 - **Reading stored payloads to decide what a feed contains.** That is how this session initially and
