@@ -38,6 +38,9 @@ sales history missing entirely.
 | `docs/coldlion.md` (new front door) + banners on 3 docs | ✅ Merged (PR #1311) |
 | `docs/coldlion-open-questions.md` chase column + entries 2.7-2.10 | ✅ Merged (PRs #1316, #1323, #1325, #1329) |
 | Branch protection `strict: false` | ✅ Applied. Revert criteria in issue #1286 |
+| `AGENTS.md` split 234 KB -> 122 KB | ✅ Merged (PR #1336). **But see the collision note in §5 — PR #1212 was already doing this, better** |
+| `scripts/check-cancelled-work.mjs` relocation exemption + 3 tests | ✅ Merged with #1336, 19/19 pass |
+| ColdLion answers of 2026-08-20 (merch-group renumbering, active flag, line key) | ✅ Merged (PRs #1325, #1329, #1330, #1336) |
 | Any migration or loader code | **None. Nothing built.** |
 
 **Nothing is deployed. No database object was created or changed by this session.** Every database
@@ -117,6 +120,19 @@ plan; this list is the plain-English version.
   originally dropped it on the 0.8% figure and reversed once shown the others. Under the no-raw
   ruling that drop would have been permanent. Sample widely before presenting a fill rate as a
   reason to discard.
+- **Starting a refactor without checking for an open PR on the same file — the most expensive
+  mistake of this session.** On 2026-08-20 I measured `AGENTS.md` at 234 KB, opened #1331 and split
+  it in #1336. **PR #1212 had been open since 2026-08-19 doing the same job and doing it better** —
+  78 KB (under the ceiling) versus my 122 KB, plus the `HANDOFF.md` pointer conversion that also
+  closes #1083. My merge left it `CONFLICTING`. `AGENTS.md` §6 is literally titled *How to tell if a
+  change is already in flight* and I did not run it. **One `gh pr list --repo u2giants/shared-db
+  --state open` filtered on the file would have caught it**, and the checkout even contained a
+  `.claude/worktrees/docs-slimming` directory for that branch. Before touching any shared document,
+  list open PRs that touch it.
+- **Recording ColdLion's answer without checking what it explains elsewhere.** Her prepack
+  explanation was filed against the quantity question, and it also silently answered the *line
+  identity* question that was blocking step 4. It took a second pass to notice. When an answer
+  arrives, re-read the other open questions against it.
 - **Applying a ruling wider than its evidence.** The 519/519 merch-group match covered *line-level*
   groups only. The first draft used it to justify dropping `subMerchGroup*`/`ppkMerchGroup*` too,
   which are a different grain and which our own history-shape doc calls the better record. Grok
