@@ -52,7 +52,7 @@ export type TagAssetCompletionResult = {
   attempts: OutputAttempt[];
 };
 
-function parseJsonObject(content: string | undefined): Record<string, unknown> | null {
+export function parseJsonObject(content: string | undefined): Record<string, unknown> | null {
   if (!content) return null;
   const trimmed = content.trim();
   if (!trimmed) return null;
@@ -88,7 +88,7 @@ function isToolCapabilityError(error: unknown): boolean {
   );
 }
 
-function validateTagAssetData(value: Record<string, unknown>, mode: string) {
+export function validateTagAssetData(value: Record<string, unknown>, mode: string) {
   const errors: string[] = [];
   if (!Array.isArray(value.tags)) {
     errors.push("tags must be an array");

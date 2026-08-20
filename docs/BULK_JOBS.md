@@ -126,10 +126,23 @@ next_auto_resume_at
 last_stage / last_stage_started_at
 last_successful_cursor
 retry_page_size  transient AI candidate fallback only
+state_revision   protected-write version
+external_job     saved OpenRouter batch ID, phase, page boundary, and asset mapping
 started_at / updated_at
 ```
 
-State is written atomically via the `update_bulk_operation` RPC, which supports an optimistic `p_only_if_status` guard to prevent a stale write from overwriting a user stop.
+State is written atomically via the `update_bulk_operation` RPC. OpenRouter batch
+writes also use a revision check and a short submission lease. The worker may
+submit only when the returned envelope includes `lease_receipt_issued = true`
+and a non-empty receipt. A restart reloads the saved provider batch ID and checks
+that same job; it never treats a generic `ok` response as permission to submit.
+
+OpenRouter phases are `prepared`, `submitting`, `pending`, `applying`,
+`completed`, and `ambiguous_submission`. Pending jobs are checked no faster than
+every 10 seconds. An expired submission lease without a saved provider ID is
+ambiguous and requires reconciliation; automatic resubmission is forbidden.
+Stopping prevents further checks and application, but cannot cancel work already
+accepted and billed by OpenRouter.
 
 ---
 

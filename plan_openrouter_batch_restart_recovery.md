@@ -6,17 +6,18 @@ Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues
 
 ## STATUS
 
-Fresh-session starting point: **Step 1**. Re-read this entire plan and fetch current `origin/main` before editing because concurrent sessions regularly advance `main`.
+Implementation is active in PopDAM issue #92. The shared database lease contract
+is live; its narrow terminal-clear follow-up is tracked in shared-db #1211.
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
-| 1. Add typed durable external-job state | ⬜ open | 2026-08-18 | Pending tests in §10 |
-| 2. Split Batch API client into stateless submit/read helpers | ⬜ open | 2026-08-18 | Pending tests in §10 |
-| 3. Extract image-tag preparation and replay-safe application | ⬜ open | 2026-08-18 | Pending tests in §10 |
-| 4. Implement submit/wait/resume/apply state machine | ⬜ open | 2026-08-18 | Pending tests in §10 |
-| 5. Integrate yielding, stops, polling, and stale-run safety | ⬜ open | 2026-08-18 | Pending tests in §10 |
-| 6. Complete recovery/failure test matrix | ⬜ open | 2026-08-18 | Pending commands in §10 |
-| 7. Update operating documentation and diagnostics | ⬜ open | 2026-08-18 | Pending doc/UI verification in §9 |
+| 1. Add typed durable external-job state | ✅ done | 2026-08-20 | Worker types and bounded-state test |
+| 2. Split Batch API client into stateless submit/read helpers | ✅ done | 2026-08-20 | Provider helper tests |
+| 3. Extract image-tag preparation and replay-safe application | ✅ done | 2026-08-20 | Durable handler and result-ID validation |
+| 4. Implement submit/wait/resume/apply state machine | ✅ done | 2026-08-20 | Restart simulation proves one POST and same-ID GET |
+| 5. Integrate yielding, stops, polling, and stale-run safety | ✅ done | 2026-08-20 | Receipt-gated worker path and 10-second cadence |
+| 6. Complete recovery/failure test matrix | ✅ done | 2026-08-20 | 57 worker tests, worker build, frontend build, and lint pass |
+| 7. Update operating documentation and diagnostics | ✅ done | 2026-08-20 | Four operating docs updated; waiting-state visual proof captured |
 | 8. Land, deploy, and prove a controlled production restart | ⬜ open | 2026-08-18 | Pending commit, CI, Railway, and restart artifacts |
 
 ## 1. The ultimate goal

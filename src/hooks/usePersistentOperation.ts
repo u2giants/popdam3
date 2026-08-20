@@ -34,6 +34,13 @@ export interface OperationState {
   retry_page_size?: number;
   last_substage?: string;
   queue_position?: number;
+  state_revision?: number;
+  external_job?: {
+    phase?: string;
+    provider_batch_id?: string;
+    last_checked_at?: string;
+    next_poll_at?: string;
+  };
 }
 
 const CONFIG_KEY = "BULK_OPERATIONS"; // used for polling reads only
@@ -115,14 +122,11 @@ export function usePersistentOperation(operationKey: string) {
   // ── Atomic persist via update-bulk-op RPC ────────────────────────
   const persistState = useCallback(
     async (opState: OperationState) => {
-      try {
-        await call("update-bulk-op", {
-          op_key: operationKey,
-          op_state: opState,
-        });
-      } catch {
-        // best-effort
-      }
+      await call("update-bulk-op", {
+        op_key: operationKey,
+        op_state: opState,
+        expected_revision: opState.external_job ? opState.state_revision : undefined,
+      });
     },
     [call, operationKey],
   );
@@ -157,9 +161,11 @@ export function usePersistentOperation(operationKey: string) {
           ? (state.progress ?? options?.initialProgress ?? {})
           : (options?.initialProgress ?? {}),
         run_id: state.run_id,
+        state_revision: shouldResume ? state.state_revision : undefined,
+        external_job: shouldResume ? state.external_job : undefined,
       };
-      setState(running);
       await persistState(running);
+      setState(running);
     },
     [state, persistState, operationKey],
   );
@@ -188,9 +194,11 @@ export function usePersistentOperation(operationKey: string) {
           : (options?.initialProgress ?? {}),
         run_id: state.run_id || crypto.randomUUID(),
         queue_position: Date.now(),
+        state_revision: shouldResume ? state.state_revision : undefined,
+        external_job: shouldResume ? state.external_job : undefined,
       };
-      setState(queued);
       await persistState(queued);
+      setState(queued);
     },
     [state, persistState, operationKey],
   );
@@ -204,15 +212,15 @@ export function usePersistentOperation(operationKey: string) {
       error: "Stopped by user",
       updated_at: new Date().toISOString(),
     };
-    setState(interrupted);
     await persistState(interrupted);
+    setState(interrupted);
   }, [state, persistState]);
 
   // ── Reset to idle ───────────────────────────────────────────────
   const reset = useCallback(async () => {
     const idle: OperationState = { status: "idle" };
-    setState(idle);
     await persistState(idle);
+    setState(idle);
   }, [persistState]);
 
   const isActive = state.status === "running";

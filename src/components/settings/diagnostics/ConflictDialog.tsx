@@ -48,9 +48,16 @@ export function ConflictDialog({ state, onClose }: ConflictDialogProps) {
                     error: `Paused to run ${state.newOpName}`,
                     updated_at: new Date().toISOString(),
                   };
-                  await call("set-config", { entries: { BULK_OPERATIONS: ops } });
+                  await call("update-bulk-op", {
+                    op_key: state.activeOpKey,
+                    op_state: ops[state.activeOpKey],
+                    expected_revision: ops[state.activeOpKey].state_revision,
+                  });
                 }
-              } catch { /* best effort */ }
+              } catch {
+                toast.error("Could not pause the active operation");
+                return;
+              }
               state.onStart();
               onClose();
             }}

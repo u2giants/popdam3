@@ -499,7 +499,8 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   const runModels = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e];
   const models: Array<[Slot, string]> = SLOTS
     .map((slot, index): [Slot, string | null] => [slot, runModels[index] ?? null])
-    .filter((entry): entry is [Slot, string] => typeof entry[1] === "string" && entry[1].trim().length > 0);
+    .filter((entry): entry is [Slot, string] => typeof entry[1] === "string" && entry[1].trim().length > 0)
+    .filter(([, modelId]) => !modelId.trim().endsWith(":batch"));
   let prices = new Map<string, ModelPricing>();
   if (apiKey) {
     try {

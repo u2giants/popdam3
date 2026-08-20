@@ -13,7 +13,7 @@ import type { OperationState } from "@/hooks/usePersistentOperation";
 
 // ── Individual operation progress display ────────────────────────────
 
-function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<typeof usePersistentOperation> }) {
+export function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<typeof usePersistentOperation> }) {
   const s = op.state;
   const p = s.progress;
   if (!p) return null;
@@ -98,6 +98,13 @@ function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<typeof u
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
         </div>
+      )}
+
+      {op.isActive && s.external_job?.provider_batch_id && (
+        <p className="text-xs text-muted-foreground">
+          Waiting for OpenRouter batch {s.external_job.provider_batch_id.slice(0, 12)}
+          {s.external_job.last_checked_at ? `; last checked ${timeAgo(s.external_job.last_checked_at)}` : ""}
+        </p>
       )}
 
       {rate !== null && rate > 0 && (

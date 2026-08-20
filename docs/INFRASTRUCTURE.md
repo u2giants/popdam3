@@ -50,7 +50,13 @@ All batch AI operations are handled by a persistent Node.js worker running on Ra
 - ERP enrichment and ERP AI classification
 - Metadata reprocessing and SKU backfill (worker calls admin-api per batch)
 
-**How it works:** The worker polls `admin_config.BULK_OPERATIONS` every 5 seconds, picks up any operation with `status: "running"`, executes one batch, and writes progress back. The UI writes `status: "running"` to start an op; the worker detects it and runs it.
+**How it works:** The worker polls `admin_config.BULK_OPERATIONS`, picks up an
+operation with `status: "running"`, executes one bounded step, and writes progress
+back. OpenRouter `:batch` models use the provider's asynchronous Batch API. The
+provider batch ID, fixed asset page, result mapping, phase, and next check time
+are saved before the worker yields. A replacement Railway process reconnects to
+that ID instead of submitting the page again. The check cadence is at least 10
+seconds; OpenRouter retains batch inputs and outputs for 30 days.
 
 ### Railway Environment Variables
 

@@ -5,6 +5,7 @@ export interface BulkOperationWriteEnvelope {
   lease_expires_at: string | null;
   lease_token: string | null;
   lease_receipt_issued: boolean;
+  provider_batch_id?: string | null;
   reason: string;
   operation?: unknown;
 }

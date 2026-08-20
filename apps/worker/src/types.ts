@@ -48,15 +48,35 @@ export type OpenRouterBatchPhase =
   | "submitting"
   | "pending"
   | "applying"
+  | "completed"
   | "ambiguous_submission";
 
 export interface OpenRouterBatchJobState {
+  version?: 1;
   phase: OpenRouterBatchPhase;
+  model?: string;
+  output_method?: "json_schema" | "json_object" | "tool_named" | "tool_required" | "tool_auto";
   provider_batch_id?: string;
+  prepared_at?: string;
+  submitted_at?: string;
+  next_poll_at?: string;
+  last_checked_at?: string;
   submission_owner?: string;
   lease_expires_at?: string;
   /** One-time receipt returned by the lease claim. Never persisted by the database. */
   lease_token?: string;
+  page_cursor?: number | string;
+  next_cursor?: number | string;
+  operation_done_after_clear?: boolean;
+  clear_after_reconciliation?: boolean;
+  items?: Array<{
+    asset_id: string;
+    custom_id: string;
+    status: "prepared" | "submitted" | "applied" | "failed_terminal";
+    filename?: string;
+    relative_path?: string;
+    error?: string;
+  }>;
   [key: string]: unknown;
 }
 

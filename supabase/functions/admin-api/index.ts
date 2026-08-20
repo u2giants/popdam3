@@ -319,6 +319,9 @@ async function handleSetConfig(
   if (!entries) {
     return err("entries must be an object of { key: value } pairs", 400);
   }
+  if (Object.prototype.hasOwnProperty.call(entries, "BULK_OPERATIONS")) {
+    return err("BULK_OPERATIONS must be changed through update-bulk-op", 400);
+  }
 
   const db = serviceClient();
   const now = new Date().toISOString();
@@ -589,6 +592,7 @@ async function handleUpdateBulkOp(body: Record<string, unknown>) {
   if (!opState || typeof opState !== "object") return err("op_state is required");
 
   const onlyIfStatus = typeof body.only_if_status === "string" ? body.only_if_status : null;
+  const expectedRevision = typeof body.expected_revision === "number" ? body.expected_revision : null;
   const db = serviceClient();
 
   // Guard: if this call is transitioning the op to running/queued, check cross-lane conflicts.
@@ -615,9 +619,17 @@ async function handleUpdateBulkOp(body: Record<string, unknown>) {
     p_op_key: opKey,
     p_op_state: opState,
     p_only_if_status: onlyIfStatus,
+    p_expected_revision: expectedRevision,
   });
 
   if (error) return err(`update_bulk_operation failed: ${error.message}`, 500);
+  if (
+    data && typeof data === "object" && !Array.isArray(data) &&
+    "ok" in data && (data as Record<string, unknown>).ok === false
+  ) {
+    const reason = String((data as Record<string, unknown>).reason ?? "protected operation changed");
+    return err(`Operation update refused: ${reason}`, 409);
+  }
   return json({ ok: true, operations: data });
 }
 

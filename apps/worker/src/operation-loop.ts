@@ -35,6 +35,8 @@ const CONFIG_KEY = "BULK_OPERATIONS";
 const STALE_RUN_MINUTES = 10;
 const INTERRUPT_CHECK_EVERY = 10;
 const AUTO_RESUME_MAX_ATTEMPTS = 10;
+const submissionLeaseTokens = new Map<string, string>();
+const submissionLeaseRetryAfter = new Map<string, number>();
 /** Yield after this many batches so the round-robin can serve other operations.
  *  Under the old 45s edge function, 5 was the max that fit safely. The persistent
  *  worker has no timeout, so 50 keeps ops running hot while still yielding often
@@ -372,6 +374,25 @@ interface PersistOptions {
   requireLeaseReceipt?: boolean;
 }
 
+async function guardedPersistOpState(
+  opKey: string,
+  opState: OpState,
+  options: { expectedRevision: number; submissionOwner?: string; leaseSeconds?: number },
+) {
+  const params: Record<string, unknown> = {
+    p_op_key: opKey,
+    p_op_state: opState,
+    p_only_if_status: "running",
+    p_expected_revision: options.expectedRevision,
+  };
+  if (options.submissionOwner) params.p_submission_owner = options.submissionOwner;
+  if (options.leaseSeconds) params.p_lease_seconds = options.leaseSeconds;
+  const { data, error } = await db().rpc("update_bulk_operation", params);
+  if (error) throw new Error(`Protected operation save failed: ${error.message}`);
+  if (!isGuardedEnvelope(data)) throw new Error("Protected operation save returned no proof");
+  return data;
+}
+
 export async function persistOpState(
   opKey: string,
   opState: OpState,
@@ -589,7 +610,17 @@ export async function tick(): Promise<void> {
 
     let result: BatchResult;
     try {
-      result = await dispatch(opKey, { ...currentState, cursor, progress });
+      const retryAfter = submissionLeaseRetryAfter.get(opKey) ?? 0;
+      if (currentState.external_job && !submissionLeaseTokens.has(opKey) && retryAfter > Date.now()) return;
+      const rememberedLeaseToken = submissionLeaseTokens.get(opKey);
+      result = await dispatch(opKey, {
+        ...currentState,
+        cursor,
+        progress,
+        external_job: currentState.external_job && rememberedLeaseToken
+          ? { ...currentState.external_job, lease_token: rememberedLeaseToken }
+          : currentState.external_job,
+      });
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       const reason = classifyError(errMsg);
@@ -607,6 +638,95 @@ export async function tick(): Promise<void> {
         next_auto_resume_at: nextAutoResumeAt(reason, currentState),
         updated_at: new Date().toISOString(),
       });
+      return;
+    }
+
+    if (result.state_transition === "claim_submission") {
+      const owner = `railway:${currentState.run_id ?? "unknown"}`;
+      const claimState: OpState = {
+        ...currentState,
+        cursor,
+        progress,
+        external_job: {
+          ...currentState.external_job!,
+          phase: currentState.external_job?.phase === "prepared" ? "submitting" : currentState.external_job!.phase,
+        },
+        updated_at: new Date().toISOString(),
+      };
+      const claim = await guardedPersistOpState(opKey, claimState, {
+        expectedRevision: currentState.state_revision ?? 0,
+        submissionOwner: owner,
+        leaseSeconds: 120,
+      });
+      if (!claim.ok || !claim.lease_receipt_issued || !claim.lease_token) {
+        const retryAt = claim.lease_expires_at ? new Date(claim.lease_expires_at).getTime() : Date.now() + 30_000;
+        submissionLeaseRetryAfter.set(opKey, Number.isFinite(retryAt) ? retryAt + 250 : Date.now() + 30_000);
+        logger.info("tick: submission lease was not issued to this worker", { opKey, reason: claim.reason });
+        return;
+      }
+      const claimedState = claim.operation as OpState;
+      submissionLeaseRetryAfter.delete(opKey);
+      submissionLeaseTokens.set(opKey, claim.lease_token);
+      result = await dispatch(opKey, {
+        ...claimedState,
+        external_job: { ...claimedState.external_job!, lease_token: claim.lease_token ?? undefined },
+      });
+      if (!result.ok) throw new Error(result.error ?? "OpenRouter submission failed");
+      const submittedState: OpState = {
+        ...claimedState,
+        status: result.done ? "completed" : "running",
+        cursor: (result.nextOffset as number | string | undefined) ?? claimedState.cursor,
+        progress: mergeProgress(opKey, progress, result),
+        external_job: result.external_job as OpState["external_job"],
+        updated_at: new Date().toISOString(),
+      };
+      const saved = await guardedPersistOpState(opKey, submittedState, {
+        expectedRevision: claim.state_revision,
+      });
+      if (!saved.ok || saved.provider_batch_id !== submittedState.external_job?.provider_batch_id) {
+        throw new Error("OpenRouter accepted the batch but its ID could not be safely saved");
+      }
+      if (result.done) submissionLeaseTokens.delete(opKey);
+      logger.info("tick: durable OpenRouter batch saved", {
+        opKey,
+        batchId: submittedState.external_job?.provider_batch_id,
+      });
+      return;
+    }
+    if (result.state_transition === "yield_without_save") return;
+
+    const resultJob = result.external_job as OpState["external_job"] | undefined;
+    if (!result.ok && currentState.external_job) {
+      const protectedErrorState: OpState = {
+        ...currentState,
+        status: "interrupted",
+        cursor,
+        progress,
+        error: result.error ?? "OpenRouter batch failed",
+        interruption_reason_code: interruptionReason(result),
+        external_job: resultJob ?? currentState.external_job,
+        updated_at: new Date().toISOString(),
+      };
+      const saved = await guardedPersistOpState(opKey, protectedErrorState, {
+        expectedRevision: currentState.state_revision ?? 0,
+      });
+      if (!saved.ok) throw new Error(`Protected OpenRouter failure save refused: ${saved.reason}`);
+      return;
+    }
+    if (resultJob?.lease_token && currentState.external_job) {
+      const guardedState: OpState = {
+        ...currentState,
+        status: result.done ? "completed" : "running",
+        cursor: (result.nextOffset as number | string | undefined) ?? cursor,
+        progress: mergeProgress(opKey, progress, result),
+        external_job: resultJob,
+        updated_at: new Date().toISOString(),
+      };
+      const saved = await guardedPersistOpState(opKey, guardedState, {
+        expectedRevision: currentState.state_revision ?? 0,
+      });
+      if (!saved.ok) throw new Error(`Protected OpenRouter state save refused: ${saved.reason}`);
+      if (result.done || resultJob.clear_after_reconciliation) submissionLeaseTokens.delete(opKey);
       return;
     }
 
@@ -664,6 +784,9 @@ export async function tick(): Promise<void> {
 
     currentState = {
       ...currentState,
+      external_job: result.clear_external_job
+        ? undefined
+        : (result.external_job as OpState["external_job"] | undefined) ?? currentState.external_job,
       error: undefined,
       interruption_reason_code: undefined,
       next_auto_resume_at: undefined,
@@ -699,6 +822,10 @@ export async function tick(): Promise<void> {
       logger.info("tick: op stopped externally — aborting after batch", { opKey, batchCount });
       return;
     }
+
+    // Reload the database-assigned revision before attempting the submission
+    // lease. Continuing in this same loop would claim with the old revision.
+    if (result.external_job) return;
 
     if (result.done) {
       logger.info("tick: op completed", { opKey, batches: batchCount, progress });

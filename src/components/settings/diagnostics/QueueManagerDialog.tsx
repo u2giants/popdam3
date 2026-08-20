@@ -25,25 +25,19 @@ export function QueueManagerDialog({ open, onOpenChange, queuedItems, onQueueCha
     items[index + direction][1].queue_position = tempPos;
 
     try {
-      const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
-      const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState>;
-      ops[items[index][0]].queue_position = items[index][1].queue_position;
-      ops[items[index + direction][0]].queue_position = items[index + direction][1].queue_position;
-      await call("set-config", { entries: { BULK_OPERATIONS: ops } });
+      for (const [key, op] of [items[index], items[index + direction]]) {
+        await call("update-bulk-op", { op_key: key, op_state: op, expected_revision: op.state_revision });
+      }
       onQueueChange(items.sort((a, b) => (a[1].queue_position || 0) - (b[1].queue_position || 0)));
     } catch { toast.error("Failed to reorder queue"); }
   };
 
   const handleRemoveFromQueue = async (opKey: string) => {
     try {
-      const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
-      const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState>;
-      if (ops[opKey]) {
-        ops[opKey] = { status: "idle" };
-      }
-      await call("set-config", { entries: { BULK_OPERATIONS: ops } });
+      const existing = queuedItems.find(([key]) => key === opKey)?.[1];
+      await call("update-bulk-op", { op_key: opKey, op_state: { status: "idle" }, expected_revision: existing?.state_revision });
       onQueueChange(queuedItems.filter(([k]) => k !== opKey));
-    } catch { /* ignore */ }
+    } catch { toast.error("Failed to remove queued operation"); }
   };
 
   return (

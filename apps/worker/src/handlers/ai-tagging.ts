@@ -14,10 +14,19 @@
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { buildProviderPin } from "../openrouter.js";
+import {
+  buildProviderPin,
+  getOpenRouterBatch,
+  OpenRouterError,
+  parseOpenRouterBatchResult,
+  submitOpenRouterBatch,
+  type ChatCompletionRequest,
+  type OpenRouterBatchResultItem,
+} from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
+import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type StructuredOutputMethod } from "../model-capabilities.js";
 import {
   buildImageTaggingMessages,
   buildImageTaggingPrompt,
@@ -25,7 +34,12 @@ import {
   fetchImageData,
   getAiTaggingApiKey,
   isStyleGuideSourcePdf,
+  parseJsonObject,
+  TAG_ASSET_SCHEMA,
+  TAG_ASSET_TOOL,
+  validateTagAssetData,
 } from "./ai-tagging-shared.js";
+import { indexBatchResults, isNewBatchVisibilityDelay, nextBatchAction } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
 // Last-resort fallback only, used if admin_config.AI_TASK_MODELS is missing.
@@ -123,6 +137,109 @@ function sleep(ms: number): Promise<void> {
 
 type TagOutcome = { outcome: "tagged" | "skipped" | "failed"; error?: string };
 
+type BatchAsset = {
+  id: string;
+  filename: string | null;
+  relative_path: string | null;
+  file_type: string | null;
+  tags: string[] | null;
+  licensor_id: string | null;
+  property_id: string | null;
+  thumbnail_url: string | null;
+  status: string | null;
+  ai_tagged_at: string | null;
+  sku: string | null;
+  style_group_id: string | null;
+};
+
+async function buildBatchAssetRequest(
+  assetId: string,
+  force: boolean,
+  model: string,
+  customId: string,
+  provider: ChatCompletionRequest["provider"],
+  method: Exclude<StructuredOutputMethod, "json_repair">,
+) {
+  const client = db();
+  const { data: asset, error } = await client.from("assets")
+    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, style_group_id")
+    .eq("id", assetId).single();
+  if (error || !asset) throw new Error(`Asset not found: ${assetId}`);
+  const typed = asset as BatchAsset;
+  if (!force && typed.status === "tagged" && typed.ai_tagged_at) return null;
+  if (!typed.thumbnail_url) throw new Error(`Asset has no thumbnail: ${assetId}`);
+  const [prompt, image] = await Promise.all([
+    buildImageTaggingPrompt(typed),
+    fetchImageData(typed.thumbnail_url),
+  ]);
+  const messages = buildImageTaggingMessages(
+    prompt,
+    image,
+    "Analyze this design asset image and return structured tags matching the tag_asset schema.",
+  );
+  const request: ChatCompletionRequest = {
+    model,
+    messages,
+    max_tokens: 4000,
+    provider,
+  };
+  if (method === "json_schema") {
+    request.response_format = { type: "json_schema", json_schema: { name: "tag_asset", strict: false, schema: TAG_ASSET_SCHEMA } };
+  } else if (method === "json_object") {
+    request.response_format = { type: "json_object" };
+  } else {
+    request.tools = [TAG_ASSET_TOOL];
+    request.tool_choice = method === "tool_named"
+      ? { type: "function", function: { name: "tag_asset" } }
+      : method === "tool_required" ? "required" : "auto";
+  }
+  return {
+    customId,
+    request,
+  };
+}
+
+async function applyBatchTagResult(assetId: string, tagData: Record<string, unknown>, model: string): Promise<void> {
+  validateTagAssetData(tagData, "batch");
+  const client = db();
+  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku").eq("id", assetId).single();
+  if (assetError || !asset) throw new Error(`Asset reload failed: ${assetError?.message ?? assetId}`);
+  const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };
+  for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "designer_name", "technical_designer_name", "freelancer_name"]) {
+    if (tagData[key]) updates[key] = tagData[key];
+  }
+  if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
+  if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
+  let { error } = await client.from("assets").update(updates).eq("id", assetId);
+  if (error && (error.code === "23503" || error.code === "22P02")) {
+    delete updates.licensor_id; delete updates.property_id;
+    error = (await client.from("assets").update(updates).eq("id", assetId)).error;
+  }
+  if (error) throw new Error(`DB write failed: ${error.message}`);
+  if (Array.isArray(tagData.tags)) {
+    const deleted = await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
+    if (deleted.error) throw new Error(`AI tag cleanup failed: ${deleted.error.message}`);
+    const savedTags = await client.from("asset_tags").upsert(tagData.tags.map((tag) => ({ asset_id: assetId, tag: String(tag).trim().toLowerCase(), source: "ai" })), { onConflict: "asset_id,tag" });
+    if (savedTags.error) throw new Error(`AI tag write failed: ${savedTags.error.message}`);
+  }
+  if (Array.isArray(tagData.character_ids)) {
+    const rows = tagData.character_ids.filter(isValidUuid).map((character_id) => ({ asset_id: assetId, character_id }));
+    if (rows.length) {
+      const savedCharacters = await client.from("asset_characters").upsert(rows, { onConflict: "asset_id,character_id" });
+      if (savedCharacters.error) throw new Error(`Character link write failed: ${savedCharacters.error.message}`);
+    }
+  }
+  if (asset && isStyleGuideSourcePdf(asset) && asset.sku && Array.isArray(tagData.files_used)) {
+    const rows = tagData.files_used
+      .filter((name) => typeof name === "string" && name.trim())
+      .map((name) => ({ sku: asset.sku, file_name: String(name).trim(), source: "ai_tag" }));
+    if (rows.length) {
+      const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+      if (savedFiles.error) throw new Error(`Style-guide source write failed: ${savedFiles.error.message}`);
+    }
+  }
+}
+
 export interface AiTagRpcClient {
   rpc: (
     name: string,
@@ -135,6 +252,211 @@ interface AiTagHandlerDependencies {
   tagAsset?: (assetId: string, force: boolean) => Promise<TagOutcome>;
   batchSize?: number;
   concurrency?: number;
+}
+
+async function handleDurableBatchTag(
+  opState: OpState,
+  tagAll: boolean,
+  client: AiTagRpcClient,
+  batchSize: number,
+): Promise<BatchResult> {
+  const apiKey = await getAiTaggingApiKey();
+  if (!apiKey) return { ok: false, done: false, error: "No OpenRouter API key configured" };
+  const models = await getVisionModels();
+  const model = opState.external_job?.model ?? models.primary;
+  const provider = buildProviderPin(models.providerPin);
+  const job = opState.external_job;
+
+  if (!job) {
+    const capabilities = await getRuntimeModelCapabilities(apiKey, model);
+    const outputMethod = buildStructuredOutputPlan(capabilities)
+      .find((method): method is Exclude<StructuredOutputMethod, "json_repair"> => method !== "json_repair");
+    if (!outputMethod) return { ok: false, done: false, error: `Model ${model} has no supported structured-output method` };
+    const assetIds = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
+    let candidates: Array<{ id: string; filename?: string; relative_path?: string; primary_sort_tier?: number }>;
+    let nextCursor: number | string = opState.cursor ?? 0;
+    if (assetIds?.length) {
+      candidates = assetIds.slice(0, 100).map((id) => ({ id }));
+    } else {
+      const cursor = decodeAiTagCursor(opState.cursor);
+      const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;
+      const response = await client.rpc("get_ai_tag_candidates", {
+        p_mode: tagAll ? "all" : "untagged",
+        p_limit: Math.min(batchSize, 100),
+        p_after_tier: cursor?.tier ?? null,
+        p_after_id: cursor?.id ?? null,
+        p_group_ids: groupIds?.length ? groupIds : null,
+      });
+      if (response.error) return { ok: false, done: false, error: response.error.message, error_stage: "candidate_fetch" };
+      candidates = (response.data ?? []) as typeof candidates;
+      if (!candidates.length) return { ok: true, done: true, tagged: 0, skipped: 0, failed: 0, nextOffset: opState.cursor ?? 0 };
+      const last = candidates[candidates.length - 1];
+      nextCursor = encodeAiTagCursor({ tier: last.primary_sort_tier!, id: last.id });
+    }
+    const runId = opState.run_id ?? "unassigned";
+    return {
+      ok: true,
+      done: false,
+      nextOffset: opState.cursor ?? 0,
+      external_job: {
+        version: 1,
+        phase: "prepared",
+        model,
+        output_method: outputMethod,
+        prepared_at: new Date().toISOString(),
+        page_cursor: opState.cursor ?? 0,
+        next_cursor: nextCursor,
+        operation_done_after_clear: Boolean(assetIds?.length),
+        items: candidates.map((asset) => ({
+          asset_id: asset.id,
+          custom_id: `popdam:${runId}:${asset.id}:${outputMethod}:0`,
+          status: "prepared",
+          filename: asset.filename,
+          relative_path: asset.relative_path,
+        })),
+      },
+      last_stage: "state_persist",
+    };
+  }
+
+  const action = nextBatchAction(job);
+  if (action.type === "blocked") return { ok: false, done: false, error: action.reason, error_code: "contract_error" };
+  if (action.type === "claim") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
+  if (action.type === "wait") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "yield_without_save", last_stage: "model_inference" };
+  if (action.type === "clear") {
+    return {
+      ok: true,
+      done: job.operation_done_after_clear === true,
+      nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
+      tagged: 0,
+      skipped: 0,
+      failed: 0,
+      external_job: {
+        ...job,
+        lease_token: action.leaseToken,
+        clear_after_reconciliation: true,
+      },
+      last_stage: "state_persist",
+    };
+  }
+
+  if (action.type === "submit") {
+    const outputMethod = job.output_method ?? "json_schema";
+    const submissions = [];
+    for (const item of job.items ?? []) {
+      const prepared = await buildBatchAssetRequest(item.asset_id, tagAll, model, item.custom_id, provider, outputMethod);
+      if (prepared) submissions.push(prepared);
+    }
+    if (!submissions.length) {
+      return {
+        ok: true,
+        done: job.operation_done_after_clear === true,
+        nextOffset: job.next_cursor ?? job.page_cursor ?? 0,
+        clear_external_job: true,
+        skipped: job.items?.length ?? 0,
+      };
+    }
+    const created = await submitOpenRouterBatch(apiKey, submissions);
+    const submittedIds = new Set(submissions.map((submission) => submission.customId));
+    return {
+      ok: true,
+      done: false,
+      nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+      external_job: {
+        ...job,
+        phase: "pending",
+        provider_batch_id: created.id,
+        submitted_at: new Date().toISOString(),
+        lease_token: action.leaseToken,
+        next_poll_at: new Date(Date.now() + 10_000).toISOString(),
+        items: job.items?.filter((item) => submittedIds.has(item.custom_id)).map((item) => ({ ...item, status: "submitted" })),
+      },
+      last_stage: "model_inference",
+    };
+  }
+
+  let record;
+  try {
+    record = await getOpenRouterBatch(apiKey, action.batchId);
+  } catch (error) {
+    if (error instanceof OpenRouterError && isNewBatchVisibilityDelay(error.status, job.submitted_at)) {
+      return {
+        ok: true,
+        done: false,
+        nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+        external_job: {
+          ...job,
+          last_checked_at: new Date().toISOString(),
+          next_poll_at: new Date(Date.now() + 10_000).toISOString(),
+        },
+        last_stage: "model_inference",
+      };
+    }
+    throw error;
+  }
+  if (!["completed", "failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
+    return {
+      ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+      external_job: { ...job, last_checked_at: new Date().toISOString(), next_poll_at: new Date(Date.now() + 10_000).toISOString() },
+      last_stage: "model_inference",
+    };
+  }
+  if (record.status !== "completed") return {
+    ok: false,
+    done: false,
+    error: `OpenRouter batch ${action.batchId} ${record.status}`,
+    error_code: "provider_terminal",
+    external_job: {
+      ...job,
+      provider_status: record.status,
+      lease_token: job.lease_token,
+      last_checked_at: new Date().toISOString(),
+    },
+  };
+
+  if (action.type !== "apply") {
+    return {
+      ok: true,
+      done: false,
+      nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+      external_job: {
+        ...job,
+        phase: "applying",
+        lease_token: job.lease_token,
+        last_checked_at: new Date().toISOString(),
+        next_poll_at: undefined,
+      },
+      last_stage: "state_persist",
+    };
+  }
+
+  const results = indexBatchResults(
+    (job.items ?? []).map((item) => item.custom_id),
+    (record.results ?? []) as OpenRouterBatchResultItem[],
+  );
+  let tagged = 0, failed = 0;
+  const failureSamples = [];
+  for (const item of job.items ?? []) {
+    const raw = results.get(item.custom_id) as OpenRouterBatchResultItem | undefined;
+    try {
+      if (!raw) throw new Error("OpenRouter result missing");
+      const completion = await parseOpenRouterBatchResult(apiKey, raw);
+      const tagData = completion.toolCalls?.find((call) => call.name === "tag_asset")?.arguments ?? parseJsonObject(completion.content);
+      if (!tagData) throw new Error("OpenRouter result contains no structured tag data");
+      await applyBatchTagResult(item.asset_id, tagData, model);
+      tagged++;
+    } catch (error) {
+      failed++;
+      failureSamples.push({ at: new Date().toISOString(), asset_id: item.asset_id, filename: item.filename ?? "", relative_path: item.relative_path ?? "", error: String(error).slice(0, 500) });
+    }
+  }
+  return {
+    ok: true, done: false, tagged, failed, skipped: 0,
+    failure_samples: failureSamples,
+    nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
+    external_job: { ...job, phase: "completed", lease_token: job.lease_token, last_checked_at: new Date().toISOString() },
+    last_stage: "tag_write",
+  };
 }
 
 async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutcome> {
@@ -323,6 +645,11 @@ export async function handleBulkAiTag(
   const BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));
   const CONCURRENCY = dependencies.concurrency ?? config.aiBatchConcurrency;
   const tagAsset = dependencies.tagAsset ?? tagSingleAsset;
+
+  const configuredModels = await getVisionModels();
+  if (opState.external_job || configuredModels.primary.trim().endsWith(":batch")) {
+    return handleDurableBatchTag(opState, tagAll, client, BATCH_SIZE);
+  }
 
   const rawCursor = opState.cursor;
   const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;

@@ -1100,3 +1100,28 @@ from `scrollWidth > clientWidth`. Regression coverage:
 **Release evidence**: PopDAM commits `9fc434ea` (overflow fix) and `23f1c480`
 (resize + tooltips); CI, both DB guards, and the frontend image build passed on
 each.
+
+---
+
+## 74. OpenRouter Batch Jobs Must Resume by Saved ID (fixed 2026-08-20)
+
+**Looks like**: Railway can simply repeat an image-tagging page after a deploy
+because each result uses a stable asset ID.
+
+**Actually**: OpenRouter may already be processing and billing the first job.
+Repeating the page creates a second paid job. The worker therefore saves the
+provider batch ID, page boundary, and result mapping before yielding. After a
+restart it checks that same ID and advances the PopDAM cursor only after every
+result is reconciled.
+
+**Operator view**: Settings shows `Waiting for OpenRouter batch <short ID>` and
+the last check time. Pending is normal. `ambiguous_submission` means a submission
+lease expired before a provider ID was safely saved; do not restart or declare
+that phase manually. Reconcile the provider job first. Stop prevents PopDAM from
+checking or applying further results, but cannot cancel accepted provider work.
+
+**Do not change because**: submitting from `ok = true`, dropping the saved job,
+or treating `ambiguous_submission` as proof can create duplicate charges or
+apply results to the wrong page. Only `lease_receipt_issued = true` with its
+receipt authorizes submission. OpenRouter retains batch inputs and outputs for
+30 days and is checked no faster than every 10 seconds.

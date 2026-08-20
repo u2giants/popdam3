@@ -19,17 +19,6 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
 const OPENROUTER_GENERATION_URL = "https://openrouter.ai/api/v1/generation";
 const DEFAULT_TIMEOUT_MS = 60_000;
-const BATCH_COMPLETION_TIMEOUT_MS = 24 * 60 * 60_000;
-let batchPollIntervalMs = 5_000;
-/**
- * A freshly created batch is not immediately readable: OpenRouter returns
- * `202 validating` from the POST, and the first GET on that ID can answer
- * `404 Batch job ... not found.` for a few seconds while the job registers
- * (measured 2026-08-21: first poll 404, next poll 5s later in_progress).
- * We keep polling through an early 404 for this long before calling it real.
- */
-const BATCH_VISIBILITY_GRACE_MS = 120_000;
-const BATCH_COLLECT_WINDOW_MS = 25;
 const MAX_BATCH_REQUESTS = 100;
 const MAX_RETRIES = 2;
 
@@ -108,29 +97,81 @@ export interface ChatCompletionResult {
   };
 }
 
-interface PendingBatchRequest {
-  apiKey: string;
-  request: ChatCompletionRequest;
-  timeoutMs: number;
-  resolve: (result: ChatCompletionResult) => void;
-  reject: (error: unknown) => void;
-}
-
-interface OpenRouterBatchResultItem {
+export interface OpenRouterBatchResultItem {
   custom_id?: string;
   response?: { status_code?: number; body?: unknown };
   error?: unknown;
 }
 
-interface OpenRouterBatchRecord {
+export interface OpenRouterBatchRecord {
   id?: string;
   status?: string;
   results?: OpenRouterBatchResultItem[];
   error?: unknown;
 }
 
-const pendingBatchQueues = new Map<string, PendingBatchRequest[]>();
-let batchCustomIdSequence = 0;
+export interface OpenRouterBatchSubmission {
+  customId: string;
+  request: ChatCompletionRequest;
+}
+
+export function buildOpenRouterBatchPayload(items: OpenRouterBatchSubmission[]) {
+  if (items.length === 0 || items.length > MAX_BATCH_REQUESTS) {
+    throw new Error(`OpenRouter batch requires 1-${MAX_BATCH_REQUESTS} requests`);
+  }
+  const baseModel = baseModelId(items[0].request.model);
+  return {
+    endpoint: "/v1/chat/completions",
+    model: baseModel,
+    requests: items.map(({ customId, request }) => {
+      const body = { ...request, model: baseModel };
+      delete body.temperature;
+      return { custom_id: customId, body };
+    }),
+  };
+}
+
+export async function submitOpenRouterBatch(apiKey: string, items: OpenRouterBatchSubmission[]): Promise<OpenRouterBatchRecord> {
+  const payload = buildOpenRouterBatchPayload(items);
+  const response = await fetch(OPENROUTER_BATCH_URL, {
+    method: "POST",
+    headers: openRouterHeaders(apiKey),
+    signal: AbortSignal.timeout(30_000),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new OpenRouterError(response.status, text);
+  const record = unwrapBatchRecord(parseJsonRecord(text));
+  if (!record.id) throw new Error("OpenRouter Batch API returned no batch ID");
+  return record;
+}
+
+export async function getOpenRouterBatch(apiKey: string, batchId: string): Promise<OpenRouterBatchRecord> {
+  const response = await fetch(`${OPENROUTER_BATCH_URL}/${encodeURIComponent(batchId)}`, {
+    headers: openRouterHeaders(apiKey),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new OpenRouterError(response.status, text);
+  return unwrapBatchRecord(parseJsonRecord(text));
+}
+
+export async function parseOpenRouterBatchResult(
+  apiKey: string,
+  item: OpenRouterBatchResultItem,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<ChatCompletionResult> {
+  const status = item.response?.status_code ?? 500;
+  if (status < 200 || status >= 300 || item.error) {
+    throw new OpenRouterError(status, batchErrorText(item.error ?? item.response?.body));
+  }
+  const body = item.response?.body;
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("OpenRouter batch returned an invalid response body");
+  }
+  return parseChatCompletionResult(apiKey, body as Record<string, unknown>, new Headers(), timeoutMs);
+}
+
 
 /** One upstream endpoint OpenRouter tried, in order. Includes failed legs. */
 export interface OpenRouterAttempt {
@@ -438,152 +479,6 @@ function batchErrorText(value: unknown): string {
   try { return JSON.stringify(value); } catch { return String(value); }
 }
 
-async function runOpenRouterBatch(items: PendingBatchRequest[]): Promise<void> {
-  const apiKey = items[0].apiKey;
-  const baseModel = baseModelId(items[0].request.model);
-  const requests = items.map((item) => {
-    const customId = `popdam-${Date.now()}-${++batchCustomIdSequence}`;
-    const body = { ...item.request, model: baseModel };
-    // The discounted Gemini batch endpoint does not advertise temperature.
-    // Omitting it also keeps repair requests compatible with batch-only models.
-    delete body.temperature;
-    return { custom_id: customId, body };
-  });
-
-  let createdResponse: Response;
-  try {
-    createdResponse = await fetch(OPENROUTER_BATCH_URL, {
-      method: "POST",
-      headers: openRouterHeaders(apiKey),
-      signal: AbortSignal.timeout(30_000),
-      body: JSON.stringify({ endpoint: "/v1/chat/completions", model: baseModel, requests }),
-    });
-  } catch (error) {
-    items.forEach((item) => item.reject(error));
-    return;
-  }
-  const createdText = await createdResponse.text();
-  if (!createdResponse.ok) {
-    const error = new OpenRouterError(createdResponse.status, createdText);
-    items.forEach((item) => item.reject(error));
-    return;
-  }
-  const created = unwrapBatchRecord(parseJsonRecord(createdText));
-  if (!created.id) {
-    const error = new Error(`OpenRouter Batch API returned no batch ID: ${createdText.slice(0, 300)}`);
-    items.forEach((item) => item.reject(error));
-    return;
-  }
-  logger.info("openrouter batch: submitted", { batchId: created.id, model: baseModel, requests: requests.length });
-
-  const submittedAt = Date.now();
-  let everSeen = false;
-  const deadline = Date.now() + Math.max(BATCH_COMPLETION_TIMEOUT_MS, ...items.map((item) => item.timeoutMs));
-  let completed: OpenRouterBatchRecord | null = null;
-  while (Date.now() < deadline) {
-    let pollResponse: Response;
-    try {
-      pollResponse = await fetch(`${OPENROUTER_BATCH_URL}/${encodeURIComponent(created.id)}`, {
-        headers: openRouterHeaders(apiKey),
-        signal: AbortSignal.timeout(30_000),
-      });
-    } catch (error) {
-      logger.warn("openrouter batch: status poll failed; retrying", { batchId: created.id, error: String(error) });
-      await new Promise((resolve) => setTimeout(resolve, batchPollIntervalMs));
-      continue;
-    }
-    const pollText = await pollResponse.text();
-    if (!pollResponse.ok) {
-      const transient =
-        pollResponse.status === 429 ||
-        pollResponse.status >= 500 ||
-        // Not-yet-visible new batch — only before we have ever seen it, and
-        // only inside the grace window. A 404 after that is a real failure.
-        (pollResponse.status === 404 && !everSeen && Date.now() - submittedAt < BATCH_VISIBILITY_GRACE_MS);
-      if (transient) {
-        logger.warn("openrouter batch: status poll not ready; retrying", {
-          batchId: created.id, status: pollResponse.status, body: pollText.slice(0, 200),
-        });
-        await new Promise((resolve) => setTimeout(resolve, batchPollIntervalMs));
-        continue;
-      }
-      const error = new OpenRouterError(pollResponse.status, pollText);
-      items.forEach((item) => item.reject(error));
-      return;
-    }
-    everSeen = true;
-    const record = unwrapBatchRecord(parseJsonRecord(pollText));
-    if (record.status === "completed") {
-      completed = record;
-      break;
-    }
-    if (["failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
-      const error = new Error(`OpenRouter batch ${created.id} ${record.status}: ${batchErrorText(record.error)}`);
-      items.forEach((item) => item.reject(error));
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, batchPollIntervalMs));
-  }
-  if (!completed) {
-    const error = new Error(`OpenRouter batch ${created.id} did not finish within 24 hours`);
-    items.forEach((item) => item.reject(error));
-    return;
-  }
-
-  const byId = new Map((completed.results ?? []).map((result) => [result.custom_id, result]));
-  await Promise.all(requests.map(async (submitted, index) => {
-    const pending = items[index];
-    const result = byId.get(submitted.custom_id);
-    if (!result) {
-      pending.reject(new Error(`OpenRouter batch ${created.id} omitted result ${submitted.custom_id}`));
-      return;
-    }
-    const status = result.response?.status_code ?? 500;
-    if (status < 200 || status >= 300 || result.error) {
-      pending.reject(new OpenRouterError(status, batchErrorText(result.error ?? result.response?.body)));
-      return;
-    }
-    const body = result.response?.body;
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      pending.reject(new Error(`OpenRouter batch ${created.id} returned an invalid response body`));
-      return;
-    }
-    try {
-      pending.resolve(await parseChatCompletionResult(apiKey, body as Record<string, unknown>, new Headers(), pending.timeoutMs));
-    } catch (error) {
-      pending.reject(error);
-    }
-  }));
-}
-
-/** Test hook: shorten the batch status poll interval. */
-export function setBatchPollIntervalForTests(ms: number): void {
-  batchPollIntervalMs = ms;
-}
-
-function flushBatchQueue(queueKey: string): void {
-  const queued = pendingBatchQueues.get(queueKey) ?? [];
-  pendingBatchQueues.delete(queueKey);
-  for (let offset = 0; offset < queued.length; offset += MAX_BATCH_REQUESTS) {
-    void runOpenRouterBatch(queued.slice(offset, offset + MAX_BATCH_REQUESTS));
-  }
-}
-
-function batchChatCompletion(apiKey: string, request: ChatCompletionRequest, timeoutMs: number): Promise<ChatCompletionResult> {
-  const queueKey = `${apiKey}\u0000${baseModelId(request.model)}`;
-  return new Promise((resolve, reject) => {
-    const queue = pendingBatchQueues.get(queueKey);
-    const pending = { apiKey, request, timeoutMs, resolve, reject };
-    if (queue) {
-      queue.push(pending);
-      if (queue.length >= MAX_BATCH_REQUESTS) flushBatchQueue(queueKey);
-    } else {
-      pendingBatchQueues.set(queueKey, [pending]);
-      setTimeout(() => flushBatchQueue(queueKey), BATCH_COLLECT_WINDOW_MS);
-    }
-  });
-}
-
 // ── Main call ────────────────────────────────────────────────────────────────
 
 export async function chatCompletion(
@@ -592,7 +487,7 @@ export async function chatCompletion(
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<ChatCompletionResult> {
   if (request.model.trim().endsWith(":batch")) {
-    return batchChatCompletion(apiKey, request, timeoutMs);
+    throw new Error("Batch-only models require the durable asynchronous Batch API path");
   }
   // Some models don't support the specific-function or "required" tool_choice forms.
   // Fall back through the compatibility ladder when an upstream provider
