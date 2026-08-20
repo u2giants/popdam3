@@ -37,27 +37,33 @@ session. Some questions are for **Albert** as owner, not for ColdLion; those are
 
 The one remaining stage-related nicety, not blocking:
 
-### 1.1 Is there a field identifying which stage a row is in? *(ColdLion / JamieLynn)*
+### 1.1 ✅ ANSWERED 2026-08-20 — *"Yes this is called Prod Stage"* (JamieLynn)
 
-Nothing in the payload distinguishes an `ISS` row from an `INTRAN` or `REC` row; the stage is known
-only from the request. We stamp it on load, so this is a safety net, not a need. **Related and more
-important than it sounds:** row keys do **not** collide across stages, so a table without a stage
-column accepts all three and silently triples-counts quantities with no key violation to warn you.
+**But it is NOT in the API.** Verified against the live spec (`GET /EhpApi/v2/api-docs`) on
+2026-08-20: **no field whose name contains "stage" exists in ANY definition**, `ProdHistory`
+(133 fields) included. So `Prod Stage` exists inside ColdLion but is not exposed to us.
 
-**Sent / awaiting reply since:** sent in the email JamieLynn answered on 2026-08-18/19; she gave the stage LIST but did not address whether a field identifies the stage. **Re-sent in the 2026-08-20 email.**
+This is the same shape as the `Line #` gap in 2.7 — the field exists in their system, not in
+their API. Both are now one ask: **expose them.** Until then we keep stamping the stage
+ourselves from the request, which works but relies on the loader never getting it wrong.
 
-**Evidence:** [`verification/coldlion-prodhistory-stage-discovery-20260819/README.md`](verification/coldlion-prodhistory-stage-discovery-20260819/README.md).
+Why it matters: row keys do **not** collide across stages, so a table without a stage column
+accepts `ISS`, `INTRAN` and `REC` copies of the same row and silently triples the quantities
+with no key violation to warn anyone.
+
+**Evidence:** [`verification/coldlion-prodhistory-stage-discovery-20260819/README.md`](verification/coldlion-prodhistory-stage-discovery-20260819/README.md); live-spec check 2026-08-20.
 
 ## 2. Open, not blocking — these change how data is modelled or reported
 
 | # | Question | For | Evidence | Sent / awaiting reply since |
 |---|---|---|---|---|
-| 2.2 | **~12–16% of component rows have `ppkMerchGroup*` blank**, after the assortment-vs-component split is accounted for. Expected, or worth a look? | JamieLynn | shape §5.7, rules §6 | Sent — in the email JamieLynn answered on 08-18/08-19; this part was not addressed. **Re-sent in the 2026-08-20 email.** |
+| 2.2 | **Blank component merch groups — her explanation does not fit our data.** JamieLynn 2026-08-20: *"Expected for older stuff. do you have a sample set I can take a look at?"* Measured by year on 295 component rows: 2020 **0%** blank, 2022 **0%**, 2023 6%, **2024 21.3%** (52 of 244), 2025 0%. The blanks cluster in the NEWEST heavy year, not the oldest. **Caveat, state it when replying:** every year except 2024 has a thin sample (4-25 rows), so this is suggestive, not conclusive. Sample set to send: prod order **23049**, seq 1, components `VSZ2FBFRA01` / `VSZ2FECST01` / `VSZ2FNFRN01` / `VSZ2FWFRN01`, dated 2024-11-08; and order **21889**, seq 1, `MQU93NASA02`, 2023-05-02. | JamieLynn | this session's 295-row by-year measurement | **Awaiting reply since 2026-08-20.** She asked for a sample set — send the rows above. |
 | 2.4 | **Does `orderHistory` have a hidden dimension too?** It has no `stageCode`, but nobody has proved its default response is complete. After §1.1, assume nothing. | us first, then JamieLynn | verification doc §8 | **Not sent — ours to answer first.** Prove it ourselves before asking. |
 | 2.6 | **Do lapsed licences need an expiry/active flag from ColdLion at all?** The absence is the root cause behind 2.5 and behind repeated taxonomy churn. Currently worked around, never asked. | JamieLynn | `merch-group-taxonomy-architecture.md` | **SENT by Albert — no reply ever received.** Date not recorded. An earlier version of this file wrongly said "never sent"; that was this session guessing. **Re-sent in the 2026-08-20 email.** |
-| 2.7 | **How do we tell two sales-order lines apart?** `orderHistory` has no line number — confirmed against the live spec, 59 fields, none of them a sequence. `(salesOrderNo, itemNo, labelCode, subItemNo)` is unique across 1,671 rows spanning 2019-2026, so the **component** grain is solved. But 28 groups sharing `(salesOrderNo, itemNo, labelCode)` carry genuinely different `linePrice` or `lineQty` — either ColdLion allows two lines of the same item at different prices with no field to distinguish them, or those are duplicate rows. **This is the sales-side twin of the question they solved for production with `prodLineSeq` on 2026-08-17.** | JamieLynn | `plan_coldlion-landing-phases-2-6.md` step 4; measurements in this session's evidence | **In the 2026-08-20 email.** Awaiting reply. |
-| 2.8 | **The alternatives given for the invoiced/open quantity question are also always zero.** Follow-up to the 2026-08-18 answer in §4 ("not carried at component level; use `unshippedQty` / `linePickQty`"). Measured across 1,671 rows, 8 windows, 2019-2026: `lineInvoiceQty` 0%, `lineOpenQty` 0%, **`linePickQty` 0%, `unshippedQty` 0%, `subQty` 0%**. Only `lineQty` (100%) and `lineCancelledQty` (17.2%) carry signal. So the redirect did not resolve it — where does invoiced and open quantity actually live? | JamieLynn | this session's 1,671-row sample; original answer in §4 | **In the 2026-08-20 email.** Awaiting reply. |
+| 2.7 | ✅ **RESOLVED 2026-08-20 — see §4.** Her prepack answer (2.8) explained this one too: `linePrice` is **per component**, not per line. Once that is known, `(salesOrderNo, itemNo, labelCode)` is a clean line key — 196 multi-row groups, and **nothing else varies inside any of them**. The 28 "conflicting" groups were prepack components at different prices. **Step 4 of the landing plan is unblocked.** Remaining ask: expose `Line #` in the API. | JamieLynn | verified on 1,671 rows, 8 windows, 2019-2026 | **Answered 2026-08-20.** Follow-up (expose `Line #`) outstanding. |
+| 2.8 | **Invoiced / open quantity — with ColdLion's team.** JamieLynn 2026-08-20: *"the way this works on the report (because most orders are placed at assortment level) is there are summary expressions where if there's a Prepack, system takes line quantity, divides it into the component quantities and shows the quantity and pricing of each component. Speaking to the guys about this one."* So the report computes these; the API returns the raw rows. **This answer already solved 2.7** — it is why `linePrice` varies per component. Still open: where invoiced and open quantity actually come from. | JamieLynn (with her team) | 1,671 rows: `linePickQty`, `unshippedQty`, `subQty` all 0% | **Awaiting reply since 2026-08-20.** She is consulting her team. |
 | 2.9 | **Could fixed value-lists go into Swagger?** Prompted by the `stageCode` list: a stage we do not know about is one we would never request and never notice was missing. Applies to any field with a fixed set of valid values. Convenience, not a blocker. | JamieLynn | §4 stageCode answer | **In the 2026-08-20 email.** Awaiting reply. |
+| 2.10 | **Expose `Line #` and `Prod Stage` in the API.** Both exist inside ColdLion — she confirmed `Line #` on Sales Order and `Prod Stage` on production — and **neither appears anywhere in the live spec.** We have worked around both (a derived line key, and stamping the stage from the request), so this is robustness, not a blocker. But a derived key is a guess that holds until it doesn't, and a stamped stage is only as good as the loader. | JamieLynn | live-spec checks 2026-08-20 | **Not sent yet.** Draft for the next email. |
 
 ## 3. Reported to ColdLion as observations — no answer needed
 
@@ -81,6 +87,8 @@ column accepts all three and silently triples-counts quantities with no key viol
 | Why do older lines have `salesOrderNo = 0`? | Hard-linking POs to production orders began ~**2022–2023**; `custPONumber` was manual before, and drops off entirely on `INTRAN`/`REC` | JamieLynn, 2026-08-18 · verified, rules §4–5 |
 | **How far back does the history go?** | **2019-01-01.** History starts there; that is the load boundary. Albert has stated this repeatedly and it was already locked as D9 of `plan_coldlion-landing-phases-2-6.md` — the register simply failed to record it, and listed it as open. **Not a ColdLion question and never was.** | **Albert, restated 2026-08-20** |
 | **Admit the 66 unmatched ColdLion property codes?** | **YES — admit all 66.** Paired with a requirement: the **DB Data Admin** application (`data.designflow.app`) gets a control to mark a property inactive **on our side**, since ColdLion has no expiry flag and never will. Admitting without that control is what everyone was afraid of. See §5 | **Albert, 2026-08-20** |
+| **Is there a field identifying a row's production stage?** | **Yes — "Prod Stage".** But it is **not exposed in the API**: no field containing "stage" exists in any definition of the live spec, `ProdHistory` included. Keep stamping it from the request | JamieLynn, 2026-08-20 · spec verified same day |
+| **How do we tell two sales-order lines apart?** | **`(salesOrderNo, itemNo, labelCode)` is the line; add `subItemNo` for the component.** Resolved by her prepack answer: **`linePrice` is per-component, not per-line**, so rows that looked like conflicting duplicate lines are one line's components priced individually. Verified on 1,671 rows across 8 windows 2019-2026: 196 multi-row groups, **no field other than `linePrice` varies within any of them**. ColdLion also has a `Line #` on Sales Order, but it is **not in the API** | JamieLynn 2026-08-20 + our verification |
 | Is `1900-01-01` the empty-date marker? | Yes | Albert, 2026-08-14 |
 | Division/company code meanings | Answered in two rounds | Uma, 2026-08-13 and 2026-08-17 · `division-code-*.md` |
 | Was `/vendors` the wrong table? | Yes — ColdLion swapped it to the factory table; 97 rows, all active | ColdLion, 2026-07-22 |

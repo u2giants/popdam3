@@ -16,7 +16,7 @@
 |---|---|---|---|
 | 0 | Field decisions captured from the owner | ✅ done 2026-08-19 | [`coldlion-field-decisions-20260819.csv`](coldlion-field-decisions-20260819.csv) |
 | 1 | Supersede the design doc for the 2026-08-19 rulings | ⬜ open | |
-| 4a | ⛔ **Resolve the `orderHistory` line key with a live pull** — blocks step 4 | ⬜ open | |
+| 4a | ~~Resolve the `orderHistory` line key~~ | ✅ **done 2026-08-20** | ColdLion answer + verification on 1,671 rows; `docs/coldlion-open-questions.md` §4 |
 | 2 | `coldlion.merch_group_header` + `merch_group_detail` | ⬜ open | |
 | 3 | `coldlion.item_header` + `item_merch_group` + `item_detail` | ⬜ open | |
 | 4 | `coldlion.order_history_line` + `order_history_component` | ⬜ open | |
@@ -363,20 +363,24 @@ is the old bug reappearing.
 | `order_history_line` | one sales order line | ⚠️ **UNRESOLVED — see below** |
 | `order_history_component` | one component style in that line | `+ sub_item_no` |
 
-> ### ⛔ BLOCKER — the sales-order line key is not yet known. Resolve before writing this migration.
+> ### ✅ RESOLVED 2026-08-20 — the line key is known. Do not re-derive it.
 >
-> Earlier drafts keyed this table on `sales_order_no, line_no`. **`lineNo` does not exist in the
-> 59-field `orderHistory` payload** — verified against the owner's field list, which has no such
-> column. The key was inherited from the design doc and was never checked.
+> **Line:** `(salesOrderNo, itemNo, labelCode)` · **Component:** `+ subItemNo`
 >
-> Do NOT guess a substitute. Each obvious candidate silently merges real sales lines:
-> `(sales_order_no)` collapses every line on an order; `(sales_order_no, item_no)` collapses a
-> repeated item; `(sales_order_no, sub_item_no)` collapses every non-prepack line on an order.
+> Earlier drafts keyed this on `sales_order_no, line_no`. **`lineNo` does not exist** in the
+> 59-field payload; that key was inherited from the design doc and never checked.
 >
-> **Resolve it with a live pull first:** fetch one busy window, group by `salesOrderNo`, and find
-> what actually distinguishes two lines of the same order. If nothing does, ask ColdLion to add a
-> line sequence — they added `prodLineSeq` to `prodHistory` on exactly this request on 2026-08-17,
-> which is why purchase history does not have this problem.
+> The thing that unlocked it: **`linePrice` is per COMPONENT, not per line.** ColdLion's
+> JamieLynn, 2026-08-20 — for a prepack the system divides the line quantity into component
+> quantities and prices each component. So rows that look like conflicting duplicate lines are
+> one line's components priced individually.
+>
+> Verified on 1,671 rows across 8 windows, 2019-2026: 196 multi-row groups on the line key, and
+> **no field other than `linePrice` varies inside any of them.**
+>
+> ColdLion does have a `Line #` on Sales Order internally, but it is **not exposed in the API**
+> (register 2.10 asks for it). Until it is, the derived key above is what we use — and it is
+> evidence-backed, not a guess.
 
 - **Append-only.** Never updated. Identity key plus `source_hash` makes a re-pull a no-op.
 - **Versioning:** the unique constraint must be `(identity, source_hash)`, not `(identity)` alone.
