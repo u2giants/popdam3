@@ -23,12 +23,14 @@ Read its STATUS table first; do not re-plan completed phases.
 ## 1. Decision in one paragraph
 
 The official licensing Master Data consists of **Licensor, Property, Character,
-Style Guide, Asset metadata, and Franchise**. For every licensor portal POP
-scrapes, the authorized licensor scrape is canonical for the official property
-name, the property's owning licensor, and the characters, style guides, asset
-metadata, franchises, and direct relationships published by that source.
-ColdLion has one separate authority: its current Property list decides which
-canonical Properties are **Active**. A canonical Property absent from a complete,
+Style Guide, Asset metadata, and Franchise**. ColdLion is canonical for official
+Licensor names. For every licensor portal POP scrapes, the authorized licensor
+scrape is canonical for the official Property name, the Property's owning
+Licensor, and the Characters, Style Guides, Asset metadata, Franchises, and
+direct relationships published by that source. For a ColdLion-only Property
+under a Licensor with no authorized scrape data, ColdLion's Property name and
+owning Licensor are canonical truth. ColdLion's current Property list also
+decides which canonical Properties are **Active**. A canonical Property absent from a complete,
 successful ColdLion pull is **Inactive**, never deleted. DesignFlow, including
 the one stale pull previously copied into Supabase, has no authority in this
 model. Authorized licensor scrapes run weekly.
@@ -52,8 +54,9 @@ licensed scope. Warner cannot rename a Disney Property, for example.
 | Fact | Canonical authority | ColdLion role | DesignFlow role | Absence or conflict |
 |---|---|---|---|---|
 | Licensor identity and official name | Authorized licensor scrape where supplied; otherwise licensing review | Operational source reference only | None | Scrape wins; internal spelling may remain as an alias |
-| Property official name | Authorized licensor scrape | May help match the operational record | None | Scrape spelling replaces internal spelling |
-| Property owning Licensor | Authorized licensor scrape | No authority | None | Scrape relationship wins; unresolved rows wait for licensing review |
+| Licensor official name | ColdLion | Sole authority | None | Preserve other observed names as aliases |
+| Property official name | Authorized licensor scrape where available; otherwise ColdLion for a ColdLion-only Property under a Licensor with no scrape data | Canonical only outside scrape coverage | None | Scrape spelling wins inside its coverage; ColdLion is truth outside it |
+| Property owning Licensor | Authorized licensor scrape where available; otherwise ColdLion for a ColdLion-only Property under a Licensor with no scrape data | Canonical only outside scrape coverage | None | Ambiguous coverage or identity waits for review |
 | Property Active/Inactive | Current complete, successful ColdLion Property set | Sole authority | None | Present means Active; absent means Inactive; never delete |
 | Character identity and name | Authorized licensor scrape | None | None | Preserve the last canonical row and flag source disappearance for review |
 | Property-to-Character relationship | Direct relationship published by the licensor source | None | None | Never infer from an internal list or filename |
@@ -68,7 +71,7 @@ licensed scope. Warner cannot rename a Disney Property, for example.
 
 When an authorized licensor scrape disagrees with ColdLion, DesignFlow, the
 stale Supabase DesignFlow mirror, a spreadsheet, or an older internal record
-about Property spelling or Property ownership, the licensor scrape wins.
+about Property spelling or Property ownership inside that scrape's coverage, the licensor scrape wins.
 Alternate internal wording may be retained as an alias to support matching and
 search. It must not remain the canonical value.
 
@@ -210,7 +213,8 @@ issues, pull requests, logs, or external review prompts.
 
 ## 8. ColdLion Active/Inactive contract
 
-ColdLion controls one fact only: whether POP currently carries a Property.
+ColdLion controls official Licensor names, Property identity outside authorized
+scrape coverage as defined above, and whether POP currently carries a Property.
 
 After a complete, successful ColdLion cycle and approved reconciliation:
 
@@ -223,10 +227,11 @@ After a complete, successful ColdLion cycle and approved reconciliation:
   guessed canonical ownership.
 
 The review queue may offer a create-new action for a ColdLion record that has no
-canonical match, but ColdLion is only the proposal source. A Licensing user must
-confirm the canonical Property name and owning Licensor before the row is
-created. The row starts Potential, then the membership calculation may make it
-Active. If a later authorized licensor scrape covers that Property, the scrape's
+canonical match. Under a Licensor with no authorized scrape data, ColdLion's
+Property name and ownership are canonical and may be created through the guarded
+path without substituting DesignFlow or an internal guess. Ambiguous identities
+or scrape coverage wait for Licensing review. The row starts Potential, then the
+membership calculation may make it Active. If a later authorized licensor scrape covers that Property, the scrape's
 name and ownership win and the earlier reviewed wording is retained as an alias.
 
 The status calculation must fail closed. A failed, short, incomplete, or
@@ -310,7 +315,7 @@ This decision supersedes earlier statements that:
 
 - DesignFlow seeds or arbitrates the canonical Property-to-Licensor edge;
 - the stale Supabase DesignFlow mirror can fill gaps left by scrapes;
-- ColdLion controls canonical Property spelling or ownership;
+- ColdLion controls Property spelling or ownership inside an authorized scrape's coverage;
 - Active/Inactive is manually independent of ColdLion membership;
 - a Character must belong to only one Property;
 - co-occurrence alone proves a direct Franchise relationship.

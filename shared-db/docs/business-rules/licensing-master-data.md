@@ -2,7 +2,7 @@
 
 **Status:** Settled
 
-**Controlling owner ruling:** Albert Hazan, 2026-08-16. Additional dated rulings are identified below and in the linked evidence.
+**Controlling owner rulings:** Albert Hazan, 2026-08-16 and 2026-08-19. The later ruling clarifies ColdLion authority for Licensor names and for Properties outside scrape coverage.
 
 ## Official business objects
 
@@ -10,8 +10,10 @@ Licensing Master Data consists of Licensors, Properties, Characters, Style Guide
 
 ## Authority
 
-- An authorized licensor source owns official names, ownership, and relationships it publishes directly inside its licensed scope.
-- ColdLion owns one separate fact: whether POP currently carries a Property. Present in a complete current ColdLion set means Active; absent means Inactive.
+- ColdLion owns official Licensor names.
+- Inside an authorized licensor scrape's Property coverage, that source owns official Property names, ownership, entities, and direct relationships it publishes.
+- For a ColdLion-only Property under a Licensor that has no authorized scrape data, ColdLion's Property name and owning Licensor are canonical truth.
+- ColdLion also owns whether POP currently carries a Property. Present in a complete current ColdLion set means Active; absent means Inactive.
 - DesignFlow's old imported licensing data has no authority for names, ownership, relationships, or Active/Inactive status.
 - Internal spelling may be retained as an alias but must not replace a source-owned official name.
 - Absence from a source never proves that an entity ceased to exist. Preserve the row and flag disappearance for review.
@@ -22,7 +24,7 @@ Licensing Master Data consists of Licensors, Properties, Characters, Style Guide
 
 ## Creation and status
 
-A Property discovered by an authorized licensor source starts Potential. A Property proposed only from ColdLion requires Licensing confirmation of its official name and owning Licensor before creation. Guarded ColdLion membership may then make it Active or Inactive.
+A Property discovered by an authorized licensor source starts Potential. A ColdLion-only Property under a Licensor with no authorized scrape data may be created from ColdLion's name and ownership as canonical truth, subject to identity and collision safeguards. Guarded ColdLion membership then makes it Active or Inactive. A ColdLion Property inside a scrape-covered Licensor's scope still waits for the authorized scrape or Licensing review when its canonical match is unresolved.
 
 No refresh hard-deletes licensing Master Data.
 
@@ -41,7 +43,7 @@ Marvel charges two additional royalty percentage points when artwork contains ta
 
 ## Refresh cadence and conflict handling
 
-Authorized licensor sources run at least weekly. When an authorized source disagrees with ColdLion or an application about Property spelling or ownership, the licensor source wins. When a mapping is ambiguous, retain evidence and send it to review rather than guessing.
+Authorized licensor sources run at least weekly. Within their Property coverage, an authorized source wins disagreements about Property spelling or ownership. Outside that coverage, ColdLion-only Property data under a Licensor with no scrape data is canonical. ColdLion remains authoritative for Licensor names and Property Active/Inactive. When identity or coverage is ambiguous, retain evidence and send it to review rather than guessing.
 
 ## Implementation and evidence
 

@@ -2043,6 +2043,16 @@ Property spelling and ownership, Characters, Style Guides, Asset metadata, Franc
 source-published relationships. A future guarded consolidator may therefore update those specific
 facts on a matched canonical row. That is intentional authority application, not gap-filling.
 
+#### 6.4-E OWNER RULING — ColdLion owns Licensor names and uncovered ColdLion-only Property truth (Albert Hazan, 2026-08-19)
+
+ColdLion is canonical for official Licensor names. For a ColdLion-only Property under a Licensor
+that has no authorized scrape data, ColdLion's Property name and owning Licensor are canonical
+truth. Inside an authorized scrape's Property coverage, §6.4-D still controls Property spelling,
+ownership, entities, and direct source-published relationships. ColdLion also remains authoritative
+for Property Active/Inactive. Ambiguous identity or scrape coverage waits for review rather than
+guessing. This later ruling narrows and supersedes every statement that ColdLion supplies only
+status or has no naming/ownership authority at all.
+
 The exception applies only when all of these are true:
 
 1. the full `source_system` identity is explicitly authorized and mapped to its Licensor scope;
@@ -2235,9 +2245,10 @@ never by rewriting history.
   (Recorded in the
   orchestrator intake as ruling 4.)
 - **`dflow.*` is being retired; `core.*` becomes the source of truth for all applications.**
-  Under the controlling 2026-08-16 architecture, authorized licensor scrapes supply canonical
-  identity, names, ownership and source-published relationships; ColdLion supplies only Property
-  Active/Inactive membership. The stale DesignFlow pull supplies neither.
+  Under the controlling 2026-08-16 architecture as clarified on 2026-08-19, ColdLion supplies
+  canonical Licensor names, uncovered ColdLion-only Property truth, and Property Active/Inactive.
+  Authorized licensor scrapes supply Property identity, ownership and source-published relationships
+  inside their coverage. The stale DesignFlow pull supplies neither.
   **§6.6 is the direct consequence of this.** If `core.*` serves every app, the surface on which
   humans curate `core.*` must not be locked inside one application — which is precisely Albert's
   "it should not be only in 1 particular application". Building further curation into DesignFlow
@@ -2248,11 +2259,11 @@ never by rewriting history.
   matched row** (§6.4), so until `20260802170000` is applied to production, parentage curated
   anywhere — DB Data Admin included — is not durable there.
 
-**Controlling answer, 2026-08-16:** the applicable authorized licensor scrape wins for
-Property spelling and Licensor ownership. ColdLion has no parent authority and decides only
-whether a Property is Active or Inactive. DesignFlow has no authority. See the central licensing
-architecture document; older ColdLion-canonical wording in this section is historical and must
-not be used to design or load licensing Master Data.
+**Controlling answer, clarified 2026-08-19:** ColdLion owns official Licensor names. The applicable
+authorized licensor scrape wins for Property spelling and ownership inside its coverage. For a
+ColdLion-only Property under a Licensor with no scrape data, ColdLion's Property name and owning
+Licensor are canonical. ColdLion also decides whether a Property is Active or Inactive. DesignFlow
+has no authority. See the central licensing architecture document.
 
 ### 6.7 OWNER RULING — branch protection on `main` is ON, and CI guards are no longer advisory (Albert Hazan, 2026-08-04)
 

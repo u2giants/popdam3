@@ -20,7 +20,7 @@
 |---|---|---|---|
 | 0.1 Reconfirm repository, ledger, live catalog, and object ownership | ⬜ Open | 2026-08-17 | Start here. Produce `docs/verification/licensing-master-data-phase0-<date>/` from the commands in §9. |
 | 0.2 Reserve migration lanes and versions | ⬜ Open | 2026-08-17 | After 0.1. Claim exact objects with `scripts/manage-migration-author-lanes.mjs`; never choose versions manually. |
-| 1.0 Install a durable licensing write guard and stop every non-authoritative writer | ⬜ Open | 2026-08-17 | Must protect against DesignFlow and current ColdLion name/owner writes before any canonical scrape apply. |
+| 1.0 Install a durable licensing write guard and stop every non-authoritative writer | ⬜ Open | 2026-08-19 | Must block DesignFlow and keep ColdLion writes inside the settled Licensor-name, uncovered-Property, and status boundaries. |
 | 1.1 Repair Character ownership without losing data | ⬜ Open | 2026-08-17 | Add bridge compatibility first; scalar removal waits for Step 7.2. |
 | 1.2 Create canonical Franchise | ⬜ Open | 2026-08-17 | Add canonical entity and aliases with source-scoped identity. |
 | 1.3 Replace scalar Style Guide ownership with a bridge | ⬜ Open | 2026-08-17 | Add bridge compatibility first; scalar removal waits for Step 7.2. |
@@ -38,7 +38,7 @@
 | 3.4 Warner adapter | ⬜ Open | 2026-08-17 | Run only after Step 3.0 has a complete Warner preview capture. |
 | 3.5 Consolidated preview and performance proof | ⬜ Open | 2026-08-17 | Correctness, idempotency, timing, and lock-budget evidence. |
 | 4.0 Build ColdLion-to-canonical Property mapping | ⬜ Open | 2026-08-17 | Reuse existing approved links and add reviewed create-new handling. |
-| 4.1 Apply ColdLion membership-only status logic | ⬜ Open | 2026-08-17 | Only status becomes Active/Inactive; canonical identity remains scrape/review owned. |
+| 4.1 Apply guarded ColdLion authority | ⬜ Open | 2026-08-19 | Apply Licensor names, uncovered ColdLion-only Property truth, and Active/Inactive without overriding scrape-covered Property authority. |
 | 4.2 Remove DesignFlow comparison from authority decisions | ⬜ Open | 2026-08-17 | Check `dflow.*`, Cloud SQL, APIs, `plm.import_master_data`, and `plm-sync`. |
 | 5.1 Expand DB Data Admin server-side APIs | ⬜ Open | 2026-08-17 | Depends on Phases 1–4 contracts. |
 | 5.2 Implement and visually verify DB Data Admin UI | ⬜ Open | 2026-08-17 | Requires role tests and screenshots. |
@@ -58,7 +58,7 @@ Every implementing session must update this table, the current-state sections it
 
 POP will have one official, shared licensing catalogue in Supabase for Licensors, Properties, Characters, Style Guides, Asset metadata, and Franchises. Every POP application will read the same records and relationships.
 
-The authorized licensor portals will control official names, Property ownership, entities, and direct relationships. ColdLion will control only whether a Property is Active or Inactive. The stale DesignFlow pull will have no authority. All four authorized source programs will refresh at least weekly, with visible freshness, failure, and review information.
+ColdLion will control official Licensor names. Authorized licensor portals will control Property names, Property ownership, entities, and direct relationships inside their scrape coverage. For a ColdLion-only Property under a Licensor with no scrape data, ColdLion's Property name and owning Licensor will be canonical truth. ColdLion will also control whether a Property is Active or Inactive. The stale DesignFlow pull will have no authority. All four authorized source programs will refresh at least weekly, with visible freshness, failure, and review information.
 
 When finished:
 
@@ -123,9 +123,11 @@ core.property.status = active or inactive
 
 On 2026-08-16 Albert Hazan settled the central architecture in [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md):
 
-- authorized licensor scrapes are canonical for Property spelling and owning Licensor;
+- ColdLion is canonical for Licensor names;
+- authorized licensor scrapes are canonical for Property spelling and owning Licensor inside their coverage;
+- ColdLion-only Property data under a Licensor with no scrape data is canonical truth;
 - those scrapes are canonical for Characters, Style Guides, Asset metadata, Franchises, and direct source-published relationships;
-- ColdLion decides Property Active/Inactive only;
+- ColdLion also decides Property Active/Inactive;
 - DesignFlow, including the one stale Supabase pull, has no authority;
 - the authorized source programs run weekly.
 
@@ -226,7 +228,7 @@ The four private licensor-source repositories had no checked-in `.github/workflo
 ### 5.6 Existing plans that are now subordinate
 
 - `fix_characters_style_guides.md` contains useful historical measurements and tools, but its one-Property-per-Character and DesignFlow-source assumptions are superseded.
-- `plan_coldlion_licensor_property_accelerated_cutover.md` contains useful ColdLion safety tooling, but its statements that ColdLion controls canonical names or that DesignFlow retains parent authority are superseded.
+- `plan_coldlion_licensor_property_accelerated_cutover.md` contains useful ColdLion safety tooling. Its DesignFlow parent-authority assumptions are superseded; its ColdLion authority statements survive only where they match the 2026-08-19 scope rule.
 - `docs/style-guides-characters-and-royalties.md` is useful for royalty and likeness details but is explicitly subordinate to the 2026-08-16 central architecture.
 
 Do not execute an old phase merely because its status says open. Re-derive each relevant step under this plan.
@@ -248,7 +250,7 @@ ColdLion already has resolution state in `plm.erp_licensor`, `plm.erp_property`,
 5. `dam.asset` is the established canonical metadata home and already has application relationships. Creating `core.asset` would create a competing canonical table. The plan therefore extends `dam.asset` and its bridges.
 6. Durable human source resolution was correctly separated from capture rows in migration `20260814224937`. The implementation should extend that mechanism rather than write canonical IDs back into replaceable landing snapshots.
 7. Paramount explicitly proves why relationship evidence needs a type: Property/Franchise co-occurrence is not a direct relationship. Canonical bridges may contain only direct source statements or explicit curated decisions; co-occurrence remains in labelled evidence views/tables.
-8. ColdLion does not supply Characters, Style Guides, Assets, Franchises, or the canonical Property-to-Licensor decision. Its only canonical output in this design is Property membership for Active/Inactive.
+8. ColdLion does not supply Characters, Style Guides, Assets, or Franchises. It is canonical for Licensor names, Active/Inactive membership, and ColdLion-only Property identity under Licensors with no authorized scrape data. Inside scrape coverage, the portal remains canonical for Property names and ownership.
 9. Weekly licensor-source scheduling is absent from the inspected private repositories, so database freshness columns and alerts must be implemented together with private-repo operations.
 10. Production migration drift is real. A live catalog absence can mean “merged but not applied,” not “never built.” Every phase starts by comparing `origin/main`, preview ledger, and production ledger.
 11. New scraped Properties cannot rely on the current `core.property.status` default because it is `active`. The consolidation function must explicitly insert `potential`, and only guarded ColdLion membership may later set `active`.
@@ -264,7 +266,7 @@ GLM 5.3 reviewed merged plan commit `1e7daffd7ac6d1507a76dc8452462bef6f876d0a` o
 
 | Finding | Resolution in this revision |
 |---|---|
-| H1 ColdLion mappings were assumed but never built | Added Step 4.0 using the existing ERP resolution/review machinery, approved links, manual review, and create-new handling. A ColdLion-only proposal cannot become canonical until Licensing confirms its name and owning Licensor; later authorized scrape evidence wins and the reviewed/ColdLion wording becomes an alias. This preserves the settled rule that ColdLion itself has no spelling or ownership authority. |
+| H1 ColdLion mappings were assumed but never built | Added Step 4.0 using the existing ERP resolution/review machinery, approved links, review for ambiguity, and guarded create-new handling. Under Licensors with no scrape data, ColdLion-only Property names and ownership are canonical; later authorized scrape coverage supersedes the Property wording and preserves the prior wording as an alias. |
 | H2 new scraped rows could default Active | Step 2.4 explicitly inserts `status='potential'`; tests forbid consolidation from creating or changing a Property to Active. Phase 8 applies status in the same bounded release before consumer enablement. |
 | H3 scrape authority conflicted with §6.4 matched-row abstention | `AGENTS.md` now states the narrow owner-approved exception for the future guarded, source-scoped complete-capture consolidator. Ad-hoc external loads remain fully bound by §6.4. |
 | H4 DesignFlow PLM importer could overwrite the catalogue | Step 1.0 installs a table-level protected-column guard that survives later function replacement, blocks `plm.import_master_data`, and stops `systemd/plm-sync.timer` before consolidation. Step 8.1 replays held function `20260802170000` after the guard and proves it still cannot write. |
@@ -354,7 +356,7 @@ If authentication or portal availability prevents a run, record a failure/due st
 ### Locked decisions, do not relitigate
 
 1. Authorized licensor scrapes control Property spelling, Property ownership, entities, and direct source-published relationships. Date: 2026-08-16.
-2. ColdLion controls Property Active/Inactive only. Date: 2026-08-16.
+2. ColdLion controls official Licensor names and Property Active/Inactive. Under Licensors with no authorized scrape data, ColdLion-only Property names and ownership are canonical truth. Date: clarified by Albert Hazan on 2026-08-19.
 3. DesignFlow has no authority. Date: 2026-08-16.
 4. A Character may belong to multiple Properties. Owner/licensing decision recorded before this plan and reaffirmed by the architecture.
 5. Style Guide/Character is many-to-many.
@@ -365,7 +367,7 @@ If authentication or portal availability prevents a run, record a failure/due st
 10. Asset means canonical metadata in `dam.asset`, not binaries in the public repository.
 11. DB Data Admin is the licensing review and audit surface.
 12. A Property created from an authorized scrape starts `potential`, never `active`; only guarded ColdLion membership may set `active`.
-13. An unmatched ColdLion record may propose a new Property, but ColdLion does not supply canonical spelling or ownership. A Licensing user must confirm both before creation; a later authorized portal scrape overrides those reviewed values and preserves the prior spelling as an alias.
+13. An unmatched ColdLion Property under a Licensor with no authorized scrape data may be created from ColdLion's canonical name and ownership through the guarded path. Ambiguous identity or coverage requires Licensing review. A later authorized portal scrape overrides the Property values inside its coverage and preserves the prior spelling as an alias.
 
 ### Implementation choices fixed by this plan
 
@@ -441,7 +443,7 @@ Target a new forward migration under `supabase/migrations/`; do not edit already
 The guard requires a non-expired authorization row matching `pg_backend_pid()`, the current transaction ID, write kind, plan ID/hash, actor, and exact protected-column set. Revoke direct writes to the authorization table; only controlled `SECURITY DEFINER` plan/apply functions may create an authorization after validating source scope, capture/plan hash, and caller role. Allowed kinds are explicit:
 
 - `scrape_consolidation`: portal-authoritative Licensor/Property name/code/ownership; a new Property status must be exactly `potential`, and matched Property status cannot change;
-- `licensing_review_create`: one reviewed ColdLion-only Property insert with confirmed name, owning Licensor, and `potential` status;
+- `coldlion_uncovered_create`: one guarded ColdLion-only Property insert under a Licensor proven to lack scrape data, using ColdLion name, ownership, and `potential` status; ambiguous cases require review;
 - `coldlion_status`: Property status only, to `active` or `inactive`;
 - `canonical_merge`: only the exact survivor/tombstone changes declared by the Step 2.5 hash-pinned merge plan.
 
@@ -716,9 +718,9 @@ Verification gate: `docs/verification/licensing-master-data-phase3-<date>/README
 
 ### Phase 4: guarded ColdLion Active/Inactive
 
-#### Step 4.0: build ColdLion-to-canonical Property mapping without granting ColdLion identity authority
+#### Step 4.0: build ColdLion-to-canonical mapping with bounded ColdLion identity authority
 
-Reuse and rehome the existing approved resolution evidence from `plm.erp_licensor`, `plm.erp_property`, and `plm.taxonomy_resolution_review` into the durable source-resolution contract from Step 2.1. Automated matching may propose a link from stable source identity, approved aliases, and exact unambiguous keys, but it may not change canonical name or owning Licensor.
+Reuse and rehome the existing approved resolution evidence from `plm.erp_licensor`, `plm.erp_property`, and `plm.taxonomy_resolution_review` into the durable source-resolution contract from Step 2.1. ColdLion may set canonical Licensor names. Automated matching may link stable source identities using approved aliases and exact unambiguous keys. It may set Property name and owning Licensor only for a ColdLion-only Property under a Licensor proven to have no authorized scrape data; inside scrape coverage it may not override portal-authoritative Property values.
 
 ColdLion legacy-to-durable status map:
 
@@ -738,9 +740,9 @@ Required review behavior:
 
 - approved existing links retain their decision history and are not re-decided on every pull;
 - ambiguous or conflicting keys enter the DB Data Admin licensing queue;
-- an unmatched ColdLion record may use a create-new review action only after a Licensing user confirms the canonical Property name and owning Licensor from authorized business knowledge;
+- an unmatched ColdLion Property under a Licensor with no authorized scrape data may use a guarded create-new action with ColdLion's canonical name and ownership; ambiguous identity or coverage requires Licensing review;
 - the new reviewed Property is inserted `potential`, with the ColdLion source reference and reviewer/audit facts, then Step 4.1 may set it Active because it is present;
-- ColdLion payload spelling and Licensor values are proposals only and never write an existing canonical row;
+- ColdLion Licensor names are canonical; ColdLion Property spelling and ownership may write only outside authorized scrape coverage;
 - if a later authorized portal scrape covers that Property, the scrape spelling and ownership win, the previous reviewed/ColdLion wording becomes an alias, and the change enters history.
 
 Retarget `tools/promote-coldlion-source-owned.mjs`, every `plm.promote_coldlion_source_owned` replacement, DB Data Admin mapping APIs/UI, readiness tools, and recurring-cycle tests to read/write `plm.source_resolution`. Only after parity and all callers pass may the migration freeze `plm.erp_licensor`/`plm.erp_property` resolution columns as read-only evidence. The raw ColdLion mirror fields remain refreshable; only the legacy match-decision fields freeze.
@@ -749,7 +751,7 @@ Dependency: Steps 1.0, 2.1–2.5, and a complete guarded ColdLion capture. Unres
 
 Allowed terminal exclusion reasons are limited to: reviewed non-Property record; reviewed duplicate of an already mapped ColdLion key; outside the authorized division/Licensor scope proven by `plm.licensing_source_scope`; or reviewed ignored/dismissed record with actor, timestamp, and reason. “Unmatched,” “unknown,” missing data, or a display-name mismatch is not an exclusion.
 
-Verification gate: every legacy status maps exactly as the table above; approved-link count/target/actor/timestamp parity passes; old and new mapping views return the same resolved targets before cutover; all named tools/functions/UI write durable resolution only; attempted post-cutover writes to `erp_*` decision columns fail loudly; automated matches cannot write names/ownership; create-new refuses without confirmed name and Licensor; a reviewed ColdLion-only fixture starts `potential`, becomes Active only through Step 4.1, and is later superseded correctly by an authorized scrape while retaining its alias/history.
+Verification gate: every legacy status maps exactly as the table above; approved-link count/target/actor/timestamp parity passes; old and new mapping views return the same resolved targets before cutover; all named tools/functions/UI write durable resolution only; attempted post-cutover writes to `erp_*` decision columns fail loudly; ColdLion can write Licensor names and uncovered ColdLion-only Property truth but cannot override scrape-covered Property values; ambiguous create-new refuses without review; an uncovered ColdLion-only fixture starts `potential`, becomes Active through Step 4.1, and is later superseded correctly when authorized scrape coverage appears while retaining its alias/history.
 
 #### Step 4.1: replace old promotion authority with membership-only status logic
 
@@ -760,7 +762,7 @@ Reuse the proven ColdLion pagination, completeness, shrink, serialization, alert
 - `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs`
 - `.github/workflows/coldlion-licensor-property-production.yml`
 
-Step 1.0 has already blocked every automatic path that writes canonical Property/Licensor name, code, or `licensor_id` from ColdLion. The reviewed create-new path in Step 4.0 is the only way a ColdLion-only proposal becomes a canonical row, and the Licensing reviewer, not ColdLion, supplies the accepted identity facts. Replace the retired promotion path with a plan/apply function whose only protected canonical mutation is `core.property.status`; it must obtain a transaction-bound `coldlion_status` authorization from the Step 1.0 table guard for the exact hash-pinned plan.
+Step 1.0 has blocked unbounded legacy writers. Replace the retired promotion path with a hash-pinned plan/apply function that can write official Licensor names, uncovered ColdLion-only Property identity, and `core.property.status` only within the settled authority boundaries. It must never overwrite scrape-covered Property identity and must obtain a transaction-bound ColdLion authorization from the Step 1.0 table guard.
 
 Behavior:
 
@@ -976,7 +978,7 @@ Add focused files under `supabase/tests/` covering:
 - `licensing_write_authority_guard_contracts.sql`
   - direct and legacy-function protected-column writes refuse without transaction-bound authorization;
   - authorized scrape writes can change only official identity/ownership fields;
-  - authorized ColdLion writes can change only Property status;
+  - authorized ColdLion writes can change Licensor names, uncovered ColdLion-only Property identity, and Property status, but cannot override scrape-covered Property truth;
   - DesignFlow PLM payload and current ColdLion promotion body produce zero protected-column changes;
   - replaying held function definition `20260802170000` cannot bypass the table guard;
   - unrelated retained importer behavior cannot reach licensing tables.
@@ -1054,7 +1056,7 @@ A flaky test may be rerun once only after its full log proves it is unrelated. A
 8. Licensed source rows never enter this public repo, issues, PRs, logs, or outside AI prompts.
 9. Fetch 1Password secrets serially from vault `vibe_coding`; never print or store values.
 10. DesignFlow data is non-authoritative historical evidence only.
-11. ColdLion automation writes Property status only after durable mapping and guarded membership reconciliation. It never writes canonical name, code, or owning Licensor. A ColdLion-only create-new proposal requires a Licensing reviewer to confirm those identity facts.
+11. ColdLion automation writes official Licensor names, uncovered ColdLion-only Property truth, and Property status after durable mapping and guarded reconciliation. It never overwrites scrape-covered Property names or ownership. Ambiguous identity or coverage requires Licensing review.
 12. Never hard-delete canonical licensing entities during refresh.
 13. Do not infer direct relationships from names, paths, folders, or co-occurrence.
 14. `dam.asset` is metadata, not the licensed binary.
@@ -1123,8 +1125,8 @@ On this Windows machine, injected environment values do not cross into bare WSL 
 - [ ] All four source adapters pass complete/incomplete/idempotency tests on preview.
 - [ ] A complete validated Warner preview capture exists before Warner consolidation.
 - [ ] Every scrape-created Property starts `potential`; consolidation never sets Active/Inactive.
-- [ ] ColdLion changes only Property Active/Inactive and fails closed on bad input.
-- [ ] ColdLion-to-canonical mapping supports reviewed create-new without granting ColdLion spelling or ownership authority.
+- [ ] ColdLion changes official Licensor names, uncovered ColdLion-only Property truth, and Property Active/Inactive only within its authority scope, and fails closed on bad input.
+- [ ] ColdLion-to-canonical mapping supports guarded create-new outside scrape coverage and refuses to overwrite scrape-covered Property truth.
 - [ ] ColdLion tools use durable resolution, the published status map passes parity, and legacy `erp_*` decision columns are frozen only after caller cutover.
 - [ ] Duplicate canonical entities have one reversible, audited merge path with complete relationship/source repointing.
 - [ ] DB Data Admin supports review, aliases, direct/evidence distinction, status reason, freshness, and audit for Licensing users.

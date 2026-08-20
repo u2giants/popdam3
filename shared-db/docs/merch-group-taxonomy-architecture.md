@@ -20,8 +20,9 @@ the product-axis taxonomy. It is not the authority for current Licensor, Propert
 Character, Style Guide, Franchise, or licensed-Asset truth. For those entities, the
 settled 2026-08-16 business rules in
 [`business-rules/licensing-master-data.md`](business-rules/licensing-master-data.md) win:
-authorized licensor sources own official names, ownership, and direct relationships;
-ColdLion controls Property Active/Inactive only; the stale DesignFlow pull has no authority.
+ColdLion owns official Licensor names and Property Active/Inactive; authorized licensor sources
+own Property names, ownership, and direct relationships inside their scrape coverage; ColdLion is
+truth for ColdLion-only Properties under Licensors with no scrape data; the stale DesignFlow pull has no authority.
 
 **Business rule added 2026-08-18:** §4.2.1 defines the relationship between `mgCategory`
 and the real MG01 product types from `MerchGroup_Rework.xlsx`. That relationship is now
@@ -51,7 +52,7 @@ historically ingested those lists into one `merchGroup` table and added some par
 relationships itself. That history still explains the product-axis data and legacy PLM
 behavior. It no longer defines current licensing authority. For Licensors, Properties,
 Characters, Style Guides, Franchises, and licensed Assets, use the 2026-08-16 rules linked
-above. ColdLion controls only whether POP currently carries a Property.
+above. ColdLion also owns official Licensor names and ColdLion-only Property truth outside scrape coverage.
 
 ---
 
