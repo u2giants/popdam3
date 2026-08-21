@@ -311,11 +311,25 @@ begin
     null,null,null,'contract test FK protection',null
   );
 
+  -- UPDATED 2026-08-20 (#1339). This used to expect `foreign_key_violation` and
+  -- only that. Migration 20260820183334 extended the licensing write guard to
+  -- cover DELETE on core.property, and a BEFORE trigger runs ahead of the
+  -- foreign-key check -- so the delete is now refused one step EARLIER, by the
+  -- guard, and never reaches RESTRICT. Both refusals are correct and both are
+  -- accepted; what must never happen is the delete succeeding.
   begin
     delete from core.property where id = v_prop;
     raise exception 'delete of a core.property referenced by a resolved OPA row was '
-      'ACCEPTED (expected RESTRICT)';
-  exception when foreign_key_violation then null;
+      'ACCEPTED (expected the licensing write guard or RESTRICT)';
+  exception
+    when foreign_key_violation then null;
+    when others then
+      -- Only the guard's own refusal is tolerated. Anything else re-raises, so
+      -- this handler cannot quietly absorb an unrelated failure.
+      if position('licensing canonical write refused' in sqlerrm) = 0
+         and position('may not authorize a DELETE' in sqlerrm) = 0 then
+        raise;
+      end if;
   end;
 
   -- ==================================================================================

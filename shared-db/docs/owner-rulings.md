@@ -549,6 +549,45 @@ until `FR_REMOVAL_VERSIONS` is populated and the whole ship set is present. Unti
 code triggered only on `FR_HELD_20260803`, so `20260817225127` promoted **alone** parsed clean —
 narrower than this prose. The prose is authoritative and the code now matches it.
 
+**`FR_REMOVAL_VERSIONS` is no longer empty (2026-08-20, issue #1339).** It holds exactly one
+version, `20260820183334`, which ERASES `core.licensor` `FR` "FRIENDS TV" — a real delete, on
+Albert's 2026-08-03 ruling reaffirmed on 2026-08-20 as "erase FRIENDS TV completely". It extends
+the licensing write guard to cover `DELETE` (the guard was `before insert or update` only, so the
+most destructive operation on canonical licensing identity was the one it never saw) and performs
+the removal through a one-use transaction-bound authorization, leaving an immutable audit row and a
+`core.taxonomy_owner_ruling` record — which, once the row is gone, are the only remaining
+explanation of what happened. **The ship set is therefore now assemblable, and it is exactly
+`20260802170000`, `20260817225127`, `20260818174350`, `20260820183334` and (ordering permitting)
+`20260819151527` — all together, in dependency order, or none of them.** This version string is a
+safety control on the same terms as the ones above, so it lives in the guard, in
+`test_the_real_fr_removal_version_is_registered_by_name`, and here.
+
+**The FRIDA KAHLO property is DELETED, not re-homed — and that removes the last sequencing
+dependency (owner ruling, 2026-08-20).** `core.property.licensor_id` is `NOT NULL` and `ON DELETE
+RESTRICT`, and one Property row (`FK` "FRIDA KAHLO", `cb26ec58-0edb-4d45-8c0b-ba283ffb23f8`) pointed
+at `FR`. Albert ruled: *"FRIDA KAHLO was never supposed to be under Friends. they have no relation
+to each other. and FRIDA KAHLO is a defunct license anyway. you can delete it if that's the easiest
+way to get this done."* So `20260820183334` deletes that row too, bounded to its exact primary key,
+through the same guarded one-use mechanism under a second write kind
+`owner_ruling_fk_removal`. **The bundle no longer waits on #1238.**
+
+This satisfies 6.5's re-homing step by a different disposal, not by skipping it: 6.5 called for
+bringing in a real FRIDA KAHLO licensor and re-pointing `FK` onto it; the owner says the licence is
+defunct, so there is nothing to re-point to. The outcome 6.5 requires — nothing left pointed at
+`FR`, and `FR` removed last — is met exactly. It is also where 6.15 was sending that row anyway.
+
+**What did NOT change: the unexpected-row refusal.** If any `core.property` row *other than* that
+one uuid is parented to `FR`, the migration still REFUSES rather than widening its predicate. The
+owner ruled on one row; a second row would be one nobody has measured or ruled on. That half of the
+old block stands and must not be deleted along with the half that was lifted.
+
+**Both guard triggers now cover DELETE.** `property_licensing_write_guard` was extended alongside
+`licensor_licensing_write_guard`, because this migration deletes a `core.property` row itself and an
+unguarded delete of canonical master data inside the very change that closes the unguarded-delete
+hole would have been indefensible. **Permanent consequence: after this migration no `core.licensor`
+or `core.property` row can be deleted by anything except those two rows.** There is deliberately no
+authorization shape for deleting an arbitrary Licensor or Property.
+
 On the same day, `--supersede-active-claim-version` re-reserved the guarded forward migration from
 `20260817232425` to `20260818174350` and updated only the filename, leaving the guard holding a
 version that named no file and the real file in no hold set at all (issue #1182). **A migration

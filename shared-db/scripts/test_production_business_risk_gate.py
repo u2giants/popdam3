@@ -2726,6 +2726,24 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         workflow = (Path(__file__).resolve().parents[1] / PREVIEW_WORKFLOW).read_text(encoding="utf-8")
         self.assertIn("REFUSED: name historical_preview_source_pr OR historical_preview_source_pr_map, not both.", workflow)
 
+    def test_post_merge_rehearsal_accepts_a_multi_pr_bounded_batch(self):
+        """AGENTS.md 6.5 mandates ship sets no single PR authored. The rehearsal
+        lane must therefore accept a version:pr map, and every condition keyed on
+        the merged form must name BOTH inputs or a map-authored rehearsal checks
+        out the wrong ref and never proves its source."""
+        workflow = (Path(__file__).resolve().parents[1] / PREVIEW_WORKFLOW).read_text(encoding="utf-8")
+        self.assertIn("merged_preview_source_pr_map:", workflow)
+        self.assertIn("REFUSED: name merged_preview_source_pr OR merged_preview_source_pr_map, not both.", workflow)
+        self.assertIn("--version-pr-map", workflow)
+        for line in workflow.splitlines():
+            if "inputs.merged_preview_source_pr" not in line:
+                continue
+            if "description:" in line or line.strip().endswith(":"):
+                continue
+            if "==" in line or "!=" in line:
+                self.assertIn("merged_preview_source_pr_map", line,
+                              f"merged rehearsal condition tests only the single-PR input: {line.strip()}")
+
     def test_every_historical_condition_tests_both_forms(self):
         """Not substring presence: each historical-keyed condition must name BOTH
         inputs, or a map-authored recovery slips into the real apply path."""

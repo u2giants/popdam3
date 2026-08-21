@@ -814,6 +814,95 @@ test('post-merge preview rehearsal never needs or reads a live author claim', ()
   releaseOwnedRef(EXCLUSIVE_REFS.preview, lock.ownerSha, io)
 })
 
+// Deliberately a SECOND import statement, placed here rather than appended to the
+// import list at the top of the file: PR #1359 appends to that same line, and two
+// appends to one line is a merge conflict for no benefit.
+import { parseVersionPrMap } from './manage-migration-author-lanes.mjs'
+
+// ---------------------------------------------------------------------------
+// POST-MERGE REHEARSAL OF A BATCH AUTHORED BY SEVERAL PULL REQUESTS (#1350)
+//
+// AGENTS.md 6.5 requires certain ship sets to be applied as exactly ONE bounded
+// event, and no single pull request authored the whole set. The map form makes
+// that batch expressible WITHOUT weakening anything: every one of the four
+// proofs still runs, per version rather than per batch.
+// ---------------------------------------------------------------------------
+const MULTI_PR_MERGES = { 408: 'merge-408', 1347: 'merge-1347' }
+const MULTI_PR_ADDED = {
+  408: [{ status: 'added', filename: 'supabase/migrations/20260802170000_plm_import.sql' }],
+  1347: [{ status: 'added', filename: 'supabase/migrations/20260820183334_fr_erasure.sql' }],
+}
+function multiPrIo(overrides = {}) {
+  const io = rehearsalIo()
+  io.getPr = (number) => {
+    const sha = MULTI_PR_MERGES[Number(number)]
+    return sha ? { merged: true, merge_commit_sha: sha } : null
+  }
+  io.getPrFiles = (number) => MULTI_PR_ADDED[Number(number)] ?? []
+  return Object.assign(io, overrides)
+}
+const MULTI_PR_REHEARSAL = {
+  owner: 'gha', pr: 1347, headSha: 'main',
+  versions: ['20260802170000', '20260820183334'],
+  versionPrMap: '20260802170000:408,20260820183334:1347',
+}
+
+test('post-merge preview rehearsal accepts a bounded batch authored by several merged PRs', () => {
+  const io = multiPrIo()
+  const lock = acquireExclusive('preview-rehearsal', MULTI_PR_REHEARSAL, io)
+  assert.equal(lock.kind, 'preview-rehearsal')
+  assert.equal(lock.ref, EXCLUSIVE_REFS.preview)
+  // EVERY member's merge commit was compared against the main tip, base first.
+  // One ancestry proof per authoring pull request, not one for the batch.
+  assert.deepEqual(io.compareUrls, ['compare/merge-408...main', 'compare/merge-1347...main'])
+  releaseOwnedRef(EXCLUSIVE_REFS.preview, lock.ownerSha, io)
+})
+
+test('post-merge preview rehearsal map fails closed on every per-version proof', () => {
+  const cases = [
+    ['version missing from the map', {}, { ...MULTI_PR_REHEARSAL, versionPrMap: '20260820183334:1347' }, /does not name every allowlisted version: 20260802170000/],
+    ['stray map entry outside the allowlist', {}, { ...MULTI_PR_REHEARSAL, versionPrMap: '20260802170000:408,20260820183334:1347,20260101000000:99' }, /not in the allowlist: 20260101000000/],
+    ['map entry for an unmerged PR', { getPr: (n) => (Number(n) === 408 ? { merged: false } : { merged: true, merge_commit_sha: 'merge-1347' }) }, MULTI_PR_REHEARSAL, /#408 is not merged/],
+    ['map entry with no merge commit', { getPr: (n) => (Number(n) === 408 ? { merged: true } : { merged: true, merge_commit_sha: 'merge-1347' }) }, MULTI_PR_REHEARSAL, /#408 is not merged/],
+    ['map merge commit is not an ancestor of main', { compareCommits: (base) => (base === 'merge-408' ? { status: 'diverged', ahead_by: 1, behind_by: 4 } : { status: 'identical', ahead_by: 0, behind_by: 0 }) }, MULTI_PR_REHEARSAL, /merge commit merge-408 is not contained in the history of main tip/],
+    ['map PR did not add the version it is named for', { getPrFiles: (n) => (Number(n) === 408 ? [{ status: 'modified', filename: 'supabase/migrations/20260802170000_plm_import.sql' }] : MULTI_PR_ADDED[Number(n)]) }, MULTI_PR_REHEARSAL, /version 20260802170000 was not added by pull request #408/],
+    ['map PR unreadable', { getPr: (n) => (Number(n) === 408 ? null : { merged: true, merge_commit_sha: 'merge-1347' }) }, MULTI_PR_REHEARSAL, /cannot read pull request #408/],
+    ['lock PR is not a member of the batch', {}, { ...MULTI_PR_REHEARSAL, pr: 9999 }, /lock PR #9999 is not one of the pull requests in the version-to-PR map/],
+    ['malformed map entry', {}, { ...MULTI_PR_REHEARSAL, versionPrMap: '20260802170000-408' }, /must be version:pull-request/],
+    ['duplicate version in the map', {}, { ...MULTI_PR_REHEARSAL, versionPrMap: '20260802170000:408,20260802170000:1347' }, /names 20260802170000 more than once/],
+    ['map cannot rescue an empty allowlist', {}, { ...MULTI_PR_REHEARSAL, versions: [] }, /requires the exact migration versions/],
+    ['map cannot rescue a malformed version', {}, { ...MULTI_PR_REHEARSAL, versions: ['nope'], versionPrMap: 'nope:408' }, /exact 14-digit migration version/],
+    ['map cannot rescue a stale main tip', {}, { ...MULTI_PR_REHEARSAL, headSha: 'stale' }, /exact current main SHA/],
+  ]
+  for (const [label, overrides, metadata, expected] of cases) {
+    const io = multiPrIo(overrides)
+    assert.throws(() => acquireExclusive('preview-rehearsal', metadata, io), expected, label)
+    assert.equal(io.refs.has(EXCLUSIVE_REFS.preview), false, `${label} left the preview lock`)
+    assert.equal(io.refs.has(MUTEX_REF), false, `${label} left the author mutex`)
+  }
+})
+
+test('the single-PR rehearsal form is untouched by the map form', () => {
+  // The common case must keep behaving exactly as before: no map, one PR, and
+  // the batch-wide "not added by pull request #N" refusal still fires.
+  const io = rehearsalIo()
+  const lock = acquireExclusive('preview-rehearsal', REHEARSAL, io)
+  releaseOwnedRef(EXCLUSIVE_REFS.preview, lock.ownerSha, io)
+  const missing = rehearsalIo()
+  assert.throws(() => acquireExclusive('preview-rehearsal', { ...REHEARSAL, versions: ['20260818203751'] }, missing), /were not added by pull request #1193/)
+  // A map that is PRESENT but empty refuses; it never falls back silently.
+  const blank = rehearsalIo()
+  assert.throws(() => acquireExclusive('preview-rehearsal', { ...REHEARSAL, versionPrMap: '   ' }, blank), /version-to-PR map is empty/)
+  assert.equal(blank.refs.has(EXCLUSIVE_REFS.preview), false)
+})
+
+test('parseVersionPrMap covers the allowlist exactly in both directions', () => {
+  assert.deepEqual([...parseVersionPrMap('20260802170000:408,20260820183334:1347', ['20260802170000', '20260820183334'])],
+    [['20260802170000', 408], ['20260820183334', 1347]])
+  assert.throws(() => parseVersionPrMap('', ['20260802170000']), /is empty/)
+  assert.throws(() => parseVersionPrMap('20260802170000:0', ['20260802170000']), /non-positive pull request/)
+})
+
 test('added migration versions ignore anything the pull request did not add', () => {
   assert.deepEqual(addedMigrationVersions([
     { status: 'added', filename: 'supabase/migrations/20260818232639_a.sql' },

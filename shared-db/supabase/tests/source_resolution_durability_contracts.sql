@@ -81,7 +81,17 @@ begin
   delete from plm.source_resolution
     where source_system = 'nbcu' and entity_kind = 'property'
       and source_id = 'source-id:zztest-durable';
-  delete from core.property where id = v_property;
-  delete from core.licensor where id = v_licensor;
+  -- The canonical Property and Licensor rows are NOT deleted here any more (#1339). Migration
+  -- 20260820183334 extended the licensing write guard to cover DELETE on
+  -- BOTH core.licensor and core.property, and the only two deletes it will ever
+  -- authorize are the erasure of FR "FRIENDS TV" and of the FRIDA KAHLO
+  -- property spuriously parented to it. There is deliberately no authorization
+  -- shape that lets a test remove an arbitrary Licensor or Property, so these
+  -- cleanup lines cannot be "fixed" by issuing one -- that would be a hole, not
+  -- a repair.
+  --
+  -- Nothing leaks: the contract-test runner wraps every file in its own
+  -- `begin; ... rollback;`, so the ZZTEST fixture rows above never outlive the
+  -- transaction whether or not these lines exist.
 end;
 $$;

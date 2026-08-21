@@ -1355,6 +1355,31 @@ export function addedMigrationVersions(files) {
     .filter(Boolean)
 }
 
+// A post-merge rehearsal batch that AGENTS.md 6.5 requires to move as one event
+// can span several authoring pull requests. This parses `version:pr,version:pr`
+// -- the same shape `historical_preview_source_pr_map` already uses -- and is
+// deliberately EXACT in both directions. A version with no entry would otherwise
+// be applied having proved nothing about it, and an entry for a version outside
+// the allowlist would drag an unrelated pull request into the evidence. Neither
+// is silently tolerated; both name the offending version in the refusal.
+export function parseVersionPrMap(raw, versions) {
+  const entries = (typeof raw === 'string' ? raw : '').split(',').map((e) => e.trim()).filter(Boolean)
+  if (!entries.length) throw new LaneError('post-merge preview rehearsal version-to-PR map is empty')
+  const map = new Map()
+  for (const entry of entries) {
+    if (!/^\d{14}:\d+$/.test(entry)) throw new LaneError(`post-merge preview rehearsal version-to-PR map entries must be version:pull-request, not ${entry}`)
+    const [version, pr] = entry.split(':')
+    if (map.has(version)) throw new LaneError(`post-merge preview rehearsal version-to-PR map names ${version} more than once`)
+    if (Number(pr) <= 0) throw new LaneError(`post-merge preview rehearsal version-to-PR map has a non-positive pull request for ${version}`)
+    map.set(version, Number(pr))
+  }
+  const missing = versions.filter((v) => !map.has(v))
+  if (missing.length) throw new LaneError(`post-merge preview rehearsal version-to-PR map does not name every allowlisted version: ${missing.join(', ')}`)
+  const stray = [...map.keys()].filter((v) => !versions.includes(v))
+  if (stray.length) throw new LaneError(`post-merge preview rehearsal version-to-PR map names version(s) that are not in the allowlist: ${stray.join(', ')}`)
+  return map
+}
+
 // THE AUTHORISATION for a post-merge rehearsal, in place of a live branch claim.
 // Stated as what it enforces rather than as a strength ranking: a branch claim
 // proves someone intends to merge; this proves the work IS merged and IS carried
@@ -1402,19 +1427,52 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       const mainSha = io.mainSha?.()
       if (!mainSha) throw new LaneError('post-merge preview rehearsal cannot read the current main tip; GitHub state is unreadable')
       if (metadata.headSha !== mainSha) throw new LaneError(`post-merge preview rehearsal requires the exact current main SHA (asked for ${metadata.headSha}, main is ${mainSha})`)
-      let pr
-      try { pr = io.getPr?.(metadata.pr) } catch (error) { throw new LaneError(`post-merge preview rehearsal cannot read pull request #${metadata.pr} (${error.message})`) }
-      if (!pr) throw new LaneError(`post-merge preview rehearsal cannot read pull request #${metadata.pr}`)
-      if (pr.merged !== true || !pr.merge_commit_sha) throw new LaneError(`post-merge preview rehearsal requires an already-merged source PR; #${metadata.pr} is not merged`)
-      assertMergeCommitInMainHistory(pr.merge_commit_sha, mainSha, io)
+      // The version set is validated FIRST and identically for both forms: one
+      // source PR, or a version-to-PR map for a batch AGENTS.md 6.5 requires to
+      // move as a single bounded event. The map does not weaken anything -- the
+      // very same four proofs (merged, real merge commit, that commit contained
+      // in the main tip's history, and the version ADDED by that PR) simply run
+      // per version instead of once per batch.
       const versions = (metadata.versions ?? []).map((v) => String(v).trim()).filter(Boolean)
       if (!versions.length) throw new LaneError('post-merge preview rehearsal requires the exact migration versions it will apply')
       if (versions.some((v) => !/^\d{14}$/.test(v))) throw new LaneError('post-merge preview rehearsal versions must each be an exact 14-digit migration version')
-      let files
-      try { files = io.getPrFiles?.(metadata.pr) } catch (error) { throw new LaneError(`post-merge preview rehearsal cannot read the files of pull request #${metadata.pr} (${error.message})`) }
-      const added = addedMigrationVersions(files)
-      const missing = versions.filter((v) => !added.includes(v))
-      if (missing.length) throw new LaneError(`post-merge preview rehearsal versions were not added by pull request #${metadata.pr}: ${missing.join(', ')}`)
+      // PRESENT-BUT-EMPTY IS A REFUSAL, not a silent fall-back to the single-PR
+      // form. An operator who passed a map that evaluated to nothing must be
+      // told, never quietly given a different lane than the one they asked for.
+      const hasMap = metadata.versionPrMap !== undefined && metadata.versionPrMap !== null
+      const readPr = (number) => {
+        let pr
+        try { pr = io.getPr?.(number) } catch (error) { throw new LaneError(`post-merge preview rehearsal cannot read pull request #${number} (${error.message})`) }
+        if (!pr) throw new LaneError(`post-merge preview rehearsal cannot read pull request #${number}`)
+        if (pr.merged !== true || !pr.merge_commit_sha) throw new LaneError(`post-merge preview rehearsal requires an already-merged source PR; #${number} is not merged`)
+        assertMergeCommitInMainHistory(pr.merge_commit_sha, mainSha, io)
+        return pr
+      }
+      const readAdded = (number) => {
+        let files
+        try { files = io.getPrFiles?.(number) } catch (error) { throw new LaneError(`post-merge preview rehearsal cannot read the files of pull request #${number} (${error.message})`) }
+        return addedMigrationVersions(files)
+      }
+      if (hasMap) {
+        const map = parseVersionPrMap(metadata.versionPrMap, versions)
+        // The lane lock is claimed against ONE pull request number, so that
+        // number must be a member of the batch it claims to lock. Otherwise the
+        // lock would be filed under a pull request the evidence never mentions.
+        if (![...map.values()].some((number) => String(number) === String(metadata.pr))) {
+          throw new LaneError(`post-merge preview rehearsal lock PR #${metadata.pr} is not one of the pull requests in the version-to-PR map`)
+        }
+        const addedByPr = new Map()
+        for (const [version, number] of [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+          readPr(number)
+          if (!addedByPr.has(number)) addedByPr.set(number, readAdded(number))
+          if (!addedByPr.get(number).includes(version)) throw new LaneError(`post-merge preview rehearsal version ${version} was not added by pull request #${number}`)
+        }
+      } else {
+        readPr(metadata.pr)
+        const added = readAdded(metadata.pr)
+        const missing = versions.filter((v) => !added.includes(v))
+        if (missing.length) throw new LaneError(`post-merge preview rehearsal versions were not added by pull request #${metadata.pr}: ${missing.join(', ')}`)
+      }
     } else if (kind === 'preview-recovery') {
       if (metadata.headSha !== io.mainSha?.()) throw new LaneError('historical preview recovery requires the exact current main SHA')
       const pr = io.getPr?.(metadata.pr)
@@ -1458,7 +1516,7 @@ function parseArgs(argv) {
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper','--version-pr-map'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if(a==='--confirm-local-dependency-unfixable')out.confirmLocalDependencyUnfixable=true
     else if(a==='--skip-doctor')out.skipDoctor=true
     else if(a==='--confirm-no-verdict')out.confirmNoVerdict=true
@@ -1482,7 +1540,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.reversionClaim){console.log(JSON.stringify(reversionActiveClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.replaceFailedReviewer){console.log(JSON.stringify(replaceFailedReviewer(o,io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}
-    if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions }, io), null, 2)); return 0 }
+    if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions, versionPrMap:o.versionPrMap }, io), null, 2)); return 0 }
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }
     const claims = io.openClaims()
     if(o.assignReviewer){console.log(JSON.stringify(assignNextReviewer({issue:o.issue,pr:o.pr,headSha:o.headSha},io),null,2));return 0}

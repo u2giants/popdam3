@@ -166,11 +166,25 @@ FR_HELD_20260803 = {
     "20260818174350",
 }
 
-# The `FR` removal migrations. EMPTY ON PURPOSE -- as of 2026-08-09 no removal
-# migration exists anywhere in supabase/migrations/. Add the version strings
-# here in the same change that adds the files. Do NOT add a placeholder, and do
-# NOT delete the co-presence check to "unblock" a promotion.
-FR_REMOVAL_VERSIONS: set[str] = set()
+# The `FR` removal migrations. POPULATED 2026-08-20 (issue #1339) by the change
+# that added the file, which is the ONLY legitimate way this set ever grows:
+# the hold releases by DATA, never by editing the co-presence check below.
+#
+# 20260820183334 erases core.licensor `FR` "FRIENDS TV" outright, on the owner's
+# 2026-08-03 ruling reaffirmed 2026-08-20 ("erase FRIENDS TV completely"). It
+# extends the licensing write guard to cover DELETE and performs the removal
+# through a one-use transaction-bound authorization, so the destructive step is
+# audited rather than routed around.
+#
+# THE SAME SAFETY-CONTROL RULE APPLIES TO THIS STRING as to the ones above
+# (issue #1182): it is not a file index. If this migration is ever renamed or
+# re-reserved, change it here, in
+# `test_every_hold_set_member_is_a_real_migration_file`, and in AGENTS.md 6.5,
+# all in the same commit.
+FR_REMOVAL_VERSIONS: set[str] = {
+    # Erase core.licensor FR "FRIENDS TV" (#1339).
+    "20260820183334",
+}
 
 # Narrow prerequisite that lets the held owner-ruling migration cross the
 # licensing guard only under its exact migration identity. It remains held with

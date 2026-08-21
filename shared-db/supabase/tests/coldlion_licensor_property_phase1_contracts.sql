@@ -195,7 +195,14 @@ begin
   )
   returning id into v_lic_orphan_target;
 
-  -- Property under delete-target: deleting that licensor must RESTRICT.
+  -- Property under delete-target: deleting that licensor must be REFUSED.
+  --
+  -- UPDATED 2026-08-20 (#1339). This block used to expect `foreign_key_violation`
+  -- and only that. Migration 20260820183334 extended the licensing write guard
+  -- to cover DELETE on core.licensor, and a BEFORE trigger runs ahead of the
+  -- foreign-key check -- so the delete is now refused one step EARLIER, by the
+  -- guard, and never reaches RESTRICT. Both refusals are correct and both are
+  -- accepted below; what must never happen is the delete succeeding.
   insert into core.property (licensor_id, name, code, status, metadata)
   values (
     v_lic_orphan_target,
@@ -207,10 +214,17 @@ begin
 
   begin
     delete from core.licensor where id = v_lic_orphan_target;
-    raise exception 'delete of referenced licensor was accepted (expected RESTRICT)';
+    raise exception 'delete of referenced licensor was accepted (expected the licensing write guard or RESTRICT)';
   exception
     when foreign_key_violation then
       null;
+    when others then
+      -- Only the guard's own refusal is tolerated here. Anything else re-raises,
+      -- so this handler cannot quietly absorb an unrelated failure.
+      if position('licensing canonical write refused' in sqlerrm) = 0
+         and position('may not authorize a DELETE' in sqlerrm) = 0 then
+        raise;
+      end if;
   end;
 
   -- Unique core property codes only. FR collision is proven on MIRRORS alone.

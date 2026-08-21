@@ -315,11 +315,14 @@ class GuardTests(unittest.TestCase):
         self.assertIn("20260726031000", message)
         self.assertIn("20260726032000", message)
 
-    def test_the_fr_held_pair_is_refused_while_no_removal_migration_exists(self) -> None:
+    def test_the_fr_held_pair_is_refused_unless_the_whole_ship_set_travels(self) -> None:
         # AGENTS.md 6.5 (OWNER RULING 2026-08-03). This is the live state as of
-        # 2026-08-09: FR_REMOVAL_VERSIONS is empty because no removal migration
-        # exists, so EVERY allowlist touching either held version must ERROR.
-        self.assertEqual(FR_REMOVAL_VERSIONS, set())
+        # 2026-08-20 (#1339): FR_REMOVAL_VERSIONS is now POPULATED, so a held
+        # version alone is refused for being a SUBSET of the ship set rather than
+        # for the set being unassemblable. Either way it must ERROR, and the
+        # message must cite 6.5 -- that is the property this test protects, and
+        # it must keep holding whether or not the removal work exists.
+        self.assertTrue(FR_REMOVAL_VERSIONS)
         for version in sorted(FR_HELD_20260803):
             with self.subTest(version=version), self.assertRaises(GuardError) as caught:
                 parse_allowlist(version)
@@ -369,7 +372,6 @@ class GuardTests(unittest.TestCase):
         own parsed clean -- the code was narrower than the owner ruling it
         claims to enforce. The prose is authoritative.
         """
-        self.assertEqual(FR_REMOVAL_VERSIONS, set())
         for version in sorted(FR_COMPATIBILITY_VERSIONS):
             with self.subTest(version=version), self.assertRaises(GuardError) as caught:
                 parse_allowlist(version)
@@ -377,7 +379,6 @@ class GuardTests(unittest.TestCase):
 
     def test_every_member_of_the_fr_hold_set_is_refused_alone(self) -> None:
         """No member of the 6.5 hold set may ever be promotable on its own."""
-        self.assertEqual(FR_REMOVAL_VERSIONS, set())
         self.assertEqual(FR_SHIP_SET_HOLD, FR_HELD_20260803 | FR_COMPATIBILITY_VERSIONS)
         for version in sorted(FR_SHIP_SET_HOLD):
             with self.subTest(version=version), self.assertRaises(GuardError) as caught:
@@ -402,6 +403,39 @@ class GuardTests(unittest.TestCase):
                     with self.subTest(subset=subset), self.assertRaises(GuardError) as caught:
                         parse_allowlist(",".join(subset))
                     self.assertIn("6.5", str(caught.exception))
+
+    def test_the_real_fr_removal_version_is_registered_by_name(self) -> None:
+        """Issue #1339: the hold releases by DATA, and this is that data.
+
+        The literal is asserted on purpose, exactly as
+        `test_the_real_guarded_forward_version_is_refused_by_name` asserts the
+        guarded forward version. Deriving it from the set would pass no matter
+        what the set contained, and an FR_REMOVAL_VERSIONS holding the WRONG
+        string is the #1182 failure repeated: it reads as an assembled ship set
+        and gates nothing.
+        """
+        self.assertIn("20260820183334", FR_REMOVAL_VERSIONS)
+        # It is removal work, never a hold trigger. If it ever appeared in a
+        # hold set as well, `required - values` could never be satisfied.
+        self.assertNotIn("20260820183334", FR_SHIP_SET_HOLD)
+
+    def test_the_real_fr_ship_set_parses_only_when_complete(self) -> None:
+        """The one legal event, expressed against the REAL sets, not a fixture.
+
+        The sibling above rehearses this with a patched, invented removal set.
+        That proves the RULE. This proves the LIVE CONFIGURATION -- that the
+        versions actually registered today assemble into an allowlist the guard
+        accepts, and that nothing smaller does.
+        """
+        full = sorted(FR_SHIP_SET_HOLD | FR_REMOVAL_VERSIONS)
+        self.assertEqual(parse_allowlist(",".join(full)), full)
+        for size in range(1, len(full)):
+            for subset in itertools.combinations(full, size):
+                if not (FR_SHIP_SET_HOLD & set(subset)):
+                    continue
+                with self.subTest(subset=subset), self.assertRaises(GuardError) as caught:
+                    parse_allowlist(",".join(subset))
+                self.assertIn("6.5", str(caught.exception))
 
     def test_remote_parser_uses_remote_column(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2712,7 +2746,17 @@ class AtomicBatchTests(unittest.TestCase):
 
         # The discovery itself must not silently stop finding anything -- an
         # empty sweep would make this test permanently green and useless.
-        for required in ("HARD_BLOCKED", "FR_HELD_20260803", "FR_COMPATIBILITY_VERSIONS"):
+        # FR_REMOVAL_VERSIONS is named explicitly (issue #1339). It was empty for
+        # eleven days, and an empty set is skipped by the sweep above -- so the
+        # day it was populated was the first day it was covered at all. Naming it
+        # here means emptying it again, or renaming its migration, fails loudly
+        # instead of silently dropping out of the sweep.
+        for required in (
+            "HARD_BLOCKED",
+            "FR_HELD_20260803",
+            "FR_COMPATIBILITY_VERSIONS",
+            "FR_REMOVAL_VERSIONS",
+        ):
             self.assertIn(required, checked)
 
         # The structured rule tables are not plain sets, so they are swept
