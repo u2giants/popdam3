@@ -20,7 +20,15 @@ const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
 const OPENROUTER_GENERATION_URL = "https://openrouter.ai/api/v1/generation";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const BATCH_COMPLETION_TIMEOUT_MS = 24 * 60 * 60_000;
-const BATCH_POLL_INTERVAL_MS = 5_000;
+let batchPollIntervalMs = 5_000;
+/**
+ * A freshly created batch is not immediately readable: OpenRouter returns
+ * `202 validating` from the POST, and the first GET on that ID can answer
+ * `404 Batch job ... not found.` for a few seconds while the job registers
+ * (measured 2026-08-21: first poll 404, next poll 5s later in_progress).
+ * We keep polling through an early 404 for this long before calling it real.
+ */
+const BATCH_VISIBILITY_GRACE_MS = 120_000;
 const BATCH_COLLECT_WINDOW_MS = 25;
 const MAX_BATCH_REQUESTS = 100;
 const MAX_RETRIES = 2;
@@ -468,6 +476,8 @@ async function runOpenRouterBatch(items: PendingBatchRequest[]): Promise<void> {
   }
   logger.info("openrouter batch: submitted", { batchId: created.id, model: baseModel, requests: requests.length });
 
+  const submittedAt = Date.now();
+  let everSeen = false;
   const deadline = Date.now() + Math.max(BATCH_COMPLETION_TIMEOUT_MS, ...items.map((item) => item.timeoutMs));
   let completed: OpenRouterBatchRecord | null = null;
   while (Date.now() < deadline) {
@@ -479,15 +489,29 @@ async function runOpenRouterBatch(items: PendingBatchRequest[]): Promise<void> {
       });
     } catch (error) {
       logger.warn("openrouter batch: status poll failed; retrying", { batchId: created.id, error: String(error) });
-      await new Promise((resolve) => setTimeout(resolve, BATCH_POLL_INTERVAL_MS));
+      await new Promise((resolve) => setTimeout(resolve, batchPollIntervalMs));
       continue;
     }
     const pollText = await pollResponse.text();
     if (!pollResponse.ok) {
+      const transient =
+        pollResponse.status === 429 ||
+        pollResponse.status >= 500 ||
+        // Not-yet-visible new batch — only before we have ever seen it, and
+        // only inside the grace window. A 404 after that is a real failure.
+        (pollResponse.status === 404 && !everSeen && Date.now() - submittedAt < BATCH_VISIBILITY_GRACE_MS);
+      if (transient) {
+        logger.warn("openrouter batch: status poll not ready; retrying", {
+          batchId: created.id, status: pollResponse.status, body: pollText.slice(0, 200),
+        });
+        await new Promise((resolve) => setTimeout(resolve, batchPollIntervalMs));
+        continue;
+      }
       const error = new OpenRouterError(pollResponse.status, pollText);
       items.forEach((item) => item.reject(error));
       return;
     }
+    everSeen = true;
     const record = unwrapBatchRecord(parseJsonRecord(pollText));
     if (record.status === "completed") {
       completed = record;
@@ -498,7 +522,7 @@ async function runOpenRouterBatch(items: PendingBatchRequest[]): Promise<void> {
       items.forEach((item) => item.reject(error));
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, BATCH_POLL_INTERVAL_MS));
+    await new Promise((resolve) => setTimeout(resolve, batchPollIntervalMs));
   }
   if (!completed) {
     const error = new Error(`OpenRouter batch ${created.id} did not finish within 24 hours`);
@@ -530,6 +554,11 @@ async function runOpenRouterBatch(items: PendingBatchRequest[]): Promise<void> {
       pending.reject(error);
     }
   }));
+}
+
+/** Test hook: shorten the batch status poll interval. */
+export function setBatchPollIntervalForTests(ms: number): void {
+  batchPollIntervalMs = ms;
 }
 
 function flushBatchQueue(queueKey: string): void {

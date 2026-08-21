@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chatCompletion, isToolChoiceCompatibilityError, withExactoRouting } from "./openrouter.js";
+import { setBatchPollIntervalForTests, chatCompletion, isToolChoiceCompatibilityError, withExactoRouting } from "./openrouter.js";
 
 test("appends :exacto to a bare model slug", () => {
   assert.equal(withExactoRouting("qwen/qwen3-vl-32b-instruct"), "qwen/qwen3-vl-32b-instruct:exacto");
@@ -81,5 +81,73 @@ test("batch-only models use the Batch API and combine concurrent requests", asyn
     assert.equal(results[1].content, '{"result":2}');
   } finally {
     globalThis.fetch = original;
+  }
+});
+
+test("a newly created batch that is not yet visible (404) is polled again, not failed", async () => {
+  setBatchPollIntervalForTests(1);
+  const original = globalThis.fetch;
+  let polls = 0;
+  let customId = "";
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url === "https://openrouter.ai/api/beta/batches" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body)) as { requests: Array<{ custom_id: string }> };
+      customId = body.requests[0].custom_id;
+      return new Response(JSON.stringify({ id: "batch-late", status: "validating" }), { status: 202 });
+    }
+    if (url === "https://openrouter.ai/api/beta/batches/batch-late") {
+      polls += 1;
+      // OpenRouter answers 404 for the first seconds after creation.
+      if (polls < 3) {
+        return new Response(JSON.stringify({ error: { message: "Batch job batch-late not found.", code: 404 } }), { status: 404 });
+      }
+      return new Response(JSON.stringify({
+        id: "batch-late",
+        status: "completed",
+        results: [{
+          custom_id: customId,
+          response: { status_code: 200, body: { model: "google/gemini-3.7-flash", choices: [{ message: { content: "ok" } }] } },
+        }],
+      }), { status: 200 });
+    }
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+  try {
+    const result = await chatCompletion("key", {
+      model: "google/gemini-3.7-flash:batch",
+      messages: [{ role: "user", content: "hi" }],
+    }, 60_000);
+    assert.equal(result.content, "ok");
+    assert.ok(polls >= 3, `expected retries through the 404s, saw ${polls} polls`);
+  } finally {
+    globalThis.fetch = original;
+    setBatchPollIntervalForTests(5_000);
+  }
+});
+
+test("a batch that stays missing past the grace window fails loudly", async () => {
+  setBatchPollIntervalForTests(1);
+  const original = globalThis.fetch;
+  const realNow = Date.now;
+  let clock = realNow();
+  Date.now = () => clock;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url === "https://openrouter.ai/api/beta/batches" && init?.method === "POST") {
+      return new Response(JSON.stringify({ id: "batch-gone", status: "validating" }), { status: 202 });
+    }
+    clock += 60_000; // two polls take us past the 2-minute grace window
+    return new Response(JSON.stringify({ error: { message: "Batch job batch-gone not found.", code: 404 } }), { status: 404 });
+  };
+  try {
+    await assert.rejects(
+      () => chatCompletion("key", { model: "google/gemini-3.7-flash:batch", messages: [{ role: "user", content: "hi" }] }, 60_000),
+      /404/,
+    );
+  } finally {
+    globalThis.fetch = original;
+    Date.now = realNow;
+    setBatchPollIntervalForTests(5_000);
   }
 });

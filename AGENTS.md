@@ -602,6 +602,12 @@ When the op is finished or has no next key, the worker writes `null`, never a ba
 **Actually:** Since 2026-08-21 everything reads `admin_config.OPENROUTER_API_KEY`: bridge/windows agents via the heartbeat response, the edge functions directly, and the Railway worker via `apps/worker/src/openrouter-key.ts` (cached 60s). The Railway env var is a fallback only, used when the `admin_config` row is empty or unreadable, and the worker logs loudly when it falls back.
 **Why it changed:** the worker used to read only the Railway env var, so rotating the key in Settings → APIs left the worker on the old key — the model list kept working (edge function) while every AI tagging and vision bake-off call failed with `OpenRouter 401: {"error":{"message":"User not found.","code":401}}`.
 
+### A brand-new OpenRouter batch 404s on the first status poll
+
+**Looks like:** The batch job was never created — `OpenRouter 404: Batch job batch-… not found.` on every `:batch` model (e.g. `google/gemini-3.7-flash:batch`).
+**Actually:** Creation returns `202 validating` with a real batch ID, but the job is not readable for a few seconds. Measured live 2026-08-21: first GET 404, next GET 5s later `in_progress`. The worker used to treat any failed status poll as fatal, so every batch attempt died instantly.
+**Now:** `apps/worker/src/openrouter.ts` retries through 404s for a 2-minute grace window (and through 429/5xx), logging each retry. A 404 after that window, or once the job has been seen, still fails loudly.
+
 ### `.mcp.json` carries no secrets — MCP tokens come from 1Password (do NOT re-hardcode)
 
 **Looks like:** `devops-mcp`/`synology-monitor` in the root `.mcp.json` have `Bearer ${DEVOPS_MCP_TOKEN}` / `${NAS_MCP_TOKEN}` placeholders that "should" hold the actual token.
