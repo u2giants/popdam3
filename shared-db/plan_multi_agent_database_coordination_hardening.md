@@ -161,7 +161,7 @@ The same review confirmed that several feared gaps were already solved: the GitH
 ### Current branch and deployment state after the review revision
 
 - The first documentation plan merged through PR #1367 as commit `563240c7832595d44e08952cfe31f44f1c252535` on `origin/main`.
-- This correction is authored on branch `codex/plan-agent-coordination-revision` in isolated worktree `C:\repos\shared-db-worktrees\plan-agent-coordination-revision`, based on that merge commit.
+- The Claude/Codex review correction merged through PR #1368 as commit `4d2ad3c62d1b242d59740b9a0a2e1f53b73a06a6` on `origin/main`.
 - Issue #1366 remains open and owns the future implementation. No STATUS row is complete.
 - No preview, production, schema, row-data, orchestrator, or branch-protection write was performed by either planning or debate session.
 - The debate used Claude in safe read-only mode and a detached review worktree, which was removed after the review.

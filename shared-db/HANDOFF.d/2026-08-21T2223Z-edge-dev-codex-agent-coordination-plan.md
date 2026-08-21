@@ -1,7 +1,7 @@
 ---
 issue: 1366
 status: OPEN
-owner: codex/plan-agent-coordination-revision
+owner: repo-maintenance/issue-1366
 ---
 
 # Handoff — implement provider-neutral multi-agent database coordination hardening
@@ -58,9 +58,7 @@ The first plan merged through PR #1367. Albert then asked Codex to run it by Cla
 - This handoff is the plan's required open-workstream registration.
 - Tracking issue #1366 is OPEN, labeled `db-work`, with `work_type: repo-maintenance` and `route: repo-maintenance`.
 - The first plan merged through PR #1367 as `563240c7832595d44e08952cfe31f44f1c252535`.
-- Revision branch: `codex/plan-agent-coordination-revision`.
-- Revision worktree: `C:\repos\shared-db-worktrees\plan-agent-coordination-revision`.
-- Revision base: `563240c7832595d44e08952cfe31f44f1c252535` from `origin/main`.
+- The Claude/Codex review correction merged through PR #1368 as `4d2ad3c62d1b242d59740b9a0a2e1f53b73a06a6`.
 - No database, preview, production, migration, application row, branch-protection setting, or secret was changed.
 - The plan is not implemented. All STATUS rows are open.
 
@@ -91,12 +89,11 @@ The first plan merged through PR #1367. Albert then asked Codex to run it by Cla
 
 ## 6. Exact next steps
 
-1. Merge this documentation-only correction PR after all required checks pass. You'll know it worked when `origin/main` contains the revised plan and this matching handoff, and the plan's revision warning names issue #1286.
-2. Start a fresh repository-maintenance session in a new isolated worktree from current `origin/main`; do not use the schema orchestrator. You'll know it worked when its branch/worktree are unique and issue #1366 remains open.
-3. Read the plan STATUS table, then execute Step 1 only. You'll know it worked when the orchestrator reports structure/schema only and live branch protection includes both missing contexts, retains all existing contexts and fields, reports `required_status_checks.strict: false`, and keeps `Migration guarded merge authorization` required.
-4. At every phase cut, update the plan STATUS/evidence, merge the phase PR, and start a fresh session for the next phase. You'll know it worked when no phase relies on chat history and every done row cites a commit plus rerunnable evidence.
-5. After Steps 1-6, execute Step 8A even if Step 7 is waiting for a suitable migration. You'll know it worked when core enforcement is live and the pilot remains honestly opt-in/waiting rather than blocking it.
-6. When all non-waiting plan completion criteria are satisfied, use the validated completion path. If the pilot is merely waiting, keep issue #1366 and this handoff open with only that obligation. If the pilot is completed or conclusively blocked by unavailable/paid prerequisites, close the issue and delete this handoff in that final PR. You'll know it worked when issue/handoff state matches the documented pilot state and the handoff-contract guard passes.
+1. Start a fresh repository-maintenance session in a new isolated worktree from current `origin/main`; do not use the schema orchestrator. You'll know it worked when its branch/worktree are unique and issue #1366 remains open.
+2. Read the plan STATUS table, then execute Step 1 only. You'll know it worked when the orchestrator reports structure/schema only and live branch protection includes both missing contexts, retains all existing contexts and fields, reports `required_status_checks.strict: false`, and keeps `Migration guarded merge authorization` required.
+3. At every phase cut, update the plan STATUS/evidence, merge the phase PR, and start a fresh session for the next phase. You'll know it worked when no phase relies on chat history and every done row cites a commit plus rerunnable evidence.
+4. After Steps 1-6, execute Step 8A even if Step 7 is waiting for a suitable migration. You'll know it worked when core enforcement is live and the pilot remains honestly opt-in/waiting rather than blocking it.
+5. When all non-waiting plan completion criteria are satisfied, use the validated completion path. If the pilot is merely waiting, keep issue #1366 and this handoff open with only that obligation. If the pilot is completed or conclusively blocked by unavailable/paid prerequisites, close the issue and delete this handoff in that final PR. You'll know it worked when issue/handoff state matches the documented pilot state and the handoff-contract guard passes.
 
 ## 7. Constraints and gotchas
 
@@ -117,7 +114,7 @@ The first plan merged through PR #1367. Albert then asked Codex to run it by Cla
 - `gh` is authenticated for issue operations and branch-protection reads as of 2026-08-21.
 - Local shell is PowerShell; workflow baseline is Node.js 22 on Ubuntu.
 - Shared checkout: `C:\repos\shared-db` (read/coordination only).
-- Revision worktree: `C:\repos\shared-db-worktrees\plan-agent-coordination-revision` (remove it after this correction PR merges).
+- No implementation worktree exists yet. The next session creates its own unique worktree from current `origin/main`.
 - Supabase access is through existing GitHub secrets. Secret values were not read.
 - If local credentials are later necessary, use 1Password vault `vibe_coding`; discover an existing descriptive item and never print its value.
 
