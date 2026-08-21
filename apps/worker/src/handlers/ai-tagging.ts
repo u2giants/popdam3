@@ -139,11 +139,11 @@ interface AiTagHandlerDependencies {
 
 async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutcome> {
   const client = db();
-  const apiKey = getAiTaggingApiKey();
+  const apiKey = await getAiTaggingApiKey();
 
   if (!apiKey) {
     logger.error("No AI API key configured (OPENROUTER_API_KEY)");
-    return { outcome: "failed", error: "No AI API key configured (set OPENROUTER_API_KEY in Railway)" };
+    return { outcome: "failed", error: "No AI API key configured (set the OpenRouter key in PopDAM Settings \u2192 APIs)" };
   }
 
   // Fetch asset

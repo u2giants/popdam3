@@ -113,7 +113,7 @@ Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the ru
 
 **VPS host:** `178.156.180.212`
 
-**Runtime environment variables** live in Coolify — not in GitHub and not baked into the image. The frontend container is a pure static file server and has no runtime env vars. Runtime configuration for agents (DO Spaces keys, OpenRouter keys, etc.) is stored in the `admin_config` Supabase table and delivered to agents via heartbeat responses. The Railway worker's env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`) are set in the Railway dashboard.
+**Runtime environment variables** live in Coolify — not in GitHub and not baked into the image. The frontend container is a pure static file server and has no runtime env vars. Runtime configuration for agents (DO Spaces keys, OpenRouter keys, etc.) is stored in the `admin_config` Supabase table and delivered to agents via heartbeat responses. The Railway worker's env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) are set in the Railway dashboard. The OpenRouter key is NOT one of them: the worker reads `admin_config.OPENROUTER_API_KEY` like everything else, and only falls back to a Railway `OPENROUTER_API_KEY` if that row is empty.
 
 **What Coolify owns:** container lifecycle, restart policy, health checks, domain bindings. Domain `dam.designflow.app` is routed via Docker labels that Coolify applies. Domain `sg.designflow.app` is routed via a Traefik file provider at `/data/coolify/proxy/dynamic/popdam-sg.yml` on the VPS host (bind-mounted into `coolify-proxy`), using a `@docker` cross-provider service reference to the same `popdam-frontend` container.
 
@@ -216,7 +216,7 @@ The cloud worker (`apps/worker/`) runs on Railway as a persistent Node.js proces
 
 **No manual step required.** Railway detects the push, rebuilds from `apps/worker/Dockerfile`, and replaces the running container automatically.
 
-**Runtime env vars** are set in the Railway dashboard: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `GOOGLE_AI_API_KEY`.
+**Runtime env vars** are set in the Railway dashboard: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_AI_API_KEY`. The OpenRouter key comes from `admin_config.OPENROUTER_API_KEY` (Settings → APIs); a Railway `OPENROUTER_API_KEY` is only a fallback.
 
 **The worker is not triggered by HTTP.** It runs a continuous polling loop, reading `admin_config.BULK_OPERATIONS` every 1 second. Admin UI actions write a `queued` entry to that config key; the worker picks it up on the next poll.
 

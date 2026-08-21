@@ -1,5 +1,5 @@
-import { config } from "../config.js";
 import { db } from "../supabase.js";
+import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { imageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput, type OutputAttempt } from "../structured-output.js";
@@ -329,6 +329,6 @@ export async function callTagAssetModel(
   return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };
 }
 
-export function getAiTaggingApiKey() {
-  return config.openRouterApiKey;
+export function getAiTaggingApiKey(): Promise<string> {
+  return getOpenRouterApiKey();
 }

@@ -596,10 +596,11 @@ When the op is finished or has no next key, the worker writes `null`, never a ba
 **Looks like:** Wasteful — most pushes don't touch `apps/worker/`.
 **Actually:** Railway doesn't support path filters. Every push triggers a Railway rebuild regardless of which files changed. This is a Railway platform constraint, not a bug.
 
-### Two separate `OPENROUTER_API_KEY` locations
+### `admin_config.OPENROUTER_API_KEY` is the single source of the OpenRouter key
 
-**Looks like:** Duplication or confusion.
-**Actually:** `admin_config.OPENROUTER_API_KEY` feeds bridge/windows agents via heartbeat response. Railway env `OPENROUTER_API_KEY` feeds the Railway worker directly. Setting one does not set the other.
+**Looks like:** Two places hold the key — `admin_config` and the Railway env var.
+**Actually:** Since 2026-08-21 everything reads `admin_config.OPENROUTER_API_KEY`: bridge/windows agents via the heartbeat response, the edge functions directly, and the Railway worker via `apps/worker/src/openrouter-key.ts` (cached 60s). The Railway env var is a fallback only, used when the `admin_config` row is empty or unreadable, and the worker logs loudly when it falls back.
+**Why it changed:** the worker used to read only the Railway env var, so rotating the key in Settings → APIs left the worker on the old key — the model list kept working (edge function) while every AI tagging and vision bake-off call failed with `OpenRouter 401: {"error":{"message":"User not found.","code":401}}`.
 
 ### `.mcp.json` carries no secrets — MCP tokens come from 1Password (do NOT re-hardcode)
 
@@ -701,7 +702,7 @@ When the op is finished or has no next key, the worker writes `null`, never a ba
 |----------|---------|-------------|----------------|-----------------|
 | `SUPABASE_URL` | Supabase project URL for worker, edge functions, agents, CI notifications | Railway env, Supabase function env, GitHub secrets, agent `.env` | No for frontend (`src/lib/app-mode.ts` is hardcoded); yes for worker/agent dev | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Worker → Supabase service role | Railway env vars | No | Yes (Railway) |
-| `OPENROUTER_API_KEY` | Worker AI calls | Railway env vars | No | Yes (Railway) |
+| `OPENROUTER_API_KEY` | Worker AI calls | `admin_config.OPENROUTER_API_KEY` (primary); Railway env var is a fallback only | No | No — set it in Settings → APIs |
 | `ANTHROPIC_API_KEY` | Worker ERP classification fallback/alternative; listed in `apps/worker/.env.example` | Railway env vars | No | Optional |
 | `GOOGLE_AI_API_KEY` | Legacy Gemini AI tagging fallback and `supabase/functions/ai-tag` | Railway env vars / Supabase function secrets | No | Optional unless using legacy AI tag path |
 | `WORKER_POLL_INTERVAL_MS` / `AI_BATCH_CONCURRENCY` / `AI_BATCH_SIZE` | Worker tuning knobs | Railway env vars | No | Optional |

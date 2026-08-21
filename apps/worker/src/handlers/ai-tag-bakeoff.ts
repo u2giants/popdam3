@@ -6,7 +6,7 @@
  */
 
 import { db } from "../supabase.js";
-import { config } from "../config.js";
+import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { logger } from "../logger.js";
 import { OpenRouterError, type OpenRouterProviderInfo } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
@@ -343,7 +343,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
 
   const started = Date.now();
   try {
-    const apiKey = config.openRouterApiKey;
+    const apiKey = await getOpenRouterApiKey();
     const messages = buildImageTaggingMessages(
       prompt,
       image,
@@ -457,7 +457,8 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   const client = db();
   const runId = typeof opState.params?.run_id === "string" ? opState.params.run_id : null;
   if (!runId) return { ok: false, done: false, error: "run_id param is required" };
-  if (!config.openRouterApiKey) return { ok: false, done: false, error: "No AI API key configured" };
+  const apiKey = await getOpenRouterApiKey();
+  if (!apiKey) return { ok: false, done: false, error: "No AI API key configured (set the OpenRouter key in PopDAM Settings \u2192 APIs)" };
   await markStaleRunningResults(runId);
 
   const { data: run, error: runErr } = await client
@@ -500,9 +501,9 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
     .map((slot, index): [Slot, string | null] => [slot, runModels[index] ?? null])
     .filter((entry): entry is [Slot, string] => typeof entry[1] === "string" && entry[1].trim().length > 0);
   let prices = new Map<string, ModelPricing>();
-  if (config.openRouterApiKey) {
+  if (apiKey) {
     try {
-      prices = await getOpenRouterPrices(config.openRouterApiKey);
+      prices = await getOpenRouterPrices(apiKey);
     } catch (e) {
       logger.warn("ai-tag-bakeoff: failed to fetch current OpenRouter pricing", { error: e instanceof Error ? e.message : String(e) });
     }

@@ -8,6 +8,7 @@
 
 import { db } from "../supabase.js";
 import { config } from "../config.js";
+import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { logger } from "../logger.js";
 import type { ChatMessage } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
@@ -237,7 +238,7 @@ function isUnclassifiable(item: { item_description: string | null; style_number:
 
 export async function handleClassifyErpCategories(opState: OpState): Promise<BatchResult> {
   const client = db();
-  const apiKey = config.openRouterApiKey || config.anthropicApiKey;
+  const apiKey = (await getOpenRouterApiKey()) || config.anthropicApiKey;
   if (!apiKey) {
     return { ok: false, done: false, error: "No AI API key configured (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)" };
   }
