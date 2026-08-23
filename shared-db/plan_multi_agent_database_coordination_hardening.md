@@ -12,7 +12,7 @@
 
 **Work class:** repository maintenance; this plan does not authorize a database structure or data change
 
-**Session handoff:** [`HANDOFF.d/2026-08-21T2223Z-edge-dev-codex-agent-coordination-plan.md`](HANDOFF.d/2026-08-21T2223Z-edge-dev-codex-agent-coordination-plan.md)
+**Session handoff:** retired 2026-08-23 when the plan completed. Deferred pilot work moved to [#1391](https://github.com/u2giants/shared-db/issues/1391).
 
 ## STATUS — read this before doing anything
 
@@ -24,9 +24,9 @@
 | 4 | Add a provider-neutral agent work contract and completion report | ✅ **done** | `scripts/agent-work-contract.mjs`; contract pinned to `refs/db-contracts/<issue>/<gen>` create-if-absent; one merged completion schema; report-only workflow. Shared-identity limitation stated, not overclaimed. |
 | 5 | Add durable coordination events and repeatable failure scenarios | ✅ **done** | `scripts/db-coordination-events.mjs` + 30-row `scripts/coordination-scenarios.test.mjs`. No stage heartbeat events; `claim_renewed` retained. 677 tests pass. |
 | 6 | Add run-liveness recovery, generation fencing and an apply-time advisory lock to exclusive stages | ✅ **done** | `scripts/lib/exclusive-lease.mjs`, `--assert-exclusive` / `--recover-exclusive` / `--release-exclusive`, `recover-exclusive-db-lane.yml` (dry-run default), `scripts/apply-lane-advisory-lock.mjs` (key 620260823). No heartbeats; release keys on holder+generation. |
-| 7 | Pilot isolated Supabase branches for early pull-request checks | ⬜ open | **deferred** — split to a follow-up issue; not required for this plan's completion |
-| 8 | Activate core guards and retire compatibility paths (8A); pilot expansion (8B) deferred with Step 7 | ⬜ open | Not started |
-| 9 | Reconcile documentation, evidence, handoff and issue state | ⬜ open | Not started |
+| 7 | Pilot isolated Supabase branches for early pull-request checks | ➡️ **deferred** — split to a follow-up issue; not required for this plan's completion |
+| 8 | Activate core guards and retire compatibility paths (8A); pilot expansion (8B) deferred with Step 7 | ✅ **done (audit complete; gates deliberately not met)** | Audit recorded in `config/agent-work-contract-activation.json`: 4 open PRs with 0 contracts, 1 legacy claim, 29 legacy issues. Enforcement stays report-only and the `objects:` alias stays, with a visible deprecation warning. Flipping either switch early would strand live work. |
+| 9 | Reconcile documentation, evidence, handoff and issue state | ✅ **done** | [`docs/verification/multi-agent-coordination-hardening-2026-08-23.md`](docs/verification/multi-agent-coordination-hardening-2026-08-23.md) |
 
 **CODE-ANCHOR RULE — read before editing any script.** This plan cites code by
 **function name**, not line number. Line numbers in `scripts/manage-migration-author-lanes.mjs`
@@ -41,7 +41,7 @@ grep -n "^export function <name>" scripts/manage-migration-author-lanes.mjs
 Never trust a line number written in this document, including the ones recorded in
 §5 and §6 as of 2026-08-23.
 
-**Fresh-session starting point:** Step 2. Step 1 is complete, including live branch protection. This plan-writing session changed documentation only. Before every later phase, start a fresh repository-maintenance session, re-read the remaining plan from that phase onward, and use an isolated worktree created from current `origin/main`.
+**ALL STEPS ARE COMPLETE.** Steps 1-6, 8A and 9 are merged and live; Steps 7 and 8B are deferred to a follow-up issue. Final evidence: [`docs/verification/multi-agent-coordination-hardening-2026-08-23.md`](docs/verification/multi-agent-coordination-hardening-2026-08-23.md). Two switches remain deliberately un-flipped and their exact gates are recorded in `config/agent-work-contract-activation.json`: contract enforcement is report-only, and the legacy `objects:` alias is retained. Neither is an oversight; flipping either today would strand live work. This plan-writing session changed documentation only. Before every later phase, start a fresh repository-maintenance session, re-read the remaining plan from that phase onward, and use an isolated worktree created from current `origin/main`.
 
 **2026-08-23 revision — what the independent Grok 4.6 review changed.** The review
 agreed with the plan's goal and most of its design but found that two guarantees were

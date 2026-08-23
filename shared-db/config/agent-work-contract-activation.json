@@ -3,5 +3,24 @@
   "mode": "report-only",
   "activated_at": null,
   "grandfathered_prs": [],
-  "why": "Step 4 ships in report-only mode. The workflow still FAILS on a malformed contract or report that is present - report-only means 'a missing contract does not block', never 'errors are ignored'. Step 8A sets mode to 'enforced' with an activated_at date, once an audit shows every open PR is compatible or is listed by exact number in grandfathered_prs."
+  "why": "Step 8A ran the compatibility audit on 2026-08-23 and the gate is NOT met, so enforcement is deliberately not switched on. Enforcing now would fail every open pull request that predates contracts, which is how a guard gets disabled instead of adopted. Report-only still FAILS on a malformed contract or a report that contradicts its contract; it only tolerates their absence.",
+  "audit_2026_08_23": {
+    "open_pull_requests": 4,
+    "open_pull_requests_carrying_a_contract": 0,
+    "open_claims_total": 1,
+    "open_claims_using_legacy_objects": 1,
+    "open_work_issues_using_legacy_objects": 29,
+    "open_work_issues_using_writes_reads": 0,
+    "open_work_issues_unparseable": 2
+  },
+  "activation_gate": [
+    "Every open pull request either carries a valid contract and report, or is listed by exact number in grandfathered_prs.",
+    "Then set mode to 'enforced' and activated_at to that date, in the same pull request.",
+    "Making 'Agent work contract' a required context on main is a SEPARATE action, taken only after enforced mode has run green for a full day."
+  ],
+  "objects_alias_retirement_gate": [
+    "Zero open claims and zero open work issues using the legacy `objects:` list. On 2026-08-23 that count was 1 claim and 29 issues, so the alias stays.",
+    "Plus at least 14 days of documentation and examples using `writes:`/`reads:`.",
+    "Until both hold, `objects:` keeps working and emits a visible deprecation warning. Do not retire it early: a legacy claim is read as a WRITE, and breaking that reading would let a writer start against work already in flight."
+  ]
 }

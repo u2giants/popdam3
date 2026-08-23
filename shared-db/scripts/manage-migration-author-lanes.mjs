@@ -270,6 +270,12 @@ export function parseQueueScope(body = '') {
     throw new LaneError('db-work-scope must not mix the legacy objects: list with writes:/reads:; objects: means writes:')
   }
   const legacyObjects = lists.objects.length ? validateClaimObjects(lists.objects) : []
+  // VISIBLE DEPRECATION. The alias stays until Step 8A's gate is met (zero open
+  // legacy claims/issues, plus 14 days of examples using writes:). A silent alias
+  // never gets migrated, because nothing ever reminds anyone it exists.
+  if (legacyObjects.length && !process.env.SHARED_DB_SUPPRESS_LEGACY_OBJECTS_WARNING) {
+    process.stderr.write('WARNING: db-work-scope uses the deprecated `objects:` list, which is read as `writes:`. Use `writes:` and `reads:` so readers of the same table can run in parallel. See the anti-collision rules in AGENTS.md for the conflict matrix.\n')
+  }
   const writes = lists.objects.length ? legacyObjects : (lists.writes.length ? validateClaimObjects(lists.writes) : [])
   const reads = lists.reads.length ? validateClaimObjects(lists.reads) : []
   const declaredBothWays = writes.filter((object)=>reads.includes(object))
