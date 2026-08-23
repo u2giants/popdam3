@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   parseArgs, planUnion, renderPlan, validateLiveDocument, readLive, applyUnion,
-  verifyReadback, main, RequiredChecksError, DEFAULT_REPO, DEFAULT_BRANCH,
+  verifyReadback, main, RequiredChecksError, DEFAULT_REPO, DEFAULT_BRANCH, ghSpawnOptions,
 } from './update-required-checks.mjs'
 
 const LIVE = Object.freeze({
@@ -140,6 +140,22 @@ test('applyUnion PATCHes the narrow endpoint with the union and the live strict 
   assert.equal(body.strict, false)
   assert.deepEqual(body.contexts, plan.next)
   assert.deepEqual(Object.keys(body).sort(), ['contexts', 'strict'], 'the narrow body must carry nothing else')
+})
+
+// REGRESSION, 2026-08-23. The first live --apply failed with
+// `422 ... nil is not an object` because the real gh() helper dropped `input` and
+// set stdin to 'ignore', so `--input -` read an empty body. Every unit test passed,
+// because the fake transport read options.input directly and never went near stdin.
+// A mocked transport cannot prove a real subprocess contract; these two tests
+// exercise the REAL helper's spawn options.
+test('the real transport forwards the request body to the child stdin', () => {
+  const options = ghSpawnOptions('{"strict":false,"contexts":["A"]}')
+  assert.equal(options.input, '{"strict":false,"contexts":["A"]}', 'the body must reach the child or gh sends an empty request')
+  assert.notEqual(options.stdio?.[0], 'ignore', "stdin must not be 'ignore' when a body is supplied")
+})
+
+test('the real transport still ignores stdin when there is no body to send', () => {
+  assert.deepEqual(ghSpawnOptions(undefined).stdio, ['ignore', 'pipe', 'pipe'])
 })
 
 test('the readback refuses a lost context, a missing addition, or a flipped strict', () => {

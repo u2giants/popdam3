@@ -15,7 +15,7 @@
 | `strict: false` history reconciled | ✅ done | `AGENTS.md` §12.1 item 17; `docs/owner-rulings.md`; `plan_orchestrator-workflow-gaps.md` |
 | Misleading collision comments corrected | ✅ done | `.github/workflows/pr-object-collision.yml`; `scripts/check-pr-object-collisions.mjs` |
 | `update-required-checks` CLI built and tested | ✅ done | 22 tests; live dry run below |
-| **Two contexts made required on `main`** | ⛔ **NOT DONE** | Blocked — see "Blocked sub-step" |
+| **Two contexts made required on `main`** | ✅ done | Applied 2026-08-23, owner-approved. Live readback below: 11 contexts, `strict: false`. |
 
 ## Orchestrator boundary — what changed
 
@@ -126,28 +126,63 @@ Both guards were confirmed safe to require first: each triggers on `pull_request
 `paths:` filter**, so neither can leave a pull request permanently pending, and both passed on
 PR #1378.
 
-## Blocked sub-step — the two contexts are NOT yet required
+## Applying the two contexts — including the bug the first attempt exposed
 
-`--apply` was refused by the local AI session's own permission layer, not by GitHub. Live
-protection therefore still lists **nine** contexts, and `Orchestrator marker guard` and
-`Cancelled work guard` remain advisory.
+The first `--apply` was refused by the AI session's own permission layer, not by GitHub. Albert
+approved it explicitly, and the retry then failed against the real API:
 
-This is the only incomplete part of Step 1. Nothing else depends on it, and Step 2 may proceed.
-
-To complete it, run from a session permitted to make the call:
-
-```bash
-node scripts/update-required-checks.mjs --add "Orchestrator marker guard" --add "Cancelled work guard" --apply
+```text
+apply FAILED: GitHub command failed: gh: Invalid request.
+For 'links/1/schema', nil is not an object. (HTTP 422)
 ```
 
-Expected result: exit 0, `READBACK OK — 11 contexts required, strict: false`. Then update this
-document and the plan's STATUS row. If the readback reports a lost context or a changed `strict`,
-restore it immediately from the nine-context list above.
+**Cause: a defect in this tool, not in GitHub.** `applyUnion` sends the request body with
+`--input -`, which reads standard input, but the `gh()` helper dropped its `input` argument and set
+stdin to `'ignore'`. `gh` therefore sent an EMPTY body.
+
+**Why 22 passing tests did not catch it.** The fake transport recorded `options.input` and asserted
+on it directly. It never went near a real subprocess, so a helper that discarded `input` satisfied
+every assertion. A mocked transport can prove the *shape* of a call; it cannot prove the real
+process contract. Two regression tests now probe the real helper's spawn options: one asserts the
+body is forwarded and stdin is not `'ignore'`, the other asserts stdin is still ignored when there
+is no body.
+
+**The fail-closed design worked.** A live readback immediately after the failure showed nine
+contexts and `strict: false` — the rejected write changed nothing, and the tool refused to report
+success. That is the behaviour the exit-code rules were written for.
+
+### Applied, and independently verified (2026-08-23)
+
+Tool output:
+
+```text
+READBACK OK — 11 contexts required, strict: false
+```
+
+Independent read of the FULL protection object, not just the narrow endpoint the tool writes:
+
+```bash
+gh api repos/u2giants/shared-db/branches/main/protection
+```
+
+```json
+{
+  "contexts": ["Promotion contract tests (offline)", "Cross-PR object collision",
+    "Tools offline tests", "SQL migration guards", "Domain ownership", "Intake pointer guard",
+    "Handoff contract", "Migration author lease", "Migration guarded merge authorization",
+    "Orchestrator marker guard", "Cancelled work guard"],
+  "count": 11, "strict": false,
+  "enforce_admins": true, "force_push": false, "deletions": false
+}
+```
+
+All nine original contexts survive, both intended contexts are present, and `strict`,
+`enforce_admins`, force-push and deletion settings are unchanged. **Step 1 is complete.**
 
 ## Tests
 
 ```bash
-node --test scripts/*.test.mjs      # 526 pass, 0 fail
+node --test scripts/*.test.mjs      # 531 pass, 0 fail (includes the 2 new regression tests)
 ```
 
 `scripts/manage-migration-author-lanes.test.mjs` gained three tests that pin the ruling itself:
@@ -157,8 +192,6 @@ rather than defaulting.
 
 ## Limitations
 
-- The two contexts are not yet required. Until then, a red `Orchestrator marker guard` or
-  `Cancelled work guard` does not block a merge.
 - This step changes routing and documentation. It does not yet distinguish readers from writers in
   claims (Step 2) or prove dependency success (Step 3).
 - The live audit reads GitHub at a moment in time. Re-run it rather than quoting these lines.

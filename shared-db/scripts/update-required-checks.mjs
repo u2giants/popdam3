@@ -59,13 +59,39 @@ Exit codes:
   2  could not read the live document. NOT "no protection" - nothing was compared.
 `
 
-function gh(args, { executor = execFileSync } = {}) {
+// `input` MUST be forwarded to the child's stdin. `applyUnion` sends the request
+// body with `--input -`, which reads stdin; the first version of this helper
+// dropped `input` and set stdin to 'ignore', so gh sent an EMPTY body and GitHub
+// answered `422 ... nil is not an object`. Every unit test passed anyway, because
+// the fake transport inspected `options.input` directly and never exercised the
+// real stdin path. Hence the `ghSpawnOptions` probe and its two tests.
+function gh(args, { executor = execFileSync, input } = {}) {
+  const spawnOptions = { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
+  if (input === undefined) {
+    spawnOptions.stdio = ['ignore', 'pipe', 'pipe']
+  } else {
+    // stdin must be a pipe for `input` to reach the child. Naming 'ignore' here
+    // would silently discard the request body.
+    spawnOptions.input = input
+  }
   try {
-    return executor('gh', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
+    return executor('gh', args, spawnOptions)
   } catch (error) {
     const detail = String(error.stderr ?? '').trim() || String(error.message ?? '').trim()
     throw new RequiredChecksError(`GitHub command failed: ${detail}`)
   }
+}
+
+/**
+ * Exported ONLY so a test can prove the real transport hands the request body to
+ * the child process. Returns the spawn options `gh` would use.
+ */
+export function ghSpawnOptions(input) {
+  const captured = {}
+  try {
+    gh(['api', 'noop'], { input, executor: (_file, _args, options) => { Object.assign(captured, options); return '{}' } })
+  } catch { /* the fake executor cannot fail, but never let a probe throw */ }
+  return captured
 }
 
 export function parseArgs(argv) {
