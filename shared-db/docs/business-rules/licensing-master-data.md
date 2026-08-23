@@ -2,7 +2,7 @@
 
 **Status:** Settled
 
-**Controlling owner rulings:** Albert Hazan, 2026-08-16 and 2026-08-19. The later ruling clarifies ColdLion authority for Licensor names and for Properties outside scrape coverage.
+**Controlling owner rulings:** Albert Hazan, 2026-08-16, 2026-08-19, and 2026-08-23. The 2026-08-23 ruling establishes signed-contract authority for Warner Bros. licensing membership.
 
 ## Official business objects
 
@@ -13,7 +13,7 @@ Licensing Master Data consists of Licensors, Properties, Characters, Style Guide
 - ColdLion owns official Licensor names.
 - Inside an authorized licensor scrape's Property coverage, that source owns official Property names, ownership, entities, and direct relationships it publishes.
 - For a ColdLion-only Property under a Licensor that has no authorized scrape data, ColdLion's Property name and owning Licensor are canonical truth.
-- ColdLion also owns whether POP currently carries a Property. Present in a complete current ColdLion set means Active; absent means Inactive.
+- ColdLion owns whether POP currently carries a Property except where Albert identifies a signed agreement and amendments as the controlling entitlement schedule. Warner Bros. is the first such exception; its signed contract schedule controls Active/Inactive licensing membership.
 - DesignFlow's old imported licensing data has no authority for names, ownership, relationships, or Active/Inactive status.
 - Internal spelling may be retained as an alias but must not replace a source-owned official name.
 - Absence from a source never proves that an entity ceased to exist. Preserve the row and flag disappearance for review.
@@ -27,6 +27,18 @@ Licensing Master Data consists of Licensors, Properties, Characters, Style Guide
 A Property discovered by an authorized licensor source starts Potential. A ColdLion-only Property under a Licensor with no authorized scrape data may be created from ColdLion's name and ownership as canonical truth, subject to identity and collision safeguards. Guarded ColdLion membership then makes it Active or Inactive. A ColdLion Property inside a scrape-covered Licensor's scope still waits for the authorized scrape or Licensing review when its canonical match is unresolved.
 
 No refresh hard-deletes licensing Master Data.
+
+## Warner Bros. contract entitlement
+
+**Status: Settled. Authority: Albert Hazan, 2026-08-23, based on the countersigned Warner Bros. agreement and Amendments 1-3.**
+
+- For POP's Warner Bros. agreement, the signed agreement plus countersigned Amendments 1, 2, and 3 are the controlling authority for which Properties are licensed. They form one continuous schedule of 163 Licensed Properties.
+- The exact confidential list lives only in the private `u2giants/licensor-source-data` repository at `warner-bros/contract-properties.csv`. This public Business Logic Library intentionally points to that file instead of reproducing licensed rows.
+- `warner-bros/contract-property-canonical-mapping.csv` connects every signed contract entry to one canonical STARLABS Submissions Property identity. Submissions remains the canonical Warner name and identity vocabulary; the contract controls licensing membership.
+- Creative Assets or Art Assets visibility is not evidence of entitlement. A Property, file, or style guide being reachable in STARLABS does not make it licensed.
+- `warner-bros/creative-property-license-status.csv` is the private operational decision file for all 360 Creative Assets Property identities. As verified on 2026-08-23, it records 261 licensed identities, 97 inactive identities absent from the signed schedule, 2 inactive portal utility values that are not licenses, and 0 unresolved.
+- Inactive or non-license Creative Assets identities remain preserved as source evidence, but they must not create canonical Property, Asset, or Style Guide links. Portal-presence status is separate: a source record may remain active in a capture manifest while its licensing status is inactive.
+- A future signed amendment changes Warner entitlement only after the private contract schedule and mappings are updated and revalidated. A portal refresh, ColdLion change, or newly visible asset cannot supersede the signed schedule by itself.
 
 ## Relationships
 
@@ -43,7 +55,7 @@ Marvel charges two additional royalty percentage points when artwork contains ta
 
 ## Refresh cadence and conflict handling
 
-Authorized licensor sources run at least weekly. Within their Property coverage, an authorized source wins disagreements about Property spelling or ownership. Outside that coverage, ColdLion-only Property data under a Licensor with no scrape data is canonical. ColdLion remains authoritative for Licensor names and Property Active/Inactive. When identity or coverage is ambiguous, retain evidence and send it to review rather than guessing.
+Authorized licensor sources run at least weekly. Within their Property coverage, an authorized source wins disagreements about Property spelling or ownership. Outside that coverage, ColdLion-only Property data under a Licensor with no scrape data is canonical. ColdLion remains authoritative for Licensor names and normally for Property Active/Inactive, except where a signed entitlement schedule is explicitly controlling, as it is for Warner Bros. When identity or coverage is ambiguous, retain evidence and send it to review rather than guessing.
 
 ## Implementation and evidence
 
