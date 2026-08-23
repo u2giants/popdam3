@@ -28,7 +28,11 @@ export function validateMigrationLease({ claims, branch, files, now = new Date()
   if(matching.length!==1) throw new LeaseCheckError(`migration PR branch ${branch} must have exactly one active ref-backed claim; found ${matching.length}`)
   const holder=matching[0]
   if(!holder.lease.active) throw new LeaseCheckError(`claim #${holder.number} is expired`)
-  const declared=new Set(holder.lease.objects.map(normalize))
+  // WRITES ONLY. A migration's statically extracted objects are things it CHANGES,
+  // so only the claim's writes can cover them. A read declaration must never
+  // satisfy a write: that is the whole point of separating the two lists.
+  const declared=new Set(holder.lease.writes.map(normalize))
+  const declaredReads=new Set((holder.lease.reads??[]).map(normalize))
   const actual=new Set()
   const versions=new Set()
   for(const file of migrations){
@@ -45,7 +49,13 @@ export function validateMigrationLease({ claims, branch, files, now = new Date()
   } else if(versions.size!==1) throw new LeaseCheckError(`migration version must exactly match claim #${holder.number}`)
   if(!reservationExists(holder.lease.version)) throw new LeaseCheckError(`permanent reservation ref is missing for ${holder.lease.version}`)
   const undeclared=[...actual].filter(x=>!declarationCoversActual(declared,x))
-  if(undeclared.length) throw new LeaseCheckError(`migration writes undeclared objects: ${undeclared.join(', ')}`)
+  if(undeclared.length){
+    // Name the read-vs-write mistake explicitly. "undeclared" would send an author
+    // hunting for a missing line when the line is there under the wrong heading.
+    const declaredAsRead=undeclared.filter(x=>declarationCoversActual(declaredReads,x))
+    if(declaredAsRead.length) throw new LeaseCheckError(`migration WRITES objects the claim only declares as reads: ${declaredAsRead.join(', ')}. Move them to writes: and re-acquire the lane; a read claim does not serialise against other writers.`)
+    throw new LeaseCheckError(`migration writes undeclared objects: ${undeclared.join(', ')}`)
+  }
   return { relevant:true, claim:holder.number, version:historical?versions.values().next().value:holder.lease.version, reservationVersion:holder.lease.version, historical:Boolean(historical), objects:[...actual].sort() }
 }
 

@@ -45,6 +45,9 @@ test('parseClaimBlock reads version and objects out of a fenced block', () => {
   )
   assert.deepEqual(parsed, {
     version: '20260806120000',
+    writes: ['function plm.foo', 'table core.licensor'],
+    reads: [],
+    legacyObjects: ['function plm.foo', 'table core.licensor'],
     objects: ['function plm.foo', 'table core.licensor'],
   })
 })
@@ -64,7 +67,7 @@ test('parseClaimBlock treats a missing/none version as null', () => {
 
 test('parseClaimBlock accepts a read-only claim with no objects', () => {
   const parsed = parseClaimBlock('```db-claim\nversion: none\nobjects:\n```')
-  assert.deepEqual(parsed, { version: null, objects: [] })
+  assert.deepEqual(parsed, { version: null, writes: [], reads: [], legacyObjects: [], objects: [] })
 })
 
 test('parseClaimBlock normalises case, spacing and duplicates', () => {
@@ -268,13 +271,16 @@ test('claimCommand emits a parseable db-claim block round-trip', () => {
   const body = bodyFromClaimCommand(claimCommand(proposed))
   assert.deepEqual(parseClaimBlock(body), {
     version: '20260806120000',
+    writes: ['function plm.foo'],
+    reads: [],
+    legacyObjects: ['function plm.foo'],
     objects: ['function plm.foo'],
   })
 })
 
 test('claimCommand round-trips a read-only claim as zero objects', () => {
   const body = bodyFromClaimCommand(claimCommand({ task: 'investigate', objects: [], version: null }))
-  assert.deepEqual(parseClaimBlock(body), { version: null, objects: [] })
+  assert.deepEqual(parseClaimBlock(body), { version: null, writes: [], reads: [], legacyObjects: [], objects: [] })
 })
 
 test('claimCommand body contains REAL newlines, not the characters backslash-n', () => {
@@ -798,4 +804,34 @@ test('#670 utcStamp produces a 14-digit version that versionRef accepts', () => 
   const stamp = utcStamp(new Date('2026-08-12T21:10:00.000Z'))
   assert.equal(stamp, '20260812211000')
   assert.equal(versionRef(stamp), 'refs/db-claims/20260812211000')
+})
+
+// --- READ/WRITE CLAIMS (Step 2, issue #1366) --------------------------------
+
+test('a writes:/reads: claim is parsed into separate lists', () => {
+  const parsed = parseClaimBlock('```db-claim\nversion: 20260823120000\nwrites:\n  - table core.a\nreads:\n  - table core.b\n```')
+  assert.deepEqual(parsed.writes, ['table core.a'])
+  assert.deepEqual(parsed.reads, ['table core.b'])
+  assert.deepEqual(parsed.legacyObjects, [], 'a modern claim declares no legacy objects')
+})
+
+// LEGACY_OBJECTS_MEANS_WRITES. Reading an old claim as anything weaker than a
+// write would let a new writer start against work already in flight.
+test('a legacy objects: claim is read as WRITES, never as reads', () => {
+  const parsed = parseClaimBlock('```db-claim\nversion: 20260806120000\nobjects:\n  - table core.a\n```')
+  assert.deepEqual(parsed.writes, ['table core.a'])
+  assert.deepEqual(parsed.reads, [])
+  assert.deepEqual(parsed.legacyObjects, ['table core.a'], 'the claim is flagged as legacy so Step 8A can find it')
+})
+
+test('an object declared as both a read and a write is reported as a write only', () => {
+  const parsed = parseClaimBlock('```db-claim\nwrites:\n  - table core.a\nreads:\n  - table core.a\n  - table core.b\n```')
+  assert.deepEqual(parsed.writes, ['table core.a'])
+  assert.deepEqual(parsed.reads, ['table core.b'], 'the duplicate is dropped from reads, not from writes')
+})
+
+test('reads and writes both normalise case, spacing and duplicates', () => {
+  const parsed = parseClaimBlock('```db-claim\nwrites:\n  - TABLE   core.A\n  - table core.a\nreads:\n  * VIEW api.B\n```')
+  assert.deepEqual(parsed.writes, ['table core.a'])
+  assert.deepEqual(parsed.reads, ['view api.b'])
 })

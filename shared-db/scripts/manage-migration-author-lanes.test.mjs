@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -73,8 +73,8 @@ const body = (objects, owner, expires = '2026-08-15T08:00:00.000Z') => claimBody
 const scope = (status, workType, route, priority, objects=[], depends='') => `\`\`\`db-work-scope\nstatus: ${status}\nwork_type: ${workType}\nroute: ${route}\npriority: ${priority}\ndepends_on: ${depends}\nobjects:\n${objects.map((x)=>`  - ${x}`).join('\n')}\n\`\`\``
 
 test('queue scope keeps status, work type, and route separate',()=>{
-  assert.deepEqual(parseQueueScope(scope('ready','structural','shared-db-orchestrator',9,['table core.a'],'#12, 13')), {status:'ready',workType:'structural',route:'shared-db-orchestrator',priority:9,dependencies:[12,13],returnTo:null,objects:['table core.a']})
-  assert.throws(()=>parseQueueScope(scope('ready','structural','shared-db-orchestrator',1)),/must list exact objects/)
+  assert.deepEqual(parseQueueScope(scope('ready','structural','shared-db-orchestrator',9,['table core.a'],'#12, 13')), {status:'ready',workType:'structural',route:'shared-db-orchestrator',priority:9,dependencies:[12,13],returnTo:null,writes:['table core.a'],reads:[],legacyObjects:['table core.a'],objects:['table core.a']})
+  assert.throws(()=>parseQueueScope(scope('ready','structural','shared-db-orchestrator',1)),/must list at least one write/)
   assert.throws(()=>parseQueueScope(scope('waiting','structural','shared-db-orchestrator',1,['table core.a'])),/status must be/)
   assert.throws(()=>parseQueueScope(scope('ready','source-data','shared-db-orchestrator',1)),/not valid/)
   assert.throws(()=>parseQueueScope(scope('ready','source-data','source-data-session',1,['table plm.nbcu_right'])),/must not claim/)
@@ -1657,4 +1657,128 @@ test('ref creation and deletion mark their expected answers as expected',()=>{
   createRefWithReadback('refs/x','sha',{run:(args,options)=>{seen.push(options?.expectedFailure);return ''}})
   deleteRefWithReadback('refs/x',{run:(args,options)=>{seen.push(options?.expectedFailure);return ''}})
   assert.deepEqual(seen,[EXPECTED_REF_PRESENCE,EXPECTED_REF_ABSENCE])
+})
+
+// --- THE CONFLICT MATRIX (Step 2, issue #1366) ------------------------------
+//
+//              B reads   B writes
+//   A reads      no        YES
+//   A writes     YES       YES
+
+test('read/read does not conflict, so unrelated readers run in parallel', () => {
+  const a = { writes: [], reads: ['table core.a'] }
+  const b = { writes: [], reads: ['table core.a'] }
+  assert.equal(conflicts(a, b), false)
+  assert.equal(conflicts(b, a), false)
+})
+
+test('write/write conflicts in both directions', () => {
+  const a = { writes: ['table core.a'], reads: [] }
+  const b = { writes: ['table core.a'], reads: [] }
+  assert.equal(conflicts(a, b), true)
+  assert.equal(conflicts(b, a), true)
+})
+
+// BOTH DIRECTIONS MATTER. A one-sided check would let a writer start against an
+// active reader whenever the reader happened to be evaluated first.
+test('write/read conflicts whichever way round the two tasks are compared', () => {
+  const writer = { writes: ['table core.a'], reads: [] }
+  const reader = { writes: [], reads: ['table core.a'] }
+  assert.equal(conflicts(writer, reader), true, 'a writer must not run against an active reader')
+  assert.equal(conflicts(reader, writer), true, 'a reader must not start against an active writer')
+})
+
+test('tasks touching different objects never conflict', () => {
+  assert.equal(conflicts({ writes: ['table core.a'], reads: ['table core.c'] }, { writes: ['table core.b'], reads: ['table core.d'] }), false)
+})
+
+test('missing or empty read/write sets are treated as empty rather than throwing', () => {
+  assert.equal(conflicts({}, {}), false)
+  assert.equal(conflicts(undefined, { writes: ['table core.a'], reads: [] }), false)
+  assert.equal(conflicts({ writes: ['table core.a'] }, { reads: ['table core.a'] }), true)
+})
+
+// --- READ/WRITE SCOPE PARSING ----------------------------------------------
+
+const scopeWith = (body) => ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: shared-db-orchestrator', 'priority: 5', 'depends_on:', body, '```'].join('\n')
+const repoScopeWith = (body) => ['```db-work-scope', 'status: ready', 'work_type: repo-maintenance', 'route: repo-maintenance', 'priority: 5', 'depends_on:', body, '```'].join('\n')
+
+test('a scope may declare writes and reads separately', () => {
+  const parsed = parseQueueScope(scopeWith('writes:\n  - table core.a\nreads:\n  - table core.b'))
+  assert.deepEqual(parsed.writes, ['table core.a'])
+  assert.deepEqual(parsed.reads, ['table core.b'])
+  assert.deepEqual(parsed.legacyObjects, [])
+})
+
+// LEGACY_OBJECTS_MEANS_WRITES. Reading an old claim as anything weaker than a
+// write would let a new writer start against work already in flight.
+test('a legacy objects: scope is read as WRITES and is flagged as legacy', () => {
+  const legacy = parseQueueScope(scopeWith('objects:\n  - table core.a'))
+  assert.deepEqual(legacy.writes, ['table core.a'])
+  assert.deepEqual(legacy.reads, [])
+  assert.deepEqual(legacy.legacyObjects, ['table core.a'], 'Step 8A finds retirable claims through this field')
+  assert.equal(conflicts(legacy, { writes: [], reads: ['table core.a'] }), true, 'a legacy claim must still block a reader')
+})
+
+test('mixing the legacy objects: list with writes: or reads: is refused', () => {
+  assert.throws(() => parseQueueScope(scopeWith('objects:\n  - table core.a\nwrites:\n  - table core.b')), /must not mix the legacy objects: list/)
+  assert.throws(() => parseQueueScope(scopeWith('objects:\n  - table core.a\nreads:\n  - table core.b')), /must not mix the legacy objects: list/)
+})
+
+test('declaring one object as both a read and a write is refused at authoring time', () => {
+  assert.throws(() => parseQueueScope(scopeWith('writes:\n  - table core.a\nreads:\n  - table core.a')), /both a read and a write/)
+})
+
+test('a repeated list header is an error, not a silent append', () => {
+  assert.throws(() => parseQueueScope(scopeWith('writes:\n  - table core.a\nwrites:\n  - table core.b')), /repeats the writes: list/)
+})
+
+test('structural work must declare at least one write; reads alone are not enough', () => {
+  assert.throws(() => parseQueueScope(scopeWith('reads:\n  - table core.a')), /must list at least one write/)
+})
+
+test('non-structural work may declare neither reads nor writes', () => {
+  assert.throws(() => parseQueueScope(repoScopeWith('writes:\n  - table core.a')), /must not claim database objects/)
+  assert.throws(() => parseQueueScope(repoScopeWith('reads:\n  - table core.a')), /must not claim database objects/)
+  assert.deepEqual(parseQueueScope(repoScopeWith('')).writes, [])
+})
+
+test('reads and writes are normalised and de-duplicated like objects always were', () => {
+  const parsed = parseQueueScope(scopeWith('writes:\n  - TABLE  core.A\nreads:\n  - VIEW   api.B'))
+  assert.deepEqual(parsed.writes, ['table core.a'])
+  assert.deepEqual(parsed.reads, ['view api.b'])
+})
+
+test('claimBody round-trips reads and writes, and omits an empty reads header', () => {
+  const expiresAt = new Date('2026-08-24T00:00:00Z')
+  const withReads = claimBody({ version: '20260823120000', writes: ['table core.a'], reads: ['table core.b'], owner: 'o', branch: 'b', worktree: 'w', expiresAt })
+  assert.match(withReads, /^writes:$/m)
+  assert.match(withReads, /^reads:$/m)
+  const lease = parseAuthorLease(withReads, new Date('2026-08-23T00:00:00Z'))
+  assert.deepEqual(lease.writes, ['table core.a'])
+  assert.deepEqual(lease.reads, ['table core.b'])
+
+  const writesOnly = claimBody({ version: '20260823120000', writes: ['table core.a'], owner: 'o', branch: 'b', worktree: 'w', expiresAt })
+  assert.doesNotMatch(writesOnly, /^reads:$/m, 'an empty reads header would make every legacy claim look edited')
+})
+
+test('claimBody still accepts the deprecated objects parameter as writes', () => {
+  const body = claimBody({ version: '20260823120000', objects: ['table core.a'], owner: 'o', branch: 'b', worktree: 'w', expiresAt: new Date('2026-08-24T00:00:00Z') })
+  assert.deepEqual(parseAuthorLease(body, new Date('2026-08-23T00:00:00Z')).writes, ['table core.a'])
+})
+
+// THE POINT OF THE WHOLE STEP: two readers of one table share the queue; a
+// writer against that table serialises them.
+test('the queue lets two readers of one table run in parallel but serialises a writer', () => {
+  const reader = (n) => ({
+    number: n,
+    title: 'reader ' + n,
+    body: scopeWith('writes:\n  - table core.own' + n + '\nreads:\n  - table core.shared'),
+  })
+  const readers = buildDynamicQueues([reader(1), reader(2)], [], NOW)
+  assert.equal(readers.dispatchable.length, 2, 'two readers of the same table must be dispatchable at once')
+
+  const writer = { number: 3, title: 'writer', body: scopeWith('writes:\n  - table core.shared') }
+  const mixed = buildDynamicQueues([reader(1), writer], [], NOW)
+  assert.equal(mixed.dispatchable.length, 1, 'a writer and a reader of the same table must serialise')
 })

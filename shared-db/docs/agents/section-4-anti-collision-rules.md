@@ -48,6 +48,55 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    ````
    ```
 
+   **READS AND WRITES ARE DECLARED SEPARATELY (Step 2, issue #1366).** Use
+   `writes:` for every object the work CHANGES and `reads:` for every object it
+   DEPENDS ON without changing. The queue serialises on this matrix:
+
+   |            | B reads | B writes |
+   |---|---|---|
+   | **A reads**  | parallel | serialised |
+   | **A writes** | serialised | serialised |
+
+   Two sessions may read the same table at once. Anything involving a write
+   serialises, in both directions.
+
+   ````text
+   ```db-work-scope
+   status: ready
+   work_type: structural
+   route: shared-db-orchestrator
+   priority: 40
+   depends_on:
+   writes:
+     - table plm.wb_asset
+   reads:
+     - table core.licensor
+   ````
+   ```
+
+   Structural work must declare at least one write; reads alone are not enough.
+   Declaring the same object as both is refused — a write already implies
+   exclusive access. Mixing the legacy `objects:` list with `writes:`/`reads:` is
+   refused too.
+
+   **`objects:` is the deprecated spelling of `writes:`** and still works during
+   the compatibility window. It is read as a WRITE, never as a read: an old claim
+   that only said "objects" always meant "I am changing these", and treating it as
+   a read would let a new writer start against work already in flight. Step 8A
+   removes the alias once no open claim uses it.
+
+   **YOU MUST DECLARE INDIRECT AND SEMANTIC READS YOURSELF.** Static SQL analysis
+   finds objects your migration names. It cannot see a view that depends on the
+   column you are dropping, a function that queries the table you are rewriting,
+   or an application that reads a value your data change alters. The parser does
+   not know what it has missed, and it will never tell you the list is complete.
+   If your work depends on an object, declare it — an over-declared read costs a
+   little parallelism; a missed one costs correctness.
+
+   A migration's statically extracted objects are compared against `writes:`
+   only. If it changes something you declared under `reads:`, the guard says so by
+   name and refuses.
+
    Status, work type, and route are independent. Allowed statuses are `ready`,
    `blocked`, and `owner-decision`. Allowed work types are `structural`,
    `curated-master-data`, `application-data`, `source-data`, `repo-maintenance`,

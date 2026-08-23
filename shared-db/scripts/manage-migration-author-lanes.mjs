@@ -225,14 +225,25 @@ export function parseQueueScope(body = '') {
   if (!fences.length) return null
   if (fences.length !== 1) throw new LaneError('exactly one db-work-scope block is required')
   const fence=fences[0]
-  const lines = fence[1].split(/\r?\n/), fields = new Map(), objects = []
-  let inObjects = false
+  const lines = fence[1].split(/\r?\n/), fields = new Map()
+  // THREE list keys, one parser. `objects:` is the legacy spelling and means
+  // `writes:` - see LEGACY_OBJECTS_MEANS_WRITES below. seenListHeaders makes a
+  // repeated list header an error rather than a silent append.
+  const lists = { objects: [], writes: [], reads: [] }
+  const seenListHeaders = new Set()
+  let currentList = null
   for (const raw of lines) {
     const line = raw.trim()
     if (!line) continue
-    if (line === 'objects:') { inObjects = true; continue }
-    if (inObjects && line.startsWith('- ')) { objects.push(line.slice(2).trim()); continue }
-    inObjects = false
+    const listHeader = /^(objects|writes|reads):$/.exec(line)
+    if (listHeader) {
+      if (seenListHeaders.has(listHeader[1])) throw new LaneError(`db-work-scope repeats the ${listHeader[1]}: list`)
+      seenListHeaders.add(listHeader[1])
+      currentList = listHeader[1]
+      continue
+    }
+    if (currentList && line.startsWith('- ')) { lists[currentList].push(line.slice(2).trim()); continue }
+    currentList = null
     const match = /^([a-z_]+):\s*(.*)$/.exec(line)
     if (!match || fields.has(match[1])) throw new LaneError('unreadable db-work-scope block')
     fields.set(match[1], match[2].trim())
@@ -249,8 +260,20 @@ export function parseQueueScope(body = '') {
   if (!Number.isInteger(priority) || priority < 0) throw new LaneError('db-work-scope priority must be a non-negative integer')
   const dependencies = (fields.get('depends_on') ?? '').split(',').map((v)=>v.trim()).filter(Boolean).map((v)=>Number(String(v).replace(/^#/,'')))
   if (dependencies.some((v)=>!Number.isInteger(v) || v <= 0)) throw new LaneError('db-work-scope depends_on must contain issue numbers')
-  if (workType === 'structural' && !objects.length) throw new LaneError('structural db-work-scope must list exact objects')
-  if (workType !== 'structural' && objects.length) throw new LaneError(`${workType} db-work-scope must not claim database objects`)
+  // LEGACY_OBJECTS_MEANS_WRITES. A flat `objects:` list never distinguished a
+  // reader from a writer, so the only safe reading of an existing claim is the
+  // conservative one: every declared object is a WRITE. Reading a legacy claim as
+  // a read would let a new writer run against work already in flight.
+  if (lists.objects.length && (lists.writes.length || lists.reads.length)) {
+    throw new LaneError('db-work-scope must not mix the legacy objects: list with writes:/reads:; objects: means writes:')
+  }
+  const legacyObjects = lists.objects.length ? validateClaimObjects(lists.objects) : []
+  const writes = lists.objects.length ? legacyObjects : (lists.writes.length ? validateClaimObjects(lists.writes) : [])
+  const reads = lists.reads.length ? validateClaimObjects(lists.reads) : []
+  const declaredBothWays = writes.filter((object)=>reads.includes(object))
+  if (declaredBothWays.length) throw new LaneError(`db-work-scope declares ${declaredBothWays.join(', ')} as both a read and a write; a write already implies exclusive access`)
+  if (workType === 'structural' && !writes.length) throw new LaneError('structural db-work-scope must list at least one write (use writes:, or the legacy objects:)')
+  if (workType !== 'structural' && (writes.length || reads.length)) throw new LaneError(`${workType} db-work-scope must not claim database objects`)
   if (route === 'owner-only' && status !== 'owner-decision') throw new LaneError('owner-only route requires status owner-decision')
   // Present-but-malformed is a hard error; absent is reported by the audit as a
   // missing return address rather than thrown, so one unaddressed issue cannot
@@ -258,13 +281,36 @@ export function parseQueueScope(body = '') {
   const returnTo = fields.get('return_to') ?? null
   if (returnTo !== null && !RETURN_ADDRESS_PATTERN.test(returnTo)) throw new LaneError('db-work-scope return_to must be an owner/repo slug')
   if (returnTo !== null && workType === 'structural') throw new LaneError('structural db-work-scope must not carry a return_to address')
-  return { status, workType, route, priority, dependencies, returnTo, objects: objects.length ? validateClaimObjects(objects) : [] }
+  // `objects` stays as an alias for `writes` so every existing caller keeps working
+  // during the compatibility window. Step 8A removes it once the queue audit finds
+  // zero open legacy claims.
+  return { status, workType, route, priority, dependencies, returnTo, writes, reads, legacyObjects, objects: writes }
 }
 
 export const COORDINATION_LABELS = new Set(['db-claim','orchestrator-marker'])
 export const WORK_LABEL = 'db-work'
 
-function overlaps(a, b) { const right = new Set(b); return a.some((x)=>right.has(x)) }
+// THE CONFLICT MATRIX (Step 2, issue #1366).
+//
+//              B reads   B writes
+//   A reads      no        YES
+//   A writes     YES       YES
+//
+// Read/read running in parallel is the entire point: two sessions may inspect the
+// same table at once. Anything involving a write serialises, in BOTH directions,
+// because a writer changing an object underneath a reader is exactly the silent
+// corruption these lanes exist to prevent.
+export function conflicts(a, b) {
+  const aWrites = new Set(a?.writes ?? []), bWrites = new Set(b?.writes ?? [])
+  for (const object of aWrites) if (bWrites.has(object)) return true
+  for (const object of (b?.reads ?? [])) if (aWrites.has(object)) return true
+  for (const object of (a?.reads ?? [])) if (bWrites.has(object)) return true
+  return false
+}
+
+// Two flat lists, compared as writes. Conservative on purpose: a caller that has
+// lost the read/write distinction must not be handed a weaker answer.
+function overlaps(a, b) { return conflicts({ writes: a, reads: [] }, { writes: b, reads: [] }) }
 
 export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number)) {
   const openNumbers = new Set(allOpenIssueNumbers.map(Number))
@@ -301,12 +347,15 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
     candidates.push({ issue:issue.number, title:issue.title, ...scope })
   }
-  const active = claims.map((claim)=>({ claim:claim.number, issue:null, priority:Number.MAX_SAFE_INTEGER, objects:parseAuthorLease(claim.body,now).objects }))
+  const active = claims.map((claim)=>{
+    const lease = parseAuthorLease(claim.body,now)
+    return { claim:claim.number, issue:null, priority:Number.MAX_SAFE_INTEGER, writes:lease.writes, reads:lease.reads ?? [], objects:lease.writes }
+  })
   const components = [...active, ...candidates].map((item)=>[item])
   for (let i=0;i<components.length;i++) for (let j=i+1;j<components.length;) {
-    if (components[i].some((a)=>components[j].some((b)=>overlaps(a.objects,b.objects)))) components[i].push(...components.splice(j,1)[0]); else j++
+    if (components[i].some((a)=>components[j].some((b)=>conflicts(a,b)))) components[i].push(...components.splice(j,1)[0]); else j++
   }
-  const queues = Array.from({length:MAX_AUTHOR_LANES},(_,index)=>({ lane:index+1, active:null, queued:[], objects:[] }))
+  const queues = Array.from({length:MAX_AUTHOR_LANES},(_,index)=>({ lane:index+1, active:null, queued:[], objects:[], reads:[] }))
   const ordered = components.sort((a,b)=>Number(Boolean(b.some(x=>x.claim)))-Number(Boolean(a.some(x=>x.claim))) || Math.max(...b.map(x=>x.priority))-Math.max(...a.map(x=>x.priority)))
   for (const component of ordered) {
     const activeItem = component.find((x)=>x.claim)
@@ -314,7 +363,8 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     let lane = activeItem ? free[0] : [...(free.length?free:queues)].sort((a,b)=>a.queued.length-b.queued.length)[0]
     if (activeItem) lane.active = activeItem.claim
     lane.queued.push(...component.filter((x)=>x.issue).sort((a,b)=>b.priority-a.priority || a.issue-b.issue).map((x)=>x.issue))
-    lane.objects.push(...new Set(component.flatMap((x)=>x.objects)))
+    lane.objects.push(...new Set(component.flatMap((x)=>x.writes ?? x.objects ?? [])))
+    lane.reads.push(...new Set(component.flatMap((x)=>x.reads ?? [])))
   }
   const emptyLanes = queues.filter((q)=>!q.active).length
   const dispatchable = queues.filter((q)=>!q.active && q.queued.length).map((q)=>q.queued[0])
@@ -395,7 +445,7 @@ export function parseAuthorLease(body, now = new Date()) {
   const fence = /```db-author-lease\s*\n([\s\S]*?)```/.exec(body)
   if (!fence) return { ...claim, legacy: true, active: true, owner: null, branch: null, worktree: null, expiresAt: null }
   if (!/^\d{14}$/.test(String(claim.version ?? ''))) throw new LaneError('db-claim version must be exactly 14 digits')
-  if (!claim.objects.length) throw new LaneError('db-claim must list at least one exact object')
+  if (!claim.writes.length) throw new LaneError('db-claim must list at least one exact object to write')
   const fields = new Map()
   for (const raw of fence[1].split(/\r?\n/)) {
     const line = raw.trim()
@@ -429,8 +479,21 @@ export function assertLaneAvailable(claims, proposedObjects, now = new Date(), {
   return { active: occupied, stale: parsed.filter((claim) => !claim.lease.legacy && !claim.lease.active) }
 }
 
-export function claimBody({ version, objects, owner, branch, worktree, expiresAt }) {
-  return ['```db-claim', `version: ${version}`, 'objects:', ...objects.map((o) => `  - ${normalizeObject(o)}`), '```', '', '```db-author-lease', `owner: ${owner}`, `branch: ${branch}`, `worktree: ${worktree}`, `expires_at: ${expiresAt.toISOString()}`, '```', '', 'This claim remains authoritative and occupies a lane until explicitly released.', 'Expiry is an audit warning, not an automatic release. The migration version is permanent and is never reused.'].join('\n')
+export function claimBody({ version, objects, writes, reads = [], owner, branch, worktree, expiresAt }) {
+  // `objects` is the deprecated parameter name for `writes`. Accepting both keeps
+  // every existing caller working through the compatibility window; Step 8A drops
+  // the alias once no open claim uses it.
+  const written = (writes ?? objects ?? []).map((o) => normalizeObject(o))
+  const read = (reads ?? []).map((o) => normalizeObject(o)).filter((o) => !written.includes(o))
+  const lines = ['```db-claim', `version: ${version}`, 'writes:', ...written.map((o) => `  - ${o}`)]
+  // Emit `reads:` only when there is one. An always-present empty header would
+  // make every legacy claim look edited in a diff.
+  if (read.length) lines.push('reads:', ...read.map((o) => `  - ${o}`))
+  lines.push('```', '', '```db-author-lease', `owner: ${owner}`, `branch: ${branch}`, `worktree: ${worktree}`, `expires_at: ${expiresAt.toISOString()}`, '```', '',
+    'This claim remains authoritative and occupies a lane until explicitly released.',
+    'Expiry is an audit warning, not an automatic release. The migration version is permanent and is never reused.',
+    'WRITES are exclusive. READS may run in parallel with other reads, and block only against a writer.')
+  return lines.join('\n')
 }
 
 export function isTransientGitHubTransport(error) {
