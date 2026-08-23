@@ -54,7 +54,8 @@
 //     * there is no `--quiet`, no `|| true` path, and no exit code that means
 //       "I could not check".
 //
-//   Exit 0 = checked, no drift. Exit 1 = drift found. Exit 2 = COULD NOT CHECK.
+//   Exit 0 = checked, no actionable drift (retired/held items may still be listed).
+//   Exit 1 = actionable drift found. Exit 2 = COULD NOT CHECK.
 //
 // READ-ONLY. It runs exactly one statement, a constant `select version from
 // supabase_migrations.schema_migrations`. It never writes, and it must never be
@@ -90,6 +91,7 @@ export const PROJECT_REFS = {
 export class Unknown extends Error {}
 
 export const PENDING_KINDS = new Set(['genuinely-pending', 'guarded-batch', 'deliberately-held', 'retired'])
+export const INTENTIONALLY_EXCLUDED_KINDS = new Set(['deliberately-held', 'retired'])
 
 /**
  * Read the production lane's existing rules instead of maintaining a second list here.
@@ -260,6 +262,29 @@ export function computeDrift(mainVersions, appliedVersions) {
   }
 }
 
+/**
+ * Decide which visible differences are actionable drift. Retired and deliberately-held
+ * migrations remain in the report, but their absence from the ledger is the intended
+ * end state. Orphan ledger rows and every other merged-but-unapplied classification
+ * remain failures.
+ */
+export function assessDrift(drift, pendingClassifications) {
+  const intentionallyExcluded = []
+  const actionableMergedNotApplied = []
+  for (const version of drift.mergedNotApplied) {
+    const classification = pendingClassifications[version]
+    if (!classification) throw new Unknown(`pending migration ${version} has no classification`)
+    if (INTENTIONALLY_EXCLUDED_KINDS.has(classification.kind)) intentionallyExcluded.push(version)
+    else actionableMergedNotApplied.push(version)
+  }
+  return {
+    ...drift,
+    intentionallyExcluded,
+    actionableMergedNotApplied,
+    driftFound: actionableMergedNotApplied.length > 0 || drift.appliedNotMerged.length > 0,
+  }
+}
+
 export function formatReport({ target, projectRef, baseRef, drift, fileByVersion = {}, pendingClassifications = {} }) {
   const lines = []
   lines.push(`Migration ledger drift — ${target} (${projectRef})`)
@@ -267,13 +292,15 @@ export function formatReport({ target, projectRef, baseRef, drift, fileByVersion
   lines.push(`  applied in supabase_migrations.schema_migrations: ${drift.appliedCount} version(s)`)
   lines.push('')
 
-  if (!drift.driftFound) {
+  if (!drift.driftFound && drift.mergedNotApplied.length === 0) {
     lines.push('NO DRIFT. Every version merged to the base branch has a ledger row, and every')
     lines.push('ledger row has a file on the base branch.')
     return lines.join('\n')
   }
 
-  lines.push('DRIFT FOUND.')
+  lines.push(drift.driftFound
+    ? 'DRIFT FOUND.'
+    : 'NO ACTIONABLE DRIFT. Outstanding versions are intentionally excluded from application.')
 
   if (drift.mergedNotApplied.length > 0) {
     lines.push('')
@@ -292,6 +319,9 @@ export function formatReport({ target, projectRef, baseRef, drift, fileByVersion
     lines.push('Do not turn this list into a broad apply. RETIRED means never apply; HELD and')
     lines.push('GUARDED entries must satisfy their stated rule; only then may genuinely pending')
     lines.push('work enter the bounded Shared Supabase Migrations workflow.')
+    if (drift.intentionallyExcluded?.length > 0) {
+      lines.push(`${drift.intentionallyExcluded.length} RETIRED/DELIBERATELY-HELD version(s) above are listed for visibility but do not make this check fail.`)
+    }
   }
 
   if (drift.appliedNotMerged.length > 0) {
@@ -441,10 +471,11 @@ export async function runDriftCheck({ target, baseRef = 'origin/main', io = defa
   for (const file of files) fileByVersion[file.split('/').pop().slice(0, 14)] = file
 
   const appliedVersions = await io.fetchAppliedVersions(projectRef)
-  const drift = computeDrift(mainVersions, appliedVersions)
+  const rawDrift = computeDrift(mainVersions, appliedVersions)
   const classify = io.guardClassifications ?? guardClassifications
-  const pendingClassifications = await classify(drift.mergedNotApplied, appliedVersions)
-  validatePendingClassifications(drift.mergedNotApplied, pendingClassifications)
+  const pendingClassifications = await classify(rawDrift.mergedNotApplied, appliedVersions)
+  validatePendingClassifications(rawDrift.mergedNotApplied, pendingClassifications)
+  const drift = assessDrift(rawDrift, pendingClassifications)
 
   return { projectRef, baseRef, target, drift, fileByVersion, pendingClassifications }
 }
@@ -480,8 +511,8 @@ Options:
 
 Needs SUPABASE_ACCESS_TOKEN (read is enough). Runs ONE constant SELECT.
 
-Exit 0 = checked, no drift.
-Exit 1 = DRIFT. Either merged work is not applied, or the ledger has an orphan row.
+Exit 0 = checked, no actionable drift. Retired/held versions may still be listed.
+Exit 1 = DRIFT. A pending/guarded migration or orphan ledger row exists.
 Exit 2 = COULD NOT CHECK. Never read this as "no drift" — nothing was compared.
 
 Remember what a clean live catalog does and does not prove: it proves what is

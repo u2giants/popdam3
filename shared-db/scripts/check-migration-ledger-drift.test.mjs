@@ -12,6 +12,7 @@ import assert from 'node:assert/strict'
 
 import {
   Unknown,
+  assessDrift,
   computeDrift,
   formatReport,
   main,
@@ -95,6 +96,50 @@ test('the clean path through runDriftCheck returns driftFound false', async () =
   const result = await runDriftCheck({ target: 'production', io: io({ files: files(MERGED), applied: MERGED }) })
   assert.equal(result.drift.driftFound, false)
   assert.equal(result.projectRef, 'qsllyeztdwjgirsysgai')
+})
+
+test('green when only retired and deliberately-held versions remain, while listing them', async () => {
+  const applied = ['20260810180000']
+  const pending = ['20260729120000', '20260817150944']
+  const testIo = io({ files: files([...applied, ...pending]), applied })
+  testIo.guardClassifications = async () => ({
+    '20260729120000': { kind: 'retired', reason: 'never apply this retired version' },
+    '20260817150944': { kind: 'deliberately-held', reason: 'production allowlist excludes this version' },
+  })
+  const result = await runDriftCheck({ target: 'production', io: testIo })
+  assert.equal(result.drift.driftFound, false)
+  assert.deepEqual(result.drift.intentionallyExcluded, pending)
+  const report = formatReport(result)
+  assert.match(report, /NO ACTIONABLE DRIFT/)
+  assert.match(report, /20260729120000\s+\[RETIRED\]/)
+  assert.match(report, /20260817150944\s+\[DELIBERATELY-HELD\]/)
+  assert.match(report, /listed for visibility but do not make this check fail/)
+})
+
+test('red when a genuinely-pending version is added to retired and held versions', () => {
+  const raw = computeDrift(
+    ['20260810180000', '20260729120000', '20260817150944', '20260823000000'],
+    ['20260810180000'],
+  )
+  const drift = assessDrift(raw, {
+    '20260729120000': { kind: 'retired', reason: 'retired' },
+    '20260817150944': { kind: 'deliberately-held', reason: 'held' },
+    '20260823000000': { kind: 'genuinely-pending', reason: 'normal promotion required' },
+  })
+  assert.equal(drift.driftFound, true)
+  assert.deepEqual(drift.actionableMergedNotApplied, ['20260823000000'])
+})
+
+test('an orphan ledger row stays red when all merged-but-unapplied versions are excluded', () => {
+  const raw = computeDrift(
+    ['20260810180000', '20260729120000'],
+    ['20260810180000', '20260701000000'],
+  )
+  const drift = assessDrift(raw, {
+    '20260729120000': { kind: 'retired', reason: 'retired' },
+  })
+  assert.equal(drift.driftFound, true)
+  assert.deepEqual(drift.appliedNotMerged, ['20260701000000'])
 })
 
 test('classifies retired and deliberately-held versions from the existing Python rule sources', () => {
