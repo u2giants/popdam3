@@ -1,0 +1,33 @@
+{
+  "$comment": "DOCUMENTATION OF THE FIELD CONTRACT. This file is NOT executed. Validation lives in scripts/agent-work-contract.mjs as hand-rolled checks, following the precedent in scripts/check-handoff-contract.mjs: this repository has no root package.json, and a partial JSON-Schema implementation that claims to be a standard is worse than an honest bespoke validator. Keep the two in step.",
+  "title": "Agent work contract",
+  "schema_version": 1,
+  "required": [
+    "schema_version", "work_issue", "work_type", "route", "goal", "base_sha",
+    "dispatcher", "worker", "branch", "worktree", "allowed_paths", "file_writes",
+    "db_reads", "db_writes", "prohibited_actions", "required_checks", "assumptions",
+    "stop_conditions"
+  ],
+  "optional": ["generation"],
+  "fields": {
+    "work_issue": "positive integer - the issue this work belongs to",
+    "work_type": "structural | curated-master-data | application-data | source-data | repo-maintenance | documentation | security-settings",
+    "route": "the route recorded on the work issue",
+    "goal": "one sentence: what done looks like",
+    "base_sha": "the exact commit the worker starts from",
+    "dispatcher": "who issued this contract. NOTE: unverifiable under one shared GitHub identity - recorded, not proven",
+    "worker": "which agent executes it (codex, claude, ...). Provider-neutral by design",
+    "branch": "the branch the worker may push",
+    "worktree": "the isolated worktree it works in",
+    "allowed_paths": "repository-relative glob patterns. Must not be empty, must not escape the repository, must not cover its root",
+    "file_writes": "the exact files expected to change",
+    "db_reads": "declared database reads. Must be empty for non-structural work",
+    "db_writes": "declared database writes. Must be non-empty for structural work, empty otherwise",
+    "prohibited_actions": "things this worker must not do, in words",
+    "required_checks": "exact commands that prove the work. Must not be empty",
+    "assumptions": "what the dispatcher believed when writing this",
+    "stop_conditions": "when the worker must STOP rather than improvise. Must not be empty",
+    "generation": "positive integer, default 1. A new generation is a new immutable ref"
+  },
+  "authority": "The contract is pinned to refs/db-contracts/<work_issue>/<generation> with create-if-absent. The issue comment is a human-readable copy only. See the header of scripts/agent-work-contract.mjs for what this does and does not prove."
+}

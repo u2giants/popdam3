@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "mode": "report-only",
+  "activated_at": null,
+  "grandfathered_prs": [],
+  "why": "Step 4 ships in report-only mode. The workflow still FAILS on a malformed contract or report that is present - report-only means 'a missing contract does not block', never 'errors are ignored'. Step 8A sets mode to 'enforced' with an activated_at date, once an audit shows every open PR is compatible or is listed by exact number in grandfathered_prs."
+}

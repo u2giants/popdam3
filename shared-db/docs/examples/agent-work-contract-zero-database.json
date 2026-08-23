@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 1366,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Correct the two code comments that still claim sibling-collision safety depends on required_status_checks.strict",
+  "base_sha": "039531f",
+  "dispatcher": "repo-maintenance session for issue #1366",
+  "worker": "claude",
+  "branch": "claude/issue-1366-comment-fix",
+  "worktree": ".claude/worktrees/issue-1366-comment-fix",
+  "allowed_paths": [
+    ".github/workflows/pr-object-collision.yml",
+    "scripts/check-pr-object-collisions.mjs"
+  ],
+  "file_writes": [
+    ".github/workflows/pr-object-collision.yml",
+    "scripts/check-pr-object-collisions.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change required_status_checks.strict; it is false by owner ruling in issue #1286",
+    "do not touch any migration or database object",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/*.test.mjs",
+    "node scripts/check-cancelled-work.mjs"
+  ],
+  "assumptions": [
+    "issue #1286 remains the governing ruling on strict mode",
+    "guarded-migration-merge.yml is still the current-main proof for migration pull requests"
+  ],
+  "stop_conditions": [
+    "stop if correcting the comments would require changing behaviour rather than text",
+    "stop if a test fails for a reason unrelated to these two files",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ]
+}

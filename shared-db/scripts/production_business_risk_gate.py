@@ -543,6 +543,33 @@ PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
         "HEAD == origin/main before executing; prove_activation additionally "
         "re-reads it against main. Pinning it here would assert nothing new."
     ),
+    "config/agent-work-contract.schema.json": (
+        "Never read by the preview job, and in fact read by no job at all - not "
+        "the preview lane, not production, not this gate. Validation for agent "
+        "work contracts is hand-rolled in scripts/agent-work-contract.mjs, "
+        "which imports nothing from this file; the file exists so a human can "
+        "read the field list beside the code that enforces it. Pinning it to "
+        "exact main would assert that a comment block matches itself, which "
+        "proves nothing about any database outcome. Added by issue #1366 Step 4."
+    ),
+    "config/agent-completion-report.schema.json": (
+        "Never read by the preview job; documentation only, exactly as for "
+        "agent-work-contract.schema.json above. The completion report is validated by "
+        "hand-rolled code in scripts/agent-work-contract.mjs on top of the "
+        "record rules in scripts/lib/work-dependencies.mjs. It records that the "
+        "report is Step 3's db-work-completion record with contract fields "
+        "added rather than a second schema. Added by issue #1366 Step 4."
+    ),
+    "config/agent-work-contract-activation.json": (
+        "Never read by the preview job. It is read only by the Agent work "
+        "contract pull-request workflow, which "
+        "decides whether a missing contract blocks a pull request. It never "
+        "reaches the preview job, a migration, or any database: the worst a "
+        "wrong value can do is fail or pass a pull-request check, which a human "
+        "sees immediately. Note that report-only mode still FAILS on a "
+        "malformed contract, so this flag cannot silence a real defect. "
+        "Added by issue #1366 Step 4."
+    ),
 }
 
 

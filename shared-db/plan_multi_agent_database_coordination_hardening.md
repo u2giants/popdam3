@@ -21,8 +21,8 @@
 | 1 | Lock the orchestrator boundary and finish the two existing required-check gaps | ✅ **done** | `039531f` (PR #1383) + the required-checks apply. Live protection: 11 contexts, `strict: false`, all prior contexts and fields intact. Evidence: [`docs/verification/orchestrator-boundary-and-required-checks-2026-08-23.md`](docs/verification/orchestrator-boundary-and-required-checks-2026-08-23.md). |
 | 2 | Replace flat database-object claims with compatible read/write claims | ✅ **done** | Conflict matrix live in `conflicts()`; `writes:`/`reads:` parsed by `parseQueueScope` and `parseClaimBlock`; legacy `objects:` reads as writes. 551 tests pass. |
 | 3 | Make issue dependencies prove successful completion | ✅ **done** | `scripts/lib/work-dependencies.mjs` + `--complete-work`; typed outcomes, cycle detection, existence checks, re-derived merge evidence, dated grandfather cutoff. 596 tests pass. |
-| 4 | Add a provider-neutral agent work contract and completion report | ⬜ open | Not started |
-| 5 | Add durable coordination events and repeatable failure scenarios | ⬜ open | Not started |
+| 4 | Add a provider-neutral agent work contract and completion report | ✅ **done** | `scripts/agent-work-contract.mjs`; contract pinned to `refs/db-contracts/<issue>/<gen>` create-if-absent; one merged completion schema; report-only workflow. Shared-identity limitation stated, not overclaimed. |
+| 5 | Add durable coordination events and repeatable failure scenarios | ✅ **done** | `scripts/db-coordination-events.mjs` + 30-row `scripts/coordination-scenarios.test.mjs`. No stage heartbeat events; `claim_renewed` retained. 677 tests pass. |
 | 6 | Add run-liveness recovery, generation fencing and an apply-time advisory lock to exclusive stages | ⬜ open | Not started |
 | 7 | Pilot isolated Supabase branches for early pull-request checks | ⬜ open | **deferred** — split to a follow-up issue; not required for this plan's completion |
 | 8 | Activate core guards and retire compatibility paths (8A); pilot expansion (8B) deferred with Step 7 | ⬜ open | Not started |

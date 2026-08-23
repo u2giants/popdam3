@@ -1325,6 +1325,14 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         "supabase/tests",
         "supabase/ci-bootstrap",
         "config/production-risk-policy-activation.json",
+        # Issue #1366 Step 4. All three are static text: two document a field
+        # contract that hand-rolled code in scripts/agent-work-contract.mjs
+        # actually enforces, and the third is a pull-request-workflow flag whose
+        # worst outcome is failing or passing a check a human sees. Each reason
+        # opens with the exact phrase this registry verifies.
+        "config/agent-work-contract.schema.json",
+        "config/agent-completion-report.schema.json",
+        "config/agent-work-contract-activation.json",
     })
     NAMED_TEST_VERIFIED_EXEMPTIONS = {
         "docs": "test_the_docs_exemption_is_verified_against_every_producer_that_names_it",

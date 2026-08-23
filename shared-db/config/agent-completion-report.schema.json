@@ -1,0 +1,27 @@
+{
+  "$comment": "DOCUMENTATION ONLY - see the note in agent-work-contract.schema.json. This is Step 3's db-work-completion record with contract fields added. There is deliberately NOT a second completion schema: Steps 3 and 4 originally defined two that disagreed about whether `pr` was required, which an owner-ruling outcome cannot satisfy.",
+  "title": "Agent completion report",
+  "schema_version": 1,
+  "extends": "db-work-completion (scripts/lib/work-dependencies.mjs)",
+  "inherited_required": ["schema_version", "work_issue", "outcome"],
+  "inherited_conditional": {
+    "outcome=merged": ["pr", "merge_sha", "migration_versions"],
+    "outcome=owner-ruling-recorded": ["ruling_url", "resolved_by"],
+    "outcome=returned|cancelled|superseded|failed": ["reason"]
+  },
+  "added_required": [
+    "contract_ref", "contract_sha256", "head_sha", "files_changed", "db_reads",
+    "db_writes", "checks", "assumptions_resolved", "stop_conditions_hit"
+  ],
+  "fields": {
+    "contract_ref": "the refs/db-contracts/... ref this work was authorised by",
+    "contract_sha256": "sha256 of the canonicalized contract. Must match the published ref, or the contract was changed after the fact",
+    "head_sha": "the commit the work ended at",
+    "files_changed": "must be a subset of the contract's allowed_paths + file_writes",
+    "db_reads": "must not exceed the contract's db_reads + db_writes",
+    "db_writes": "must not exceed the contract's db_writes",
+    "checks": "array of { command, exit_code, evidence }. Evidence is required: a claim of success is not evidence",
+    "assumptions_resolved": "which of the contract's assumptions turned out to hold",
+    "stop_conditions_hit": "which stop conditions fired. A report that hit one CANNOT also claim outcome=merged"
+  }
+}
