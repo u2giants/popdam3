@@ -1749,6 +1749,22 @@ test('reads and writes are normalised and de-duplicated like objects always were
   assert.deepEqual(parsed.reads, ['view api.b'])
 })
 
+test('quoted exact identifiers are accepted and canonicalized without losing case or spaces', () => {
+  const parsed = parseQueueScope(scopeWith('writes:\n  - TABLE "MixedSchema"."MixedTable"\n  - SEQUENCE dflow."itemHeader_item_num_id_pk _seq"'))
+  assert.deepEqual(parsed.writes, [
+    'table "MixedSchema"."MixedTable"',
+    'sequence dflow."itemHeader_item_num_id_pk _seq"',
+  ])
+  assert.deepEqual(validateClaimObjects(['column "MixedSchema"."MixedTable"."Mixed Column"']), [
+    'column "MixedSchema"."MixedTable"."Mixed Column"',
+    'table "MixedSchema"."MixedTable"',
+  ])
+  assert.throws(() => validateClaimObjects(['table core..too_broad']), /schema-qualified exact name/)
+  assert.throws(() => validateClaimObjects(['table core.valid trailing']), /schema-qualified exact name/)
+  assert.deepEqual(validateClaimObjects(['table "core"."foo"']), ['table core.foo'])
+  assert.deepEqual(validateClaimObjects(['table core."a""b"']), ['table core."a""b"'])
+})
+
 test('claimBody round-trips reads and writes, and omits an empty reads header', () => {
   const expiresAt = new Date('2026-08-24T00:00:00Z')
   const withReads = claimBody({ version: '20260823120000', writes: ['table core.a'], reads: ['table core.b'], owner: 'o', branch: 'b', worktree: 'w', expiresAt })

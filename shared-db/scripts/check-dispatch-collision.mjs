@@ -80,6 +80,7 @@ import { fileURLToPath } from 'node:url'
 // `comment on` and `create type` — a migration doing nothing but an
 // `alter table` reported as touching NO OBJECTS, which read as a clear.
 import {
+  canonicalIdentifier,
   describeDispatchCoverage,
   dispatchObjectKeys,
 } from './check-pr-object-collisions.mjs'
@@ -168,7 +169,26 @@ export function parseClaimBlock(body) {
  * regardless of spacing or case.
  */
 export function normalizeObject(text) {
-  return String(text).trim().replace(/\s+/g, ' ').toLowerCase()
+  const compact = String(text).trim().replace(/\s+/g, ' ')
+  const match = /^(materialized view|storage bucket|[a-z]+)\s+(.+)$/i.exec(compact)
+  if (!match) return compact.toLowerCase()
+  const kind = match[1].toLowerCase()
+  const target = match[2]
+  let quoted = false
+  let onIndex = -1
+  for (let index = 0; index < target.length - 3; index += 1) {
+    if (target[index] === '"') {
+      if (quoted && target[index + 1] === '"') index += 1
+      else quoted = !quoted
+    } else if (!quoted && /^\s+on\s+/i.test(target.slice(index))) {
+      onIndex = index
+      break
+    }
+  }
+  const on = onIndex >= 0 ? [null, target.slice(0, onIndex), target.slice(onIndex).replace(/^\s+on\s+/i, '')] : null
+  return on
+    ? `${kind} ${canonicalIdentifier(on[1])} on ${canonicalIdentifier(on[2])}`
+    : `${kind} ${canonicalIdentifier(target)}`
 }
 
 /**

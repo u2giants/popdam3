@@ -453,7 +453,8 @@ export function validateClaimObjects(objects) {
   const normalized = objects.map(normalizeObject)
   if (new Set(normalized).size !== normalized.length) throw new LaneError('duplicate object claims are not allowed')
   for (const object of [...normalized]) {
-    const match = /^column ([a-z_][a-z0-9_$]*\.[a-z_][a-z0-9_$]*)\.[a-z_][a-z0-9_$]*$/.exec(object)
+    const ident = '(?:[a-z_][a-z0-9_$]*|"(?:[^"]|"")+")'
+    const match = new RegExp(`^column (${ident}\\.${ident})\\.${ident}$`).exec(object)
     if (match && !normalized.includes(`table ${match[1]}`)) normalized.push(`table ${match[1]}`)
   }
   if (!normalized.length) throw new LaneError('at least one exact object is required')
@@ -461,7 +462,7 @@ export function validateClaimObjects(objects) {
     const kind = [...CLAIM_KINDS].sort((a,b)=>b.length-a.length).find((k)=>object.startsWith(`${k} `))
     if (!kind) throw new LaneError(`unknown object kind in claim: ${object}`)
     const target = object.slice(kind.length + 1)
-    const ident = '[a-z_][a-z0-9_$]*'
+    const ident = '(?:[a-z_][a-z0-9_$]*|"(?:[^"]|"")+")'
     const qualified = new RegExp(`^${ident}\\.${ident}$`)
     const namedOn = new RegExp(`^${ident} on ${ident}\\.${ident}$`)
     if (kind === 'schema' || kind === 'publication' || kind === 'storage bucket') {

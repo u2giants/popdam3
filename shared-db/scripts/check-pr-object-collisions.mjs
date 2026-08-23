@@ -133,7 +133,7 @@ export function normalizeSql(sql) {
     .replace(/\s+/g, ' ')
 }
 
-const IDENT = String.raw`(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_$]*)`
+const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)`
 const QUALIFIED = String.raw`(?:${IDENT}\s*\.\s*)?${IDENT}`
 
 const PATTERNS = [
@@ -275,13 +275,38 @@ export function describeCoverage() {
   }
 }
 
-function canonical(raw) {
+export function canonicalIdentifierParts(raw) {
   // Split into identifier parts WITHOUT destroying whitespace inside a quoted
   // identifier (`"Weird Name"` is one legal Postgres name).
-  const parts = String(raw).match(/"[^"]*"|[^.\s]+/g) ?? []
-  return parts
-    .map((part) => (part.startsWith('"') ? part.slice(1, -1) : part.toLowerCase()))
-    .join('.')
+  const text = String(raw)
+  const parts = []
+  const token = /\s*("(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_$]*)\s*(\.|$)/y
+  let offset = 0
+  while (offset < text.length) {
+    token.lastIndex = offset
+    const match = token.exec(text)
+    if (!match || (match[2] === '.' && token.lastIndex === text.length)) return []
+    if (match[1].startsWith('"')) {
+      const value = match[1].slice(1, -1).replace(/""/g, '"')
+      // PostgreSQL folds an unquoted identifier to lowercase. A quoted name
+      // that is already a legal lowercase unquoted identifier therefore names
+      // the same object and must use the same collision key.
+      parts.push(/^[a-z_][a-z0-9_$]*$/.test(value) ? value : `"${value.replace(/"/g, '""')}"`)
+    } else {
+      parts.push(match[1].toLowerCase())
+    }
+    offset = token.lastIndex
+    if (!match[2]) break
+  }
+  return offset === text.length ? parts : []
+}
+
+export function canonicalIdentifier(raw) {
+  return canonicalIdentifierParts(raw).join('.')
+}
+
+function canonical(raw) {
+  return canonicalIdentifier(raw)
 }
 
 /**
@@ -340,8 +365,7 @@ export function extractObjects(sql) {
  * Quoted identifiers keep their case and any internal whitespace.
  */
 function canonicalParts(raw) {
-  const parts = String(raw).match(/"[^"]*"|[^.\s]+/g) ?? []
-  return parts.map((part) => (part.startsWith('"') ? part.slice(1, -1) : part.toLowerCase()))
+  return canonicalIdentifierParts(raw)
 }
 
 /** `core.t.c` -> { table: 'core.t', column: 'core.t.c' }; unqualified -> null table. */

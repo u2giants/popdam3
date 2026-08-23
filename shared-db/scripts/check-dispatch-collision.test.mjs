@@ -90,6 +90,39 @@ test('normalizeObject collapses whitespace and lowercases', () => {
   assert.equal(normalizeObject('  FUNCTION\tplm.Foo  '), 'function plm.foo')
 })
 
+test('normalizeObject preserves quoted identifier case and internal whitespace', () => {
+  assert.equal(normalizeObject('SEQUENCE dflow."itemHeader_item_num_id_pk _seq"'), 'sequence dflow."itemHeader_item_num_id_pk _seq"')
+  assert.equal(normalizeObject('TABLE "MixedSchema"."MixedTable"'), 'table "MixedSchema"."MixedTable"')
+})
+
+test('a quoted SQL object and its exact claim key collide', () => {
+  const parsed = dispatchObjectKeys('create sequence dflow."itemHeader_item_num_id_pk _seq";')
+  const result = findDispatchConflicts(
+    { objects: ['sequence dflow."itemHeader_item_num_id_pk _seq"'] },
+    [{ label: 'PR #1315', objects: parsed }],
+  )
+  assert.deepEqual(result.objectConflicts[0].objects, ['sequence dflow."itemHeader_item_num_id_pk _seq"'])
+})
+
+test('PostgreSQL-equivalent quoted lowercase and unquoted identifiers collide', () => {
+  assert.equal(normalizeObject('table "core"."foo"'), 'table core.foo')
+  const result = findDispatchConflicts(
+    { objects: ['table core.foo'] },
+    [{ label: 'quoted claim', objects: ['table "core"."foo"'] }],
+  )
+  assert.deepEqual(result.objectConflicts[0].objects, ['table core.foo'])
+})
+
+test('doubled quotes canonicalize identically from SQL and exact claims', () => {
+  const parsed = dispatchObjectKeys('create table core."a""b" (id integer);')
+  assert.deepEqual(parsed, ['table core."a""b"'])
+  const result = findDispatchConflicts(
+    { objects: ['table core."a""b"'] },
+    [{ label: 'SQL PR', objects: parsed }],
+  )
+  assert.deepEqual(result.objectConflicts[0].objects, ['table core."a""b"'])
+})
+
 // --- findDispatchConflicts -------------------------------------------------
 
 // `versions` is an ARRAY: a pull request may carry several migrations, and the
