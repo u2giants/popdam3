@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   app: {
     Tables: {
@@ -2373,6 +2373,81 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "merchGroupMaster"
             referencedColumns: ["mg_id"]
+          },
+        ]
+      }
+      mg_category: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          metadata: Json
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mg_category_merch_group: {
+        Row: {
+          created_at: string
+          id: string
+          merch_group_mg_id: number
+          mg_category_id: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          merch_group_mg_id: number
+          mg_category_id: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          merch_group_mg_id?: number
+          mg_category_id?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mg_category_merch_group_merch_group_mg_id_fkey"
+            columns: ["merch_group_mg_id"]
+            isOneToOne: true
+            referencedRelation: "merchGroup"
+            referencedColumns: ["mg_id"]
+          },
+          {
+            foreignKeyName: "mg_category_merch_group_mg_category_id_fkey"
+            columns: ["mg_category_id"]
+            isOneToOne: false
+            referencedRelation: "mg_category"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -9167,6 +9242,188 @@ export type Database = {
         }
         Relationships: []
       }
+      sample_factory_visit: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          factory_id: number
+          factory_received_at: string | null
+          idempotency_key: string
+          outbound_shipment_id: number | null
+          provenance: string
+          request_hash: string
+          requested_by_role: string
+          requested_by_user: string
+          return_shipment_id: number | null
+          returned_at: string | null
+          sample_factory_visit_id: number
+          sample_id_fk: number
+          shipped_at: string | null
+          state: string
+          updated_at: string
+          visit_order: number
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          factory_id: number
+          factory_received_at?: string | null
+          idempotency_key: string
+          outbound_shipment_id?: number | null
+          provenance: string
+          request_hash: string
+          requested_by_role: string
+          requested_by_user: string
+          return_shipment_id?: number | null
+          returned_at?: string | null
+          sample_factory_visit_id?: number
+          sample_id_fk: number
+          shipped_at?: string | null
+          state?: string
+          updated_at?: string
+          visit_order: number
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          factory_id?: number
+          factory_received_at?: string | null
+          idempotency_key?: string
+          outbound_shipment_id?: number | null
+          provenance?: string
+          request_hash?: string
+          requested_by_role?: string
+          requested_by_user?: string
+          return_shipment_id?: number | null
+          returned_at?: string | null
+          sample_factory_visit_id?: number
+          sample_id_fk?: number
+          shipped_at?: string | null
+          state?: string
+          updated_at?: string
+          visit_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_factory_visit_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "Factory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_outbound_shipment_id_fkey"
+            columns: ["outbound_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "sample_shipment"
+            referencedColumns: ["sample_shipment_id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_return_shipment_id_fkey"
+            columns: ["return_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "sample_shipment"
+            referencedColumns: ["sample_shipment_id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+        ]
+      }
+      sample_factory_visit_event: {
+        Row: {
+          changed_at: string
+          changed_by_role: string
+          changed_by_user: string
+          event_type: string
+          from_factory_id: number | null
+          from_state: string | null
+          from_visit_order: number | null
+          reason: string
+          revision: number
+          sample_factory_visit_event_id: number
+          sample_factory_visit_id: number
+          sample_shipment_id: number | null
+          to_factory_id: number | null
+          to_state: string | null
+          to_visit_order: number | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by_role: string
+          changed_by_user: string
+          event_type: string
+          from_factory_id?: number | null
+          from_state?: string | null
+          from_visit_order?: number | null
+          reason: string
+          revision: number
+          sample_factory_visit_event_id?: number
+          sample_factory_visit_id: number
+          sample_shipment_id?: number | null
+          to_factory_id?: number | null
+          to_state?: string | null
+          to_visit_order?: number | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by_role?: string
+          changed_by_user?: string
+          event_type?: string
+          from_factory_id?: number | null
+          from_state?: string | null
+          from_visit_order?: number | null
+          reason?: string
+          revision?: number
+          sample_factory_visit_event_id?: number
+          sample_factory_visit_id?: number
+          sample_shipment_id?: number | null
+          to_factory_id?: number | null
+          to_state?: string | null
+          to_visit_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_factory_visit_event_sample_factory_visit_id_fkey"
+            columns: ["sample_factory_visit_id"]
+            isOneToOne: false
+            referencedRelation: "sample_factory_visit"
+            referencedColumns: ["sample_factory_visit_id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_event_sample_factory_visit_id_fkey"
+            columns: ["sample_factory_visit_id"]
+            isOneToOne: false
+            referencedRelation: "sample_visit_plan"
+            referencedColumns: ["sample_factory_visit_id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_event_sample_shipment_id_fkey"
+            columns: ["sample_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "sample_shipment"
+            referencedColumns: ["sample_shipment_id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_event_to_factory_id_fkey"
+            columns: ["to_factory_id"]
+            isOneToOne: false
+            referencedRelation: "Factory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sample_import_job: {
         Row: {
           box_count: number
@@ -9479,6 +9736,91 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sample_workflow"
             referencedColumns: ["sample_workflow_id"]
+          },
+        ]
+      }
+      sample_piece_lineage: {
+        Row: {
+          created_at: string
+          idempotency_key: string
+          parent_sample_id_fk: number
+          piece_quantity: number
+          request_hash: string
+          root_sample_id_fk: number
+          sample_id_fk: number
+          sample_piece_lineage_id: number
+          split_by_role: string
+          split_by_user: string
+          split_reason: string
+        }
+        Insert: {
+          created_at?: string
+          idempotency_key: string
+          parent_sample_id_fk: number
+          piece_quantity: number
+          request_hash: string
+          root_sample_id_fk: number
+          sample_id_fk: number
+          sample_piece_lineage_id?: number
+          split_by_role: string
+          split_by_user: string
+          split_reason: string
+        }
+        Update: {
+          created_at?: string
+          idempotency_key?: string
+          parent_sample_id_fk?: number
+          piece_quantity?: number
+          request_hash?: string
+          root_sample_id_fk?: number
+          sample_id_fk?: number
+          sample_piece_lineage_id?: number
+          split_by_role?: string
+          split_by_user?: string
+          split_reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_piece_lineage_parent_sample_id_fk_fkey"
+            columns: ["parent_sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_piece_lineage_parent_sample_id_fk_fkey"
+            columns: ["parent_sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_piece_lineage_root_sample_id_fk_fkey"
+            columns: ["root_sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_piece_lineage_root_sample_id_fk_fkey"
+            columns: ["root_sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_piece_lineage_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: true
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_piece_lineage_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: true
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
           },
         ]
       }
@@ -10624,6 +10966,106 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sample_global_status"
             referencedColumns: ["sample_id_pk"]
+          },
+        ]
+      }
+      sample_visit_plan: {
+        Row: {
+          active_visit_id: number | null
+          closed_at: string | null
+          completed_visit_count: number | null
+          created_at: string | null
+          current_custody_id: string | null
+          current_custody_since: string | null
+          current_custody_type: string | null
+          factory_id: number | null
+          factory_name: string | null
+          factory_nickname: string | null
+          factory_received_at: string | null
+          outbound_carrier_id: number | null
+          outbound_shipment_id: number | null
+          outbound_tracking_number: string | null
+          parent_sample_id_fk: number | null
+          piece_count: number | null
+          provenance: string | null
+          remaining_visit_count: number | null
+          requested_by_role: string | null
+          requested_by_user: string | null
+          return_carrier_id: number | null
+          return_shipment_id: number | null
+          return_tracking_number: string | null
+          returned_at: string | null
+          root_sample_id_fk: number | null
+          sample_factory_visit_id: number | null
+          sample_id_fk: number | null
+          shipped_at: string | null
+          state: string | null
+          updated_at: string | null
+          visit_order: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_factory_visit_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "Factory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_outbound_shipment_id_fkey"
+            columns: ["outbound_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "sample_shipment"
+            referencedColumns: ["sample_shipment_id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_return_shipment_id_fkey"
+            columns: ["return_shipment_id"]
+            isOneToOne: false
+            referencedRelation: "sample_shipment"
+            referencedColumns: ["sample_shipment_id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_piece_lineage_parent_sample_id_fk_fkey"
+            columns: ["parent_sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_piece_lineage_parent_sample_id_fk_fkey"
+            columns: ["parent_sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_shipment_carrier_id_fkey"
+            columns: ["outbound_carrier_id"]
+            isOneToOne: false
+            referencedRelation: "sample_carrier"
+            referencedColumns: ["sample_carrier_id"]
+          },
+          {
+            foreignKeyName: "sample_shipment_carrier_id_fkey"
+            columns: ["return_carrier_id"]
+            isOneToOne: false
+            referencedRelation: "sample_carrier"
+            referencedColumns: ["sample_carrier_id"]
           },
         ]
       }
@@ -13248,7 +13690,6 @@ export type Database = {
       }
       GridViewState: {
         Row: {
-          column_group_state: Json | null
           column_state: Json | null
           created_at: string | null
           filter_model: Json | null
@@ -13260,7 +13701,6 @@ export type Database = {
           view_name: string
         }
         Insert: {
-          column_group_state?: Json | null
           column_state?: Json | null
           created_at?: string | null
           filter_model?: Json | null
@@ -13272,7 +13712,6 @@ export type Database = {
           view_name: string
         }
         Update: {
-          column_group_state?: Json | null
           column_state?: Json | null
           created_at?: string | null
           filter_model?: Json | null
@@ -13916,15 +14355,12 @@ export type Database = {
           carton_qty: number | null
           carton_weight_size_hed: number | null
           carton_width_size_hed: number | null
-          coldlion_synced_at: string | null
           color_code_fk: string | null
-          compan_code_fk: number | null
           compare_price_hed: number | null
           created_timedate: string | null
           created_user_fk: string | null
           dim_code_fk: string | null
           discont_status: string | null
-          div_code_fk: number | null
           ds_cat: string | null
           EAN: string | null
           GenerateUPC: string | null
@@ -13938,7 +14374,6 @@ export type Database = {
           item_cost_hed_ext: number | null
           item_depth_size_hed: number | null
           item_length_size_hed: number | null
-          item_num_id: string | null
           item_pk: number
           item_status_hed: string | null
           item_weight_size_hed: number | null
@@ -14086,15 +14521,12 @@ export type Database = {
           carton_qty?: number | null
           carton_weight_size_hed?: number | null
           carton_width_size_hed?: number | null
-          coldlion_synced_at?: string | null
           color_code_fk?: string | null
-          compan_code_fk?: number | null
           compare_price_hed?: number | null
           created_timedate?: string | null
           created_user_fk?: string | null
           dim_code_fk?: string | null
           discont_status?: string | null
-          div_code_fk?: number | null
           ds_cat?: string | null
           EAN?: string | null
           GenerateUPC?: string | null
@@ -14108,7 +14540,6 @@ export type Database = {
           item_cost_hed_ext?: number | null
           item_depth_size_hed?: number | null
           item_length_size_hed?: number | null
-          item_num_id?: string | null
           item_pk?: never
           item_status_hed?: string | null
           item_weight_size_hed?: number | null
@@ -14256,15 +14687,12 @@ export type Database = {
           carton_qty?: number | null
           carton_weight_size_hed?: number | null
           carton_width_size_hed?: number | null
-          coldlion_synced_at?: string | null
           color_code_fk?: string | null
-          compan_code_fk?: number | null
           compare_price_hed?: number | null
           created_timedate?: string | null
           created_user_fk?: string | null
           dim_code_fk?: string | null
           discont_status?: string | null
-          div_code_fk?: number | null
           ds_cat?: string | null
           EAN?: string | null
           GenerateUPC?: string | null
@@ -14278,7 +14706,6 @@ export type Database = {
           item_cost_hed_ext?: number | null
           item_depth_size_hed?: number | null
           item_length_size_hed?: number | null
-          item_num_id?: string | null
           item_pk?: never
           item_status_hed?: string | null
           item_weight_size_hed?: number | null
@@ -15409,11 +15836,15 @@ export type Database = {
           actor: string
           authorization_id: string
           id: number
+          new_status: string | null
+          old_status: string | null
           operation: string
           plan_hash: string
           plan_id: string
           protected_columns: string[]
           recorded_at: string
+          ruling_migration: string | null
+          target_row_id: string | null
           target_table: unknown
           write_kind: string
         }
@@ -15421,11 +15852,15 @@ export type Database = {
           actor: string
           authorization_id: string
           id?: never
+          new_status?: string | null
+          old_status?: string | null
           operation: string
           plan_hash: string
           plan_id: string
           protected_columns: string[]
           recorded_at?: string
+          ruling_migration?: string | null
+          target_row_id?: string | null
           target_table: unknown
           write_kind: string
         }
@@ -15433,11 +15868,15 @@ export type Database = {
           actor?: string
           authorization_id?: string
           id?: never
+          new_status?: string | null
+          old_status?: string | null
           operation?: string
           plan_hash?: string
           plan_id?: string
           protected_columns?: string[]
           recorded_at?: string
+          ruling_migration?: string | null
+          target_row_id?: string | null
           target_table?: unknown
           write_kind?: string
         }
@@ -19294,6 +19733,908 @@ export type Database = {
         }
         Relationships: []
       }
+      peanuts_animation_title: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id: string | null
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id?: string | null
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          is_multi_select?: boolean
+          raw?: Json
+          source_field_label?: string
+          source_field_name?: string
+          source_value_id?: string | null
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_animation_title_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_art_program: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id: string | null
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id?: string | null
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          is_multi_select?: boolean
+          raw?: Json
+          source_field_label?: string
+          source_field_name?: string
+          source_value_id?: string | null
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_art_program_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_asset: {
+        Row: {
+          asset_type_key: string | null
+          capture_id: string
+          checksum: string | null
+          comic_strip_type: string | null
+          content_type: string | null
+          description: string | null
+          era_label: string | null
+          file_ext: string | null
+          file_name: string
+          file_size_bytes: number | null
+          initiative_key: string | null
+          is_current_version: boolean | null
+          licensing_status_key: string | null
+          metadata_template_id: string | null
+          object_type: string | null
+          publication_date_text: string | null
+          raw: Json
+          rendition_base_url: string | null
+          source_created_at: string | null
+          source_file_id: string | null
+          source_object_id: string
+          source_updated_at: string | null
+          style_guide_key: string | null
+          title: string | null
+          version_number: number | null
+        }
+        Insert: {
+          asset_type_key?: string | null
+          capture_id: string
+          checksum?: string | null
+          comic_strip_type?: string | null
+          content_type?: string | null
+          description?: string | null
+          era_label?: string | null
+          file_ext?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          initiative_key?: string | null
+          is_current_version?: boolean | null
+          licensing_status_key?: string | null
+          metadata_template_id?: string | null
+          object_type?: string | null
+          publication_date_text?: string | null
+          raw: Json
+          rendition_base_url?: string | null
+          source_created_at?: string | null
+          source_file_id?: string | null
+          source_object_id: string
+          source_updated_at?: string | null
+          style_guide_key?: string | null
+          title?: string | null
+          version_number?: number | null
+        }
+        Update: {
+          asset_type_key?: string | null
+          capture_id?: string
+          checksum?: string | null
+          comic_strip_type?: string | null
+          content_type?: string | null
+          description?: string | null
+          era_label?: string | null
+          file_ext?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          initiative_key?: string | null
+          is_current_version?: boolean | null
+          licensing_status_key?: string | null
+          metadata_template_id?: string | null
+          object_type?: string | null
+          publication_date_text?: string | null
+          raw?: Json
+          rendition_base_url?: string | null
+          source_created_at?: string | null
+          source_file_id?: string | null
+          source_object_id?: string
+          source_updated_at?: string | null
+          style_guide_key?: string | null
+          title?: string | null
+          version_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_asset_asset_type_fkey"
+            columns: ["capture_id", "asset_type_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_asset_type"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_initiative_fkey"
+            columns: ["capture_id", "initiative_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_initiative"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_licensing_status_fkey"
+            columns: ["capture_id", "licensing_status_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_licensing_status"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_style_guide_fkey"
+            columns: ["capture_id", "style_guide_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_style_guide"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+        ]
+      }
+      peanuts_asset_animation_title: {
+        Row: {
+          animation_title_key: string
+          capture_id: string
+          raw: Json
+          source_object_id: string
+        }
+        Insert: {
+          animation_title_key: string
+          capture_id: string
+          raw: Json
+          source_object_id: string
+        }
+        Update: {
+          animation_title_key?: string
+          capture_id?: string
+          raw?: Json
+          source_object_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_asset_animation_title_asset_fkey"
+            columns: ["capture_id", "source_object_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_asset"
+            referencedColumns: ["capture_id", "source_object_id"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_animation_title_value_fkey"
+            columns: ["capture_id", "animation_title_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_animation_title"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+        ]
+      }
+      peanuts_asset_art_program: {
+        Row: {
+          art_program_key: string
+          capture_id: string
+          raw: Json
+          source_object_id: string
+        }
+        Insert: {
+          art_program_key: string
+          capture_id: string
+          raw: Json
+          source_object_id: string
+        }
+        Update: {
+          art_program_key?: string
+          capture_id?: string
+          raw?: Json
+          source_object_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_asset_art_program_asset_fkey"
+            columns: ["capture_id", "source_object_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_asset"
+            referencedColumns: ["capture_id", "source_object_id"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_art_program_value_fkey"
+            columns: ["capture_id", "art_program_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_art_program"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+        ]
+      }
+      peanuts_asset_character: {
+        Row: {
+          capture_id: string
+          character_key: string
+          raw: Json
+          source_object_id: string
+        }
+        Insert: {
+          capture_id: string
+          character_key: string
+          raw: Json
+          source_object_id: string
+        }
+        Update: {
+          capture_id?: string
+          character_key?: string
+          raw?: Json
+          source_object_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_asset_character_asset_fkey"
+            columns: ["capture_id", "source_object_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_asset"
+            referencedColumns: ["capture_id", "source_object_id"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_character_value_fkey"
+            columns: ["capture_id", "character_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_character"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+        ]
+      }
+      peanuts_asset_holiday: {
+        Row: {
+          capture_id: string
+          holiday_key: string
+          raw: Json
+          source_object_id: string
+        }
+        Insert: {
+          capture_id: string
+          holiday_key: string
+          raw: Json
+          source_object_id: string
+        }
+        Update: {
+          capture_id?: string
+          holiday_key?: string
+          raw?: Json
+          source_object_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_asset_holiday_asset_fkey"
+            columns: ["capture_id", "source_object_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_asset"
+            referencedColumns: ["capture_id", "source_object_id"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_holiday_value_fkey"
+            columns: ["capture_id", "holiday_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_holiday"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+        ]
+      }
+      peanuts_asset_keyword: {
+        Row: {
+          capture_id: string
+          keyword_key: string
+          keyword_label: string
+          raw: Json
+          source_object_id: string
+        }
+        Insert: {
+          capture_id: string
+          keyword_key: string
+          keyword_label: string
+          raw: Json
+          source_object_id: string
+        }
+        Update: {
+          capture_id?: string
+          keyword_key?: string
+          keyword_label?: string
+          raw?: Json
+          source_object_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_asset_keyword_asset_fkey"
+            columns: ["capture_id", "source_object_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_asset"
+            referencedColumns: ["capture_id", "source_object_id"]
+          },
+        ]
+      }
+      peanuts_asset_relationship: {
+        Row: {
+          capture_id: string
+          child_object_id: string
+          link_type: string
+          parent_object_id: string
+          raw: Json
+          source_relationship_id: string
+        }
+        Insert: {
+          capture_id: string
+          child_object_id: string
+          link_type: string
+          parent_object_id: string
+          raw: Json
+          source_relationship_id: string
+        }
+        Update: {
+          capture_id?: string
+          child_object_id?: string
+          link_type?: string
+          parent_object_id?: string
+          raw?: Json
+          source_relationship_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_asset_relationship_child_fkey"
+            columns: ["capture_id", "child_object_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_asset"
+            referencedColumns: ["capture_id", "source_object_id"]
+          },
+          {
+            foreignKeyName: "peanuts_asset_relationship_parent_fkey"
+            columns: ["capture_id", "parent_object_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_asset"
+            referencedColumns: ["capture_id", "source_object_id"]
+          },
+        ]
+      }
+      peanuts_asset_type: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id: string | null
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id?: string | null
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          is_multi_select?: boolean
+          raw?: Json
+          source_field_label?: string
+          source_field_name?: string
+          source_value_id?: string | null
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_asset_type_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_capture: {
+        Row: {
+          api_endpoint: string
+          assets_captured: number
+          assets_unreachable: number
+          capture_key: string
+          created_by: string
+          deep_paging_partitioned: boolean
+          error_summary: Json
+          expected_counts: Json
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          media_downloaded: number
+          observed_counts: Json
+          portal_base_url: string
+          portal_reported_asset_total: number
+          raw_summary: Json
+          read_commit_sha: string | null
+          relationship_graph_walked: boolean
+          source_captured_at: string
+          source_commit_sha: string
+          source_customer_id: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+          vocabularies_loaded_from_source: boolean
+        }
+        Insert: {
+          api_endpoint: string
+          assets_captured: number
+          assets_unreachable: number
+          capture_key: string
+          created_by: string
+          deep_paging_partitioned?: boolean
+          error_summary?: Json
+          expected_counts: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          observed_counts?: Json
+          portal_base_url: string
+          portal_reported_asset_total: number
+          raw_summary: Json
+          read_commit_sha?: string | null
+          relationship_graph_walked?: boolean
+          source_captured_at: string
+          source_commit_sha: string
+          source_customer_id: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+          vocabularies_loaded_from_source?: boolean
+        }
+        Update: {
+          api_endpoint?: string
+          assets_captured?: number
+          assets_unreachable?: number
+          capture_key?: string
+          created_by?: string
+          deep_paging_partitioned?: boolean
+          error_summary?: Json
+          expected_counts?: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          observed_counts?: Json
+          portal_base_url?: string
+          portal_reported_asset_total?: number
+          raw_summary?: Json
+          read_commit_sha?: string | null
+          relationship_graph_walked?: boolean
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_customer_id?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+          vocabularies_loaded_from_source?: boolean
+        }
+        Relationships: []
+      }
+      peanuts_character: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id: string | null
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id?: string | null
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          is_multi_select?: boolean
+          raw?: Json
+          source_field_label?: string
+          source_field_name?: string
+          source_value_id?: string | null
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_character_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_holiday: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id: string | null
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id?: string | null
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          is_multi_select?: boolean
+          raw?: Json
+          source_field_label?: string
+          source_field_name?: string
+          source_value_id?: string | null
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_holiday_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_initiative: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id: string | null
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id?: string | null
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          is_multi_select?: boolean
+          raw?: Json
+          source_field_label?: string
+          source_field_name?: string
+          source_value_id?: string | null
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_initiative_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_licensing_status: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id: string | null
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id?: string | null
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          is_multi_select?: boolean
+          raw?: Json
+          source_field_label?: string
+          source_field_name?: string
+          source_value_id?: string | null
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_licensing_status_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_metadata_field: {
+        Row: {
+          capture_id: string
+          field_type: string
+          is_facetable: boolean
+          is_multi_select: boolean
+          raw: Json
+          source_definition_id: string
+          source_field_label: string
+          source_field_name: string
+          source_vocabulary_id: string | null
+        }
+        Insert: {
+          capture_id: string
+          field_type: string
+          is_facetable: boolean
+          is_multi_select: boolean
+          raw: Json
+          source_definition_id: string
+          source_field_label: string
+          source_field_name: string
+          source_vocabulary_id?: string | null
+        }
+        Update: {
+          capture_id?: string
+          field_type?: string
+          is_facetable?: boolean
+          is_multi_select?: boolean
+          raw?: Json
+          source_definition_id?: string
+          source_field_label?: string
+          source_field_name?: string
+          source_vocabulary_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_metadata_field_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_style_guide: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id: string | null
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          is_multi_select: boolean
+          raw: Json
+          source_field_label: string
+          source_field_name: string
+          source_value_id?: string | null
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          is_multi_select?: boolean
+          raw?: Json
+          source_field_label?: string
+          source_field_name?: string
+          source_value_id?: string | null
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_style_guide_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_style_guide_art_program: {
+        Row: {
+          art_program_key: string
+          asset_count: number
+          capture_id: string
+          derivation_note: string
+          relationship_truth: string
+          style_guide_key: string
+        }
+        Insert: {
+          art_program_key: string
+          asset_count: number
+          capture_id: string
+          derivation_note: string
+          relationship_truth: string
+          style_guide_key: string
+        }
+        Update: {
+          art_program_key?: string
+          asset_count?: number
+          capture_id?: string
+          derivation_note?: string
+          relationship_truth?: string
+          style_guide_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_style_guide_art_program_guide_fkey"
+            columns: ["capture_id", "style_guide_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_style_guide"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+          {
+            foreignKeyName: "peanuts_style_guide_art_program_value_fkey"
+            columns: ["capture_id", "art_program_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_art_program"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+        ]
+      }
+      peanuts_style_guide_character: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          character_key: string
+          derivation_note: string
+          relationship_truth: string
+          style_guide_key: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          character_key: string
+          derivation_note: string
+          relationship_truth: string
+          style_guide_key: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          character_key?: string
+          derivation_note?: string
+          relationship_truth?: string
+          style_guide_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_style_guide_character_character_fkey"
+            columns: ["capture_id", "character_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_character"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+          {
+            foreignKeyName: "peanuts_style_guide_character_guide_fkey"
+            columns: ["capture_id", "style_guide_key"]
+            isOneToOne: false
+            referencedRelation: "peanuts_style_guide"
+            referencedColumns: ["capture_id", "value_key"]
+          },
+        ]
+      }
       pmt_asset: {
         Row: {
           asset_id: string
@@ -19613,13 +20954,6 @@ export type Database = {
             referencedColumns: ["capture_id", "asset_id"]
           },
           {
-            foreignKeyName: "pmt_amv_element_fkey"
-            columns: ["capture_id", "metadata_element_id"]
-            isOneToOne: false
-            referencedRelation: "pmt_metadata_element"
-            referencedColumns: ["capture_id", "metadata_element_id"]
-          },
-          {
             foreignKeyName: "pmt_asset_metadata_value_capture_id_fkey"
             columns: ["capture_id"]
             isOneToOne: false
@@ -19780,7 +21114,7 @@ export type Database = {
           imported_at: string
           mapping_status: string
           notes: string | null
-          paramount_property_name: string | null
+          paramount_property_name: string
           property_source_id: string
           reported_asset_count: number
           source_evidence: string
@@ -19792,7 +21126,7 @@ export type Database = {
           imported_at?: string
           mapping_status?: string
           notes?: string | null
-          paramount_property_name?: string | null
+          paramount_property_name: string
           property_source_id: string
           reported_asset_count?: number
           source_evidence?: string
@@ -19804,7 +21138,7 @@ export type Database = {
           imported_at?: string
           mapping_status?: string
           notes?: string | null
-          paramount_property_name?: string | null
+          paramount_property_name?: string
           property_source_id?: string
           reported_asset_count?: number
           source_evidence?: string
@@ -20106,6 +21440,7 @@ export type Database = {
           collection_name: string
           collection_source_id: string
           imported_at: string
+          paramount_term: string
           raw: Json
           source_hash: string
         }
@@ -20114,6 +21449,7 @@ export type Database = {
           collection_name: string
           collection_source_id: string
           imported_at?: string
+          paramount_term: string
           raw?: Json
           source_hash: string
         }
@@ -20122,6 +21458,7 @@ export type Database = {
           collection_name?: string
           collection_source_id?: string
           imported_at?: string
+          paramount_term?: string
           raw?: Json
           source_hash?: string
         }
@@ -20163,53 +21500,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pmt_franchise_capture_id_fkey"
-            columns: ["capture_id"]
-            isOneToOne: false
-            referencedRelation: "pmt_capture"
-            referencedColumns: ["capture_id"]
-          },
-        ]
-      }
-      pmt_metadata_element: {
-        Row: {
-          capture_id: string
-          domain_id: string | null
-          imported_at: string
-          metadata_category_id: string | null
-          metadata_category_name: string | null
-          metadata_element_id: string
-          metadata_element_name: string | null
-          source_column_name: string | null
-          source_hash: string
-          source_table_name: string | null
-        }
-        Insert: {
-          capture_id: string
-          domain_id?: string | null
-          imported_at?: string
-          metadata_category_id?: string | null
-          metadata_category_name?: string | null
-          metadata_element_id: string
-          metadata_element_name?: string | null
-          source_column_name?: string | null
-          source_hash: string
-          source_table_name?: string | null
-        }
-        Update: {
-          capture_id?: string
-          domain_id?: string | null
-          imported_at?: string
-          metadata_category_id?: string | null
-          metadata_category_name?: string | null
-          metadata_element_id?: string
-          metadata_element_name?: string | null
-          source_column_name?: string | null
-          source_hash?: string
-          source_table_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pmt_metadata_element_capture_id_fkey"
             columns: ["capture_id"]
             isOneToOne: false
             referencedRelation: "pmt_capture"
@@ -20278,7 +21568,7 @@ export type Database = {
           failure_message: string | null
           imported_at: string
           page_count: number
-          property_name: string | null
+          property_name: string
           property_source_id: string
           reported_asset_count: number
           source_hash: string
@@ -20290,7 +21580,7 @@ export type Database = {
           failure_message?: string | null
           imported_at?: string
           page_count: number
-          property_name?: string | null
+          property_name: string
           property_source_id: string
           reported_asset_count: number
           source_hash: string
@@ -20302,7 +21592,7 @@ export type Database = {
           failure_message?: string | null
           imported_at?: string
           page_count?: number
-          property_name?: string | null
+          property_name?: string
           property_source_id?: string
           reported_asset_count?: number
           source_hash?: string
@@ -21209,6 +22499,27 @@ export type Database = {
         }
         Relationships: []
       }
+      production_lane_canary: {
+        Row: {
+          applied_at: string
+          applied_by: string
+          id: number
+          note: string
+        }
+        Insert: {
+          applied_at?: string
+          applied_by?: string
+          id?: never
+          note: string
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string
+          id?: never
+          note?: string
+        }
+        Relationships: []
+      }
       production_order: {
         Row: {
           actual_ship_date: string | null
@@ -21909,8 +23220,6 @@ export type Database = {
           rfqItem_factories_step_at: string | null
           rfqItem_fob_cost: string | null
           rfqItem_freight: string | null
-          rfqItem_gen_fob_buyer_margin: number | null
-          rfqItem_gen_fob_buyer_target: number | null
           rfqItem_gen_fob_entered_margin: number | null
           rfqItem_gen_fob_entered_sell_price: number | null
           rfqItem_gen_fob_margin: string | null
@@ -21919,8 +23228,6 @@ export type Database = {
           rfqItem_gen_fob_royalty: string | null
           rfqItem_gen_fob_sellprice: string | null
           rfqItem_gen_ldp_margin: string | null
-          rfqItem_gen_mddp_buyer_margin: number | null
-          rfqItem_gen_mddp_buyer_target: number | null
           rfqItem_gen_mddp_entered_margin: number | null
           rfqItem_gen_mddp_entered_sell_price: number | null
           rfqItem_gen_mddp_margin: string | null
@@ -21928,8 +23235,6 @@ export type Database = {
           rfqItem_gen_mddp_pricesale: string | null
           rfqItem_gen_mddp_royalty: string | null
           rfqItem_gen_mddp_sellprice: string | null
-          rfqItem_gen_poe_buyer_margin: number | null
-          rfqItem_gen_poe_buyer_target: number | null
           rfqItem_gen_poe_entered_margin: number | null
           rfqItem_gen_poe_entered_sell_price: number | null
           rfqItem_gen_poe_margin: string | null
@@ -21937,8 +23242,6 @@ export type Database = {
           rfqItem_gen_poe_pricesale: string | null
           rfqItem_gen_poe_royalty: string | null
           rfqItem_gen_poe_sellprice: string | null
-          rfqItem_gen_whse_buyer_margin: number | null
-          rfqItem_gen_whse_buyer_target: number | null
           rfqItem_gen_whse_entered_margin: number | null
           rfqItem_gen_whse_entered_sell_price: number | null
           rfqItem_gen_whse_margin: string | null
@@ -21949,8 +23252,6 @@ export type Database = {
           rfqItem_id: number
           rfqItem_is_landed_cost_manual: boolean
           rfqItem_landed_cost: string | null
-          rfqItem_lic_fob_buyer_margin: number | null
-          rfqItem_lic_fob_buyer_target: number | null
           rfqItem_lic_fob_entered_margin: number | null
           rfqItem_lic_fob_entered_sell_price: number | null
           rfqItem_lic_fob_margin: string | null
@@ -21958,8 +23259,6 @@ export type Database = {
           rfqItem_lic_fob_pricesale: string | null
           rfqItem_lic_fob_royalty: string | null
           rfqItem_lic_fob_sellprice: string | null
-          rfqItem_lic_mddp_buyer_margin: number | null
-          rfqItem_lic_mddp_buyer_target: number | null
           rfqItem_lic_mddp_entered_margin: number | null
           rfqItem_lic_mddp_entered_sell_price: number | null
           rfqItem_lic_mddp_margin: string | null
@@ -21967,8 +23266,6 @@ export type Database = {
           rfqItem_lic_mddp_pricesale: string | null
           rfqItem_lic_mddp_royalty: string | null
           rfqItem_lic_mddp_sellprice: string | null
-          rfqItem_lic_poe_buyer_margin: number | null
-          rfqItem_lic_poe_buyer_target: number | null
           rfqItem_lic_poe_entered_margin: number | null
           rfqItem_lic_poe_entered_sell_price: number | null
           rfqItem_lic_poe_margin: string | null
@@ -21976,8 +23273,6 @@ export type Database = {
           rfqItem_lic_poe_pricesale: string | null
           rfqItem_lic_poe_royalty: string | null
           rfqItem_lic_poe_sellprice: string | null
-          rfqItem_lic_whse_buyer_margin: number | null
-          rfqItem_lic_whse_buyer_target: number | null
           rfqItem_lic_whse_entered_margin: number | null
           rfqItem_lic_whse_entered_sell_price: number | null
           rfqItem_lic_whse_margin: string | null
@@ -22042,8 +23337,6 @@ export type Database = {
           rfqItem_factories_step_at?: string | null
           rfqItem_fob_cost?: string | null
           rfqItem_freight?: string | null
-          rfqItem_gen_fob_buyer_margin?: number | null
-          rfqItem_gen_fob_buyer_target?: number | null
           rfqItem_gen_fob_entered_margin?: number | null
           rfqItem_gen_fob_entered_sell_price?: number | null
           rfqItem_gen_fob_margin?: string | null
@@ -22052,8 +23345,6 @@ export type Database = {
           rfqItem_gen_fob_royalty?: string | null
           rfqItem_gen_fob_sellprice?: string | null
           rfqItem_gen_ldp_margin?: string | null
-          rfqItem_gen_mddp_buyer_margin?: number | null
-          rfqItem_gen_mddp_buyer_target?: number | null
           rfqItem_gen_mddp_entered_margin?: number | null
           rfqItem_gen_mddp_entered_sell_price?: number | null
           rfqItem_gen_mddp_margin?: string | null
@@ -22061,8 +23352,6 @@ export type Database = {
           rfqItem_gen_mddp_pricesale?: string | null
           rfqItem_gen_mddp_royalty?: string | null
           rfqItem_gen_mddp_sellprice?: string | null
-          rfqItem_gen_poe_buyer_margin?: number | null
-          rfqItem_gen_poe_buyer_target?: number | null
           rfqItem_gen_poe_entered_margin?: number | null
           rfqItem_gen_poe_entered_sell_price?: number | null
           rfqItem_gen_poe_margin?: string | null
@@ -22070,8 +23359,6 @@ export type Database = {
           rfqItem_gen_poe_pricesale?: string | null
           rfqItem_gen_poe_royalty?: string | null
           rfqItem_gen_poe_sellprice?: string | null
-          rfqItem_gen_whse_buyer_margin?: number | null
-          rfqItem_gen_whse_buyer_target?: number | null
           rfqItem_gen_whse_entered_margin?: number | null
           rfqItem_gen_whse_entered_sell_price?: number | null
           rfqItem_gen_whse_margin?: string | null
@@ -22082,8 +23369,6 @@ export type Database = {
           rfqItem_id?: number
           rfqItem_is_landed_cost_manual?: boolean
           rfqItem_landed_cost?: string | null
-          rfqItem_lic_fob_buyer_margin?: number | null
-          rfqItem_lic_fob_buyer_target?: number | null
           rfqItem_lic_fob_entered_margin?: number | null
           rfqItem_lic_fob_entered_sell_price?: number | null
           rfqItem_lic_fob_margin?: string | null
@@ -22091,8 +23376,6 @@ export type Database = {
           rfqItem_lic_fob_pricesale?: string | null
           rfqItem_lic_fob_royalty?: string | null
           rfqItem_lic_fob_sellprice?: string | null
-          rfqItem_lic_mddp_buyer_margin?: number | null
-          rfqItem_lic_mddp_buyer_target?: number | null
           rfqItem_lic_mddp_entered_margin?: number | null
           rfqItem_lic_mddp_entered_sell_price?: number | null
           rfqItem_lic_mddp_margin?: string | null
@@ -22100,8 +23383,6 @@ export type Database = {
           rfqItem_lic_mddp_pricesale?: string | null
           rfqItem_lic_mddp_royalty?: string | null
           rfqItem_lic_mddp_sellprice?: string | null
-          rfqItem_lic_poe_buyer_margin?: number | null
-          rfqItem_lic_poe_buyer_target?: number | null
           rfqItem_lic_poe_entered_margin?: number | null
           rfqItem_lic_poe_entered_sell_price?: number | null
           rfqItem_lic_poe_margin?: string | null
@@ -22109,8 +23390,6 @@ export type Database = {
           rfqItem_lic_poe_pricesale?: string | null
           rfqItem_lic_poe_royalty?: string | null
           rfqItem_lic_poe_sellprice?: string | null
-          rfqItem_lic_whse_buyer_margin?: number | null
-          rfqItem_lic_whse_buyer_target?: number | null
           rfqItem_lic_whse_entered_margin?: number | null
           rfqItem_lic_whse_entered_sell_price?: number | null
           rfqItem_lic_whse_margin?: string | null
@@ -22175,8 +23454,6 @@ export type Database = {
           rfqItem_factories_step_at?: string | null
           rfqItem_fob_cost?: string | null
           rfqItem_freight?: string | null
-          rfqItem_gen_fob_buyer_margin?: number | null
-          rfqItem_gen_fob_buyer_target?: number | null
           rfqItem_gen_fob_entered_margin?: number | null
           rfqItem_gen_fob_entered_sell_price?: number | null
           rfqItem_gen_fob_margin?: string | null
@@ -22185,8 +23462,6 @@ export type Database = {
           rfqItem_gen_fob_royalty?: string | null
           rfqItem_gen_fob_sellprice?: string | null
           rfqItem_gen_ldp_margin?: string | null
-          rfqItem_gen_mddp_buyer_margin?: number | null
-          rfqItem_gen_mddp_buyer_target?: number | null
           rfqItem_gen_mddp_entered_margin?: number | null
           rfqItem_gen_mddp_entered_sell_price?: number | null
           rfqItem_gen_mddp_margin?: string | null
@@ -22194,8 +23469,6 @@ export type Database = {
           rfqItem_gen_mddp_pricesale?: string | null
           rfqItem_gen_mddp_royalty?: string | null
           rfqItem_gen_mddp_sellprice?: string | null
-          rfqItem_gen_poe_buyer_margin?: number | null
-          rfqItem_gen_poe_buyer_target?: number | null
           rfqItem_gen_poe_entered_margin?: number | null
           rfqItem_gen_poe_entered_sell_price?: number | null
           rfqItem_gen_poe_margin?: string | null
@@ -22203,8 +23476,6 @@ export type Database = {
           rfqItem_gen_poe_pricesale?: string | null
           rfqItem_gen_poe_royalty?: string | null
           rfqItem_gen_poe_sellprice?: string | null
-          rfqItem_gen_whse_buyer_margin?: number | null
-          rfqItem_gen_whse_buyer_target?: number | null
           rfqItem_gen_whse_entered_margin?: number | null
           rfqItem_gen_whse_entered_sell_price?: number | null
           rfqItem_gen_whse_margin?: string | null
@@ -22215,8 +23486,6 @@ export type Database = {
           rfqItem_id?: number
           rfqItem_is_landed_cost_manual?: boolean
           rfqItem_landed_cost?: string | null
-          rfqItem_lic_fob_buyer_margin?: number | null
-          rfqItem_lic_fob_buyer_target?: number | null
           rfqItem_lic_fob_entered_margin?: number | null
           rfqItem_lic_fob_entered_sell_price?: number | null
           rfqItem_lic_fob_margin?: string | null
@@ -22224,8 +23493,6 @@ export type Database = {
           rfqItem_lic_fob_pricesale?: string | null
           rfqItem_lic_fob_royalty?: string | null
           rfqItem_lic_fob_sellprice?: string | null
-          rfqItem_lic_mddp_buyer_margin?: number | null
-          rfqItem_lic_mddp_buyer_target?: number | null
           rfqItem_lic_mddp_entered_margin?: number | null
           rfqItem_lic_mddp_entered_sell_price?: number | null
           rfqItem_lic_mddp_margin?: string | null
@@ -22233,8 +23500,6 @@ export type Database = {
           rfqItem_lic_mddp_pricesale?: string | null
           rfqItem_lic_mddp_royalty?: string | null
           rfqItem_lic_mddp_sellprice?: string | null
-          rfqItem_lic_poe_buyer_margin?: number | null
-          rfqItem_lic_poe_buyer_target?: number | null
           rfqItem_lic_poe_entered_margin?: number | null
           rfqItem_lic_poe_entered_sell_price?: number | null
           rfqItem_lic_poe_margin?: string | null
@@ -22242,8 +23507,6 @@ export type Database = {
           rfqItem_lic_poe_pricesale?: string | null
           rfqItem_lic_poe_royalty?: string | null
           rfqItem_lic_poe_sellprice?: string | null
-          rfqItem_lic_whse_buyer_margin?: number | null
-          rfqItem_lic_whse_buyer_target?: number | null
           rfqItem_lic_whse_entered_margin?: number | null
           rfqItem_lic_whse_entered_sell_price?: number | null
           rfqItem_lic_whse_margin?: string | null
@@ -22890,6 +24153,1452 @@ export type Database = {
         }
         Relationships: []
       }
+      sega_asset: {
+        Row: {
+          artist_author: string | null
+          asset_source_id: string
+          can_download: boolean | null
+          can_view: boolean | null
+          capture_id: string
+          description: string | null
+          file_name: string
+          file_size_kb: number | null
+          height: number | null
+          is_expired: boolean | null
+          raw: Json
+          source_created_at: string | null
+          source_expires_at: string | null
+          source_hash: string
+          thumbnail_path: string | null
+          width: number | null
+        }
+        Insert: {
+          artist_author?: string | null
+          asset_source_id: string
+          can_download?: boolean | null
+          can_view?: boolean | null
+          capture_id: string
+          description?: string | null
+          file_name: string
+          file_size_kb?: number | null
+          height?: number | null
+          is_expired?: boolean | null
+          raw: Json
+          source_created_at?: string | null
+          source_expires_at?: string | null
+          source_hash: string
+          thumbnail_path?: string | null
+          width?: number | null
+        }
+        Update: {
+          artist_author?: string | null
+          asset_source_id?: string
+          can_download?: boolean | null
+          can_view?: boolean | null
+          capture_id?: string
+          description?: string | null
+          file_name?: string
+          file_size_kb?: number | null
+          height?: number | null
+          is_expired?: boolean | null
+          raw?: Json
+          source_created_at?: string | null
+          source_expires_at?: string | null
+          source_hash?: string
+          thumbnail_path?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_asset_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sega_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sega_asset_catalog: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          catalog_source_id: string
+          raw: Json
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          catalog_source_id: string
+          raw: Json
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          catalog_source_id?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_asset_catalog_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sega_asset_catalog_catalog_fkey"
+            columns: ["capture_id", "catalog_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_catalog"
+            referencedColumns: ["capture_id", "catalog_source_id"]
+          },
+        ]
+      }
+      sega_asset_property: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          evidence_type: string
+          property_source_id: string
+          raw: Json
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          evidence_type?: string
+          property_source_id: string
+          raw: Json
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          evidence_type?: string
+          property_source_id?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_asset_property_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sega_asset_property_property_fkey"
+            columns: ["capture_id", "property_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_property"
+            referencedColumns: ["capture_id", "property_source_id"]
+          },
+        ]
+      }
+      sega_asset_tag: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          raw: Json
+          tag_source_key: string
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          raw: Json
+          tag_source_key: string
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          raw?: Json
+          tag_source_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_asset_tag_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sega_asset_tag_tag_fkey"
+            columns: ["capture_id", "tag_source_key"]
+            isOneToOne: false
+            referencedRelation: "sega_tag"
+            referencedColumns: ["capture_id", "tag_source_key"]
+          },
+        ]
+      }
+      sega_capture: {
+        Row: {
+          asset_paging_terminal: boolean
+          capture_key: string
+          created_by: string
+          error_summary: Json
+          expected_counts: Json
+          id: string
+          ip_associations_complete: boolean
+          ip_paging_terminal: boolean
+          is_limited: boolean
+          load_completed_at: string | null
+          load_started_at: string
+          media_downloaded: number
+          observed_counts: Json
+          portal_base_url: string
+          raw_summary: Json
+          read_commit_sha: string | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+        }
+        Insert: {
+          asset_paging_terminal?: boolean
+          capture_key: string
+          created_by: string
+          error_summary?: Json
+          expected_counts: Json
+          id?: string
+          ip_associations_complete?: boolean
+          ip_paging_terminal?: boolean
+          is_limited?: boolean
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          observed_counts?: Json
+          portal_base_url: string
+          raw_summary: Json
+          read_commit_sha?: string | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+        }
+        Update: {
+          asset_paging_terminal?: boolean
+          capture_key?: string
+          created_by?: string
+          error_summary?: Json
+          expected_counts?: Json
+          id?: string
+          ip_associations_complete?: boolean
+          ip_paging_terminal?: boolean
+          is_limited?: boolean
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          observed_counts?: Json
+          portal_base_url?: string
+          raw_summary?: Json
+          read_commit_sha?: string | null
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      sega_catalog: {
+        Row: {
+          can_delete: boolean | null
+          can_edit: boolean | null
+          capture_id: string
+          catalog_label: string
+          catalog_source_id: string
+          hierarchy_depth: number
+          hierarchy_path: string
+          is_expired: boolean | null
+          parent_catalog_source_id: string | null
+          raw: Json
+          source_hash: string
+        }
+        Insert: {
+          can_delete?: boolean | null
+          can_edit?: boolean | null
+          capture_id: string
+          catalog_label: string
+          catalog_source_id: string
+          hierarchy_depth: number
+          hierarchy_path: string
+          is_expired?: boolean | null
+          parent_catalog_source_id?: string | null
+          raw: Json
+          source_hash: string
+        }
+        Update: {
+          can_delete?: boolean | null
+          can_edit?: boolean | null
+          capture_id?: string
+          catalog_label?: string
+          catalog_source_id?: string
+          hierarchy_depth?: number
+          hierarchy_path?: string
+          is_expired?: boolean | null
+          parent_catalog_source_id?: string | null
+          raw?: Json
+          source_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_catalog_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sega_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sega_catalog_parent_fkey"
+            columns: ["capture_id", "parent_catalog_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_catalog"
+            referencedColumns: ["capture_id", "catalog_source_id"]
+          },
+        ]
+      }
+      sega_character_candidate: {
+        Row: {
+          candidate_label: string
+          capture_id: string
+          character_candidate_key: string
+          inference_method: string
+          normalized_candidate_label: string
+          raw: Json
+          rule_version: string
+        }
+        Insert: {
+          candidate_label: string
+          capture_id: string
+          character_candidate_key: string
+          inference_method: string
+          normalized_candidate_label: string
+          raw: Json
+          rule_version: string
+        }
+        Update: {
+          candidate_label?: string
+          capture_id?: string
+          character_candidate_key?: string
+          inference_method?: string
+          normalized_candidate_label?: string
+          raw?: Json
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_character_candidate_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sega_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sega_character_evidence: {
+        Row: {
+          asset_source_id: string | null
+          capture_id: string
+          catalog_source_id: string | null
+          character_candidate_key: string
+          confidence: number
+          evidence_key: string
+          evidence_type: string
+          evidence_value: string
+          raw: Json
+          relationship_truth: string
+        }
+        Insert: {
+          asset_source_id?: string | null
+          capture_id: string
+          catalog_source_id?: string | null
+          character_candidate_key: string
+          confidence: number
+          evidence_key: string
+          evidence_type: string
+          evidence_value: string
+          raw: Json
+          relationship_truth?: string
+        }
+        Update: {
+          asset_source_id?: string | null
+          capture_id?: string
+          catalog_source_id?: string | null
+          character_candidate_key?: string
+          confidence?: number
+          evidence_key?: string
+          evidence_type?: string
+          evidence_value?: string
+          raw?: Json
+          relationship_truth?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_character_evidence_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sega_character_evidence_candidate_fkey"
+            columns: ["capture_id", "character_candidate_key"]
+            isOneToOne: false
+            referencedRelation: "sega_character_candidate"
+            referencedColumns: ["capture_id", "character_candidate_key"]
+          },
+          {
+            foreignKeyName: "sega_character_evidence_catalog_fkey"
+            columns: ["capture_id", "catalog_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_catalog"
+            referencedColumns: ["capture_id", "catalog_source_id"]
+          },
+        ]
+      }
+      sega_property: {
+        Row: {
+          capture_id: string
+          ip_components_text: string | null
+          language: string | null
+          primary_source_id: string | null
+          property_label: string
+          property_source_id: string
+          property_type: string | null
+          raw: Json
+          source_hash: string
+          source_status: string | null
+          source_url: string
+        }
+        Insert: {
+          capture_id: string
+          ip_components_text?: string | null
+          language?: string | null
+          primary_source_id?: string | null
+          property_label: string
+          property_source_id: string
+          property_type?: string | null
+          raw: Json
+          source_hash: string
+          source_status?: string | null
+          source_url: string
+        }
+        Update: {
+          capture_id?: string
+          ip_components_text?: string | null
+          language?: string | null
+          primary_source_id?: string | null
+          property_label?: string
+          property_source_id?: string
+          property_type?: string | null
+          raw?: Json
+          source_hash?: string
+          source_status?: string | null
+          source_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_property_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sega_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sega_property_licensor: {
+        Row: {
+          capture_id: string
+          licensor_label: string
+          licensor_ordinal: number
+          normalized_licensor_label: string
+          property_source_id: string
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          licensor_label: string
+          licensor_ordinal: number
+          normalized_licensor_label: string
+          property_source_id: string
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          licensor_label?: string
+          licensor_ordinal?: number
+          normalized_licensor_label?: string
+          property_source_id?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_property_licensor_property_fkey"
+            columns: ["capture_id", "property_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_property"
+            referencedColumns: ["capture_id", "property_source_id"]
+          },
+        ]
+      }
+      sega_style_guide_candidate: {
+        Row: {
+          candidate_label: string
+          capture_id: string
+          catalog_source_id: string
+          classification_type: string
+          confidence: number
+          evidence_type: string
+          evidence_value: string
+          raw: Json
+          rule_version: string
+        }
+        Insert: {
+          candidate_label: string
+          capture_id: string
+          catalog_source_id: string
+          classification_type: string
+          confidence: number
+          evidence_type?: string
+          evidence_value: string
+          raw: Json
+          rule_version: string
+        }
+        Update: {
+          candidate_label?: string
+          capture_id?: string
+          catalog_source_id?: string
+          classification_type?: string
+          confidence?: number
+          evidence_type?: string
+          evidence_value?: string
+          raw?: Json
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_style_guide_candidate_catalog_fkey"
+            columns: ["capture_id", "catalog_source_id"]
+            isOneToOne: true
+            referencedRelation: "sega_catalog"
+            referencedColumns: ["capture_id", "catalog_source_id"]
+          },
+        ]
+      }
+      sega_tag: {
+        Row: {
+          capture_id: string
+          identity_method: string
+          normalized_tag_label: string
+          raw: Json
+          tag_label: string
+          tag_source_id: string | null
+          tag_source_key: string
+        }
+        Insert: {
+          capture_id: string
+          identity_method: string
+          normalized_tag_label: string
+          raw: Json
+          tag_label: string
+          tag_source_id?: string | null
+          tag_source_key: string
+        }
+        Update: {
+          capture_id?: string
+          identity_method?: string
+          normalized_tag_label?: string
+          raw?: Json
+          tag_label?: string
+          tag_source_id?: string | null
+          tag_source_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_tag_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sega_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sesame_art_style: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_art_style_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sesame_asset: {
+        Row: {
+          asset_name: string
+          asset_source_id: number
+          asset_status_label: string | null
+          capture_id: string
+          copyright_notice: string | null
+          description: string | null
+          file_size_bytes: number | null
+          file_type_label: string | null
+          original_file_name: string | null
+          pixel_height: number | null
+          pixel_width: number | null
+          raw: Json
+          raw_keyword_text: string | null
+          source_created_at: string | null
+          source_hash: string
+          source_imported_at: string | null
+          source_md5: string | null
+          source_modified_at: string | null
+          title: string | null
+          usage_rights_label: string | null
+          usage_terms: string | null
+        }
+        Insert: {
+          asset_name: string
+          asset_source_id: number
+          asset_status_label?: string | null
+          capture_id: string
+          copyright_notice?: string | null
+          description?: string | null
+          file_size_bytes?: number | null
+          file_type_label?: string | null
+          original_file_name?: string | null
+          pixel_height?: number | null
+          pixel_width?: number | null
+          raw: Json
+          raw_keyword_text?: string | null
+          source_created_at?: string | null
+          source_hash: string
+          source_imported_at?: string | null
+          source_md5?: string | null
+          source_modified_at?: string | null
+          title?: string | null
+          usage_rights_label?: string | null
+          usage_terms?: string | null
+        }
+        Update: {
+          asset_name?: string
+          asset_source_id?: number
+          asset_status_label?: string | null
+          capture_id?: string
+          copyright_notice?: string | null
+          description?: string | null
+          file_size_bytes?: number | null
+          file_type_label?: string | null
+          original_file_name?: string | null
+          pixel_height?: number | null
+          pixel_width?: number | null
+          raw?: Json
+          raw_keyword_text?: string | null
+          source_created_at?: string | null
+          source_hash?: string
+          source_imported_at?: string | null
+          source_md5?: string | null
+          source_modified_at?: string | null
+          title?: string | null
+          usage_rights_label?: string | null
+          usage_terms?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sesame_asset_art_style: {
+        Row: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth: string
+          value_key: string
+          value_ordinal: number
+        }
+        Insert: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth?: string
+          value_key: string
+          value_ordinal: number
+        }
+        Update: {
+          asset_source_id?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          relationship_truth?: string
+          value_key?: string
+          value_ordinal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_art_style_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sesame_asset_art_style_value_fkey"
+            columns: ["capture_id", "field_generation", "value_key"]
+            isOneToOne: false
+            referencedRelation: "sesame_art_style"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+        ]
+      }
+      sesame_asset_asset_type: {
+        Row: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth: string
+          value_key: string
+          value_ordinal: number
+        }
+        Insert: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth?: string
+          value_key: string
+          value_ordinal: number
+        }
+        Update: {
+          asset_source_id?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          relationship_truth?: string
+          value_key?: string
+          value_ordinal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_asset_type_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sesame_asset_asset_type_value_fkey"
+            columns: ["capture_id", "field_generation", "value_key"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset_type"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+        ]
+      }
+      sesame_asset_brand: {
+        Row: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth: string
+          value_key: string
+          value_ordinal: number
+        }
+        Insert: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth?: string
+          value_key: string
+          value_ordinal: number
+        }
+        Update: {
+          asset_source_id?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          relationship_truth?: string
+          value_key?: string
+          value_ordinal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_brand_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sesame_asset_brand_value_fkey"
+            columns: ["capture_id", "field_generation", "value_key"]
+            isOneToOne: false
+            referencedRelation: "sesame_brand"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+        ]
+      }
+      sesame_asset_category: {
+        Row: {
+          asset_source_id: number
+          capture_id: string
+          category_source_id: number
+          raw: Json
+          relationship_truth: string
+        }
+        Insert: {
+          asset_source_id: number
+          capture_id: string
+          category_source_id: number
+          raw: Json
+          relationship_truth?: string
+        }
+        Update: {
+          asset_source_id?: number
+          capture_id?: string
+          category_source_id?: number
+          raw?: Json
+          relationship_truth?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_category_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sesame_asset_category_category_fkey"
+            columns: ["capture_id", "category_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_category"
+            referencedColumns: ["capture_id", "category_source_id"]
+          },
+        ]
+      }
+      sesame_asset_character: {
+        Row: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth: string
+          value_key: string
+          value_ordinal: number
+        }
+        Insert: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth?: string
+          value_key: string
+          value_ordinal: number
+        }
+        Update: {
+          asset_source_id?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          relationship_truth?: string
+          value_key?: string
+          value_ordinal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_character_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sesame_asset_character_value_fkey"
+            columns: ["capture_id", "field_generation", "value_key"]
+            isOneToOne: false
+            referencedRelation: "sesame_character"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+        ]
+      }
+      sesame_asset_style_guide: {
+        Row: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth: string
+          value_key: string
+          value_ordinal: number
+        }
+        Insert: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth?: string
+          value_key: string
+          value_ordinal: number
+        }
+        Update: {
+          asset_source_id?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          relationship_truth?: string
+          value_key?: string
+          value_ordinal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_style_guide_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sesame_asset_style_guide_value_fkey"
+            columns: ["capture_id", "field_generation", "value_key"]
+            isOneToOne: false
+            referencedRelation: "sesame_style_guide"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+        ]
+      }
+      sesame_asset_sub_brand: {
+        Row: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth: string
+          value_key: string
+          value_ordinal: number
+        }
+        Insert: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth?: string
+          value_key: string
+          value_ordinal: number
+        }
+        Update: {
+          asset_source_id?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          relationship_truth?: string
+          value_key?: string
+          value_ordinal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_sub_brand_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sesame_asset_sub_brand_value_fkey"
+            columns: ["capture_id", "field_generation", "value_key"]
+            isOneToOne: false
+            referencedRelation: "sesame_sub_brand"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+        ]
+      }
+      sesame_asset_theme: {
+        Row: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth: string
+          value_key: string
+          value_ordinal: number
+        }
+        Insert: {
+          asset_source_id: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          relationship_truth?: string
+          value_key: string
+          value_ordinal: number
+        }
+        Update: {
+          asset_source_id?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          relationship_truth?: string
+          value_key?: string
+          value_ordinal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_theme_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sesame_asset_theme_value_fkey"
+            columns: ["capture_id", "field_generation", "value_key"]
+            isOneToOne: false
+            referencedRelation: "sesame_theme"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+        ]
+      }
+      sesame_asset_type: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_asset_type_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sesame_brand: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_brand_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sesame_capture: {
+        Row: {
+          capture_key: string
+          categories_visited: number
+          category_tree_walked: boolean
+          created_by: string
+          error_summary: Json
+          expected_counts: Json
+          guide_character_rows_excluded: number
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          media_downloaded: number
+          multivalue_parse_verified: boolean
+          observed_counts: Json
+          pagination_verified: boolean
+          portal_base_url: string
+          portal_slug: string
+          raw_summary: Json
+          read_commit_sha: string | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+        }
+        Insert: {
+          capture_key: string
+          categories_visited?: number
+          category_tree_walked?: boolean
+          created_by: string
+          error_summary?: Json
+          expected_counts: Json
+          guide_character_rows_excluded?: number
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          multivalue_parse_verified?: boolean
+          observed_counts?: Json
+          pagination_verified?: boolean
+          portal_base_url: string
+          portal_slug: string
+          raw_summary: Json
+          read_commit_sha?: string | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+        }
+        Update: {
+          capture_key?: string
+          categories_visited?: number
+          category_tree_walked?: boolean
+          created_by?: string
+          error_summary?: Json
+          expected_counts?: Json
+          guide_character_rows_excluded?: number
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          multivalue_parse_verified?: boolean
+          observed_counts?: Json
+          pagination_verified?: boolean
+          portal_base_url?: string
+          portal_slug?: string
+          raw_summary?: Json
+          read_commit_sha?: string | null
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      sesame_category: {
+        Row: {
+          capture_id: string
+          category_label: string
+          category_path: string
+          category_source_id: number
+          child_count: number
+          depth: number
+          in_licensee_portal: boolean
+          is_guide_level: boolean
+          parent_category_source_id: number | null
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          category_label: string
+          category_path: string
+          category_source_id: number
+          child_count: number
+          depth: number
+          in_licensee_portal: boolean
+          is_guide_level: boolean
+          parent_category_source_id?: number | null
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          category_label?: string
+          category_path?: string
+          category_source_id?: number
+          child_count?: number
+          depth?: number
+          in_licensee_portal?: boolean
+          is_guide_level?: boolean
+          parent_category_source_id?: number | null
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_category_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sesame_category_parent_fkey"
+            columns: ["capture_id", "parent_category_source_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_category"
+            referencedColumns: ["capture_id", "category_source_id"]
+          },
+        ]
+      }
+      sesame_character: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_character_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sesame_style_guide: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          guide_family: string | null
+          is_colon_nested: boolean
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          field_generation?: string
+          guide_family?: string | null
+          is_colon_nested: boolean
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          field_generation?: string
+          guide_family?: string | null
+          is_colon_nested?: boolean
+          raw?: Json
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_style_guide_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sesame_style_guide_character: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          character_field_generation: string
+          character_value_key: string
+          derivation_method: string
+          guide_field_generation: string
+          guide_value_key: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          character_field_generation?: string
+          character_value_key: string
+          derivation_method?: string
+          guide_field_generation?: string
+          guide_value_key: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          character_field_generation?: string
+          character_value_key?: string
+          derivation_method?: string
+          guide_field_generation?: string
+          guide_value_key?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_style_guide_character_character_fkey"
+            columns: [
+              "capture_id",
+              "character_field_generation",
+              "character_value_key",
+            ]
+            isOneToOne: false
+            referencedRelation: "sesame_character"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+          {
+            foreignKeyName: "sesame_style_guide_character_guide_fkey"
+            columns: ["capture_id", "guide_field_generation", "guide_value_key"]
+            isOneToOne: false
+            referencedRelation: "sesame_style_guide"
+            referencedColumns: ["capture_id", "field_generation", "value_key"]
+          },
+        ]
+      }
+      sesame_sub_brand: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_sub_brand_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sesame_theme: {
+        Row: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Insert: {
+          asset_count: number
+          capture_id: string
+          field_generation: string
+          raw: Json
+          value_key: string
+          value_label: string
+        }
+        Update: {
+          asset_count?: number
+          capture_id?: string
+          field_generation?: string
+          raw?: Json
+          value_key?: string
+          value_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sesame_theme_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sesame_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ShippingPort: {
         Row: {
           CountryCode: string | null
@@ -22911,54 +25620,6 @@ export type Database = {
           PortCode?: string | null
           PortDesc?: string | null
           UNLcode?: string | null
-        }
-        Relationships: []
-      }
-      source_resolution: {
-        Row: {
-          core_character_id: string | null
-          core_property_id: string | null
-          core_style_guide_id: string | null
-          created_at: string
-          dam_asset_id: string | null
-          entity_kind: string
-          resolution_reason: string | null
-          resolution_status: string
-          resolved_at: string | null
-          resolved_by: string | null
-          source_id: string
-          source_system: string
-          updated_at: string
-        }
-        Insert: {
-          core_character_id?: string | null
-          core_property_id?: string | null
-          core_style_guide_id?: string | null
-          created_at?: string
-          dam_asset_id?: string | null
-          entity_kind: string
-          resolution_reason?: string | null
-          resolution_status?: string
-          resolved_at?: string | null
-          resolved_by?: string | null
-          source_id: string
-          source_system: string
-          updated_at?: string
-        }
-        Update: {
-          core_character_id?: string | null
-          core_property_id?: string | null
-          core_style_guide_id?: string | null
-          created_at?: string
-          dam_asset_id?: string | null
-          entity_kind?: string
-          resolution_reason?: string | null
-          resolution_status?: string
-          resolved_at?: string | null
-          resolved_by?: string | null
-          source_id?: string
-          source_system?: string
-          updated_at?: string
         }
         Relationships: []
       }
@@ -25273,6 +27934,123 @@ export type Database = {
         }
         Relationships: []
       }
+      wb_asset: {
+        Row: {
+          asset_source_id: string
+          captured_date: string
+          character_labels: string
+          created_date: string | null
+          file_name: string
+          file_size_bytes: number | null
+          first_seen_at: string
+          franchise_labels: string
+          imported_at: string
+          last_seen_at: string
+          modified_date: string | null
+          property_labels: string
+          raw: Json
+          season: string | null
+          source_hash: string
+          source_path: string
+          source_url: string
+          style_guide_natural_key: string | null
+          style_guide_source_id: string
+          updated_at: string
+          warner_asset_id: string | null
+        }
+        Insert: {
+          asset_source_id: string
+          captured_date: string
+          character_labels: string
+          created_date?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          first_seen_at?: string
+          franchise_labels: string
+          imported_at?: string
+          last_seen_at?: string
+          modified_date?: string | null
+          property_labels: string
+          raw: Json
+          season?: string | null
+          source_hash: string
+          source_path: string
+          source_url: string
+          style_guide_natural_key?: string | null
+          style_guide_source_id?: string
+          updated_at?: string
+          warner_asset_id?: string | null
+        }
+        Update: {
+          asset_source_id?: string
+          captured_date?: string
+          character_labels?: string
+          created_date?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          first_seen_at?: string
+          franchise_labels?: string
+          imported_at?: string
+          last_seen_at?: string
+          modified_date?: string | null
+          property_labels?: string
+          raw?: Json
+          season?: string | null
+          source_hash?: string
+          source_path?: string
+          source_url?: string
+          style_guide_natural_key?: string | null
+          style_guide_source_id?: string
+          updated_at?: string
+          warner_asset_id?: string | null
+        }
+        Relationships: []
+      }
+      wb_asset_character: {
+        Row: {
+          asset_source_id: string
+          captured_date: string
+          character_label: string
+          character_source_id: string
+          file_name: string
+          first_seen_at: string
+          imported_at: string
+          last_seen_at: string
+          raw: Json
+          source_hash: string
+          source_url: string
+          updated_at: string
+        }
+        Insert: {
+          asset_source_id: string
+          captured_date: string
+          character_label: string
+          character_source_id: string
+          file_name: string
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          raw: Json
+          source_hash: string
+          source_url: string
+          updated_at?: string
+        }
+        Update: {
+          asset_source_id?: string
+          captured_date?: string
+          character_label?: string
+          character_source_id?: string
+          file_name?: string
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          raw?: Json
+          source_hash?: string
+          source_url?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wb_asset_character_normalized: {
         Row: {
           asset_id: string
@@ -25394,6 +28172,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wb_asset_franchise_property: {
+        Row: {
+          asset_source_id: string
+          captured_date: string
+          file_name: string
+          first_seen_at: string
+          franchise_property_label: string
+          franchise_property_source_id: string
+          imported_at: string
+          last_seen_at: string
+          raw: Json
+          source_hash: string
+          source_url: string
+          updated_at: string
+        }
+        Insert: {
+          asset_source_id: string
+          captured_date: string
+          file_name: string
+          first_seen_at?: string
+          franchise_property_label: string
+          franchise_property_source_id?: string
+          imported_at?: string
+          last_seen_at?: string
+          raw: Json
+          source_hash: string
+          source_url: string
+          updated_at?: string
+        }
+        Update: {
+          asset_source_id?: string
+          captured_date?: string
+          file_name?: string
+          first_seen_at?: string
+          franchise_property_label?: string
+          franchise_property_source_id?: string
+          imported_at?: string
+          last_seen_at?: string
+          raw?: Json
+          source_hash?: string
+          source_url?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       wb_asset_normalized: {
         Row: {
@@ -25530,6 +28353,51 @@ export type Database = {
           },
         ]
       }
+      wb_asset_style_guide: {
+        Row: {
+          asset_source_id: string
+          captured_date: string
+          file_name: string
+          first_seen_at: string
+          imported_at: string
+          last_seen_at: string
+          raw: Json
+          source_hash: string
+          source_url: string
+          style_guide_natural_key: string
+          style_guide_source_id: string
+          updated_at: string
+        }
+        Insert: {
+          asset_source_id: string
+          captured_date: string
+          file_name: string
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          raw: Json
+          source_hash: string
+          source_url: string
+          style_guide_natural_key: string
+          style_guide_source_id?: string
+          updated_at?: string
+        }
+        Update: {
+          asset_source_id?: string
+          captured_date?: string
+          file_name?: string
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          raw?: Json
+          source_hash?: string
+          source_url?: string
+          style_guide_natural_key?: string
+          style_guide_source_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wb_asset_style_guide_normalized: {
         Row: {
           asset_id: string
@@ -25657,6 +28525,51 @@ export type Database = {
           started_at?: string | null
           status?: string | null
           target?: string | null
+        }
+        Relationships: []
+      }
+      wb_character: {
+        Row: {
+          captured_date: string
+          first_seen_at: string
+          imported_at: string
+          label: string
+          last_seen_at: string
+          raw: Json
+          source_hash: string
+          source_id: string
+          source_term: string
+          source_url: string
+          updated_at: string
+          visible_asset_count: number | null
+        }
+        Insert: {
+          captured_date: string
+          first_seen_at?: string
+          imported_at?: string
+          label: string
+          last_seen_at?: string
+          raw: Json
+          source_hash: string
+          source_id?: string
+          source_term: string
+          source_url: string
+          updated_at?: string
+          visible_asset_count?: number | null
+        }
+        Update: {
+          captured_date?: string
+          first_seen_at?: string
+          imported_at?: string
+          label?: string
+          last_seen_at?: string
+          raw?: Json
+          source_hash?: string
+          source_id?: string
+          source_term?: string
+          source_url?: string
+          updated_at?: string
+          visible_asset_count?: number | null
         }
         Relationships: []
       }
@@ -25790,6 +28703,51 @@ export type Database = {
           },
         ]
       }
+      wb_franchise_property: {
+        Row: {
+          captured_date: string
+          first_seen_at: string
+          imported_at: string
+          label: string
+          last_seen_at: string
+          raw: Json
+          source_hash: string
+          source_id: string
+          source_term: string
+          source_url: string
+          updated_at: string
+          visible_asset_count: number | null
+        }
+        Insert: {
+          captured_date: string
+          first_seen_at?: string
+          imported_at?: string
+          label: string
+          last_seen_at?: string
+          raw: Json
+          source_hash: string
+          source_id?: string
+          source_term: string
+          source_url: string
+          updated_at?: string
+          visible_asset_count?: number | null
+        }
+        Update: {
+          captured_date?: string
+          first_seen_at?: string
+          imported_at?: string
+          label?: string
+          last_seen_at?: string
+          raw?: Json
+          source_hash?: string
+          source_id?: string
+          source_term?: string
+          source_url?: string
+          updated_at?: string
+          visible_asset_count?: number | null
+        }
+        Relationships: []
+      }
       wb_franchise_property_evidence: {
         Row: {
           capture_chunk: number
@@ -25922,6 +28880,69 @@ export type Database = {
           },
         ]
       }
+      wb_property_character: {
+        Row: {
+          captured_at: string
+          character_label: string
+          character_source_id: string
+          first_seen_at: string
+          id_fallback: boolean
+          imported_at: string
+          last_seen_at: string
+          property_id: string | null
+          property_label: string
+          property_source_id: string
+          raw: Json
+          resolution_reason: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          source_hash: string
+          source_url: string
+          updated_at: string
+        }
+        Insert: {
+          captured_at: string
+          character_label: string
+          character_source_id: string
+          first_seen_at?: string
+          id_fallback: boolean
+          imported_at?: string
+          last_seen_at?: string
+          property_id?: string | null
+          property_label: string
+          property_source_id: string
+          raw: Json
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_hash: string
+          source_url: string
+          updated_at?: string
+        }
+        Update: {
+          captured_at?: string
+          character_label?: string
+          character_source_id?: string
+          first_seen_at?: string
+          id_fallback?: boolean
+          imported_at?: string
+          last_seen_at?: string
+          property_id?: string | null
+          property_label?: string
+          property_source_id?: string
+          raw?: Json
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_hash?: string
+          source_url?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wb_property_character_normalized: {
         Row: {
           capture_chunk: number
@@ -26016,6 +29037,51 @@ export type Database = {
           },
         ]
       }
+      wb_style_guide: {
+        Row: {
+          captured_date: string
+          first_seen_at: string
+          imported_at: string
+          last_seen_at: string
+          raw: Json
+          source_hash: string
+          source_id: string
+          source_term: string
+          source_url: string
+          style_guide_natural_key: string
+          updated_at: string
+          visible_asset_count: number | null
+        }
+        Insert: {
+          captured_date: string
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          raw: Json
+          source_hash: string
+          source_id?: string
+          source_term: string
+          source_url: string
+          style_guide_natural_key: string
+          updated_at?: string
+          visible_asset_count?: number | null
+        }
+        Update: {
+          captured_date?: string
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          raw?: Json
+          source_hash?: string
+          source_id?: string
+          source_term?: string
+          source_url?: string
+          style_guide_natural_key?: string
+          updated_at?: string
+          visible_asset_count?: number | null
+        }
+        Relationships: []
+      }
       wb_style_guide_normalized: {
         Row: {
           capture_chunk: number
@@ -26078,6 +29144,532 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "wb_capture"
             referencedColumns: ["capture_id", "chunk_number"]
+          },
+        ]
+      }
+      wildbrain_asset: {
+        Row: {
+          asset_category_source_id: string | null
+          asset_name: string
+          asset_nature_source_id: string | null
+          asset_source_id: string
+          asset_uuid: string
+          capture_id: string
+          creative_group_source_id: string | null
+          era_source_id: string
+          file_size_bytes: number | null
+          original_file_name: string | null
+          page_count: number | null
+          raw: Json
+          raw_keyword_text: string | null
+          source_created_at: string | null
+          source_hash: string
+          source_modified_at: string | null
+          universe_label: string
+        }
+        Insert: {
+          asset_category_source_id?: string | null
+          asset_name: string
+          asset_nature_source_id?: string | null
+          asset_source_id: string
+          asset_uuid: string
+          capture_id: string
+          creative_group_source_id?: string | null
+          era_source_id: string
+          file_size_bytes?: number | null
+          original_file_name?: string | null
+          page_count?: number | null
+          raw: Json
+          raw_keyword_text?: string | null
+          source_created_at?: string | null
+          source_hash: string
+          source_modified_at?: string | null
+          universe_label: string
+        }
+        Update: {
+          asset_category_source_id?: string | null
+          asset_name?: string
+          asset_nature_source_id?: string | null
+          asset_source_id?: string
+          asset_uuid?: string
+          capture_id?: string
+          creative_group_source_id?: string | null
+          era_source_id?: string
+          file_size_bytes?: number | null
+          original_file_name?: string | null
+          page_count?: number | null
+          raw?: Json
+          raw_keyword_text?: string | null
+          source_created_at?: string | null
+          source_hash?: string
+          source_modified_at?: string | null
+          universe_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_asset_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_category_fk"
+            columns: ["capture_id", "asset_category_source_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_asset_category"
+            referencedColumns: ["capture_id", "asset_category_source_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_creative_group_fk"
+            columns: ["capture_id", "creative_group_source_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_creative_group"
+            referencedColumns: ["capture_id", "creative_group_source_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_era_fk"
+            columns: ["capture_id", "era_source_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_era"
+            referencedColumns: ["capture_id", "era_source_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_nature_fk"
+            columns: ["capture_id", "asset_nature_source_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_asset_nature"
+            referencedColumns: ["capture_id", "asset_nature_source_id"]
+          },
+        ]
+      }
+      wildbrain_asset_category: {
+        Row: {
+          asset_category_label: string
+          asset_category_source_id: string
+          capture_id: string
+          normalized_asset_category_label: string
+          raw: Json
+        }
+        Insert: {
+          asset_category_label: string
+          asset_category_source_id: string
+          capture_id: string
+          normalized_asset_category_label: string
+          raw: Json
+        }
+        Update: {
+          asset_category_label?: string
+          asset_category_source_id?: string
+          capture_id?: string
+          normalized_asset_category_label?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_asset_category_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wildbrain_asset_character: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          character_source_id: string
+          raw: Json
+          relationship_truth: string
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          character_source_id: string
+          raw: Json
+          relationship_truth?: string
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          character_source_id?: string
+          raw?: Json
+          relationship_truth?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_asset_character_asset_fk"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_character_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_character_character_fk"
+            columns: ["capture_id", "character_source_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_character"
+            referencedColumns: ["capture_id", "character_source_id"]
+          },
+        ]
+      }
+      wildbrain_asset_guide: {
+        Row: {
+          alias_label: string
+          asset_source_id: string
+          capture_id: string
+          guide_key: string
+          raw: Json
+          relationship_truth: string
+        }
+        Insert: {
+          alias_label: string
+          asset_source_id: string
+          capture_id: string
+          guide_key: string
+          raw: Json
+          relationship_truth?: string
+        }
+        Update: {
+          alias_label?: string
+          asset_source_id?: string
+          capture_id?: string
+          guide_key?: string
+          raw?: Json
+          relationship_truth?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_asset_guide_alias_fk"
+            columns: ["capture_id", "guide_key", "alias_label"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_guide_alias"
+            referencedColumns: ["capture_id", "guide_key", "alias_label"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_guide_asset_fk"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_guide_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wildbrain_asset_guide_guide_fk"
+            columns: ["capture_id", "guide_key"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_guide"
+            referencedColumns: ["capture_id", "guide_key"]
+          },
+        ]
+      }
+      wildbrain_asset_nature: {
+        Row: {
+          asset_nature_label: string
+          asset_nature_source_id: string
+          capture_id: string
+          media_type: string | null
+          raw: Json
+        }
+        Insert: {
+          asset_nature_label: string
+          asset_nature_source_id: string
+          capture_id: string
+          media_type?: string | null
+          raw: Json
+        }
+        Update: {
+          asset_nature_label?: string
+          asset_nature_source_id?: string
+          capture_id?: string
+          media_type?: string | null
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_asset_nature_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wildbrain_capture: {
+        Row: {
+          capture_key: string
+          created_by: string
+          error_summary: Json
+          expected_counts: Json
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          media_downloaded: number
+          observed_counts: Json
+          pagination_verified: boolean
+          portal_base_url: string
+          raw_summary: Json
+          read_commit_sha: string | null
+          reported_total: number | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+          truncated_child_lists: number
+        }
+        Insert: {
+          capture_key: string
+          created_by: string
+          error_summary?: Json
+          expected_counts: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          observed_counts?: Json
+          pagination_verified?: boolean
+          portal_base_url: string
+          raw_summary: Json
+          read_commit_sha?: string | null
+          reported_total?: number | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+          truncated_child_lists?: number
+        }
+        Update: {
+          capture_key?: string
+          created_by?: string
+          error_summary?: Json
+          expected_counts?: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          observed_counts?: Json
+          pagination_verified?: boolean
+          portal_base_url?: string
+          raw_summary?: Json
+          read_commit_sha?: string | null
+          reported_total?: number | null
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+          truncated_child_lists?: number
+        }
+        Relationships: []
+      }
+      wildbrain_character: {
+        Row: {
+          capture_id: string
+          character_label: string
+          character_source_id: string
+          in_source_dictionary: boolean
+          normalized_character_label: string
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          character_label: string
+          character_source_id: string
+          in_source_dictionary: boolean
+          normalized_character_label: string
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          character_label?: string
+          character_source_id?: string
+          in_source_dictionary?: boolean
+          normalized_character_label?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_character_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wildbrain_creative_group: {
+        Row: {
+          capture_id: string
+          creative_group_label: string
+          creative_group_source_id: string
+          normalized_creative_group_label: string
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          creative_group_label: string
+          creative_group_source_id: string
+          normalized_creative_group_label: string
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          creative_group_label?: string
+          creative_group_source_id?: string
+          normalized_creative_group_label?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_creative_group_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wildbrain_era: {
+        Row: {
+          capture_id: string
+          era_label: string
+          era_source_id: string
+          is_root: boolean
+          normalized_era_label: string
+          parent_era_source_id: string | null
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          era_label: string
+          era_source_id: string
+          is_root: boolean
+          normalized_era_label: string
+          parent_era_source_id?: string | null
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          era_label?: string
+          era_source_id?: string
+          is_root?: boolean
+          normalized_era_label?: string
+          parent_era_source_id?: string | null
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_era_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wildbrain_era_parent_fk"
+            columns: ["capture_id", "parent_era_source_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_era"
+            referencedColumns: ["capture_id", "era_source_id"]
+          },
+        ]
+      }
+      wildbrain_guide: {
+        Row: {
+          capture_id: string
+          derivation_method: string
+          guide_key: string
+          guide_label: string
+          normalized_guide_label: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          capture_id: string
+          derivation_method?: string
+          guide_key: string
+          guide_label: string
+          normalized_guide_label: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          capture_id?: string
+          derivation_method?: string
+          guide_key?: string
+          guide_label?: string
+          normalized_guide_label?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_guide_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wildbrain_guide_alias: {
+        Row: {
+          alias_label: string
+          asset_count: number
+          capture_id: string
+          guide_key: string
+          raw: Json
+          relationship_truth: string
+        }
+        Insert: {
+          alias_label: string
+          asset_count: number
+          capture_id: string
+          guide_key: string
+          raw: Json
+          relationship_truth?: string
+        }
+        Update: {
+          alias_label?: string
+          asset_count?: number
+          capture_id?: string
+          guide_key?: string
+          raw?: Json
+          relationship_truth?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_guide_alias_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wildbrain_guide_alias_guide_fk"
+            columns: ["capture_id", "guide_key"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_guide"
+            referencedColumns: ["capture_id", "guide_key"]
           },
         ]
       }
@@ -26206,6 +29798,29 @@ export type Database = {
         }
         Returns: string
       }
+      begin_peanuts_capture: {
+        Args: {
+          p_api_endpoint: string
+          p_assets_captured: number
+          p_assets_unreachable: number
+          p_capture_key: string
+          p_created_by: string
+          p_deep_paging_partitioned: boolean
+          p_expected_counts: Json
+          p_portal_base_url: string
+          p_portal_reported_asset_total: number
+          p_raw_summary: Json
+          p_read_commit_sha?: string
+          p_relationship_graph_walked: boolean
+          p_source_captured_at: string
+          p_source_commit_sha: string
+          p_source_customer_id: string
+          p_source_manifest_sha256: string
+          p_source_repository: string
+          p_vocabularies_loaded_from_source: boolean
+        }
+        Returns: string
+      }
       begin_pmt_capture: {
         Args: {
           p_capture_kind: string
@@ -26223,6 +29838,41 @@ export type Database = {
           p_source_url: string
           p_started_at: string
           p_unique_asset_count: number
+        }
+        Returns: string
+      }
+      begin_sega_capture: {
+        Args: {
+          p_asset_paging_terminal: boolean
+          p_capture_key: string
+          p_created_by: string
+          p_expected_counts: Json
+          p_ip_associations_complete: boolean
+          p_ip_paging_terminal: boolean
+          p_is_limited: boolean
+          p_portal_base_url: string
+          p_raw_summary: Json
+          p_read_commit_sha?: string
+          p_source_captured_at: string
+          p_source_commit_sha: string
+          p_source_manifest_sha256: string
+          p_source_repository: string
+        }
+        Returns: string
+      }
+      begin_sesame_capture: {
+        Args: {
+          p_capture_key: string
+          p_created_by: string
+          p_expected_counts: Json
+          p_portal_base_url: string
+          p_portal_slug: string
+          p_raw_summary: Json
+          p_read_commit_sha?: string
+          p_source_captured_at: string
+          p_source_commit_sha: string
+          p_source_manifest_sha256: string
+          p_source_repository: string
         }
         Returns: string
       }
@@ -26265,6 +29915,37 @@ export type Database = {
           p_snapshot_sha256: string
           p_source_url: string
           p_target: string
+        }
+        Returns: string
+      }
+      begin_wb_capture_legacy: {
+        Args: {
+          p_captured_at: string
+          p_captured_by: string
+          p_expected_row_count: number
+          p_notes?: string
+          p_private_source_commit: string
+          p_snapshot_sha256: string
+          p_source_url: string
+          p_target: string
+        }
+        Returns: string
+      }
+      begin_wildbrain_capture: {
+        Args: {
+          p_capture_key: string
+          p_created_by: string
+          p_expected_counts: Json
+          p_media_downloaded?: number
+          p_pagination_verified?: boolean
+          p_portal_base_url: string
+          p_raw_summary: Json
+          p_read_commit_sha?: string
+          p_reported_total?: number
+          p_source_captured_at: string
+          p_source_commit_sha: string
+          p_source_manifest_sha256: string
+          p_source_repository: string
         }
         Returns: string
       }
@@ -26357,6 +30038,19 @@ export type Database = {
         Returns: undefined
       }
       coldlion_normalize_name: { Args: { p_value: string }; Returns: string }
+      complete_sesame_capture: {
+        Args: {
+          p_capture_id: string
+          p_categories_visited: number
+          p_category_tree_walked: boolean
+          p_error_summary?: Json
+          p_guide_character_rows_excluded?: number
+          p_multivalue_parse_verified: boolean
+          p_observed_counts: Json
+          p_pagination_verified: boolean
+        }
+        Returns: undefined
+      }
       compute_taxonomy_immutability_snapshot: { Args: never; Returns: Json }
       dam_order_allowed_header_keys: { Args: never; Returns: string[] }
       dam_order_allowed_line_keys: { Args: never; Returns: string[] }
@@ -26464,6 +30158,14 @@ export type Database = {
         Returns: Json
       }
       finalize_nbcu_capture: { Args: { p_capture_id: string }; Returns: Json }
+      finalize_peanuts_capture: {
+        Args: {
+          p_capture_id: string
+          p_error_summary: Json
+          p_observed_counts: Json
+        }
+        Returns: undefined
+      }
       finalize_pmt_capture: {
         Args: { p_capture_id: string; p_manifest_sha256: string }
         Returns: {
@@ -26473,6 +30175,14 @@ export type Database = {
           expected: number
           ok: boolean
         }[]
+      }
+      finalize_sega_capture: {
+        Args: {
+          p_capture_id: string
+          p_error_summary: Json
+          p_observed_counts: Json
+        }
+        Returns: undefined
       }
       finalize_twentieth_century_dcp_crawl: {
         Args: { p_crawl_id: string }
@@ -26501,6 +30211,34 @@ export type Database = {
           snapshot_captured_at: string
           snapshot_hash: string
         }[]
+      }
+      finalize_wb_capture_legacy: {
+        Args: {
+          p_capture_id: string
+          p_max_shrink_fraction?: number
+          p_snapshot_sha256: string
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      finalize_wildbrain_capture: {
+        Args: {
+          p_capture_id: string
+          p_error_summary: Json
+          p_observed_counts: Json
+        }
+        Returns: undefined
       }
       import_coldlion_customers: {
         Args: { customers_payload: Json }
@@ -26544,6 +30282,7 @@ export type Database = {
           sync_run_id: string
         }[]
       }
+      latest_sesame_capture: { Args: never; Returns: string }
       link_coldlion_licensors_properties_approved: {
         Args: { p_expected: Json; p_input: Json }
         Returns: {
@@ -26911,41 +30650,6 @@ export type Database = {
         Returns: Json
       }
       resolve_deployment_environment: { Args: never; Returns: string }
-      set_source_resolution: {
-        Args: {
-          p_core_character_id?: string
-          p_core_property_id?: string
-          p_core_style_guide_id?: string
-          p_dam_asset_id?: string
-          p_entity_kind: string
-          p_expected_updated_at?: string
-          p_resolution_reason?: string
-          p_resolution_status: string
-          p_source_id: string
-          p_source_system: string
-        }
-        Returns: {
-          core_character_id: string | null
-          core_property_id: string | null
-          core_style_guide_id: string | null
-          created_at: string
-          dam_asset_id: string | null
-          entity_kind: string
-          resolution_reason: string | null
-          resolution_status: string
-          resolved_at: string | null
-          resolved_by: string | null
-          source_id: string
-          source_system: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "source_resolution"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       sync_coldlion_licensors_properties: {
         Args: { p_link_expected?: Json; p_mode?: string; p_snapshot: Json }
         Returns: {
@@ -26993,6 +30697,126 @@ export type Database = {
           snapshot_hash: string
         }[]
       }
+      sync_wb_asset: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_franchise_property: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_style_guide: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_franchise_property: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
       sync_wb_normalized_target: {
         Args: {
           p_capture_id: string
@@ -27000,6 +30824,46 @@ export type Database = {
           p_mode?: string
           p_snapshot: Json
           p_target: string
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_property_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_style_guide: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
         }
         Returns: {
           mode: string
@@ -30666,6 +34530,7 @@ export type Database = {
         Args: { p_file_id: string; p_tag_id: string }
         Returns: number
       }
+      relink_dam_order_lines_bulk: { Args: { p_limit?: number }; Returns: Json }
       remove_style_guide_manual_tag: {
         Args: { p_file_id: string; p_tag_id: string }
         Returns: boolean
@@ -30834,6 +34699,166 @@ export type Database = {
           snapshot_hash: string
         }[]
       }
+      sync_wb_asset: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_franchise_property: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_asset_style_guide: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_franchise_property: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_property_character: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
+      sync_wb_style_guide: {
+        Args: {
+          p_max_shrink_fraction?: number
+          p_mode?: string
+          p_snapshot: Json
+        }
+        Returns: {
+          mode: string
+          rows_collapsed: number
+          rows_inserted: number
+          rows_landed: number
+          rows_missing: number
+          rows_orphan_identity: number
+          rows_seen: number
+          rows_unchanged: number
+          rows_updated: number
+          snapshot_captured_at: string
+          snapshot_hash: string
+        }[]
+      }
       taxonomy_breaker_enforcement_status: { Args: never; Returns: Json }
       taxonomy_circuit_breaker_state: {
         Args: { p_lane?: string }
@@ -30854,7 +34879,14 @@ export type Database = {
         Returns: Json
       }
       update_bulk_operation: {
-        Args: { p_only_if_status?: string; p_op_key: string; p_op_state: Json }
+        Args: {
+          p_expected_revision?: number
+          p_lease_seconds?: number
+          p_only_if_status?: string
+          p_op_key: string
+          p_op_state: Json
+          p_submission_owner?: string
+        }
         Returns: Json
       }
       update_bulk_operations_batch: { Args: { p_updates: Json }; Returns: Json }
