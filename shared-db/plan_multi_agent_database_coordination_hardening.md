@@ -18,7 +18,7 @@
 
 | Step | Outcome | State | Evidence |
 |---|---|---|---|
-| 1 | Lock the orchestrator boundary and finish the two existing required-check gaps | ⬜ open | Not started |
+| 1 | Lock the orchestrator boundary and finish the two existing required-check gaps | 🟨 **partly done** | Boundary + docs + CLI merged; see [`docs/verification/orchestrator-boundary-and-required-checks-2026-08-23.md`](docs/verification/orchestrator-boundary-and-required-checks-2026-08-23.md). **Outstanding:** the two contexts are not yet required on `main` — the `--apply` call was refused by the session's permission layer, not by GitHub. Re-run the documented command from a permitted session. Does not block Step 2. |
 | 2 | Replace flat database-object claims with compatible read/write claims | ⬜ open | Not started |
 | 3 | Make issue dependencies prove successful completion | ⬜ open | Not started |
 | 4 | Add a provider-neutral agent work contract and completion report | ⬜ open | Not started |
@@ -41,7 +41,7 @@ grep -n "^export function <name>" scripts/manage-migration-author-lanes.mjs
 Never trust a line number written in this document, including the ones recorded in
 §5 and §6 as of 2026-08-23.
 
-**Fresh-session starting point:** Step 1. This plan-writing session changed documentation only. Before every later phase, start a fresh repository-maintenance session, re-read the remaining plan from that phase onward, and use an isolated worktree created from current `origin/main`.
+**Fresh-session starting point:** Step 2, plus the one outstanding Step 1 sub-step recorded in the STATUS table (making the two contexts required). They are independent; do not let the blocked sub-step hold up Step 2. This plan-writing session changed documentation only. Before every later phase, start a fresh repository-maintenance session, re-read the remaining plan from that phase onward, and use an isolated worktree created from current `origin/main`.
 
 **2026-08-23 revision — what the independent Grok 4.6 review changed.** The review
 agreed with the plan's goal and most of its design but found that two guarantees were

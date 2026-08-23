@@ -503,7 +503,14 @@ exempt from it.
 1. Branch + PR; you merge it yourself. Never commit to `main`.
 2. Commit identity `Albert Hazan <u2giants@users.noreply.github.com>` — check
    `git var GIT_COMMITTER_IDENT` before the first commit.
-3. Six required contexts, `strict: true`, `enforce_admins: true`. Expect `gh pr update-branch`.
+3. **Corrected 2026-08-23 (issue #1366).** This line read "Six required contexts, `strict: true`,
+   `enforce_admins: true`. Expect `gh pr update-branch`." That is stale on both counts. Live
+   protection has **more than six** contexts and `strict` is **`false`** by Albert's 2026-08-19
+   ruling in issue #1286 — deliberate, not drift, and not to be restored. Do **not** expect or run
+   `gh pr update-branch` as a routine step; that is exactly the churn #1286 removed. For migration
+   pull requests the current-`main` proof comes from `.github/workflows/guarded-migration-merge.yml`
+   at merge time. `enforce_admins: true` still holds. Never quote a context count from a document:
+   run `gh api repos/u2giants/shared-db/branches/main/protection` and quote the live output.
 4. **Never an UNBOUNDED `--include-all` against production. A BOUNDED one is required, and
    `AGENTS.md` §5.1(4) already licenses it.** *(Corrected 2026-08-09 — the original wording,
    "Never `--include-all` against production", was incomplete shorthand and, read literally,

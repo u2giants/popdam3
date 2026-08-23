@@ -78,9 +78,20 @@
 //   * DDL outside supabase/migrations/ -- e.g. SQL embedded in tools/*.mjs.
 //   * A collision with a pull request opened AFTER this run. GitHub does not
 //     re-run a green check when a sibling pull request appears, so the last
-//     merge of a colliding set is the one that must be re-checked. Branch
-//     protection requiring "up to date before merge" is what makes that
-//     reliable; this guard does not substitute for it.
+//     merge of a colliding set is the one that must be re-checked.
+//
+//     WHAT PROVIDES THAT RE-CHECK -- corrected 2026-08-23, issue #1366. Earlier
+//     text here credited branch protection's "up to date before merge"
+//     (`required_status_checks.strict`). That is wrong and it is load-bearing
+//     wrong: `strict` is deliberately FALSE by Albert's 2026-08-19 ruling in
+//     issue #1286 (strict mode restarted every check suite after every unrelated
+//     merge, ~50 minutes/day). The actual re-check for a migration pull request
+//     is `.github/workflows/guarded-migration-merge.yml`, which re-runs collision
+//     and lease validation on a head containing current `main` while holding the
+//     merge lock; a pull request with no migrations is auto-authorized by
+//     `.github/workflows/migration-author-lease.yml`. This script is a DETECTOR
+//     that gives early feedback; guarded merge is the gate. Do not restore strict
+//     mode on the strength of this comment.
 //   * Anything at all when it SKIPS (see posture (a)) -- read the warning.
 //   * It is not evasion-proof. It is a collision DETECTOR for honest authors
 //     working in parallel, not a security control. Splitting the keyword across

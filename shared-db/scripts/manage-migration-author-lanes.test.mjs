@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -121,13 +121,40 @@ test('status and non-structural routes never consume a migration-author lane',()
   assert.equal(result.fullyAudited,true)
 })
 
-test('every non-structural work type exits as reject or fork and never as accept',()=>{
+test('every non-structural work type has a named exit and never accept',()=>{
   assert.equal(queueExit('structural'),'accept')
+  const allowed=new Set(['reject','fork','repo-session','return-to-owner'])
   for(const [workType,exit] of Object.entries(NON_STRUCTURAL_EXITS)){
-    assert.ok(exit==='reject'||exit==='fork',`${workType} must exit reject or fork`)
+    assert.ok(allowed.has(exit),`${workType} must exit to a named destination, got ${exit}`)
+    assert.notEqual(exit,'accept',`${workType} must never be accepted by the orchestrator`)
     assert.equal(queueExit(workType),exit)
   }
   assert.throws(()=>queueExit('invented-work-type'),/no orchestrator exit is defined/)
+})
+
+// OWNER RULING 2026-08-21 (issue #1366). Repository maintenance, documentation and
+// security-settings work is not the orchestrator's, not even to dispatch. These
+// exits are the machine-readable form of that ruling; a regression here is how the
+// original routing mistake happened.
+test('the 2026-08-21 owner ruling is enforced: repo work leaves the orchestrator, Master Data does not move',()=>{
+  assert.equal(queueExit('repo-maintenance'),'repo-session')
+  assert.equal(queueExit('documentation'),'repo-session')
+  assert.equal(queueExit('security-settings'),'return-to-owner')
+  // Deliberately unchanged. The ruling did not cover curated Master Data, which
+  // AGENTS.md 6.4 still governs inside this repository.
+  assert.equal(queueExit('curated-master-data'),'fork')
+  for(const workType of ['repo-maintenance','documentation','security-settings']){
+    assert.ok(OUTSIDE_ORCHESTRATOR_EXITS.includes(queueExit(workType)),`${workType} must be outside orchestrator action`)
+  }
+  assert.equal(OUTSIDE_ORCHESTRATOR_EXITS.includes('fork'),false,'fork still means the orchestrator hands the work on inside this repo')
+  assert.equal(OUTSIDE_ORCHESTRATOR_EXITS.includes('reject'),false,'a reject is still an orchestrator action: it must be returned')
+})
+
+test('every work type keeps an exit, so a new one cannot be added without a routing decision',()=>{
+  const expected=['structural','curated-master-data','application-data','source-data','repo-maintenance','documentation','security-settings']
+  const covered=new Set(['structural',...Object.keys(NON_STRUCTURAL_EXITS)])
+  for(const workType of expected) assert.ok(covered.has(workType),`${workType} has no exit`)
+  assert.equal(covered.size,expected.length,'an unexpected work type gained an exit without updating this test')
 })
 
 test('the queue audit names every open issue that fails the shape test with its exit',()=>{
@@ -139,7 +166,7 @@ test('the queue audit names every open issue that fails the shape test with its 
   ]
   const result=buildDynamicQueues(issues,[],NOW)
   assert.deepEqual(result.notOrchestratorWork.map((x)=>x.issue),[51,52,53])
-  assert.deepEqual(result.notOrchestratorWork.map((x)=>x.exit),['reject','fork','fork'])
+  assert.deepEqual(result.notOrchestratorWork.map((x)=>x.exit),['reject','repo-session','return-to-owner'])
   assert.equal(result.notOrchestratorWork.find((x)=>x.issue===53).blockedOnOwner,true)
   assert.equal(result.notOrchestratorWork.some((x)=>x.issue===50),false)
   assert.deepEqual(result.dispatchable,[50])
@@ -147,7 +174,7 @@ test('the queue audit names every open issue that fails the shape test with its 
 
 test('a non-structural issue parked at blocked is still reported rather than silently skipped',()=>{
   const result=buildDynamicQueues([{number:54,title:'parked',body:scope('blocked','documentation','repo-maintenance',5)}],[],NOW)
-  assert.deepEqual(result.notOrchestratorWork.map((x)=>x.exit),['fork'])
+  assert.deepEqual(result.notOrchestratorWork.map((x)=>x.exit),['repo-session'])
   assert.deepEqual(result.dispatchable,[])
 })
 
@@ -206,7 +233,7 @@ test('a failed mirror creation leaves the rejected issue open and untouched',()=
 
 test('return refuses fork work, a missing address, and a second return',()=>{
   const io=(body,comments=[])=>({getIssue:()=>({number:72,title:'t',body,state:'open'}),getIssueComments:()=>comments,createIssueIn:()=>{throw new Error('must not be called')},commentIssue:()=>{},closeIssue:()=>{}})
-  assert.throws(()=>returnIssueToOwner(72,io(scope('ready','repo-maintenance','repo-maintenance',5))),/exits by fork/)
+  assert.throws(()=>returnIssueToOwner(72,io(scope('ready','repo-maintenance','repo-maintenance',5))),/whose exit is repo-session, not return/)
   assert.throws(()=>returnIssueToOwner(72,io(scope('ready','application-data','application-session',5))),/no return_to address/)
   const addressed=scope('ready','application-data','application-session',5).replace('route: application-session','route: application-session\nreturn_to: u2giants/popdam3')
   assert.throws(()=>returnIssueToOwner(72,io(addressed,[{body:`${RETURNED_MARKER} https://github.com/u2giants/popdam3/issues/9`}])),/already returned/)

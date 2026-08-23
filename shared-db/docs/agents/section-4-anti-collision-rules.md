@@ -56,6 +56,25 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    lane, and it must name every exact database object. Non-structural work must
    not claim database objects.
 
+   **Each non-structural work type has a named exit** (AGENTS.md §0.0-C, and
+   `NON_STRUCTURAL_EXITS` in `scripts/manage-migration-author-lanes.mjs`, which is
+   the enforced form):
+
+   | work type | exit | who does it |
+   |---|---|---|
+   | `structural` | `accept` | this orchestrator, via a migration-author lane |
+   | `curated-master-data` | `fork` | a fresh session **dispatched by this orchestrator**, under §6.4 |
+   | `application-data`, `source-data` | `reject` | the owning application repository, after being forwarded |
+   | `repo-maintenance`, `documentation` | `repo-session` | a **separately started** repository session — not an orchestrator assignment at all |
+   | `security-settings` | `return-to-owner` | Albert |
+
+   **Owner ruling, 2026-08-21 (issue #1366).** The orchestrator does database
+   structure and schema only. `repo-maintenance` and `documentation` are not
+   orchestrator work **even to dispatch**; `--queue-audit` lists them under
+   `OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION` so nothing accumulates unseen,
+   and that list is not a worklist. The ruling deliberately left
+   `curated-master-data` on `fork`; do not move it without a separate ruling.
+
    **Work whose exit is REJECT — `application-data` and `source-data` — must
    also carry a `return_to:` line naming the owning repository as an
    `owner/repo` slug** (AGENTS.md §0.0-C). `curated-master-data` does NOT: §6.4

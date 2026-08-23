@@ -164,24 +164,43 @@ const ROUTES_BY_WORK_TYPE = Object.freeze({
 })
 
 // ORCHESTRATOR ADMISSION TEST (AGENTS.md 0.0-C). A parsed scope block that is
-// not `structural` has exactly two exits and `accept` is never one of them:
-// REJECT sends it back to the session that owns those rows, FORK hands it to a
-// fresh session with an empty context window. The orchestrator's own context is
-// reserved for triage, dispatch, review and merge, so it must never work one of
-// these itself no matter how small it looks.
+// not `structural` never exits by `accept`. Each non-structural work type names
+// WHERE it goes instead, because the old single `fork` value did not say who
+// picks the work up, and an ambiguous exit is what let repository-maintenance
+// work be read as an orchestrator worklist.
+//
+// OWNER RULING 2026-08-21 (issue #1366). The shared-db orchestrator does
+// database STRUCTURE and SCHEMA only. Repository maintenance, documentation and
+// security-settings work is performed by a SEPARATELY STARTED session and is
+// never an orchestrator assignment - not even to dispatch. The orchestrator's
+// own context is reserved for triage, dispatch, review and merge of structural
+// work, so it must never work one of these itself no matter how small it looks.
 export const NON_STRUCTURAL_EXITS = Object.freeze({
   'application-data': 'reject',
   'source-data': 'reject',
-  // FORK, not REJECT. Curated Master Data is governed INSIDE this repo by 6.4:
-  // it binds the AI session doing the typing and never leaves for an
-  // application repo. It exits by fork because it must not occupy a
-  // migration-author lane and must not be worked in the orchestrator's own
-  // context - not because it belongs to somebody else.
+  // FORK, not REJECT, and DELIBERATELY UNCHANGED by issue #1366. Curated Master
+  // Data is governed INSIDE this repo by 6.4: it binds the AI session doing the
+  // typing and never leaves for an application repo. It exits by fork because it
+  // must not occupy a migration-author lane and must not be worked in the
+  // orchestrator's own context - not because it belongs to somebody else.
+  //
+  // The 2026-08-21 ruling was about repository-maintenance work. It did NOT
+  // change how curated Master Data is routed. Do not move this to another exit
+  // without a separate explicit owner ruling.
   'curated-master-data': 'fork',
-  'repo-maintenance': 'fork',
-  documentation: 'fork',
-  'security-settings': 'fork',
+  // REPO-SESSION, not FORK. These are owned by a separately started repository
+  // session. The orchestrator records them so an audit can see them, and then
+  // takes no action at all: it does not work them and it does not dispatch them.
+  'repo-maintenance': 'repo-session',
+  documentation: 'repo-session',
+  // RETURN-TO-OWNER. A security-settings change needs authority the orchestrator
+  // does not have, so it goes to Albert rather than to any session.
+  'security-settings': 'return-to-owner',
 })
+
+// Exits that mean "this is not the orchestrator's work AND the orchestrator has
+// nothing to do about it" - visible to an audit, never a worklist.
+export const OUTSIDE_ORCHESTRATOR_EXITS = Object.freeze(['repo-session', 'return-to-owner'])
 
 // A REJECT exit must MOVE the task, never merely decline it. `return_to` is the
 // forwarding address: the repository whose session owns the work. Rejecting
@@ -313,7 +332,7 @@ export function returnIssueToOwner(number, io, { alreadyReturned } = {}) {
   if (issue.state && String(issue.state).toLowerCase() === 'closed') throw new LaneError(`issue #${number} is already closed`)
   const scope = parseQueueScope(issue.body)
   if (!scope) throw new LaneError(`issue #${number} carries no db-work-scope block, so its owner is unknown`)
-  if (queueExit(scope.workType) !== 'reject') throw new LaneError(`issue #${number} is ${scope.workType} work, which exits by fork, not by return`)
+  if (queueExit(scope.workType) !== 'reject') throw new LaneError(`issue #${number} is ${scope.workType} work, whose exit is ${queueExit(scope.workType)}, not return`)
   if (!scope.returnTo) throw new LaneError(`issue #${number} has no return_to address; add one before returning it`)
   const priorComments = alreadyReturned ?? io.getIssueComments(number).map((comment)=>comment.body ?? '')
   const prior = priorComments.find((body)=>body.includes(RETURNED_MARKER))
@@ -1611,13 +1630,29 @@ export function main(argv, now = new Date(), io = githubIo) {
       // work would otherwise hide this list entirely, which is exactly how these
       // items accumulated unseen in the first place.
       if (result.notOrchestratorWork.length) {
-        console.error('NOT ORCHESTRATOR WORK: these open issues fail the shape test (AGENTS.md 0.0-C). Reject or fork each one; never work it here.')
-        for (const item of result.notOrchestratorWork) {
+        // Split the list by what the orchestrator must DO. The single old
+        // heading told the reader to "reject or fork each one", which reads as a
+        // worklist even for items the orchestrator has no business touching.
+        const actionable = result.notOrchestratorWork.filter((item)=>!OUTSIDE_ORCHESTRATOR_EXITS.includes(item.exit))
+        const outside = result.notOrchestratorWork.filter((item)=>OUTSIDE_ORCHESTRATOR_EXITS.includes(item.exit))
+        const describe = (item) => {
           const owner = item.blockedOnOwner ? ' [blocked on owner decision]' : ''
           const address = item.exit === 'reject'
             ? (item.returnTo ? ` -> ${item.returnTo}` : ' -> NO RETURN ADDRESS: add `return_to: owner/repo` before returning it')
             : ''
-          console.error(`  #${item.issue} ${item.exit.toUpperCase()} — work_type ${item.workType}, route ${item.route}${owner}${address}`)
+          return `  #${item.issue} ${item.exit.toUpperCase()} — work_type ${item.workType}, route ${item.route}${owner}${address}`
+        }
+        if (actionable.length) {
+          console.error('NOT ORCHESTRATOR WORK: these open issues fail the shape test (AGENTS.md 0.0-C). Reject or fork each one; never work it here.')
+          for (const item of actionable) console.error(describe(item))
+        }
+        if (outside.length) {
+          // OWNER RULING 2026-08-21 (issue #1366): the orchestrator handles
+          // structure and schema only. These rows are listed so an audit can see
+          // them and so nothing accumulates unseen - NOT so the orchestrator can
+          // pick them up. There is no orchestrator action for any of them.
+          console.error('OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION: listed for audit visibility only (owner ruling 2026-08-21, issue #1366). The orchestrator does structure/schema only. Do NOT work these and do NOT dispatch them; a separately started session owns them.')
+          for (const item of outside) console.error(describe(item))
         }
         const unaddressed = result.notOrchestratorWork.filter((item)=>item.needsReturnAddress)
         if (unaddressed.length) console.error(`NO RETURN ADDRESS on ${unaddressed.map((item)=>`#${item.issue}`).join(', ')} — a reject with no forwarding address closes into silence. Return each with --return-issue <n> once addressed.`)

@@ -811,18 +811,38 @@ and you must still run the command rather than trust it.**
 | Setting | Value |
 | --- | --- |
 | `required_status_checks.contexts` | `["Promotion contract tests (offline)", "Cross-PR object collision", "Tools offline tests", "SQL migration guards", "Domain ownership", "Intake pointer guard", "Handoff contract", "Migration author lease", "Migration guarded merge authorization"]` (**nine**) |
-| `required_status_checks.strict` | **`true`** (changed 2026-08-06 — see below) |
+| `required_status_checks.strict` | **`false` as of 2026-08-19** (issue #1286). The `true` recorded here on 2026-08-06 is superseded history — see the note below. |
 | `enforce_admins.enabled` | **`true`** |
 | `allow_force_pushes.enabled` | `false` |
 | `allow_deletions.enabled` | `false` |
 
-> **`strict` was turned ON on 2026-08-06, by the owner's explicit instruction.** It had
-> been `false`, which left a real hole: `.github/workflows/pr-object-collision.yml` says in
-> its own header that it cannot re-run when a *sibling* PR appears later, so the last
-> member of a colliding set must be re-checked — and *"require branches to be up to date
-> before merging"* is what forces that. With `strict: false`, two PRs could both pass every
-> check and both merge, silently erasing one another. That is the 2026-07-31 four-way
-> incident's exact mechanism. **Do not turn it back off.**
+> **SUPERSEDED AS CURRENT STATE — read this first (2026-08-19, issue #1286).** `strict` is
+> **`false`** today, by Albert's later explicit ruling, and the table row above is history, not
+> instruction. Requiring every branch to be up to date restarted the full check suite on every
+> open branch after every unrelated merge, costing roughly **50 minutes a day**. Albert weighed
+> that against the risk and turned it off deliberately. **It is not drift. Do not "fix" it, and
+> do not restore strict mode on the strength of the 2026-08-06 paragraph below.** Only issue
+> #1286 governs whether it is ever reconsidered, against the measured criterion recorded there.
+>
+> **What replaced the protection strict mode was providing.** The sibling-collision hole is real,
+> and it is now closed at the merge point rather than by forcing every branch current:
+> `.github/workflows/guarded-migration-merge.yml` re-runs collision and lease validation on a head
+> that already contains current `main`, while holding the merge lock, and its context
+> `Migration guarded merge authorization` is required. A pull request with no migrations is
+> auto-authorized by `.github/workflows/migration-author-lease.yml`. So a colliding pair can no
+> longer both merge, and unrelated PRs no longer restart everything. The header comments in
+> `pr-object-collision.yml` and `check-pr-object-collisions.mjs` were corrected on 2026-08-23
+> (issue #1366) because their old wording is what made a later plan propose reversing this ruling.
+>
+> **The 2026-08-06 history, preserved exactly as recorded then:**
+>
+> > **`strict` was turned ON on 2026-08-06, by the owner's explicit instruction.** It had
+> > been `false`, which left a real hole: `.github/workflows/pr-object-collision.yml` says in
+> > its own header that it cannot re-run when a *sibling* PR appears later, so the last
+> > member of a colliding set must be re-checked — and *"require branches to be up to date
+> > before merging"* is what forces that. With `strict: false`, two PRs could both pass every
+> > check and both merge, silently erasing one another. That is the 2026-07-31 four-way
+> > incident's exact mechanism. **Do not turn it back off.**
 >
 > ⚠️ **This table was stale for two days once already** — it read `strict: false` and four
 > contexts after both had changed. A reviewing model (Grok 4.5, 2026-08-06) read it and
@@ -832,8 +852,9 @@ and you must still run the command rather than trust it.**
 > quote the live output**, in any issue, handover, review, or PR description that turns on
 > branch protection — and re-read it back whenever you change protection, stamping the new date
 > here. This follows §4.3 (point at the live reading, never at a number). Prose asserting mutable
-> state goes stale; the command does not. Two rows are **owner rulings you may never weaken to
-> make a check pass**: `strict` stays `true` and `enforce_admins` stays `true`.
+> state goes stale; the command does not. One row is an **owner ruling you may never weaken to
+> make a check pass**: `enforce_admins` stays `true`. `strict` is governed by the later issue
+> #1286 ruling above and is `false` on purpose.
 
 **The rule.**
 

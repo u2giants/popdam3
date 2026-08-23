@@ -301,22 +301,41 @@ Before opening, accepting, or acting on any item, answer one question:
 **Yes → accept.** It is queue work: `work_type: structural`, `route: shared-db-orchestrator`, exact
 objects listed, dispatched to a sub-agent in an isolated worktree as usual.
 
-**No → it has exactly two exits, and `accept` is never one of them.**
+**No → `accept` is never one of the exits. Each non-structural work type names where it goes
+instead.** The machine-readable form of this table is `NON_STRUCTURAL_EXITS` in
+`scripts/manage-migration-author-lanes.mjs`; the two must agree.
 
 - **REJECT** — the work belongs to another repository and must leave this queue. `application-data`
   and `source-data`. **Rejection FORWARDS the task; it never merely closes it** — see "A reject is
   a forward" below.
-- **FORK** — genuinely this repo's work, but not shape work: CI guards, migration tooling, scripts,
-  docs, audits, incident write-ups (`repo-maintenance`, `documentation`, `security-settings`) —
-  **and curated Master Data** (`curated-master-data`), which §6.4 governs *inside* this repo and
-  which never leaves for an application repo. It forks because it must not occupy a
-  migration-author lane, not because somebody else owns it.
-  Hand it to a **fresh session with an empty context window** — a worktree sub-agent, exactly as a
-  migration is dispatched. The orchestrator does not read the code, does not debug it, and does not
-  "just fix it quickly".
+- **FORK** — genuinely this repo's work, dispatched by this orchestrator to a fresh session with an
+  empty context window, but never worked in the orchestrator's own window. **This is now curated
+  Master Data only** (`curated-master-data`), which §6.4 governs *inside* this repo and which never
+  leaves for an application repo. It forks because it must not occupy a migration-author lane, not
+  because somebody else owns it. The orchestrator does not read the code, does not debug it, and
+  does not "just fix it quickly".
+- **REPO-SESSION** — `repo-maintenance` and `documentation`. **Not an orchestrator assignment at
+  all, not even to dispatch.** A separately started repository-maintenance session owns this work
+  end to end. The orchestrator lists such issues in `--queue-audit` under
+  `OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION` purely so nothing accumulates unseen, and then
+  takes no action on them.
+- **RETURN-TO-OWNER** — `security-settings`. It needs authority the orchestrator does not have.
+  Put it to Albert; do not dispatch it to any session.
 
-There is no third exit and no size exemption. "It is only a one-line doc fix" is precisely how an
-orchestrator context fills up.
+### OWNER RULING, 2026-08-21 (issue #1366) — the orchestrator does structure and schema ONLY
+
+Albert ruled on 2026-08-21 that **repository-maintenance work is not an orchestrator job**. This
+was not a clarification of an existing rule; it narrowed the boundary. Before that date,
+`repo-maintenance`, `documentation`, and `security-settings` all exited by FORK, which reads as
+"the orchestrator hands this out" — and an orchestrator session had already accepted a
+repository-maintenance planning task on that basis. That is the mistake this ruling closes.
+
+The ruling did **not** change how curated Master Data is routed. `curated-master-data` still exits
+by FORK and is still governed here by §6.4. Do not extend the ruling to it without a separate
+explicit decision from Albert.
+
+There is no size exemption. "It is only a one-line doc fix" is precisely how an orchestrator
+context fills up.
 
 ### A reject is a forward, not a closed door
 
@@ -1231,5 +1250,39 @@ have already happened in this repo, more than once.
     into orchestrator work, and a session must not open an issue or hand over merely because its
     feature writes data. The single exception is curated Master Data under §6.4, which stays
     gated. §4.2's connection-target proof still applies to every data write regardless.
+
+16. **REPOSITORY MAINTENANCE IS NOT ORCHESTRATOR WORK (owner ruling, 2026-08-21, issue #1366).**
+    The shared-db orchestrator accepts, dispatches, reviews, merges and promotes **structural and
+    schema work only**. `repo-maintenance` and `documentation` are performed by a **separately
+    started repository session** and are never an orchestrator assignment — not even to dispatch.
+    `security-settings` goes to Albert, because it needs authority the orchestrator does not have.
+    `--queue-audit` lists these under `OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION` for audit
+    visibility only; that list is **not** a worklist.
+
+    This ruling narrowed the boundary rather than restating it. Until 2026-08-21 all three exited
+    by `fork`, which reads as "the orchestrator hands this out", and on that basis an orchestrator
+    session accepted a repository-maintenance planning task. Do not route such work back to the
+    orchestrator, and do not read a `fork` in an old document as current.
+
+    **It did not touch curated Master Data.** `curated-master-data` still exits by `fork` under
+    §6.4 and is still governed inside this repository. Extending the ruling to it needs a separate
+    explicit decision from Albert. See `NON_STRUCTURAL_EXITS` in
+    `scripts/manage-migration-author-lanes.mjs` for the enforced form.
+
+17. **`required_status_checks.strict` is FALSE on purpose (owner ruling, 2026-08-19, issue #1286).**
+    Requiring every branch to be up to date before merging restarted the full check suite on every
+    open branch after every unrelated merge, costing roughly 50 minutes a day. Albert turned it
+    off deliberately. **It is not drift and must not be "fixed".**
+
+    What actually re-checks a migration pull request against current `main` is
+    `.github/workflows/guarded-migration-merge.yml`, whose required context
+    `Migration guarded merge authorization` re-runs collision and lease validation on a head that
+    contains current `main`, while holding the merge lock. A pull request with no migrations is
+    auto-authorized by `.github/workflows/migration-author-lease.yml`.
+
+    Older documents — including `docs/owner-rulings.md`'s 2026-08-06/14 entries and
+    `plan_orchestrator-workflow-gaps.md` — describe the earlier `strict: true` state. That history
+    is real and is preserved; it is **superseded** as a current instruction. Only issue #1286
+    governs whether strict mode is ever reconsidered.
 
 ---
