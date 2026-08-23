@@ -913,6 +913,22 @@ async function handleGetOpenrouterVisionModels() {
     });
   });
 
+  models.push({
+    id: "meta-direct/muse-spark-1.2-contributor",
+    name: "Meta Muse Spark 1.2 Contributor (direct API; training data enabled)",
+    context_length: 1_048_576,
+    input_modalities: ["text", "image"],
+    image_input: true,
+    supports_tools: true,
+    supports_tool_choice: true,
+    tool_choice_modes: ["auto"],
+    supports_structured_outputs: true,
+    supports_response_format: true,
+    capability_source: "direct_provider",
+    applied_override: null,
+    pricing: { prompt: "0.0000001", completion: "0.0000002", input_cache_read: "0.000000002" },
+  });
+
   return json({ ok: true, models });
 }
 

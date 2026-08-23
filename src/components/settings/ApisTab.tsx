@@ -447,7 +447,7 @@ WHAT THIS TASK DOES
 Looks at one asset image (licensed-character artwork, a product photo, a tech pack or style-guide page, etc.) plus its file metadata and returns structured catalog metadata: descriptive tags, a one-sentence description, a short product-label "cover description", a scene description, asset type and art source, design style/reference, matched character / licensor / property IDs from a controlled in-house taxonomy, designer / technical-designer / freelancer names read off title blocks, and a deduplicated list of "Files Used" pulled from any attached tech-pack text. It runs as a single-turn image+text request (no chat history, no multi-step agent loop), at bulk-job scale across the whole library.
 
 HOW THE CODE INVOKES THE MODEL
-All calls go through OpenRouter (OpenAI-compatible Chat Completions), so any listed model that meets the contract can be selected without a code change. The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) OpenRouter json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
+Most calls go through OpenRouter (OpenAI-compatible Chat Completions). The explicit meta-direct/muse-spark-1.2-contributor choice instead uses Meta Model API directly and requires META_API_KEY in Railway. The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
 
 WHAT IS FED TO THE MODEL
 - One image: the asset's THUMBNAIL, not the full-resolution original — an already-compressed, downscaled raster sent inline. There is no separate high-res pass, so the model must read small detail (style numbers, fine print in title blocks, near-identical character variants) off a low-resolution image.
@@ -687,8 +687,8 @@ export function AiModelsConfigSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          All AI calls go through OpenRouter. Choose which model to use for each task below.
-          Model IDs use the format <code className="text-[10px]">provider/model-name</code> (e.g. <code className="text-[10px]">google/gemini-2.0-flash-001</code>).
+          AI calls normally go through OpenRouter. Image Tagging can also use Meta Model API directly.
+          Direct Muse requires <code className="text-[10px]">META_API_KEY</code> in Railway.
         </p>
 
         {/* OpenRouter API Key */}
@@ -833,6 +833,11 @@ export function AiModelsConfigSection() {
                     </Button>
                   </div>
                   {renderSelect(key, currentVal, allOptions, defaultModel)}
+                  {key === "vision_tagging" && currentVal === "meta-direct/muse-spark-1.2-contributor" && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                      Contributor pricing allows Meta to use submitted thumbnails, prompts, and model outputs to train its models.
+                    </p>
+                  )}
                   {!currentModelMeetsRequirements && requirementLabel && (
                     <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. Select a different model.</p>
                   )}

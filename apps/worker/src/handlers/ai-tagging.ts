@@ -139,12 +139,6 @@ interface AiTagHandlerDependencies {
 
 async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutcome> {
   const client = db();
-  const apiKey = await getAiTaggingApiKey();
-
-  if (!apiKey) {
-    logger.error("No AI API key configured (OPENROUTER_API_KEY)");
-    return { outcome: "failed", error: "No AI API key configured (set the OpenRouter key in PopDAM Settings \u2192 APIs)" };
-  }
 
   // Fetch asset
   const { data: asset, error: fetchErr } = await client
@@ -190,8 +184,13 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
 
   type AttemptResult = TagOutcome & { _rawMsg?: string };
   const attemptTag = async (model: string): Promise<AttemptResult> => {
+    const apiKey = await getAiTaggingApiKey(model);
+    if (!apiKey) {
+      const keyName = model.startsWith("meta-direct/") ? "META_API_KEY" : "OPENROUTER_API_KEY";
+      return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Railway)` };
+    }
     for (let sameModelRetry = 0; sameModelRetry <= SAME_MODEL_STRUCTURED_RETRY_COUNT; sameModelRetry++) {
-      // Call via OpenRouter
+      // Call through the provider selected by the model ID.
       try {
         const messages = buildImageTaggingMessages(
           systemPrompt,

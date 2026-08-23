@@ -2,7 +2,7 @@ import { chatCompletion, isTerminalOpenRouterError, tool, type ChatCompletionReq
 import { buildStructuredOutputPlan, type CapabilityOverride, type ModelCapabilities, type StructuredOutputMethod } from "./model-capabilities.js";
 
 export interface OutputAttempt { method: StructuredOutputMethod; status: "success" | "failed"; latencyMs: number; requestedForm?: string; httpStatus?: number; error?: string; parse?: "ok" | "failed"; validation?: "ok" | "failed"; usage?: unknown; providerInfo?: OpenRouterProviderInfo; }
-export interface ExecuteStructuredOutputOptions<T> { apiKey: string; model: string; messages: ChatMessage[]; schemaName: string; schema: Record<string, unknown>; validate: (value: Record<string, unknown>) => T; capabilities: ModelCapabilities; override?: CapabilityOverride; timeoutMs?: number; maxTokens?: number; provider?: ChatCompletionRequest["provider"]; }
+export interface ExecuteStructuredOutputOptions<T> { apiKey: string; model: string; messages: ChatMessage[]; schemaName: string; schema: Record<string, unknown>; validate: (value: Record<string, unknown>) => T; capabilities: ModelCapabilities; override?: CapabilityOverride; timeoutMs?: number; maxTokens?: number; provider?: ChatCompletionRequest["provider"]; completion?: typeof chatCompletion; isTerminalError?: (error: unknown) => boolean; }
 
 function parse(content?: string): Record<string, unknown> | null {
   if (!content?.trim()) return null;
@@ -29,6 +29,8 @@ export function isStrictCompatibleSchema(schema: Record<string, unknown>): boole
 }
 
 export async function executeStructuredOutput<T>(options: ExecuteStructuredOutputOptions<T>): Promise<{ value: T; outputMode: StructuredOutputMethod; attempts: OutputAttempt[]; usage?: unknown; providerInfo?: OpenRouterProviderInfo; repairCount: number }> {
+  const completion = options.completion ?? chatCompletion;
+  const isTerminalError = options.isTerminalError ?? isTerminalOpenRouterError;
   const attempts: OutputAttempt[] = [];
   let repairSource: string | null = null;
   let jsonMethodFailed = false;
@@ -45,7 +47,7 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
         request.messages = [...options.messages, { role: "user", content: "Return only one valid JSON object matching the supplied contract. No markdown or commentary." }];
         request.response_format = method === "json_schema" ? { type: "json_schema", json_schema: { name: options.schemaName, strict: isStrictCompatibleSchema(options.schema), schema: options.schema } } : { type: "json_object" };
       }
-      const result = await chatCompletion(options.apiKey, request, options.timeoutMs);
+      const result = await completion(options.apiKey, request, options.timeoutMs);
       stage = "parse";
       const candidate = result.toolCalls?.[0]?.arguments ?? parse(result.content);
       if (!candidate) throw new Error("No parsable structured output");
@@ -55,7 +57,7 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
       return { value, outputMode: method, attempts, usage: result.usage, providerInfo: result.providerInfo, repairCount: 0 };
     } catch (error) {
       attempts.push({ method, status: "failed", latencyMs: Date.now() - started, requestedForm, httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined, providerInfo: (error as { providerInfo?: OpenRouterProviderInfo })?.providerInfo });
-      if (isTerminalOpenRouterError(error)) throw Object.assign(error as Error, { attempts });
+      if (isTerminalError(error)) throw Object.assign(error as Error, { attempts });
       repairSource = safe(error);
       if (method === "json_schema" || method === "json_object") jsonMethodFailed = true;
     }
@@ -64,13 +66,13 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
     const method: StructuredOutputMethod = "json_repair"; const started = Date.now();
     let stage: "transport" | "parse" | "validation" = "transport";
     try {
-      const result = await chatCompletion(options.apiKey, { model: options.model, messages: [...options.messages, { role: "user", content: `A previous response failed validation: ${repairSource}. Return corrected JSON only.` }], response_format: { type: "json_object" }, max_tokens: options.maxTokens ?? 1500, temperature: 0, provider: options.provider }, options.timeoutMs);
+      const result = await completion(options.apiKey, { model: options.model, messages: [...options.messages, { role: "user", content: `A previous response failed validation: ${repairSource}. Return corrected JSON only.` }], response_format: { type: "json_object" }, max_tokens: options.maxTokens ?? 1500, temperature: 0, provider: options.provider }, options.timeoutMs);
       stage = "parse"; const candidate = parse(result.content); if (!candidate) throw new Error("No parsable JSON after repair");
       stage = "validation";
       const value = options.validate(candidate);
       attempts.push({ method, status: "success", latencyMs: Date.now() - started, requestedForm: "response_format:json_object", parse: "ok", validation: "ok", usage: result.usage, providerInfo: result.providerInfo });
       return { value, outputMode: method, attempts, usage: result.usage, providerInfo: result.providerInfo, repairCount: 1 };
-    } catch (error) { attempts.push({ method, status: "failed", latencyMs: Date.now() - started, requestedForm: "response_format:json_object", httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined }); if (isTerminalOpenRouterError(error)) throw Object.assign(error as Error, { attempts }); }
+    } catch (error) { attempts.push({ method, status: "failed", latencyMs: Date.now() - started, requestedForm: "response_format:json_object", httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined }); if (isTerminalError(error)) throw Object.assign(error as Error, { attempts }); }
   }
   throw Object.assign(new Error(`Structured output failed: ${attempts.map((a) => `${a.method}: ${a.error}`).join("; ")}`), { attempts });
 }

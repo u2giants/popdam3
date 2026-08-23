@@ -1,3 +1,5 @@
+import { config } from "../config.js";
+import { isMetaDirectModel, isTerminalMetaModelApiError, metaChatCompletion } from "../meta-model-api.js";
 import { db } from "../supabase.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { imageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
@@ -320,15 +322,31 @@ export async function callTagAssetModel(
   maxTokens = 4000,
   provider?: ChatCompletionRequest["provider"],
 ): Promise<TagAssetCompletionResult> {
-  const capabilities = await getRuntimeModelCapabilities(apiKey, model);
+  const directMeta = isMetaDirectModel(model);
+  const selectedApiKey = directMeta ? config.metaApiKey : apiKey;
+  if (directMeta && !selectedApiKey) throw new Error("Meta Model API key not configured (set META_API_KEY in Railway)");
+  const capabilities = directMeta ? {
+    modelId: model,
+    imageInput: true,
+    tools: true,
+    toolChoice: true,
+    toolChoiceModes: ["auto" as const],
+    structuredOutputs: true,
+    jsonObject: true,
+    prefer: ["json_schema" as const, "json_object" as const, "tool_auto" as const],
+    source: "override" as const,
+    fetchedAt: new Date().toISOString(),
+  } : await getRuntimeModelCapabilities(selectedApiKey, model);
   const result = await executeStructuredOutput({
-    apiKey, model, messages, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA,
-    capabilities, timeoutMs, maxTokens, provider,
+    apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA,
+    capabilities, timeoutMs, maxTokens, provider: directMeta ? undefined : provider,
+    completion: directMeta ? metaChatCompletion : undefined,
+    isTerminalError: directMeta ? isTerminalMetaModelApiError : undefined,
     validate(value) { validateTagAssetData(value, "structured"); return value; },
   });
   return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };
 }
 
-export function getAiTaggingApiKey(): Promise<string> {
-  return getOpenRouterApiKey();
+export function getAiTaggingApiKey(model?: string): Promise<string> {
+  return model && isMetaDirectModel(model) ? Promise.resolve(config.metaApiKey) : getOpenRouterApiKey();
 }
