@@ -6,6 +6,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-dispatch-collision.mjs'
+import { classifyDependencies, findCompletionRecord, findDependencyCycles, validateCompletionRecord, validateDependencyDeclaration, COMPLETION_FENCE, DependencyError } from './lib/work-dependencies.mjs'
 
 export const REPO = 'u2giants/shared-db'
 export const MAX_AUTHOR_LANES = 3
@@ -312,9 +313,11 @@ export function conflicts(a, b) {
 // lost the read/write distinction must not be handed a weaker answer.
 function overlaps(a, b) { return conflicts({ writes: a, reads: [] }, { writes: b, reads: [] }) }
 
-export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number)) {
+export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null) {
   const openNumbers = new Set(allOpenIssueNumbers.map(Number))
   const skipped = [], unclassified = [], malformed = [], unlabelled = [], candidates = [], notOrchestratorWork = []
+  const dependencyEdges = {}
+  const grandfatheredDependencies = []
   for (const issue of issues) {
     // githubIo always supplies a labels array, so real audits always run this
     // check; callers that pass no labels at all are asserting they carry no
@@ -343,8 +346,32 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     if (scope.workType !== 'structural' || scope.route !== 'shared-db-orchestrator') {
       skipped.push({ issue:issue.number, reason:'not-migration-author-work', workType:scope.workType, route:scope.route }); continue
     }
-    const waiting = scope.dependencies.filter((number)=>openNumbers.has(number))
-    if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
+    // DEPENDENCY PROOF (Step 3, issue #1366). `dependencyStates` is gathered by the
+    // caller so this function stays pure and exhaustively testable. When it is
+    // absent the old open-set test is used, which keeps every existing caller and
+    // fixture working; the CLI always supplies it.
+    dependencyEdges[issue.number] = scope.dependencies
+    try {
+      validateDependencyDeclaration(issue.number, scope.dependencies)
+    } catch (error) {
+      malformed.push({ issue: issue.number, reason: error.message })
+      continue
+    }
+    if (dependencyStates) {
+      const verdict = classifyDependencies(issue.number, scope.dependencies, dependencyStates)
+      for (const row of verdict.results.filter((r)=>r.status === 'grandfathered')) {
+        grandfatheredDependencies.push({ issue: issue.number, dependency: row.number, detail: row.reason })
+      }
+      if (!verdict.satisfied) {
+        for (const blocked of verdict.blocked) {
+          skipped.push({ issue: issue.number, reason: `${blocked.status}:${blocked.number}`, detail: blocked.reason })
+        }
+        continue
+      }
+    } else {
+      const waiting = scope.dependencies.filter((number)=>openNumbers.has(number))
+      if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
+    }
     candidates.push({ issue:issue.number, title:issue.title, ...scope })
   }
   const active = claims.map((claim)=>{
@@ -368,7 +395,10 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
   }
   const emptyLanes = queues.filter((q)=>!q.active).length
   const dispatchable = queues.filter((q)=>!q.active && q.queued.length).map((q)=>q.queued[0])
-  return { queues, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length }
+  // A CYCLE IS NEVER STARTABLE and is invisible to an open/closed test, so it is
+  // reported as its own finding rather than as N tasks that merely look blocked.
+  const dependencyCycles = findDependencyCycles(dependencyEdges)
+  return { queues, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dependencyCycles, grandfatheredDependencies, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length&&!dependencyCycles.length }
 }
 
 // RETURN PATH (AGENTS.md 0.0-C). A rejected task is forwarded to the repository
@@ -592,6 +622,41 @@ export const githubIo = {
       .filter((x)=>!x.labels.some((name)=>COORDINATION_LABELS.has(name)))
   },
   openIssueNumbers() { return ghPaginated(`repos/${REPO}/issues?state=open&per_page=100`).filter((x)=>!x.pull_request).map((x)=>x.number) },
+  // DEPENDENCY STATE (Step 3, issue #1366). Fetch every REFERENCED dependency, not
+  // just the ones that happen to be open, because a nonexistent number and an
+  // unreadable issue must both BLOCK rather than release. Any failure is recorded
+  // as `unreadable` and never collapsed into "fine".
+  dependencyStates(numbers) {
+    const states = {}
+    for (const number of [...new Set((numbers ?? []).map(Number))]) {
+      let issue
+      try {
+        issue = ghJson(['api', `repos/${REPO}/issues/${number}`])
+      } catch (error) {
+        const detail = String(error?.stderr ?? error?.message ?? error)
+        // A 404 is an ANSWER: the issue does not exist. Anything else is "I could
+        // not find out", which is a different and equally blocking condition.
+        states[number] = /HTTP 404|Not Found/i.test(detail) ? { exists: false } : { exists: true, unreadable: detail }
+        continue
+      }
+      if (issue.pull_request) { states[number] = { exists: true, unreadable: `#${number} is a pull request, not a work issue` }; continue }
+      const state = { exists: true, open: issue.state === 'open', closedAt: issue.closed_at ?? null, comments: [] }
+      if (!state.open) {
+        try {
+          state.comments = ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body: c.body }))
+        } catch (error) {
+          states[number] = { exists: true, unreadable: `comments unreadable: ${String(error?.message ?? error)}` }
+          continue
+        }
+      }
+      states[number] = state
+    }
+    return states
+  },
+  mergeCommitInMain(sha) {
+    try { assertMergeCommitInMainHistory(sha, this.readRef('refs/heads/main'), this); return true }
+    catch { return false }
+  },
   prSources() { return gatherOpenPrObjects(REPO) },
   openPulls() { return ghPaginated(`repos/${REPO}/pulls?state=open&per_page=100`) },
   getPr(number) { return ghJson(['api', `repos/${REPO}/pulls/${number}`]) },
@@ -652,6 +717,7 @@ export const githubIo = {
   createClaim(title, body) { return gh(['issue', 'create', '--repo', REPO, '--label', 'db-claim', '--title', `CLAIM: ${title}`, '--body', body]).trim() },
   createIssueIn(repo, title, body) { return gh(['issue','create','--repo',repo,'--title',title,'--body',body]).trim() },
   commentIssue(number, body) { gh(['issue','comment',String(number),'--repo',REPO,'--body',body]) },
+  issueComments(number) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body: c.body })) },
   closeIssue(number) { gh(['issue','close',String(number),'--repo',REPO]) },
   closeClaim(number) { gh(['issue', 'close', String(number), '--repo', REPO, '--comment', 'Expired migration-author lease closed by guarded cleanup. Its migration version remains unavailable.']) },
   reversionFiles(worktree,oldVersion) {
@@ -1547,6 +1613,67 @@ export function assertMergeCommitInMainHistory(mergeSha, mainSha, io = githubIo)
   return comparison
 }
 
+// COMPLETING WORK (Step 3, issue #1366). The ONLY way a db-work-completion record
+// is published. There is deliberately no second publishing path: two commands that
+// both post completion records is how a divergent history gets created.
+//
+// The record is re-derived, not trusted. A caller can write anything into the
+// report file; this command proves the claims against GitHub before publishing,
+// and reads the comment back before letting anyone close the issue.
+export function completeWork({ issue, report }, io = githubIo) {
+  const record = validateCompletionRecord(report)
+  if (record.work_issue !== Number(issue)) {
+    throw new DependencyError(`report is for issue #${record.work_issue} but --issue said #${issue}`)
+  }
+
+  const existing = findCompletionRecord(io.issueComments(issue))
+  if (existing) {
+    // IMMUTABLE. Never edit or replace; a second record would make the history
+    // ambiguous exactly where it must not be.
+    throw new DependencyError(`issue #${issue} already has a ${existing.outcome} completion record; completion is immutable`)
+  }
+
+  // RE-DERIVE THE EVIDENCE. A merged record claims a pull request and a merge
+  // commit; both are checkable, so neither is taken on trust.
+  if (record.outcome === 'merged') {
+    const pr = io.getPr(record.pr)
+    if (!pr?.merged_at) throw new DependencyError(`pull request #${record.pr} is not merged`)
+    // GitHub's own merge_commit_sha, which is the squash commit when the repo
+    // squashes. The source branch head is NOT what lands on main.
+    const actual = pr.merge_commit_sha
+    if (!actual || !actual.startsWith(record.merge_sha) && !record.merge_sha.startsWith(actual)) {
+      throw new DependencyError(`report merge_sha ${record.merge_sha} does not match GitHub's merge_commit_sha ${actual ?? 'none'} for PR #${record.pr}`)
+    }
+    assertMergeCommitInMainHistory(actual, io.readRef('refs/heads/main'), io)
+    const files = io.getPrFiles(record.pr) ?? []
+    const actualVersions = [...new Set(files
+      .map((file)=>/supabase\/migrations\/(\d{14})_/.exec(file.filename ?? ''))
+      .filter(Boolean).map((match)=>match[1]))].sort()
+    const declared = [...record.migration_versions].sort()
+    if (actualVersions.join(',') !== declared.join(',')) {
+      throw new DependencyError(`report migration_versions [${declared.join(', ')}] do not match the versions PR #${record.pr} actually added [${actualVersions.join(', ')}]`)
+    }
+  }
+
+  const body = [
+    'Completion record for this work. Published by `--complete-work`; immutable.',
+    '',
+    '```' + COMPLETION_FENCE,
+    JSON.stringify(record, null, 2),
+    '```',
+    '',
+    'A dependent task is released only by a `merged` or `owner-ruling-recorded` outcome.',
+  ].join('\n')
+  io.commentIssue(issue, body)
+
+  // READ BACK. An unverified write is not evidence, and the caller is about to
+  // close the issue on the strength of this.
+  const readBack = findCompletionRecord(io.issueComments(issue))
+  if (!readBack) throw new DependencyError(`completion comment was posted to #${issue} but could not be read back; do NOT close the issue`)
+  if (readBack.outcome !== record.outcome) throw new DependencyError(`completion read back as ${readBack.outcome}, expected ${record.outcome}`)
+  return readBack
+}
+
 export function acquireExclusive(kind, metadata, io = githubIo) {
   const ref = EXCLUSIVE_REFS[kind]
   if (!ref) throw new LaneError(`unknown exclusive lane: ${kind}`)
@@ -1641,6 +1768,8 @@ function parseArgs(argv) {
     if (a === '--claim') out.claim = true
     else if (a === '--audit') out.audit = true
     else if (a === '--queue-audit') out.queueAudit = true
+    else if (a === '--complete-work') out.completeWork = true
+    else if (a === '--report-file') out.reportFile = argv[++i]
     else if (a === '--return-issue') out.returnIssue = Number(argv[++i])
     else if (a === '--assign-reviewer') out.assignReviewer = true
     else if (a === '--replace-failed-reviewer') out.replaceFailedReviewer = true
@@ -1687,7 +1816,26 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.assignReviewer){console.log(JSON.stringify(assignNextReviewer({issue:o.issue,pr:o.pr,headSha:o.headSha},io),null,2));return 0}
     if (o.returnIssue) { console.log(JSON.stringify(returnIssueToOwner(o.returnIssue, io), null, 2)); return 0 }
     if (o.queueAudit) {
-      const result = buildDynamicQueues(io.openWorkIssues(), claims, now, io.openIssueNumbers())
+      const issues = io.openWorkIssues()
+      // Gather dependency state before building the queue so the pure function
+      // stays pure. Referenced numbers come from the scope blocks themselves.
+      const referenced = new Set()
+      for (const issue of issues) {
+        let scope = null
+        try { scope = parseQueueScope(issue.body) } catch { /* malformed scopes are reported by the audit itself */ }
+        for (const number of scope?.dependencies ?? []) referenced.add(number)
+      }
+      const dependencyStates = referenced.size && io.dependencyStates ? io.dependencyStates([...referenced]) : null
+      // Re-derive the merge evidence rather than trusting the record's own claim.
+      if (dependencyStates && io.mergeCommitInMain) {
+        for (const [number, state] of Object.entries(dependencyStates)) {
+          if (state.open || state.unreadable || state.exists === false) continue
+          let record = null
+          try { record = findCompletionRecord(state.comments) } catch { continue }
+          if (record?.outcome === 'merged') state.mergeInMain = io.mergeCommitInMain(record.merge_sha)
+        }
+      }
+      const result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates)
       console.log(JSON.stringify(result,null,2))
       // Printed BEFORE the refill early-return: a queue with any dispatchable
       // work would otherwise hide this list entirely, which is exactly how these
@@ -1720,10 +1868,39 @@ export function main(argv, now = new Date(), io = githubIo) {
         const unaddressed = result.notOrchestratorWork.filter((item)=>item.needsReturnAddress)
         if (unaddressed.length) console.error(`NO RETURN ADDRESS on ${unaddressed.map((item)=>`#${item.issue}`).join(', ')} — a reject with no forwarding address closes into silence. Return each with --return-issue <n> once addressed.`)
       }
+      // A CYCLE CAN NEVER START. Reported separately from "blocked", because a
+      // blocked task is waiting for something and a cycle is waiting for itself.
+      if (result.dependencyCycles.length) {
+        console.error('DEPENDENCY CYCLE: these issues can never start, because each waits on the next. Break the cycle by removing one depends_on edge.')
+        for (const cycle of result.dependencyCycles) console.error(`  ${cycle.map((n)=>`#${n}`).join(' -> ')}`)
+      }
+      // Print WHY a dependency blocked. "depends-on-open:12" was the whole
+      // diagnostic before; an invalid or unsuccessfully-completed dependency now
+      // says so in words, because those are the cases that used to release work.
+      if (result.grandfatheredDependencies?.length) {
+        console.error('GRANDFATHERED DEPENDENCIES: closed before completion records were required, so accepted without proof. Countable on purpose; Step 8A retires the cutoff when this list is empty.')
+        for (const row of result.grandfatheredDependencies) console.error(`  #${row.issue} — ${row.detail}`)
+      }
+      const dependencyBlocked = result.skipped.filter((row)=>row.detail)
+      if (dependencyBlocked.length) {
+        console.error('DEPENDENCIES NOT PROVEN: closure alone is not success (Step 3, issue #1366).')
+        for (const row of dependencyBlocked) console.error(`  #${row.issue} — ${row.detail}`)
+      }
       if (result.dispatchable.length) { console.error(`REFILL REQUIRED NOW: dispatch issue(s) ${result.dispatchable.map((n)=>`#${n}`).join(', ')}`); return 2 }
       if (result.unlabelled.length) console.error(`UNLABELLED ISSUES: add the \`${WORK_LABEL}\` label to ${result.unlabelled.map((n)=>`#${n}`).join(', ')} — an unlabelled issue is invisible to every label-filtered query`)
       if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify and label every open issue before claiming no eligible work exists'); return 2 }
-      return result.malformed.length || result.unlabelled.length || result.notOrchestratorWork.some((item)=>item.needsReturnAddress) ? 2 : 0
+      return result.malformed.length || result.unlabelled.length || result.dependencyCycles.length || result.notOrchestratorWork.some((item)=>item.needsReturnAddress) ? 2 : 0
+    }
+    if (o.completeWork) {
+      if (!o.issue) throw new LaneError('--complete-work requires --issue <n>')
+      if (!o.reportFile) throw new LaneError('--complete-work requires --report-file <path>')
+      let report
+      try { report = JSON.parse(readFileSync(o.reportFile, 'utf8')) }
+      catch (error) { throw new LaneError(`--report-file is not readable JSON: ${error.message}`) }
+      const published = completeWork({ issue: Number(o.issue), report }, io)
+      console.log(JSON.stringify(published, null, 2))
+      console.error(`Completion recorded on #${o.issue} as ${published.outcome}. You may now close the issue.`)
+      return 0
     }
     if (o.releaseClaim) {
       if (!o.confirmFinished || !o.owner) throw new LaneError('--release-claim requires exact --owner and --confirm-finished')

@@ -97,6 +97,38 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    only. If it changes something you declared under `reads:`, the guard says so by
    name and refuses.
 
+   **A DEPENDENCY MUST PROVE IT SUCCEEDED (Step 3, issue #1366).** `depends_on:`
+   used to be satisfied by the dependency simply not being open. That released
+   downstream work when an issue was closed without merging, cancelled, returned,
+   superseded, or when the number was a typo for an issue that never existed.
+
+   A dependency is now satisfied only by a `db-work-completion` record whose
+   outcome is `merged` or `owner-ruling-recorded`. `returned`, `cancelled`,
+   `superseded`, and `failed` are legitimate endings that never release anything;
+   the audit repeats their recorded reason. A missing issue, a self-dependency, a
+   duplicate, or a dependency cycle fails the audit and names the exact path.
+
+   Publish the record with the ONE command that does it, then close the issue:
+
+   ```bash
+   node scripts/manage-migration-author-lanes.mjs --complete-work --issue <n> --report-file report.json
+   ```
+
+   It re-derives the evidence rather than trusting the file: a `merged` record must
+   name a pull request GitHub reports as merged, a `merge_sha` matching GitHub's own
+   `merge_commit_sha` (the squash commit, not the branch head), migration versions
+   matching the files the PR actually added, and a commit contained in `main`. The
+   comment is read back before you are told you may close.
+
+   Completion is immutable. A second record on one issue is an error, not
+   latest-wins.
+
+   Dependencies closed before **2026-08-23** are GRANDFATHERED: they could not have
+   carried a record, so they are accepted and listed under
+   `GRANDFATHERED DEPENDENCIES` to stay countable. The cutoff never rescues a
+   record that says the work did not succeed, and it is never moved forward to
+   unblock something.
+
    Status, work type, and route are independent. Allowed statuses are `ready`,
    `blocked`, and `owner-decision`. Allowed work types are `structural`,
    `curated-master-data`, `application-data`, `source-data`, `repo-maintenance`,

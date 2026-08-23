@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -1781,4 +1781,143 @@ test('the queue lets two readers of one table run in parallel but serialises a w
   const writer = { number: 3, title: 'writer', body: scopeWith('writes:\n  - table core.shared') }
   const mixed = buildDynamicQueues([reader(1), writer], [], NOW)
   assert.equal(mixed.dispatchable.length, 1, 'a writer and a reader of the same table must serialise')
+})
+
+// --- DEPENDENCY PROOF IN THE QUEUE (Step 3, issue #1366) --------------------
+
+const depScope = (deps) => ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: shared-db-orchestrator', 'priority: 5', 'depends_on: ' + deps, 'writes:', '  - table core.a', '```'].join('\n')
+const completionComment = (record) => ({ body: '```db-work-completion\n' + JSON.stringify(record) + '\n```' })
+const mergedRecord = (issue) => ({ schema_version: 1, work_issue: issue, outcome: 'merged', pr: 1, merge_sha: 'abc1234', migration_versions: [] })
+
+// THE CENTRAL REGRESSION. Before Step 3 the queue asked only "is the dependency
+// number in the open set?", so a closed-without-merging issue released downstream
+// work immediately.
+test('a closed dependency with no completion record does NOT release downstream work', () => {
+  const issues = [{ number: 20, title: 'downstream', body: depScope('#10') }]
+  const states = { 10: { exists: true, open: false, comments: [] } }
+  const result = buildDynamicQueues(issues, [], NOW, [20], states)
+  assert.deepEqual(result.dispatchable, [], 'closure alone must not count as success')
+  assert.match(result.skipped.find((row)=>row.issue===20).detail, /closure alone is not success/)
+})
+
+test('a dependency that never existed BLOCKS instead of releasing instantly', () => {
+  const result = buildDynamicQueues([{ number: 20, title: 'typo', body: depScope('#99999') }], [], NOW, [20], { 99999: { exists: false } })
+  assert.deepEqual(result.dispatchable, [])
+  assert.match(result.skipped.find((row)=>row.issue===20).detail, /does not exist/)
+})
+
+test('a proven merged dependency does release downstream work', () => {
+  const states = { 10: { exists: true, open: false, comments: [completionComment(mergedRecord(10))], mergeInMain: true } }
+  const result = buildDynamicQueues([{ number: 20, title: 'downstream', body: depScope('#10') }], [], NOW, [20], states)
+  assert.deepEqual(result.dispatchable, [20])
+})
+
+test('an unsuccessful outcome blocks and the audit says which outcome', () => {
+  const cancelled = { schema_version: 1, work_issue: 10, outcome: 'cancelled', reason: 'superseded by a different approach' }
+  const states = { 10: { exists: true, open: false, comments: [completionComment(cancelled)] } }
+  const result = buildDynamicQueues([{ number: 20, title: 'downstream', body: depScope('#10') }], [], NOW, [20], states)
+  assert.deepEqual(result.dispatchable, [])
+  assert.match(result.skipped.find((row)=>row.issue===20).detail, /completed as cancelled: superseded/)
+})
+
+// A CYCLE IS NEVER STARTABLE, and an open/closed test can never see it.
+test('a dependency cycle is reported by path and fails the audit', () => {
+  const issues = [
+    { number: 20, title: 'a', body: depScope('#21') },
+    { number: 21, title: 'b', body: depScope('#20') },
+  ]
+  const result = buildDynamicQueues(issues, [], NOW, [20, 21], {})
+  assert.equal(result.dependencyCycles.length, 1)
+  assert.deepEqual(result.dependencyCycles[0], [20, 21, 20])
+  assert.equal(result.fullyAudited, false, 'an audit with a cycle in it is not a clean audit')
+})
+
+test('self-dependency and duplicate dependencies are reported as malformed', () => {
+  const selfDep = buildDynamicQueues([{ number: 20, title: 'a', body: depScope('#20') }], [], NOW, [20], {})
+  assert.equal(selfDep.malformed.length, 1)
+  assert.match(selfDep.malformed[0].reason, /depends on itself/)
+
+  const duplicate = buildDynamicQueues([{ number: 20, title: 'a', body: depScope('#21, 21') }], [], NOW, [20], {})
+  assert.match(duplicate.malformed[0].reason, /duplicate dependencies/)
+})
+
+// EVERY UNKNOWN IS A BLOCK. The failure being replaced was silence.
+test('an unreadable dependency blocks rather than being treated as absent', () => {
+  const result = buildDynamicQueues([{ number: 20, title: 'a', body: depScope('#10') }], [], NOW, [20], { 10: { exists: true, unreadable: 'HTTP 500' } })
+  assert.deepEqual(result.dispatchable, [])
+  assert.match(result.skipped.find((row)=>row.issue===20).detail, /NOT "no dependency"/)
+})
+
+// BACKWARD COMPATIBILITY. Callers and fixtures that pass no dependency state keep
+// the old open-set behaviour rather than blocking everything.
+test('with no dependency state supplied, the old open-set behaviour still applies', () => {
+  const result = buildDynamicQueues([{ number: 20, title: 'a', body: depScope('#10') }], [], NOW, [20, 10])
+  assert.deepEqual(result.dispatchable, [], 'an open dependency still blocks')
+  const released = buildDynamicQueues([{ number: 20, title: 'a', body: depScope('#10') }], [], NOW, [20])
+  assert.deepEqual(released.dispatchable, [20])
+})
+
+// --- completeWork ----------------------------------------------------------
+
+function completionIo({ comments = [], pr = null, files = [], main = 'main1234', ancestry = true } = {}) {
+  const posted = []
+  return {
+    posted,
+    issueComments: () => [...comments, ...posted.map((body)=>({ body }))],
+    commentIssue: (_number, body) => { posted.push(body) },
+    getPr: () => pr,
+    getPrFiles: () => files,
+    readRef: () => main,
+    // assertMergeCommitInMainHistory reaches for compareCommits; ancestry=false
+    // simulates a merge commit that is not actually contained in main.
+    compareCommits: () => (ancestry ? { status: 'identical', behind_by: 0 } : { status: 'diverged', behind_by: 3 }),
+  }
+}
+
+test('completeWork refuses a report whose work_issue does not match --issue', () => {
+  assert.throws(() => completeWork({ issue: 5, report: { schema_version: 1, work_issue: 6, outcome: 'cancelled', reason: 'x' } }, completionIo()), /report is for issue #6/)
+})
+
+test('completeWork refuses to publish a second record, because completion is immutable', () => {
+  const io = completionIo({ comments: [completionComment(mergedRecord(5))] })
+  assert.throws(() => completeWork({ issue: 5, report: { schema_version: 1, work_issue: 5, outcome: 'cancelled', reason: 'x' } }, io), /completion is immutable/)
+})
+
+test('completeWork publishes an unsuccessful outcome and reads it back', () => {
+  const io = completionIo()
+  const published = completeWork({ issue: 5, report: { schema_version: 1, work_issue: 5, outcome: 'returned', reason: 'belongs to popdam3' } }, io)
+  assert.equal(published.outcome, 'returned')
+  assert.equal(io.posted.length, 1)
+  assert.match(io.posted[0], /immutable/)
+})
+
+// A REPORT IS A CLAIM, NOT EVIDENCE. Every checkable field is re-derived.
+test('completeWork refuses a merged report whose pull request is not merged', () => {
+  const io = completionIo({ pr: { merged_at: null } })
+  assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), /is not merged/)
+})
+
+test('completeWork refuses a merged report whose sha disagrees with GitHub', () => {
+  const io = completionIo({ pr: { merged_at: 'x', merge_commit_sha: 'deadbee' } })
+  assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), /does not match GitHub's merge_commit_sha/)
+})
+
+test('completeWork refuses a merged report whose migration_versions are wrong', () => {
+  const io = completionIo({
+    pr: { merged_at: 'x', merge_commit_sha: 'abc1234' },
+    files: [{ filename: 'supabase/migrations/20260823120000_a.sql' }],
+  })
+  assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), /do not match the versions PR #1 actually added/)
+})
+
+test('completeWork refuses a merged report whose commit is not contained in main', () => {
+  const io = completionIo({ pr: { merged_at: 'x', merge_commit_sha: 'abc1234' }, ancestry: false })
+  assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), /not contained in the history of main/)
+})
+
+test('completeWork publishes a fully proven merged report and reads it back', () => {
+  const io = completionIo({ pr: { merged_at: 'x', merge_commit_sha: 'abc1234' }, files: [] })
+  const published = completeWork({ issue: 5, report: mergedRecord(5) }, io)
+  assert.equal(published.outcome, 'merged')
+  assert.equal(io.posted.length, 1)
 })
