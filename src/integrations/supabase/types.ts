@@ -3561,6 +3561,7 @@ export type Database = {
         Args: { p_file_id: string; p_tag_id: string }
         Returns: number
       }
+      relink_dam_order_lines_bulk: { Args: { p_limit?: number }; Returns: Json }
       remove_style_guide_manual_tag: {
         Args: { p_file_id: string; p_tag_id: string }
         Returns: boolean
