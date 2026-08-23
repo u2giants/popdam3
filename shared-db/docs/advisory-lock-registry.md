@@ -31,6 +31,7 @@ introducing a new advisory lock, add its key here. Before choosing a key, read t
 | Key | Scope | Owner | Purpose |
 |---|---|---|---|
 | `720260729` | transaction, `try` | `plm.promote_coldlion_source_owned` | Serializes the ColdLion Licensor/Property **recurring promotion lane** (Step 7A). The lane is driven both by a scheduled GitHub Actions workflow and by manual drills; without this, a drill and a scheduled run could promote the same mirror rows concurrently and write two overlapping `ingest.sync_run` rows plus duplicate `plm.coldlion_promotion_audit` entries for the same field. Digits encode the lane: `7` = Step 7A, `20260729` = the date the recurring promotion shipped. Added 2026-07-31 by `supabase/migrations/20260731180000_coldlion_recurring_promotion_serialization_lock.sql`. |
+| `620260823` | **session**, `try` | `scripts/apply-lane-advisory-lock.mjs`, called by the migration apply workflows | Serializes a `supabase db push` against ONE target so two live applies cannot overlap. Digits encode the lane: `6` = plan Step 6, `20260823` = the date it shipped. **Session-scoped by explicit exception to rule 2, and the reason matters:** the lock must outlive individual statements for the whole duration of an apply, and `db push` runs its own transactions that this code does not control, so a transaction-scoped lock would release between them and protect nothing. It is taken on a dedicated connection whose lifetime IS the apply, and dropping that connection releases it, so a crashed apply cannot wedge the lane. **Read the honest limit below before relying on it.** Added 2026-08-23 by issue #1366 Step 6. |
 | `21450` + `sample_id_fk` | transaction, blocking | sample-movement trigger (`20260722221400_sample_tracking_movements_and_closeouts.sql`) | Per-sample serialization of movement/closeout accounting. Two-argument form, so the second int is the row identity, not a second lane. |
 
 ### Derived (per-row) keys — not singleton lanes
@@ -43,6 +44,26 @@ meaning.
 |---|---|---|
 | `0`, `1` | `20260722004500_db_data_admin_merge_fk_coverage.sql` | DB Data Admin merge FK coverage — locks the loser/survivor pair in a fixed order to avoid deadlock. |
 | `10` (customer), `11` (vendor) | `20260722194000_db_data_admin_merge_workflow.sql` | DB Data Admin merge workflow, same loser/survivor ordering discipline. |
+
+## What key `620260823` does and does NOT protect (issue #1366 Step 6)
+
+**It prevents two LIVE applies overlapping on one target.** That is real, and worth having.
+
+**It does not close the dying-backend window, and must never be described as if it does.**
+When a crashed apply's lane is recovered at the GitHub layer, the old job's database session
+may still be finishing. A lock held on the applier's own connection is released the instant
+that connection dies — which is exactly the moment the race opens. So the next holder can
+still, in principle, begin while the previous backend is winding down.
+
+What actually bounds that window is the **10-minute recovery grace** in
+`scripts/lib/exclusive-lease.mjs`: a lane cannot be taken over until its recorded GitHub run
+is conclusively finished and ten minutes have passed. The window is *bounded*, not
+*eliminated*.
+
+Closing it properly would mean pinning the lock to the session that executes the DDL —
+replacing or wrapping `supabase db push` with a session-pinned applier. That is a larger
+change than it sounds and has not been made. It is recorded as an open judgment in
+`plan_multi_agent_database_coordination_hardening.md` Step 6 rather than quietly assumed.
 
 ## What "skipped" looks like on the ColdLion promotion lane
 

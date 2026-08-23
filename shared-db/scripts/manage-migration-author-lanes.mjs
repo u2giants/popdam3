@@ -7,6 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-dispatch-collision.mjs'
 import { classifyDependencies, findCompletionRecord, findDependencyCycles, validateCompletionRecord, validateDependencyDeclaration, COMPLETION_FENCE, DependencyError } from './lib/work-dependencies.mjs'
+import { assertLease, evaluateRecovery, formatLeaseMessage, parseLeaseMessage, recoveredLeaseMetadata, LeaseError } from './lib/exclusive-lease.mjs'
 
 export const REPO = 'u2giants/shared-db'
 export const MAX_AUTHOR_LANES = 3
@@ -713,6 +714,23 @@ export const githubIo = {
     })
   },
   updateRef(ref, sha) { gh(['api','-X','PATCH',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`,'-f',`sha=${sha}`,'-F','force=true']) },
+  readCommitMessage(sha) { try { return ghJson(['api',`repos/${REPO}/git/commits/${sha}`]).message } catch { return null } },
+  // LIVE run state for lease recovery. `latestAttemptActive` re-reads the CURRENT
+  // attempt rather than trusting the one recorded in the lease: a re-run reuses
+  // GITHUB_RUN_ID, so a stored attempt can make a live run look finished.
+  runState(runId) {
+    try {
+      const run = ghJson(['api',`repos/${REPO}/actions/runs/${runId}`])
+      let latestAttemptActive = false
+      try {
+        const attempts = ghPaginated(`repos/${REPO}/actions/runs/${runId}/attempts?per_page=100`)
+        latestAttemptActive = attempts.some?.((attempt)=>attempt.status && attempt.status !== 'completed') ?? false
+      } catch { /* the attempts endpoint is optional; the run's own status still governs */ }
+      return { status: run.status, conclusion: run.conclusion, completedAt: run.updated_at, latestAttemptActive }
+    } catch (error) {
+      return { unreadable: String(error?.message ?? error) }
+    }
+  },
   reserveVersion() { return JSON.parse(execFileSync(process.execPath, ['scripts/check-dispatch-collision.mjs', '--reserve-version', '--json'], { encoding: 'utf8' })) },
   createClaim(title, body) { return gh(['issue', 'create', '--repo', REPO, '--label', 'db-claim', '--title', `CLAIM: ${title}`, '--body', body]).trim() },
   createIssueIn(repo, title, body) { return gh(['issue','create','--repo',repo,'--title',title,'--body',body]).trim() },
@@ -1674,12 +1692,138 @@ export function completeWork({ issue, report }, io = githubIo) {
   return readBack
 }
 
+// --- FENCED STAGE OPERATIONS (Step 6, issue #1366) -------------------------
+//
+// EVERY ONE OF THESE TAKES THE GLOBAL MUTEX FIRST. `updateRef` PATCHes with
+// force=true and no expected-sha, so there is NO Git-level compare-and-swap here:
+// the mutex is the only thing making read-then-write atomic. An unserialised
+// release could delete a ref a recovery had already replaced.
+
+/** Read the lease currently on a stage's ref, or null when the lane is free. */
+export function readExclusiveLease(kind, io = githubIo) {
+  const ref = EXCLUSIVE_REFS[kind]
+  if (!ref) throw new LaneError(`unknown exclusive lane: ${kind}`)
+  const sha = io.readRef(ref)
+  if (!sha) return null
+  const message = io.readCommitMessage?.(sha)
+  if (!message) throw new LaneError(`the lease on ${ref} is unreadable; refusing to guess who holds it`)
+  return { ...parseLeaseMessage(message), ref, sha }
+}
+
+/**
+ * Fence a side effect. Run IMMEDIATELY before every preview, merge or production
+ * write: a check performed at acquisition time proves nothing about the moment
+ * the write happens.
+ */
+export function assertExclusive(kind, expected, io = githubIo) {
+  const lease = readExclusiveLease(kind, io)
+  assertLease(lease, expected)
+  return lease
+}
+
+/**
+ * Release by HOLDER and GENERATION, not by the sha captured at acquisition.
+ *
+ * The old contract compared the ref's current sha against the acquisition sha,
+ * which every calling workflow stashed at lock time. That is exactly why a
+ * heartbeat could not be added without stranding lanes, and it is also why a
+ * recovered lane could be released by the holder it replaced. Identity is the
+ * right key; the sha is an implementation detail that legitimately moves.
+ */
+export function releaseExclusive(kind, expected, io = githubIo) {
+  const ref = EXCLUSIVE_REFS[kind]
+  if (!ref) throw new LaneError(`unknown exclusive lane: ${kind}`)
+  const ownerSha = io.makeOwnerCommit(`db-coordination ${kind} release-${randomUUID()}`)
+  acquireMutex(ownerSha, io)
+  try {
+    const lease = readExclusiveLease(kind, io)
+    if (!lease) return { kind, ref, released: false, reason: 'the lane was already free' }
+    // A legacy lease has no identity to check, so it keeps the old sha contract
+    // rather than being releasable by anyone who asks.
+    if (lease.legacy) {
+      if (!expected.ownerSha) throw new LaneError('this lane holds a pre-Step-6 lease; release it with its acquisition sha')
+      requireOwnedRef(MUTEX_REF, ownerSha, io)
+      releaseOwnedRef(ref, expected.ownerSha, io)
+      return { kind, ref, released: true, legacy: true }
+    }
+    assertLease(lease, expected)
+    requireOwnedRef(MUTEX_REF, ownerSha, io)
+    releaseOwnedRef(ref, lease.sha, io)
+    return { kind, ref, released: true, holderId: lease.holderId, generation: lease.generation }
+  } finally { if (io.readRef(MUTEX_REF) === ownerSha) releaseOwnedRef(MUTEX_REF, ownerSha, io) }
+}
+
+/**
+ * Take over a crashed job's lane.
+ *
+ * Refuses unless the recorded run is conclusively finished on a LIVE query, no
+ * later attempt or run is active, the grace has elapsed, and the ref still holds
+ * the exact lease that was evaluated. Dry run by default: a recovery that turns
+ * out to be wrong is the one failure this whole step is trying to avoid.
+ */
+export function recoverExclusive(kind, { holderId, apply = false, now = new Date(), requestId } = {}, io = githubIo) {
+  const ref = EXCLUSIVE_REFS[kind]
+  if (!ref) throw new LaneError(`unknown exclusive lane: ${kind}`)
+  if (!holderId) throw new LaneError('a recovery must name the holder taking over')
+
+  const observed = readExclusiveLease(kind, io)
+  const runState = observed?.githubRunId ? io.runState?.(observed.githubRunId) : null
+  const verdict = evaluateRecovery(observed, runState, now)
+  if (!verdict.recoverable) return { kind, ref, recovered: false, reason: verdict.reason }
+  if (!apply) return { kind, ref, recovered: false, dryRun: true, wouldRecover: true, reason: verdict.reason }
+
+  const ownerCommit = io.makeOwnerCommit(`db-coordination ${kind} recovery-${requestId ?? randomUUID()}`)
+  acquireMutex(ownerCommit, io)
+  try {
+    // RE-READ UNDER THE MUTEX. Everything above was decided outside it, so the
+    // lease could have been released or already recovered in between. Acting on
+    // the stale observation is the split-ownership bug itself.
+    const current = readExclusiveLease(kind, io)
+    if (!current) return { kind, ref, recovered: false, reason: 'the lane was released while recovery was being evaluated; nothing to recover' }
+    if (current.sha !== observed.sha || current.generation !== observed.generation) {
+      return { kind, ref, recovered: false, reason: `the lease changed while recovery was being evaluated (generation ${observed.generation} -> ${current.generation}); refusing rather than racing` }
+    }
+    const next = recoveredLeaseMetadata(current, {
+      holderId,
+      githubRunId: process.env.GITHUB_RUN_ID ?? null,
+      githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
+      acquiredAt: now.toISOString(),
+      previousOwnerSha: current.sha,
+      requestId: requestId ?? randomUUID(),
+    })
+    const replacement = io.makeOwnerCommit(formatLeaseMessage(kind, next))
+    requireOwnedRef(MUTEX_REF, ownerCommit, io)
+    io.updateRef(ref, replacement)
+    const readBack = readExclusiveLease(kind, io)
+    if (readBack?.sha !== replacement || readBack.generation !== next.generation) {
+      throw new LaneError(`recovery of ${ref} did not read back; do NOT treat this lane as owned`)
+    }
+    return { kind, ref, recovered: true, holderId, generation: next.generation, previousOwnerSha: current.sha, reason: verdict.reason }
+  } finally { if (io.readRef(MUTEX_REF) === ownerCommit) releaseOwnedRef(MUTEX_REF, ownerCommit, io) }
+}
+
 export function acquireExclusive(kind, metadata, io = githubIo) {
   const ref = EXCLUSIVE_REFS[kind]
   if (!ref) throw new LaneError(`unknown exclusive lane: ${kind}`)
   if (!metadata.owner || !metadata.headSha || (kind !== 'production' && !metadata.pr)) throw new LaneError('exclusive lane requires owner, exact head SHA, and a PR number except for production')
   const requestId = metadata.requestId ?? randomUUID()
-  const ownerSha = io.makeOwnerCommit(`db-coordination ${kind} ${requestId} pr=${metadata.pr ?? 'none'} head=${metadata.headSha}`)
+  // STRUCTURED LEASE (Step 6, issue #1366). The first line keeps the exact shape
+  // recoverStaleAuthorMutex recognises; the metadata follows. A format that broke
+  // that recognition would make a crash DURING acquisition -- mutex held, exclusive
+  // ref possibly created -- permanently unrecoverable.
+  const holderId = metadata.holderId ?? metadata.owner
+  const ownerSha = io.makeOwnerCommit(formatLeaseMessage(kind, {
+    requestId,
+    holderId,
+    githubRunId: metadata.githubRunId ?? process.env.GITHUB_RUN_ID ?? null,
+    githubRunAttempt: metadata.githubRunAttempt ?? process.env.GITHUB_RUN_ATTEMPT ?? null,
+    owner: metadata.owner,
+    pr: metadata.pr,
+    headSha: metadata.headSha,
+    migrationVersions: metadata.versions ?? metadata.migrationVersions ?? [],
+    acquiredAt: (metadata.now ?? new Date()).toISOString(),
+    generation: metadata.generation ?? 1,
+  }))
   acquireMutex(ownerSha, io)
   try {
     if (kind === 'production') {
@@ -1756,7 +1900,7 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
     }
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     acquireRef(ref, ownerSha, io)
-    return { kind, ref, ownerSha, requestId }
+    return { kind, ref, ownerSha, requestId, holderId, generation: metadata.generation ?? 1 }
   } finally { if (io.readRef(MUTEX_REF) === ownerSha) releaseOwnedRef(MUTEX_REF, ownerSha, io) }
 }
 
@@ -1769,6 +1913,12 @@ function parseArgs(argv) {
     else if (a === '--audit') out.audit = true
     else if (a === '--queue-audit') out.queueAudit = true
     else if (a === '--complete-work') out.completeWork = true
+    else if (a === '--assert-exclusive') out.assertExclusive = next(i++)
+    else if (a === '--recover-exclusive') out.recoverExclusive = next(i++)
+    else if (a === '--release-exclusive') out.releaseExclusive = next(i++)
+    else if (a === '--holder-id') out.holderId = next(i++)
+    else if (a === '--generation') out.generation = Number(next(i++))
+    else if (a === '--apply-recovery') out.applyRecovery = true
     else if (a === '--report-file') out.reportFile = argv[++i]
     else if (a === '--return-issue') out.returnIssue = Number(argv[++i])
     else if (a === '--assign-reviewer') out.assignReviewer = true
@@ -1890,6 +2040,28 @@ export function main(argv, now = new Date(), io = githubIo) {
       if (result.unlabelled.length) console.error(`UNLABELLED ISSUES: add the \`${WORK_LABEL}\` label to ${result.unlabelled.map((n)=>`#${n}`).join(', ')} — an unlabelled issue is invisible to every label-filtered query`)
       if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify and label every open issue before claiming no eligible work exists'); return 2 }
       return result.malformed.length || result.unlabelled.length || result.dependencyCycles.length || result.notOrchestratorWork.some((item)=>item.needsReturnAddress) ? 2 : 0
+    }
+    if (o.assertExclusive) {
+      const lease = assertExclusive(o.assertExclusive, {
+        holderId: o.holderId, generation: o.generation, kind: o.assertExclusive,
+        headSha: o.headSha, pr: o.pr ? Number(o.pr) : undefined,
+      }, io)
+      console.log(JSON.stringify({ kind: o.assertExclusive, holderId: lease.holderId, generation: lease.generation, headSha: lease.headSha }, null, 2))
+      return 0
+    }
+    if (o.releaseExclusive) {
+      const result = releaseExclusive(o.releaseExclusive, { holderId: o.holderId, generation: o.generation, ownerSha: o.ownerSha }, io)
+      console.log(JSON.stringify(result, null, 2))
+      return 0
+    }
+    if (o.recoverExclusive) {
+      // DRY RUN BY DEFAULT. A recovery that turns out to be wrong produces the
+      // split ownership this whole step exists to prevent.
+      const result = recoverExclusive(o.recoverExclusive, { holderId: o.holderId, apply: Boolean(o.applyRecovery) }, io)
+      console.log(JSON.stringify(result, null, 2))
+      if (!result.recovered && !result.dryRun) { console.error(`RECOVERY REFUSED: ${result.reason}`); return 1 }
+      if (result.dryRun) console.error(`DRY RUN — would recover: ${result.reason}. Re-run with --apply-recovery to take the lane.`)
+      return 0
     }
     if (o.completeWork) {
       if (!o.issue) throw new LaneError('--complete-work requires --issue <n>')
