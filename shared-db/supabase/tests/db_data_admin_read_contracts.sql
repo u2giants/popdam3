@@ -442,8 +442,6 @@ begin
   insert into core.property (licensor_id, name, code, status)
   values (null, 'Step6 Orphan Property ' || v_suffix, 'S6PO-' || v_suffix, 'active')
   returning id into v_orphan;
-  insert into core.character (property_id, name, status)
-  values (v_prop1, 'Step6 Character ' || v_suffix, 'active');
   insert into core.taxonomy_source_ref (entity_schema, entity_table, entity_id,
                                         source_system, source_table, source_id,
                                         source_code, source_name)
@@ -472,8 +470,8 @@ begin
     select (p ->> 'character_count')::integer
     from jsonb_array_elements(v_row -> 'properties') p
     where (p ->> 'id')::uuid = v_prop1
-  ) <> 1 then
-    raise exception 'property one must report one character';
+  ) <> 0 then
+    raise exception 'property one must preserve the compatibility character_count field as zero';
   end if;
 
   -- Orphan surfacing is loud and structurally correct.

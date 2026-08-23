@@ -5,7 +5,6 @@ do $$
 declare
   v_licensor uuid;
   v_core_property uuid;
-  v_core_character uuid;
   v_result record;
   v_count integer;
   v_text text;
@@ -32,9 +31,25 @@ begin
   values (v_licensor, 'Synthetic OPA Core Property', 'ZZOPA953P')
   returning id into v_core_property;
 
-  insert into core.character (property_id, name, code)
-  values (v_core_property, 'Synthetic OPA Core Character', 'ZZOPA953C')
-  returning id into v_core_character;
+  if to_regclass('core.character') is not null then
+    raise exception 'retired core.character unexpectedly exists';
+  end if;
+  if not exists (
+    select 1 from pg_attribute
+    where attrelid = 'plm.opa_character'::regclass
+      and attname = 'core_character_id' and not attisdropped and not attnotnull
+  ) then
+    raise exception 'plm.opa_character.core_character_id must remain nullable';
+  end if;
+  if exists (
+    select 1 from pg_constraint c
+    where c.conrelid = 'plm.opa_character'::regclass
+      and c.contype = 'f'
+      and c.conkey = array[(select attnum from pg_attribute
+        where attrelid = 'plm.opa_character'::regclass and attname = 'core_character_id')]::smallint[]
+  ) then
+    raise exception 'plm.opa_character.core_character_id still has a foreign key to retired core.character';
+  end if;
 
   -- Seed one entity pair, record its decisions in the durable home, and add one legacy
   -- link. A refresh may update display names but must preserve the durable decisions.
@@ -55,10 +70,6 @@ begin
   perform plm.set_source_resolution(
     'disney_opa','property','953000001','matched',v_core_property,
     null,null,null,'synthetic contract resolution',null
-  );
-  perform plm.set_source_resolution(
-    'disney_opa','character','953000101','matched',null,v_core_character,
-    null,null,'synthetic contract resolution',null
   );
 
   insert into plm.opa_property_character (
@@ -188,20 +199,20 @@ begin
     raise exception 'property core resolution was overwritten';
   end if;
 
-  select core_character_id into v_uuid
-  from plm.source_resolution
-  where source_system='disney_opa' and entity_kind='character' and source_id='953000101';
-  if v_uuid is distinct from v_core_character then
-    raise exception 'character core resolution was overwritten';
-  end if;
-
   if (select resolution_status from plm.source_resolution
       where source_system='disney_opa' and entity_kind='property' and source_id='953000001')
        is distinct from 'matched'
-     or (select resolution_status from plm.source_resolution
-         where source_system='disney_opa' and entity_kind='character' and source_id='953000101')
-       is distinct from 'matched' then
+     then
     raise exception 'entity resolution status was overwritten';
+  end if;
+
+  if exists (
+    select 1 from plm.source_resolution
+    where source_system='disney_opa' and entity_kind='character'
+      and source_id in ('953000101','953000102')
+      and core_character_id is not null
+  ) then
+    raise exception 'normalized OPA sync recreated a retired Universe A character resolution';
   end if;
 
   -- Reset only recency while keeping the same display names, then replay the identical

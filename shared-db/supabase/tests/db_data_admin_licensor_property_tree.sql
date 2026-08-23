@@ -195,9 +195,6 @@ begin
   insert into core.property (licensor_id, name, code, status)
   values (v_lic_inactive, 'Step10 Property Inactive ' || v_suffix, 'PI-' || v_suffix, 'inactive')
   returning id into v_prop_inactive;
-  insert into core.character (property_id, name, status)
-  values (v_prop1, 'Step10 Character ' || v_suffix, 'active');
-
   insert into core.taxonomy_source_ref (entity_schema, entity_table, entity_id,
                                         source_system, source_table, source_id,
                                         source_code, source_name)
@@ -373,15 +370,16 @@ begin
     raise exception 'Alpha property_count must equal its embedded properties length';
   end if;
 
-  -- Source context + character count on a property.
+  -- Source context remains intact. The retired Universe A character store is
+  -- absent, but the response field stays compatible and reports zero.
   if not exists (
     select 1 from jsonb_array_elements(v_lic_a_node -> 'properties') p
     where (p ->> 'id')::uuid = v_prop1
-      and (p ->> 'character_count')::integer = 1
+      and (p ->> 'character_count')::integer = 0
       and jsonb_array_length(p -> 'source_refs') = 1
       and p -> 'source_refs' -> 0 ->> 'source_code' = 'P1-' || v_suffix
   ) then
-    raise exception 'Property One must expose its source ref and character count';
+    raise exception 'Property One must expose its source ref and a zero compatibility character count';
   end if;
 
   -- The edge is never inferred from mg_code / globally unique codes: the

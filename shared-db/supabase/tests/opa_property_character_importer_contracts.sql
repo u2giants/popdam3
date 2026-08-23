@@ -37,8 +37,6 @@ declare
   v_propid         uuid;
   v_lic            uuid;
   v_prop           uuid;
-  v_core_before    integer;
-  v_core_after     integer;
   v_prosecdef      boolean;
   v_caught         boolean;
 begin
@@ -348,7 +346,10 @@ begin
   -- ==================================================================================
   -- 6. THE HAPPY PATH. Counts must be honest.
   -- ==================================================================================
-  select count(*) into v_core_before from core.property_character;
+  if to_regclass('core.property_character') is not null
+     or to_regclass('core.character') is not null then
+    raise exception 'retired Universe A character tables unexpectedly exist before importer execution';
+  end if;
 
   select * into v_r from plm.sync_opa_property_character(v_snapshot);
 
@@ -486,16 +487,11 @@ begin
   end if;
 
   -- ==================================================================================
-  -- 10. THE IMPORTER WROTE NOTHING INTO core.*
+  -- 10. THE IMPORTER CANNOT RECREATE RETIRED UNIVERSE A
   -- ==================================================================================
-  select count(*) into v_core_after from core.property_character;
-  if v_core_after <> v_core_before then
-    raise exception 'the importer wrote % row(s) into core.property_character; it may write '
-      'ONLY the normalized plm.opa_* landing tables', v_core_after - v_core_before;
-  end if;
-
-  if exists (select 1 from core.character where name like 'Fixture %') then
-    raise exception 'the importer populated core.character. It must not.';
+  if to_regclass('core.property_character') is not null
+     or to_regclass('core.character') is not null then
+    raise exception 'the importer recreated a retired Universe A character table; it may write only plm.opa_* landing tables';
   end if;
 
   raise notice 'OPA importer contracts passed.';

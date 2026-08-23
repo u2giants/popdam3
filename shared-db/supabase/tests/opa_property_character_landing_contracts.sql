@@ -17,7 +17,7 @@
 --   * negative Disney sentinel IDs are accepted (no positive constraint sneaked in)
 --   * every CHECK constraint rejects behaviourally, not just exists
 --   * the landing RESOLVES NOTHING: resolution_status defaults unresolved, property_id
---     defaults null, core.property_character lands EMPTY, core.character is untouched
+--     defaults null, and the retired Universe A character tables stay absent
 --   * FK delete actions are the declared ones
 --   * RLS on, exactly the declared policies, anon has nothing
 --   * both api views are security_invoker (cannot escalate around base-table RLS)
@@ -55,7 +55,6 @@ begin
   -- ==================================================================================
   foreach v_obj in array array[
     'plm.opa_property_character',
-    'core.property_character',
     'api.opa_property_character',
     'api.opa_property_reconciliation'
   ] loop
@@ -84,12 +83,9 @@ begin
     end if;
   end loop;
 
-  if not exists (
-    select 1 from pg_indexes
-    where schemaname = 'core' and tablename = 'property_character'
-      and indexname = 'idx_property_character_character_id'
-  ) then
-    raise exception 'index core.idx_property_character_character_id missing';
+  if to_regclass('core.character') is not null
+     or to_regclass('core.property_character') is not null then
+    raise exception 'retired Universe A character tables unexpectedly exist';
   end if;
 
   -- Constraints, by exact name.
@@ -110,23 +106,6 @@ begin
         and c.conname = v_obj
     ) then
       raise exception 'constraint % missing on plm.opa_property_character', v_obj;
-    end if;
-  end loop;
-
-  foreach v_obj in array array[
-    'property_character_pkey',
-    'property_character_property_id_fkey',
-    'property_character_character_id_fkey',
-    'property_character_source_chk'
-  ] loop
-    if not exists (
-      select 1 from pg_constraint c
-      join pg_class rel on rel.oid = c.conrelid
-      join pg_namespace n on n.oid = rel.relnamespace
-      where n.nspname = 'core' and rel.relname = 'property_character'
-        and c.conname = v_obj
-    ) then
-      raise exception 'constraint % missing on core.property_character', v_obj;
     end if;
   end loop;
 
@@ -278,26 +257,9 @@ begin
       v_confdeltype;
   end if;
 
-  select c.confdeltype into v_confdeltype
-  from pg_constraint c
-  join pg_class rel on rel.oid = c.conrelid
-  join pg_namespace n on n.oid = rel.relnamespace
-  where n.nspname = 'core' and rel.relname = 'property_character'
-    and c.conname = 'property_character_property_id_fkey';
-  if v_confdeltype <> 'r' then
-    raise exception 'property_character_property_id_fkey confdeltype=% (expected r=RESTRICT)',
-      v_confdeltype;
-  end if;
-
-  select c.confdeltype into v_confdeltype
-  from pg_constraint c
-  join pg_class rel on rel.oid = c.conrelid
-  join pg_namespace n on n.oid = rel.relnamespace
-  where n.nspname = 'core' and rel.relname = 'property_character'
-    and c.conname = 'property_character_character_id_fkey';
-  if v_confdeltype <> 'c' then
-    raise exception 'property_character_character_id_fkey confdeltype=% (expected c=CASCADE)',
-      v_confdeltype;
+  if to_regclass('core.character') is not null
+     or to_regclass('core.property_character') is not null then
+    raise exception 'retired Universe A tables exist during delete-action contracts';
   end if;
 
   -- Behavioural: a resolved OPA row must BLOCK deletion of the core.property it names.
@@ -333,37 +295,29 @@ begin
   end;
 
   -- ==================================================================================
-  -- 4. NOTHING IN core.* WAS POPULATED. The junction lands EMPTY by design; the
-  --    landing migration must not have inserted a single core row.
+  -- 4. RETIRED UNIVERSE A STAYS ABSENT. The landing mirror is source evidence and
+  --    must never recreate a canonical character table or bridge.
   -- ==================================================================================
-  select count(*) into v_count from core.property_character
-    where source = 'opa' and created_at < now();
-  if v_count <> 0 then
-    raise exception 'core.property_character is NOT empty (% rows). The landing migration '
-      'must populate nothing -- core.character is 0 rows and resolution is an owner gate.',
-      v_count;
+  if to_regclass('core.character') is not null
+     or to_regclass('core.property_character') is not null then
+    raise exception 'OPA landing recreated a retired Universe A character table';
   end if;
 
-  -- ==================================================================================
-  -- 5. THE AXIS-1 / AXIS-2 RECONCILIATION INVARIANT.
-  --    core.style_guide.property_id is the single bridge between the axes, so every
-  --    (style_guide.property_id, character_id) pair implied by core.style_guide_character
-  --    must also exist in core.property_character. Trivially true while both are empty;
-  --    asserted here so it cannot be quietly broken when they are first populated.
-  -- ==================================================================================
-  select count(*) into v_count
-  from core.style_guide_character sgc
-  join core.style_guide sg on sg.id = sgc.style_guide_id
-  where sg.property_id is not null
-    and not exists (
-      select 1 from core.property_character pc
-      where pc.property_id = sg.property_id
-        and pc.character_id = sgc.character_id
-    );
-  if v_count <> 0 then
-    raise exception 'axis reconciliation invariant BROKEN: % style-guide character edges '
-      'imply a (property, character) pair absent from core.property_character. The two '
-      'axis tables have drifted apart.', v_count;
+  if not exists (
+    select 1 from pg_attribute
+    where attrelid = 'plm.opa_character'::regclass
+      and attname = 'core_character_id' and not attisdropped and not attnotnull
+  ) then
+    raise exception 'plm.opa_character.core_character_id compatibility column is missing or not nullable';
+  end if;
+  if exists (
+    select 1 from pg_constraint c
+    where c.conrelid = 'plm.opa_character'::regclass
+      and c.contype = 'f'
+      and c.conkey = array[(select attnum from pg_attribute
+        where attrelid = 'plm.opa_character'::regclass and attname = 'core_character_id')]::smallint[]
+  ) then
+    raise exception 'plm.opa_character.core_character_id still has a foreign key to retired core.character';
   end if;
 
   -- ==================================================================================
@@ -374,13 +328,6 @@ begin
     where n.nspname = 'plm' and rel.relname = 'opa_property_character' and rel.relrowsecurity
   ) then
     raise exception 'RLS is NOT enabled on plm.opa_property_character';
-  end if;
-
-  if not exists (
-    select 1 from pg_class rel join pg_namespace n on n.oid = rel.relnamespace
-    where n.nspname = 'core' and rel.relname = 'property_character' and rel.relrowsecurity
-  ) then
-    raise exception 'RLS is NOT enabled on core.property_character';
   end if;
 
   select count(*) into v_policies from pg_policies
@@ -395,20 +342,12 @@ begin
     raise exception 'policy opa_property_character_read (SELECT) missing';
   end if;
 
-  select count(*) into v_policies from pg_policies
-    where schemaname = 'core' and tablename = 'property_character';
-  if v_policies <> 2 then
-    raise exception 'expected exactly 2 policies on core.property_character '
-      '(shared_read, admin_write), found %', v_policies;
-  end if;
-
   -- anon must hold nothing, on every new object.
   select count(*) into v_anon
   from information_schema.role_table_grants
   where grantee = 'anon'
     and (table_schema, table_name) in (
       ('plm','opa_property_character'),
-      ('core','property_character'),
       ('api','opa_property_character'),
       ('api','opa_property_reconciliation'));
   if v_anon <> 0 then

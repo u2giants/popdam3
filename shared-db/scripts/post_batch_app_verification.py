@@ -349,6 +349,10 @@ RETIRED_VERSION_REASONS = {
         "explicit COMMIT separates DDL from the Supabase migration ledger; "
         "never apply production; use safe replacement 20260816110750"
     ),
+    "20260814224937": (
+        "never applied; it would recreate an obsolete core.character foreign key "
+        "after issue 1374 retires the empty Universe A character tables"
+    ),
 }
 RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
 

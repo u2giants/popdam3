@@ -102,6 +102,13 @@ HARD_BLOCKED = {
     # transaction-safe 20260816110750 migration and the exceptional atomic path.
     # Keep the retired version impossible to name in preview or production.
     "20260816045130",
+    # RETIRED and NEVER APPLIED. This creates plm.source_resolution with a
+    # foreign key to core.character. Issue #1374 retires that empty Universe A
+    # table, so applying this older version later would recreate an obsolete
+    # dependency and make the repository's ordered history regress its settled
+    # schema. A separate future workstream may author a safe source-resolution
+    # replacement; this historical version itself must never run.
+    "20260814224937",
 }
 
 # Preview contains this authenticated historical migration, but production does

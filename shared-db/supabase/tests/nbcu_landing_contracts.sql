@@ -584,7 +584,7 @@ do $$
 declare
   v_pass integer := 0; v_fail integer := 0;
   v_cap uuid; v_res jsonb; v_status text; v_n integer;
-  v_core_prop_before bigint; v_core_char_before bigint;
+  v_core_prop_before bigint;
   v_pkey text := 'source-id:ZZTEST-P1';
   v_ckey text := 'ZZTEST-C1';
   v_gkey text := 'zztest/guides/alpha';
@@ -600,7 +600,26 @@ declare
 begin
   raise notice '=== G. FINALIZATION ===';
   select count(*) into v_core_prop_before from core.property;
-  select count(*) into v_core_char_before from core.character;
+
+  if to_regclass('core.character') is not null then
+    raise exception 'retired core.character unexpectedly exists';
+  end if;
+  if not exists (
+    select 1 from pg_attribute
+    where attrelid = 'plm.nbcu_character'::regclass
+      and attname = 'core_character_id' and not attisdropped and not attnotnull
+  ) then
+    raise exception 'plm.nbcu_character.core_character_id must remain as a nullable compatibility column';
+  end if;
+  if exists (
+    select 1 from pg_constraint c
+    where c.conrelid = 'plm.nbcu_character'::regclass
+      and c.contype = 'f'
+      and c.conkey = array[(select attnum from pg_attribute
+        where attrelid = 'plm.nbcu_character'::regclass and attname = 'core_character_id')]::smallint[]
+  ) then
+    raise exception 'plm.nbcu_character.core_character_id still has a foreign key to the retired Universe A table';
+  end if;
 
   v_cap := plm.begin_nbcu_capture('nbcu:ZZTEST-G:'||repeat('9',40),'u2giants/ZZTEST',
     repeat('9',40), repeat('a',64), 'https://portal.example.invalid/', now(),
@@ -747,9 +766,8 @@ begin
   if v_n <> v_core_prop_before then v_fail := v_fail+1;
     raise warning 'FAIL core.property row count CHANGED (% -> %)', v_core_prop_before, v_n;
   else v_pass := v_pass+1; end if;
-  select count(*) into v_n from core.character;
-  if v_n <> v_core_char_before then v_fail := v_fail+1;
-    raise warning 'FAIL core.character row count CHANGED (% -> %)', v_core_char_before, v_n;
+  if to_regclass('core.character') is not null then v_fail := v_fail+1;
+    raise warning 'FAIL retired core.character was recreated';
   else v_pass := v_pass+1; end if;
 
   -- Clean up every synthetic row. on delete restrict means children go first.
