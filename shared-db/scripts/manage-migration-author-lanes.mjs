@@ -16,6 +16,7 @@ export const MUTEX_RECOVERY_ACTIVE_REF = 'refs/db-coordination/author-acquisitio
 export const REVIEW_CURSOR_REF = 'refs/db-coordination/reviewer-round-robin'
 export const REVIEW_FAILURE_REF_PREFIX = 'refs/db-review-failures'
 export const REVIEW_REPLACEMENT_REF_PREFIX = 'refs/db-review-replacements'
+export const REVIEW_ASSIGNMENT_REF_PREFIX = 'refs/db-review-assignments'
 export const REVIEWERS = Object.freeze([
   { name:'grok-4.6', wrapper:'ai-grok-review' }, { name:'glm-5.3', wrapper:'ai-glm' },
   { name:'kimi-k3', wrapper:'ai-kimi' }, { name:'qwen-3.8-max', wrapper:'ai-qwen' },
@@ -416,15 +417,37 @@ export function claimBody({ version, objects, owner, branch, worktree, expiresAt
 export function isTransientGitHubTransport(error) {
   return /HTTP 5\d\d|connection (?:reset|timed out)|TLS handshake timeout|No server is currently available/i.test(String(error?.stderr ?? error?.message ?? error ?? ''))
 }
-export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms),attempts=4}={}) {
+// An EXPECTED failure is one this code asks a question with: "does this ref
+// exist yet?" answers with HTTP 404, and "create this ref" answers with
+// "reference already exists". Both are answers, not faults, but the GitHub CLI
+// prints them to the terminal anyway, so a completely healthy run looked
+// alarming and trained everyone to ignore 404s -- which is exactly how a REAL
+// error on issue #1351 was read as more of the same noise.
+//
+// The cure must not be "swallow stderr". stderr is CAPTURED here (never
+// inherited), attached to the thrown error so the message keeps every detail,
+// and re-printed to this process's stderr for every failure that is NOT the
+// expected answer. Quieter for the answers, LOUDER for the faults: an
+// unexpected gh failure now prints gh's own stderr even when a caller catches
+// the exception.
+// Exactly the message that PROVES absence (see isConfirmedRefAbsence). A bare
+// "not found" without a 404 is ambiguous, stays a hard failure, and must stay
+// noisy.
+export const EXPECTED_REF_ABSENCE=/HTTP 404/i
+export const EXPECTED_REF_PRESENCE=/reference already exists/i
+export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms),attempts=4,expectedFailure=null,reportStderr=(text)=>process.stderr.write(text)}={}) {
   let last
   for(let attempt=0;attempt<attempts;attempt++){
-    try{return executor('gh',args,{encoding:'utf8',maxBuffer:64*1024*1024})}
+    try{return executor('gh',args,{encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']})}
     catch(error){
       last=error
       if(!isTransientGitHubTransport(error)||attempt===attempts-1){
-        const wrapped=new LaneError(`GitHub command failed: ${String(error.stderr??error.message).trim()}`)
+        const captured=String(error.stderr??'').trim()
+        const detail=captured||String(error.message??'').trim()
+        const wrapped=new LaneError(`GitHub command failed: ${detail}`)
         wrapped.transientTransport=isTransientGitHubTransport(error)
+        wrapped.stderr=captured
+        if(captured&&!(expectedFailure&&expectedFailure.test(detail)))reportStderr(`gh ${args.join(' ')}\n${captured}\n`)
         throw wrapped
       }
       wait(2**attempt*1000)
@@ -432,10 +455,10 @@ export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.
   }
   throw last
 }
-function gh(args) { return runGitHubCommand(args) }
+function gh(args,options) { return runGitHubCommand(args,options) }
 
 export function createRefWithReadback(ref,sha,{run=gh,readRef}={}) {
-  try{run(['api','-X','POST',`repos/${REPO}/git/refs`,'-f',`ref=${ref}`,'-f',`sha=${sha}`]);return true}
+  try{run(['api','-X','POST',`repos/${REPO}/git/refs`,'-f',`ref=${ref}`,'-f',`sha=${sha}`],{expectedFailure:EXPECTED_REF_PRESENCE});return true}
   catch(error){
     if(/reference already exists/i.test(error.message)){
       if(!readRef)return false
@@ -449,7 +472,7 @@ export function createRefWithReadback(ref,sha,{run=gh,readRef}={}) {
   }
 }
 export function deleteRefWithReadback(ref,{run=gh,readRef}={}) {
-  try{run(['api','-X','DELETE',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`]);return}
+  try{run(['api','-X','DELETE',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`],{expectedFailure:EXPECTED_REF_ABSENCE});return}
   catch(error){
     if(isConfirmedRefAbsence(error))return
     if(/reference does not exist/i.test(error.message)&&readRef&&readRef(ref)===null)return
@@ -458,8 +481,8 @@ export function deleteRefWithReadback(ref,{run=gh,readRef}={}) {
     throw error
   }
 }
-function ghJson(args) {
-  const raw = gh(args)
+function ghJson(args,options) {
+  const raw = gh(args,options)
   try { return JSON.parse(raw) } catch { throw new LaneError(`GitHub returned unreadable JSON for gh ${args.join(' ')}`) }
 }
 function ghPaginated(endpoint) {
@@ -521,7 +544,9 @@ export const githubIo = {
   },
   readRef(ref) {
     const short = ref.replace(/^refs\//, '')
-    try { return ghJson(['api', `repos/${REPO}/git/ref/${short}`])?.object?.sha ?? null }
+    // Absence is an expected answer here, so gh's 404 line is not printed --
+    // see runGitHubCommand. Any OTHER failure still prints and still throws.
+    try { return ghJson(['api', `repos/${REPO}/git/ref/${short}`],{expectedFailure:EXPECTED_REF_ABSENCE})?.object?.sha ?? null }
     // Only GitHub CLI's explicit HTTP 404 proves that this exact ref is absent.
     // A transport message that merely says "not found" is ambiguous and must
     // remain a hard failure rather than being mistaken for successful cleanup.
@@ -536,7 +561,7 @@ export const githubIo = {
   // during backoff; replaying the DELETE could then remove that new owner.
   deleteRef(ref) {
     deleteRefWithReadback(ref,{
-      run:(args)=>runGitHubCommand(args,{attempts:1}),
+      run:(args,options)=>runGitHubCommand(args,{...options,attempts:1}),
       readRef:(target)=>this.readRef(target),
     })
   },
@@ -817,12 +842,36 @@ export function parseReviewCursor(commit) {
   return {sequence:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5]}
 }
 
+// A reviewer assignment is filed under issue + PR + THE EXACT HEAD IT REVIEWS.
+// That head is not decoration: a verdict is only ever valid for the commit the
+// reviewer actually read, so collapsing the key to issue + PR would let one
+// reviewer's verdict silently cover code they never saw. The key stays.
+//
+// What was broken is FINDABILITY. Nothing indexed the assignments of a pull
+// request, so once a push moved the head, a perfectly good record became
+// invisible and the tool reported it "missing" -- sending people to hunt a
+// data-loss bug that did not exist (issue #1351, sequence 243 on PR #1347).
+// This lookup makes every assignment for a PR findable under any head, so the
+// tool can say what IS recorded instead of claiming nothing is.
+export function findPrReviewAssignments(issue,pr,io){
+  if(typeof io.listRefs!=='function')return null
+  const prefix=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${Number(issue)}-${Number(pr)}-`
+  return (io.listRefs(prefix)??[])
+    .map((row)=>({...parseReviewCursor(io.getCommit(row.sha)),ref:row.ref,assignmentSha:row.sha}))
+    .filter((row)=>row.issue===Number(issue)&&row.pr===Number(pr))
+    .sort((a,b)=>b.sequence-a.sequence)
+}
+
+export function describeMovedAssignmentHead(request,recorded){
+  return `the durable reviewer assignment is NOT missing: sequence=${recorded.sequence} reviewer=${recorded.reviewer} for issue #${request.issue} PR #${request.pr} is recorded under head ${recorded.headSha}, and this request names head ${request.headSha}. The PR head moved after that reviewer was assigned, so the exact code that reviewer was given is no longer this PR's head. A replacement would bind a new reviewer -- and later a verdict -- to a commit the failed reviewer never saw, so it is refused. Assign a reviewer to the current code instead: --assign-reviewer --issue ${request.issue} --pr ${request.pr} --head-sha <the PR's current head>. Nothing was lost and nothing needs reconstructing.`
+}
+
 export function assignNextReviewer({issue,pr,headSha},io=githubIo){
   if(!Number.isInteger(Number(issue))||!Number.isInteger(Number(pr))||!/^[0-9a-f]{7,40}$/i.test(String(headSha??'')))throw new LaneError('review assignment requires issue, PR, and exact head SHA')
   const request={issue:Number(issue),pr:Number(pr),headSha:String(headSha)}, ownerSha=io.makeOwnerCommit(`db-coordination reviewer-assignment-lock issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
   acquireMutex(ownerSha,io)
   try{
-    const assignmentRef=`refs/db-review-assignments/${request.issue}-${request.pr}-${request.headSha}`
+    const assignmentRef=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`
     const replacementBase=`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`
     const replacementRows=io.listRefs?.(replacementBase)??[]
     const legacySha=io.readRef(replacementBase)
@@ -980,7 +1029,7 @@ export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCo
     if(!confirmLocalDependencyUnfixable)throw new LaneError(`this is a LOCAL dependency fault ("${String(failingCheck).trim()}"), not a provider fault. Fix it on this machine and retry the SAME reviewer -- a replacement spends a rotation slot and records permanent evidence against a provider that is working. If it genuinely cannot be fixed here, re-run with --confirm-local-dependency-unfixable.`)
   }else if(String(failingCheck??'').trim())throw new LaneError('--failing-check applies only to local_dependency_unavailable')
   if(!confirmNoVerdict||!confirmNoArtifact)throw new LaneError('reviewer replacement requires explicit confirmation that the failed session produced no verdict and no artifact')
-  const assignmentRef=`refs/db-review-assignments/${request.issue}-${request.pr}-${request.headSha}`
+  const assignmentRef=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`
   const failureRef=`${REVIEW_FAILURE_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${request.failedSequence}`
   const replacementBase=`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`
   const replacementRef=`${replacementBase}-${request.failedSequence}`
@@ -1001,7 +1050,13 @@ export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCo
       return {...parsed,wrapper:reviewer.wrapper,failureCode:String(failureCode),replacementSha:priorReplacement}
     }
     const assignmentSha=io.readRef(assignmentRef)
-    if(!assignmentSha)throw new LaneError('original durable reviewer assignment is missing')
+    if(!assignmentSha){
+      const recordedElsewhere=findPrReviewAssignments(request.issue,request.pr,io)
+      if(recordedElsewhere===null)throw new LaneError(`no durable reviewer assignment exists for issue #${request.issue} PR #${request.pr} at head ${request.headSha}`)
+      const recorded=recordedElsewhere.find((row)=>row.sequence===request.failedSequence)??recordedElsewhere[0]
+      if(recorded)throw new LaneError(describeMovedAssignmentHead(request,recorded))
+      throw new LaneError(`no durable reviewer assignment exists for issue #${request.issue} PR #${request.pr} under ANY head; --assign-reviewer was never run for this pull request, so there is nothing to replace`)
+    }
     const initial=parseReviewCursor(io.getCommit(assignmentSha))
     const replacementRows=io.listRefs?.(replacementBase)??[]
     const legacySha=io.readRef(replacementBase)
@@ -1015,7 +1070,11 @@ export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCo
     if(!cursor||cursor.sequence<request.failedSequence)throw new LaneError('reviewer cursor is behind the failed durable assignment')
     const issueRow=io.getIssue(request.issue), prRow=io.getPr(request.pr)
     if(issueRow?.state!=='open')throw new LaneError('review replacement requires the exact issue to remain open')
-    if(prRow?.state!=='open'||prRow?.head?.sha!==request.headSha)throw new LaneError('review replacement requires the exact open PR head')
+    if(prRow?.state!=='open')throw new LaneError('review replacement requires the exact open PR head')
+    // The mirror of the lookup above: here the assignment WAS found under the
+    // head that was named, but the pull request has since moved past it. Same
+    // truth, said plainly, instead of a technicality.
+    if(prRow?.head?.sha!==request.headSha)throw new LaneError(`review replacement requires the exact open PR head: sequence=${initial.sequence} reviewer=${initial.reviewer} IS recorded for issue #${request.issue} PR #${request.pr} under head ${request.headSha}, but the pull request has since moved to head ${String(prRow?.head?.sha??'unknown')}. Nothing is missing. A push replaced the code under review, so a replacement reviewer would be bound to a commit the failed reviewer never saw. Assign a reviewer to the new code instead: --assign-reviewer --issue ${request.issue} --pr ${request.pr} --head-sha ${String(prRow?.head?.sha??'<current head>')}`)
     const evidence=[...(io.getIssueComments?.(request.issue)??[]),...(io.getIssueComments?.(request.pr)??[]),...(io.getPrReviews?.(request.pr)??[])]
     if(evidence.some((row)=>{
       const body=String(row.body??''), tied=row.commit_id===request.headSha||body.includes(request.headSha)

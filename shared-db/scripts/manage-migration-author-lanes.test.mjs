@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -1510,4 +1510,124 @@ test('openWorkIssues audits every open issue and excludes only coordination issu
   const result=githubIo.openWorkIssues((endpoint)=>{calls.push(endpoint);return rows})
   assert.deepEqual(result.map((x)=>x.number),[80,81])
   assert.ok(calls.every((endpoint)=>!/labels=/.test(endpoint)),'the audit must not filter by label')
+})
+
+
+// --- issue #1351: an assignment must stay findable after the PR head moves ---
+
+const movedHead='beef1230000000000000000000000000000000ff'
+
+test('a reviewer assignment stays findable after the pull request head moves',()=>{
+  const io=failedReviewIo()
+  const found=findPrReviewAssignments(failedReview.issue,failedReview.pr,io)
+  assert.equal(found.length,1)
+  assert.equal(found[0].headSha,failedReview.headSha)
+  assert.equal(found[0].sequence,1)
+  assert.ok(found[0].ref.startsWith(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${failedReview.issue}-${failedReview.pr}-`))
+  // The head moved. The record is still there, and it is still filed under the
+  // exact commit it reviews.
+  io.getPr=()=>({state:'open',head:{sha:movedHead}})
+  assert.deepEqual(findPrReviewAssignments(failedReview.issue,failedReview.pr,io),found)
+})
+
+test('replacement at a moved head reports the record that EXISTS instead of claiming it is missing',()=>{
+  const io=failedReviewIo()
+  io.getPr=()=>({state:'open',head:{sha:movedHead}})
+  // The operator does what the tool demands and names the PR's CURRENT head.
+  // Before this fix that produced "original durable reviewer assignment is
+  // missing" -- a phantom data-loss report (issue #1351).
+  assert.throws(()=>replaceFailedReviewer({...replacementRequest,headSha:movedHead},io),(error)=>{
+    assert.ok(error instanceof LaneError)
+    assert.match(error.message,/NOT missing/)
+    assert.match(error.message,/sequence=1/)
+    assert.match(error.message,new RegExp(failedReview.headSha))
+    assert.match(error.message,/--assign-reviewer/)
+    assert.doesNotMatch(error.message,/assignment is missing/)
+    return true
+  })
+})
+
+test('replacement at the assigned head after a push says the code under review changed',()=>{
+  const io=failedReviewIo()
+  io.getPr=()=>({state:'open',head:{sha:movedHead}})
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),(error)=>{
+    assert.match(error.message,/exact open PR head/)
+    assert.match(error.message,/IS recorded/)
+    assert.match(error.message,new RegExp(movedHead))
+    return true
+  })
+})
+
+test('a genuinely absent reviewer assignment still refuses, and says so accurately',()=>{
+  const io=reviewIo()
+  io.getPr=()=>({state:'open',head:{sha:failedReview.headSha}})
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/under ANY head/)
+})
+
+test('the verdict-to-commit binding survives: each head keeps its own assignment record',()=>{
+  const io=failedReviewIo()
+  io.getPr=()=>({state:'open',head:{sha:movedHead}})
+  const second=assignNextReviewer({...failedReview,headSha:movedHead},io)
+  assert.notEqual(second.sequence,1)
+  const found=findPrReviewAssignments(failedReview.issue,failedReview.pr,io)
+  assert.deepEqual(found.map((row)=>row.headSha).sort(),[failedReview.headSha,movedHead].sort())
+  // A new head NEVER inherits the old head's reviewer record.
+  assert.equal(found.find((row)=>row.headSha===movedHead).sequence,second.sequence)
+  assert.equal(found.find((row)=>row.headSha===failedReview.headSha).sequence,1)
+})
+
+// --- issue #1351: expected 404 probes are quiet, real failures are loud ---
+
+test('an expected ref-absence answer does not print, and still throws',()=>{
+  const printed=[]
+  assert.throws(()=>runGitHubCommand(['api','repos/x/git/ref/heads/nope'],{
+    executor:()=>{throw commandFailure('gh: Not Found (HTTP 404)')},
+    wait:()=>{},expectedFailure:EXPECTED_REF_ABSENCE,reportStderr:(text)=>printed.push(text),
+  }),(error)=>error instanceof LaneError&&isConfirmedRefAbsence(error))
+  assert.deepEqual(printed,[])
+})
+
+test('a genuine GitHub failure still prints its own stderr loudly',()=>{
+  const printed=[]
+  // Same call site, same suppression option: only the ANSWER is quiet.
+  assert.throws(()=>runGitHubCommand(['api','repos/x/git/ref/heads/main'],{
+    executor:()=>{throw commandFailure('gh: Bad credentials (HTTP 401)')},
+    wait:()=>{},expectedFailure:EXPECTED_REF_ABSENCE,reportStderr:(text)=>printed.push(text),
+  }),/Bad credentials/)
+  assert.equal(printed.length,1)
+  assert.match(printed[0],/Bad credentials/)
+  assert.match(printed[0],/repos\/x\/git\/ref\/heads\/main/)
+})
+
+test('an ambiguous not-found without a 404 stays loud and stays a hard failure',()=>{
+  const printed=[]
+  assert.throws(()=>runGitHubCommand(['api','endpoint'],{
+    executor:()=>{throw commandFailure('could not resolve host: not found')},
+    wait:()=>{},expectedFailure:EXPECTED_REF_ABSENCE,reportStderr:(text)=>printed.push(text),
+  }),LaneError)
+  assert.equal(printed.length,1)
+})
+
+test('a retried transient failure prints once, at the end, not once per attempt',()=>{
+  const printed=[]
+  assert.throws(()=>runGitHubCommand(['api','endpoint'],{
+    executor:()=>{throw commandFailure('HTTP 502: bad gateway')},
+    wait:()=>{},reportStderr:(text)=>printed.push(text),
+  }),LaneError)
+  assert.equal(printed.length,1)
+})
+
+test('GitHub stderr is captured by the child process, never inherited to the terminal',()=>{
+  // This is what silences the benign 404s at the source. If stderr were
+  // inherited, gh would print them before this code could ever classify them.
+  let seen=null
+  runGitHubCommand(['api','endpoint'],{executor:(command,args,options)=>{seen=options;return '{}'}})
+  assert.deepEqual(seen.stdio,['ignore','pipe','pipe'])
+})
+
+test('ref creation and deletion mark their expected answers as expected',()=>{
+  const seen=[]
+  createRefWithReadback('refs/x','sha',{run:(args,options)=>{seen.push(options?.expectedFailure);return ''}})
+  deleteRefWithReadback('refs/x',{run:(args,options)=>{seen.push(options?.expectedFailure);return ''}})
+  assert.deepEqual(seen,[EXPECTED_REF_PRESENCE,EXPECTED_REF_ABSENCE])
 })
