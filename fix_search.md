@@ -8,6 +8,10 @@
 > supersedes §§1–2 for implementation and rollout safety. Read its STATUS table first.
 > In particular, this document's §1d claim that relevance ordering is currently broken is stale;
 > the hooks already preserve ranked ID order within their current 500-result ceiling.
+> Do **not** execute §2a's old instruction to call the delete-all `rebuild_dam_search_documents()`
+> inside a migration. The active plan replaces it with bounded incremental maintenance, preserves
+> the later rich-PDF search fields, coordinates active asset/Style Group tags with issue #96, and
+> runs exactly one final embedding backfill.
 
 ---
 

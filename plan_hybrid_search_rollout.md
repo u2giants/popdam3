@@ -8,6 +8,8 @@
 
 **Execution status:** implementation started at Step 1 on 2026-08-24; shared schema work is coordinated with PopDAM issue #96
 
+**Independent plan review:** Grok 4.6 returned **APPROVE WITH CHANGES** on 2026-08-24. Its confirmed corrections—#96 coordination, group membership refresh, latest rich-PDF field preservation/8,000-character ordering, one claimer, all-path authorization, unified group ranking, filtered pagination/facet parity, timeout testing, fallback/cache/map cleanup—are incorporated below.
+
 ## STATUS — read this first
 
 Fresh sessions start at **Step 1: re-verify repository and live production state**. Do not infer live counts or deployment state from this plan.
@@ -15,7 +17,7 @@ Fresh sessions start at **Step 1: re-verify repository and live production state
 | Step | State | Owner/route | Implementation artifact | Verification evidence |
 |---|---|---|---|---|
 | 1. Re-verify code, schema, deployment, and live coverage | 🟨 in progress | PopDAM read-only inspection | Coordinated scoped baseline under `verification/ai-tagging-scope/` | Baseline began at `ae029a53` and safely fast-forwarded to `993c099a`; scoped aggregates are recorded, while deployment/auth/search probes remain pending |
-| 2. Dispatch and land the canonical shared-DB search-maintenance change | 🟨 routed | `u2giants/shared-db` orchestrator | Shared request `u2giants/shared-db#1427` for PopDAM #96/#97 | Await claim, preview SQL assertions/timing, merged commit, and governed production apply proof |
+| 2. Dispatch and land the canonical shared-DB search-maintenance change | 🟨 routed | `u2giants/shared-db` orchestrator | Shared request `u2giants/shared-db#1427` for PopDAM #96/#97 | Await claim, preview SQL assertions/timing, current-field-preservation proof, group-move/delete proof, merged commit, and governed production apply proof |
 | 3. Add authorization-safe hybrid search contract | ⬜ open | Shared-db orchestrator + PopDAM edge function | Future migration/RPC and `supabase/functions/dam-search-ai/index.ts` | Cross-user authorization test proves no inaccessible IDs, ranks, or counts leave the edge function |
 | 4. Add resumable embedding worker operation | ⬜ open | PopDAM `main` | Future `apps/worker/src/handlers/embed-search.ts` and registrations | Worker tests plus Railway restart/resume evidence |
 | 5. Add bounded automatic freshness loop | ⬜ open | PopDAM worker preferred; DB only if evidence requires it | Future worker scheduler/config | Overlap, lease-expiry, retry, disable, and steady-state lag evidence |
@@ -97,6 +99,7 @@ These are repository observations from 2026-08-24, not proof of current producti
 
 - Canonical migration `/worksp/shared-db/supabase/migrations/20260713221518_dam_hybrid_search_foundation.sql` creates `extensions.vector`, `public.dam_search_documents`, a stored generated `search_tsv`, GIN/trigram indexes, HNSW cosine index, refresh/rebuild functions, search RPCs, and embedding RPCs.
 - Later migration `/worksp/shared-db/supabase/migrations/20260714173500_dam_search_synonyms.sql` replaces `search_dam_documents`; implementations must modify the latest effective definition, not blindly copy the foundation version.
+- Migration `/worksp/shared-db/supabase/migrations/20260715183000_dam_rich_pdf_extraction.sql:168-186` is the latest known asset refresh body at this plan revision. It already adds `content_type`, `style_groups.item_description`, `product_material`, `product_dimensions`, `dam.jsonb_leaf_text(style_groups.rich_metadata)`, and PDF extracted text. Step 1 must still search for a newer replacement, and Step 2 must preserve every field from the latest body.
 - `supabase/functions/dam-search-ai/index.ts:20-50` manually authenticates a bearer token because `supabase/config.toml:9-10` sets `verify_jwt = false`. `verify_jwt = false` is not itself an auth bypass; the manual check must remain tested.
 - `supabase/functions/dam-search-ai/index.ts:117-136` embeds a query with Supabase `gte-small`, then calls `search_dam_documents` using a service-role client.
 - `src/lib/dam-search.ts:12-25` reads and parses `admin_config.SEARCH_MODE`, accepting only `keyword` or `hybrid` and defaulting to keyword.
@@ -108,18 +111,24 @@ These are repository observations from 2026-08-24, not proof of current producti
 - `apps/worker/src/operation-loop.ts:46-84`, `:96-125`, `:275-303`, and `:320-350` define operation lanes, progress, result text, and dispatch. The main loop at `:595-850` already supports stop, revision-safe persistence, restart recovery, and failure kill switches.
 - Operation-name/lane copies live in `supabase/functions/_shared/operation-constants.ts` and `src/components/settings/diagnostics/types.ts`; their comments require synchronization.
 - `src/hooks/usePersistentOperation.ts:122-217` provides the normal atomic start/queue/stop path. The new UI must reuse it.
+- Keyword style-group search currently merges direct group documents with member-asset matches at a `0.8` multiplier, while hybrid group search requests only `style_group` documents. This is one unresolved ranking contract, not two intentional products.
+- The direct browser keyword wrappers and `search_dam_documents` are security-definer RPCs granted to `authenticated`; protecting only `dam-search-ai` would leave a direct/fallback authorization gap.
+- `getSearchMode()` stores a module-lifetime promise, so an already-open SPA does not observe a mode flip or rollback without explicit invalidation/reload.
+- The three operation maps already show drift: `rich-pdf-extract` exists in the shared constants/UI maps but is absent from the worker lane map. Step 4 must reconcile the complete maps, not merely append one new key.
 
 ### Incomplete or unsafe for launch
 
 - Asset search text omits `asset_tags` and `asset_characters`.
 - Style-group search text does not aggregate tag/character names from member assets.
 - Existing tag/character relationship changes do not maintain the corresponding search documents.
+- Existing asset refresh on `assets.style_group_id` changes updates only the asset document; once group documents aggregate member metadata, moves, delete/undelete, and group membership changes would leave old/new group documents stale.
 - `rebuild_dam_search_documents()` deletes the whole table before reinserting; it is not a production-safe incremental backfill.
 - `claim_dam_search_embedding_documents()` does not claim, lock, or lease rows; two callers can select the same documents.
 - `embedding_error` rows are excluded indefinitely without retry scheduling or terminal/transient categorization.
 - The service-role search response can contain unauthorized UUIDs/ranks and reveals result-array length before the RLS-scoped asset/style-group re-query.
 - There is no operator coverage card or confirmed automatic freshness loop.
 - No live coverage counts, deployed edge-function version, Railway version, or production `SEARCH_MODE` value were verified in this planning session.
+- The final ILIKE fallback searches asset/group columns only; it cannot recover tag-only or character-only discovery after both the edge function and keyword RPC fail.
 
 ### Repository state at plan creation
 
@@ -140,6 +149,9 @@ These are repository observations from 2026-08-24, not proof of current producti
 8. **Semantic search always has a nearest neighbor.** Without a score floor or explicit weak-tail treatment, unrelated records can appear as confident matches. UI wording alone should not be the only control.
 9. **Automatic freshness and manual bulk backfill have different purposes.** The manual operation provides measured initial coverage and recovery; a bounded singleton loop handles steady-state edits. They may share claim/lease machinery but must not race wastefully.
 10. **Telemetry is valuable but not launch-critical.** It adds privacy, retention, schema, and analysis obligations, so it belongs in a separately approved phase after safe hybrid search works.
+11. **The latest search corpus is richer than the foundation migration.** Copying the old refresh function would silently drop rich-PDF/product fields. Tags and characters must also appear before potentially long PDF text because embedding claims truncate `search_text` to 8,000 characters.
+12. **Search authorization is a contract across every callable path.** Securing the edge action alone is insufficient while authenticated users can call unfiltered security-definer keyword/hybrid RPCs directly.
+13. **Ranked paging must happen after authorization and active library filters.** Paging a global ranked set and filtering later creates short/empty pages and facet counts that disagree with the grid.
 
 ## 7. Approaches considered and rejected
 
@@ -155,6 +167,10 @@ These are repository observations from 2026-08-24, not proof of current producti
 10. **Rejected: launch telemetry with hybrid search.** It delays the user benefit and silently selects a retention policy. Telemetry remains off until Albert explicitly approves retention.
 11. **Rejected: build image embeddings now.** They require a new model/dimension/pipeline/cost decision and are explicitly outside this implementation.
 12. **Rejected: direct Dashboard SQL or app-repo DDL for speed.** The database is shared; all structure must go through canonical shared-db preview/PR/promotion controls.
+13. **Rejected: let both the worker and `dam-search-ai` claim embedding rows.** There must be exactly one atomic claimer; the other layer processes only the leased rows it is given or merely asks the sole claimer to run.
+14. **Rejected: secure hybrid edge search while leaving direct keyword wrappers globally executable.** Every external search path must enforce the same authorization boundary.
+15. **Rejected: page ranked results before applying stage/customer/licensor/property/tag/visibility filters.** It produces misleading empty pages and inconsistent facets.
+16. **Rejected: rebuild the new refresh function from the 20260713 foundation body.** The 20260715 rich-PDF replacement contains live searchable fields that must not be lost.
 
 ## 8. Design decisions already made
 
@@ -167,8 +183,12 @@ These are repository observations from 2026-08-24, not proof of current producti
 - **2026-08-24:** Production rebuild is incremental/upsert-based and bounded; no delete-all rebuild.
 - **2026-08-24:** Tag/character maintenance updates both affected assets and affected style groups, including old/new relationships.
 - **2026-08-24:** Embedding work uses real lease ownership with expiry/recovery and hash-checked writes.
+- **2026-08-24:** The worker is the sole embedding lease claimer. `dam-search-ai` embeds an explicitly leased batch and refuses a missing, foreign, expired, or stale lease; it must not independently select/claim a second batch. If implementation evidence makes edge-owned claiming materially safer, change this locked decision in the plan before coding—never keep two claimers.
 - **2026-08-24:** The automatic freshness path is bounded, idempotent, disabled by configuration for rollback, and protected against overlap. The preferred implementation is the existing Railway worker, not pg_cron calling an HTTP edge function.
 - **2026-08-24:** No unauthorized ID, rank, or result count may leave `dam-search-ai`. Browser-side RLS filtering alone is insufficient.
+- **2026-08-24:** The same authorization rule applies to `search_dam_documents`, keyword wrappers, direct RPC access, and embedding status. Unfiltered security-definer functions are service/internal only; embedding coverage is admin/service only.
+- **2026-08-24:** Keyword and hybrid style-group search use one ranking contract. Preserve the existing direct-group plus member-asset rollup unless measured preview evidence supports replacing both modes with a fully aggregated group-document contract; never ship one mode each way.
+- **2026-08-24:** Ranked search applies authorization, visibility, and active library filters before pagination. Search-scoped facet/count behavior describes the same result set or the UI explicitly states a deliberate limitation.
 - **2026-08-24:** Existing rank-preservation code is extended, not re-architected.
 - **2026-08-24:** Telemetry is a separate optional phase and defaults off.
 - **2026-08-24:** Image embeddings are proposal-only.
@@ -177,7 +197,7 @@ These are repository observations from 2026-08-24, not proof of current producti
 
 - **Statement-level transition triggers vs. stale queue:** measure preview bulk-tagging write amplification. Choose statement-level transition-table triggers if they can deduplicate all affected asset/group IDs cheaply; otherwise insert deduplicated IDs into a durable stale-document queue consumed by the refresh worker. Do not choose row-level full refresh.
 - **Authorization contract:** prefer an RLS-aware/security-invoker search RPC called with the authenticated user client. If `dam_search_documents` cannot express the application’s row access directly, rank candidates internally and join/filter through RLS-safe asset/style-group relations before returning. Acceptance is behavioral cross-user isolation, not a particular SQL shape.
-- **Pagination:** prefer server-side cursor/offset pagination over ranked, authorized results. If the UI product intentionally limits smart search to a maximum number, the limit must be explicit in UX and counts/pages must not imply unavailable deeper results.
+- **Pagination and facets:** prefer server-side cursor/offset pagination over ranked, authorized, fully filtered results. The server contract must accept the filter/visibility set used by `useAssets`/`useStyleGroups`, or return a stable search result-set token that filtering/count RPCs consume. If the UI intentionally limits smart search or disables a filter/facet, state it explicitly; counts/pages must never imply unavailable deeper results.
 - **Semantic floor:** derive an initial threshold from a private representative query set in preview/production dark mode. Store it in `admin_config.SEARCH_MIN_SEMANTIC_SCORE`; default conservatively and allow `null` only when the UI explicitly labels weak closest matches.
 - **Retry policy:** classify transient runtime/network/model errors for bounded exponential retry; terminal content/model-dimension errors remain visible and require operator action. Default retry attempts and cooldown must be documented and tested.
 
@@ -202,6 +222,7 @@ These are repository observations from 2026-08-24, not proof of current producti
 5. Verify `dam-search-ai` deployment and SHA via the latest `Deploy Supabase Edge Functions` run and live function behavior. Confirm `supabase/config.toml` versus deployed auth behavior; do not equate `verify_jwt=false` with unauthenticated access without testing manual validation.
 6. Verify the live frontend build SHA/header and Railway worker deployment independently; a green Railway GitHub deployment does not prove the frontend.
 7. Update this STATUS table with artifact paths/run IDs and any divergence. Trust code/live state over this plan and amend downstream steps before implementation.
+8. Confirm shared-db issue #1427 remains the one combined #96/#97 workstream and that no competing branch/issue is replacing the same search functions. Confirm #96 is merged into the final corpus contract or formally deferred by Albert before any Step 8 embedding sample.
 
 **You’ll know it worked when:** the STATUS table links to a private verification artifact containing target proof, exact counts, deployed versions, current mode, auth probes, and tag/character baseline searches; no write has occurred.
 
@@ -211,28 +232,29 @@ This is structural work. The PopDAM session must create a fully scoped `db-work`
 
 Required objects/behavior in a new timestamped migration above the current maximum:
 
-1. Replace the latest effective `refresh_dam_search_asset_document(uuid)` definition so deterministic, sorted, deduplicated `asset_tags.tag` and canonical `characters.name` values are in `search_text`. Deterministic ordering is mandatory so hashes do not change nondeterministically.
-2. Replace `refresh_dam_search_style_group_document(uuid)` so it aggregates those fields across non-deleted eligible member assets. Define duplicate handling and stable ordering explicitly.
-3. Add maintenance for `asset_tags` and `asset_characters` INSERT/UPDATE/DELETE that deduplicates affected old/new asset IDs and old/new style-group IDs. Use transition tables or a durable stale queue based on preview measurement. Never perform repeated full refreshes per relationship row.
+1. Start from the latest effective refresh definitions found in Step 1—known baseline `20260715183000_dam_rich_pdf_extraction.sql`, not the 20260713 foundation. Preserve every existing `search_text` and metadata field, including `content_type`, `style_groups.item_description`, product material/dimensions, rich metadata, and PDF text. Add deterministic, sorted, deduplicated **active** `asset_tags.tag`, active `style_group_tags.tag`, and canonical `characters.name`. Place tag and character aggregates before PDF extracted text so they remain inside the `left(search_text, 8000)` embedding window.
+2. Replace `refresh_dam_search_style_group_document(uuid)` so it follows the single locked ranking/corpus contract and aggregates active group/member tags and canonical character names across non-deleted eligible member assets. Define duplicate handling and stable ordering explicitly; candidate/rejected #96 tags never enter ordinary search.
+3. Add bounded maintenance for `asset_tags`, `style_group_tags`, and `asset_characters` INSERT/UPDATE/DELETE that deduplicates affected old/new asset IDs and old/new style-group IDs. Also handle `assets.style_group_id` changes, delete/undelete, and any eligibility transition: refresh/enqueue the asset plus both OLD and NEW groups. Use transition tables or a durable stale queue based on preview measurement. Never perform repeated full refreshes per relationship row.
 4. Add/replace an incremental refresh RPC that accepts a bounded batch/cursor or claims stale IDs. It must upsert changed documents, delete only documents whose source entity is now deleted, retain unchanged embeddings when hashes match, clear embedding/model/timestamp/error when hashes change, and return counts plus a durable continuation token. Do not call the delete-all `rebuild_dam_search_documents()` in production.
-5. Replace the pseudo-claim embedding RPC with real lease fields or a sibling lease table: owner token, claimed time, expiry, attempt count, next retry time, and last categorized error. Claim atomically with `FOR UPDATE SKIP LOCKED` or equivalent. Expired leases must be reclaimable.
+5. Replace the pseudo-claim embedding RPC with real lease fields or a sibling lease table: owner token, claimed time, expiry, attempt count, next retry time, and last categorized error. The worker is the sole claimer and claims atomically with `FOR UPDATE SKIP LOCKED` or equivalent. Expired leases must be reclaimable; no edge action may independently claim another batch.
 6. Preserve `upsert_dam_search_embedding` hash matching and additionally require valid lease ownership. A stale hash or lost lease returns false without overwriting newer content.
 7. Replace error marking with transient/terminal category, bounded retry count, exponential cooldown, and operator-visible terminal state. Provide an admin-only reset/requeue RPC scoped to selected terminal rows.
-8. Preserve least privilege and explicit grants whenever function signatures change. Re-run security-definer execute lockdown checks.
+8. Preserve least privilege and explicit grants whenever function signatures change. Re-run security-definer execute lockdown checks. Revoke authenticated execution on any unfiltered internal `search_dam_documents`/wrapper, or make the externally callable version authorization-aware; do the same for keyword fallback wrappers. Restrict embedding status/reset/claim/upsert/error functions to the minimum admin/service roles.
 9. Do not hide the data refresh inside an unbounded migration. The migration installs primitives; preview validation may exercise a bounded batch. Production data backfill is Step 8 through the application-owned operation after the merged structural contract is promoted with Albert’s exact approval.
 
-Preview tests must prove tag-only and character-only asset matches, style-group matches, relationship move/delete correctness, deterministic hashes, unchanged embedding retention, changed embedding invalidation, no global delete, lease exclusivity, expired lease recovery, stale-hash refusal, retry exhaustion, and grants.
+Preview tests must prove tag-only and character-only asset matches; active group-tag matches; candidate/rejected exclusion; style-group ranking parity between hybrid and keyword; move asset A from group 1 to group 2 so group 1 loses and group 2 gains its unique token; asset delete/undelete; relationship moves/deletes; deterministic hashes; preservation of every field in the latest rich-PDF builder; a tag-only token remaining within the first 8,000 characters when PDF text is long; unchanged embedding retention; changed embedding invalidation; no global delete; lease exclusivity; expired lease recovery; stale-hash refusal; retry exhaustion; authorization/grants; and representative authenticated search timing with headroom below eight seconds.
 
 **You’ll know it worked when:** shared-db SQL checks pass; preview artifacts show object and behavior assertions plus timing; the PR is merged; Albert has approved the exact production structural promotion; the bounded production promotion targets `qsllyeztdwjgirsysgai` with immediate target proof; and post-apply object definitions match the merged migration. Record migration, merge SHA, CI run, and apply proof in STATUS.
 
 ### Step 3 — Make the edge search response authorization-safe
 
-1. In shared-db, define the minimum authorization-aware search contract necessary for Step 3. Prefer a security-invoker/RLS-aware RPC callable with the user JWT. If an internal definer function computes candidates, its externally callable wrapper must filter candidates against records the caller can select before returning.
+1. In shared-db, define one authorization-aware contract for hybrid search, direct `search_dam_documents`, and keyword wrappers. Prefer security-invoker/RLS-aware external RPCs callable with the user JWT. If an internal definer computes candidates, remove authenticated execute from it and require an external wrapper that filters against records the caller can select before returning.
 2. In `supabase/functions/dam-search-ai/index.ts`, keep manual bearer authentication and reject missing/invalid tokens. Use a user-scoped Supabase client for the externally visible search call; reserve service role for admin-only `embed-batch` and embedding status operations.
-3. Make admin-only actions prove admin/service authority—not merely “any authenticated user.” Test current `requireAuth` behavior: the existing service-role probe can distinguish a service token, but `embedding-status` policy must match the coverage UI’s authorized admin role.
+3. Make `embedding-status`, reset/requeue, claim, upsert, and error actions prove admin/service authority—not merely “any authenticated user.” Test current `requireAuth` behavior: the existing service-role probe can distinguish a service token, while the coverage UI must use the application's real admin authorization contract.
 4. Return only authorized `document_type`, `entity_id`, and minimum rank/score fields. Never return title, path, metadata, inaccessible IDs, pre-filter counts, or diagnostic corpus totals to ordinary users.
 5. Preserve abort/failure semantics so `src/lib/dam-search.ts` falls back to keyword.
-6. Add edge-function tests with at least two users whose accessible asset/style-group sets differ, including a query whose best global match is inaccessible to one user.
+6. Add edge/RPC tests with at least two users whose accessible asset/style-group sets differ, including a query whose best global match is inaccessible to one user. If current production-shaped RLS grants all authenticated users the same non-deleted records, create an explicit preview-only fixture policy for the isolation test and separately assert deleted/ineligible documents never appear under production-shaped policy; do not invent a production restriction.
+7. Run representative authenticated keyword and hybrid queries with and without filters against production-scale preview fixtures. Each must complete with headroom under the existing eight-second statement timeout; a silent keyword fallback caused by persistent hybrid timeout is not acceptance.
 
 **You’ll know it worked when:** an authenticated restricted user receives only IDs they can select, cannot infer inaccessible result count from the response, an unauthenticated request is rejected, an ordinary user cannot invoke embedding actions, and an authorized admin/service worker can. The edge deployment workflow is green and the deployed function passes the same probes.
 
@@ -242,11 +264,11 @@ Preview tests must prove tag-only and character-only asset matches, style-group 
 
 ### Step 4 — Add the resumable `embed-dam-search` worker operation
 
-1. Create `apps/worker/src/handlers/embed-search.ts`. Inject the RPC/edge client in tests. Each batch atomically claims a bounded leased batch, invokes `dam-search-ai` `{ action: "embed-batch", ... }` with worker credentials and lease token, records embedded/stale/failed/retried/terminal counts, renews or completes leases, and returns `done` only when pending-ready and active-leased counts are zero.
+1. Create `apps/worker/src/handlers/embed-search.ts`. Inject the RPC/edge client in tests. The worker atomically claims the bounded leased batch, then invokes `dam-search-ai` `{ action: "embed-batch", documents/lease identifiers... }` with worker credentials. The edge action embeds only that owned batch and refuses to claim or substitute rows. Record embedded/stale/failed/retried/terminal counts, renew or complete leases, and return `done` only when pending-ready and active-leased counts are zero.
 2. The handler must not use an offset cursor over a mutating pending set. Its durable progress is counts plus the database lease state; restart safely resumes by reclaiming expired leases.
 3. Tune default batch size only after a small preview/dark production measurement. Make batch size and maximum per-tick work bounded in config/operation params.
 4. Register `embed-dam-search` in `apps/worker/src/operation-loop.ts`: import/dispatch, `OP_LANES` as `search-index`, `mergeProgress`, `buildResultMessage`. Reuse the existing stop/revision/retry/kill-switch path; do not bypass `update_bulk_operation`.
-5. Mirror name/lane/conflict semantics in `supabase/functions/_shared/operation-constants.ts` and `src/components/settings/diagnostics/types.ts`. It needs no hard conflict with AI tagging because hash+lease correctness handles changing content, but surface churn in progress and avoid waste through the freshness queue.
+5. Reconcile and then mirror the complete name/lane/conflict maps in `apps/worker/src/operation-loop.ts`, `supabase/functions/_shared/operation-constants.ts`, and `src/components/settings/diagnostics/types.ts`. Preserve existing keys such as `rich-pdf-extract`; add a test that the three exported/parsed maps remain equivalent. `embed-dam-search` needs no hard conflict with AI tagging because hash+lease correctness handles changing content, but surface churn in progress and avoid waste through the freshness queue.
 6. Confirm operation keys remain JSONB keys, not a DB enum; do not request unnecessary DDL.
 
 **You’ll know it worked when:** worker unit tests prove exclusive leases, stale-write discard, transient retry, terminal error, user stop, restart after lease expiry, zero-pending completion, and failure kill-switch behavior; root and worker typechecks pass.
@@ -280,13 +302,15 @@ Preferred design: the existing Railway worker periodically runs a small incremen
 
 ### Step 7 — Finish ranked pagination, weak-tail UX, and fallback behavior
 
-1. Extend `src/lib/dam-search.ts` result types to retain authorized rank/semantic score and pagination metadata. Keep `fetchSearchIds` fallback behavior explicit and observable in tests without showing errors to users.
-2. Change the authorized search RPC/edge action to accept bounded page/cursor parameters and return enough information for honest paging. Avoid sending an ever-growing ID list into `.in(...)`.
-3. Update `src/hooks/useAssets.ts` and `src/hooks/useStyleGroups.ts` to request the current ranked page while preserving the authorized RLS-scoped display-row query. Preserve the returned ranked order with `sortByRank`; keep empty-query browse and chosen column sorting unchanged.
-4. Define total-count semantics. Return an authorized exact count only if it can be computed safely within the timeout; otherwise use `has_more` and do not display a misleading exact total.
+1. Extend `src/lib/dam-search.ts` result types to retain authorized rank/semantic score, pagination metadata, and the effective search/filter snapshot. Replace the module-lifetime `SEARCH_MODE` promise with a documented short TTL or explicit invalidation used by admin mode changes; launch and rollback verification must prove an already-open SPA observes the change without an unexplained hard reload. Keep fallback behavior explicit and testable without showing errors to users.
+2. Change the authorized search RPC/edge action to accept bounded page/cursor parameters plus the same stage/customer/program/licensor/property/tag/visibility filters applied by the library, or return a stable authorized result-set token consumed by the row and count/facet queries. Apply authorization and filters before ranking-page boundaries. Avoid an ever-growing ID list in `.in(...)`.
+3. Update `src/hooks/useAssets.ts` and `src/hooks/useStyleGroups.ts` to request the current ranked, authorized, filtered page while preserving the display-row RLS query and returned order. Keep empty-query browse and chosen column sorting unchanged.
+4. Define total-count and facet semantics. Return an authorized exact count only if it can be computed safely within the timeout; otherwise use `has_more`. Update `get_filter_counts` or add a dedicated search-scoped count/facet path so sidebar facets describe the same search/filter result set. If a facet is deliberately unavailable in Smart search, disable it with plain UX rather than showing a contradictory count.
 5. Read `admin_config.SEARCH_MIN_SEMANTIC_SCORE` in the server-side caller. Filter semantic-only results below the configured threshold, while always preserving strong keyword matches. Record rank components privately during dark verification to calibrate the initial value.
 6. Add a subtle “Smart search” indicator in `src/components/library/LibraryTopBar.tsx` when mode is hybrid. Show “Showing closest matches” only when results are semantic-only/near the threshold; never imply all results are exact matches.
-7. Exercise fallback chain: hybrid edge failure → keyword RPC (with its existing retry) → ILIKE fallback. No user-visible outage or spinner loop.
+7. Exercise fallback chain: hybrid edge failure → authorization-aware keyword RPC (with its existing retry) → ILIKE fallback. Extend the final degraded path through a safe indexed tag/character-aware contract, or explicitly label and test the limited degraded behavior; the acceptance queries “Groot” and “glitter blue” must not silently disappear without a documented operational warning. No user-visible outage or spinner loop.
+8. Preserve one style-group ranking contract across hybrid and keyword, including the existing member-asset rollup or its explicitly chosen replacement. The same query and corpus must not reshuffle merely because the edge function fell back.
+9. Measure representative authenticated searches—with and without active filters/facets—against production-scale preview data. P95/representative worst cases must retain useful headroom below eight seconds.
 
 **You’ll know it worked when:** asset and group searches preserve server rank across at least three pages, pages contain no duplicates/omissions under a stable snapshot, weak-tail copy appears only under the specified score condition, empty browse is unchanged, and forced edge/RPC failures reach the correct fallback in automated tests and browser verification.
 
@@ -298,7 +322,7 @@ This is the first long-running production data operation and requires Albert’s
 
 **Hard coordination gate:** before any sample or corpus-wide embedding run, confirm with merged migration and production object evidence that issue #96's scoped tag/status contract has landed, or record a formal deferral that preserves one final corpus definition. Never embed an intermediate corpus that omits the agreed active asset tags, active Style Group tags, or canonical character names.
 
-1. Confirm merged/deployed SHAs, live function definitions, target project, automatic loop still disabled, current counts, and that keyword search is healthy.
+1. Confirm merged/deployed SHAs, live function definitions, target project, automatic loop still disabled, current counts, and that keyword search is healthy. Confirm #96's active asset/style-group tag contract and the one final search builder have landed (or Albert formally deferred #96), and confirm only the worker can claim embedding leases.
 2. Run a small bounded production sample through the operation. Record start/end times, documents claimed/embedded/stale/retried/failed, edge/worker error categories, and other worker-lane health.
 3. Calculate projected full duration from measured throughput and remaining eligible documents. Report it to Albert with the exact scope, rollback (stop operation; keyword remains active), and any terminal residue. Obtain approval before the full run.
 4. Start the full operation through the admin UI/normal `BULK_OPERATIONS` workflow. Do not call embedding RPCs manually in a shell loop.
@@ -361,8 +385,10 @@ This phase is not required to close the safe hybrid-search launch. Before starti
 ### Shared-db preview SQL tests
 
 - Asset document contains stable sorted/deduplicated tag and character tokens.
-- Style-group document aggregates eligible member metadata and removes it after the last relationship disappears.
+- Asset document preserves every latest rich-PDF/product field and keeps active tags/characters within the first 8,000 embedding characters even with long PDF text.
+- Style-group document aggregates eligible active member/group metadata and removes it after the last relationship disappears.
 - INSERT/UPDATE/DELETE and old/new asset/group transitions refresh every affected document once per statement/bounded queue item.
+- Asset group move, delete, and undelete refresh the asset plus OLD and NEW group documents.
 - Incremental rebuild never deletes unrelated documents and is resumable after a forced interruption.
 - Same hash preserves embedding; changed hash clears embedding metadata/error.
 - Two concurrent claimers cannot receive the same live lease.
@@ -370,6 +396,10 @@ This phase is not required to close the safe hybrid-search launch. Before starti
 - Stale-hash or wrong-lease embedding write is refused.
 - Transient retry advances attempt/cooldown; terminal/exhausted errors remain visible and resettable by admin only.
 - Search RPC returns only caller-authorized IDs/ranks and no unauthorized count.
+- Direct hybrid/keyword RPCs and the edge action enforce the same authorization contract; embedding status/actions are admin/service only.
+- Keyword and hybrid style-group ranking produce the same ordered contract, including member-asset rollup behavior.
+- Ranked paging applies authorization/visibility/library filters first; search-scoped counts/facets describe the same set.
+- Representative authenticated filtered/unfiltered searches complete with headroom under eight seconds.
 - Grants/RLS/security-definer search paths meet shared-db security checks.
 - Semantic weight/default and minimum-score behavior preserve keyword matches.
 
@@ -384,15 +414,15 @@ This phase is not required to close the safe hybrid-search launch. Before starti
 
 ### Worker tests
 
-Add `apps/worker/src/handlers/embed-search.test.ts` for empty queue completion, bounded batch, progress merge, stale write, transient retry, terminal error, lease expiry/restart, stop, overlap avoidance, and automatic-loop disable/bounds. Extend operation-loop tests for registration, lane, result message, revision-safe stop, and kill switch.
+Add `apps/worker/src/handlers/embed-search.test.ts` for empty queue completion, worker-only claiming, edge refusal to claim/substitute rows, bounded batch, progress merge, stale write, transient retry, terminal error, lease expiry/restart, stop, overlap avoidance, and automatic-loop disable/bounds. Extend operation-loop tests for registration, lane, result message, revision-safe stop, kill switch, and equivalence of all three operation name/lane/conflict maps (including pre-existing `rich-pdf-extract`).
 
 ### Frontend/unit tests
 
 Extend:
 
-- `src/test/dam-search.test.ts`: hybrid result metadata, edge→keyword fallback, keyword→ILIKE signal, minimum score, authorized paging cursor, invalid config defaults.
-- `src/test/asset-search.test.ts`: ranked hybrid pages, count/has-more behavior, no duplicates, empty browse unchanged, fallback chain.
-- `src/test/style-group-search.test.ts`: same behaviors plus group results derived from member tags/characters.
+- `src/test/dam-search.test.ts`: hybrid result metadata, edge→keyword fallback, keyword→ILIKE limitation/coverage, minimum score, authorized filtered paging cursor, invalid config defaults, and `SEARCH_MODE` TTL/invalidation for activation and rollback.
+- `src/test/asset-search.test.ts`: filters applied before ranked page boundaries, search-scoped count/facet or `has_more` behavior, no duplicates/short false pages, empty browse unchanged, fallback chain, and tag/character degraded behavior.
+- `src/test/style-group-search.test.ts`: same behaviors plus group results derived from member/group tags and characters, group move/delete maintenance, and identical keyword/hybrid member-rollup ordering.
 - New SearchIndexCard tests: coverage states, admin authorization, start/stop/resume, ETA only after measurement, retry-terminal action.
 - Library top-bar tests: Smart search and closest-match affordance conditions.
 
@@ -421,12 +451,17 @@ Use current package scripts after inspecting `package.json`; at minimum run the 
 - Service role is permitted for worker-only maintenance, not for returning unfiltered user search results.
 - Stable sorted aggregation is required; nondeterministic `string_agg` order would churn hashes and embeddings.
 - Relationship UPDATE/DELETE must account for OLD and NEW asset/group IDs.
+- Asset membership (`style_group_id`), delete, undelete, and eligibility transitions must refresh/enqueue OLD and NEW groups.
+- Always start a replacement refresh function from the latest effective body; preserve rich-PDF/product fields and place active tags/characters before long PDF text.
 - Do not combine current delete-all rebuild with production rollout.
 - Hash matching protects content freshness but does not replace lease ownership.
+- The worker is the sole embedding claimer; the edge embeds only explicitly leased rows.
 - Do not log query text, search documents, licensed metadata, secrets, or row contents to CI/issues/public artifacts.
 - Automatic loop must be bounded and reversible; do not create competing worker and pg_cron schedulers.
 - Railway deploy evidence does not prove frontend deploy evidence.
 - A semantic result ceiling/count must be honest; never imply deeper pages exist when only 500 candidates were fetched.
+- Authorization and active library filters precede ranked paging; grid counts/facets must describe the same set.
+- Direct keyword/hybrid RPCs cannot remain an unfiltered bypass around edge authorization.
 - Telemetry and image embeddings remain off/out of scope until separately approved.
 
 ## 12. Access and environment
@@ -450,12 +485,17 @@ If a required canonical credential/tool is broken, repair that capability and ve
 
 - [ ] Live pre-change state and component SHAs recorded with target proof.
 - [ ] Tags and characters searchable for assets and style groups in keyword mode.
+- [ ] Active asset and Style Group tags from #96 plus canonical characters form one final corpus; candidate/rejected tags are excluded and only one embedding backfill ran.
+- [ ] Latest rich-PDF/product search fields are preserved and tag/character tokens survive the 8,000-character embedding window.
 - [ ] Incremental maintenance replaces delete-all production rebuilding.
 - [ ] Embedding claims are exclusive, leased, expiring, recoverable, hash-safe, and retry-aware.
 - [ ] Automatic freshness is bounded, singleton, observable, and config-disableable.
 - [ ] No inaccessible ID/rank/count crosses the edge response; cross-user test proves it.
+- [ ] Direct hybrid/keyword RPCs cannot bypass that authorization boundary; embedding status/actions are admin/service only.
 - [ ] Admin coverage/start/stop/resume UI works and is visually verified.
 - [ ] Ranked pagination/count semantics and weak-tail score/UX are honest.
+- [ ] Authorization, visibility, and active library filters are applied before page boundaries; search-scoped facets/counts agree with the grid within the eight-second performance gate.
+- [ ] Keyword and hybrid style-group ranking use the same member-rollup contract.
 - [ ] Full eligible corpus coverage or every terminal residue categorized and accepted.
 - [ ] Railway restart/resume and stale-content behavior proven.
 - [ ] Hybrid search enabled only after Albert approval; empty browse unchanged.
@@ -472,10 +512,12 @@ If a required canonical credential/tool is broken, repair that capability and ve
 - **Database load/write amplification:** preview measurement, statement-level dedup/stale queue, bounded batches, no delete-all rebuild, kill switch.
 - **Search outage:** keep keyword mode during indexing; single-config rollback; test both fallback levels.
 - **Authorization leak:** user-scoped filtering before response; cross-user tests; minimal response fields.
+- **Direct-RPC authorization bypass:** revoke/wrap unfiltered definers and test edge plus direct keyword/hybrid paths.
 - **Duplicate/wasted embeddings:** atomic lease, expiry, singleton scheduler, hash+lease checked write.
 - **Permanent embedding gaps:** categorized retries, visible terminal residue, admin requeue.
 - **Bad semantic matches:** calibrated minimum score plus honest closest-match UX and keyword weighting.
 - **Pagination dishonesty:** server-side ranked paging/`has_more`, not an arbitrary larger ID ceiling.
+- **Filter/facet mismatch:** apply filters before paging and share a search-scoped result/count contract.
 - **Concurrent repo work:** owned-path staging, status snapshots, shared-db orchestration.
 - **Deployment false positive:** prove frontend, edge, worker, schema, and config independently.
 
@@ -506,7 +548,7 @@ If a required canonical credential/tool is broken, repair that capability and ve
 
 ### 2. Does the plan carry the background, nuance, and reasoning—including rejected approaches?
 
-**Yes.** Sections 5–7 record what is already built, why the original rebuild/trigger/claim/security/telemetry details were unsafe, and twelve rejected approaches with reasons. Section 8 distinguishes decisions that are locked from choices that depend on measured evidence. The STATUS table prevents future sessions from treating plan assumptions as completed facts.
+**Yes.** Sections 5–7 record what is already built, why the original rebuild/trigger/claim/security/pagination/telemetry details were unsafe, and sixteen rejected approaches with reasons. Section 8 distinguishes decisions that are locked from choices that depend on measured evidence. The plan also records and resolves Grok 4.6's independent review findings. The STATUS table prevents future sessions from treating plan assumptions as completed facts.
 
 ### 3. Is the ultimate goal clear enough for correct judgment if a step is wrong?
 
