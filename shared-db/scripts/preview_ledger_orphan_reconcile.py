@@ -28,6 +28,10 @@ SUPPORTED_CASES = {
         "replacement_version": "20260824004025",
         "orphan_run_head": "24a39f3f66ff26a8eee825b4acf54531a128f654",
     },
+    (1211, 1371, 1372, "20260824004025", "20260824004025"): {
+        "mode": "rehearsal_reset",
+        "original_run_head": "88ebd0272a163d32aefe748d59c7096c8fe54d0e",
+    },
 }
 
 
@@ -67,24 +71,27 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
     repo = args.repo.resolve()
     if git(repo, "rev-parse", "HEAD") != args.main_sha or git(repo, "rev-parse", "origin/main") != args.main_sha:
         raise Refusal("checkout is not exact current main")
-    if list((repo / "supabase/migrations").glob(f"{args.orphan_version}_*.sql")):
-        raise Refusal("orphan version still exists on current main")
-
-    case = SUPPORTED_CASES.get((args.issue, args.claim, args.source_pr))
+    case = SUPPORTED_CASES.get(
+        (args.issue, args.claim, args.source_pr, args.orphan_version, args.replacement_version),
+        SUPPORTED_CASES.get((args.issue, args.claim, args.source_pr)),
+    )
     if not case:
         raise Refusal("issue, claim, and pull request are not an explicitly supported reconciliation case")
+    if list((repo / "supabase/migrations").glob(f"{args.orphan_version}_*.sql")) and case.get("mode") != "rehearsal_reset":
+        raise Refusal("orphan version still exists on current main")
     if case.get("orphan_version", args.orphan_version) != args.orphan_version or case.get("replacement_version", args.replacement_version) != args.replacement_version:
         raise Refusal("migration versions do not match the explicitly supported reconciliation case")
     issue, claim, pr, pr_files, run, artifact = (read_json(p) for p in (args.issue_json, args.claim_json, args.pr_json, args.pr_files_json, args.run_json, args.artifact_json))
     if issue.get("number") != args.issue or issue.get("state") != "open":
         raise Refusal("work issue is not the exact open issue")
-    if claim.get("number") != args.claim or claim.get("state") != "open" or f"#{args.issue}" not in claim.get("title", ""):
+    expected_claim_state = "closed" if case["mode"] == "rehearsal_reset" else "open"
+    if claim.get("number") != args.claim or claim.get("state") != expected_claim_state or f"#{args.issue}" not in claim.get("title", ""):
         raise Refusal("claim is not the exact open issue claim")
     if not re.search(rf"^version: {re.escape(args.replacement_version)}$", claim.get("body", ""), re.M):
         raise Refusal("claim does not bind the replacement version")
     if pr.get("number") != args.source_pr:
         raise Refusal("source pull request is not the exact pull request")
-    if case["mode"] == "replacement_already_applied":
+    if case["mode"] in {"replacement_already_applied", "rehearsal_reset"}:
         if not pr.get("merged") or not pr.get("merge_commit_sha"):
             raise Refusal("source pull request is not the exact merged PR")
         git(repo, "merge-base", "--is-ancestor", pr["merge_commit_sha"], args.main_sha)
@@ -93,7 +100,7 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
     expected_path = f"supabase/migrations/{args.replacement_version}_{args.replacement_migration.name.split('_', 1)[1]}"
     if not isinstance(pr_files, list) or [row.get("filename") for row in pr_files].count(expected_path) != 1:
         raise Refusal("source PR does not uniquely author the replacement migration")
-    if any(str(row.get("filename", "")).startswith(f"supabase/migrations/{args.orphan_version}_") for row in pr_files):
+    if case["mode"] != "rehearsal_reset" and any(str(row.get("filename", "")).startswith(f"supabase/migrations/{args.orphan_version}_") for row in pr_files):
         raise Refusal("source PR still exposes the orphan version")
     if run.get("id") != args.preview_run_id or run.get("status") != "completed" or run.get("conclusion") != "success":
         raise Refusal("preview run is not the exact successful run")
@@ -103,7 +110,8 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
         raise Refusal("preview artifact identity or digest mismatch")
     if artifact.get("name") != f"preview-migration-apply-{run.get('head_sha')}":
         raise Refusal("preview artifact is not the exact run-head apply evidence")
-    if case.get("orphan_run_head", run.get("head_sha")) != run.get("head_sha") or run.get("head_sha") != git(args.orphan_source_dir, "rev-parse", "HEAD"):
+    expected_run_head = case.get("original_run_head", case.get("orphan_run_head", run.get("head_sha")))
+    if expected_run_head != run.get("head_sha") or run.get("head_sha") != git(args.orphan_source_dir, "rev-parse", "HEAD"):
         raise Refusal("preview run is not the exact orphan source commit")
 
     before_path = args.preview_evidence_dir / "preview-ledger-before.txt"
@@ -112,7 +120,7 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
     after = after_path.read_text(encoding="utf-8")
     apply = (args.preview_evidence_dir / "preview-apply.txt").read_text(encoding="utf-8")
     before_versions, after_versions = parse_remote_versions(before_path), parse_remote_versions(after_path)
-    evidence_version = args.replacement_version if case["mode"] == "replacement_already_applied" else args.orphan_version
+    evidence_version = args.replacement_version if case["mode"] in {"replacement_already_applied", "rehearsal_reset"} else args.orphan_version
     if evidence_version in before_versions or evidence_version not in after_versions or after_versions - before_versions != {evidence_version}:
         raise Refusal("preview artifact does not prove the exact one-version ledger addition")
     if f"Applying migration {evidence_version}_" not in apply:
@@ -139,7 +147,7 @@ def reconcile(url: str, env: dict[str, str], args, expected_orphan: list[str], e
         raise Refusal("ledger rows do not match the supported reconciliation phase")
     if by_version[args.orphan_version].get("statements") != expected_orphan:
         raise Refusal("orphan statements are not exact source migration bytes")
-    if case_mode == "replacement_already_applied" and by_version[args.replacement_version].get("statements") != expected_replacement:
+    if case_mode in {"replacement_already_applied", "rehearsal_reset"} and by_version[args.replacement_version].get("statements") != expected_replacement:
         raise Refusal("replacement statements are not exact source migration bytes")
     if args.mode == "check":
         return before, before
@@ -191,13 +199,16 @@ def parse_args():
 def main() -> int:
     try:
         args = parse_args()
-        if args.orphan_version == args.replacement_version:
+        case = SUPPORTED_CASES.get(
+            (args.issue, args.claim, args.source_pr, args.orphan_version, args.replacement_version),
+            SUPPORTED_CASES.get((args.issue, args.claim, args.source_pr)),
+        )
+        if args.orphan_version == args.replacement_version and (not case or case.get("mode") != "rehearsal_reset"):
             raise Refusal("reconciliation is preview-only and requires two different versions")
         if not re.fullmatch(r"[a-z]{20}", args.expected_project_ref) or args.expected_project_ref == "qsllyeztdwjgirsysgai":
             raise Refusal("reconciliation requires a configured non-production Supabase project ref")
-        case = SUPPORTED_CASES.get((args.issue, args.claim, args.source_pr))
         args.replacement_migration, replacement_statements = load_replacement(args.source_pr_dir / "supabase/migrations", args.replacement_version)
-        if case and case["mode"] == "replacement_already_applied":
+        if case and case["mode"] in {"replacement_already_applied", "rehearsal_reset"}:
             args.orphan_migration, orphan_statements = args.replacement_migration, replacement_statements
         else:
             args.orphan_migration, orphan_statements = load_replacement(args.orphan_source_dir / "supabase/migrations", args.orphan_version)

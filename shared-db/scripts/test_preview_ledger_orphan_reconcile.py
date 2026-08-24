@@ -68,4 +68,18 @@ class Tests(unittest.TestCase):
             with self.assertRaises(M.Refusal):
                 M.reconcile('url',{},args,['old definition'],['corrected definition'],'replacement_pending')
 
+    def test_same_version_rehearsal_reset_removes_only_exact_row(self):
+        args=type('A',(),{'orphan_version':'20260824004025','replacement_version':'20260824004025','mode':'apply'})()
+        before=[{'version':'20260824004025','statements':['exact definition']}]
+        with patch.object(M,'ledger_rows',side_effect=[before,[]]), patch.object(M,'psql',return_value='') as execute:
+            self.assertEqual(M.reconcile('url',{},args,['exact definition'],['exact definition'],'rehearsal_reset'),(before,[]))
+            sql=execute.call_args.args[2]
+            self.assertIn("delete from supabase_migrations.schema_migrations where version='20260824004025'",sql)
+
+    def test_same_version_rehearsal_reset_refuses_nonmatching_ledger_bytes(self):
+        args=type('A',(),{'orphan_version':'20260824004025','replacement_version':'20260824004025','mode':'check'})()
+        with patch.object(M,'ledger_rows',return_value=[{'version':'20260824004025','statements':['different']} ]):
+            with self.assertRaises(M.Refusal):
+                M.reconcile('url',{},args,['exact definition'],['exact definition'],'rehearsal_reset')
+
 if __name__=='__main__': unittest.main()
