@@ -68,6 +68,10 @@ Active AI model interaction reliability plan:
 
 - `plan_ai_model_interaction_reliability.md` — replace model-name capability guesses, premature structured-output failures, silent ERP skips, and split PDF-agent behavior with one tested capability-driven contract. Read its STATUS table first; do not re-derive or re-plan completed steps.
 
+Active hybrid-search rollout plan:
+
+- `plan_hybrid_search_rollout.md` — safely finish keyword + pgvector discovery: searchable tags/characters, incremental indexing, leased embeddings, authorization-safe results, ranked pagination, fallback, and gated rollout. Read its STATUS table first; do not re-derive or re-plan completed steps.
+
 Active Style-Group-scoped AI metadata plan:
 
 - `plan_style_group_scoped_ai_metadata.md` — separate shared product/SKU facts from file-specific visual facts, combine both scopes in search without copying rows, and replace primary-asset tag propagation with safe group metadata refresh. Read its STATUS table first; do not re-derive or re-plan completed steps.

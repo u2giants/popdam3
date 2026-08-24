@@ -4,6 +4,11 @@
 **Scope:** Close the generation ↔ retrieval gap in the PopDAM AI image-tagging + search system so non-technical employees can actually find assets among 100k+ files.
 **Status:** proposed — not yet implemented.
 
+> **Active execution plan:** [`plan_hybrid_search_rollout.md`](plan_hybrid_search_rollout.md)
+> supersedes §§1–2 for implementation and rollout safety. Read its STATUS table first.
+> In particular, this document's §1d claim that relevance ordering is currently broken is stale;
+> the hooks already preserve ranked ID order within their current 500-result ceiling.
+
 ---
 
 ## 0. Guardrails (read before touching anything)
