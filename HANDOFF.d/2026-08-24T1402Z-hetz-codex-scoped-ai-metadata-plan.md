@@ -71,6 +71,7 @@ This session’s objective was planning and discoverability only: inspect the ac
 - `StyleGroupDetailPanel.tsx:706-717` and `AssetDetailPanel.tsx:373-394` currently use different manual-tag write paths; the former can be erased by the `asset_tags` array-sync trigger.
 - `plan_hybrid_search_rollout.md`/issue #97 overlaps the same search functions and `asset_tags` triggers. It superseded `fix_search.md` §§1–2 after the first audit, so the plans must cross-link their shared-db work and avoid embedding an intermediate corpus.
 - Rejected asset-tag tombstones require the `assets.tags` sync trigger to aggregate active rows only; otherwise a rejected tag leaks back into chips and legacy filtering.
+- Kimi K3 independently returned **APPROVE** at published head `4fd00905`. Its three non-blocking precision notes were incorporated: hybrid handoff/Step 8 cross-guards, explicit active legacy status/backfill order, and explicit identity behavior. Grouped assets resolve licensor/property from their Style Group without copying IDs; ungrouped assets retain asset-level identity. The same Kimi session then re-read the amendments and again returned **APPROVE**, with all findings resolved and no unresolved objections.
 
 ## 6. Exact next steps
 
