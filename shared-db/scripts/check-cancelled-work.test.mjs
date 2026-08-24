@@ -55,6 +55,48 @@ test('an unrelated change PASSES', () => {
 
 // --- the false-positive budget ---------------------------------------------
 
+test('ordinary prose about "rewrite history" with no git signal PASSES (PR #1388 regression)', () => {
+  // The exact false positive that blocked PR #1388 on a required check: a comment in
+  // scripts/lib/work-dependencies.test.mjs about completion records being immutable.
+  const diff = diffOf(
+    'scripts/lib/work-dependencies.test.mjs',
+    '// Reopening a completed dependency is a mistake and an attempt to rewrite history.',
+  )
+  assert.equal(findReintroduced(diff).length, 0)
+  assert.equal(main([], io(diff)), 0)
+})
+
+test('other innocent uses of "history" near a verb PASS', () => {
+  for (const text of [
+    'The migration ledger keeps a history; do not delete rows from it.',
+    'Purge the stale rows from the audit history table nightly.',
+    'We rewrite the description history shown in the UI on every save.',
+    'Force-push protection is on for main.',
+  ]) {
+    const diff = diffOf('docs/plan.md', text)
+    assert.equal(findReintroduced(diff).length, 0, `should not fire on: ${text}`)
+  }
+})
+
+// --- the narrowed pattern still catches the real thing ----------------------
+
+test('every genuine phrasing of the cancelled git-history rewrite still FAILS', () => {
+  for (const text of [
+    'Step 3: scrub the Disney CSV from git history with filter-repo.',
+    'We should rewrite the commit history to drop that file.',
+    'Run git filter-branch over the repo to strip the extract.',
+    'Use BFG to erase the CSV blobs.',
+    'The repository history needs to be purged of the Disney extract.',
+    'Rewrite the history of this repository to remove the OPA CSV.',
+    'Then force-push the rewritten branches to origin.',
+  ]) {
+    const diff = diffOf('docs/plan.md', text)
+    const findings = findReintroduced(diff)
+    assert.equal(findings.length, 1, `should fire on: ${text}`)
+    assert.equal(findings[0].id, 'R-SEC-1c-history-rewrite')
+  }
+})
+
 test('a line that CANCELS the instruction does not fail', () => {
   const diff = diffOf('AGENTS.md', 'Do not rewrite this repository git history for that reason.')
   assert.equal(findReintroduced(diff).length, 0)

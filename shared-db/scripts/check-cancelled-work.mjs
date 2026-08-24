@@ -56,6 +56,52 @@ import path from 'node:path'
  *   unless   a legitimate mention that must NOT fail. Every row needs one,
  *            because this file itself mentions all of them.
  */
+/**
+ * The git-history signal for the R-SEC-1c row, factored out so it can be read.
+ *
+ * WHY IT IS EXPLICIT (narrowed 2026-08-23).
+ * ----------------------------------------
+ * The first version of this pattern looked for a verb near the bare stem `histor`.
+ * That is ordinary English. It fired on a code comment in
+ * `scripts/lib/work-dependencies.test.mjs` reading "a mistake and an attempt to
+ * rewrite history" -- prose about completion records being immutable, nothing to do
+ * with this repository's commits -- and blocked PR #1388 on a required check.
+ *
+ * A guard that fails honest prose gets worked around, and a worked-around guard
+ * protects nothing. So a match now needs an EXPLICIT git-history signal: history or
+ * log qualified by git/commit/repo, "the history of this repository", or one of the
+ * tools that exists only to do this (filter-repo, filter-branch, BFG), or a
+ * force-push described as rewriting history.
+ *
+ * The ruling itself is UNCHANGED and this row still enforces it: the Disney OPA
+ * extract is not sensitive, and this repository's git history must NOT be rewritten.
+ */
+const HISTORY_VERB =
+  /(?:scrub(?:b(?:ed|ing))?|rewrit(?:e|es|ing|ten)|purg(?:e|ed|es|ing)|expung(?:e|ed|es|ing)|strip(?:p(?:ed|ing))?|eras(?:e|ed|es|ing)|remov(?:e|ed|es|ing)|delet(?:e|ed|es|ing))/
+
+/** A phrase that can only mean THIS repository's commit history. */
+const GIT_HISTORY =
+  /(?:(?:git|commit|repo|repository|shared-db)[- ]?(?:history|histories|log)\b|histor(?:y|ies)\s+of\s+(?:this\s+|the\s+)?(?:repo|repository|shared-db)\b)/
+
+/** Tools whose whole purpose is rewriting git history. Signal enough on their own. */
+const HISTORY_TOOL = /(?:git[- ]?filter[- ]?repo|filter[- ]?branch|bfg(?:[- ]repo[- ]?cleaner)?)\b/
+
+/** A force-push is only a history rewrite when it is described as one. */
+const FORCE_PUSH_REWRITE = /force[- ]?push(?:e[sd]|ing)?\b[^\n]{0,80}\b(?:rewrit|histor)/
+
+const NEAR = `[^\\n]{0,80}`
+const WB = `\\b`
+
+export const HISTORY_REWRITE = new RegExp(
+  [
+    `${WB}${HISTORY_VERB.source}${WB}${NEAR}${WB}${GIT_HISTORY.source}`,
+    `${WB}${GIT_HISTORY.source}${NEAR}${WB}${HISTORY_VERB.source}${WB}`,
+    `${WB}${HISTORY_TOOL.source}`,
+    `${WB}${FORCE_PUSH_REWRITE.source}`,
+  ].join('|'),
+  'i',
+)
+
 export const CANCELLED = [
   {
     id: 'R-SEC-1c-history-rewrite',
@@ -65,7 +111,7 @@ export const CANCELLED = [
       'The owner ruled the Disney OPA property/character extract is NOT sensitive and may ' +
       'stay in this public repo. R-SEC-1 part (c) is cancelled outright. Rewriting shared ' +
       'history breaks every clone and every open branch, for a premise that is overruled.',
-    pattern: /\b(scrub|rewrite|purge|filter-repo|filter-branch|bfg)\b[^\n]{0,80}\b(git )?histor/i,
+    pattern: HISTORY_REWRITE,
     unless: /\b(cancelled|overruled|superseded|do not|never|must not|forbidden)\b/i,
   },
   {
