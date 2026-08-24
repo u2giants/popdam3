@@ -57,6 +57,17 @@ launched; verify with `mcp__1password__vault_list` before assuming it's absent.
 
 ## How `.mcp.json` placeholders get resolved
 
+### VPS Codex sessions
+
+Codex does **not** import this repository's `.mcp.json`; it reads
+`/home/ai/.codex/config.toml`. The VPS Codex configuration must therefore contain its own
+`mcp_servers.supabase` stdio entry pinned to `qsllyeztdwjgirsysgai`. Launch it through
+`/home/ai/.config/ai-devops/mcp-launch.sh`, which resolves `SUPABASE_ACCESS_TOKEN` from
+the protected `mcp.env`/1Password path without storing the token in `config.toml` or a
+process argument. After adding or repairing an MCP entry, start a new Codex task because
+an existing task cannot hot-reload its MCP tool list. Verify with `codex mcp get supabase`
+and confirm the configured project ref before any database call.
+
 - **VPS Claude Code sessions (the usual remote-control workflow):** `/home/ai/.bashrc`
   contains a block ("POPDAM MCP token injection") that, on shell start, uses the SA token to
   `op read` the three tokens and `export` `DEVOPS_MCP_TOKEN` / `NAS_MCP_TOKEN` /
