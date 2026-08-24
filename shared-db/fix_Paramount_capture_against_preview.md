@@ -6,7 +6,9 @@
 |---|---|---|
 | Retire the two unsafe migrations | Done | Albert's owner ruling is recorded on issue #949; PR #1402 hard-blocks versions `20260814233342` and `20260814233423`. |
 | Rehearse the three Paramount schema migrations on preview | Done | GitHub Actions run `32721695779` applied exactly the three authorized versions to preview. |
-| Run a real Paramount capture against preview | Open | This document is the execution brief. No successful post-migration capture has yet been recorded. |
+| First real Paramount capture against preview | Failed safely | The private capture passed completeness validation and reached `pmt_asset_metadata_value`, then failed closed on JSON `null`; issue #1418 records only sanitized evidence. |
+| Repair JSON-null handling and rehearse it on preview | Done | PR #1421 merged migration `20260824135515`; preview apply run `32738436612` succeeded. Production was not contacted. |
+| Run a brand-new full Paramount capture against repaired preview | Open | Control has returned to the private `licensor-source-data` session. A successful replacement capture has not yet been recorded. |
 | Apply or promote to production | Forbidden | Albert explicitly authorized preview only and said, "Do not apply anything to production." |
 
 Start with **Job boundary and ownership** below. Do not rerun the completed schema rehearsal unless the preview database has been rebuilt or the ledger evidence no longer matches.
@@ -15,7 +17,7 @@ Start with **Job boundary and ownership** below. Do not rerun the completed sche
 
 The Paramount capture tool on `main` sends the normalized metadata shape, but production still uses the older database loader. The old loader refuses the new `pmt_metadata_element` target, so a new Paramount capture cannot currently complete. It fails closed: it does not corrupt or partially load data, but the capture capability is unavailable.
 
-The three required database migrations now exist on preview. The remaining job is to prove the complete capture path against that preview database using authorized Paramount source data, without exposing licensed rows and without touching production.
+The three required database migrations and the JSON-null loader repair now exist on preview. The remaining job is to prove the complete capture path against that repaired preview database using authorized Paramount source data, without exposing licensed rows and without touching production.
 
 ## Completed preview schema rehearsal
 
@@ -37,6 +39,21 @@ The governed preview workflow succeeded on 2026-08-24:
 - Immutable preview evidence artifact: `preview-migration-apply-2ecdd43741048c4053f6d240d1e0758afcdc984e`, artifact ID `9518010813`
 
 Do not use a plain `supabase db push`, `--include-all`, or any production workflow to continue this job.
+
+## First real capture result and repair
+
+The first full private capture was attempted after the three schema migrations landed. It did not complete:
+
+- The private capture passed its completeness validator.
+- The public Paramount sync tool passed 70 of 70 focused tests.
+- The preview target was proven and production was not contacted.
+- The run successfully reached the normalized `pmt_metadata_element` target.
+- It then failed closed on the first `pmt_asset_metadata_value` chunk because a present JSON `null` value is not PostgreSQL SQL NULL and the existing safety constraint correctly rejected it.
+- The failed capture was marked failed and preserved for diagnosis. Never resume or relabel it as complete; run a new capture identity.
+
+Issue #1418 and PR #1421 repaired the loader boundary without weakening the constraint or omitting the normalized target. Migration `20260824135515_pmt_loader_raw_value_json_null_normalization.sql` converts JSON `null` to SQL NULL while continuing to reject unsafe strings, numbers, arrays, booleans, URLs, and headers. The change was independently approved and applied only to preview in run <https://github.com/u2giants/shared-db/actions/runs/32738436612>.
+
+This repair has schema-level preview proof. It still needs the brand-new full capture below to prove the business capability end to end.
 
 ## Job boundary and ownership
 
