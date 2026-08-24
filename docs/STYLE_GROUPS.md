@@ -1,5 +1,7 @@
 # Style Groups
 
+> **Active implementation plan:** [`../plan_style_group_scoped_ai_metadata.md`](../plan_style_group_scoped_ai_metadata.md) replaces primary-asset tag copying with explicit Style Group versus file ownership. Read its STATUS table first; do not implement or document the planned behavior as live until its evidence-backed rollout steps are complete.
+
 Style groups are the central organizational unit in PopDAM. A style group represents a single product SKU — all the design files (PSD, AI) and associated images that belong to the same product line item.
 
 ---
