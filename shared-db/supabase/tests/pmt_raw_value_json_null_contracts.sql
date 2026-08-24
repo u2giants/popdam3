@@ -25,7 +25,9 @@
 --   u2giants/shared-db is PUBLIC. Fixtures use ZZTEST-* tokens and example.invalid.
 --   Asset IDs are 40-hex repeats, never a real asset.
 --
--- LAST RUN: (fill in after the preview rehearsal)
+-- LAST RUN: 2026-08-24 against preview (ref from PREVIEW_PROJECT_REF) -- migration
+--   20260824135515 applied cleanly by the preview rehearsal, GitHub Actions run
+--   32738436612, from PR #1421 merged as 2731b108e464bfcb558986fc911669e5d2de2959.
 -- =====================================================================================
 
 
