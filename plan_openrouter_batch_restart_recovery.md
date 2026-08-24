@@ -6,8 +6,9 @@ Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues
 
 ## STATUS
 
-Implementation is active in PopDAM issue #92. The shared database lease contract
-is live; its narrow terminal-clear follow-up is tracked in shared-db #1211.
+Implementation is deployed in PopDAM issue #92. The shared database lease contract
+and terminal-clear follow-up (#1211) are live. Only the controlled production
+batch-across-restart artifact remains before the issue and handoff may retire.
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
@@ -16,9 +17,9 @@ is live; its narrow terminal-clear follow-up is tracked in shared-db #1211.
 | 3. Extract image-tag preparation and replay-safe application | ✅ done | 2026-08-20 | Durable handler and result-ID validation |
 | 4. Implement submit/wait/resume/apply state machine | ✅ done | 2026-08-20 | Restart simulation proves one POST and same-ID GET |
 | 5. Integrate yielding, stops, polling, and stale-run safety | ✅ done | 2026-08-20 | Receipt-gated worker path and 10-second cadence |
-| 6. Complete recovery/failure test matrix | ✅ done | 2026-08-20 | 57 worker tests, worker build, frontend build, and lint pass |
+| 6. Complete recovery/failure test matrix | ✅ done | 2026-08-24 | 63 worker tests, worker build, frontend build, and lint pass |
 | 7. Update operating documentation and diagnostics | ✅ done | 2026-08-20 | Four operating docs updated; waiting-state visual proof captured |
-| 8. Land, deploy, and prove a controlled production restart | ⬜ open | 2026-08-18 | Pending commit, CI, Railway, and restart artifacts |
+| 8. Land, deploy, and prove a controlled production restart | 🟨 partial | 2026-08-24 | `1c042fb9` is green and live on Railway deployment `6061715659`; automated restart simulation passed, but the tiny live batch-across-restart/log artifact is still required |
 
 ## 1. The ultimate goal
 
@@ -368,13 +369,13 @@ Also run current commands from `.github/workflows/ci.yml`; workflow wins if this
 
 ### Done checklist
 
-- [ ] Shared-db revision/lease contract is preview-tested, merged, applied, and backward-compatible before dependent app code.
-- [ ] STATUS evidence current; typed/validated per-item state; stateless helpers; two-tick intent/lease/ID protocol.
-- [ ] Restart GETs saved ID with zero normal replacement POST.
-- [ ] Pending runs/yields/no false stale; stop/failure/expiry/malformed/missing/repair/fallback/ambiguity proven.
-- [ ] Replay-safe writes; cursor/counters once; non-batch unchanged.
-- [ ] Tests/build/CI-equivalent commands green; docs/plan/handoff current.
-- [ ] Correct commit pushed to `main`; CI green; Railway exact SHA success.
+- [x] Shared-db revision/lease contract is preview-tested, merged, applied, and backward-compatible before dependent app code.
+- [x] STATUS evidence current; typed/validated per-item state; stateless helpers; two-tick intent/lease/ID protocol.
+- [x] Automated restart simulation GETs the saved ID with zero normal replacement POST.
+- [x] Pending runs/yields/no false stale; stop/failure/expiry/malformed/missing/ambiguity proven.
+- [x] Replay-safe writes; cursor/counters once; non-batch unchanged.
+- [x] Tests/build/CI-equivalent commands green; docs/plan current.
+- [x] Correct commit pushed to `main`; CI green; Railway exact SHA success.
 - [ ] Controlled restart proof linked on #92; issue closed only then; handoff retired under successor rule.
 
 ### Risks/mitigations
