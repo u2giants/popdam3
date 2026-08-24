@@ -5,7 +5,7 @@ Registered handoff: [`HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-p
 
 ## STATUS — read this first
 
-Fresh sessions start at **Step 1**. Re-read the remaining downstream phases before each marked context cut; do not re-derive completed steps.
+Fresh sessions start at **Step 1**. At the end of every phase, re-read every downstream phase through Step 10, report any assumption/interface/file-name drift, and update this plan before cutting context. Do not re-derive completed steps.
 
 | Step | Status | Date | Evidence / next action |
 |---|---|---|---|
@@ -111,7 +111,9 @@ What already exists:
 - Rich PDF extraction stores raw PDF facts, rolls product facts into `style_groups.rich_metadata`, projects selected facets, and refreshes search through `/worksp/shared-db/supabase/migrations/20260715183000_dam_rich_pdf_extraction.sql` and `apps/worker/src/handlers/rich-pdf.ts:233-328`.
 - The asset UI already labels `style_groups.item_description` as Product and displays file descriptions separately in `src/components/library/AssetDetailPanel.tsx:826-842`.
 - The Style Group panel loads every member at `StyleGroupDetailPanel.tsx:517-529`, displays one selected file’s flat tags at `:1170-1205`, and displays its descriptions at `:1209-1260`.
+- Manual tag editing is currently inconsistent: `AssetDetailPanel.tsx:354-394` correctly writes `asset_tags` rows with `source = 'manual'`, while `StyleGroupDetailPanel.tsx:706-717` edits only the denormalized `assets.tags` array. The `asset_tags` sync trigger can later rebuild that array and erase the panel-only manual value. This divergence must be reconciled before any AI backfill.
 - The asset search fallback uses `cover_description`, `ai_description`, and `scene_description` at `src/hooks/useAssets.ts:41-67`; group fallback columns are defined at `src/hooks/useStyleGroups.ts:63-90`. Normal indexed search goes through shared-db search-document refresh functions.
+- Active [`plan_hybrid_search_rollout.md`](plan_hybrid_search_rollout.md), tracked by PopDAM issue #97, supersedes `fix_search.md` §§1–2 and owns tag/character-name search text, search-maintenance triggers, bounded refresh, and the embedding backfill. It overlaps this plan’s Step 2 on the same DAM search functions and `asset_tags` triggers. The two plans must share one orchestrator-owned final definition/order: scoped tag tables/status/backfill first, then final asset+group+character search builders/triggers, then exactly one embedding backfill. For tag/confidence extraction this plan supersedes `fix_search.md` §3a. Never ship competing `CREATE OR REPLACE` definitions or embed an intermediate corpus.
 - The legacy Edge helper `supabase/functions/_shared/tag-propagation.ts:1-228` filters a hard-coded phrase denylist and copies selected fields/tags/characters to siblings. The active bulk worker calls the database RPC through `apps/worker/src/handlers/tag-propagation.ts:1-45`.
 - Bulk-operation conflict protection between AI tagging, group rebuild, and propagation exists in `apps/worker/src/operation-loop.ts` and `supabase/functions/_shared/operation-constants.ts`; it must evolve with the new operations rather than be removed.
 
@@ -127,6 +129,8 @@ Exact live deployment of this planning baseline was not re-proven because this s
 6. **Manual tags can be endangered by ambiguous upsert behavior.** AI writes delete only `source = 'ai'` and then upsert on `(asset_id, tag)` at `apps/worker/src/handlers/ai-tagging.ts:219-223`. If a manual row already owns the same key, AI must not change its source or provenance.
 7. **Search already has the right architectural seam.** Shared search documents already combine asset and Style Group metadata. Extending the refresh functions to include `style_group_tags` is safer than duplicating tags across all assets.
 8. **Files without thumbnails need honest partial coverage.** Current tagging fails/skips when no thumbnail is available. Those assets can inherit searchable group context at query time, but must not receive invented file-level analysis or a false `ai_tagged_at` success.
+9. **One current manual-tag path is not durable.** `StyleGroupDetailPanel` writes only `assets.tags`, while the canonical trigger derives that array from `asset_tags`. A later AI row mutation can silently remove a human-entered tag that never received a normalized manual row.
+10. **A hard delete cannot express “human rejected this AI fact.”** If asset-tag removal deletes the only row, a later model run can re-propose it. Durable rejection requires an asset-tag tombstone/status contract, just as group candidates/rejections do.
 
 Root cause: PopDAM models AI output as “tags attached to a file” and then tries to infer scope after generation. Scope, category, provenance, confidence, and evidence must instead be part of the data contract before anything is persisted or searched.
 
@@ -152,7 +156,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 1. **Ownership is physical, not inferred later.** Group facts live in `style_group_tags`/Style Group fields; file facts live in `asset_tags`/asset fields. No group tag rows are copied onto assets.
 2. **Effective search is a union at read/index time.** For an asset, searchable metadata is its Style Group facts plus its own facts. The UI shows both scopes separately.
 3. **Structured business identity outranks tags.** Licensor/property/product identity remains in canonical structured fields and authoritative descriptions. Search may surface equivalent labels, but AI cannot overwrite those fields.
-4. **Manual > authoritative system source > corroborated group AI > single-file AI.** Lower-priority writers never overwrite higher-priority facts. A manual delete/rejection must not reappear on the next run without a new human action.
+4. **Manual > authoritative system source > corroborated group AI > single-file AI.** Lower-priority writers never overwrite higher-priority facts. Manual rejection of either a group or asset AI fact creates a durable rejected/tombstone record; the atomic AI writers must not reinsert the normalized fact unless a person explicitly restores it.
 5. **Visible characters remain asset-specific.** A group-level character term is a separate candidate/approved group tag supported by evidence; it does not rewrite `asset_characters` on siblings.
 6. **Descriptions remain distinct.** `style_groups.item_description` is authoritative product identity; `style_groups.group_ai_description` is a concise artwork/theme summary; `assets.ai_description` is a search-friendly description of that file; `assets.scene_description` is literal visible content.
 7. **AI group assertions are candidates by default.** An AI group tag becomes active automatically only when at least two distinct representative assets are cited and confidence is at least `0.85`; otherwise it stays `candidate`. Manual approval can promote it. Thresholds are configuration constants with tests, not prompt-only prose.
@@ -176,43 +180,45 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 **Change/inspect:**
 
-- Read `AGENTS.md`, this plan’s STATUS table, every open `HANDOFF.d/` entry relevant to AI tagging, `docs/STYLE_GROUPS.md`, `docs/BULK_JOBS.md`, `docs/MODEL_RULES.md`, and `/worksp/shared-db/AGENTS.md`.
+- Read `AGENTS.md`, this plan’s STATUS table, every open `HANDOFF.d/` entry relevant to AI tagging, `docs/STYLE_GROUPS.md`, `docs/BULK_JOBS.md`, `docs/MODEL_RULES.md`, [`plan_hybrid_search_rollout.md`](plan_hybrid_search_rollout.md) and its STATUS table, the remaining relevant `fix_search.md` §3, and `/worksp/shared-db/AGENTS.md`.
 - Fetch `origin/main`; inspect `git status --short --branch`, `git log -1`, active AI-tagging plans, and the current shared-db status. Preserve concurrent changes and use an isolated current worktree if the ordinary checkout is dirty.
+- Before dispatching either database Step 2, add reciprocal cross-links and the agreed schema/search/embedding order to this plan and `plan_hybrid_search_rollout.md` STATUS/current-state text in a coordinated documentation commit. If another session owns the hybrid plan, coordinate rather than overwriting its concurrent edits. Neither plan may advance to shared-db dispatch while the other still describes an independent competing search migration.
 - Capture sanitized, repository-safe fixtures under `apps/worker/src/fixtures/ai-tagging-scope/` for at least three Style Groups, each containing dissimilar assets: tech pack + photograph + mockup; source art + product render; multiple character/color variants. Store IDs as synthetic UUIDs and image inputs as tiny synthetic fixtures or mocked image descriptors—never licensed artwork.
-- Add failing characterization tests to `apps/worker/src/handlers/ai-tagging-scope.test.ts` proving the legacy flat contract cannot distinguish group and file facts, and a test proving manual-tag collisions must remain manual.
+- Add green characterization tests to `apps/worker/src/handlers/ai-tagging-scope.test.ts` that assert today’s flat-contract behavior and manual-collision behavior. Document scope separation as the known limitation; Step 3 changes/inverts those assertions once the typed contract exists. Never commit an intentionally red suite to direct-to-`main` CI.
 - Record read-only baseline counts in a dated file under `verification/ai-tagging-scope/<UTC>/baseline.md`: total non-deleted assets, thumbnail-backed assets, untagged assets, Style Groups, group-size distribution, AI/manual tag counts, and counts of known file-specific controlled phrases found on more than one sibling. Use only aggregate counts and synthetic examples; do not commit licensed filenames/content.
 
 **Dependencies:** none. This step is read-only except repository fixtures/tests. It can run while the shared-db issue is being triaged.
 
-**Verification gate:** `cd apps/worker && npm test` passes existing tests and the new characterization test suite demonstrates the intended red/green boundary without contacting an AI provider. The baseline file names the exact query/command and target proof used to derive every count.
+**Verification gate:** `cd apps/worker && npm test` passes existing tests and the new green characterization suite records the legacy behavior that Step 3 will replace, without contacting an AI provider. The baseline file names the exact query/command and target proof used to derive every count.
 
 #### Step 2 — Land the governed shared-db contract first
 
-**Route, do not self-author from the app session:** open a new `u2giants/shared-db` issue labeled `db-work` that names issue #96 and requests these exact semantics. The single shared-db orchestrator owns branch, timestamp, SQL, preview proof, PR, merge, production promotion approval, consumer sync, and canonical migration note.
+**Route, do not self-author from the app session:** coordinate with `plan_hybrid_search_rollout.md`/PopDAM issue #97 before opening schema work. Cross-link #96 and #97. If #97 already has a shared-db `db-work` issue/branch, add these requirements to that orchestrator work rather than opening a competing function-replacement lane. Otherwise open one shared-db issue that names both PopDAM issues and the required ordered contract. The single shared-db orchestrator owns branch, timestamps, SQL, preview proof, PR, merge, production promotion approval, consumer sync, and canonical migration note. The required order is: (1) scoped tag/status/backfill objects, (2) one final deterministic search/maintenance definition containing active asset tags, active Style Group tags, and canonical character names, and only then (3) the hybrid plan’s single corpus embedding backfill.
 
 **Required logical objects:**
 
 - `public.style_group_tags` with UUID PK, `style_group_id` FK with cascade, normalized `tag`, controlled `category`, controlled `source`, `status` (`active`, `candidate`, `rejected`), nullable confidence constrained `0..1`, `ai_model`, evidence JSONB, creator/timestamps, and uniqueness that prevents duplicate active facts while preserving manual authority/history.
-- Add nullable metadata columns to `public.asset_tags`: controlled `category`, confidence `0..1`, `ai_model`, evidence JSONB, and update timestamp. Preserve existing `source`, creator, and `(asset_id, tag)` compatibility. Backfill existing manual rows as category `other`/manual provenance and existing AI rows as `legacy_unscoped`; do not guess a safe scope from text.
+- Add metadata columns to `public.asset_tags`: controlled `category`, `status` (`active`, `rejected`), confidence `0..1`, `ai_model`, evidence JSONB, rejection actor/time/reason as appropriate to shared-db conventions, and update timestamp. Preserve existing creator and `(asset_id, tag)` compatibility. Define `legacy_unscoped` explicitly as a `source` value: rewrite existing `source = 'ai'` rows to `source = 'legacy_unscoped'`, while existing normalized manual rows remain `source = 'manual'`; do not guess scope/category from their text. Index the transition source/status needed by Steps 8–9.
+- Before the `assets.tags` array is next rebuilt, reconcile legacy manual-only array values: for every normalized entry present in `assets.tags` with no matching `asset_tags(asset_id, tag)` row, insert an active `source = 'manual'`, category `other` row. Preview fixtures must distinguish genuine manual-only values from trigger-derived rows and prove the backfill is idempotent; never overwrite an existing row’s provenance.
 - Add `style_groups.group_ai_description`, `group_ai_description_source`, `group_ai_model`, `group_ai_tagged_at`, and evidence asset IDs (array or JSONB per shared-db convention). Do not alter `item_description`.
 - Add narrow service-role RPCs for atomic group-profile replacement and atomic asset-AI-result replacement. They must preserve manual rows, replace only the calling AI source/model’s prior rows, validate categories/status/confidence/evidence, refresh search documents, and be retry/idempotency safe.
-- Extend `refresh_dam_search_asset_document`, `refresh_dam_search_style_group_document`, `rebuild_dam_search_documents`, and their triggers so asset documents contain active Style Group tags plus asset tags; group documents contain active group tags plus member-specific text as currently intended. Candidate/rejected tags must not enter ordinary search.
+- Coordinate the final `refresh_dam_search_asset_document`, `refresh_dam_search_style_group_document`, incremental refresh RPC, and maintenance-trigger definitions with `plan_hybrid_search_rollout.md` Step 2. The one final definition must include deterministic active asset tags, active Style Group tags, and canonical character names; add explicit bounded INSERT/UPDATE/DELETE maintenance for `asset_tags`, `style_group_tags`, and `asset_characters`. A group-tag change must refresh all current member documents through the hybrid plan’s bounded queue/RPC, not one unbounded trigger transaction. Candidate/rejected tags must not enter ordinary search. Complete this final definition before the hybrid embedding backfill so `content_sha256` and embeddings reflect the final corpus exactly once.
 - Provide a read contract for UI effective tags, either a narrowly scoped RPC or a view allowed by current RLS. It must return scope, category, source, status, confidence, and manual ownership without copying rows.
-- Add indexes for group/status/category/tag lookup and preserve the existing `assets.tags` trigger contract for asset-only tags.
+- Add indexes for group/status/category/tag lookup and extend the existing `assets.tags` sync trigger so it aggregates only `asset_tags.status = 'active'`. Rejected tombstones must be absent from the compatibility array, chips, legacy file-only filtering, and ordinary search; explicit restore changes the tombstone back to active before it reappears.
 - Do **not** drop or rewrite the historical `propagate_group_tags_batch` in the first migration. Add the new path first so rollback remains possible.
 
 **Dependencies:** Step 1 inventory informs fixture sizes. No dependent PopDAM code lands before this schema is merged/applied according to `/worksp/shared-db/AGENTS.md`.
 
-**Verification gate:** shared-db `scripts/check-sql.sh` passes; preview applies cleanly after immediate target proof; transaction-rolled-back fixture tests prove manual-wins behavior, candidate exclusion, active group tag inclusion in member search, asset-only tag isolation, idempotent replacement, group reassignment behavior, and RLS/service-role access; the merged migration and canonical app note are present on shared-db `main`; production application is performed only through the orchestrator’s current approval procedure and exact ledger/object checks are recorded.
+**Verification gate:** shared-db `scripts/check-sql.sh` passes; preview applies cleanly after immediate target proof; transaction-rolled-back fixture tests prove manual-wins behavior, candidate/rejected exclusion from search and `assets.tags`, active group tag inclusion in member search, asset-only tag isolation, character-name inclusion, idempotent replacement, group reassignment behavior, bounded refresh, and RLS/service-role access; the shared-db issue/PR cross-links PopDAM #96 and #97 and records the ordered final corpus definition; the merged migration and canonical app note are present on shared-db `main`; production application is performed only through the orchestrator’s current approval procedure and exact ledger/object checks are recorded; no hybrid embedding backfill has run against an intermediate corpus.
 
-**Fresh-session cut:** after Step 2, use the `fresh-session` skill if context is crowded. The successor must reread Steps 3–10 and confirm the merged database names before editing app code.
+**End-of-phase drift gate and fresh-session cut:** re-read Steps 3–10, report/update any drift caused by the final database names or behavior, then use the `fresh-session` skill if context is crowded. The successor must confirm the merged database contract before editing app code.
 
 #### Step 3 — Add one typed scope/category policy and two structured contracts
 
 **Change:**
 
 - Create `apps/worker/src/tagging-metadata-policy.ts` as the one runtime vocabulary for scope, categories, source priority, confidence/status promotion, and normalization. Do not scatter lists between prompt, writer, UI, and propagation.
-- Replace the flat output in `supabase/functions/_shared/tag-asset-contract.js` with an asset-only result containing `asset_tags: [{ tag, category, confidence, evidence }]` plus `ai_description`, `scene_description`, `content_type`, asset-only structured fields, visible `character_ids`, and document-specific extracted names/files. Remove group identity from the model’s writable output; provide it as read-only context.
+- Replace the flat output in `supabase/functions/_shared/tag-asset-contract.js` with an asset-only result containing `asset_tags: [{ tag, category, confidence, evidence }]` plus `ai_description`, `scene_description`, `content_type`, `cover_description` (still the short product label derived only from authoritative/path context), other asset-only structured fields, visible `character_ids`, and document-specific extracted names/files. Remove group identity IDs from the model’s writable output; provide identity as read-only context. Do not accidentally drop `cover_description` from existing search/card behavior while separating descriptions.
 - Add `supabase/functions/_shared/tag-style-group-contract.js` for `group_ai_description` and `group_tags: [{ tag, category, confidence, evidence_asset_ids }]`. Its prompt receives authoritative structured facts, rich PDF summary, and representative asset descriptors/images; it must prohibit rewriting licensor/property/product identity.
 - Update `.d.ts` declarations, Gemini schema conversion, `apps/worker/src/handlers/ai-tagging-shared.ts`, `ai-tag-bakeoff.ts`, and all schema-validation tests. Keep structured-output capability routing untouched.
 - Add pure helpers that turn authoritative `style_groups`/ERP/rich-PDF fields into always-active group facts without an AI call. AI does not need to “discover” facts already known.
@@ -246,7 +252,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 - Update `buildImageTaggingPrompt` in `ai-tagging-shared.ts` to load group context once and clearly mark it read-only. The model should classify only this file’s content type, view, visible characters, visible colors/motifs/style, artwork placement, readable text, `ai_description`, and literal `scene_description`.
 - Preserve document extraction fields whose evidence is one file. Do not propagate designer/freelancer names or `files_used` through tags; existing intentional rollups remain separate and conflict-aware.
 - AI replacement deletes/replaces only prior AI-owned asset rows. If the same normalized tag is manual, the manual row survives and no AI upsert changes its source.
-- Keep `assets.tags` as asset-only compatibility data. Do not append Style Group tags to it.
+- Keep `assets.tags` as active asset-only compatibility data. Its sync trigger excludes rejected tombstones, and Style Group tags are never appended to it.
 - For no-thumbnail assets, return a visible `visual_analysis_unavailable` outcome/counter without writing false tag status or descriptions. Search still finds them through the group document/relationship.
 - Update bake-off storage/display to show structured asset-only categories while preserving its rule that it mirrors production tagging behavior.
 
@@ -259,7 +265,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 **Change:**
 
 - Change `apps/worker/src/handlers/tag-propagation.ts`, `supabase/functions/_shared/admin-handlers/tag-propagation-handlers.ts`, admin labels, and UI action semantics from copying primary tags to refreshing authoritative/group AI facts and search documents.
-- Keep the old operation key/API temporarily as a compatibility alias that invokes the safe refresh and emits a deprecation diagnostic; it must never copy asset rows. Add a new canonical `refresh-group-metadata` operation key.
+- Keep the old `propagate-group-tags` operation key/API temporarily as a compatibility alias that invokes the safe refresh and emits a deprecation diagnostic; update its entries in `OP_LANES`, `OP_CONFLICTS`, `OP_ACTIONS`, labels, and admin handlers, and ensure it never copies asset rows. Add a new canonical `refresh-group-metadata` operation key.
 - Remove `supabase/functions/_shared/tag-propagation.ts` only after searches show no live import/caller and compatibility tests prove the alias. The shared-db orchestrator may retire `propagate_group_tags_batch` in a later additive migration after production has run one full cycle safely.
 - Update conflict maps and progress terminology from “assets propagated” to “groups refreshed.” Preserve stop/resume/diagnostics capability.
 - Replace the panel button label and confirmation text. Do not silently remove the user’s ability to refresh a group.
@@ -268,7 +274,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 **Verification gate:** tests prove invoking either old alias or new operation never inserts/updates/deletes sibling `asset_tags`, `asset_characters`, `ai_description`, `scene_description`, `content_type`, or asset visual fields; it does refresh group facts/search and reports group counts. A repository `rg` finds no production path calling the legacy copy helper.
 
-**Fresh-session cut:** after Step 6, update STATUS/evidence and use `fresh-session` if needed. The successor rereads Steps 7–10 and the exact deployed schema/worker state.
+**End-of-phase drift gate and fresh-session cut:** after Step 6, update STATUS/evidence, re-read Steps 7–10, and report/update any interface or rollout drift. Use `fresh-session` if needed; the successor must confirm the exact deployed schema/worker state.
 
 ### Phase C — search, UI, rollout
 
@@ -279,9 +285,9 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 - Add typed query helpers/hooks for effective tags, preferably `src/hooks/useEffectiveAssetTags.ts`, using the Step 2 read contract. Keep `useAssets.ts`/`useStyleGroups.ts` indexed search as the primary path; update fallback columns only if the shared-db contract exposes safe text fields.
 - In `src/components/library/AssetDetailPanel.tsx`, show separate sections/chips for **Style Group** and **This file**. Manual editing defaults to “This file,” with an explicit scoped control for authorized group edits. A group edit must not masquerade as asset data.
 - In `src/components/library/StyleGroupDetailPanel.tsx`, show the authoritative Product description, AI Artwork Summary, active group tags, candidates awaiting review, and the selected file’s tags/descriptions separately. Replace **Sync Tags to All Group Members** with **Refresh Group Metadata**.
-- Add approve/reject/promote/demote controls for authorized users through admin-api handlers with server-side role checks and audit provenance. Manual rejection survives future AI runs.
+- Converge both manual edit paths on normalized rows: replace `StyleGroupDetailPanel.tsx:706-717` direct `assets.tags` mutations with the same `asset_tags` manual-write contract already used by `AssetDetailPanel.tsx:373-394`. Add approve/reject/promote/demote controls for authorized users through admin-api handlers with server-side role checks and audit provenance. Removing an AI asset tag writes/updates a durable rejected tombstone; deleting a manual tag removes only the manual fact. Manual rejection survives future AI runs until explicit restore.
 - Show source labels/tooltips (Manual, Master Data, ERP, Rich PDF, Group AI, File AI) and confidence only where it helps review; do not burden normal browsing with raw JSON.
-- Update tag filters so selecting an effective group tag returns member assets without adding it to `assets.tags`. Preserve file-only tag filtering.
+- Update tag filters so selecting an effective group tag returns member assets without adding it to `assets.tags`. Implement filtering through the indexed DAM search-document RPC or a dedicated effective-tag RPC—not `assets.tags @>`—and return facet-count parity for the same effective scope. Size the filter and its facet/count path cold as the `authenticated` role against the hard 8-second Supavisor ceiling documented in `AGENTS.md:689-693`; keep `get_filter_counts` on its covering-index contract unless the shared-db migration deliberately extends and re-proves it. Preserve file-only tag filtering.
 - Extend `docs/UI_OVERVIEW.md` after behavior is verified.
 
 **Dependencies:** Steps 4–6 and shared search refresh.
@@ -293,7 +299,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 **Change/run:**
 
 - Before every database write, prove the exact target by the current shared-db/application procedure and record the project ref without credentials.
-- Backfill existing rows non-destructively: manual asset tags retain ownership; existing AI rows become `legacy_unscoped` and remain searchable during comparison; authoritative group facts are derived deterministically; no legacy text is automatically promoted to a group fact.
+- Backfill existing rows non-destructively in the governed order: first reconcile manual-only `assets.tags` values into active manual `asset_tags` rows, then mark existing AI rows with `source = 'legacy_unscoped'`; manual rows retain ownership, legacy rows remain searchable during comparison, authoritative group facts are derived deterministically, rejected tombstones remain excluded, and no legacy text is automatically promoted to a group fact.
 - Select a bounded pilot of 20–50 Style Groups covering single/many assets, photos, source art, renders, tech packs, multiple characters/colorways, no thumbnails, and at least one large group. Use existing production assets only within approved internal systems; do not export licensed images to new services.
 - Run group profiling, then per-file tagging on the pilot. Store a before/after manifest of IDs and metadata hashes in protected operational evidence; commit only aggregate/synthetic results.
 - Human-review a fixed scorecard: zero file-category/view leakage across siblings; authoritative licensor/property/product facts unchanged; manual tags unchanged; candidate behavior correct; descriptions correctly separated; search finds all members via group terms and only relevant files via file terms; cost/latency within agreed existing tagging budget.
@@ -309,7 +315,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 - Roll out in resumable batches: deterministic group facts, group profiles, then asset visual passes. Use operation lanes/conflicts and restart-safe state. Never run legacy propagation concurrently.
 - Monitor completed/failed/unavailable counts, provider cost, retry/fallback rate, database errors/locks, search-refresh lag, and Railway restarts. Failure counters must reconcile to every attempted asset/group.
-- Keep legacy unscoped tags searchable only for the bounded transition window. After full coverage and review, run a preview/count-only cleanup, then remove or archive only AI-owned legacy rows. Never delete manual rows.
+- Keep `asset_tags.source = 'legacy_unscoped'` rows searchable only for the bounded transition window. After full coverage and review, run a preview/count-only cleanup, then remove or archive only those AI-owned legacy rows. Never delete manual rows or rejected tombstones.
 - Push focused PopDAM commits to `main`; verify GitHub CI, Railway worker deployment for the exact worker SHA, frontend image workflow, Coolify activation, and live build SHA/header at `dam.designflow.app`. A green Railway deployment proves worker only, not frontend.
 - Run bounded live smoke checks: group-term search, file-term search, group panel, two sibling asset panels, one no-preview asset, one manual edit, one candidate approval, and one safe re-tag.
 
@@ -321,7 +327,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 **Change:**
 
-- Update `AGENTS.md`, `docs/STYLE_GROUPS.md`, `docs/BULK_JOBS.md`, `docs/MODEL_RULES.md`, `docs/SCHEMA.md`, `docs/architecture.md`, `docs/UI_OVERVIEW.md`, and relevant configuration/deployment docs with verified final behavior only.
+- Update `AGENTS.md`, `docs/STYLE_GROUPS.md`, `docs/BULK_JOBS.md`, `docs/MODEL_RULES.md`, `docs/SCHEMA.md`, `docs/architecture.md`, `docs/UI_OVERVIEW.md`, and relevant configuration/deployment docs with verified final behavior only. Keep `plan_hybrid_search_rollout.md` STATUS/evidence synchronized wherever the shared search migration/embedding order is shared. Annotate or retire the superseded tag/confidence portions of `fix_search.md`; character-name search ownership now lives in the hybrid plan.
 - Update this STATUS table after every executed step with artifact-backed evidence; do not leave pre-implementation claims marked current.
 - Add the canonical shared-db migration note and exact merged/apply evidence links.
 - Close issue #96 only after Definition of Done passes.
@@ -340,7 +346,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
   - normalization and duplicate handling;
   - source priority/manual wins;
   - 0.85/two-distinct-evidence promotion;
-  - candidate/rejection persistence.
+  - group candidate/rejection and asset rejected-tombstone persistence.
 - `apps/worker/src/style-group-representatives.test.ts`
   - deterministic representative order;
   - diversity and 4–8 cap;
@@ -366,7 +372,9 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 - Extend `src/test/tag-asset-contract.test.ts` and `tag-asset-gemini-schema.test.ts` for structured asset tags and new group contract.
 - Add `src/test/effective-tags.test.ts` for group+asset union, candidate exclusion, manual priority, and group reassignment.
+- Add regression coverage proving legacy manual-only `assets.tags` values are reconciled to manual rows before trigger rebuild, both detail panels use normalized writes, an AI re-tag cannot erase manual tags, and a rejected AI asset tag is neither reinserted nor present in the trigger-maintained `assets.tags` compatibility array.
 - Extend `src/test/asset-search.test.ts`, `style-group-search.test.ts`, and `dam-search.test.ts` for group-term/member matching versus asset-only matching.
+- Add cold authenticated-role performance verification for effective-tag filtering and matching facet/count behavior; every path must finish below the 8-second ceiling with meaningful headroom on production-scale preview fixtures.
 - Add component tests for both detail panels’ scope labels, edits, candidates, and unavailable state.
 
 ### Shared-db verification
@@ -405,7 +413,7 @@ Run targeted tests during development, then all commands above before landing. U
 - Do not equate GitHub’s green `popdam / production` badge with frontend deployment; Railway emits that badge for the worker.
 - Do not use `quick_hash` as a unique-content identifier.
 - Do not expose licensed artwork, filenames, extracted text, or private metadata in GitHub issues, public logs, test fixtures, screenshots outside approved storage, or external reviewer prompts.
-- Treat manual rejections as durable. A subsequent model run cannot silently resurrect rejected group facts.
+- Treat manual rejections as durable. A subsequent model run cannot silently resurrect rejected group or asset facts; asset rejection is a tombstone/status, not a hard delete with forgotten intent.
 - Backfills and cleanup must be resumable, observable, and recoverable. Snapshot/manifest before deletion; preview/count-only before mutation.
 - “Unknown” must remain visible. Never translate no-thumbnail, model failure, or missing evidence into an invented tag or successful analysis timestamp.
 
@@ -480,6 +488,16 @@ No owner decision is required before implementation. The following are engineeri
 - **Automatic group-AI promotion:** the locked starting rule is confidence ≥0.85 plus evidence from at least two distinct assets. Tighten or disable auto-promotion if the pilot produces any critical false shared fact; never loosen it merely to increase coverage.
 - **Legacy transition duration:** remove AI-owned `legacy_unscoped` rows only after full rollout reconciliation and two successful search/UI smoke passes on separate days or releases. Keep longer if rollback evidence is incomplete.
 - **Group character presentation:** keep it as a labeled group tag/candidate unless a future business requirement needs relational group-character filtering. Do not infer sibling `asset_characters` links.
+
+## Independent GLM 5.3 audit — 2026-08-24
+
+The persistent read-only GLM 5.3 session `scoped-ai-metadata-plan-audit` reviewed the published plan and cited repository code across three bounded turns.
+
+- First verdict: **SAFE AFTER SPECIFIC FIXES**. It found the divergent manual-tag write path, missing durable asset rejection semantics, overlap with search planning, effective-filter performance ambiguity, undefined `legacy_unscoped` placement, red-test wording, and trigger/operation/`cover_description` precision gaps.
+- Second verdict: **SAFE AFTER SPECIFIC FIXES**. It confirmed the original findings were resolved, then caught rejected tombstones leaking through the status-blind `assets.tags` sync trigger and a concurrent new owner, `plan_hybrid_search_rollout.md`/#97, for the same search functions and embedding order.
+- Final verdict after re-reading the amendments: **SAFE FOR ZERO-CONTEXT IMPLEMENTATION**. GLM confirmed active-only array sync, tombstone tests, cross-plan hard gates, one orchestrator-owned final definition, scoped-schema → final-corpus → one-embedding-backfill ordering, and end-of-phase downstream drift checks. It reported no remaining material blocker.
+
+Review reports are local generated artifacts under `.ai/reviews/` and are intentionally ignored rather than committed. The durable findings and corrections are incorporated directly into §§5–13 and the reciprocal handoff.
 
 ## Mandatory plan self-audit
 

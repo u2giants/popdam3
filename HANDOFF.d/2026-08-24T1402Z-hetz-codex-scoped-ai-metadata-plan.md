@@ -17,6 +17,8 @@ Already settled on 2026-08-24; do not re-ask:
 - Keep manual and authoritative data above AI.
 - Replace the existing sync/propagation capability with safe group metadata refresh rather than removing the capability.
 - Route all shared schema implementation through `u2giants/shared-db`.
+- Reconcile manual tags that exist only in `assets.tags` before any AI backfill, and preserve human rejection of AI asset facts with durable tombstones.
+- This plan supersedes `fix_search.md` confidence work. Active `plan_hybrid_search_rollout.md`/issue #97 owns tag/character search text, maintenance, and embedding; both plans must use one cross-linked orchestrator workstream with scoped tag/status objects first, one final search corpus definition second, and one embedding backfill last.
 
 A line-by-line sweep of §§1–9 found no other owner choice. Pilot thresholds and representative counts have conservative default criteria in the plan and are engineering measurements, not owner gates.
 
@@ -42,6 +44,7 @@ This session’s objective was planning and discoverability only: inspect the ac
 - The plan requires new Style Group tag/profile storage, typed asset tag metadata, group and asset AI passes, effective search union, safe refresh, UI scope labels, pilot, rollout, and cleanup.
 - The repository already has product-level `style_groups.item_description`, file-level `assets.content_type`, rich-PDF group metadata, and search rollups. These are the foundation, not work to recreate.
 - The current flat contract and propagation remain untouched by this planning session. Existing risk is documented, not claimed repaired.
+- GLM 5.3 audited the plan in three bounded read-only turns. Its first two passes found and then rechecked concrete schema/governance gaps; after the active-only array-trigger rule and hybrid-plan sequencing were added, its final verdict was **SAFE FOR ZERO-CONTEXT IMPLEMENTATION** with no remaining material blocker. The durable audit history and every correction are in the plan’s “Independent GLM 5.3 audit” section and §§5–13.
 - Planning baseline before edits was PopDAM `main`/`origin/main` `dfe25d6909809648218f3c54afd7909b70e1c641`; implementation must fetch and drift-check.
 - `/worksp/shared-db` was clean but 758 commits behind `origin/main`; implementation must not start schema work from that stale checkout and must use the orchestrator’s fresh worktree.
 - The plan, router link, topic-doc link, and this handoff were committed and pushed to PopDAM `main` as `cec4ce39` (`docs: plan scoped AI metadata`). This closeout update is the newest commit touching the handoff; re-derive it with `git log -1 --oneline -- HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-plan.md` rather than copying an unsourced SHA.
@@ -53,6 +56,7 @@ This session’s objective was planning and discoverability only: inspect the ac
 - A combined `git status --short /worksp/shared-db` invocation from the PopDAM repository failed because Git rejects an outside path. Using `git -C /worksp/shared-db ...` is the correct read-only form.
 - The existing exact-text file-tag blacklist is not a workable design. Current controlled phrases already fall outside it, and the plan rejects extending it.
 - Primary-asset propagation, copied group rows, prompt string prefixes, one-file-per-group tagging, and destructive immediate cleanup were considered and rejected in plan §7 with reasons.
+- The first GLM audit did not pass the plan unchanged. It found that `StyleGroupDetailPanel` writes manual tags only to `assets.tags`, that asset deletions had no durable rejection record, and that `fix_search.md` overlaps the same search functions. Those were specification omissions, not implemented failures; they are now carried in the plan rather than left for the implementer to discover.
 
 ## 5. Root causes and key findings
 
@@ -64,6 +68,9 @@ This session’s objective was planning and discoverability only: inspect the ac
 - `apps/worker/src/handlers/ai-tagging.ts:202-240` writes asset fields and replaces AI tag rows; both durable-batch and normal paths must converge on one atomic new writer.
 - `src/components/library/StyleGroupDetailPanel.tsx:1170-1260` shows flat selected-file tags/descriptions and offers “Sync Tags to All Group Members.”
 - Search already combines Style Group and asset metadata through shared-db document-refresh functions, making read/index-time union the safe seam.
+- `StyleGroupDetailPanel.tsx:706-717` and `AssetDetailPanel.tsx:373-394` currently use different manual-tag write paths; the former can be erased by the `asset_tags` array-sync trigger.
+- `plan_hybrid_search_rollout.md`/issue #97 overlaps the same search functions and `asset_tags` triggers. It superseded `fix_search.md` §§1–2 after the first audit, so the plans must cross-link their shared-db work and avoid embedding an intermediate corpus.
+- Rejected asset-tag tombstones require the `assets.tags` sync trigger to aggregate active rows only; otherwise a rejected tag leaks back into chips and legacy filtering.
 
 ## 6. Exact next steps
 

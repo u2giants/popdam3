@@ -42,3 +42,4 @@ oc_logs.txt
 .env
 .env.local
 .env*.local
+.ai/reviews/
