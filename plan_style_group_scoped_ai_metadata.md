@@ -99,7 +99,7 @@ This is a feature/data-quality workstream tracked by [issue #96](https://github.
 
 ## 5. Current state of the code and deployments
 
-The planning baseline is PopDAM `main` at `dfe25d6909809648218f3c54afd7909b70e1c641`, which matched `origin/main` when this plan was drafted on 2026-08-24. A future implementer must fetch and drift-check it; do not assume this SHA remains current.
+The investigation baseline is PopDAM `main` at `dfe25d6909809648218f3c54afd7909b70e1c641`, which matched `origin/main` when code inspection began on 2026-08-24. Concurrent work advanced `main` before publication; this plan package first landed as `cec4ce39`. A future implementer must fetch and drift-check the current head; do not assume either SHA remains current.
 
 What already exists:
 

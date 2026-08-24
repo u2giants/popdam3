@@ -44,7 +44,7 @@ This session’s objective was planning and discoverability only: inspect the ac
 - The current flat contract and propagation remain untouched by this planning session. Existing risk is documented, not claimed repaired.
 - Planning baseline before edits was PopDAM `main`/`origin/main` `dfe25d6909809648218f3c54afd7909b70e1c641`; implementation must fetch and drift-check.
 - `/worksp/shared-db` was clean but 758 commits behind `origin/main`; implementation must not start schema work from that stale checkout and must use the orchestrator’s fresh worktree.
-- At the time this handoff was drafted, plan/router/topic/handoff edits were not yet committed or pushed. The closing section below must be updated by commit evidence before reporting completion of this planning session.
+- The plan, router link, topic-doc link, and this handoff were committed and pushed to PopDAM `main` as `cec4ce39` (`docs: plan scoped AI metadata`). This closeout update is the newest commit touching the handoff; re-derive it with `git log -1 --oneline -- HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-plan.md` rather than copying an unsourced SHA.
 - No runtime code, database row/schema, configuration, AI request, deployment, or secret changed.
 
 ## 4. Everything we tried that did NOT work
