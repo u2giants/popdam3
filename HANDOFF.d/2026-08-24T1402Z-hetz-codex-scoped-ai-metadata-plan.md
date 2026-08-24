@@ -47,7 +47,7 @@ This session’s objective was planning and discoverability only: inspect the ac
 - GLM 5.3 audited the plan in three bounded read-only turns. Its first two passes found and then rechecked concrete schema/governance gaps; after the active-only array-trigger rule and hybrid-plan sequencing were added, its final verdict was **SAFE FOR ZERO-CONTEXT IMPLEMENTATION** with no remaining material blocker. The durable audit history and every correction are in the plan’s “Independent GLM 5.3 audit” section and §§5–13.
 - Planning baseline before edits was PopDAM `main`/`origin/main` `dfe25d6909809648218f3c54afd7909b70e1c641`; implementation must fetch and drift-check.
 - `/worksp/shared-db` was clean but 758 commits behind `origin/main`; implementation must not start schema work from that stale checkout and must use the orchestrator’s fresh worktree.
-- The plan, router link, topic-doc link, and this handoff were committed and pushed to PopDAM `main` as `cec4ce39` (`docs: plan scoped AI metadata`). This closeout update is the newest commit touching the handoff; re-derive it with `git log -1 --oneline -- HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-plan.md` rather than copying an unsourced SHA.
+- The plan, router link, topic-doc link, and this handoff first landed as `cec4ce39`; the GLM-driven hardening and final SAFE verdict landed as `45da550f` (`docs: harden scoped AI metadata plan`). This closeout update is the newest commit touching the handoff; re-derive it with `git log -1 --oneline -- HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-plan.md` rather than copying an unsourced SHA.
 - No runtime code, database row/schema, configuration, AI request, deployment, or secret changed.
 
 ## 4. Everything we tried that did NOT work
