@@ -28,24 +28,6 @@
 -- and the two-connection preview drill covers them instead; S1, S2 and S5's structural
 -- half still run and still fail loudly.
 
-select position(
-  'retired until #1090 Step 4'
-  in pg_get_functiondef('plm.promote_coldlion_source_owned(jsonb,jsonb,boolean)'::regprocedure)
-) > 0 as promotion_retired \gset
-\if :promotion_retired
-do $$
-begin
-  begin
-    perform * from plm.promote_coldlion_source_owned('{}', null, true);
-    raise exception 'retired promotion unexpectedly ran';
-  exception when others then
-    if position('retired until #1090 Step 4' in sqlerrm) = 0 then raise; end if;
-  end;
-  raise notice 'Current contract PASS: promotion is loudly retired before Step 4';
-end $$;
-\quit
-\endif
-
 -- ===========================================================================
 -- S1 + S2: the lock is a transaction-scoped TRY on the documented key, and it is
 --          taken before every other guard.
@@ -65,7 +47,7 @@ begin
   select pg_get_functiondef('plm.promote_coldlion_source_owned(jsonb,jsonb,boolean)'::regprocedure)
     into v_def;
 
-  if position('pg_try_advisory_xact_lock(v_lock_key)' in v_def) = 0 then
+  if position('pg_try_advisory_xact_lock(720260729)' in v_def) = 0 then
     raise exception 'S1: the promotion does not take pg_try_advisory_xact_lock';
   end if;
   if position('720260729' in v_def) = 0 then
@@ -288,10 +270,10 @@ begin
     select * into v_row
       from plm.promote_coldlion_source_owned(
         jsonb_build_object('hash', 'not-the-approved-hash', 'count', '1', 'distinct_canonical', '1'),
-        null, true);
+        null, false);
   exception when others then
     -- Expected: it got PAST the lock and was then refused by the approved-contract check.
-    if position('approved Phase 4 set' in sqlerrm) = 0
+    if position('approved Phase 4 link set' in sqlerrm) = 0
        and position('circuit breaker' in sqlerrm) = 0 then
       raise exception 'S8: uncontended call failed for an unexpected reason: %', sqlerrm;
     end if;

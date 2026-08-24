@@ -202,9 +202,14 @@ def _run_block_commands(step: str) -> list[str]:
 
 class GuardTests(unittest.TestCase):
     def test_preview_only_historical_restoration_is_never_production_allowlisted(self):
-        self.assertEqual(PREVIEW_ONLY_HISTORICAL_RESTORATIONS, {"20260817150944"})
+        self.assertEqual(
+            PREVIEW_ONLY_HISTORICAL_RESTORATIONS,
+            {"20260817150944", "20260824150630"},
+        )
         with self.assertRaisesRegex(GuardError, "preview-only historical restoration"):
             parse_allowlist("20260817150944")
+        with self.assertRaisesRegex(GuardError, "preview-only historical restoration"):
+            parse_allowlist("20260824150630")
 
     def test_bad_allowlists_are_blocked(self) -> None:
         values = [

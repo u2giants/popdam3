@@ -28,18 +28,21 @@ begin
     (backend_pid, transaction_id, target_table, write_kind, plan_id, plan_hash, actor, protected_columns, expires_at)
   values
     (pg_backend_pid(), txid_current(), 'core.licensor', 'coldlion_status', gen_random_uuid(), repeat('b',64), 'contract-test', array['status'], clock_timestamp() + interval '1 minute');
-  begin
-    update core.licensor set status = 'inactive' where id = v_licensor;
-    raise exception 'coldlion_status changed a Licensor';
-  exception when others then
-    if position('coldlion_status authorization may change only Property status' in sqlerrm) = 0 then raise; end if;
-  end;
+  update core.licensor set status = 'inactive' where id = v_licensor;
+  if (select status::text from core.licensor where id=v_licensor) is distinct from 'inactive' then
+    raise exception 'coldlion_status did not change an exactly-authorized Licensor status';
+  end if;
+  if not exists (select 1 from plm.licensing_write_guard_audit
+                 where target_table='core.licensor'::regclass and write_kind='coldlion_status'
+                   and actor='contract-test' and protected_columns=array['status']) then
+    raise exception 'coldlion_status Licensor transition has no immutable guard audit';
+  end if;
 
   begin
     perform * from plm.promote_coldlion_source_owned('{}', null, true);
-    raise exception 'retired ColdLion promotion unexpectedly ran';
+    raise exception 'ColdLion promotion drill unexpectedly ran';
   exception when others then
-    if position('retired until #1090 Step 4' in sqlerrm) = 0 then raise; end if;
+    if position('does not accept drill writes' in sqlerrm) = 0 then raise; end if;
   end;
 
   v_failed := false;

@@ -1,76 +1,41 @@
--- Rollback-safe Step 10 contract test for the Licensor -> Property tree.
--- Run on preview only after migration 20260722203000 is applied.
---
--- Proves (all counts derived from the live canonical tables inside this
--- transaction — no timeless hard-coded production row counts):
---   * function signature, SECURITY DEFINER gating, and grants
---     (EXECUTE revoked from public; granted to authenticated);
---   * the full authorization matrix, including denial of an administrator
---     WITHOUT an explicit, non-revoked `admin` app_access grant, denial of a
---     non-administrator WITH a grant, and revoke/un-revoke behavior;
---   * exact canonical reconciliation: the snapshot's licensor/property counts
---     equal the live core.licensor / core.property counts in the same
---     transaction, the with-licensor + orphan partition reconciles, and the
---     "expected orphan count is zero" flag tracks reality;
---   * every canonical Property appears under exactly one Licensor — no
---     duplicates and none lost across the full paginated payload;
---   * the orphan_properties anomaly list is empty now that the canonical
---     schema requires exactly one Licensor for every Property;
---   * division/type-qualified source context (plm_context carries
---     division_code + mg_code + an explicit mg_type label, and a licensor
---     with two source divisions shows both);
---   * the edge is NEVER inferred from mg_code or globally unique codes: a
---     property whose PLM mg_code collides with a different licensor's code is
---     still nested under the licensor named by its core.property.licensor_id;
---   * dated snapshot metadata (snapshot_at, store, feeder status) and that
---     live_upstream_reconciliation is always false and is independent of
---     feeder_available (observed feeder recency never implies a live
---     upstream reconciliation claim);
---   * search, inactive inclusion, and invalid-cursor rejection.
+-- Rollback-safe contract for issue #1400.
+-- Proves the protected RPC reads Universe B only, refuses unauthorized users,
+-- aggregates more than one PostgREST page of associations server-side, and
+-- keyset-pages licensors without duplicates or omissions.
 
 begin;
 
 do $$
 declare
-  v_suffix text := substr(replace(gen_random_uuid()::text, '-', ''), 1, 12);
   v_sig text := 'api.db_data_admin_licensor_property_tree(text,boolean,text,integer)';
+  v_definition text;
+  v_suffix text := substr(replace(gen_random_uuid()::text, '-', ''), 1, 10);
+  v_search text;
+  v_base integer := -1000000000 + floor(random() * 100000)::integer * 10000;
   v_role_id uuid;
+  v_licensing_role_id uuid;
   v_admin_profile uuid;
   v_admin_auth uuid;
-  v_no_grant_profile uuid;
-  v_no_grant_auth uuid;
-  v_non_admin_profile uuid;
-  v_non_admin_auth uuid;
-  v_call text := 'api.db_data_admin_licensor_property_tree()';
-  v_calls text[];
-  v_result jsonb;
+  v_denied_profile uuid;
+  v_denied_auth uuid;
   v_page jsonb;
+  v_all jsonb := '[]'::jsonb;
   v_cursor text;
-  v_pages integer;
-  v_all_licensors jsonb := '[]'::jsonb;
-  v_orphans jsonb;
-  v_core_licensors integer;
-  v_core_properties integer;
-  v_core_orphan integer;
-  v_core_with_lic integer;
-  v_lic_a uuid;
-  v_lic_b uuid;
-  v_lic_inactive uuid;
-  v_prop1 uuid;
-  v_prop2 uuid;
-  v_prop_collide uuid;
-  v_prop_inactive uuid;
-  v_nested integer;
-  v_total_appearances integer;
-  v_distinct_ids integer;
-  v_lic_a_node jsonb;
-  v_lic_b_node jsonb;
+  v_ids integer[];
+  v_expected integer[];
+  v_orphan_id integer;
+  v_fixture_seen integer;
+  v_character_count integer;
+  v_property_count integer;
+  v_live_licensors integer;
+  v_live_properties integer;
+  v_live_parented integer;
+  v_live_orphans integer;
+  v_pages integer := 0;
+  v_security_definer boolean;
 begin
-  v_calls := array[v_call];
+  v_search := 'Issue1400-' || v_suffix;
 
-  -- ------------------------------------------------------------------
-  -- Static object and privilege assertions.
-  -- ------------------------------------------------------------------
   if to_regprocedure(v_sig) is null then
     raise exception 'missing protected function: %', v_sig;
   end if;
@@ -80,351 +45,202 @@ begin
   if not has_function_privilege('authenticated', v_sig::regprocedure, 'execute') then
     raise exception 'authenticated cannot execute %', v_sig;
   end if;
-  -- SECURITY DEFINER: the definer (not the caller) owns the body.
-  if not exists (
-    select 1 from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'api' and p.proname = 'db_data_admin_licensor_property_tree'
-      and p.prosecdef = true
-  ) then
-    raise exception 'licensor_property_tree must be SECURITY DEFINER';
+
+  select pg_get_functiondef(p.oid), p.prosecdef
+  into v_definition, v_security_definer
+  from pg_proc p where p.oid = v_sig::regprocedure;
+  if v_security_definer is distinct from true then
+    raise exception 'function must remain SECURITY DEFINER';
+  end if;
+  if position('app.require_licensing_manager_access()' in v_definition) = 0 then
+    raise exception 'server-side licensing-manager gate is missing';
+  end if;
+  if position('core."licenseList"' in v_definition) = 0
+     or position('core.properties_and_characters' in v_definition) = 0
+     or position('core.property_character_associations' in v_definition) = 0 then
+    raise exception 'function must read all three Universe B objects';
+  end if;
+  if position('core.licensor ' in v_definition) <> 0
+     or position('core.property ' in v_definition) <> 0 then
+    raise exception 'function still reads a disjoint Universe A catalogue';
   end if;
 
-  -- ------------------------------------------------------------------
-  -- Fixture identities: reuse three active preview profiles. Role/access
-  -- rows are normalized inside this transaction and restored by rollback.
-  -- ------------------------------------------------------------------
+  -- Reuse two authenticated profiles and normalize only their relevant grants;
+  -- rollback restores every row.
   select p.id, p.auth_user_id into v_admin_profile, v_admin_auth
-  from app.profile p where p.status = 'active' and p.auth_user_id is not null
-  order by p.created_at, p.id limit 1 offset 0;
-  select p.id, p.auth_user_id into v_no_grant_profile, v_no_grant_auth
-  from app.profile p where p.status = 'active' and p.auth_user_id is not null
+  from app.profile p
+  where p.status = 'active' and p.auth_user_id is not null
+  order by p.created_at, p.id limit 1;
+  select p.id, p.auth_user_id into v_denied_profile, v_denied_auth
+  from app.profile p
+  where p.status = 'active' and p.auth_user_id is not null
   order by p.created_at, p.id limit 1 offset 1;
-  select p.id, p.auth_user_id into v_non_admin_profile, v_non_admin_auth
-  from app.profile p where p.status = 'active' and p.auth_user_id is not null
-  order by p.created_at, p.id limit 1 offset 2;
-  if v_non_admin_profile is null then
-    raise exception 'fixture requires three active authenticated profiles';
+  if v_denied_profile is null then
+    raise exception 'fixture requires two active authenticated profiles';
   end if;
 
   select r.id into v_role_id from app.role r where r.slug = 'administrator'::app.app_role;
-  if v_role_id is null then
-    raise exception 'fixture requires the administrator role';
-  end if;
-
   delete from app.user_role
-  where profile_id in (v_admin_profile, v_no_grant_profile, v_non_admin_profile)
-    and role_id = v_role_id;
+  where profile_id in (v_admin_profile, v_denied_profile) and role_id = v_role_id;
   delete from app.app_access
-  where profile_id in (v_admin_profile, v_no_grant_profile, v_non_admin_profile)
-    and app = 'admin';
-  insert into app.user_role (profile_id, role_id) values
-    (v_admin_profile, v_role_id),
-    (v_no_grant_profile, v_role_id);
-  insert into app.app_access (profile_id, app) values
-    (v_admin_profile, 'admin'),
-    (v_non_admin_profile, 'admin');
+  where profile_id in (v_admin_profile, v_denied_profile) and app = 'admin';
+  insert into app.user_role (profile_id, role_id) values (v_admin_profile, v_role_id);
+  insert into app.app_access (profile_id, app) values (v_admin_profile, 'admin');
 
-  -- ------------------------------------------------------------------
-  -- Authorization matrix.
-  -- ------------------------------------------------------------------
-  perform set_config('request.jwt.claim.sub', v_admin_auth::text, true);
-  foreach v_call in array v_calls loop
-    begin
-      execute 'select ' || v_call;
-    exception
-      when insufficient_privilege then
-        raise exception 'authorized administrator was denied on %', v_call;
-    end;
-  end loop;
-
-  perform set_config('request.jwt.claim.sub', v_no_grant_auth::text, true);
+  perform set_config('request.jwt.claim.sub', v_denied_auth::text, true);
   begin
-    perform api.db_data_admin_licensor_property_tree();
-    raise exception 'administrator without explicit admin grant was allowed';
-  exception
-    when insufficient_privilege then null;
+    perform api.db_data_admin_licensor_property_tree(v_search, true, null, 2);
+    raise exception 'unauthorized caller was allowed';
+  exception when insufficient_privilege then null;
   end;
 
-  perform set_config('request.jwt.claim.sub', v_non_admin_auth::text, true);
-  begin
-    perform api.db_data_admin_licensor_property_tree();
-    raise exception 'non-administrator with explicit grant was allowed';
-  exception
-    when insufficient_privilege then null;
-  end;
-
-  update app.app_access set revoked_at = now()
-  where profile_id = v_admin_profile and app = 'admin';
-  perform set_config('request.jwt.claim.sub', v_admin_auth::text, true);
-  begin
-    perform api.db_data_admin_licensor_property_tree();
-    raise exception 'revoked admin grant was accepted';
-  exception
-    when insufficient_privilege then null;
-  end;
-  update app.app_access set revoked_at = null
-  where profile_id = v_admin_profile and app = 'admin';
-
-  -- ------------------------------------------------------------------
-  -- Canonical fixtures (as the authorized administrator).
-  -- ------------------------------------------------------------------
-  perform set_config('request.jwt.claim.sub', v_admin_auth::text, true);
-
-  insert into core.licensor (name, code, status)
-  values ('Step10 Licensor Alpha ' || v_suffix, 'LICA-' || v_suffix, 'active')
-  returning id into v_lic_a;
-  insert into core.licensor (name, code, status)
-  values ('Step10 Licensor Bravo ' || v_suffix, 'LICB-' || v_suffix, 'active')
-  returning id into v_lic_b;
-  insert into core.licensor (name, code, status)
-  values ('Step10 Licensor Inactive ' || v_suffix, 'LICI-' || v_suffix, 'inactive')
-  returning id into v_lic_inactive;
-
-  insert into core.property (licensor_id, name, code, status)
-  values (v_lic_a, 'Step10 Property One ' || v_suffix, 'P1-' || v_suffix, 'active')
-  returning id into v_prop1;
-  insert into core.property (licensor_id, name, code, status)
-  values (v_lic_a, 'Step10 Property Two ' || v_suffix, 'P2-' || v_suffix, 'active')
-  returning id into v_prop2;
-  -- Collision fixture: PLM mg_code collides with licensor Bravo's code, but
-  -- the canonical edge (licensor_id) points at Alpha. It must nest under Alpha.
-  insert into core.property (licensor_id, name, code, status)
-  values (v_lic_a, 'Step10 Property Collide ' || v_suffix, 'PC-' || v_suffix, 'active')
-  returning id into v_prop_collide;
-  insert into core.property (licensor_id, name, code, status)
-  values (v_lic_inactive, 'Step10 Property Inactive ' || v_suffix, 'PI-' || v_suffix, 'inactive')
-  returning id into v_prop_inactive;
-  insert into core.taxonomy_source_ref (entity_schema, entity_table, entity_id,
-                                        source_system, source_table, source_id,
-                                        source_code, source_name)
-  values ('core', 'licensor', v_lic_a, 'designflow_plm', 'merchGroup',
-          'S10LA-' || v_suffix, 'LICA-' || v_suffix, 'Step10 Licensor Alpha Source');
-  insert into core.taxonomy_source_ref (entity_schema, entity_table, entity_id,
-                                        source_system, source_table, source_id,
-                                        source_code, source_name)
-  values ('core', 'property', v_prop1, 'designflow_plm', 'merchGroup',
-          'S10P1-' || v_suffix, 'P1-' || v_suffix, 'Step10 Property One Source');
-
-  -- Division-qualified PLM context: Alpha carries two source divisions
-  -- (the POP-Lic / Spruce-Lic collapse documented in the taxonomy doc).
-  insert into plm.licensor_import (plm_licensor_id, licensor_id, title, mg_code,
-                                    division_code, mg_category)
-  values ('S10-LA-CW-' || v_suffix, v_lic_a, 'Step10 Licensor Alpha ' || v_suffix,
-          'LICA-' || v_suffix, 'CW001', 'licensed'),
-         ('S10-LA-SP-' || v_suffix, v_lic_a, 'Step10 Licensor Alpha ' || v_suffix,
-          'LICA-' || v_suffix, 'SP001', 'licensed');
-  -- The collide property's PLM row carries Bravo's code under Alpha.
-  insert into plm.property_import (plm_property_id, property_id, licensor_id, title,
-                                    mg_code, division_code, mg_category)
-  values ('S10-PC-' || v_suffix, v_prop_collide, v_lic_a,
-          'Step10 Property Collide ' || v_suffix, 'LICB-' || v_suffix, 'CW001', 'licensed');
-
-  -- ------------------------------------------------------------------
-  -- Default call: hide inactive. Alpha and Bravo are visible; the inactive
-  -- licensor and its property are not; the orphan anomaly list remains empty.
-  -- ------------------------------------------------------------------
-  select api.db_data_admin_licensor_property_tree('Step10 Licensor Alpha ' || v_suffix)
-  into v_result;
-  if jsonb_array_length(v_result -> 'licensors') <> 1
-     or (v_result -> 'licensors' -> 0 ->> 'id')::uuid <> v_lic_a then
-    raise exception 'search must return exactly licensor Alpha';
+  -- Prove the intended narrow path too: licensing role plus PLM access can
+  -- reach this RPC without receiving the broader administrator role.
+  select r.id into v_licensing_role_id
+  from app.role r where r.slug = 'licensing'::app.app_role;
+  if v_licensing_role_id is null then
+    raise exception 'fixture requires the licensing role';
   end if;
-  if jsonb_array_length(v_result -> 'orphan_properties') <> 0 then
-    raise exception 'orphan_properties must be empty under the exact-one-Licensor rule';
-  end if;
+  delete from app.user_role
+  where profile_id = v_denied_profile and role_id = v_licensing_role_id;
+  delete from app.app_access
+  where profile_id = v_denied_profile and app = 'plm';
+  insert into app.user_role (profile_id, role_id)
+  values (v_denied_profile, v_licensing_role_id);
+  insert into app.app_access (profile_id, app)
+  values (v_denied_profile, 'plm');
+  begin
+    perform api.db_data_admin_licensor_property_tree(v_search, true, null, 2);
+  exception when insufficient_privilege then
+    raise exception 'licensing manager with PLM access was denied';
+  end;
 
-  -- ------------------------------------------------------------------
-  -- Full snapshot with inactive included: load every page.
-  -- ------------------------------------------------------------------
-  v_all_licensors := '[]'::jsonb;
-  v_cursor := null;
-  v_pages := 0;
+  perform set_config('request.jwt.claim.sub', v_admin_auth::text, true);
+  begin
+    perform api.db_data_admin_licensor_property_tree(v_search, true, null, 2);
+  exception when insufficient_privilege then
+    raise exception 'authorized administrator was denied';
+  end;
+
+  -- Five searchable licensors. Two have the same normalized title, so their
+  -- integer ids are the mandatory stable tie-breaker. One is inactive.
+  insert into core."licenseList" (
+    "licenseList_id", "licenseList_code", "licenseList_title", "licenseList_status"
+  ) values
+    (v_base + 1, 'A-' || v_suffix, v_search || ' Alpha', 'active'),
+    (v_base + 2, 'B-' || v_suffix, v_search || ' beta', 'active'),
+    (v_base + 3, 'B2-' || v_suffix, v_search || ' BETA', 'active'),
+    (v_base + 4, 'D-' || v_suffix, v_search || ' Delta', 'inactive'),
+    (v_base + 5, 'G-' || v_suffix, v_search || ' Gamma', null);
+  v_expected := array[v_base + 1, v_base + 2, v_base + 3, v_base + 4, v_base + 5];
+
+  insert into core.properties_and_characters (
+    id, name, type, licensor_id, source_licensed_property_id
+  ) values
+    (v_base + 101, v_search || ' Property One', 'PROPERTY', v_base + 1, 'portal-one-' || v_suffix),
+    (v_base + 102, v_search || ' Property Two', 'PROPERTY', v_base + 2, 'portal-two-' || v_suffix),
+    (v_base + 103, v_search || ' Looks Like Code Join', 'PROPERTY', v_base + 1, 'B-' || v_suffix);
+
+  -- 1,001 character rows and links prove aggregation is server-side and has no
+  -- client/API page-size truncation.
+  insert into core.properties_and_characters (
+    id, name, type, licensor_id, source_licensed_property_id, source_character_id
+  )
+  select v_base + 1000 + g, v_search || ' Character ' || g, 'CHARACTER',
+         v_base + 1, 'portal-one-' || v_suffix, 'character-' || v_suffix || '-' || g
+  from generate_series(1, 1001) g;
+
+  insert into core.property_character_associations (property_id, character_id, licensor_id)
+  select v_base + 101, v_base + 1000 + g, v_base + 1
+  from generate_series(1, 1001) g;
+
+  -- Temporarily remove the FK inside this rolled-back transaction to prove the
+  -- complete anomaly list. Production keeps the FK throughout.
+  alter table core.properties_and_characters
+    drop constraint properties_and_characters_licensor_id_fkey;
+  v_orphan_id := v_base + 104;
+  insert into core.properties_and_characters (
+    id, name, type, licensor_id, source_licensed_property_id
+  ) values (
+    v_orphan_id, v_search || ' Orphan', 'PROPERTY', v_base + 9999, 'portal-orphan-' || v_suffix
+  );
+
+  -- Traverse every entity page. The same normalized title plus page size two
+  -- exercises both halves of the (normalized title, integer id) cursor.
   loop
-    select api.db_data_admin_licensor_property_tree(null, true, v_cursor, 200)
-    into v_page;
+    select api.db_data_admin_licensor_property_tree(v_search, true, v_cursor, 2) into v_page;
     v_pages := v_pages + 1;
-    v_all_licensors := v_all_licensors || (v_page -> 'licensors');
-    v_orphans := v_page -> 'orphan_properties';      -- always complete per page
-    v_result := v_page;                               -- last page carries snapshot+reconciliation
+    if jsonb_array_length(v_page -> 'orphan_properties') <> 1
+       or (v_page -> 'orphan_properties' -> 0 ->> 'id')::integer <> v_orphan_id then
+      raise exception 'complete orphan collection was not returned on page %', v_pages;
+    end if;
+    v_all := v_all || (v_page -> 'licensors');
     v_cursor := v_page ->> 'next_cursor';
     exit when v_cursor is null;
-    if v_pages > 50 then
-      raise exception 'tree pagination did not terminate';
-    end if;
+    if v_pages > 10 then raise exception 'pagination did not terminate'; end if;
   end loop;
 
-  -- Dated snapshot metadata and honest feeder status.
-  if v_result -> 'snapshot' ->> 'snapshot_at' is null then
-    raise exception 'snapshot must carry a dated snapshot_at';
+  select array_agg((x ->> 'id')::integer order by ord)
+  into v_ids from jsonb_array_elements(v_all) with ordinality t(x, ord);
+  if v_ids is distinct from v_expected then
+    raise exception 'stable pages duplicated, skipped, or reordered licensors: got %, expected %', v_ids, v_expected;
   end if;
-  if position('core.licensor' in coalesce(v_result -> 'snapshot' ->> 'store', '')) = 0 then
-    raise exception 'snapshot store must name the canonical tables';
-  end if;
-  if v_result -> 'snapshot' ->> 'source_system' is distinct from 'designflow_plm' then
-    raise exception 'snapshot source_system must be designflow_plm';
-  end if;
-  if not (v_result -> 'snapshot' ? 'feeder_available')
-     or not (v_result -> 'snapshot' ? 'feeder_last_run_status') then
-    raise exception 'snapshot must expose feeder availability and last run status';
-  end if;
-  -- live_upstream_reconciliation is false unconditionally: this RPC reads
-  -- only the canonical mirror + ingest.sync_run and never reconciles against
-  -- live DesignFlow. It must NOT track feeder_available (observed recency),
-  -- so the two booleans are intentionally decoupled.
-  if (v_result -> 'snapshot' ->> 'live_upstream_reconciliation')::boolean
-     is distinct from false then
-    raise exception 'live_upstream_reconciliation must always be false (mirror-only; observed feeder recency does not imply live reconciliation)';
-  end if;
-  if v_result -> 'snapshot' ->> 'note' is null then
-    raise exception 'snapshot must carry a provenance note';
+  select count(distinct (x ->> 'id')::integer) into v_fixture_seen
+  from jsonb_array_elements(v_all) x;
+  if v_fixture_seen <> 5 then
+    raise exception 'expected five distinct paged licensors, got %', v_fixture_seen;
   end if;
 
-  -- Exact canonical reconciliation, derived from the live tables.
-  select count(*) into v_core_licensors from core.licensor;
-  select count(*),
-         count(*) filter (where licensor_id is null),
-         count(*) filter (where licensor_id is not null)
-  into v_core_properties, v_core_orphan, v_core_with_lic
-  from core.property;
-
-  if (v_result -> 'reconciliation' ->> 'licensor_count')::integer <> v_core_licensors then
-    raise exception 'reconciliation licensor_count must equal live core.licensor count';
-  end if;
-  if (v_result -> 'reconciliation' ->> 'property_count')::integer <> v_core_properties then
-    raise exception 'reconciliation property_count must equal live core.property count';
-  end if;
-  if (v_result -> 'reconciliation' ->> 'orphan_property_count')::integer <> v_core_orphan then
-    raise exception 'reconciliation orphan_property_count must equal live orphan count';
-  end if;
-  if (v_result -> 'reconciliation' ->> 'properties_with_licensor')::integer <> v_core_with_lic then
-    raise exception 'reconciliation properties_with_licensor must equal live count';
-  end if;
-  if (v_result -> 'reconciliation' ->> 'partition_reconciles')::boolean is distinct from true then
-    raise exception 'with-licensor + orphan partition must reconcile to total';
-  end if;
-  if (v_result -> 'reconciliation' ->> 'expected_orphan_count_is_zero')::boolean
-     is distinct from (v_core_orphan = 0) then
-    raise exception 'expected_orphan_count_is_zero must track the live orphan count';
+  select (p ->> 'character_count')::integer into v_character_count
+  from jsonb_array_elements(v_all) l, jsonb_array_elements(l -> 'properties') p
+  where (p ->> 'id')::integer = v_base + 101;
+  if v_character_count <> 1001 then
+    raise exception 'expected exact server-side character count 1001, got %', v_character_count;
   end if;
 
-  -- Every canonical Property appears under exactly one Licensor: no
-  -- duplicates and none lost across the full paginated payload.
-  select coalesce(sum(jsonb_array_length(l -> 'properties')), 0)
-  into v_nested
-  from jsonb_array_elements(v_all_licensors) l;
-  v_total_appearances := v_nested + jsonb_array_length(v_orphans);
-  if v_total_appearances <> v_core_properties then
-    raise exception 'payload property appearances (%) must equal canonical total (%)',
-      v_total_appearances, v_core_properties;
-  end if;
-  select count(distinct pid) into v_distinct_ids from (
-    select (l -> 'properties' -> i ->> 'id')::uuid as pid
-    from jsonb_array_elements(v_all_licensors) l,
-         generate_series(0, greatest(jsonb_array_length(l -> 'properties') - 1, -1)) i
-    where jsonb_array_length(l -> 'properties') > 0
-    union all
-    select (o ->> 'id')::uuid from jsonb_array_elements(v_orphans) o
-  ) s;
-  if v_distinct_ids <> v_core_properties then
-    raise exception 'distinct payload property ids (%) must equal canonical total (%); a property appears more than once',
-      v_distinct_ids, v_core_properties;
-  end if;
-
-  -- Phase 1 made licensor_id NOT NULL, so any orphan now indicates schema drift.
-  if jsonb_array_length(v_orphans) <> 0 or v_core_orphan <> 0 then
-    raise exception 'exact-one-Licensor rule requires zero orphan properties';
-  end if;
-
-  -- Locate the Alpha and Bravo nodes in the full payload.
-  select l into v_lic_a_node
-  from jsonb_array_elements(v_all_licensors) l
-  where (l ->> 'id')::uuid = v_lic_a;
-  select l into v_lic_b_node
-  from jsonb_array_elements(v_all_licensors) l
-  where (l ->> 'id')::uuid = v_lic_b;
-  if v_lic_a_node is null or v_lic_b_node is null then
-    raise exception 'Alpha and Bravo must both appear in the full payload';
-  end if;
-
-  -- Division/type-qualified source context on Alpha: two source divisions,
-  -- each carrying a division_code, an mg_code, and an explicit mg_type label.
-  if jsonb_array_length(v_lic_a_node -> 'plm_context') <> 2 then
-    raise exception 'Alpha must expose two division-qualified PLM source rows';
-  end if;
+  -- The code collision belongs to Alpha by integer licensor_id, never Beta by
+  -- license code. Character-grain entities never appear as properties.
   if not exists (
-    select 1 from jsonb_array_elements(v_lic_a_node -> 'plm_context') c
-    where c ->> 'division_code' = 'CW001' and c ->> 'mg_type' = 'licensor'
-  ) or not exists (
-    select 1 from jsonb_array_elements(v_lic_a_node -> 'plm_context') c
-    where c ->> 'division_code' = 'SP001'
+    select 1 from jsonb_array_elements(v_all) l, jsonb_array_elements(l -> 'properties') p
+    where (l ->> 'id')::integer = v_base + 1 and (p ->> 'id')::integer = v_base + 103
+  ) or exists (
+    select 1 from jsonb_array_elements(v_all) l, jsonb_array_elements(l -> 'properties') p
+    where (l ->> 'id')::integer = v_base + 2 and (p ->> 'id')::integer = v_base + 103
   ) then
-    raise exception 'Alpha plm_context must qualify both source divisions with mg_type';
+    raise exception 'property parent was inferred from a code instead of integer licensor_id';
   end if;
-  if jsonb_array_length(v_lic_a_node -> 'source_refs') <> 1
-     or v_lic_a_node -> 'source_refs' -> 0 ->> 'source_system' <> 'designflow_plm' then
-    raise exception 'Alpha must embed its designflow_plm source ref';
-  end if;
-  if (v_lic_a_node ->> 'property_count')::integer
-     <> jsonb_array_length(v_lic_a_node -> 'properties') then
-    raise exception 'Alpha property_count must equal its embedded properties length';
+  select coalesce(sum(jsonb_array_length(l -> 'properties')), 0) into v_property_count
+  from jsonb_array_elements(v_all) l;
+  if v_property_count <> 3 then
+    raise exception 'PROPERTY-only fixture expected three nested rows, got %', v_property_count;
   end if;
 
-  -- Source context remains intact. The retired Universe A character store is
-  -- absent, but the response field stays compatible and reports zero.
-  if not exists (
-    select 1 from jsonb_array_elements(v_lic_a_node -> 'properties') p
-    where (p ->> 'id')::uuid = v_prop1
-      and (p ->> 'character_count')::integer = 0
-      and jsonb_array_length(p -> 'source_refs') = 1
-      and p -> 'source_refs' -> 0 ->> 'source_code' = 'P1-' || v_suffix
-  ) then
-    raise exception 'Property One must expose its source ref and a zero compatibility character count';
+  select count(*)::integer into v_live_licensors from core."licenseList";
+  select count(*)::integer,
+         count(*) filter (where l."licenseList_id" is not null)::integer,
+         count(*) filter (where l."licenseList_id" is null)::integer
+  into v_live_properties, v_live_parented, v_live_orphans
+  from core.properties_and_characters p
+  left join core."licenseList" l on l."licenseList_id" = p.licensor_id
+  where p.type = 'PROPERTY';
+  if (v_page -> 'reconciliation' ->> 'licensor_count')::integer <> v_live_licensors
+     or (v_page -> 'reconciliation' ->> 'property_count')::integer <> v_live_properties
+     or (v_page -> 'reconciliation' ->> 'properties_with_licensor')::integer <> v_live_parented
+     or (v_page -> 'reconciliation' ->> 'orphan_property_count')::integer <> v_live_orphans
+     or (v_page -> 'reconciliation' ->> 'partition_reconciles')::boolean is distinct from true then
+    raise exception 'Universe B reconciliation does not match its source tables';
   end if;
 
-  -- The edge is never inferred from mg_code / globally unique codes: the
-  -- collide property's PLM mg_code equals Bravo's code, yet it nests under
-  -- Alpha (its core.property.licensor_id) and never under Bravo.
-  if not exists (
-    select 1 from jsonb_array_elements(v_lic_a_node -> 'properties') p
-    where (p ->> 'id')::uuid = v_prop_collide
-  ) then
-    raise exception 'collide property must nest under Alpha (its licensor_id)';
-  end if;
-  if exists (
-    select 1 from jsonb_array_elements(v_lic_b_node -> 'properties') p
-    where (p ->> 'id')::uuid = v_prop_collide
-  ) then
-    raise exception 'collide property must NOT nest under Bravo despite an mg_code collision';
-  end if;
-  if not exists (
-    select 1 from jsonb_array_elements(v_lic_a_node -> 'properties') p
-    where (p ->> 'id')::uuid = v_prop_collide
-      and p -> 'plm_context' -> 0 ->> 'mg_code' = 'LICB-' || v_suffix
-      and p -> 'plm_context' -> 0 ->> 'mg_type' = 'property'
-  ) then
-    raise exception 'collide property must still show its division/type-qualified mg_code as context';
-  end if;
-
-  -- Include-inactive toggling: with include_inactive the inactive licensor +
-  -- its property appear; without it they are hidden.
-  if not exists (
-    select 1 from jsonb_array_elements(v_all_licensors) l
-    where (l ->> 'id')::uuid = v_lic_inactive
-  ) then
-    raise exception 'inactive licensor must appear when include_inactive is true';
-  end if;
-  select api.db_data_admin_licensor_property_tree(null, false, null, 200) into v_page;
+  select api.db_data_admin_licensor_property_tree(v_search, false, null, 200) into v_page;
   if exists (
     select 1 from jsonb_array_elements(v_page -> 'licensors') l
-    where (l ->> 'id')::uuid = v_lic_inactive
+    where (l ->> 'id')::integer = v_base + 4
   ) then
-    raise exception 'inactive licensor must be hidden without include_inactive';
+    raise exception 'inactive licensor was returned without include_inactive';
   end if;
 
-  -- Invalid cursor is rejected, never silently ignored.
   begin
-    perform api.db_data_admin_licensor_property_tree(null, true, 'not-base64-cursor', 50);
+    perform api.db_data_admin_licensor_property_tree(v_search, true, 'not-a-cursor', 2);
     raise exception 'invalid cursor accepted';
   exception when invalid_parameter_value then null;
   end;

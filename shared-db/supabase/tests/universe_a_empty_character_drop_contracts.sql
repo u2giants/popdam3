@@ -30,19 +30,27 @@ begin
     raise exception '% obsolete core.character foreign key(s) remain', v_constraint_count;
   end if;
 
-  foreach v_function in array array[
-    'api.db_data_admin_licensor_property_list(text,boolean,text,integer)'::regprocedure,
-    'api.db_data_admin_licensor_property_tree(text,boolean,text,integer)'::regprocedure
-  ] loop
-    select pg_get_functiondef(v_function) into v_definition;
-    if position('core.character' in v_definition) <> 0 then
-      raise exception '% still depends on core.character', v_function;
-    end if;
-    if (length(v_definition) - length(replace(v_definition, '''character_count'', 0', '')))
-       / length('''character_count'', 0') <> 2 then
-      raise exception '% does not preserve both character_count fields as zero', v_function;
-    end if;
-  end loop;
+  -- The legacy Universe A list remains response-compatible with zero counts.
+  v_function := 'api.db_data_admin_licensor_property_list(text,boolean,text,integer)'::regprocedure;
+  select pg_get_functiondef(v_function) into v_definition;
+  if position('core.character' in v_definition) <> 0 then
+    raise exception '% still depends on core.character', v_function;
+  end if;
+  if (length(v_definition) - length(replace(v_definition, '''character_count'', 0', '')))
+     / length('''character_count'', 0') <> 2 then
+    raise exception '% does not preserve both character_count fields as zero', v_function;
+  end if;
+
+  -- Issue #1400 moved the tree to Universe B. Its character counts now come
+  -- from the declared Universe B association table, never the retired table.
+  v_function := 'api.db_data_admin_licensor_property_tree(text,boolean,text,integer)'::regprocedure;
+  select pg_get_functiondef(v_function) into v_definition;
+  if position('core.character' in v_definition) <> 0 then
+    raise exception '% still depends on core.character', v_function;
+  end if;
+  if position('core.property_character_associations' in v_definition) = 0 then
+    raise exception '% does not use the Universe B association source', v_function;
+  end if;
 end
 $contracts$;
 

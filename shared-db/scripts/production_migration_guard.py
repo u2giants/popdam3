@@ -139,6 +139,7 @@ HARD_BLOCKED = {
 # preview ledger. No production allowlist may carry it.
 PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
     "20260817150944",
+    "20260824150630",
 }
 
 # The four unblocked above. This is ENFORCED, not documentary: `parse_allowlist`

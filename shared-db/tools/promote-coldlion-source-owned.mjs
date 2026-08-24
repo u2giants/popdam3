@@ -252,11 +252,11 @@ mirror as (
   -- coldlion-recurring-promotion.mjs decides row by row and genuinely needs every row.
   select * from (
     select 'licensor'::text as entity_type, company_code, division_code, mg_type_code, mg_code,
-           name as source_name, licensor_id as canonical_id, resolution_status, last_sync_run_id
+           name as source_name, source_active, licensor_id as canonical_id, resolution_status, last_sync_run_id
     from plm.erp_licensor
     union all
     select 'property'::text, company_code, division_code, mg_type_code, mg_code,
-           name, property_id, resolution_status, last_sync_run_id
+           name, source_active, property_id, resolution_status, last_sync_run_id
     from plm.erp_property
   ) u
   where u.resolution_status = 'manually_matched'
@@ -277,6 +277,7 @@ select jsonb_build_object(
       'mgTypeCode', m.mg_type_code,
       'mgCode', m.mg_code,
       'name', m.source_name,
+      'source_active', m.source_active,
       'resolution_status', m.resolution_status,
       -- coalesce to FALSE, matching the database's FIX 4. A NULL last_sync_run_id must mean
       -- "not present this cycle", never "unknown" — an unknown here would reach JavaScript
@@ -287,6 +288,14 @@ select jsonb_build_object(
       'canonical_code', c.canonical_code,
       'canonical_status', c.canonical_status,
       'canonical_licensor_id', c.canonical_licensor_id,
+      'higher_status_authority', exists (
+        select 1 from core.taxonomy_owner_ruling o
+        where o.entity_schema = 'core' and o.entity_table = m.entity_type and o.entity_id = m.canonical_id
+      ) or exists (
+        select 1 from core.taxonomy_source_ref hs
+        where hs.entity_schema = 'core' and hs.entity_table = m.entity_type and hs.entity_id = m.canonical_id
+          and hs.source_system not in ('coldlion', 'designflow_plm')
+      ),
       'source_ref_id', r.id,
       'source_ref_name', r.source_name,
       -- The provenance layer's stored source_code. Without it the runner cannot predict the
@@ -495,6 +504,39 @@ export function splitCycleState(cycle) {
   return { sourceRows, linkedRows, provenanceRows };
 }
 
+// Status planning is intentionally separate from the retired name/provenance planner.
+// Only current, approved typed links participate. Duplicate division arms must agree;
+// a durable owner ruling wins; unresolved identities never enter a canonical group.
+export function planColdlionStatusChanges(rows = []) {
+  const groups = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (row?.present_this_cycle !== true || row?.resolution_status !== "manually_matched" || !row?.canonical_id) continue;
+    const key = `${row.entityType}/${row.canonical_id}`;
+    const group = groups.get(key) ?? { key, entity_type: row.entityType, canonical_id: row.canonical_id, rows: [] };
+    group.rows.push(row);
+    groups.set(key, group);
+  }
+  const changes = [];
+  const unchanged = [];
+  const quarantines = [];
+  for (const group of [...groups.values()].sort((a, b) => a.key.localeCompare(b.key))) {
+    const flags = new Set(group.rows.map((row) => row.source_active));
+    if ([...flags].some((flag) => typeof flag !== "boolean") || flags.size !== 1) {
+      quarantines.push({ ...group, reason: "conflicting_or_missing_source_active" });
+      continue;
+    }
+    if (group.rows.some((row) => row.higher_status_authority === true)) {
+      quarantines.push({ ...group, reason: "higher_status_authority" });
+      continue;
+    }
+    const desired_status = [...flags][0] ? "active" : "inactive";
+    const decision = { key: group.key, entity_type: group.entity_type, canonical_id: group.canonical_id, desired_status };
+    if (group.rows.every((row) => row.canonical_status === desired_status)) unchanged.push(decision);
+    else changes.push(decision);
+  }
+  return { changes, unchanged, quarantines };
+}
+
 /**
  * Did the database report that another promotion already holds the lane advisory lock?
  *
@@ -614,6 +656,7 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     stage = "plan";
     const { sourceRows, linkedRows, provenanceRows } = splitCycleState(cycle);
     const plan = planRecurringPromotion({ sourceRows, linkedRows, provenanceRows });
+    plan.status = planColdlionStatusChanges(cycle.rows);
 
     process.stdout.write(
       `${JSON.stringify(
@@ -738,7 +781,4 @@ export function main(argv = process.argv.slice(2), env = process.env) {
 const invokedDirectly =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-if (invokedDirectly) {
-  process.stderr.write('ColdLion canonical promotion retired by shared-db issue #1090 Step 1.0; no database call was attempted.\n');
-  process.exitCode = 78;
-}
+if (invokedDirectly) process.exitCode = main();

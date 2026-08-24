@@ -253,6 +253,11 @@ export function validateSnapshot(snap, opts = {}) {
     if (String(d.mgCode ?? "").trim() === "" || String(d.mgDesc ?? "").trim() === "") {
       errors.push(`detail row missing nonblank mgCode/mgDesc: ${encodeSourceId(d.companyCode, d.divisionCode, d.mgTypeCode, d.mgCode)}`);
     }
+    if (!Object.hasOwn(d ?? {}, "active")) {
+      errors.push(`detail row missing required active flag: ${encodeSourceId(d.companyCode, d.divisionCode, d.mgTypeCode, d.mgCode)}`);
+    } else if (typeof d.active !== "boolean") {
+      errors.push(`detail row active flag must be boolean: ${encodeSourceId(d.companyCode, d.divisionCode, d.mgTypeCode, d.mgCode)}`);
+    }
   }
 
   // Short-pull guards (floors are config; never permanent counts).

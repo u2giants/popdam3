@@ -708,8 +708,8 @@ begin
         {"divisionCode":"CW001","mgTypeCode":"06","mgTypeDesc":"Property","entityType":"property"}
       ],
       "details": [
-        {"companyCode":"EDGEHOME","divisionCode":"CW001","mgTypeCode":"05","mgCode":"P4M-LIC","mgDesc":"P4 Mirror Regression Licensor","mgTypeDesc":"Licensor"},
-        {"companyCode":"EDGEHOME","divisionCode":"CW001","mgTypeCode":"06","mgCode":"P4M-PROP","mgDesc":"P4 Mirror Regression Property","mgTypeDesc":"Property"}
+        {"companyCode":"EDGEHOME","divisionCode":"CW001","mgTypeCode":"05","mgCode":"P4M-LIC","mgDesc":"P4 Mirror Regression Licensor","mgTypeDesc":"Licensor","active":true},
+        {"companyCode":"EDGEHOME","divisionCode":"CW001","mgTypeCode":"06","mgCode":"P4M-PROP","mgDesc":"P4 Mirror Regression Property","mgTypeDesc":"Property","active":true}
       ],
       "pages": [
         {"divisionCode":"CW001","mgTypeCode":"05","pagesFetched":1,"terminalReached":true,"rowCount":1},

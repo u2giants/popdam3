@@ -18,7 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { buildCycleStateSql, splitCycleState } from "./promote-coldlion-source-owned.mjs";
+import { buildCycleStateSql, planColdlionStatusChanges, splitCycleState } from "./promote-coldlion-source-owned.mjs";
 import { planRecurringPromotion } from "./coldlion-recurring-promotion.mjs";
 
 const MIGRATION = fileURLToPath(
@@ -64,6 +64,42 @@ test("the cycle-state probe reads the provenance id, name AND code", () => {
   assert.match(sql, /'source_ref_code', r\.source_code/);
   assert.match(sql, /'source_ref_id', r\.id/);
   assert.match(sql, /'source_ref_name', r\.source_name/);
+});
+
+test("the cycle-state probe carries the typed ColdLion active flag", () => {
+  const sql = buildCycleStateSql();
+  assert.match(sql, /name as source_name, source_active, licensor_id/);
+  assert.match(sql, /'source_active', m\.source_active/);
+});
+
+test("status plan supports both lifecycle directions and unchanged cycles", () => {
+  const rows = [
+    cycleRow({ source_active: false, canonical_status: "active" }),
+    cycleRow({ entityType: "property", canonical_id: "22222222-2222-4222-8222-222222222222", source_active: true, canonical_status: "inactive" }),
+    cycleRow({ mgCode: "UNCHANGED", canonical_id: "33333333-3333-4333-8333-333333333333", source_active: true, canonical_status: "active" }),
+  ];
+  const plan = planColdlionStatusChanges(rows);
+  assert.deepEqual(plan.changes.map((x) => x.desired_status).sort(), ["active", "inactive"]);
+  assert.equal(plan.unchanged.length, 1);
+});
+
+test("status plan abstains on conflicting duplicate divisions and higher authority", () => {
+  const conflict = [
+    cycleRow({ division: "CW001", source_active: true }),
+    cycleRow({ division: "SP001", source_active: false }),
+  ];
+  assert.equal(planColdlionStatusChanges(conflict).quarantines[0].reason, "conflicting_or_missing_source_active");
+  assert.equal(
+    planColdlionStatusChanges([cycleRow({ source_active: false, higher_status_authority: true })]).quarantines[0].reason,
+    "higher_status_authority",
+  );
+});
+
+test("status plan ignores unresolved identities", () => {
+  const plan = planColdlionStatusChanges([
+    cycleRow({ source_active: false, resolution_status: "unresolved", canonical_id: null }),
+  ]);
+  assert.deepEqual(plan, { changes: [], unchanged: [], quarantines: [] });
 });
 
 test("present_this_cycle is coalesced to false, never left null", () => {

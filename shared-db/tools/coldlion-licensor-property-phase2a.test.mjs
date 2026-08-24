@@ -19,15 +19,21 @@ const correctionPath = join(
   root,
   "supabase/migrations/20260724061000_coldlion_licensor_property_phase2a_guard_corrections.sql",
 );
+const activeStatusPath = join(
+  root,
+  "supabase/migrations/20260824155745_coldlion_merch_group_active_status.sql",
+);
 const contractsPath = join(root, "supabase/tests/coldlion_licensor_property_phase2_contracts.sql");
 const runnerPath = join(root, "tools/sync-coldlion-licensors-properties.mjs");
 
 assert.equal(existsSync(migrationPath), true, "expected Phase 2A migration 20260724060000");
 assert.equal(existsSync(correctionPath), true, "expected Phase 2A correction migration 20260724061000");
+assert.equal(existsSync(activeStatusPath), true, "expected issue #1429 active-status migration");
 assert.equal(existsSync(contractsPath), true, "expected Phase 2A SQL contracts file");
 assert.equal(existsSync(runnerPath), true, "expected runner tools/sync-coldlion-licensors-properties.mjs");
 
 const migration = readFileSync(correctionPath, "utf8");
+const activeStatusMigration = readFileSync(activeStatusPath, "utf8");
 const contracts = readFileSync(contractsPath, "utf8");
 const runner = readFileSync(runnerPath, "utf8");
 
@@ -70,6 +76,20 @@ const migrationSnippets = [
   "coldlion_licensors_properties_api",
 ];
 for (const s of migrationSnippets) assertIncludes(migration, s, "migration");
+
+for (const s of [
+  "alter table plm.erp_licensor add column if not exists source_active boolean",
+  "alter table plm.erp_property add column if not exists source_active boolean",
+  "every licensed /merchGroupDetails row must carry active as a JSON boolean",
+  "source_active    = excluded.source_active",
+  "count(distinct source_active)<>1",
+  "core.taxonomy_owner_ruling",
+  "'coldlion_status'",
+  "update core.licensor set status",
+  "update core.property set status",
+]) assertIncludes(activeStatusMigration, s, "issue #1429 migration");
+assert.doesNotMatch(activeStatusMigration, /update core\.property set licensor_id/i);
+assert.doesNotMatch(activeStatusMigration, /delete\s+from\s+core\./i);
 
 // mirror tables written, source-owned fields only, never canonical link fields
 assertIncludes(migration, "insert into plm.erp_licensor", "migration");

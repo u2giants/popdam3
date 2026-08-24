@@ -47,6 +47,7 @@ function detail(div, type, code, desc) {
   return {
     companyCode: COMPANY, divisionCode: div, mgTypeCode: type, mgCode: code, mgDesc: desc,
     mgTypeDesc: meaning, itemNoCode: code, mgCode2: code, mgCategory: "",
+    active: true,
     createdTime: "2026-01-01T00:00:00", createdUser: "u", modTime: "2026-01-01T00:00:00", modUser: "u",
   };
 }
@@ -200,6 +201,19 @@ test("validateSnapshot: blank mgCode/mgDesc aborts", () => {
   const d = validateSnapshot(snapshot({ details }));
   assert.equal(d.ok, false);
   assert.match(d.errors.join("; "), /nonblank mgCode\/mgDesc/);
+});
+
+test("validateSnapshot: missing or non-boolean active flags abort", () => {
+  const missing = detail("CW001", "05", "BAD-ACTIVE", "BAD ACTIVE");
+  delete missing.active;
+  let decision = validateSnapshot(snapshot({ details: [missing, ...snapshot().details.slice(1)] }));
+  assert.equal(decision.ok, false);
+  assert.match(decision.errors.join("; "), /missing required active flag/);
+
+  const invalid = { ...detail("CW001", "05", "BAD-ACTIVE", "BAD ACTIVE"), active: "Y" };
+  decision = validateSnapshot(snapshot({ details: [invalid, ...snapshot().details.slice(1)] }));
+  assert.equal(decision.ok, false);
+  assert.match(decision.errors.join("; "), /active flag must be boolean/);
 });
 
 test("validateSnapshot: empty details abort", () => {
