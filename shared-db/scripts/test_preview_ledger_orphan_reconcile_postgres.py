@@ -25,7 +25,8 @@ create function public.break_reconciliation() returns trigger language plpgsql a
 create trigger break_reconciliation before delete on supabase_migrations.schema_migrations for each row execute function public.break_reconciliation();""")
     def test_in_lock_failure_rolls_back_both_deletes(self):
         args=type('A',(),{'orphan_version':self.old,'replacement_version':self.replacement,'mode':'apply'})()
-        with self.assertRaises(RuntimeError): reconcile.reconcile(self.url(),os.environ.copy(),args,self.statements)
+        with self.assertRaises(RuntimeError):
+            reconcile.reconcile(self.url(),os.environ.copy(),args,self.statements,self.statements,'replacement_already_applied')
         self.assertEqual(self.psql(f"select string_agg(version,',' order by version) from supabase_migrations.schema_migrations where version in ('{self.old}','{self.replacement}')"),f'{self.old},{self.replacement}')
 
 if __name__=='__main__': unittest.main()
