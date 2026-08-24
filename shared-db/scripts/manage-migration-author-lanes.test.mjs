@@ -761,8 +761,12 @@ test('historical preview recovery shares the preview lock and requires current m
   assert.equal(lock.ref,EXCLUSIVE_REFS.preview)
   releaseOwnedRef(EXCLUSIVE_REFS.preview,lock.ownerSha,io)
   assert.throws(()=>acquireExclusive('preview-recovery',{owner:'recovery',pr:924,headSha:'old'},io),/current main/)
-  io.getPr=()=>({merged:false})
+  io.getPr=()=>({number:999,merged:false,state:'open',head:{sha:'pending'}})
   assert.throws(()=>acquireExclusive('preview-recovery',{owner:'recovery',pr:924,headSha:'main'},io),/already-merged/)
+  io.getPr=()=>({number:1372,merged:false,state:'open',head:{sha:'exact-pending-head'}})
+  const circular=acquireExclusive('preview-recovery',{owner:'recovery',pr:1372,headSha:'main'},io)
+  assert.equal(circular.ref,EXCLUSIVE_REFS.preview)
+  releaseOwnedRef(EXCLUSIVE_REFS.preview,circular.ownerSha,io)
 })
 
 // ---------------------------------------------------------------------------
