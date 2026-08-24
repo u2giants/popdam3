@@ -239,6 +239,8 @@ class GuardTests(unittest.TestCase):
                 "20260729120000",
                 "20260816045130",
                 "20260814224937",
+                "20260814233342",
+                "20260814233423",
                 "20260802171000",
             },
         )
@@ -250,6 +252,16 @@ class GuardTests(unittest.TestCase):
     def test_the_retired_source_resolution_migration_cannot_enter_an_allowlist(self) -> None:
         with self.assertRaises(GuardError):
             parse_allowlist("20260814224937")
+
+    def test_the_source_resolution_companion_cannot_enter_an_allowlist(self) -> None:
+        """20260814233423 needs the retired 20260814224937's table to exist."""
+        with self.assertRaises(GuardError):
+            parse_allowlist("20260814233423")
+
+    def test_the_superseded_capture_inventory_view_cannot_enter_an_allowlist(self) -> None:
+        """It would replace the live view with a body that drops three licensors."""
+        with self.assertRaises(GuardError):
+            parse_allowlist("20260814233342")
 
     def test_the_retired_lockdown_migration_cannot_enter_an_allowlist(self) -> None:
         """A2's RETIRE verdict must be mechanical, not prose. (Kimi K3.)"""

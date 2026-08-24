@@ -759,7 +759,13 @@ class BatchResolutionTests(unittest.TestCase):
     def test_the_retired_and_held_versions_match_the_contract(self):
         self.assertEqual(
             RETIRED_VERSIONS,
-            {"20260729120000", "20260814224937", "20260816045130"},
+            {
+                "20260729120000",
+                "20260814224937",
+                "20260814233342",
+                "20260814233423",
+                "20260816045130",
+            },
         )
         self.assertEqual(HELD_VERSIONS, {"20260802170000", "20260802171000"})
 
