@@ -6,7 +6,7 @@
 
 **Created:** 2026-08-24
 
-**Execution status:** planning complete; implementation has not started
+**Execution status:** implementation started at Step 1 on 2026-08-24; shared schema work is coordinated with PopDAM issue #96
 
 ## STATUS — read this first
 
@@ -14,8 +14,8 @@ Fresh sessions start at **Step 1: re-verify repository and live production state
 
 | Step | State | Owner/route | Implementation artifact | Verification evidence |
 |---|---|---|---|---|
-| 1. Re-verify code, schema, deployment, and live coverage | ⬜ open | PopDAM read-only inspection | None yet | Record exact commands/results in this table before changing code |
-| 2. Dispatch and land the canonical shared-DB search-maintenance change | ⬜ open | `u2giants/shared-db` orchestrator | Future timestamped migration + PR | Preview SQL assertions, preview timing, merged commit, bounded production approval/apply proof |
+| 1. Re-verify code, schema, deployment, and live coverage | 🟨 in progress | PopDAM read-only inspection | Coordinated scoped baseline under `verification/ai-tagging-scope/` | Baseline began at `ae029a53` and safely fast-forwarded to `993c099a`; scoped aggregates are recorded, while deployment/auth/search probes remain pending |
+| 2. Dispatch and land the canonical shared-DB search-maintenance change | 🟨 routed | `u2giants/shared-db` orchestrator | Shared request `u2giants/shared-db#1427` for PopDAM #96/#97 | Await claim, preview SQL assertions/timing, merged commit, and governed production apply proof |
 | 3. Add authorization-safe hybrid search contract | ⬜ open | Shared-db orchestrator + PopDAM edge function | Future migration/RPC and `supabase/functions/dam-search-ai/index.ts` | Cross-user authorization test proves no inaccessible IDs, ranks, or counts leave the edge function |
 | 4. Add resumable embedding worker operation | ⬜ open | PopDAM `main` | Future `apps/worker/src/handlers/embed-search.ts` and registrations | Worker tests plus Railway restart/resume evidence |
 | 5. Add bounded automatic freshness loop | ⬜ open | PopDAM worker preferred; DB only if evidence requires it | Future worker scheduler/config | Overlap, lease-expiry, retry, disable, and steady-state lag evidence |
@@ -163,6 +163,7 @@ These are repository observations from 2026-08-24, not proof of current producti
 - **2026-08-24:** Keyword mode remains the default and one-setting rollback until the complete launch gate passes.
 - **2026-08-24:** Query embeddings stay server-side; the browser does not embed text.
 - **2026-08-24:** Search indexes tags and canonical character names before the large embedding backfill, avoiding two corpus-wide embedding runs.
+- **2026-08-24:** PopDAM issue #96 owns the scoped `asset_tags`/`style_group_tags` status and provenance contract. Shared-db Step 2 is one coordinated migration workstream for #96 and #97: scoped tag/status objects and legacy reconciliation first, one final active-tag plus canonical-character search corpus second, and exactly one embedding backfill last. No independent competing `CREATE OR REPLACE` search definition may ship.
 - **2026-08-24:** Production rebuild is incremental/upsert-based and bounded; no delete-all rebuild.
 - **2026-08-24:** Tag/character maintenance updates both affected assets and affected style groups, including old/new relationships.
 - **2026-08-24:** Embedding work uses real lease ownership with expiry/recovery and hash-checked writes.
@@ -294,6 +295,8 @@ Preferred design: the existing Railway worker periodically runs a small incremen
 ### Step 8 — Run the production refresh and embedding backfill
 
 This is the first long-running production data operation and requires Albert’s explicit approval after the report below.
+
+**Hard coordination gate:** before any sample or corpus-wide embedding run, confirm with merged migration and production object evidence that issue #96's scoped tag/status contract has landed, or record a formal deferral that preserves one final corpus definition. Never embed an intermediate corpus that omits the agreed active asset tags, active Style Group tags, or canonical character names.
 
 1. Confirm merged/deployed SHAs, live function definitions, target project, automatic loop still disabled, current counts, and that keyword search is healthy.
 2. Run a small bounded production sample through the operation. Record start/end times, documents claimed/embedded/stale/retried/failed, edge/worker error categories, and other worker-lane health.

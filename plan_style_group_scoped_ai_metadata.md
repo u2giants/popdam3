@@ -9,8 +9,8 @@ Fresh sessions start at **Step 1**. At the end of every phase, re-read every dow
 
 | Step | Status | Date | Evidence / next action |
 |---|---|---|---|
-| 1. Reconfirm baseline and capture fixtures | ⬜ open | 2026-08-24 | Start with the commands and fixture contract in §9 Step 1. |
-| 2. Land the governed shared-db contract | ⬜ open | 2026-08-24 | Route the exact objects in §9 Step 2 through the single `u2giants/shared-db` orchestrator. |
+| 1. Reconfirm baseline and capture fixtures | ✅ complete | 2026-08-24 | Baseline began at `ae029a53`, then safely fast-forwarded over non-overlapping shared-db sync `993c099a`; synthetic fixtures and 66-test worker suite pass; aggregate production baseline is at `verification/ai-tagging-scope/2026-08-24T1533Z/baseline.md`. Step 2 is next. |
+| 2. Land the governed shared-db contract | 🟨 routed | 2026-08-24 | Governed structural request filed as `u2giants/shared-db#1427` and handed to active orchestrator marker #1419; await claim, preview, merge, and promotion evidence before Step 3. |
 | 3. Add typed scope/category policy and structured contracts | ⬜ open | 2026-08-24 | Implement §9 Step 3 only after the shared-db contract is merged/applied. |
 | 4. Build the Style Group profile pass | ⬜ open | 2026-08-24 | Implement §9 Step 4. |
 | 5. Convert per-file tagging to asset-only visual analysis | ⬜ open | 2026-08-24 | Implement §9 Step 5. |

@@ -25,6 +25,7 @@ owner: codex/hybrid-search-plan-97
 - 2026-08-24: no production delete-all search rebuild.
 - 2026-08-24: no unauthorized IDs, ranks, or counts may leave the edge function; browser RLS alone is insufficient.
 - 2026-08-24: telemetry is a separate optional phase; image embeddings are not part of implementation.
+- 2026-08-24: PopDAM issue #96 and this issue share one governed shared-db workstream. Scoped tag/status storage and reconciliation land first, one final search corpus containing active asset tags, active Style Group tags, and canonical character names lands second, and the single embedding backfill runs last. Step 8 may not embed an intermediate corpus.
 
 ## 1. What this application is
 
@@ -38,7 +39,8 @@ Canonical plan: [../plan_hybrid_search_rollout.md](../plan_hybrid_search_rollout
 
 ## 3. Current state
 
-- Planning is complete; implementation has not started.
+- Implementation started at Step 1 on 2026-08-24. The baseline began at `ae029a53` and safely fast-forwarded over the non-overlapping shared-db sync `993c099a`; scoped-tag production aggregates are recorded at `verification/ai-tagging-scope/2026-08-24T1533Z/baseline.md`, while the hybrid plan's deployment/auth/search-specific Step 1 probes remain pending.
+- The combined #96/#97 structural contract is routed through `u2giants/shared-db#1427` to active orchestrator marker #1419. Do not open a competing search-function lane.
 - PopDAM issue [#97](https://github.com/u2giants/popdam3/issues/97) tracks the work.
 - The plan incorporates incremental no-delete indexing, asset + style-group refresh, real embedding leases/retries, authorization-safe search responses, bounded pagination/score behavior, separate telemetry approval, and image-embedding exclusion.
 - Repository inspection on 2026-08-24 confirmed substantial foundation code and stale `fix_search.md` relevance wording. Exact observations and file lines are in plan §§5–6.

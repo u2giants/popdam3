@@ -1,0 +1,30 @@
+[
+  {
+    "id": "10000000-0000-4000-8000-000000000001",
+    "sku": "SYNTH-SCOPE-001",
+    "authoritative": { "licensor": "Synthetic Licensor", "property": "Synthetic Property", "product_type": "backpack" },
+    "assets": [
+      { "id": "11000000-0000-4000-8000-000000000001", "descriptor": "technical line drawing with measurements", "legacy_tags": ["backpack", "synthetic property", "tech pack", "straight view", "black"] },
+      { "id": "11000000-0000-4000-8000-000000000002", "descriptor": "studio product photograph", "legacy_tags": ["backpack", "synthetic property", "professional photography", "3/4 view", "blue"] },
+      { "id": "11000000-0000-4000-8000-000000000003", "descriptor": "digital product mockup", "legacy_tags": ["backpack", "synthetic property", "mockup", "front view", "red"] }
+    ]
+  },
+  {
+    "id": "20000000-0000-4000-8000-000000000002",
+    "sku": "SYNTH-SCOPE-002",
+    "authoritative": { "licensor": "Synthetic Licensor", "property": "Synthetic Property Two", "product_type": "tumbler" },
+    "assets": [
+      { "id": "22000000-0000-4000-8000-000000000001", "descriptor": "flat source artwork", "legacy_tags": ["tumbler", "synthetic property two", "source art", "graphic design", "green"] },
+      { "id": "22000000-0000-4000-8000-000000000002", "descriptor": "rendered finished product", "legacy_tags": ["tumbler", "synthetic property two", "3d render", "side view", "silver"] }
+    ]
+  },
+  {
+    "id": "30000000-0000-4000-8000-000000000003",
+    "sku": "SYNTH-SCOPE-003",
+    "authoritative": { "licensor": "Synthetic Licensor", "property": "Synthetic Property Three", "product_type": "sleepwear" },
+    "assets": [
+      { "id": "33000000-0000-4000-8000-000000000001", "descriptor": "character A blue colorway", "legacy_tags": ["sleepwear", "synthetic property three", "character alpha", "blue", "front view"] },
+      { "id": "33000000-0000-4000-8000-000000000002", "descriptor": "character B pink colorway", "legacy_tags": ["sleepwear", "synthetic property three", "character beta", "pink", "back view"] }
+    ]
+  }
+]
