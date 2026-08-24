@@ -90,7 +90,8 @@ AI sessions from breaking each other through the one database they all depend on
 >     SUPABASE_ACCESS_TOKEN=… node scripts/check-migration-ledger-drift.mjs --target production
 >
 > It reports both directions — merged-but-not-applied, and applied-but-not-on-`main`.
-> Exit 0 = no drift, 1 = drift, **2 = could not check, which is never "no drift"**. It also
+> Exit 0 = no actionable drift (retired/held versions remain listed), 1 = actionable
+> drift, **2 = could not check, which is never "no drift"**. It also
 > runs on every push to `main`, daily, and on demand: workflow `Migration Ledger Drift`
 > ([`.github/workflows/migration-ledger-drift.yml`](.github/workflows/migration-ledger-drift.yml)).
 
