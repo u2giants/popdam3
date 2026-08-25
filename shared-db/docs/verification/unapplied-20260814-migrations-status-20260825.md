@@ -21,8 +21,9 @@ Paramount capture cannot run. Production's Paramount loader was repaired on 2026
 version of itself that production does not have, so it now points at a table that does not exist and
 skips two fields the database still insists on. A capture attempted today stops at the first chunk.
 It stops **safely** — nothing is corrupted, nothing is half-written — but Paramount has not been
-re-captured since 2026-08-13 and cannot be until this is repaired forward. Repair work is already in
-flight (issue #1459, PR #1491, first of three stages).
+re-captured since 2026-08-13 and cannot be until the fix is applied. **Every migration needed to fix
+it is already written, merged and rehearsed on preview.** It needs a production window, not more
+work.
 
 **Everything else is latent risk, not an outage.** Nothing else in the business is degraded today.
 
@@ -31,15 +32,17 @@ flight (issue #1459, PR #1491, first of three stages).
 
 | Migration | Status today | Recommendation |
 |---|---|---|
-| `20260814193351` pmt duplicate name columns | Rehearsed on preview 08-24; **must not be applied as-is** | **Retire the version, supersede it** — stage 1 shipping in PR #1491 |
-| `20260814213043` pmt metadata element | Rehearsed on preview 08-24; same ordering trap | **Retire and supersede** — stage 2, not yet authored |
-| `20260814223552` pmt collection term | Rehearsed on preview 08-24; same ordering trap | **Retire and supersede** — stage 3, not yet authored |
+| `20260814193351` pmt duplicate name columns | Rehearsed on preview 08-24 | **Apply** — first of a four-version window |
+| `20260814213043` pmt metadata element | Rehearsed on preview 08-24 | **Apply** — second |
+| `20260814223552` pmt collection term | Rehearsed on preview 08-24 | **Apply** — third |
+| `20260825094455` pmt loader forward repair *(not one of the six)* | Merged 08-25, pending | **Apply last** — without it the other three revert a live fix |
 | `20260814233342` source capture inventory | **Already retired** (owner ruling 08-24, PR #1402) | Nothing to do — closed |
 | `20260814233423` remaining source resolution | **Already retired** (owner ruling 08-24, PR #1402) | Nothing to do — closed |
 | `20260814170749` wb retire legacy capture paths | **Still pending everywhere** — the only untouched one | **Apply**, after a preview rehearsal. Needs a window. |
 
-**The one item that still needs a decision from you is the Warner cleanup.** It has been sitting
-unapplied for eleven days, is safe to apply today, and nobody has scheduled it.
+**Two windows need authorizing:** the four-version Paramount set (which ends the outage) and the
+Warner cleanup (which has sat unapplied for eleven days and is safe today). Both need a preview
+rehearsal first. Neither needs new code.
 
 ---
 
@@ -63,7 +66,7 @@ verdict fix (`1920ec6`, 2026-08-23) is done and was not touched here.
 
 ---
 
-## 1. Paramount — broken today, and the fix is *not* "apply the three" {#paramount}
+## 1. Paramount — broken today, and the fix is four migrations in one window {#paramount}
 
 ### What is actually wrong
 
@@ -85,37 +88,52 @@ So the loader and the tables it writes into disagree in two independent ways. **
 run today aborts on its first chunk.** Preview is fine — the three migrations *are* applied there,
 and the 2026-08-24 preview capture (33,862 assets, 55 finalization checks, 0 failures) proves it.
 
-### Why applying the three now would make things worse
+### The ordering trap — real, but already solved
 
 All three sort *below* `20260824135515`, which is already recorded in production's ledger and will
-never re-run. Applying them in version order would leave production with the 2026-08-14 loader body
-— **silently deleting the JSON-null repair** and bringing back the exact bug issue #1418 fixed.
-Nothing in the apply path would warn: the function exists either way, so catalog verification passes.
+never re-run. Applying **only** the three would therefore leave production with the 2026-08-14
+loader body — silently deleting the JSON-null repair and bringing back the exact bug issue #1418
+fixed. Nothing in the apply path would warn: the function exists either way, so catalog verification
+passes.
 
-This is why the 2026-08-23 audit's recommendation ("apply all three in one window") is now out of
-date, and why I am **not** repeating it.
+That is why a fourth version, `20260825094455`, was written and merged on 2026-08-25. It sorts above
+everything else and re-establishes the JSON-null repair on top of the trio's final body. With it in
+the same window, the trap does not fire.
 
-### What is happening instead
+### Recommendation — CORRECTED 2026-08-25 after independent review
 
-Issue #1459 sets out the correct route: reproduce each of the three under a **fresh version number
-that sorts above the repair**, prove byte-equality with the original, hard-block the original from
-any production allowlist, and keep `20260825094455` (the forward JSON-null repair, already merged)
-last in the eventual set. PR #1491 does stage 1 of 3 — `20260825102727`, byte-identical to
-`20260814193351` (both SHA-256 `baa4593a…`). Stages 2 and 3 follow once #1491 is previewed and
-merged.
+**Apply the three, then `20260825094455` last, in one bounded window of four versions. Do not
+retire them.**
 
-### Recommendation
+This reverses the recommendation first published in this file. An independent review by Grok 4.6
+(session `pmt-trio-ordering`, $0.04) refuted it, and I verified the refutation against the SQL
+before accepting it.
 
-**Retire all three 2026-08-14 Paramount versions and let the supersession chain finish.** This is a
-real change of direction from the 2026-08-23 audit and needs your ruling to be formal: a retirement
-row for each of `20260814193351`, `20260814213043` and `20260814223552`, on the grounds that they
-cannot be applied in their merged position without reverting an applied repair. The replacements
-carry the identical SQL, so nothing about the intended change is lost.
+**What I got wrong.** The ordering trap is real, but it only bites if the three are applied *alone*.
+`20260825094455` — already merged, and sorting above both the trio and the applied repair
+`20260824135515` — exists precisely to close it. Its own header states the required production
+order in terms:
 
-Your 2026-08-24 authorization to promote the trio to production **should not be acted on as written**
-— promoting those exact three versions is the unsafe path #1459 documents. The safe equivalent is
-promoting the four replacement versions in order once all three stages exist and a preview rehearsal
-of the full set passes.
+> `20260814193351` → `20260814213043` → `20260814223552` → `20260825094455`
+> … Applying only the trio would leave the older `20260814223552` body last and silently restore
+> the defect.
+
+So the safe window is those four, in that order. The already-applied `20260824135515` is skipped
+because the ledger holds it; the forward repair re-establishes the JSON-null fix on top of the
+trio's final body. Retiring the three is unnecessary — and it would leave the real defect unfixed,
+because `20260825094455` only rewrites the loader function. It does **not** create
+`plm.pmt_metadata_element` or relax the `NOT NULL` columns. Only the trio does that. Retire them and
+Paramount stays broken.
+
+**Your 2026-08-24 authorization to promote the three was right.** It was simply incomplete: it needs
+`20260825094455` appended as a fourth version in the same window.
+
+**A defect this surfaced in the in-flight repair work.** PR #1491 (open, issue #1459) introduces
+`20260825102727` as a byte-identical replacement for `20260814193351` and hard-blocks the original.
+But `20260825102727` sorts *above* `20260825094455`. That makes the order stated in
+`20260825094455`'s own header unachievable: the first structural prerequisite would run *after* the
+loader repair that assumes it. This needs resolving on #1459 before that approach goes further; I
+have raised it there. The four-version window above does not have this problem.
 
 **Business effect of applying nothing yet:** Paramount stays un-capturable. That is already true and
 does not get worse. There is no data loss and no corrupted row; the 2026-08-13 capture is intact and
@@ -152,6 +170,15 @@ relationships exist" while 4,158 of them sit next to it. Nothing in the codebase
 feeds (zero references in `types/`, `apps/`, `tools/`), so no screen or report is affected. Second,
 the sixteen old loader functions remain callable and the capture guard still accepts the retired
 target names, so a stale script could land a fresh Warner scrape into tables nothing reads.
+
+**Independently reviewed and confirmed.** Muse Spark 1.2 (session `wb-legacy-cleanup-safety`)
+re-ran the consumer search, the preflight analysis and the eleven-day conflict check and reached the
+same conclusion: apply as-is. It corrected one detail of mine — `types/database.types.ts:28883` does
+contain a `wb_property_character` entry, but it is the *generated definition of the legacy table*,
+not a query against the dropped view. It disappears when types are regenerated after the apply, so
+**regenerating `types/` is a required follow-up step in the same window.** It also confirmed the
+preflight cannot pass while real data exists, and that both later Warner migrations
+(`20260816045120`, `20260823175638`) read only the normalized tables.
 
 **Recommendation: apply as-is**, after a preview rehearsal, in the next available window. Do not
 edit the merged file — `tools/sync-warner-starlabs.test.mjs` asserts its contents. If you later want
@@ -192,15 +219,31 @@ this problem. Mentioned only so the drift list reads cleanly.
 
 ## What I recommend, in order
 
-1. **Decide the Paramount retirement** ([section 1](#paramount)). Three retirement rows, so the
-   originals can never be promoted by accident, and the supersession chain in #1459 becomes the only
-   route. This is the finding that most needs your word.
+1. **Authorize the four-version Paramount window** ([section 1](#paramount)):
+   `20260814193351` → `20260814213043` → `20260814223552` → `20260825094455`, in that exact order,
+   after a preview rehearsal of the full set. This is what restores Paramount capture. Promoting
+   fewer than four is the unsafe path.
 2. **Schedule a window for the Warner cleanup** ([section 2](#warner)) — preview rehearsal, then
    production. It is safe today, self-protecting, and eleven days overdue.
-3. **Let #1459 finish stages 2 and 3** before any Paramount production window. Promoting a partial
-   set is what caused this.
+3. **Resolve the `20260825102727` ordering contradiction on #1459** before PR #1491 merges. A
+   replacement that sorts above the forward repair cannot satisfy the required order.
 4. **Keep issue #949 open** until Warner and Paramount are resolved. The alarm now clears on its own,
    which it could not do before 2026-08-23.
+
+## Independent review
+
+Both decisions were put to an independent reviewer, because the owner is not a programmer and asked
+for a second opinion before ruling.
+
+- **Paramount** — Grok 4.6, session `pmt-trio-ordering`, 139,932 tokens, **$0.0389**. It *refuted*
+  this report's original recommendation. I verified its argument against the SQL, found it correct,
+  and reversed the recommendation above rather than defending mine. Its finding of the
+  `20260825102727` ordering contradiction in PR #1491 is raised on issue #1459.
+- **Warner** — Muse Spark 1.2, session `wb-legacy-cleanup-safety`. It confirmed the recommendation
+  and added the `types/` regeneration step.
+
+An earlier broad Grok session (`unapplied-20260814-decisions`, $0.183) exhausted its turn budget
+without a verdict — the brief covered too much ground. Recorded here so the cost is accounted for.
 
 ## Limits of this report
 
