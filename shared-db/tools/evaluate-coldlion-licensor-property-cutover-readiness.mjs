@@ -3,8 +3,8 @@
 // cutover (accelerated plan Step 3).
 //
 // This is a THIN COMPOSER, not a second monitoring system. It reuses:
-//   * tools/run-coldlion-licensor-property-phase4.mjs  — the frozen 542-row approved
-//     mapping loader and its independent hash/count/distinct recomputation
+//   * the original frozen 542-row artifact plus the ten typed rows for the five exact
+//     Paramount mappings owner-approved on #539, independently fingerprinted as 552 rows
 //   * tools/phase6-preview-guards.mjs                  — preview/production target guards
 //   * public.check_taxonomy_sync_health(...)           — the exact strict health
 //     function that tools/check-coldlion-designflow-sync-health.mjs calls, invoked
@@ -37,7 +37,7 @@ import { runSql, sqlDollarQuote } from "./coldlion-sync-common.mjs";
 // Step 7A item 5: production readiness must additionally prove the RECURRING lane exists,
 // is schedule-valid, is still intentionally disabled, has its secret names wired, keeps the
 // breaker watchdog enforced, and passes the recurring promotion contract. Without these, a
-// green readiness result would only be describing the one-time 542-link package.
+// green readiness result would only be describing the one-time approved-link package.
 import {
   COLDLION_PRODUCTION_SCHEDULE_JOBS,
   assertPreviewAndProductionMapsDisjoint,
@@ -65,8 +65,8 @@ import {
   APPROVED_COUNT,
   APPROVED_DISTINCT,
   APPROVED_HASH,
-  loadApprovedMapping,
-} from "./run-coldlion-licensor-property-phase4.mjs";
+  loadWidenedApprovedMapping,
+} from "./coldlion-paramount-five-approved-mapping.mjs";
 
 export {
   APPROVED_COUNT,
@@ -178,8 +178,8 @@ export function evaluateReadiness({ authorization, mappingContract, probe, produ
     mappingContract?.count === APPROVED_COUNT &&
     mappingContract?.distinct_canonical === APPROVED_DISTINCT;
   checks.push(
-    check("approved_mapping_contract_is_the_frozen_542_set", contractOk, mappingContract ?? null,
-      `approved mapping contract is not the pinned Phase 4 set (${APPROVED_HASH}, ${APPROVED_COUNT}, ${APPROVED_DISTINCT})`),
+    check("approved_mapping_contract_is_the_frozen_552_set", contractOk, mappingContract ?? null,
+      `approved mapping contract is not the owner-approved widened set (${APPROVED_HASH}, ${APPROVED_COUNT}, ${APPROVED_DISTINCT})`),
   );
 
   // --- fail-closed: no probe at all ---
@@ -217,7 +217,7 @@ export function evaluateReadiness({ authorization, mappingContract, probe, produ
 
     checks.push(
       check(
-        "all_542_typed_source_rows_resolve_to_approved_uuids",
+        "all_552_typed_source_rows_resolve_to_approved_uuids",
         identity.pass === true && nonZero.length === 0 && countsOk,
         {
           approved_count: identity.approved_count,
@@ -456,7 +456,7 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     assertPreviewApplyTarget,
   });
 
-  const { input, expected } = loadApprovedMapping();
+  const { input, expected } = loadWidenedApprovedMapping();
   const sql = buildReadinessProbeSql(input, expected, {
     maxSuccessAge: env.PHASE6_MAX_SUCCESS_AGE ?? "36 hours",
   });

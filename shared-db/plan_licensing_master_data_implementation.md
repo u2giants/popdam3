@@ -37,7 +37,7 @@
 | 3.3 Paramount adapter | ⬜ Open | 2026-08-17 | Keep co-occurrence evidence out of direct bridges. |
 | 3.4 Warner adapter | ⬜ Open | 2026-08-17 | Run only after Step 3.0 has a complete Warner preview capture. |
 | 3.5 Consolidated preview and performance proof | ⬜ Open | 2026-08-17 | Correctness, idempotency, timing, and lock-budget evidence. |
-| 4.0 Build ColdLion-to-canonical Property mapping | ⬜ Open | 2026-08-17 | Reuse existing approved links and add reviewed create-new handling. |
+| 4.0 Build ColdLion-to-canonical Property mapping | ⬜ Open | 2026-08-25 | Still open. #1177 widens the legacy fingerprinted gate by only the five owner-approved Paramount Properties (552 typed mappings / 276 canonical UUIDs); durable `plm.source_resolution` retargeting and general reviewed create-new handling remain required. |
 | 4.1 Apply guarded ColdLion authority | ⬜ Open | 2026-08-19 | Apply Licensor names, uncovered ColdLion-only Property truth, and Active/Inactive without overriding scrape-covered Property authority. |
 | 4.2 Remove DesignFlow comparison from authority decisions | ⬜ Open | 2026-08-17 | Check `dflow.*`, Cloud SQL, APIs, `plm.import_master_data`, and `plm-sync`. |
 | 5.1 Expand DB Data Admin server-side APIs | ⬜ Open | 2026-08-17 | Depends on Phases 1–4 contracts. |

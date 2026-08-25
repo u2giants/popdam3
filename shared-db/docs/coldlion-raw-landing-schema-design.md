@@ -6,8 +6,9 @@
 > [`coldlion-open-questions.md`](coldlion-open-questions.md) before asking ColdLion anything** —
 > twelve questions are already answered there.
 
-**Status:** draft design, no migration written. Requires an orchestrator issue before any
-structural work starts.
+**Status:** historical draft. Phase 1 is live; phases 2-6 are implemented by governed
+issue #1184 / migration `20260825023430`. Dated supersession notes in this file control
+where the original draft conflicts with the later owner decisions.
 **Author session:** 2026-08-18.
 **Owner direction (Albert Hazan, 2026-08-18):** Coldlion data must arrive from the Coldlion
 API into a schema built to receive it raw. DesignFlow PLM is **not** in this path. No
@@ -35,7 +36,8 @@ Companions, both verified against live calls — read before implementing:
 >
 > **Three changes this design needs:**
 >
-> 1. **A `stage_code` column on `coldlion.prod_history_line` and `..._component`.** The stage is
+> 1. **A `stage_code` column on `coldlion.prod_history_line`, `..._component`, and
+>    `..._last_lookup`.** The stage is
 >    **not in the payload** — it is knowable only from the request that fetched the row, so the
 >    loader must stamp it. Without it, ordered and received quantities are indistinguishable.
 > 2. **`stage_code` in the natural key**, or at minimum a documented decision not to. Measured:
@@ -50,6 +52,25 @@ Companions, both verified against live calls — read before implementing:
 > "sum to `prepackQty`" assertion all still hold.
 
 ---
+
+> **Superseded for phases 2-6 (owner rulings 2026-08-18/19):** The original
+> design below remains as decision history, but feed tables do **not** keep a
+> per-row `raw` archive. Current-state tables keep `source_hash`, computed over
+> the complete fetched record before projection. Split history tables use a
+> separate hash per stored grain: the parent-line hash excludes component and
+> `last*` fields, the component hash covers the component projection, and the
+> lookup hash covers only `last*`. This is required because each fetched API
+> row is flattened line × component and a full-row parent hash would recreate
+> duplicate parent lines. Complete before/after payloads belong only
+> in `coldlion.change_log` when a current-state row actually changes. Only
+> fields marked `ingest` in `coldlion-field-decisions-20260819.csv` receive
+> columns. Line-level `merchGroupNN` fields are omitted from both history
+> feeds, while component-level `subMerchGroup*` and `ppkMerchGroup*` remain.
+> Item merch-group slots 01-14 are rows, division identity is the letter code,
+> and `item_image_content` is cancelled because ColdLion image bytes are never
+> pulled. These rulings are D1-D13 in
+> `plan_coldlion-landing-phases-2-6.md` and control wherever this historical
+> design conflicts with them.
 
 ## 1. What this layer is, and what it must never become
 
@@ -208,6 +229,13 @@ That is two grains flattened together, so each becomes two tables:
 | `coldlion.prod_history_component` | one component style in that line | + prepack_item_no |
 | `coldlion.order_history_line` | one sales order line | sales_order_no, line_no |
 | `coldlion.order_history_component` | one component style in that line | + sub_item_no |
+
+> **Superseded 2026-08-20:** `line_no` is not exposed by ColdLion. The
+> evidence-backed sales-line identity is `(salesOrderNo, itemNo, labelCode)`;
+> component identity adds `subItemNo`. Empty labels use a NULLS-NOT-DISTINCT
+> identity and an ambiguous pull with two distinct line projections for the
+> same order/item/NULL label must refuse rather than merge. See
+> `coldlion-open-questions.md` §4 and the phase plan STATUS step 4a.
 
 Non-prepack lines have an empty component key and land as a line row with a single component
 row keyed on `item_no`.

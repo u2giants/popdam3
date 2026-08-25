@@ -1988,7 +1988,7 @@ begin
       (select error_summary from plm.wildbrain_capture where id = v_new);
   end if;
 
-  select * into r from api.source_capture_inventory where table_name = 'wildbrain_era';
+  select * into r from api.source_capture_inventory_exact('wildbrain_era');
   if r.latest_complete_status <> 'complete' then
     raise exception 'I7 FAILED: wildbrain_era latest_complete_status is %, expected complete',
       r.latest_complete_status;
@@ -2004,7 +2004,7 @@ begin
       r.retained_row_count, r.latest_complete_row_count;
   end if;
 
-  select * into r from api.source_capture_inventory where table_name = 'wildbrain_capture';
+  select * into r from api.source_capture_inventory_exact('wildbrain_capture');
   if r.latest_complete_row_count <> 1 then
     raise exception 'I7 FAILED: wildbrain_capture latest_complete_row_count is %, expected 1',
       r.latest_complete_row_count;
@@ -2032,7 +2032,7 @@ begin
     raise exception 'I7 FAILED: the fixture rejection did not reject';
   end if;
 
-  select * into r from api.source_capture_inventory where table_name = 'wildbrain_era';
+  select * into r from api.source_capture_inventory_exact('wildbrain_era');
   if r.latest_complete_row_count <> 1 then
     raise exception
       'I7 FAILED: a NEWER REJECTED capture changed wildbrain_era latest_complete_row_count to % -- rejected attempts must stay retained-only',

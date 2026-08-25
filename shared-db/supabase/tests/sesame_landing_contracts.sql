@@ -1994,14 +1994,14 @@ begin
   if plm.latest_sesame_capture() is distinct from v_new then
     raise exception 'J FAILED: latest selector did not choose the newer COMPLETE capture';
   end if;
-  select * into r from api.source_capture_inventory where table_name='sesame_capture';
+  select * into r from api.source_capture_inventory_exact('sesame_capture');
   if r.latest_complete_row_count is distinct from 1::bigint
      or r.latest_complete_status <> 'complete'
      or r.count_note not like 'Latest complete Sesame capture%' then
     raise exception 'J FAILED: sesame_capture reports count/status/note %/%/%',
       r.latest_complete_row_count,r.latest_complete_status,r.count_note;
   end if;
-  select * into r from api.source_capture_inventory where table_name='sesame_asset';
+  select * into r from api.source_capture_inventory_exact('sesame_asset');
   if r.latest_complete_row_count is distinct from 2::bigint then
     raise exception 'J FAILED: sesame_asset latest-complete count is %, expected 2',
       r.latest_complete_row_count;

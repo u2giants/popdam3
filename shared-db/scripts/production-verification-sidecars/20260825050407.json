@@ -1,0 +1,1032 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260825050407",
+  "migration_sha256": "751f3380bf76cfdc9343d90c8a1997960769b49bd43bb42a7a7bb31432f8b7e2",
+  "checks": [
+    {
+      "id": "paramount_am1_owner_approved_property_exists",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "b288be08-a859-4d92-b1ef-23b4e305ed26"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "5f951f5e-aaee-4add-bb51-fea888951405"
+        },
+        {
+          "column": "code",
+          "type": "text",
+          "equals": "AM1"
+        },
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "Anchorman: The Legend of Ron Burgundy"
+        },
+        {
+          "column": "status",
+          "type": "text",
+          "equals": "active"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am1_cw001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "b288be08-a859-4d92-b1ef-23b4e305ed26"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/CW001/06/AM1"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "AM1"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am1_cw001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "CW001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "AM1"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "b288be08-a859-4d92-b1ef-23b4e305ed26"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am1_sp001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "b288be08-a859-4d92-b1ef-23b4e305ed26"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/SP001/06/AM1"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "AM1"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am1_sp001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "SP001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "AM1"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "b288be08-a859-4d92-b1ef-23b4e305ed26"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am2_owner_approved_property_exists",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "2ebcdc69-88c9-4565-813b-9ce30a2b880f"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "5f951f5e-aaee-4add-bb51-fea888951405"
+        },
+        {
+          "column": "code",
+          "type": "text",
+          "equals": "AM2"
+        },
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "Anchorman 2: The Legend Continues"
+        },
+        {
+          "column": "status",
+          "type": "text",
+          "equals": "active"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am2_cw001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "2ebcdc69-88c9-4565-813b-9ce30a2b880f"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/CW001/06/AM2"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "AM2"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am2_cw001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "CW001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "AM2"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "2ebcdc69-88c9-4565-813b-9ce30a2b880f"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am2_sp001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "2ebcdc69-88c9-4565-813b-9ce30a2b880f"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/SP001/06/AM2"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "AM2"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_am2_sp001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "SP001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "AM2"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "2ebcdc69-88c9-4565-813b-9ce30a2b880f"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_mgm_owner_approved_property_exists",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "336e0dac-2001-4a8b-be89-04b1620587ce"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "5f951f5e-aaee-4add-bb51-fea888951405"
+        },
+        {
+          "column": "code",
+          "type": "text",
+          "equals": "MGM"
+        },
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "Mighty Mouse"
+        },
+        {
+          "column": "status",
+          "type": "text",
+          "equals": "active"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_mgm_cw001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "336e0dac-2001-4a8b-be89-04b1620587ce"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/CW001/06/MGM"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "MGM"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_mgm_cw001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "CW001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "MGM"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "336e0dac-2001-4a8b-be89-04b1620587ce"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_mgm_sp001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "336e0dac-2001-4a8b-be89-04b1620587ce"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/SP001/06/MGM"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "MGM"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_mgm_sp001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "SP001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "MGM"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "336e0dac-2001-4a8b-be89-04b1620587ce"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_wnd_owner_approved_property_exists",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "85fa1834-6094-41d0-94c1-24dddf9c8d8b"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "5f951f5e-aaee-4add-bb51-fea888951405"
+        },
+        {
+          "column": "code",
+          "type": "text",
+          "equals": "WND"
+        },
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "It's a Wonderful Life (B/W)"
+        },
+        {
+          "column": "status",
+          "type": "text",
+          "equals": "active"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_wnd_cw001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "85fa1834-6094-41d0-94c1-24dddf9c8d8b"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/CW001/06/WND"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "WND"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_wnd_cw001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "CW001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "WND"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "85fa1834-6094-41d0-94c1-24dddf9c8d8b"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_wnd_sp001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "85fa1834-6094-41d0-94c1-24dddf9c8d8b"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/SP001/06/WND"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "WND"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_wnd_sp001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "SP001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "WND"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "85fa1834-6094-41d0-94c1-24dddf9c8d8b"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_ep_owner_approved_property_exists",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "c1e2ba88-b5c3-4ed2-9ed3-7d4f75ec8230"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "5f951f5e-aaee-4add-bb51-fea888951405"
+        },
+        {
+          "column": "code",
+          "type": "text",
+          "equals": "EP"
+        },
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "Emily in Paris"
+        },
+        {
+          "column": "status",
+          "type": "text",
+          "equals": "active"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_ep_cw001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "c1e2ba88-b5c3-4ed2-9ed3-7d4f75ec8230"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/CW001/06/EP"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "EP"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_ep_cw001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "CW001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "EP"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "c1e2ba88-b5c3-4ed2-9ed3-7d4f75ec8230"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_ep_sp001_source_ref_exists",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "c1e2ba88-b5c3-4ed2-9ed3-7d4f75ec8230"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coldlion"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "merchGroupDetails"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "EDGEHOME/SP001/06/EP"
+        },
+        {
+          "column": "source_code",
+          "type": "text",
+          "equals": "EP"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "paramount_ep_sp001_mirror_is_manually_matched",
+      "kind": "exact_row_count",
+      "relation": "plm.erp_property",
+      "filters": [
+        {
+          "column": "company_code",
+          "type": "text",
+          "equals": "EDGEHOME"
+        },
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "SP001"
+        },
+        {
+          "column": "mg_type_code",
+          "type": "text",
+          "equals": "06"
+        },
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "EP"
+        },
+        {
+          "column": "property_id",
+          "type": "uuid",
+          "equals": "c1e2ba88-b5c3-4ed2-9ed3-7d4f75ec8230"
+        },
+        {
+          "column": "resolution_status",
+          "type": "text",
+          "equals": "manually_matched"
+        },
+        {
+          "column": "resolved_by",
+          "type": "text",
+          "equals": "Albert Hazan"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}

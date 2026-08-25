@@ -98,6 +98,14 @@ The workflow was written, tested and rehearsed; it is simply not merged. See §7
 
 ## 3. The 542-mapping gate, explained
 
+> **Approved widening, 2026-08-25 (#1177).** The original 542-row decision remains the
+> historical base described below. Albert later approved five exact ColdLion Property codes
+> under Paramount on #539. The current fingerprinted gate is therefore **552 typed mappings**
+> pointing to **276 distinct canonical UUIDs**: the original 542/271 plus ten CW001/SP001 rows
+> for five new Properties. Current artifact:
+> `docs/verification/coldlion-licensor-property-paramount-five-20260825/approved-mapping.json`,
+> md5 `09e18e47d67181b06483d6cf4454e053`. No other exclusion was admitted.
+
 ### In plain English
 
 Somebody had to decide, one row at a time, "this ColdLion licensor really is the same company as
@@ -119,6 +127,9 @@ licenses ColdLion still returns because it has no expiry flag. Adding them autom
 resurrect dead licenses across every app.
 
 ### The specifics **[DOC]**
+
+The bullets below record the original Phase 4 package. The current widened fingerprint is in the
+supersession note above; do not run readiness against the historical 542-row artifact.
 
 - **The artifact:** `docs/verification/coldlion-licensor-property-phase4-20260725/approved-mapping.json`,
   md5 `1230f5a12d0f2a3029f1d3df17fc5b5f`.
@@ -237,7 +248,7 @@ tested implementation. Steps 4 onward are new work that nothing in this repo has
 |---|---|---|---|
 | **1** | **Merge PR 331.** CI is green and it is mergeable **[VERIFIED]**. It contains the production workflow, the guarded recurring promotion, the schedule map, the two-cycle rehearsal harness, four migrations and their tests. | That the recurring feed exists in `main` and the preview database stops being ahead of the code. **This unblocks every other schema change in the company.** | AI merges it per `AGENTS.md` §2 — but see §6 blocker B1, because the owner has not been asked. |
 | **2** | **Step 8 — production approval request.** One request naming the exact project ref, the exact migration versions, the exact modes, the four cron strings, the `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` variable, and creation of the `SUPABASE_DB_PASSWORD_PRODUCTION` secret. | That the owner has authorized a *recurring* feed, not a one-time link. A general "go ahead" does not count **[DOC]**. | **Albert Hazan, explicitly, in chat.** |
-| **3** | **Step 9 + 10 — execute and watch.** Bounded migration apply, read-only 542-row identity proof *before* any write, one mirror-only snapshot, approved promotion, then hourly health plus deliberate +1h / +4h / +24h checks. | That production licensor/property is fed by ColdLion and nothing broke. | Albert (step 2 covers it); AI executes in a fresh session. |
+| **3** | **Step 9 + 10 — execute and watch.** Bounded migration apply, read-only 552-row identity proof *before* any write, one mirror-only snapshot, approved promotion, then hourly health plus deliberate +1h / +4h / +24h checks. | That production licensor/property is fed by ColdLion and nothing broke. | Albert (step 2 covers it); AI executes in a fresh session. |
 | **4** | **Give customers and vendors a real schedule.** Both are cut over in principle but run only when a human runs them (§2). Vendors already has a hardened runner (`tools/sync-coldlion-vendors.mjs`) with a short-pull guard, exclusion and quarantine tables. Customers has **no runner at all** (§7, C3). Add both to a recurring lane once step 1 has freed the schema slot. | That "cut over to ColdLion" means the data actually stays current, not that it was correct once in July. | Albert, for the production schedule + secrets. |
 | **5** | **Decide whether any other merch-group type is wanted.** §4. Do not build first. | That we are not maintaining seven dictionaries nobody reads. | Albert — a business question. |
 | **6** | **Resolve the 33 + 3 unmatched codes.** §3. | That the gap between ColdLion and `core` is a decision, not drift. | Albert, per code or per rule. |

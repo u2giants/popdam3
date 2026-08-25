@@ -1448,13 +1448,13 @@ begin
       'asset_relationships',0,'style_guide_characters',0,'style_guide_art_programs',0),
     '[]'::jsonb);
 
-  select * into r from api.source_capture_inventory where table_name = 'peanuts_capture';
+  select * into r from api.source_capture_inventory_exact('peanuts_capture');
   if r.latest_complete_row_count <> 1 or r.count_basis <> 'latest_complete' then
     raise exception 'G FAILED: peanuts_capture reports % / %',
       r.latest_complete_row_count, r.count_basis;
   end if;
 
-  select * into r from api.source_capture_inventory where table_name = 'peanuts_asset';
+  select * into r from api.source_capture_inventory_exact('peanuts_asset');
   if r.latest_complete_row_count <> 2 then
     raise exception 'G FAILED: peanuts_asset latest-complete count is %, expected 2',
       r.latest_complete_row_count;
@@ -1468,14 +1468,14 @@ begin
 
   -- A peanuts table this fixture never wrote reports ZERO for the current capture, not
   -- NULL: NULL means "cannot be derived", and for a capture-scoped table it can be.
-  select * into r from api.source_capture_inventory where table_name = 'peanuts_asset_keyword';
+  select * into r from api.source_capture_inventory_exact('peanuts_asset_keyword');
   if r.latest_complete_row_count is distinct from 0::bigint then
     raise exception 'G FAILED: peanuts_asset_keyword latest-complete count is %, expected 0',
       r.latest_complete_row_count;
   end if;
 
   -- Retained counts still include the rejected attempts from section F.
-  select * into r from api.source_capture_inventory where table_name = 'peanuts_capture';
+  select * into r from api.source_capture_inventory_exact('peanuts_capture');
   if r.retained_row_count <= 1 then
     raise exception 'G FAILED: retained count is %, expected the rejected attempts too',
       r.retained_row_count;
