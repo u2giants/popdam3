@@ -380,9 +380,70 @@ BEHAVIOR_SIDECAR_DIR = Path("scripts/production-verification-sidecars")
 BEHAVIOR_SIDECAR_KEYS = {
     "schema_version", "migration_version", "migration_sha256", "checks"
 }
-BEHAVIOR_CHECK_KEYS = {"id", "kind", "relation", "filters", "expected_count"}
+BEHAVIOR_ROW_COUNT_KEYS = {"id", "kind", "relation", "filters", "expected_count"}
+BEHAVIOR_CATALOG_CONTRACT_KEYS = {"id", "kind", "contract", "expected_count"}
 BEHAVIOR_FILTER_KEYS = {"column", "type", "equals"}
 BEHAVIOR_TYPES = {"uuid", "text", "integer", "boolean"}
+CATALOG_CONTRACTS = {
+    "popdam_1427_relations_columns_v1": """
+      to_regclass('public.style_group_tags') is not null
+      and to_regclass('public.dam_search_documents') is not null
+      and (select count(*) = 4 from information_schema.columns
+        where table_schema='public' and table_name='asset_tags'
+          and column_name in ('category','status','evidence','updated_at')
+          and is_nullable='NO')
+      and (select count(*) = 5 from information_schema.columns
+        where table_schema='public' and table_name='style_groups'
+          and column_name in ('group_ai_description','group_ai_description_source',
+            'group_ai_description_model','group_ai_tagged_at','group_ai_evidence_asset_ids'))
+      and (select count(*) = 7 from information_schema.columns
+        where table_schema='public' and table_name='dam_search_documents'
+          and column_name in ('embedding_lease_token','embedding_lease_owner','embedding_lease_expires_at',
+            'embedding_attempts','embedding_max_attempts','embedding_error_category','embedding_next_retry_at'))
+      and (select count(*) = 6 from pg_constraint where conrelid=to_regclass('public.asset_tags')
+        and convalidated and conname in ('asset_tags_tag_normalized_check','asset_tags_source_normalized_check',
+          'asset_tags_category_check','asset_tags_status_check','asset_tags_confidence_check','asset_tags_rejection_check'))
+    """,
+    "popdam_1427_indexes_v1": """
+      to_regclass('public.style_group_tags_active_group_idx') is not null
+      and to_regclass('public.asset_tags_active_asset_idx') is not null
+      and to_regclass('public.dam_search_embedding_claim_idx') is not null
+      and to_regclass('public.asset_tags_forward_asset_id_idx') is not null
+      and to_regclass('public.asset_tags_pending_metadata_normalization_idx') is not null
+    """,
+    "popdam_1427_functions_triggers_v1": """
+      to_regprocedure('public.get_effective_asset_metadata(uuid)') is not null
+      and to_regprocedure('public.replace_style_group_ai_profile(uuid,text,text,text,jsonb,uuid[])') is not null
+      and to_regprocedure('public.replace_asset_ai_tag_result(uuid,text,text,jsonb)') is not null
+      and to_regprocedure('public.refresh_dam_search_documents_batch(uuid[],uuid[],integer)') is not null
+      and to_regprocedure('public.claim_dam_search_embedding_documents(integer,text,integer)') is not null
+      and to_regprocedure('public.upsert_dam_search_embedding(text,uuid,text,uuid,extensions.vector,text)') is not null
+      and to_regprocedure('public.mark_dam_search_embedding_error(text,uuid,text,uuid,text,text)') is not null
+      and to_regprocedure('public.get_dam_search_embedding_status()') is not null
+      and to_regprocedure('public.reset_dam_search_embedding_errors(text,uuid[])') is not null
+      and (select count(*) = 4 from pg_trigger where not tgisinternal and tgenabled <> 'D' and (
+        (tgrelid=to_regclass('public.asset_tags') and tgname in ('asset_tags_sync_assets_tags','asset_tags_dam_search_refresh'))
+        or (tgrelid=to_regclass('public.style_group_tags') and tgname='style_group_tags_dam_search_refresh')
+        or (tgrelid=to_regclass('public.asset_characters') and tgname='asset_characters_dam_search_refresh')))
+    """,
+    "popdam_1427_security_v1": """
+      (select relrowsecurity from pg_class where oid=to_regclass('public.style_group_tags'))
+      and (select count(*) = 2 from pg_policy where polrelid=to_regclass('public.style_group_tags')
+        and polname in ('Authenticated read style_group_tags','Admin manage style_group_tags'))
+      and has_table_privilege('authenticated',to_regclass('public.style_group_tags'),'SELECT')
+      and has_table_privilege('service_role',to_regclass('public.style_group_tags'),'SELECT')
+      and has_function_privilege('service_role',to_regprocedure('public.replace_style_group_ai_profile(uuid,text,text,text,jsonb,uuid[])'),'EXECUTE')
+      and has_function_privilege('service_role',to_regprocedure('public.claim_dam_search_embedding_documents(integer,text,integer)'),'EXECUTE')
+      and not has_function_privilege('authenticated',to_regprocedure('public.replace_style_group_ai_profile(uuid,text,text,text,jsonb,uuid[])'),'EXECUTE')
+      and not has_function_privilege('authenticated',to_regprocedure('public.claim_dam_search_embedding_documents(integer,text,integer)'),'EXECUTE')
+    """,
+    "popdam_1427_active_marker_v1": """
+      (select col_description(a.attrelid,a.attnum)
+        from pg_attribute a where a.attrelid=to_regclass('public.asset_tags')
+          and a.attname='category' and not a.attisdropped)
+      = 'File-specific PopDAM tag category; final #1427 contract active.'
+    """,
+}
 
 # DYNAMIC ACL EXTRACTION (issue #822 / production run 31558201593).
 #
@@ -640,7 +701,8 @@ def load_behavior_sidecars(
 ) -> list[dict]:
     """Load exact-hash-bound, typed post-apply checks for allowlisted files.
 
-    A sidecar is data, never SQL. Unknown fields and types fail closed. Its
+    A sidecar is data, never SQL. It may select only a fixed verifier-owned
+    catalog contract or typed row-count filters. Unknown fields and types fail closed. Its
     migration hash makes a reviewed assertion invalid as soon as the migration
     text changes, instead of silently applying an old claim to new behavior.
     """
@@ -680,7 +742,19 @@ def load_behavior_sidecars(
             raise GuardError(f"{path}: checks must be a non-empty array")
         checked: list[dict] = []
         for index, value in enumerate(checks):
-            check = _strict_keys(value, BEHAVIOR_CHECK_KEYS, f"{path} check {index}")
+            if not isinstance(value, dict):
+                raise GuardError(f"{path} check {index} must be an object")
+            kind = value.get("kind")
+            allowed_keys = (
+                BEHAVIOR_ROW_COUNT_KEYS
+                if kind == "exact_row_count"
+                else BEHAVIOR_CATALOG_CONTRACT_KEYS
+                if kind == "catalog_contract"
+                else None
+            )
+            if allowed_keys is None:
+                raise GuardError(f"{path}: unsupported check kind {kind!r}")
+            check = _strict_keys(value, allowed_keys, f"{path} check {index}")
             check_id = check["id"]
             if not isinstance(check_id, str) or not re.fullmatch(
                 r"[a-z][a-z0-9_]{2,63}", check_id
@@ -689,13 +763,6 @@ def load_behavior_sidecars(
             if check_id in seen_ids:
                 raise GuardError(f"duplicate behavioral check id: {check_id}")
             seen_ids.add(check_id)
-            if check["kind"] != "exact_row_count":
-                raise GuardError(f"{path}: unsupported check kind {check['kind']!r}")
-            relation = check["relation"]
-            if not isinstance(relation, str) or not re.fullmatch(
-                r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*", relation
-            ):
-                raise GuardError(f"{path}: invalid relation {relation!r}")
             expected_count = check["expected_count"]
             if (
                 isinstance(expected_count, bool)
@@ -703,6 +770,23 @@ def load_behavior_sidecars(
                 or expected_count < 0
             ):
                 raise GuardError(f"{path}: expected_count must be a non-negative integer")
+            if kind == "catalog_contract":
+                contract = check["contract"]
+                if contract not in CATALOG_CONTRACTS:
+                    raise GuardError(f"{path}: unsupported catalog contract {contract!r}")
+                if expected_count != 1:
+                    raise GuardError(f"{path}: catalog contract expected_count must be 1")
+                parsed = dict(check)
+                parsed["relation"] = f"catalog:{contract}"
+                parsed["migration_version"] = version
+                parsed["migration_sha256"] = actual_hash
+                checked.append(parsed)
+                continue
+            relation = check["relation"]
+            if not isinstance(relation, str) or not re.fullmatch(
+                r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*", relation
+            ):
+                raise GuardError(f"{path}: invalid relation {relation!r}")
             filters = check["filters"]
             if not isinstance(filters, list) or not filters:
                 raise GuardError(f"{path}: filters must be a non-empty array")
@@ -765,6 +849,19 @@ def build_behavior_sql(checks: list[dict]) -> str:
         raise GuardError("cannot build behavioral SQL without checks")
     rows: list[str] = []
     for check in checks:
+        check_id = check["id"].replace("'", "''")
+        expected = check["expected_count"]
+        if check["kind"] == "catalog_contract":
+            contract = check["contract"]
+            expression = CATALOG_CONTRACTS.get(contract)
+            if expression is None:
+                raise GuardError(f"refusing unknown catalog contract: {contract!r}")
+            rows.append(
+                "select '" + check_id + "'::text as id, "
+                + "case when (" + expression + ") then 1 else 0 end::bigint as actual_count, "
+                + str(expected) + "::bigint as expected_count"
+            )
+            continue
         relation = check["relation"]
         if not re.fullmatch(r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*", relation):
             raise GuardError(f"refusing unsafe behavioral relation: {relation!r}")
@@ -776,8 +873,6 @@ def build_behavior_sql(checks: list[dict]) -> str:
             predicates.append(
                 f'{column} = {_typed_sql_literal(filt["equals"], filt["type"])}'
             )
-        check_id = check["id"].replace("'", "''")
-        expected = check["expected_count"]
         rows.append(
             "select '" + check_id + "'::text as id, count(*)::bigint as actual_count, "
             + str(expected) + "::bigint as expected_count from " + relation
@@ -1287,19 +1382,31 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                 notes.extend(adp_notes)
                 continue
             if match := CREATE_TABLE_RE.match(statement):
-                tables.add(f"{match.group(1)}.{match.group(2)}")
+                name = f"{match.group(1)}.{match.group(2)}"
+                if match.group(1) == "pg_temp":
+                    notes.append(f"{version}: excluded session-temporary table `{name}` from durable catalog verification")
+                else:
+                    tables.add(name)
                 continue
             if match := CREATE_VIEW_RE.match(statement):
                 views.add(f"{match.group(1)}.{match.group(2)}")
                 continue
             if match := CREATE_ROUTINE_RE.match(statement):
-                functions.add(f"{match.group(1)}.{match.group(2)}")
+                name = f"{match.group(1)}.{match.group(2)}"
+                if match.group(1) == "pg_temp":
+                    notes.append(f"{version}: excluded session-temporary routine `{name}` from durable catalog verification")
+                else:
+                    functions.add(name)
                 continue
             if match := CREATE_POLICY_RE.match(statement):
                 rls.add(f"{match.group(1)}.{match.group(2)}")
                 continue
             if match := INSERT_INTO_RE.match(statement):
-                seeded.add(f"{match.group(1)}.{match.group(2)}")
+                name = f"{match.group(1)}.{match.group(2)}"
+                if match.group(1) == "pg_temp":
+                    notes.append(f"{version}: excluded session-temporary seed target `{name}` from durable catalog verification")
+                else:
+                    seeded.add(name)
                 continue
             if match := CREATE_INDEX_RE.match(statement):
                 index_name = f"{match.group(4)}.{match.group(3)}"
@@ -2071,7 +2178,8 @@ def render_report(
     add(
         "These checks come from strict JSON sidecars bound to the SHA-256 of "
         "the migration file. The sidecars contain no SQL; this verifier builds "
-        "one read-only SELECT from typed equality filters."
+        "one read-only SELECT from typed equality filters or fixed, named "
+        "catalog contracts owned by the verifier."
     )
     add("")
     add("| check | migration | relation | expected rows | actual rows | verdict |")
@@ -2495,11 +2603,20 @@ def verify(
         except (urllib.error.URLError, GuardError, ValueError, OSError) as exc:
             errors.append(f"behavioral query failed: {exc}")
 
-    if targets.is_empty() and behavior_checks:
+    has_catalog_contract = any(
+        check.get("kind") == "catalog_contract" for check in behavior_checks
+    )
+    if targets.is_empty() and behavior_checks and not has_catalog_contract:
         errors.append(
             "the allowlisted migrations named no catalog object, but supplied "
             f"{len(behavior_checks)} hash-bound behavioral assertion(s)."
         )
+    elif targets.is_empty() and has_catalog_contract:
+        # The strict named contract is the durable verification surface. This
+        # is expected for migrations whose permanent DDL is passed as typed
+        # text to a guarded helper and whose only directly parsed objects are
+        # session-temporary.
+        pass
     elif targets.is_empty() and declaration is not None and declaration["accepted"]:
         # ISSUE #790 POINT 3. Not silence: the reason travels into the artifact,
         # the job log and the JSON payload, and it was CHECKED before it counted.

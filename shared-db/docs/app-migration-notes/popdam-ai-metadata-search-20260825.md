@@ -25,6 +25,19 @@ truthful final-active marker. A pending marker therefore requests hardening only
 when the catalog probe is false. Production after prerequisite A fails that
 probe and still executes the complete separately timed hardening sequence.
 
+Production run `32827618163` applied recovery B successfully and recorded
+version `20260825082910` in the ledger. Its first generic post-apply catalog
+report was false-negative because the migration's cursor and conditional DDL
+helpers are intentionally `pg_temp` session objects and cannot persist after
+the applying connection closes. The strict hash-bound sidecar
+`scripts/production-verification-sidecars/20260825082910.json` is the durable
+verification contract: it checks the final relations, columns and validated
+constraints, permanent and deliberate-held indexes, callable functions,
+enabled triggers, RLS, grants, and final-active category marker. The verifier
+excludes `pg_temp` tables, routines, and seed targets from durable catalog
+expectations. This follow-up verifies the successful apply; it does not reapply
+or mutate either database.
+
 This is deliberately not the final #1427 contract. It is the short first half
 of a governed two-transaction recovery. It adds the nullable `asset_tags`
 columns and the three indexes needed by the later bounded reconciliation, then

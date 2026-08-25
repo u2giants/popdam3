@@ -1362,6 +1362,61 @@ class BehavioralSidecarTests(unittest.TestCase):
         with temp, self.assertRaisesRegex(GuardError, "unsupported check kind"):
             self.load(root, migration)
 
+    def test_catalog_contract_is_named_hash_bound_and_select_only(self):
+        def change(sidecar):
+            sidecar["checks"] = [{
+                "id": "popdam_final_marker",
+                "kind": "catalog_contract",
+                "contract": "popdam_1427_active_marker_v1",
+                "expected_count": 1,
+            }]
+        temp, root, migration = self.fixture(change)
+        with temp:
+            checks = self.load(root, migration)
+            sql = build_behavior_sql(checks)
+        self.assertIn("col_description", sql)
+        self.assertIn("final #1427 contract active", sql)
+        self.assertNotIn("pg_temp.popdam_1479", sql)
+        self.assertTrue(sql.lower().startswith("select "))
+
+    def test_unknown_catalog_contract_and_extra_sql_fail_closed(self):
+        def unknown(sidecar):
+            sidecar["checks"] = [{
+                "id": "unknown_contract",
+                "kind": "catalog_contract",
+                "contract": "invented_contract",
+                "expected_count": 1,
+            }]
+        temp, root, migration = self.fixture(unknown)
+        with temp, self.assertRaisesRegex(GuardError, "unsupported catalog contract"):
+            self.load(root, migration)
+
+        def injected(sidecar):
+            sidecar["checks"] = [{
+                "id": "injected_contract",
+                "kind": "catalog_contract",
+                "contract": "popdam_1427_active_marker_v1",
+                "expected_count": 1,
+                "sql": "select true",
+            }]
+        temp, root, migration = self.fixture(injected)
+        with temp, self.assertRaisesRegex(GuardError, "unknown=.*sql"):
+            self.load(root, migration)
+
+    def test_pg_temp_objects_are_not_durable_catalog_targets(self):
+        sql = (
+            "create table pg_temp.popdam_cursor(id uuid);\n"
+            "create function pg_temp.popdam_helper() returns void language sql as $$ select $$;\n"
+            "create table public.durable_popdam(id uuid);\n"
+        )
+        temp, root, migration = self.fixture(sql=sql)
+        with temp:
+            targets = derive_targets({self.VERSION: migration}, [self.VERSION])
+        self.assertNotIn("pg_temp.popdam_cursor", targets.tables)
+        self.assertNotIn("pg_temp.popdam_helper", targets.functions)
+        self.assertIn("public.durable_popdam", targets.tables)
+        self.assertTrue(any("session-temporary" in note for note in targets.notes))
+
     def test_unsafe_relation_and_column_identifiers_fail_closed(self):
         def relation(sidecar):
             sidecar["checks"][0]["relation"] = "core.property; drop table x"
@@ -1435,6 +1490,19 @@ class BehavioralSidecarTests(unittest.TestCase):
         self.assertFalse(full.is_empty())
         self.assertIn("api.opa_property_reconciliation", full.views)
         self.assertIn("plm.sync_opa_property_character", full.functions)
+
+    def test_real_popdam_sidecar_is_hash_bound_and_excludes_temp_helpers(self):
+        version = "20260825082910"
+        migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))
+        checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+        targets = derive_targets({version: migration}, [version])
+        sql = build_behavior_sql(checks)
+        self.assertEqual(len(checks), 5)
+        self.assertTrue(all(check["kind"] == "catalog_contract" for check in checks))
+        self.assertNotIn("pg_temp.popdam_1479_cursor", targets.tables)
+        self.assertFalse(any(name.startswith("pg_temp.") for name in targets.functions))
+        self.assertTrue(targets.is_empty())
+        self.assertIn("final #1427 contract active", sql)
 
 
 class NetAclTests(unittest.TestCase):

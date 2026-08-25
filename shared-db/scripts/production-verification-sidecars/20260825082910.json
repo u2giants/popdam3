@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260825082910",
+  "migration_sha256": "2d218f67617d07ff75ec67e452aa9d2da3d32d17757abdafd2d6e6c264f32137",
+  "checks": [
+    {
+      "id": "popdam_1427_relations_columns",
+      "kind": "catalog_contract",
+      "contract": "popdam_1427_relations_columns_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "popdam_1427_indexes",
+      "kind": "catalog_contract",
+      "contract": "popdam_1427_indexes_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "popdam_1427_functions_triggers",
+      "kind": "catalog_contract",
+      "contract": "popdam_1427_functions_triggers_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "popdam_1427_security",
+      "kind": "catalog_contract",
+      "contract": "popdam_1427_security_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "popdam_1427_active_marker",
+      "kind": "catalog_contract",
+      "contract": "popdam_1427_active_marker_v1",
+      "expected_count": 1
+    }
+  ]
+}
