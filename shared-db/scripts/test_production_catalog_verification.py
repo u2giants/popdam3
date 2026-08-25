@@ -1504,6 +1504,33 @@ class BehavioralSidecarTests(unittest.TestCase):
         self.assertTrue(targets.is_empty())
         self.assertIn("final #1427 contract active", sql)
 
+    def test_real_1177_sidecar_binds_current_migration_and_covers_full_outcome(self):
+        version = "20260825050407"
+        migration = REPO / "supabase" / "migrations" / (
+            f"{version}_coldlion_paramount_five_approved_gate.sql"
+        )
+        checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+
+        self.assertEqual(len(checks), 25)
+        self.assertEqual(
+            {check["relation"] for check in checks},
+            {"core.property", "core.taxonomy_source_ref", "plm.erp_property"},
+        )
+        self.assertEqual(
+            sum(check["relation"] == "core.property" for check in checks), 5
+        )
+        self.assertEqual(
+            sum(check["relation"] == "core.taxonomy_source_ref" for check in checks), 10
+        )
+        self.assertEqual(
+            sum(check["relation"] == "plm.erp_property" for check in checks), 10
+        )
+        self.assertTrue(all(
+            check["migration_sha256"]
+            == "1c128b018f1dce969116292e5a7db2e9ccfbc140e6bd2bb873c98f48cac294ef"
+            for check in checks
+        ))
+
 
 class NetAclTests(unittest.TestCase):
     """GRANT ALL followed by a later partial REVOKE: the net ACL must be modeled.
