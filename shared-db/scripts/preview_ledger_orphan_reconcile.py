@@ -32,6 +32,16 @@ SUPPORTED_CASES = {
         "mode": "rehearsal_reset",
         "original_run_head": "88ebd0272a163d32aefe748d59c7096c8fe54d0e",
     },
+    (1422, 1423, 1424): {
+        "mode": "replacement_pending",
+        "orphan_version": "20260824150630",
+        "replacement_version": "20260824172136",
+        "orphan_run_head": "12f104735379881e6ff90a00b090a65ab9e8d370",
+        "preview_run_id": 32746510664,
+        "preview_artifact_id": 9527303479,
+        "preview_artifact_digest": "sha256:a2b4cf00749dc7ee7d8db10290650612c63fd5d15ed5e9c3ae6f60d7b58c3be2",
+        "merged_source": True,
+    },
     (1439, 1488, 1495): {
         "mode": "replacement_pending",
         "orphan_version": "20260825102716",
@@ -73,6 +83,16 @@ def load_replacement(directory: Path, replacement: str) -> tuple[Path, list[str]
     return matches[0], statements
 
 
+def validate_pinned_evidence(case: dict, args) -> None:
+    for case_key, arg_name in (
+        ("preview_run_id", "preview_run_id"),
+        ("preview_artifact_id", "preview_artifact_id"),
+        ("preview_artifact_digest", "preview_artifact_digest"),
+    ):
+        if case_key in case and case[case_key] != getattr(args, arg_name):
+            raise Refusal("preview run or artifact is not the pinned supported-case evidence")
+
+
 def validate_governance(args, orphan_statements: list[str], replacement_statements: list[str]) -> dict:
     repo = args.repo.resolve()
     if git(repo, "rev-parse", "HEAD") != args.main_sha or git(repo, "rev-parse", "origin/main") != args.main_sha:
@@ -88,16 +108,17 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
     if case.get("orphan_version", args.orphan_version) != args.orphan_version or case.get("replacement_version", args.replacement_version) != args.replacement_version:
         raise Refusal("migration versions do not match the explicitly supported reconciliation case")
     issue, claim, pr, pr_files, run, artifact = (read_json(p) for p in (args.issue_json, args.claim_json, args.pr_json, args.pr_files_json, args.run_json, args.artifact_json))
-    if issue.get("number") != args.issue or issue.get("state") != "open":
-        raise Refusal("work issue is not the exact open issue")
-    expected_claim_state = "closed" if case["mode"] == "rehearsal_reset" else "open"
+    expected_issue_state = "closed" if case.get("merged_source") else "open"
+    if issue.get("number") != args.issue or issue.get("state") != expected_issue_state:
+        raise Refusal("work issue is not the exact supported-case issue")
+    expected_claim_state = "closed" if case["mode"] == "rehearsal_reset" or case.get("merged_source") else "open"
     if claim.get("number") != args.claim or claim.get("state") != expected_claim_state or f"#{args.issue}" not in claim.get("title", ""):
         raise Refusal("claim is not the exact open issue claim")
     if not re.search(rf"^version: {re.escape(args.replacement_version)}$", claim.get("body", ""), re.M):
         raise Refusal("claim does not bind the replacement version")
     if pr.get("number") != args.source_pr:
         raise Refusal("source pull request is not the exact pull request")
-    if case["mode"] in {"replacement_already_applied", "rehearsal_reset"}:
+    if case["mode"] in {"replacement_already_applied", "rehearsal_reset"} or case.get("merged_source"):
         if not pr.get("merged") or not pr.get("merge_commit_sha"):
             raise Refusal("source pull request is not the exact merged PR")
         git(repo, "merge-base", "--is-ancestor", pr["merge_commit_sha"], args.main_sha)
@@ -110,6 +131,7 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
         raise Refusal("source PR still exposes the orphan version")
     if run.get("id") != args.preview_run_id or run.get("status") != "completed" or run.get("conclusion") != "success":
         raise Refusal("preview run is not the exact successful run")
+    validate_pinned_evidence(case, args)
     if run.get("event") != "workflow_dispatch" or not str(run.get("path", "")).startswith(".github/workflows/shared-supabase-migrations.yml"):
         raise Refusal("preview run is not the governed shared migration workflow")
     if artifact.get("id") != args.preview_artifact_id or artifact.get("workflow_run", {}).get("id") != args.preview_run_id or artifact.get("digest") != args.preview_artifact_digest or artifact.get("expired"):

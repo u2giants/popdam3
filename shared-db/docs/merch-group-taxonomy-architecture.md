@@ -195,9 +195,10 @@ and only five models exist in the whole spec (`ItemDetail`, `ItemHeader`, `ItemI
 > | "`mgCategory` … is **empty on every row**" | **Wrong as written** | Empty on 100% of licensor (`05`) and property (`06`) rows. **Populated on the product-axis rows** `01`/`02`/`03` with values like `Wall` (648), `Tabletop` (190), `Workspace` (177), `Storage` (139), `Floor` (60), `Garden` (44), `Clock` (39). §4.2 of this same document already said so and was ignored. | [`docs/verification/master-data-designflow-reference-cutover-20260807/baseline.json`](verification/master-data-designflow-reference-cutover-20260807/baseline.json); §4.2 line "MG Category (mgCategory — allowlisted per division by substring match)" |
 > | "`mgCode2` and `itemNoCode` are near-duplicates of `mgCode`" | **Wrong as a general rule** | True for licensors, not generally. `mgCode2` carries independent values (`00`, `02`, `04`, `83`) on other types. | same `baseline.json` |
 > | "There is no parent-child link. **At all.**" | **Overstated** | No field *reproduces* parentage, but the residual signal is not zero: of 503 real DesignFlow edges, **14 have `mgCode2` = the parent's `mg_code`, 20 share `ItemNoCode`, 27 share a `mg_code` prefix**. No rule reproduces the data — which is a *measured* finding, not an absence. | `docs/dflow-parent-logic-and-curation-home-20260803.md:105` |
-> | "There is no active/inactive flag." (unqualified) | **Wrong outside merch groups** | True of the **merch-group payload**. ColdLion `/customers` and `/vendors` *do* carry an `active` flag — the customer one is known-unreliable, which is why `core.customer.status` is app-owned. | `docs/coldlion-source-of-truth-plan.md:380`; `docs/coldlion-customer-dedupe-review.md:9,16`; `docs/coldlion-erp-api-reference.md:51` |
+> | "There is no active/inactive flag." (unqualified) | **Superseded** | The July and early-August observations are retained as history, but `/merchGroupDetails` now exposes a functioning `active` flag. It feeds typed `source_active` mirrors and guarded lifecycle synchronization. ColdLion `/customers` and `/vendors` also carry an `active` flag; the customer one is known-unreliable, so `core.customer.status` remains app-owned. | Albert, 2026-08-24; PR #1432; `docs/coldlion-open-questions.md` §4 |
 >
-> **Do not re-litigate the conclusions.** Both were re-confirmed live on 2026-08-07:
+> **Historical evidence, not current lifecycle truth.** Both statements below were observed on
+> 2026-08-07, but the lifecycle conclusion was superseded on 2026-08-24:
 > `docs/verification/coldlion-as-source-20260807/README.md:298-306` lists the complete
 > merch-group payload and states "No licensor → property relationship" and
 > "No active / inactive flag". See also `docs/master-data-cutover-scoreboard.md:148-152`,
@@ -220,16 +221,13 @@ from `/merchGroupDetails`.** The one place it is *observable* in ColdLion is ite
 co-occurrence (§10.2) — which is evidence only, never authority, by standing policy
 (`fix_coldlion_licensor_property_cutover.md:227-228`).
 
-**(b) There is no active/inactive flag in the merch-group payload.**
-The `/merchGroupDetails` payload has no `status`, `active`, `isActive`, or `deleted` field
-— the complete field list is `companyCode, divisionCode, mgTypeCode, mgCode, mgDesc,
-itemNoCode, mgCategory, mgCode2, createdTime/User, modTime/User`, confirmed live
-2026-08-07 (`docs/verification/coldlion-as-source-20260807/README.md:298-303`). A
-discontinued licensor is byte-for-byte indistinguishable from a current one; the same pull
-still returned `FK` FRIDA KAHLO, `NA` NASA and `ZG` ZAG (ibid. `:157,164`).
-**Coldlion is structurally incapable of telling you a license has lapsed.** Deactivation is
-therefore *necessarily* a DesignFlow-side concern — see §6. This is a statement about
-merch groups only: `/customers` and `/vendors` do expose an `active` flag.
+**(b) Active/inactive is now exposed in the merch-group payload.**
+The 2026-08-07 field inspection did not find it, and that historical evidence remains useful
+for understanding why the earlier design was conservative. On 2026-08-20 `active` was observed
+on every sampled `/merchGroupDetails` row, though every sampled value was `Y`. Albert confirmed
+on 2026-08-24 that functioning active/inactive values are now exposed by the API. PR #1432 stores
+them as typed `source_active` on `plm.erp_licensor` / `plm.erp_property` and synchronizes status
+only when division copies agree and no higher-authority entitlement or owner ruling applies.
 
 **(c) Codes are only unique within `(division, mgTypeCode)`.**
 The same code means different things in different slots. Real example: **`FR` is a
@@ -580,15 +578,15 @@ confuse them with `core.licensor` / `core.property`.
 This is worth spelling out because it is counter-intuitive and was previously documented
 wrongly.
 
-**Coldlion never removes anything and cannot flag anything inactive** (§3.2b). NASA (`NA`),
-ZAG (`ZG`) and FRIDA KAHLO (`FK`) are still returned by `/merchGroupDetails` today, looking
-completely normal, years after those licenses ended.
+**Current rule (supersedes the original July design):** ColdLion's merchandise-group `active`
+value normally controls Licensor and Property lifecycle status. A row can remain present in
+`/merchGroupDetails` while carrying an inactive value; presence alone is not evidence of a
+current licence.
 
-**DesignFlow's `merchGroup.is_active` is the only deactivation mechanism in the entire
-chain.** It is DesignFlow-owned — the ETL never writes it (`remapMGDetail` does not emit the
-key), so it is set by humans/other services in PLM. It is also **not** in the ETL's update
-field-whitelist, meaning curated values survive syncs — but only incidentally, because the
-mapper happens not to emit the column.
+The legacy DesignFlow filtering described below remains historical implementation evidence,
+but it is no longer the authority model. PR #1432 writes typed `source_active` mirrors and
+performs guarded status-only synchronization. Signed entitlement schedules and explicit owner
+rulings take precedence; conflicts and ambiguous mappings abstain.
 
 **The filtering happens in `getLicensorsWithProperties`**
 (`designflow-item-master/services/item_library.service.js:70-137`), and its logic is
@@ -774,9 +772,10 @@ Coldlion directly. It does not exist yet. Non-negotiables:
    `(companyCode, divisionCode, mgTypeCode, mgCode)`. Do not include `mgDesc` (§9.3).
 3. **You cannot get the hierarchy from Coldlion.** Either keep sourcing it from DesignFlow,
    or derive it (§10.2). A direct Coldlion sync alone produces two disconnected flat lists.
-4. **You cannot get active/inactive from Coldlion.** `is_active` must keep coming from
-   DesignFlow, or become ours to own. If it becomes ours, someone must maintain it — a
-   direct sync would otherwise resurrect NASA, ZAG and FRIDA KAHLO.
+4. **Active/inactive comes from ColdLion for normal Licensor/Property lifecycle.** Consume the
+   merchandise-group `active` value through typed `source_active`; require agreement across
+   division copies and abstain for ambiguity, conflicts, signed entitlement schedules, or
+   explicit higher-authority owner rulings (implemented by PR #1432).
 5. **Decide the division question before importing division 9** (§7).
 6. **Fail loudly.** Per house rules, no silent per-pair skips, and the run must record a
    non-success row — the 11-day outage in §8 was invisible precisely because nothing did.

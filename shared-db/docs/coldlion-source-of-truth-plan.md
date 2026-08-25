@@ -1,5 +1,17 @@
 # Making ColdLion the source of truth for the `core.*` master tables
 
+> **STATUS — historical plan, not an execution guide (updated 2026-08-25)**
+>
+> | Workstream | Status | Current authority |
+> |---|---|---|
+> | Licensor / Property ColdLion cutover | **Done; do not redo** | Current implementation plan and business rules linked below |
+> | Merchandise-group active/inactive synchronization | **Done 2026-08-24** | PR #1432; `docs/coldlion-open-questions.md` §4 |
+> | Remaining Licensing Master Data work | **Use the current plan** | `plan_licensing_master_data_implementation.md` STATUS table |
+>
+> This file preserves the 2026-07-31 research and reasoning. Present-tense implementation claims
+> below describe that historical snapshot unless a supersession note says otherwise. A fresh
+> session starts at `plan_licensing_master_data_implementation.md`, not here.
+
 **Written:** 2026-07-31
 **Author:** AI research session (read-only). **No database write, no migration, no change to any
 other file in this repo.**
@@ -36,10 +48,10 @@ and more. We import exactly two of them (Licensor and Property) and only from th
 divisions. The table meant to hold the rest, `core.merch_group`, exists and is **completely empty**.
 Nobody has ever asked for those lists, so this is a gap, not a bug.
 
-**Two things ColdLion simply cannot tell us, ever.** It does not know which property belongs to
-which licensor, and it has no "this license expired" flag. Those two facts have to keep coming from
-DesignFlow or become ours to maintain by hand. That is a permanent limit of the ERP, not a
-temporary one.
+**Historical finding, partly superseded.** ColdLion still does not provide an authoritative
+licensor→property relationship. The July conclusion that it had no lifecycle flag was superseded
+on 2026-08-24: merchandise-group rows now expose functioning `active` values, consumed through
+the guarded synchronization in PR #1432.
 
 **What you need to decide.** Three things, listed in section 6. The most urgent is simply: *may
 the AI merge PR 331?* Everything else is stuck behind it.
@@ -122,9 +134,10 @@ since is only allowed to touch rows on that list.
 **So the 33 unmatched property codes are policy, not a bug.** They are codes Albert did not
 approve, because approving them would mean either (a) creating brand-new records in a table that
 eleven other things point at, or (b) guessing at an identity match. The plan explicitly names
-NASA, ZAG and FRIDA KAHLO as records deliberately left outside the approved set — those are lapsed
-licenses ColdLion still returns because it has no expiry flag. Adding them automatically would
-resurrect dead licenses across every app.
+NASA, ZAG and FRIDA KAHLO as records deliberately left outside the approved set. **Historical
+premise superseded 2026-08-24:** this decision originally assumed ColdLion had no lifecycle flag;
+merchandise groups now expose functioning `active` values. Current lifecycle authority is defined
+in `docs/coldlion-open-questions.md` §4 and `docs/business-rules/licensing-master-data.md`.
 
 ### The specifics **[DOC]**
 
@@ -206,8 +219,9 @@ The mechanical work is small and the pattern is already proven — `plm.erp_lice
    `level`, so it can hold the product-type chain (01→02→03) natively. Sizes, artists and
    demographics are flat and might belong in their own small tables. This is unresolved anywhere
    in the repo.
-4. **Same two permanent gaps apply.** No parent links, no active flag. A flat list arriving from
-   ColdLion carries no lifecycle information at all.
+4. **One permanent gap remains; the lifecycle gap is superseded.** No authoritative parent links
+   are carried. Merchandise groups now expose functioning `active` values, which feed typed
+   `source_active` and guarded lifecycle synchronization under the current register/business rule.
 
 ### The type-07 "Style Guide" conflict
 

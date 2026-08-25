@@ -20,6 +20,33 @@ class Tests(unittest.TestCase):
         })
         workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
         self.assertIn('1439:1488:1495:20260825102716:20260825110813) ;;',workflow)
+
+    def test_issue_1422_recovery_tuple_and_evidence_are_narrowly_supported(self):
+        case=M.SUPPORTED_CASES[(1422,1423,1424)]
+        self.assertEqual(case,{
+            'mode':'replacement_pending',
+            'orphan_version':'20260824150630',
+            'replacement_version':'20260824172136',
+            'orphan_run_head':'12f104735379881e6ff90a00b090a65ab9e8d370',
+            'preview_run_id':32746510664,
+            'preview_artifact_id':9527303479,
+            'preview_artifact_digest':'sha256:a2b4cf00749dc7ee7d8db10290650612c63fd5d15ed5e9c3ae6f60d7b58c3be2',
+            'merged_source':True,
+        })
+        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
+        self.assertIn('1422:1423:1424:20260824150630:20260824172136) ;;',workflow)
+
+    def test_issue_1422_evidence_pins_refuse_substitution(self):
+        case=M.SUPPORTED_CASES[(1422,1423,1424)]
+        args=type('A',(),{
+            'preview_run_id':32746510664,
+            'preview_artifact_id':9527303479,
+            'preview_artifact_digest':'sha256:a2b4cf00749dc7ee7d8db10290650612c63fd5d15ed5e9c3ae6f60d7b58c3be2',
+        })()
+        M.validate_pinned_evidence(case,args)
+        args.preview_artifact_id=1
+        with self.assertRaises(M.Refusal):
+            M.validate_pinned_evidence(case,args)
     def test_replacement_loader_is_unique_and_rejects_transaction_control(self):
         with tempfile.TemporaryDirectory() as directory:
             root=pathlib.Path(directory); migration=root/'20260817124545_safe.sql'; migration.write_text('select 1;\n',encoding='utf-8')

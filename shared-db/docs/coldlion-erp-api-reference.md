@@ -52,8 +52,8 @@ re-pulled the same day (see the division matrix below).
 
 > ### ⚠️ Merch groups: read the taxonomy doc first
 > `mgTypeCode` has **no fixed meaning** — `05` is Licensor in CW001/SP001 but "Big Theme" in
-> EH001 and "Product Line" in EP001. Coldlion has **no licensor→property relationship** and
-> **no active/inactive flag** anywhere in the merch-group payload. Codes are unique only
+> EH001 and "Product Line" in EP001. Coldlion has **no licensor→property relationship**.
+> Merchandise-group rows now expose a functioning **`active`** flag. Codes are unique only
 > within `(division, mgTypeCode)` — and **collide across types inside one division**
 > (`1P` is both a licensor and a property in CW001). The full decoded division matrix and
 > the `/merchGroupDetails` response shape are below under
@@ -246,7 +246,10 @@ endpoint that breaks the paging convention documented above; code that assumes `
 will silently read `undefined`.
 
 Fields on every row: `createdTime`, `createdUser`, `modTime`, `modUser`, `companyCode`,
-`divisionCode`, `mgTypeCode`, `mgCode`, `mgDesc`, `itemNoCode`, `mgCategory`, `mgCode2`.
+`divisionCode`, `mgTypeCode`, `mgCode`, `mgDesc`, `itemNoCode`, `mgCategory`, `mgCode2`,
+and `active`. The field was observed live on 2026-08-20 and Albert confirmed on 2026-08-24
+that active/inactive values are functioning and exposed by the API. It feeds typed
+`source_active` in `plm.erp_licensor` and `plm.erp_property` (PR #1432).
 
 Live counts and samples, CW001 (2026-07-23):
 
@@ -260,8 +263,9 @@ Three structural limits, all confirmed by field inspection rather than assumed:
 - **No parent-child link.** A property row carries *no* licensor reference of any kind.
   `mgCategory` was **empty on every row sampled**, and `mgCode2` merely repeats `mgCode`.
   The licensor→property relationship exists **only in dflow**.
-- **No active/inactive flag** anywhere in the payload — so the active-only promotion rule
-  used for `/customers` and `/vendors` has no equivalent input here.
+- **Lifecycle is explicit.** `active` is the normal ColdLion lifecycle input for licensors and
+  properties. Synchronization abstains where division copies conflict, identity is ambiguous, or
+  a signed entitlement schedule / explicit owner ruling has higher authority.
 - **`mgCode` collides across entity types within a single division.** Live proof in CW001:
   **`1P` is both a licensor (TOEI - ONE PIECE) and a property (ONE PIECE GENERAL ART).**
   Any key must be `(divisionCode, mgTypeCode, mgCode)` — **never `mgCode` alone.** This is
