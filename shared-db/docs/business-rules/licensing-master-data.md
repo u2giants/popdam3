@@ -2,7 +2,7 @@
 
 **Status:** Settled
 
-**Controlling owner rulings:** Albert Hazan, 2026-08-16, 2026-08-19, and 2026-08-23. The 2026-08-23 ruling establishes signed-contract authority for Warner Bros. licensing membership.
+**Controlling owner rulings:** Albert Hazan, 2026-08-16, 2026-08-19, 2026-08-23, and 2026-08-25. The 2026-08-23 ruling establishes signed-contract authority for Warner Bros. licensing membership. The 2026-08-25 ruling records the Marvel portal-authority split effective December 2025.
 
 ## Official business objects
 
@@ -48,6 +48,16 @@ No refresh hard-deletes licensing Master Data.
 - Asset, Property, Character, Style Guide, and Franchise relationships become canonical only when the authorized source publishes the relationship directly.
 - Co-occurrence, filename similarity, internal lists, or absence of better data do not prove a direct relationship.
 - Sub-licensing routes stay flat in the current Licensor model. A sub-licensor such as Desperate or FanCreations remains an ordinary Licensor record and must not be merged with the underlying brand owner merely because the names are related.
+
+## Marvel portal authority
+
+**Status: Settled. Authority: Albert Hazan, 2026-08-25. Effective: December 2025.**
+
+- Marvel product submissions and product approvals are performed in Disney OPA as of December 2025. OPA is therefore the authoritative workflow and submission-side vocabulary for current Marvel product submissions.
+- Marvel ASGARD remains the authoritative source for Marvel Creative Assets, including style guides, asset-library organization, and creative-asset search metadata.
+- The portals have different business roles. An ASGARD guide, campaign, film, art pack, folder, or search value must not be promoted to a canonical submission Property merely because its label resembles an OPA option.
+- OPA submission evidence and ASGARD Creative Asset evidence must retain separate source provenance. Where the two use different labels, preserve both and leave any unresolved mapping explicit rather than forcing a name match.
+- Historical Marvel submission records created before the December 2025 transition retain their original source provenance. This ruling changes the current workflow authority; it does not relabel historical records as OPA-originated.
 
 ## Talent likeness and royalty
 
