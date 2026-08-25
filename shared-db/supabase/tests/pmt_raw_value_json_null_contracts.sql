@@ -1,5 +1,5 @@
 -- =====================================================================================
--- Paramount metadata raw_value JSON-null contracts -- issue #1418.
+-- Paramount metadata raw_value JSON-null contracts -- issues #1418 and #1459.
 --
 -- WHAT THIS PROVES
 --   A. POSITIVE. A value row whose optional `raw_value` arrives as the JSON literal
@@ -29,6 +29,60 @@
 --   20260824135515 applied cleanly by the preview rehearsal, GitHub Actions run
 --   32738436612, from PR #1421 merged as 2731b108e464bfcb558986fc911669e5d2de2959.
 -- =====================================================================================
+
+begin;
+
+-- =====================================================================================
+-- 0. FORWARD LINEAGE -- all three 20260814 rewrites and the later JSON-null repair coexist.
+-- =====================================================================================
+do $$
+declare
+  v_def text := lower(regexp_replace(pg_get_functiondef(
+    'plm.load_pmt_capture_chunk(uuid,text,jsonb)'::regprocedure),'\s+',' ','g'));
+  v_comment text;
+begin
+  if to_regclass('plm.pmt_metadata_element') is null
+     or exists (
+       select 1 from information_schema.columns
+       where table_schema='plm' and table_name='pmt_collection'
+         and column_name='paramount_term'
+     )
+     or (select count(*) from information_schema.columns
+         where table_schema='plm' and is_nullable='YES'
+           and ((table_name='pmt_authorized_title_property'
+                 and column_name='paramount_property_name')
+             or (table_name='pmt_property_capture_log'
+                 and column_name='property_name'))) <> 2 then
+    raise exception '0 FAILED: one of the three 20260814 structural rewrites is absent';
+  end if;
+
+  if position('nullif' in v_def)=0
+     or position('''raw_value''' in v_def)=0
+     or position('''null''::jsonb' in v_def)=0
+     or v_def not like '%pmt_metadata_element%'
+     or v_def like '%insert into plm.pmt_authorized_title_property%paramount_property_name%'
+     or v_def like '%insert into plm.pmt_property_capture_log%property_name%'
+     or v_def like '%insert into plm.pmt_collection%paramount_term%' then
+    raise exception '0 FAILED: current loader is not the repaired full re-derivation';
+  end if;
+
+  select obj_description('plm.load_pmt_capture_chunk(uuid,text,jsonb)'::regprocedure,'pg_proc')
+    into v_comment;
+  if v_comment not ilike '%Issue #1459%'
+     or v_comment not ilike '%three 20260814 rewrites%' then
+    raise exception '0 FAILED: function note does not preserve the forward-order reason';
+  end if;
+
+  if has_function_privilege('anon','plm.load_pmt_capture_chunk(uuid,text,jsonb)','EXECUTE')
+     or has_function_privilege('authenticated',
+          'plm.load_pmt_capture_chunk(uuid,text,jsonb)','EXECUTE')
+     or not has_function_privilege('service_role',
+          'plm.load_pmt_capture_chunk(uuid,text,jsonb)','EXECUTE') then
+    raise exception '0 FAILED: loader grants changed';
+  end if;
+  raise notice '0: full trio plus JSON-null forward repair and grants are intact';
+end;
+$$;
 
 
 -- =====================================================================================
@@ -227,3 +281,5 @@ begin
   raise notice 'B: non-object and blocked-key raw_value are still refused by the constraint';
 end;
 $$;
+
+rollback;
