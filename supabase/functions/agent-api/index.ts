@@ -45,6 +45,7 @@ import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNu
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
+import { assignStyleGroup } from "../_shared/style-group-assignment.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -818,32 +819,11 @@ async function assignToStyleGroup(
       size_name: skuFields.size_name ?? null,
     };
 
-    const { data: group } = await db
-      .from("style_groups")
-      .upsert(groupFields, { onConflict: "sku", ignoreDuplicates: false })
-      .select("id")
-      .single();
-
-    if (!group) return;
-
-    // Assign group ID to the asset
-    await db.from("assets").update({ style_group_id: group.id }).eq("id", assetId);
-
-    // Incrementally update asset_count for this group
-    const { count: memberCount } = await db
-      .from("assets")
-      .select("*", { count: "exact", head: true })
-      .eq("style_group_id", group.id)
-      .eq("is_deleted", false);
-
-    if (memberCount !== null) {
-      await db
-        .from("style_groups")
-        .update({ asset_count: memberCount })
-        .eq("id", group.id);
-    }
+    await assignStyleGroup(db, { assetId, sku, groupFields });
   } catch (e) {
-    console.error("assignToStyleGroup error (non-fatal):", e);
+    // This is deliberately propagated. The bridge retries failed ingest calls,
+    // making a post-write assignment failure visible and recoverable.
+    throw new Error(`style group assignment failed for asset ${assetId}: ${(e as Error).message}`);
   }
 }
 
@@ -1055,9 +1035,7 @@ async function handleIngest(
       new_relative_path: relativePath,
     });
 
-    assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, licensing, db).catch((e) =>
-      console.error(`assignToStyleGroup failed for moved asset ${existingByHash.id}:`, e)
-    );
+    await assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, licensing, db);
 
     return json({
       ok: true,
@@ -1117,9 +1095,7 @@ async function handleIngest(
 
     // processing_queue inserts removed — AI tagging is now handled by the Railway worker
 
-    assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, licensing, db).catch((e) =>
-      console.error(`assignToStyleGroup failed for updated asset ${existingByPath.id}:`, e)
-    );
+    await assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, licensing, db);
 
     return json({
       ok: true,
@@ -1161,9 +1137,7 @@ async function handleIngest(
   // processing_queue inserts removed — thumbnails are handled by render_queue trigger,
   // AI tagging by the Railway worker
 
-  assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, licensing, db).catch((e) =>
-    console.error(`assignToStyleGroup failed for new asset ${newAsset.id}:`, e)
-  );
+  await assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, licensing, db);
 
   return json({ ok: true, action: "created", asset_id: newAsset.id, needs_group_rebuild: true, licensing });
 }

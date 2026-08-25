@@ -30,6 +30,7 @@ import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-te
 import { runPdfBackfill } from "./pdf-backfill.js";
 import { runAiSentinelScan } from "./ai-sentinel-scanner.js";
 import { verifyPendingCheckins } from "./checkin-verifier.js";
+import { SkuSerialQueue, skuFromRelativePath } from "./sku-serial-queue.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ let isPreviewingCompatThumbnails = false;
 let isAiSentinelScanning = false;
 let isBlankThumbCleanupRunning = false;
 let scanContentIdentitySeen: Set<string> = new Set();
+let styleGroupQueue = new SkuSerialQueue();
 
 function bytesToMb(bytes: number): number {
   return Math.round((bytes / 1024 / 1024) * 10) / 10;
@@ -1035,6 +1037,7 @@ async function clearScanCheckpointWithRetry(context: string): Promise<boolean> {
 }
 
 async function processScanCandidates(candidates: FileCandidate[], sessionId: string) {
+  styleGroupQueue = new SkuSerialQueue();
   // ── Change detection: ask cloud which files actually need processing ──
   const checkPayload = candidates.map((f) => ({
     relative_path: f.relativePath,
@@ -1208,7 +1211,9 @@ async function processFile(file: FileCandidate) {
     }
 
     // 3. Ingest to cloud
-    const result = await api.ingest({
+    // Rendering and uploads above remain concurrent. Only the final ingest is
+    // serialized for the same SKU, preventing competing group-row maintenance.
+    const result = await styleGroupQueue.run(skuFromRelativePath(file.relativePath), () => api.ingest({
       relative_path: file.relativePath,
       filename: file.filename,
       file_type: file.fileType,
@@ -1223,7 +1228,7 @@ async function processFile(file: FileCandidate) {
       height: thumb.height,
       pdf_page2_url: thumb.pdfPage2Url,
       skip_move_detection: skipMoveDetection,
-    });
+    }));
 
     // Update counters based on API response
     switch (result.action) {

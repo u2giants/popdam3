@@ -200,3 +200,12 @@ These operations are listed as cross-lane conflicts in `OP_CONFLICTS` (`operatio
 | Safe to run on live system | Yes | Caution — see conflicts |
 | Duration | Minutes | Minutes to hours |
 | Use when | Counts are stale or primary is wrong | SKU assignments are wrong or groups are wrong |
+
+## Ingestion freshness contract
+
+During file ingestion, PopDAM assigns the asset to its SKU's style group before
+returning success to the Bridge Agent.  It does not run an exact group-member
+count per file: the statement-level asset-membership trigger updates the cached
+`asset_count`, and the bounded `reconcile-style-group-stats` worker operation
+plus the nightly reconciliation repair any historical drift.  Repeated scans
+do not rewrite unchanged group metadata or an already-correct membership.
