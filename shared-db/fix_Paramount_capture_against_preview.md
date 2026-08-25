@@ -8,16 +8,23 @@
 | Rehearse the three Paramount schema migrations on preview | Done | GitHub Actions run `32721695779` applied exactly the three authorized versions to preview. |
 | First real Paramount capture against preview | Failed safely | The private capture passed completeness validation and reached `pmt_asset_metadata_value`, then failed closed on JSON `null`; issue #1418 records only sanitized evidence. |
 | Repair JSON-null handling and rehearse it on preview | Done | PR #1421 merged migration `20260824135515`; preview apply run `32738436612` succeeded. Production was not contacted. |
-| Run a brand-new full Paramount capture against repaired preview | Open | Control has returned to the private `licensor-source-data` session. A successful replacement capture has not yet been recorded. |
-| Apply or promote to production | Forbidden | Albert explicitly authorized preview only and said, "Do not apply anything to production." |
+| Run a brand-new full Paramount capture against repaired preview | Done | Preview capture `037d73e3-185d-48b0-9e11-a16cbdd3418a` completed. 55 database finalization checks ran with zero failures, private completeness validation passed, 70 focused loader tests passed, and normalized headings and values reconciled. No licensed row or name was published. Sanitized evidence is on issue #949. |
+| Promote the JSON-null structural repair to production | Done, separately authorized | Issue #1418 records that repair migration `20260824135515` was later promoted alone to production under separate owner authorization. That promotion covered the structural repair only. |
+| Run a Paramount data capture against production | Not authorized, not performed | This workstream has neither authorized nor performed any production Paramount data capture. |
 
-Start with **Job boundary and ownership** below. Do not rerun the completed schema rehearsal unless the preview database has been rebuilt or the ledger evidence no longer matches.
+This document is now a completed record. Do **not** re-run the successful preview capture merely to make the document current. Re-run only if the preview database has been rebuilt or the ledger evidence no longer matches.
 
 ## Business purpose
 
-The Paramount capture tool on `main` sends the normalized metadata shape, but production still uses the older database loader. The old loader refuses the new `pmt_metadata_element` target, so a new Paramount capture cannot currently complete. It fails closed: it does not corrupt or partially load data, but the capture capability is unavailable.
+The Paramount capture tool on `main` sends the normalized metadata shape. Before this work, the older database loader refused the new `pmt_metadata_element` target, so a Paramount capture could not complete. It failed closed: it did not corrupt or partially load data, but the capture capability was unavailable.
 
-The three required database migrations and the JSON-null loader repair now exist on preview. The remaining job is to prove the complete capture path against that repaired preview database using authorized Paramount source data, without exposing licensed rows and without touching production.
+The three required database migrations and the JSON-null loader repair landed on preview, and the complete capture path has since been proven against that repaired preview database using authorized Paramount source data, without exposing licensed rows.
+
+Three facts must be kept distinct:
+
+1. The **full Paramount data capture succeeded and was verified on preview**.
+2. The **JSON-null structural repair** is now on **preview and production**, promoted alone under separate owner authorization recorded on issue #1418.
+3. **No production Paramount data capture** has been authorized or performed by this workstream.
 
 ## Completed preview schema rehearsal
 
@@ -53,11 +60,13 @@ The first full private capture was attempted after the three schema migrations l
 
 Issue #1418 and PR #1421 repaired the loader boundary without weakening the constraint or omitting the normalized target. Migration `20260824135515_pmt_loader_raw_value_json_null_normalization.sql` converts JSON `null` to SQL NULL while continuing to reject unsafe strings, numbers, arrays, booleans, URLs, and headers. The change was independently approved and applied only to preview in run <https://github.com/u2giants/shared-db/actions/runs/32738436612>.
 
-This repair has schema-level preview proof. It still needs the brand-new full capture below to prove the business capability end to end.
+The repair was proven at schema level on preview, and the replacement capture described below then proved the business capability end to end. Separately, and outside this workstream's authority, issue #1418 records that migration `20260824135515` was later promoted **alone** to production under its own owner authorization. That promotion moved structure only; it carried no data and granted no capture authority.
 
 ## Job boundary and ownership
 
-This is now a **source-data capture and application-owned preview row-write job**, not a schema-authoring job. Under `AGENTS.md` section 0.0-B, it belongs to a fresh source-data session and does not consume a migration-author lane. The shared-db orchestrator owns only the already-completed structural rehearsal and must not handle licensed source rows in its coordinator context.
+> The capture is complete. The sections from here to **Stop conditions** are the procedure that was executed, kept as the permanent record and as the method to reuse if the preview database is ever rebuilt. They are not an open work item.
+
+This was a **source-data capture and application-owned preview row-write job**, not a schema-authoring job. Under `AGENTS.md` section 0.0-B, it belongs to a fresh source-data session and does not consume a migration-author lane. The shared-db orchestrator owns only the already-completed structural rehearsal and must not handle licensed source rows in its coordinator context.
 
 Use the `paramount-creative-library-scrape` skill. If the job refreshes or re-scrapes the portal rather than replaying an already-complete approved private capture, also use `licensor-incremental-capture`.
 
@@ -123,7 +132,7 @@ Do not run a production capture, production database command, production workflo
 
 ### 4. Verify the business capability
 
-The job succeeds only if all of the following are proven against preview:
+The job succeeded because all of the following were proven against preview by capture `037d73e3-185d-48b0-9e11-a16cbdd3418a`. These remain the gates for any future re-run:
 
 - The capture begins, loads every expected target, and finalizes successfully.
 - `plm.load_pmt_capture_chunk` accepts `pmt_metadata_element`.
@@ -136,11 +145,11 @@ The job succeeds only if all of the following are proven against preview:
 - Counts and ID-set hashes reconcile with the authorized private capture.
 - No licensed row or name appears in public evidence.
 
-Run the focused Paramount tests after the capture and record their pass/fail totals. A green schema test without a completed capture is not sufficient.
+Run the focused Paramount tests after the capture and record their pass/fail totals. A green schema test without a completed capture is not sufficient. For this capture, 70 focused loader tests passed and 55 database finalization checks ran with zero failures.
 
 ### 5. Publish sanitized evidence
 
-Record a sanitized completion note on issue #949 containing only:
+Sanitized completion evidence for this capture is recorded on issue #949. Any future re-run records a sanitized note there containing only:
 
 - preview project identifier;
 - capture/run identifier if it is safe and contains no licensed information;
@@ -172,11 +181,14 @@ Preserve the original capability: diagnose and repair a failed preview capture. 
 
 ## Production boundary and next decision
 
-This job grants no production authority. A successful preview capture produces evidence for a later, separately authorized production decision. Production promotion must name the exact three Paramount versions, use the governed bounded workflow, and occur only after the preview capture and all verification gates above pass.
+This job granted no production authority, and the successful preview capture does not create any. It produces evidence for a later, separately authorized production decision. The only production change connected to this work is the separately authorized promotion of the JSON-null repair migration `20260824135515` recorded on issue #1418; no Paramount data capture has run against production.
 
-Until that later authorization exists, the correct end state is:
+The reached and correct end state is:
 
-- preview contains the three Paramount migrations;
-- a complete Paramount capture has succeeded and been verified on preview;
+- preview contains the three Paramount migrations and the JSON-null repair;
+- a complete Paramount capture has succeeded and been verified on preview (capture `037d73e3-185d-48b0-9e11-a16cbdd3418a`, 55 finalization checks with zero failures, 70 focused loader tests passed);
+- the JSON-null structural repair `20260824135515` is also on production, promoted alone under the separate authorization recorded on issue #1418;
 - the two unsafe migrations remain retired and blocked;
-- production remains unchanged.
+- production carries no Paramount data capture from this workstream, and none is authorized.
+
+Promotion of the three Paramount schema versions to production remains a separate, unauthorized decision. It must name the exact versions, use the governed bounded workflow, and be authorized by the owner in its own request.

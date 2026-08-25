@@ -1936,4 +1936,89 @@ begin
 end;
 $$;
 
+-- J. api.source_capture_inventory -- Sesame classification and completed-capture clock.
+do $$
+declare
+  r record;
+  v_old uuid;
+  v_new uuid;
+  v_rejected uuid;
+  v_loading uuid;
+  v_counts jsonb;
+begin
+  if (select count(*) from api.source_capture_inventory where source_system='sesame') <> 19 then
+    raise exception 'J FAILED: all 19 Sesame landing tables must classify as sesame';
+  end if;
+  if exists (select 1 from api.source_capture_inventory where table_name like 'sesame\_%'
+       and (source_system <> 'sesame' or count_basis <> 'latest_complete')) then
+    raise exception 'J FAILED: a Sesame landing table has the wrong source or count basis';
+  end if;
+  -- Own the clock proof in this section. Earlier sections deliberately leave many
+  -- captures behind, including complete fixtures, so inheriting whichever one happens
+  -- to sort latest would make the inventory assertion accidental.
+  v_counts := jsonb_build_object(
+    'categories',0,'brands',0,'sub_brands',0,'characters',0,'style_guides',0,
+    'art_styles',0,'asset_types',0,'themes',0,'assets',1,'asset_categories',0,
+    'asset_brands',0,'asset_sub_brands',0,'asset_characters',0,'asset_style_guides',0,
+    'asset_art_styles',0,'asset_asset_types',0,'asset_themes',0,
+    'style_guide_characters',0);
+  v_old := plm.begin_sesame_capture(
+    'ZZTEST-sesame-J-old', 'ZZTEST-repo', repeat('a',40), repeat('a',64),
+    'https://example.invalid', 'zztest-slug', '2100-01-01Z',
+    v_counts, '{}'::jsonb, 'ZZTEST');
+  insert into plm.sesame_asset(capture_id,asset_source_id,asset_name,source_hash,raw)
+  values(v_old,9001,'ZZTEST J Old Asset','zztest-j-old','{}');
+  perform plm.complete_sesame_capture(v_old,v_counts,0,true,true,true);
+
+  v_counts := jsonb_set(v_counts,'{assets}','2'::jsonb);
+  v_new := plm.begin_sesame_capture(
+    'ZZTEST-sesame-J-new', 'ZZTEST-repo', repeat('b',40), repeat('b',64),
+    'https://example.invalid', 'zztest-slug', '2100-02-01Z',
+    v_counts, '{}'::jsonb, 'ZZTEST');
+  insert into plm.sesame_asset(capture_id,asset_source_id,asset_name,source_hash,raw)
+  values(v_new,9002,'ZZTEST J New Asset One','zztest-j-new-1','{}'),
+        (v_new,9003,'ZZTEST J New Asset Two','zztest-j-new-2','{}');
+  perform plm.complete_sesame_capture(v_new,v_counts,0,true,true,true);
+
+  -- These sort later by source time but are not complete and must never displace v_new.
+  v_rejected := plm.begin_sesame_capture(
+    'ZZTEST-sesame-J-rejected', 'ZZTEST-repo', repeat('c',40), repeat('c',64),
+    'https://example.invalid', 'zztest-slug', '2100-03-01Z',
+    v_counts, '{}'::jsonb, 'ZZTEST');
+  perform plm.complete_sesame_capture(v_rejected,v_counts,0,false,true,true);
+  v_loading := plm.begin_sesame_capture(
+    'ZZTEST-sesame-J-loading', 'ZZTEST-repo', repeat('d',40), repeat('d',64),
+    'https://example.invalid', 'zztest-slug', '2100-04-01Z',
+    v_counts, '{}'::jsonb, 'ZZTEST');
+
+  if plm.latest_sesame_capture() is distinct from v_new then
+    raise exception 'J FAILED: latest selector did not choose the newer COMPLETE capture';
+  end if;
+  select * into r from api.source_capture_inventory where table_name='sesame_capture';
+  if r.latest_complete_row_count is distinct from 1::bigint
+     or r.latest_complete_status <> 'complete'
+     or r.count_note not like 'Latest complete Sesame capture%' then
+    raise exception 'J FAILED: sesame_capture reports count/status/note %/%/%',
+      r.latest_complete_row_count,r.latest_complete_status,r.count_note;
+  end if;
+  select * into r from api.source_capture_inventory where table_name='sesame_asset';
+  if r.latest_complete_row_count is distinct from 2::bigint then
+    raise exception 'J FAILED: sesame_asset latest-complete count is %, expected 2',
+      r.latest_complete_row_count;
+  end if;
+  if r.row_count is distinct from r.retained_row_count then
+    raise exception 'J FAILED: row_count compatibility alias changed';
+  end if;
+  if (select string_agg(column_name,',' order by ordinal_position)
+        from information_schema.columns
+       where table_schema='api' and table_name='source_capture_inventory')
+     <> 'source_system,table_name,row_count,carries_resolution,table_comment,'
+        || 'retained_row_count,latest_complete_row_count,count_basis,'
+        || 'latest_complete_status,count_note' then
+    raise exception 'J FAILED: source_capture_inventory output columns changed';
+  end if;
+  raise notice 'J passed: Sesame classification, completed-capture counts and view shape';
+end;
+$$;
+
 rollback;

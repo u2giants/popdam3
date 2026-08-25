@@ -1827,7 +1827,8 @@ declare
     ['erp\_%',       'coldlion'],
     ['sega\_%',      'sega'],
     ['peanuts\_%',   'peanuts'],
-    ['wildbrain\_%', 'wildbrain']
+    ['wildbrain\_%', 'wildbrain'],
+    ['sesame\_%',    'sesame']
   ];
 begin
   raise notice '=== I. api.source_capture_inventory CLASSIFIES WILDBRAIN ===';
