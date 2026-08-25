@@ -1437,6 +1437,28 @@ class BehavioralSidecarTests(unittest.TestCase):
         with temp, self.assertRaisesRegex(GuardError, "invalid UUID"):
             self.load(root, migration)
 
+    def test_fixed_entity_status_enum_is_typed_and_invalid_labels_fail_closed(self):
+        def active(sidecar):
+            sidecar["checks"][0]["filters"].append({
+                "column": "status",
+                "type": "app.entity_status",
+                "equals": "active",
+            })
+        temp, root, migration = self.fixture(active)
+        with temp:
+            sql = build_behavior_sql(self.load(root, migration))
+        self.assertIn("status = 'active'::app.entity_status", sql)
+
+        def invented(sidecar):
+            sidecar["checks"][0]["filters"].append({
+                "column": "status",
+                "type": "app.entity_status",
+                "equals": "invented",
+            })
+        temp, root, migration = self.fixture(invented)
+        with temp, self.assertRaisesRegex(GuardError, "invalid app.entity_status"):
+            self.load(root, migration)
+
     def test_missing_and_wrong_behavior_results_fail(self):
         temp, root, migration = self.fixture()
         with temp:
@@ -1510,6 +1532,7 @@ class BehavioralSidecarTests(unittest.TestCase):
             f"{version}_coldlion_paramount_five_approved_gate.sql"
         )
         checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+        sql = build_behavior_sql(checks)
 
         self.assertEqual(len(checks), 25)
         self.assertEqual(
@@ -1530,6 +1553,8 @@ class BehavioralSidecarTests(unittest.TestCase):
             == "1c128b018f1dce969116292e5a7db2e9ccfbc140e6bd2bb873c98f48cac294ef"
             for check in checks
         ))
+        self.assertEqual(sql.count("status = 'active'::app.entity_status"), 5)
+        self.assertNotIn("status = 'active'::text", sql)
 
 
 class NetAclTests(unittest.TestCase):

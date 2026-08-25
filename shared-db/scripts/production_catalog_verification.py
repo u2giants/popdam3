@@ -383,7 +383,10 @@ BEHAVIOR_SIDECAR_KEYS = {
 BEHAVIOR_ROW_COUNT_KEYS = {"id", "kind", "relation", "filters", "expected_count"}
 BEHAVIOR_CATALOG_CONTRACT_KEYS = {"id", "kind", "contract", "expected_count"}
 BEHAVIOR_FILTER_KEYS = {"column", "type", "equals"}
-BEHAVIOR_TYPES = {"uuid", "text", "integer", "boolean"}
+BEHAVIOR_ENUM_VALUES = {
+    "app.entity_status": {"active", "inactive", "archived", "deleted", "potential"},
+}
+BEHAVIOR_TYPES = {"uuid", "text", "integer", "boolean", *BEHAVIOR_ENUM_VALUES}
 CATALOG_CONTRACTS = {
     "popdam_1427_relations_columns_v1": """
       to_regclass('public.style_group_tags') is not null
@@ -808,7 +811,10 @@ def load_behavior_sidecars(
                 if scalar_type not in BEHAVIOR_TYPES:
                     raise GuardError(f"{path}: unsupported scalar type {scalar_type!r}")
                 scalar = filt["equals"]
-                if scalar_type in {"uuid", "text"} and not isinstance(scalar, str):
+                if (
+                    scalar_type in {"uuid", "text", *BEHAVIOR_ENUM_VALUES}
+                    and not isinstance(scalar, str)
+                ):
                     raise GuardError(f"{path}: {scalar_type} value must be a string")
                 if scalar_type == "uuid":
                     try:
@@ -821,6 +827,13 @@ def load_behavior_sidecars(
                     raise GuardError(f"{path}: integer value must be an integer")
                 if scalar_type == "boolean" and not isinstance(scalar, bool):
                     raise GuardError(f"{path}: boolean value must be true or false")
+                if (
+                    scalar_type in BEHAVIOR_ENUM_VALUES
+                    and scalar not in BEHAVIOR_ENUM_VALUES[scalar_type]
+                ):
+                    raise GuardError(
+                        f"{path}: invalid {scalar_type} enum value {scalar!r}"
+                    )
                 parsed_filters.append(dict(filt))
             parsed = dict(check)
             parsed["filters"] = parsed_filters
@@ -840,6 +853,10 @@ def _typed_sql_literal(value: object, scalar_type: str) -> str:
         return str(value)
     if scalar_type == "boolean":
         return "true" if value else "false"
+    if scalar_type in BEHAVIOR_ENUM_VALUES:
+        return (
+            "'" + str(value).replace("'", "''") + "'::" + scalar_type
+        )
     raise GuardError(f"unsupported behavioral scalar type: {scalar_type!r}")
 
 
