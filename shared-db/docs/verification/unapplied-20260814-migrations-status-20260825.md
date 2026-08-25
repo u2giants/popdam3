@@ -40,7 +40,9 @@ absent, which is true only of production).
 > run. **No production Paramount data capture has been authorized or performed.**
 >
 > **What in this file still stands:** the analysis of the problem, and sections 2, 3 and 4. The
-> Warner cleanup `20260814170749` (section 2) is still unscheduled and still safe to apply.
+> Warner cleanup `20260814170749` (section 2) is structurally stranded and must never be
+> rehearsed or promoted. Owner ruling #1517 replaces it with fresh version `20260825201330`,
+> carrying identical executable SQL and no replacement API view.
 >
 > Independent reviews behind the ruling: Kimi K3 and GLM 5.3 (AGREE WITH CONDITIONS).
 
@@ -59,9 +61,12 @@ JSON-null repair. **A Paramount capture is unblocked.**
 byte-binding gate — so they were superseded by `20260825124200` and `20260825130500`. The end state
 is the one this report recommended; the route differed.
 
-**Still outstanding:** the Warner cleanup `20260814170749` ([section 2](#warner)), which is stranded
-for the same reason and needs an owner ruling — see issue #949. Everything below about Paramount
-describes the state before 13:16 on 2026-08-25 and is kept as the record of how it was diagnosed.
+**Warner is also resolved.** Owner ruling #1517 requires the stranded original `20260814170749`
+to remain retired and hard-blocked. Its byte-identical replacement `20260825201330` was rehearsed,
+merged in PR #1541, and applied alone to production in run
+[32901820150](https://github.com/u2giants/shared-db/actions/runs/32901820150). Everything below
+describes the state before these 2026-08-25 resolutions and is kept as the record of how it was
+diagnosed.
 
 ---
 
@@ -89,18 +94,18 @@ work.
 | `20260825094455` pmt loader forward repair *(not one of the six)* | Merged 08-25, pending | **Apply last** — without it the other three revert a live fix |
 | `20260814233342` source capture inventory | **Already retired** (owner ruling 08-24, PR #1402) | Nothing to do — closed |
 | `20260814233423` remaining source resolution | **Already retired** (owner ruling 08-24, PR #1402) | Nothing to do — closed |
-| `20260814170749` wb retire legacy capture paths | **Still pending everywhere** — the only untouched one | **Apply**, after a preview rehearsal. Needs a window. |
+| `20260814170749` wb retire legacy capture paths | **Retired and hard-blocked** — replacement `20260825201330` is production-live | Never apply the original; replacement completed in run 32901820150 |
 
-**Two windows need authorizing:** the four-version Paramount set (which ends the outage) and the
-Warner cleanup (which has sat unapplied for eleven days and is safe today). Both need a preview
-rehearsal first. Neither needs new code.
+The Paramount window and the fresh Warner replacement both completed. The Warner replacement was
+rehearsed separately and later applied alone to production in run 32901820150.
 
 ---
 
-## The numbers, re-derived today
+## Historical audit snapshot — superseded for Warner by #1517
 
-Both figures below come from the two workflow runs launched for this report, not from any earlier
-comment.
+Both figures below came from the two workflow runs launched for the original report. They are kept
+as dated evidence, not as current drift totals. The Warner original is now retired and its fresh
+replacement is `20260825201330`; use the live drift workflow for current totals.
 
 **Production** — 517 versions merged on `main`, 498 applied, 19 in the drift list: **8
 genuinely-pending**, 11 retired or deliberately held (which no longer make the check fail).
@@ -192,7 +197,7 @@ readable.
 
 ---
 
-## 2. Warner legacy cleanup — `20260814170749` — safe to apply, and nobody has scheduled it {#warner}
+## 2. Warner legacy cleanup — original `20260814170749` retired; replacement `20260825201330` {#warner}
 
 **Plain English.** Warner (STARLABS) source data was moved from a first-generation set of tables to
 a cleaned-up set. This migration finishes the job: it locks the capture contract so a new Warner
@@ -218,23 +223,27 @@ and both read the *normalized* tables only. Nothing later redefines what this fi
 **Broken today by its absence?** **No — but it is quietly wrong in two ways.** The two surviving API
 feeds read the emptied tables, so anyone querying them by hand is told "no Warner property/character
 relationships exist" while 4,158 of them sit next to it. Nothing in the codebase consumes those
-feeds (zero references in `types/`, `apps/`, `tools/`), so no screen or report is affected. Second,
+feeds (zero application or tool consumers; generated types still describe the legacy table), so
+no screen or report is affected. Second,
 the sixteen old loader functions remain callable and the capture guard still accepts the retired
 target names, so a stale script could land a fresh Warner scrape into tables nothing reads.
 
 **Independently reviewed and confirmed.** Muse Spark 1.2 (session `wb-legacy-cleanup-safety`)
-re-ran the consumer search, the preflight analysis and the eleven-day conflict check and reached the
-same conclusion: apply as-is. It corrected one detail of mine — `types/database.types.ts:28883` does
+re-ran the consumer search, the preflight analysis and the eleven-day conflict check and confirmed
+the cleanup SQL is safe, not that the stranded original can be promoted. It corrected one detail of
+mine — `types/database.types.ts:28883` does
 contain a `wb_property_character` entry, but it is the *generated definition of the legacy table*,
 not a query against the dropped view. It disappears when types are regenerated after the apply, so
 **regenerating `types/` is a required follow-up step in the same window.** It also confirmed the
 preflight cannot pass while real data exists, and that both later Warner migrations
 (`20260816045120`, `20260823175638`) read only the normalized tables.
 
-**Recommendation: apply as-is**, after a preview rehearsal, in the next available window. Do not
-edit the merged file — `tools/sync-warner-starlabs.test.mjs` asserts its contents. If you later want
-the direct Warner assertions exposed on the API surface, that is a separate new migration, not part
-of this one.
+**Current ruling:** never rehearse or promote the original `20260814170749`. Its authoring-era
+preview no longer exists and current producer bytes cannot create qualifying evidence. Issue #1517
+reissues its executable SQL as `20260825201330`, permanently hard-blocks the original, and adds no
+replacement API view. Rehearsing the fresh version and promoting it are separate governed actions.
+Do not edit the original file — `tools/sync-warner-starlabs.test.mjs` asserts its contents and the
+replacement's executable-SQL equivalence.
 
 ---
 
@@ -274,8 +283,9 @@ this problem. Mentioned only so the drift list reads cleanly.
    `20260814193351` → `20260814213043` → `20260814223552` → `20260825094455`, in that exact order,
    after a preview rehearsal of the full set. This is what restores Paramount capture. Promoting
    fewer than four is the unsafe path.
-2. **Schedule a window for the Warner cleanup** ([section 2](#warner)) — preview rehearsal, then
-   production. It is safe today, self-protecting, and eleven days overdue.
+2. **Completed:** fresh Warner version `20260825201330` ([section 2](#warner)) was rehearsed and
+   promoted alone in production run 32901820150. Never name superseded original `20260814170749`
+   in a preview or production allowlist.
 3. **Resolve the `20260825102727` ordering contradiction on #1459** before PR #1491 merges. A
    replacement that sorts above the forward repair cannot satisfy the required order.
 4. **Keep issue #949 open** until Warner and Paramount are resolved. The alarm now clears on its own,

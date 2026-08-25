@@ -40,6 +40,15 @@ const cleanupMigration = readFileSync(
   new URL("../supabase/migrations/20260814170749_wb_retire_legacy_capture_paths.sql", import.meta.url),
   "utf8",
 );
+const replacementCleanupMigration = readFileSync(
+  new URL("../supabase/migrations/20260825201330_wb_retire_legacy_capture_paths.sql", import.meta.url),
+  "utf8",
+);
+
+test("fresh Warner cleanup reissue preserves the original executable SQL", () => {
+  const executableSql = (sql) => sql.slice(sql.indexOf("do $$")).replace(/\r\n/g, "\n").trimEnd();
+  assert.equal(executableSql(replacementCleanupMigration), executableSql(cleanupMigration));
+});
 
 test("legacy cleanup serializes with capture starts before checking or dropping", () => {
   const lock = cleanupMigration.indexOf("pg_advisory_xact_lock");

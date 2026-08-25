@@ -761,6 +761,7 @@ class BatchResolutionTests(unittest.TestCase):
             RETIRED_VERSIONS,
             {
                 "20260729120000",
+                "20260814170749",
                 "20260814224937",
                 "20260814233342",
                 "20260814233423",

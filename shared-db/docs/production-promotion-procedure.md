@@ -68,10 +68,14 @@ below its highest version; diff the full local file list against every `schema_m
 files shift between turns; do sensitive git work (branch off `origin/main`, apply) in a dedicated
 `git worktree`, not the main checkout.
 
-A third habit worth breaking: **promote the original file — do not hand-copy it into a new
-"bounded forward" migration.** Copying the SQL under a fresh timestamp does reach production,
-but the original stays pending forever and hundreds of lines get duplicated. Two sessions did
-this in July 2026 (`20260723183000_step11_bounded_production_forward.sql`,
+A third habit worth breaking: **promote the original file; do not casually hand-copy it into a
+new "bounded forward" migration.** Copying the SQL under a fresh timestamp can reach production,
+but normally leaves the original pending forever and duplicates hundreds of lines. The narrow
+exception is the stranded-version case documented below: when an original can no longer earn
+qualifying preview evidence, reissue only under an explicit owner ruling, hard-block the original,
+and prove executable-SQL equivalence. Issue #1517 applies that exception to Warner
+`20260814170749`, replaced by `20260825201330`. Two sessions copied SQL without this retirement
+contract in July 2026 (`20260723183000_step11_bounded_production_forward.sql`,
 `20260727154500_db_data_admin_bounded_production_forward.sql`), which is why three already-live
 migrations still had to be replayed as no-ops on 2026-07-27 just to close the ledger gap. Full
 worked example, including the verification queries:

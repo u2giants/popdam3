@@ -57,6 +57,13 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #1517 fresh-version recovery. The original 20260814170749 Warner cleanup
+    # was merged without a preview rehearsal before the preview project was
+    # replaced. Current producer bytes therefore cannot create qualifying
+    # evidence for that version. 20260825201330 carries the same executable SQL;
+    # it was applied alone to production in run 32901820150 after PR #1541 merged.
+    # The original must never enter any preview or production allowlist.
+    "20260814170749",
     # These historical originals are superseded and their replacements are live.
     # 20260819011639 cannot satisfy the producer-provenance binding; its executable
     # SQL was reissued byte-for-byte as 20260820142402. 20260819151536 times out in
