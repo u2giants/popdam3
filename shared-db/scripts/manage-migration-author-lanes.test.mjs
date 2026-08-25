@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -283,9 +283,15 @@ test('an unclassified issue prevents proof that an empty lane is justified',()=>
   assert.deepEqual(result.unclassified,[20])
 })
 
-test('legacy claims count toward the three-lane cap and always protect objects', () => {
+test('legacy claims count toward the author-lane cap and always protect objects', () => {
   const legacy = (n, object) => ({ number:n, body:`\`\`\`db-claim\nversion: none\nobjects:\n  - ${object}\n\`\`\`` })
-  assert.throws(() => assertLaneAvailable([legacy(1,'table core.a'),legacy(2,'table core.b'),legacy(3,'table core.c')], ['table core.d'], NOW), /all 3/)
+  // Asserted against the constant, not a literal, so the cap can move without
+  // this test quietly checking the wrong number -- but the constant itself is
+  // pinned, so a change to it is a deliberate edit here.
+  assert.equal(MAX_AUTHOR_LANES, 5)
+  const full = Array.from({length:MAX_AUTHOR_LANES},(_,i)=>legacy(i+1,`table core.t${i}`))
+  assert.doesNotThrow(() => assertLaneAvailable(full.slice(0,MAX_AUTHOR_LANES-1), ['table core.d'], NOW))
+  assert.throws(() => assertLaneAvailable(full, ['table core.d'], NOW), new RegExp(`all ${MAX_AUTHOR_LANES}`))
   assert.throws(() => assertLaneAvailable([legacy(1,'table core.a')], ['TABLE core.a'], NOW), /collision/)
   assert.equal(parseAuthorLease(legacy(1,'table core.a').body, NOW).legacy, true)
 })
@@ -335,8 +341,69 @@ function reviewIo(){
 test('reviewer cursor advances atomically through the durable round robin',()=>{
   const io=reviewIo(), names=[]
   for(let n=1;n<=5;n++)names.push(assignNextReviewer({issue:n,pr:100+n,headSha:`abcdef${n}`},io).reviewer)
-  assert.deepEqual(names,['grok-4.6','glm-5.3','muse-spark-1.2-contributor','grok-4.6','glm-5.3'])
+  assert.deepEqual(names,['grok-4.6','glm-5.3','kimi-k3','muse-spark-1.2-contributor','grok-4.6'])
   assert.ok(io.refs.has(REVIEW_CURSOR_REF))
+})
+
+// OVERFLOW ROUTING (owner instruction, 2026-08-25). Codex is the reviewer of last
+// resort. Every one of these cases costs real money if it is wrong in the
+// permissive direction, so the busy probe is asserted from both sides.
+function busyIo(){
+  // Each of the four active reviewers holds one live assignment: an open PR, still
+  // at the head it was given, with no verdict recorded.
+  const io=reviewIo(), heads=new Map()
+  ACTIVE_REVIEWERS.forEach((row,index)=>{
+    const issue=500+index, pr=600+index, headSha=`fee${index}`.padEnd(40,'0')
+    heads.set(pr,headSha)
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${row.name} issue=${issue} pr=${pr} head=${headSha}`)
+    io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-${headSha}`,sha)
+  })
+  io.getPr=(number)=>({number:Number(number),state:'open',head:{sha:heads.get(Number(number))??'abcdef9'}})
+  return {io,heads}
+}
+
+test('every active reviewer busy routes the next assignment to the overflow provider',()=>{
+  const {io}=busyIo()
+  assert.deepEqual([...findBusyReviewers(io)].sort(),ACTIVE_REVIEWERS.map((r)=>r.name).sort())
+  assert.equal(pickReviewer(1,io).name,'codex-gpt-5.6-sol')
+  // The rotation position is derived from the sequence, so spending one on the
+  // overflow provider does not move anyone's turn.
+  assert.equal(assignNextReviewer({issue:9,pr:109,headSha:'abcdef9'},io).reviewer,'codex-gpt-5.6-sol')
+})
+
+test('one free active reviewer keeps the ordinary rotation and never reaches codex',()=>{
+  const {io,heads}=busyIo()
+  // Muse's PR is merged, so muse is free again -- and free means rotation, even
+  // though the sequence would otherwise land elsewhere.
+  const musePr=600+ACTIVE_REVIEWERS.findIndex((r)=>r.name==='muse-spark-1.2-contributor')
+  const openPr=io.getPr
+  io.getPr=(number)=>Number(number)===musePr?{number:musePr,state:'closed',head:{sha:heads.get(musePr)}}:openPr(number)
+  assert.ok(!findBusyReviewers(io).has('muse-spark-1.2-contributor'))
+  assert.equal(pickReviewer(1,io).name,'grok-4.6')
+})
+
+test('a recorded verdict and a moved head both free the reviewer that held them',()=>{
+  const {io,heads}=busyIo()
+  const grokPr=600
+  // A verdict tied to the exact head ends that review.
+  const verdictIo={...io,getPrReviews:(number)=>Number(number)===grokPr?[{body:`APPROVE ${heads.get(grokPr)}`}]:[]}
+  assert.ok(!findBusyReviewers(verdictIo).has('grok-4.6'))
+  // So does a push that moves the PR past the head the reviewer was given.
+  const openPr=io.getPr
+  const movedIo={...io,getPr:(number)=>Number(number)===grokPr?{number:grokPr,state:'open',head:{sha:'9'.repeat(40)}}:openPr(number)}
+  assert.ok(!findBusyReviewers(movedIo).has('grok-4.6'))
+})
+
+test('an unreadable busy probe keeps the rotation instead of diverting to paid overflow',()=>{
+  // FAIL OPEN. A probe that cannot read GitHub must never silently send every
+  // review to the provider that costs money per run.
+  const {io}=busyIo()
+  const blind={...io,listRefs:()=>{throw new Error('HTTP 500')}}
+  assert.equal(findBusyReviewers(blind),null)
+  assert.equal(pickReviewer(1,blind).name,'grok-4.6')
+  const noListRefs={...io};delete noListRefs.listRefs
+  assert.equal(findBusyReviewers(noListRefs),null)
+  assert.equal(pickReviewer(2,noListRefs).name,'glm-5.3')
 })
 
 test('retired reviewer names stay resolvable so historical review evidence never orphans',()=>{
@@ -355,7 +422,13 @@ test('retired reviewer names stay resolvable so historical review evidence never
 test('the active rotation is exactly the current models, in a stable order',()=>{
   // Order and length are the round robin. A change here silently reassigns every
   // in-flight sequence to a different reviewer, so it must be asserted, not assumed.
-  assert.deepEqual(ACTIVE_REVIEWERS.map((r)=>r.name),['grok-4.6','glm-5.3','muse-spark-1.2-contributor'])
+  assert.deepEqual(ACTIVE_REVIEWERS.map((r)=>r.name),['grok-4.6','glm-5.3','kimi-k3','muse-spark-1.2-contributor'])
+  // The overflow provider is NOT in the rotation. If it ever appears here it has
+  // silently become a fifth round-robin slot, which is not what it is for.
+  assert.deepEqual(OVERFLOW_REVIEWERS.map((r)=>r.name),['codex-gpt-5.6-sol'])
+  assert.ok(!ACTIVE_REVIEWERS.some((r)=>r.name==='codex-gpt-5.6-sol'))
+  assert.equal(REVIEWERS.find((r)=>r.name==='kimi-k3').wrapper,'ai-kimi')
+  assert.equal(REVIEWERS.find((r)=>r.name==='codex-gpt-5.6-sol').wrapper,'ai-codex-review')
   assert.equal(REVIEWERS.find((r)=>r.name==='glm-5.3').wrapper,'ai-glm')
   assert.equal(REVIEWERS.find((r)=>r.name==='muse-spark-1.2-contributor').wrapper,'ai-muse')
 })
@@ -388,7 +461,7 @@ test('terminal provider failure advances exactly once and retry is idempotent',(
   const io=failedReviewIo(), first=replaceFailedReviewer(replacementRequest,io), second=replaceFailedReviewer(replacementRequest,io)
   assert.equal(first.sequence,2);assert.equal(first.reviewer,'glm-5.3');assert.deepEqual(second,first)
   assert.equal(assignNextReviewer(failedReview,io).reviewer,'glm-5.3')
-  assert.equal(assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io).reviewer,'muse-spark-1.2-contributor')
+  assert.equal(assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io).reviewer,'kimi-k3')
 })
 
 const preflightIo=()=>({commandAvailable:()=>true,localHead:()=>failedReview.headSha,localClean:()=>true,reviewerDoctor:()=>({ok:true,failingChecks:[]})})
@@ -464,9 +537,25 @@ test('SILENCE IS NOT A PASS, but an unfamiliar format is not a failure',()=>{
   // REAL ai-grok-review output: no check lines anywhere, health signalled by exit
   // status alone. Refusing this would block a healthy Grok on every review.
   const grok=['grok binary   : /c/Users/ahazan/.grok/bin/grok','grok version  : grok 1.0.5 (5115b46bc9) [stable]','model         : grok-4.6','','auth          : OK (grok models succeeded)'].join('\n')
-  assert.deepEqual(summarizeDoctorOutput(grok),{ok:true,failingChecks:[],format:'unrecognized'})
-  // An unrecognised format is still refused when it names a failing check.
+  // Its `auth : OK` footer is the TRAILING check form, read since 2026-08-25, so a
+  // healthy Grok now reports as recognised checks rather than an unreadable format.
+  assert.deepEqual(summarizeDoctorOutput(grok),{ok:true,failingChecks:[],format:'checks'})
   assert.equal(summarizeDoctorOutput(grok+'\nFAIL  auth').ok,false)
+  // Output with no check line in EITHER form is still healthy on exit status alone.
+  assert.deepEqual(summarizeDoctorOutput('grok binary   : /c/grok\nmodel         : grok-4.6'),{ok:true,failingChecks:[],format:'unrecognized'})
+  // REAL ai-kimi output. This is the case the old parser could not see: a genuine
+  // FAIL in the trailing form scored as an unreadable format and therefore as
+  // healthy. Un-retiring kimi-k3 without this fix would have re-armed exactly the
+  // false local-fault diagnosis the doctor probe exists to prevent.
+  const kimi=['kimi version  : 0.36.1','model pin     : kimi-code/k3','read-only     : PASS (readonly-review.md)','preflight     : FAIL (execution-context-denied)','','auth          : OK'].join('\n')
+  const kimiSummary=summarizeDoctorOutput(kimi)
+  assert.equal(kimiSummary.ok,false)
+  assert.equal(kimiSummary.format,'checks')
+  assert.match(kimiSummary.failingChecks[0],/^preflight /)
+  // A healthy kimi -- same shape, no FAIL -- passes.
+  assert.equal(summarizeDoctorOutput(kimi.replace('preflight     : FAIL (execution-context-denied)','preflight     : PASS')).ok,true)
+  // REAL ai-codex-review output: exactly one leading-form PASS line.
+  assert.deepEqual(summarizeDoctorOutput('PASS provider=codex sandbox=read-only reasoning=explicit command=codex'),{ok:true,failingChecks:[],format:'checks'})
 })
 
 // `where.exe` lists an extension-less bash script BEFORE the .cmd shim for most
@@ -566,7 +655,7 @@ test('two consecutive terminal no-verdict failures form an immutable idempotent 
   const first=replaceFailedReviewer(replacementRequest,io)
   const secondRequest={...replacementRequest,failedSequence:first.sequence,failureCode:'turn_limit_cancelled'}
   const second=replaceFailedReviewer(secondRequest,io)
-  assert.equal(first.sequence,2);assert.equal(second.sequence,3);assert.equal(second.reviewer,'muse-spark-1.2-contributor')
+  assert.equal(first.sequence,2);assert.equal(second.sequence,3);assert.equal(second.reviewer,'kimi-k3')
   assert.deepEqual(replaceFailedReviewer(replacementRequest,io),first)
   assert.deepEqual(replaceFailedReviewer(secondRequest,io),second)
   assert.equal(assignNextReviewer(failedReview,io).sequence,3)
@@ -610,20 +699,20 @@ test('reviewer replacement rejects a mismatched original assignment',()=>{
 // is a false invariant, and it is deliberately not asserted here. Both halves are
 // pinned below, with the exact successor named in each case.
 test('one intervening assignment gives a failed reviewer a named replacement',()=>{
-  assert.equal(ACTIVE_REVIEWERS.length,3,'this test describes the three-reviewer rotation')
+  assert.equal(ACTIVE_REVIEWERS.length,4,'this test describes the four-reviewer rotation')
   const io=failedReviewIo()
   assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io)
   const replacement=replaceFailedReviewer(replacementRequest,io)
-  assert.equal(replacement.reviewer,'muse-spark-1.2-contributor')
+  assert.equal(replacement.reviewer,'kimi-k3')
 })
 
 test('N-1 intervening assignments skip the failed provider instead of stranding the replacement',()=>{
-  assert.equal(ACTIVE_REVIEWERS.length,3,'this test describes the three-reviewer rotation')
+  assert.equal(ACTIVE_REVIEWERS.length,4,'this test describes the four-reviewer rotation')
   const io=failedReviewIo()
   for(let n=0;n<ACTIVE_REVIEWERS.length-1;n+=1){
     assignNextReviewer({issue:20+n,pr:120+n,headSha:`abcde${n}f`},io)
   }
-  // The cursor now sits on a multiple of three, so the plain modulo would compute
+  // The cursor now sits on a multiple of the roster length, so the plain modulo would compute
   // back to grok-4.6 -- the provider that just failed. The selection skips it and
   // advances the durable cursor one extra step to the next active name.
   const cursorBefore=parseReviewCursor(io.getCommit(io.refs.get(REVIEW_CURSOR_REF)))
@@ -640,25 +729,35 @@ test('a chained replacement skips TWO already-failed providers to reach the last
   for(let n=0;n<ACTIVE_REVIEWERS.length-1;n+=1){
     assignNextReviewer({issue:30+n,pr:130+n,headSha:`abcdf${n}f`},io)
   }
-  // grok-4.6 failed, then its replacement glm-5.3 fails too. The rotation position
-  // computes back to grok-4.6, so selection must skip BOTH names (offset 2) to land
-  // on muse-spark-1.2-contributor. This is the deepest skip the roster allows.
+  // grok-4.6 failed, then its replacement glm-5.3 fails too. The cursor is then
+  // walked back to a roster boundary so the plain modulo computes to grok-4.6, and
+  // selection must skip BOTH failed names (offset 2) to land on the next live one.
   const first=replaceFailedReviewer(replacementRequest,io)
   assert.equal(first.reviewer,'glm-5.3')
-  assignNextReviewer({issue:40,pr:140,headSha:'abcdf9f'},io)
+  for(let n=0;n<2;n+=1)assignNextReviewer({issue:40+n,pr:140+n,headSha:`abcdf${n}9`},io)
   const cursorBefore=parseReviewCursor(io.getCommit(io.refs.get(REVIEW_CURSOR_REF)))
+  assert.equal(cursorBefore.sequence%ACTIVE_REVIEWERS.length,0,'the cursor must sit on a roster boundary for this to be a two-name skip')
   const second=replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io)
-  assert.equal(second.reviewer,'muse-spark-1.2-contributor')
+  assert.equal(second.reviewer,'kimi-k3')
   assert.equal(second.sequence,cursorBefore.sequence+3)
   assert.deepEqual(replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io),second)
 })
 
-test('replacement refuses only when every other active reviewer already failed on this head',()=>{
+test('replacement exhausts the rotation, then the overflow provider, then refuses',()=>{
+  // The chain must walk every active name exactly once, reach codex only after all
+  // four are spent, and refuse only when the overflow provider has failed too. A
+  // regression that reached codex early would spend real money on every retry.
   const io=failedReviewIo()
-  const first=replaceFailedReviewer(replacementRequest,io)
-  const second=replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io)
-  assert.notEqual(first.reviewer,second.reviewer)
-  assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence:second.sequence},io),/no other active reviewer/)
+  const seen=['grok-4.6']
+  let failedSequence=replacementRequest.failedSequence
+  for(let n=0;n<ACTIVE_REVIEWERS.length;n+=1){
+    const step=replaceFailedReviewer({...replacementRequest,failedSequence},io)
+    assert.ok(!seen.includes(step.reviewer),`${step.reviewer} was already spent on this head`)
+    seen.push(step.reviewer);failedSequence=step.sequence
+  }
+  assert.deepEqual(seen.slice(0,ACTIVE_REVIEWERS.length),ACTIVE_REVIEWERS.map((r)=>r.name))
+  assert.equal(seen[seen.length-1],'codex-gpt-5.6-sol','the overflow provider is the last resort, not part of the rotation')
+  assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence},io),/no other reviewer is available/)
 })
 
 test('reviewer replacement rejects a substantive exact-head verdict',()=>{
@@ -1021,10 +1120,11 @@ test('REAL PROCESS RACE: two independent CLIs claiming one object produce exactl
   assert.equal(results.filter(x=>!x.json.ok&&/collision/.test(x.json.error)).length,1)
 })
 
-test('REAL PROCESS RACE: four independent CLIs claiming unrelated objects admit exactly three',async()=>{
-  const results=await raceWorkers(['table core.a','table core.b','table core.c','table core.d'])
-  assert.equal(results.filter(x=>x.json.ok).length,3)
-  assert.equal(results.filter(x=>!x.json.ok&&/all 3/.test(x.json.error)).length,1)
+test('REAL PROCESS RACE: cap+1 independent CLIs claiming unrelated objects admit exactly the cap',async()=>{
+  const objects=Array.from({length:MAX_AUTHOR_LANES+1},(_,i)=>`table core.r${i}`)
+  const results=await raceWorkers(objects)
+  assert.equal(results.filter(x=>x.json.ok).length,MAX_AUTHOR_LANES)
+  assert.equal(results.filter(x=>!x.json.ok&&new RegExp(`all ${MAX_AUTHOR_LANES}`).test(x.json.error)).length,1)
 })
 
 test('GitHub 403 and rate-limit failures refuse acquisition without creating a claim',()=>{

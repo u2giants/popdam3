@@ -126,7 +126,7 @@ This plan changes repository coordination, scripts, workflows, tests, and docume
 
 Albert asked for internet research into the best way to coordinate multiple Codex and Claude agents working around one database, then asked for an implementation plan applying the findings to this repository.
 
-The research found that this repository already has the strongest foundation: isolated worktrees, permanent migration versions, up to three unrelated authors, exact object claims, and exclusive preview/merge/production stages. The remaining risk is not a lack of parallel agents; it is incomplete dependency modelling, incomplete lease recovery, provider-specific completion behavior, and two required CI checks that exist but are not enforced by branch protection.
+The research found that this repository already has the strongest foundation: isolated worktrees, permanent migration versions, up to five unrelated authors, exact object claims, and exclusive preview/merge/production stages. The remaining risk is not a lack of parallel agents; it is incomplete dependency modelling, incomplete lease recovery, provider-specific completion behavior, and two required CI checks that exist but are not enforced by branch protection.
 
 During plan intake on 2026-08-21, the task was incorrectly handed to the shared-db orchestrator. Albert corrected the boundary immediately:
 
@@ -183,10 +183,10 @@ The same review confirmed that several feared gaps were already solved: the GitH
 
 ### What already works and must be preserved
 
-1. **Three author lanes, one shared mutable stage at a time.** `docs/agents/section-4-anti-collision-rules.md:9-12` allows up to three unrelated migration authors and keeps preview, merge, and production serial. Lines 14-30 require an isolated worktree, exact object claim, and permanent 14-digit version before a migration file is opened.
+1. **Five author lanes (three until 2026-08-25), one shared mutable stage at a time.** `docs/agents/section-4-anti-collision-rules.md:9-12` allows up to five unrelated migration authors and keeps preview, merge, and production serial. Lines 14-30 require an isolated worktree, exact object claim, and permanent 14-digit version before a migration file is opened.
 2. **GitHub is the coordination store.** `EXCLUSIVE_REFS` in `scripts/manage-migration-author-lanes.mjs` maps preview, merge, and production to Git refs. Acquisition is `acquireExclusive`; release is routed through `releaseOwnedRef`, which today compares the ref's current SHA against the SHA captured at acquisition.
 3. **Queue scopes are machine readable.** `parseQueueScope` in `scripts/manage-migration-author-lanes.mjs` parses `status`, `work_type`, `route`, `priority`, `depends_on`, and `objects`.
-4. **The queue serializes exact object overlap.** `buildDynamicQueues` in `scripts/manage-migration-author-lanes.mjs` groups overlapping `objects` and fills no more than three lanes.
+4. **The queue serializes exact object overlap.** `buildDynamicQueues` in `scripts/manage-migration-author-lanes.mjs` groups overlapping `objects` and fills no more than `MAX_AUTHOR_LANES` lanes (five since 2026-08-25).
 5. **Pull requests receive a second collision check.** `.github/workflows/pr-object-collision.yml` runs `scripts/check-pr-object-collisions.test.mjs`, `scripts/check-dispatch-collision.test.mjs`, `scripts/manage-migration-author-lanes.test.mjs`, and then the live read-only checker.
 6. **Migration pull requests require a live branch-bound claim.** `.github/workflows/migration-author-lease.yml` runs the claim tests and `scripts/check-migration-pr-lease.mjs`.
 7. **Handoffs have a checked contract.** `.github/workflows/handoff-contract-guard.yml` validates only handoff files touched by the pull request and fails closed when issue state is unreadable.
@@ -257,7 +257,7 @@ The answer is not a larger autonomous agent team. It is a stronger repository-ow
 3. A work contract is authoritative only when a dispatcher publishes it before execution. A worker may submit completion evidence against the exact hash, but may not publish a broader replacement contract.
 4. Core coordination activation and the optional Supabase pilot solve different problems. The first must proceed after Steps 1-6; pilot expansion waits independently for Step 7 evidence and never blocks the core rollout.
 5. A later forward migration does not make an earlier successful completion false. An optional `invalidates` or `supersedes` pointer can warn reviewers, but must remain advisory and must never automatically unsatisfy dependencies.
-6. Three lanes renewing every ten minutes create at most 18 ref writes per hour. That is not a material GitHub-rate-limit risk at the current cap; existing bounded retry and fail-closed behavior remains sufficient. Reassess only if the lane cap changes.
+6. Three lanes renewing every ten minutes create at most 18 ref writes per hour. That is not a material GitHub-rate-limit risk; existing bounded retry and fail-closed behavior remains sufficient. **Reassessed 2026-08-25 when the cap was raised to five:** the same arithmetic gives at most 30 ref writes per hour, still far inside GitHub's limits, so no change to retry or backoff was required. The caveat is discharged at five lanes and should be reassessed again only if the cap rises materially further.
 
 ## 7. Approaches considered and rejected
 
@@ -681,7 +681,7 @@ Treat exit code 2 or unreadable/empty remote output as unknown/failure, never su
 13. The control-plane fence cannot interrupt a database command already executing outside GitHub Actions. Therefore recovery requires conclusive terminal run state and grace, not just token mismatch.
 14. Static SQL dependency extraction is a backstop for honest authors, not a security boundary. Explicit declarations remain required.
 15. Claude Agent Teams and Codex subagents may be used for independent read-only research, competing diagnoses, test execution, or independent reviews. They must not independently acquire or write the same database stage.
-16. Start with no more than three parallel specialists. This matches the repository's three author lanes and the practical guidance from both Codex and Claude; more agents increase coordination cost without creating more safe database capacity.
+16. Start with no more than five parallel specialists. This matches the repository's five author lanes and the practical guidance from both Codex and Claude; more agents increase coordination cost without creating more safe database capacity.
 17. Do not edit another session's handoff, active branch, worktree, claim, or migration.
 18. Preserve `required_status_checks.strict: false`. Issue #1286 is the owner-authorized throughput decision and contains its own reconsideration threshold. This plan is not evidence that the threshold was met.
 19. The structural current-`main` proof lives in `.github/workflows/guarded-migration-merge.yml`; do not duplicate it in lease code or assume `pull_request.base.sha` is the branch point. `scripts/check-pr-object-collisions.mjs:1063-1078` documents the correct `headSha...baseRef` comparison.

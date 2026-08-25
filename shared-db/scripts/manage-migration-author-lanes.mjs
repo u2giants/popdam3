@@ -10,7 +10,25 @@ import { classifyDependencies, findCompletionRecord, findDependencyCycles, valid
 import { assertLease, evaluateRecovery, formatLeaseMessage, parseLeaseMessage, recoveredLeaseMetadata, LeaseError } from './lib/exclusive-lease.mjs'
 
 export const REPO = 'u2giants/shared-db'
-export const MAX_AUTHOR_LANES = 3
+// AUTHOR LANE CAP. Raised from three to five on 2026-08-25 (owner instruction).
+//
+// WHAT THE NUMBER DOES AND DOES NOT DO. It is a throughput dial, not a safety
+// dial. Collision safety comes from four mechanisms that do not read this
+// constant: exact per-object claims (`assertLaneAvailable`), the global
+// acquisition mutex (`MUTEX_REF`), permanent per-version refs
+// (`refs/db-claims/<version>`), and the exclusive single-holder stage refs in
+// `EXCLUSIVE_REFS`. Preview, guarded merge and production stay strictly serial
+// at five lanes exactly as they were at three -- more authors never means more
+// sessions touching a live database.
+//
+// WHAT THE RAISE ACTUALLY COSTS. Downstream capacity, not correctness. Five
+// authors finishing together queue in front of the single preview stage, and
+// they need reviewers: the roster was grown to four active providers plus a
+// codex overflow slot in the same change, because five lanes feeding three
+// reviewers just moves the wait. Ref writes are ~6/hour per lane, so five lanes
+// stay far inside GitHub's limits and the rate-limit caveat recorded in
+// plan_multi_agent_database_coordination_hardening.md is satisfied at this cap.
+export const MAX_AUTHOR_LANES = 5
 export const DEFAULT_LEASE_HOURS = 12
 export const MUTEX_STALE_AFTER_MS = 2 * 60 * 1000
 export const MUTEX_REF = 'refs/db-coordination/author-acquisition'
@@ -24,6 +42,7 @@ export const REVIEWERS = Object.freeze([
   { name:'kimi-k3', wrapper:'ai-kimi' }, { name:'qwen-3.8-max', wrapper:'ai-qwen' },
   { name:'glm-5.2', wrapper:'ai-glm' },
   { name:'muse-spark-1.2-contributor', wrapper:'ai-muse' },
+  { name:'codex-gpt-5.6-sol', wrapper:'ai-codex-review' },
 ])
 // Keep REVIEWERS as the historical evidence registry. Paused providers remain
 // readable forever, but only ACTIVE_REVIEWERS can receive new work.
@@ -102,10 +121,28 @@ export const REVIEWERS = Object.freeze([
 // is the worst possible failure mode for a review gate. Retry only after someone
 // establishes why the report comes back empty. This supersedes the narrower #1203.
 //
-// ROTATION SLOTS. 'glm-5.3' still occupies the slot 'glm-5.2' held. Muse is APPENDED,
-// so it takes the slot kimi-k3's pause vacates in ACTIVE_REVIEWERS rather than
-// displacing anyone. ACTIVE_REVIEWERS is therefore ['grok-4.6','glm-5.3',
-// 'muse-spark-1.2-contributor'] -- THREE names instead of two.
+// ROTATION SLOTS. 'glm-5.3' still occupies the slot 'glm-5.2' held. Muse was
+// APPENDED, so it took the slot kimi-k3's pause vacated rather than displacing
+// anyone.
+//
+// KIMI-K3 UNPAUSED, 2026-08-25 (owner instruction, with the lane cap raise to
+// five). It returns to its ORIGINAL position in REVIEWERS, so the rotation is
+// ['grok-4.6','glm-5.3','kimi-k3','muse-spark-1.2-contributor'] -- FOUR names.
+// Verified before unpausing, not assumed: `AI_KIMI_CALLER=claude ai-kimi doctor`
+// on edge-dev reports kimi 0.36.1, model pin kimi-code/k3, read-only profile
+// PASS and `auth : OK`. Its one FAIL, `preflight (execution-context-denied)`,
+// is an execution-context rule -- credentialed Kimi jobs must run from the Full
+// Access main task -- not a broken install.
+//
+// THAT FAIL WAS INVISIBLE UNTIL THIS CHANGE, and fixing it was part of the
+// unpause. `ai-kimi` and `ai-grok-review` report `<name> : PASS|FAIL|OK`, not
+// the `PASS  <check>` form ai-glm, ai-muse and ai-codex-review use, so
+// summarizeDoctorOutput scored kimi's output as an unrecognized format and
+// therefore healthy-by-exit-status. Un-retiring a wrapper whose FAIL lines
+// nothing parses would have re-armed exactly the false local-fault diagnosis
+// this machinery exists to end, so parseDoctorFailures now reads both forms.
+// See the note above summarizeDoctorOutput for the doctor output all five
+// wrappers actually produce.
 //
 // WHAT THREE NAMES DOES AND DOES NOT FIX. An earlier draft of this block claimed an
 // odd-length rotation removes the `replaceFailedReviewer` same-provider trap. THAT
@@ -125,8 +162,27 @@ export const REVIEWERS = Object.freeze([
 // Capacity is worth having on its own terms: twice on 2026-08-19 a second reviewer
 // overturned the first's conclusion, once by refuting an author's design rationale
 // using the author's own test fixture. A rotation of one is not a rotation.
-export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2', 'kimi-k3'])
-export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>!RETIRED_REVIEWERS.includes(row.name)))
+export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2'])
+
+// OVERFLOW, NOT ROTATION (owner instruction, 2026-08-25). Codex is a reviewer of
+// last resort: it is assigned only when every name in ACTIVE_REVIEWERS is
+// already holding live review work in this repository, or -- in a replacement --
+// when every active provider has already failed on the exact head. It is
+// deliberately NOT a fifth rotation slot, because a provider that reviews on
+// every fourth PR is not a fallback, and the owner asked for a fallback.
+//
+// It is listed in REVIEWERS like every other name, so a cursor commit naming it
+// still resolves to a wrapper forever (`REVIEWERS.find(...)` at parse time is
+// not null-guarded on every path -- see the retired-name note above).
+//
+// `ai-codex-review` pins `codex exec -m gpt-5.6-sol --sandbox read-only
+// -c model_reasoning_effort=medium`. That satisfies the standing rule that
+// GPT-5.6 runs at low or medium reasoning only, and the pin lives in the
+// wrapper, so no caller here can raise it. `ai-codex-review doctor` was run on
+// edge-dev before this name was added and returns
+// `PASS provider=codex sandbox=read-only reasoning=explicit command=codex`.
+export const OVERFLOW_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>row.name==='codex-gpt-5.6-sol'))
+export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>!RETIRED_REVIEWERS.includes(row.name)&&!OVERFLOW_REVIEWERS.some((o)=>o.name===row.name)))
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
   'preview-recovery': 'refs/db-coordination/preview',
@@ -824,10 +880,22 @@ export const REVIEWER_DOCTOR_TIMEOUT_MS = (()=>{
   return value
 })()
 
-// Every reviewer wrapper reports one line per check: `PASS  <check>` or
-// `FAIL  <check>`. Return the names of the failing ones, in order.
+// Reviewer wrappers report checks in ONE OF TWO shapes, both real and both in
+// use on edge-dev today:
+//
+//   leading   `PASS  <check>` / `FAIL  <check>`      ai-glm, ai-muse, ai-codex-review
+//   trailing  `<check> : PASS|FAIL|OK (<detail>)`    ai-grok-review, ai-kimi
+//
+// Only the leading form was read until 2026-08-25, which meant a trailing-form
+// FAIL scored as an unrecognized format and therefore as healthy. Return the
+// names of the failing checks, in order, from either shape.
 export function parseDoctorFailures(output=''){
-  return String(output).split(/\r?\n/).map((line)=>/^\s*FAIL\s+(.*\S)\s*$/.exec(line)?.[1]).filter(Boolean)
+  return String(output).split(/\r?\n/).map((line)=>{
+    const leading=/^\s*FAIL\s+(.*\S)\s*$/.exec(line)
+    if(leading)return leading[1]
+    const trailing=/^\s*(\S(?:.*\S)?)\s+:\s*FAIL\b\s*(.*\S)?\s*$/.exec(line)
+    return trailing?(trailing[2]?`${trailing[1]} ${trailing[2]}`:trailing[1]):null
+  }).filter(Boolean)
 }
 
 // SILENCE IS NOT A PASS -- but an unfamiliar format is not a failure either.
@@ -837,14 +905,25 @@ export function parseDoctorFailures(output=''){
 //
 //   ai-glm / ai-muse   print `PASS  <check>` / `FAIL  <check>` lines. A FAIL wins
 //                      over any number of PASSes.
-//   ai-grok-review     prints NO check lines at all -- key/value lines and an
-//                      `auth : OK` footer -- and signals health purely by exit
-//                      status. Refusing that would have blocked a healthy Grok on
-//                      every review, which is the false local-fault diagnosis this
-//                      whole change exists to end. So when a wrapper answers with
-//                      output in a format we do not recognise AND exits 0, its own
-//                      exit status is its verdict; `format` records that we could
-//                      not read the detail.
+//   ai-codex-review    prints exactly one `PASS provider=codex ...` line. Same
+//                      leading form, one check.
+//   ai-grok-review     prints key/value lines and an `auth : OK` footer.
+//   ai-kimi            prints the same trailing form, including real FAILs such
+//                      as `preflight : FAIL (execution-context-denied)`.
+//
+//                      UNTIL 2026-08-25 BOTH OF THOSE SCORED AS "unrecognized",
+//                      i.e. healthy-by-exit-status. That was tolerable while the
+//                      trailing form belonged only to a wrapper that never
+//                      printed FAIL; un-retiring ai-kimi, which does, made it a
+//                      hole. parseDoctorFailures now reads the trailing form, and
+//                      `<check> : PASS|OK` counts as a recognized pass here.
+//                      Grok is still healthy on exit status when it prints
+//                      neither -- refusing that would have blocked a healthy Grok
+//                      on every review, the false local-fault diagnosis this whole
+//                      mechanism exists to end.
+//   unfamiliar output  when a wrapper answers with output in a format we do not
+//                      recognise AND exits 0, its own exit status is its verdict;
+//                      `format` records that we could not read the detail.
 //   nothing at all     proves nothing. A wrapper that quietly stops reporting must
 //                      never be read as healthy forever. Refused.
 //
@@ -854,7 +933,7 @@ export function parseDoctorFailures(output=''){
 export function summarizeDoctorOutput(output=''){
   const failed=parseDoctorFailures(output)
   if(failed.length)return {ok:false,failingChecks:failed,format:'checks'}
-  const passed=String(output).split(/\r?\n/).filter((line)=>/^\s*PASS\s+\S/.test(line)).length
+  const passed=String(output).split(/\r?\n/).filter((line)=>/^\s*PASS\s+\S/.test(line)||/^\s*\S(?:.*\S)?\s+:\s*(?:PASS|OK)\b/.test(line)).length
   if(passed)return {ok:true,failingChecks:[],format:'checks'}
   if(String(output).trim())return {ok:true,failingChecks:[],format:'unrecognized'}
   return {ok:false,failingChecks:['doctor reported nothing at all; nothing was proved'],format:'silent'}
@@ -1035,8 +1114,64 @@ export function findPrReviewAssignments(issue,pr,io){
     .sort((a,b)=>b.sequence-a.sequence)
 }
 
+// A verdict exists for an exact head when an issue comment, a PR comment, or a
+// PR review is tied to that head AND carries a decision. Extracted so the
+// replacement guard and the busy-reviewer probe cannot drift apart: "this review
+// is finished" has to mean the same thing in both places.
+export function hasVerdictForHead(issue,pr,headSha,io){
+  const evidence=[...(io.getIssueComments?.(Number(issue))??[]),...(io.getIssueComments?.(Number(pr))??[]),...(io.getPrReviews?.(Number(pr))??[])]
+  return evidence.some((row)=>{
+    const body=String(row.body??''), tied=row.commit_id===headSha||body.includes(headSha)
+    return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))
+  })
+}
+
+// WHICH REVIEWERS ARE BUSY IN THIS REPOSITORY RIGHT NOW.
+//
+// The constraint being modelled is real and provider-side: `ai-grok-review`
+// holds an in-flight lock PER REPOSITORY, so shared-db can have one live Grok
+// review at a time. That is not a global limit -- five repositories with work
+// can run five Grok reviews at once, and nothing here tries to coordinate across
+// repositories. This function answers only the local question.
+//
+// A reviewer is busy when it holds a durable assignment whose work is still
+// live: the PR is open, its head is still the head that reviewer was given, and
+// no verdict has landed for that head. Anything else -- a merged or closed PR, a
+// head that moved on, a recorded verdict -- frees the provider.
+//
+// FAIL OPEN, DELIBERATELY. If the refs cannot be listed, this returns null and
+// the caller keeps the ordinary rotation. A busy probe that cannot read GitHub
+// must never silently divert every review to the overflow provider, which is
+// the one that costs real money per run.
+export function findBusyReviewers(io){
+  if(typeof io.listRefs!=='function')return null
+  let rows
+  try{rows=io.listRefs(REVIEW_ASSIGNMENT_REF_PREFIX)??[]}catch{return null}
+  const busy=new Set()
+  for(const row of rows){
+    let assignment
+    try{assignment=parseReviewCursor(io.getCommit(row.sha))}catch{continue}
+    if(!assignment)continue
+    let prRow
+    try{prRow=io.getPr(assignment.pr)}catch{continue}
+    if(prRow?.state!=='open')continue
+    if(prRow?.head?.sha!==assignment.headSha)continue
+    if(hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io))continue
+    busy.add(assignment.reviewer)
+  }
+  return busy
+}
+
 export function describeMovedAssignmentHead(request,recorded){
   return `the durable reviewer assignment is NOT missing: sequence=${recorded.sequence} reviewer=${recorded.reviewer} for issue #${request.issue} PR #${request.pr} is recorded under head ${recorded.headSha}, and this request names head ${request.headSha}. The PR head moved after that reviewer was assigned, so the exact code that reviewer was given is no longer this PR's head. A replacement would bind a new reviewer -- and later a verdict -- to a commit the failed reviewer never saw, so it is refused. Assign a reviewer to the current code instead: --assign-reviewer --issue ${request.issue} --pr ${request.pr} --head-sha <the PR's current head>. Nothing was lost and nothing needs reconstructing.`
+}
+
+export function pickReviewer(sequence,io){
+  const rotation=ACTIVE_REVIEWERS[(sequence-1)%ACTIVE_REVIEWERS.length]
+  const busy=findBusyReviewers(io)
+  if(!busy)return rotation
+  if(!ACTIVE_REVIEWERS.every((row)=>busy.has(row.name)))return rotation
+  return OVERFLOW_REVIEWERS.find((row)=>!busy.has(row.name))??rotation
 }
 
 export function assignNextReviewer({issue,pr,headSha},io=githubIo){
@@ -1065,7 +1200,13 @@ export function assignNextReviewer({issue,pr,headSha},io=githubIo){
       if(!io.createRef(assignmentRef,cursorSha)&&readRefAfterWrite(assignmentRef,cursorSha,io)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
       return {...current,wrapper:REVIEWERS.find((r)=>r.name===current.reviewer)?.wrapper}
     }
-    const sequence=(current?.sequence??0)+1, reviewer=ACTIVE_REVIEWERS[(sequence-1)%ACTIVE_REVIEWERS.length]
+    const sequence=(current?.sequence??0)+1
+    // Ordinary path: round-robin over the active roster. The overflow provider
+    // is reached only when EVERY active reviewer is already holding live review
+    // work here and the overflow provider itself is free. The rotation position
+    // is derived from `sequence`, not from who was last assigned, so spending a
+    // sequence on the overflow provider does not move anyone's turn.
+    const reviewer=pickReviewer(sequence,io)
     const assignmentSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     if(cursorSha)io.updateRef(REVIEW_CURSOR_REF,assignmentSha);else if(!io.createRef(REVIEW_CURSOR_REF,assignmentSha))throw new LaneError('reviewer cursor was created concurrently; retry the same assignment')
@@ -1248,11 +1389,7 @@ export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCo
     // head that was named, but the pull request has since moved past it. Same
     // truth, said plainly, instead of a technicality.
     if(prRow?.head?.sha!==request.headSha)throw new LaneError(`review replacement requires the exact open PR head: sequence=${initial.sequence} reviewer=${initial.reviewer} IS recorded for issue #${request.issue} PR #${request.pr} under head ${request.headSha}, but the pull request has since moved to head ${String(prRow?.head?.sha??'unknown')}. Nothing is missing. A push replaced the code under review, so a replacement reviewer would be bound to a commit the failed reviewer never saw. Assign a reviewer to the new code instead: --assign-reviewer --issue ${request.issue} --pr ${request.pr} --head-sha ${String(prRow?.head?.sha??'<current head>')}`)
-    const evidence=[...(io.getIssueComments?.(request.issue)??[]),...(io.getIssueComments?.(request.pr)??[]),...(io.getPrReviews?.(request.pr)??[])]
-    if(evidence.some((row)=>{
-      const body=String(row.body??''), tied=row.commit_id===request.headSha||body.includes(request.headSha)
-      return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))
-    }))throw new LaneError('an existing verdict for the exact head forbids reviewer replacement')
+    if(hasVerdictForHead(request.issue,request.pr,request.headSha,io))throw new LaneError('an existing verdict for the exact head forbids reviewer replacement')
     // The failing check rides along in the immutable evidence, so a later reader
     // can tell a real provider outage from a stopped local service without
     // re-deriving it from memory.
@@ -1274,7 +1411,16 @@ export function replaceFailedReviewer({issue,pr,headSha,failedSequence,failureCo
       if(failedNames.has(candidate.name))continue
       sequence=candidateSequence;reviewer=candidate;break
     }
-    if(!reviewer)throw new LaneError('no other active reviewer is available; every active provider has already failed on this exact head')
+    // LAST RESORT, same overflow provider as the busy path. When every active
+    // provider has already failed on this exact head the replacement used to
+    // refuse outright, stranding the PR. Codex is offered one attempt before
+    // that refusal -- but only if it has not itself already failed here, and it
+    // still advances the cursor monotonically like any other replacement.
+    if(!reviewer){
+      const overflow=OVERFLOW_REVIEWERS.find((row)=>!failedNames.has(row.name))
+      if(overflow){sequence=cursor.sequence+1+ACTIVE_REVIEWERS.length;reviewer=overflow}
+    }
+    if(!reviewer)throw new LaneError('no other reviewer is available; every active provider and the overflow provider have already failed on this exact head')
     const cursorReplacementSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
     const replacementSha=io.makeOwnerCommit(`db-coordination reviewer-replacement sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha} failed-sequence=${request.failedSequence} prior-sequence=${cursor.sequence} failure-ref=${failureSha}`)
     let failureCreated=false, cursorUpdated=false

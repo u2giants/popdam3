@@ -1145,9 +1145,10 @@ have already happened in this repo, more than once.
 
 1. **One orchestrator.** All work is dispatched to sub-agents in isolated
    worktrees. If you were not started as the orchestrator, you are not it.
-2. **SUPERSEDED 2026-08-14:** up to three unrelated migrations may be authored
-   concurrently under exact object claims and atomic version reservations.
-   Preview, merges and production promotion remain one at a time. Use §4 rule 1.
+2. **SUPERSEDED 2026-08-14, RAISED 2026-08-25:** up to **five** unrelated
+   migrations may be authored concurrently under exact object claims and atomic
+   version reservations. Preview, merges and production promotion remain one at
+   a time — the cap is throughput, never isolation. Use §4 rule 1.
 3. **Never edit a migration that has already been applied.** The migration
    ledger already records that version as run, so editing the file changes
    nothing on any database that has seen it — it only makes the repo lie. Fix
@@ -1247,7 +1248,7 @@ have already happened in this repo, more than once.
     finishes, then release it.** This is standard practice, not an improvisation.
 
 15. **The single-orchestrator rule is scoped to STRUCTURE (owner ruling §0.0-B, 2026-08-13).**
-    Rules 1 and 2 above ("one orchestrator", "up to three migration authors") govern changes to the
+    Rules 1 and 2 above ("one orchestrator", "up to five migration authors") govern changes to the
     *shape* of the database. They do **not** make an application session's ordinary row writes
     into orchestrator work, and a session must not open an issue or hand over merely because its
     feature writes data. The single exception is curated Master Data under §6.4, which stays

@@ -8,10 +8,20 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
 ## 4. The five anti-collision rules (shared database)
 
-1. **Up to three unrelated migrations may be authored at once. Preview, merges,
-   and production promotion remain one at a time.** This is Albert's owner ruling
-   of 2026-08-14. Concurrent authors must use isolated worktrees, exact object
-   claims and centrally reserved versions. A fourth author is refused.
+1. **Up to five unrelated migrations may be authored at once. Preview, merges,
+   and production promotion remain one at a time.** Albert's owner ruling of
+   2026-08-14 set this at three; he raised it to five on 2026-08-25. Concurrent
+   authors must use isolated worktrees, exact object claims and centrally
+   reserved versions. A sixth author is refused.
+
+   The number is a throughput dial, not a safety dial. Isolation comes from the
+   exact object claim, the global acquisition mutex, the permanent version
+   reservation and the single-holder preview/merge/production refs — none of
+   which read the cap. Five authors never means five sessions touching a live
+   database; it means five drafts queueing for the same serial stages. The
+   enforced value is `MAX_AUTHOR_LANES` in
+   `scripts/manage-migration-author-lanes.mjs`; this text and that constant must
+   agree.
 
    **Do not open a migration file first.** Acquire an author lane, object claim
    and unique 14-digit version as one dispatch operation:
@@ -189,7 +199,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    only the status after Albert answers can never change its owner route.
 
    Exact object overlap forms a serial queue; unrelated object
-   groups fill up to three author lanes. When a claim releases, rerun the queue
+   groups fill up to five author lanes. When a claim releases, rerun the queue
    audit and dispatch every reported `REFILL REQUIRED NOW` issue in the same
    turn. Never wait for Albert to ask or approve routine dispatch. Ask him only
    for a genuine business ruling or material production risk. Recompute after
@@ -212,8 +222,23 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    ```
 
    For new assignments, the machine-independent cursor rotates Grok 4.6 → GLM
-   5.2 → Kimi K3 → repeat. Qwen 3.8 Max is paused until an explicit owner
-   instruction restores it. Historical Qwen assignments, failures, and
+   5.3 → Kimi K3 → Muse Spark 1.2 Contributor → repeat. Kimi K3 was unpaused on
+   2026-08-25 alongside the lane raise, because five authors feeding three
+   reviewers only moves the wait. Qwen 3.8 Max and the retired `glm-5.2` label
+   are paused until an explicit owner instruction restores them.
+
+   **Codex (`codex-gpt-5.6-sol`, wrapper `ai-codex-review`) is overflow, not
+   rotation.** It is assigned only when all four rotation providers are already
+   holding live review work in this repository, or when every one of them has
+   already failed on the exact head under review. It never takes an ordinary
+   turn, and the busy probe fails open — if it cannot read GitHub, the ordinary
+   rotation is used, because Codex costs real money per run.
+
+   **Grok's in-flight lock is PER REPOSITORY, not global.** `ai-grok-review`
+   allows one live Grok review at a time *in shared-db*; it does not cap Grok
+   across repositories. Five repositories with work can run five Grok reviews
+   simultaneously. Never treat a Grok review running in another repository as a
+   reason to skip Grok here, and never treat a busy Grok here as a Grok outage. Historical Qwen assignments, failures, and
    replacement evidence remain readable and must be recovered or replaced
    through `scripts/manage-migration-author-lanes.mjs`, never hand-edited. Use
    only the wrapper returned by the manager and its fixed model settings. Reuse
