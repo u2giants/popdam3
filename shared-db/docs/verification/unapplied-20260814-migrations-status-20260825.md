@@ -14,6 +14,33 @@ absent, which is true only of production).
 
 ---
 
+> ## ⚠️ CORRECTION, 2026-08-25 — §1's recommendation is SUPERSEDED. Do not act on it.
+>
+> This file recommends retiring `20260814193351`, `20260814213043` and `20260814223552` and
+> replacing them through the three-stage supersession chain of issue #1459. **The owner ruled
+> against that route the same day** (issue #679, 2026-08-25): the chain is dead, PR #1491 is
+> closed unmerged, and issue #1459 is closed as superseded.
+>
+> **The authorized route is the four-version window, in this order:**
+> `20260814193351 → 20260814213043 → 20260814223552 → 20260825094455`.
+>
+> Every one of those four is already merged on `main`. `20260825094455` is a full re-derivation of
+> the repaired loader body above all three 2026-08-14 rewrites, and its own header (lines 3-8)
+> states that bounded order. The supersession chain would have reached an identical end state under
+> different version numbers, so it bought process hardening only — at the cost of three unauthored
+> migrations and a stage-1 file that becomes permanently unapplicable once the window runs
+> (`drop index plm.idx_pmt_atp_name;`, no `IF EXISTS`).
+>
+> **What in this file still stands:** everything about the *problem*. The trio applied WITHOUT a
+> forward repair does silently revert issue #1418, the promotion guard would accept a bare
+> three-version allowlist, and post-apply catalog verification cannot catch it
+> (`scripts/production_catalog_verification.py:75-79`). That is precisely why the authorized window
+> carries four versions and not three. Sections 2, 3 and 4 are unaffected.
+>
+> Independent reviews behind the ruling: Kimi K3 and GLM 5.3 (AGREE WITH CONDITIONS).
+
+---
+
 ## Bottom line for Albert
 
 **One thing is genuinely broken in production right now, and it is not one of the six.** A new
