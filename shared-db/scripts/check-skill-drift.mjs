@@ -44,7 +44,13 @@ const CANDIDATE_DIRS = process.env.AI_DEVOPS_DIR ? [process.env.AI_DEVOPS_DIR] :
 
 const SKILLS = ['shared-db-orchestrator', 'shared-db-change', 'shared-db-handover'];
 const ORCHESTRATOR_REQUIREMENTS = [
-  ['three-author-cap', /three fixed\s+author slots|at most three migration authors/i],
+  // CAP-AGNOSTIC ON PURPOSE. The rule is that the skill must STATE an author cap
+  // and point at the enforced constant -- not that the cap is any particular
+  // number. Hardcoding "three" here made a legitimate owner-approved raise to
+  // five look like skill drift, and the fix for that must never be to delete the
+  // requirement. It also has to accept a skill copy that has not been re-synced
+  // yet, so both the old numeric wording and the constant-referencing wording pass.
+  ['author-cap', /(?:the|one of the|three)\s+fixed\s+author slots|at most (?:`?MAX_AUTHOR_LANES`?|three|four|five|six|\d+) migration authors/i],
   ['github-object-locks', /GitHub-backed(?: exact-)?object locks/i],
   ['exclusive-preview', /exclusive GitHub-backed preview lock/i],
   ['exclusive-merge', /exclusive merge lock/i],
