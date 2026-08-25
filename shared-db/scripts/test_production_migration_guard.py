@@ -245,6 +245,7 @@ class GuardTests(unittest.TestCase):
                 "20260816045130",
                 "20260819011639",
                 "20260819151536",
+                "20260824181600",
                 "20260814224937",
                 "20260814233342",
                 "20260814233423",
@@ -261,6 +262,10 @@ class GuardTests(unittest.TestCase):
         for version in ("20260825010603", "20260825025154", "20260825031841"):
             with self.subTest(version=version), self.assertRaises(GuardError):
                 parse_allowlist(version)
+
+    def test_the_superseded_universe_b_original_cannot_enter_an_allowlist(self) -> None:
+        with self.assertRaises(GuardError):
+            parse_allowlist("20260824181600")
 
     def test_the_unsafe_issue_853_migration_cannot_enter_an_allowlist(self) -> None:
         with self.assertRaises(GuardError):

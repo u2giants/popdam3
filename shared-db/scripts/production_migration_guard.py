@@ -64,6 +64,10 @@ HARD_BLOCKED = {
     # state with catalogue-only verification. Applying either original is forbidden.
     "20260819011639",
     "20260819151536",
+    # #1532 original Universe B contract. The original is byte-identical to
+    # 20260825192610, which was rehearsed under current producer machinery and
+    # applied alone to production in run 32892984889. Never apply both versions.
+    "20260824181600",
     # #679 REPLACED, 2026-08-25. Both carry correct SQL and BOTH ARE UNPROMOTABLE:
     # their only preview applies ran on commits a squash merge left outside main's
     # history, so prove_historical_original_apply_runs refuses their byte binding

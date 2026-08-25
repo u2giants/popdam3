@@ -143,7 +143,7 @@ test('an orphan ledger row stays red when all merged-but-unapplied versions are 
 })
 
 test('classifies retired and deliberately-held versions from the existing Python rule sources', () => {
-  const result = guardClassifications(['20260729120000', '20260802170000', '20260816045130'], [])
+  const result = guardClassifications(['20260729120000', '20260802170000', '20260816045130', '20260824181600'], [])
   assert.equal(result['20260729120000'].kind, 'retired')
   assert.match(result['20260729120000'].reason, /RETIRED_VERSIONS/)
   assert.equal(result['20260802170000'].kind, 'deliberately-held')
@@ -151,6 +151,8 @@ test('classifies retired and deliberately-held versions from the existing Python
   assert.equal(result['20260816045130'].kind, 'retired')
   assert.match(result['20260816045130'].reason, /explicit COMMIT separates DDL from the Supabase migration ledger/)
   assert.match(result['20260816045130'].reason, /never apply production/)
+  assert.equal(result['20260824181600'].kind, 'retired')
+  assert.match(result['20260824181600'].reason, /20260825192610, applied to production 2026-08-25/)
 })
 
 test('classifies preview-only historical restoration as deliberately held',()=>{

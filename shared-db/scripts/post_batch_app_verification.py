@@ -349,6 +349,10 @@ RETIRED_VERSION_REASONS = {
         "production verification times out and rolls the migration back; replaced "
         "by 20260820004338, applied to production 2026-08-20 (issue 1280)"
     ),
+    "20260824181600": (
+        "unpromotable producer provenance; replaced byte-for-byte by "
+        "20260825192610, applied to production 2026-08-25 (issue 1532, run 32892984889)"
+    ),
     "20260814223552": (
         "unpromotable byte binding (PR 1032 merged unrehearsed); replaced by "
         "20260825124200, applied to production 2026-08-25 (issue 679)"
