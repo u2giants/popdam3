@@ -57,6 +57,13 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # These historical originals are superseded and their replacements are live.
+    # 20260819011639 cannot satisfy the producer-provenance binding; its executable
+    # SQL was reissued byte-for-byte as 20260820142402. 20260819151536 times out in
+    # its production-only verification block; 20260820004338 carries the same end
+    # state with catalogue-only verification. Applying either original is forbidden.
+    "20260819011639",
+    "20260819151536",
     # #679 REPLACED, 2026-08-25. Both carry correct SQL and BOTH ARE UNPROMOTABLE:
     # their only preview applies ran on commits a squash merge left outside main's
     # history, so prove_historical_original_apply_runs refuses their byte binding
