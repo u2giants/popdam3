@@ -9,6 +9,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(M.version('20260817150944'),'20260817150944')
         for bad in ('', '123', '2026081715094x', '202608171509440'):
             with self.assertRaises(M.Refusal): M.version(bad)
+
+    def test_issue_1439_recovery_tuple_is_narrowly_supported(self):
+        case=M.SUPPORTED_CASES[(1439,1488,1495)]
+        self.assertEqual(case,{
+            'mode':'replacement_pending',
+            'orphan_version':'20260825102716',
+            'replacement_version':'20260825110813',
+            'orphan_run_head':'8db5074d814118311269d0d3ac04eb2f3ad40928',
+        })
+        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
+        self.assertIn('1439:1488:1495:20260825102716:20260825110813) ;;',workflow)
     def test_replacement_loader_is_unique_and_rejects_transaction_control(self):
         with tempfile.TemporaryDirectory() as directory:
             root=pathlib.Path(directory); migration=root/'20260817124545_safe.sql'; migration.write_text('select 1;\n',encoding='utf-8')

@@ -32,6 +32,12 @@ SUPPORTED_CASES = {
         "mode": "rehearsal_reset",
         "original_run_head": "88ebd0272a163d32aefe748d59c7096c8fe54d0e",
     },
+    (1439, 1488, 1495): {
+        "mode": "replacement_pending",
+        "orphan_version": "20260825102716",
+        "replacement_version": "20260825110813",
+        "orphan_run_head": "8db5074d814118311269d0d3ac04eb2f3ad40928",
+    },
 }
 
 
