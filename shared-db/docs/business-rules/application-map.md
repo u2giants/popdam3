@@ -26,6 +26,7 @@ same business object or process appears.
 | Licensor, Property, Character, Style Guide, Franchise, licensed Asset, source authority, or Active/Inactive licensing status | [`licensing-master-data.md`](licensing-master-data.md) |
 | MG01-MG14, `mgCategory`, Product Type, subtype, size, Age Group, merchandise-group code, division meaning, which product categories we produce, or which categories a division (POP / Spruce Licensed / Spruce Generic) sells | [`merchandise-and-product-taxonomy.md`](merchandise-and-product-taxonomy.md) |
 | Product, Item, SKU, style number, source identifier, reusable design, or controlled item description | [`product-items-and-identifiers.md`](product-items-and-identifiers.md) |
+| Linking a CRM customer to its ColdLion record, or what ColdLion's customer list means | [`customers-contacts-and-organizations.md`](customers-contacts-and-organizations.md) |
 | ColdLion order history, production history, `COS`, contractual samples, DAVID samples, or ERP code meaning | [`erp-orders-and-source-meaning.md`](erp-orders-and-source-meaning.md) |
 | RFQ cost, sell price, buyer target, buyer margin, royalty, dilution, logistics, or Incoterm | [`rfq-pricing.md`](rfq-pricing.md) |
 | Marvel talent likeness or the additional likeness royalty | [`licensing-master-data.md`](licensing-master-data.md) and [`rfq-pricing.md`](rfq-pricing.md) |

@@ -10,6 +10,14 @@ An ERP field name does not establish its business meaning. Every imported field 
 
 Google OrderList rows and future ColdLion rows describe the same real orders. They are not competing order systems. One canonical order and line must retain separate source references for each system. The ultimate item list belongs to the canonical PLM item identity.
 
+## The customer master is not a customer list
+
+ColdLion's customer table includes ship-to-only records (a Licensor POP ships to
+must be a customer there to get a pick ticket), customers dating to 2006 that are
+now defunct, and active customers too small to warrant CRM attention. It must
+never be read as POP's list of customers, and it never sets a CRM
+classification. See [`customers-contacts-and-organizations.md`](customers-contacts-and-organizations.md).
+
 ## Historical classification
 
 ERP merchandise data before the approved cutoff may use codes whose historical meaning differs from current codes. Historical items must follow the approved description-based remediation process rather than being forced through the current mapping.
