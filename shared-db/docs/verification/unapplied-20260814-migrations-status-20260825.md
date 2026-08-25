@@ -14,28 +14,33 @@ absent, which is true only of production).
 
 ---
 
-> ## ⚠️ CORRECTION, 2026-08-25 — §1's recommendation is SUPERSEDED. Do not act on it.
+> ## ✅ RESOLVED, 2026-08-25 — the Paramount promotion is DONE. Section 1 is history, not a plan.
 >
-> This file recommends retiring `20260814193351`, `20260814213043` and `20260814223552` and
-> replacing them through the three-stage supersession chain of issue #1459. **The owner ruled
-> against that route the same day** (issue #679, 2026-08-25): the chain is dead, PR #1491 is
-> closed unmerged, and issue #1459 is closed as superseded.
+> This file recommended retiring the three 2026-08-14 Paramount versions and rebuilding them
+> through the #1459 supersession chain. That route was killed by owner ruling (#679), a
+> four-version window was authorized instead, and the window then ran into a third answer that
+> is the one actually on production. **Read this box, not section 1.**
 >
-> **The authorized route is the four-version window, in this order:**
-> `20260814193351 → 20260814213043 → 20260814223552 → 20260825094455`.
+> **What is applied to production, run 32851388854:**
+> `20260814193351 → 20260814213043 → 20260825124200 → 20260825130500`.
 >
-> Every one of those four is already merged on `main`. `20260825094455` is a full re-derivation of
-> the repaired loader body above all three 2026-08-14 rewrites, and its own header (lines 3-8)
-> states that bounded order. The supersession chain would have reached an identical end state under
-> different version numbers, so it bought process hardening only — at the cost of three unauthored
-> migrations and a stage-1 file that becomes permanently unapplicable once the window runs
-> (`drop index plm.idx_pmt_atp_name;`, no `IF EXISTS`).
+> **What is hard-blocked and must never be promoted** (PR #1510): `20260814223552` and
+> `20260825094455`. Both carry correct SQL. Both are unpromotable because their only preview
+> applies ran on commits a squash merge left outside `main`'s history, so the production
+> business-risk gate refuses their byte binding (measured: runs 32845346966, 32850264285), and
+> neither can ever earn a qualifying rehearsal because preview already has them applied. They
+> were replaced by `20260825124200` (the `pmt_collection` vocabulary DDL) and `20260825130500`
+> (the forward loader repair). Promoting either original now would overwrite the repaired
+> `plm.load_pmt_capture_chunk` body with an older rewrite and silently restore the #1418 defect.
 >
-> **What in this file still stands:** everything about the *problem*. The trio applied WITHOUT a
-> forward repair does silently revert issue #1418, the promotion guard would accept a bare
-> three-version allowlist, and post-apply catalog verification cannot catch it
-> (`scripts/production_catalog_verification.py:75-79`). That is precisely why the authorized window
-> carries four versions and not three. Sections 2, 3 and 4 are unaffected.
+> **Verified on production after the apply:** `plm.pmt_metadata_element` exists,
+> `plm.pmt_collection.paramount_term` is gone, the loader carries the `nullif` repair and
+> references `pmt_metadata_element`, `api.pmt_style_guides` returns the constant label, and
+> `pmt_authorized_title_property.paramount_property_name` is nullable. A Paramount capture can
+> run. **No production Paramount data capture has been authorized or performed.**
+>
+> **What in this file still stands:** the analysis of the problem, and sections 2, 3 and 4. The
+> Warner cleanup `20260814170749` (section 2) is still unscheduled and still safe to apply.
 >
 > Independent reviews behind the ruling: Kimi K3 and GLM 5.3 (AGREE WITH CONDITIONS).
 

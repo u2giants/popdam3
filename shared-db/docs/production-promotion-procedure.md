@@ -130,6 +130,37 @@ failures that looked like migration faults and were neither — both lexer bugs 
 `scripts/production_migration_guard.py` (`$$` inside a comment, then prose inside a string
 literal). Do not send Disney, Paramount, NBCU or Warner through untested write machinery.
 
+> ## ⚠️ A MIGRATION CAN BE MERGED, CORRECT, REHEARSED — AND STILL UNPROMOTABLE FOREVER
+>
+> **Learned the expensive way on 2026-08-25 (issue #679). Two migrations died of this in one
+> afternoon.** The production business-risk gate byte-binds a rehearsal to the run that actually
+> applied the bytes (`prove_historical_original_apply_runs`). That run's commits must belong to
+> the authoring pull request or to exact `main`'s history. **A squash merge deletes the branch
+> commit**, so a pre-merge preview rehearsal can end up bound to a commit that exists nowhere in
+> `main` — and the gate refuses it. Refusal wording:
+>
+>     preview run commit <sha> is not contained in the history of exact main (compare status 'diverged')
+>     original apply run <id> dispatched at <sha> produced evidence with a different
+>     .github/workflows/shared-supabase-migrations.yml than the merge commit <sha> of the pull
+>     request that authored <version>
+>
+> **There is no recovery.** Preview already has the version applied, and an applied version never
+> re-applies there, so it can never acquire a qualifying rehearsal. The only route is a fresh
+> version number carrying the same SQL, and hard-blocking the original — which is what
+> `20260825124200` and `20260825130500` are.
+>
+> **So: rehearse from MERGED main (`merged_preview_source_pr`), not from the PR branch**, and
+> when a rehearsal was pre-merge, expect to replace the version rather than argue with the gate.
+> The gate is right — nobody ever ran those bytes under that change's own machinery.
+>
+> Two second-order traps this exposed, both real: replacing a version whose file ALSO rewrote a
+> function means the replacement must NOT re-assert that function if a later migration already
+> carries the repaired body (you would silently revert it — #1459's own trap, reintroduced by its
+> fix); and `main` moves under you mid-promotion, invalidating the exact-SHA evidence (#1344), so
+> pin the SHA and re-check it immediately before every dispatch.
+>
+> Related open work: #1200, #1321, #1344, #1391, #1436.
+
 **Three limits you must not read past.**
 
 - ⚠️ **"PREFLIGHT OK" IS NOT AN APPROVAL.** `strip_sql` removes dollar-quoted bodies on purpose
