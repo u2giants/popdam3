@@ -16,7 +16,7 @@ This document is now a completed record. Do **not** re-run the successful previe
 
 ## Business purpose
 
-The Paramount capture tool on `main` sends the normalized metadata shape. Before this work, the older database loader refused the new `pmt_metadata_element` target, so a Paramount capture could not complete. It failed closed: it did not corrupt or partially load data, but the capture capability was unavailable.
+The Paramount capture tool on `main` sends the normalized metadata shape. Before this work, the older database loader refused the new `pmt_metadata_element` target, so a Paramount capture could not complete. It failed closed: it did not corrupt or partially load data, but the capture capability was unavailable. That is now fixed **on preview**. On **production** a capture still cannot complete, for the different reasons in fact 4 below.
 
 The three required database migrations and the JSON-null loader repair landed on preview, and the complete capture path has since been proven against that repaired preview database using authorized Paramount source data, without exposing licensed rows.
 
@@ -25,6 +25,13 @@ Three facts must be kept distinct:
 1. The **full Paramount data capture succeeded and was verified on preview**.
 2. The **JSON-null structural repair** is now on **preview and production**, promoted alone under separate owner authorization recorded on issue #1418.
 3. **No production Paramount data capture** has been authorized or performed by this workstream.
+4. **Production cannot complete a Paramount capture today, and the lone promotion made its
+   loader *less* coherent, not more.** Issue [#1459](https://github.com/u2giants/shared-db/issues/1459)
+   measures the state: `20260824135515` is a full re-derivation of the `20260814223552` body, but
+   none of the three rewrites are applied to production, so production's
+   `plm.load_pmt_capture_chunk` now inserts into `plm.pmt_metadata_element` (absent there → 42P01)
+   and no longer writes two columns that are still `NOT NULL` there (→ 23502). Still fail-closed;
+   nothing corrupts. Read fact 2 with this one, never alone.
 
 ## Completed preview schema rehearsal
 
@@ -192,3 +199,13 @@ The reached and correct end state is:
 - production carries no Paramount data capture from this workstream, and none is authorized.
 
 Promotion of the three Paramount schema versions to production remains a separate, unauthorized decision. It must name the exact versions, use the governed bounded workflow, and be authorized by the owner in its own request.
+
+> ⚠️ **When that window is authorized, the three versions are NOT the whole set.**
+> `20260824135515` is already in the production ledger and will not re-run, and `20260814223552`
+> sorts *below* it and rewrites the same function. Applying the three in version order therefore
+> ends with the 2026-08-14 loader body and **silently reverts the JSON-null repair**, restoring the
+> exact bug that failed preview capture `58cfc82c-571e-4bc9-b9d5-327ea9379782`. Nothing in the apply
+> path warns about this: the function exists either way, so catalog verification passes. The bounded
+> set must carry the three versions **plus a new forward migration re-applying the JSON-null
+> normalization above them**. Issue [#1459](https://github.com/u2giants/shared-db/issues/1459) holds
+> the measurements and the reasoning.
