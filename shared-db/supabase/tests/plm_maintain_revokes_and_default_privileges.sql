@@ -124,7 +124,7 @@ declare
     -- makes this file fail on any database that does not yet have the table.
     'pmt_metadata_element'];
   v_nbcu text[] := array[
-    'nbcu_capture','nbcu_right','nbcu_scope','nbcu_property','nbcu_ip_family',
+    'nbcu_capture','nbcu_scope','nbcu_property','nbcu_ip_family',
     'nbcu_character','nbcu_style_guide','nbcu_asset','nbcu_asset_metadata_value',
     'nbcu_asset_scope','nbcu_ip_family_property','nbcu_property_character',
     'nbcu_asset_property','nbcu_asset_character','nbcu_asset_style_guide',

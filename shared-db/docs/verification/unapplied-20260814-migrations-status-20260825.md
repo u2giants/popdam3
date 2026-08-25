@@ -41,6 +41,25 @@ absent, which is true only of production).
 
 ---
 
+## RESOLVED 2026-08-25 13:16 — read this first
+
+**Paramount is no longer broken. The production window completed.** Issue #679's session promoted
+the corrected set (`20260814193351`, `20260814213043`, `20260825124200`, `20260825130500`) in run
+[32851388854](https://github.com/u2giants/shared-db/actions/runs/32851388854). Verified read-only
+against production from this session afterwards: `plm.pmt_metadata_element` now exists,
+`pmt_authorized_title_property.paramount_property_name` is now nullable, and the loader carries the
+JSON-null repair. **A Paramount capture is unblocked.**
+
+`20260814223552` and `20260825094455` could not be promoted directly — both hit the preview
+byte-binding gate — so they were superseded by `20260825124200` and `20260825130500`. The end state
+is the one this report recommended; the route differed.
+
+**Still outstanding:** the Warner cleanup `20260814170749` ([section 2](#warner)), which is stranded
+for the same reason and needs an owner ruling — see issue #949. Everything below about Paramount
+describes the state before 13:16 on 2026-08-25 and is kept as the record of how it was diagnosed.
+
+---
+
 ## Bottom line for Albert
 
 **One thing is genuinely broken in production right now, and it is not one of the six.** A new

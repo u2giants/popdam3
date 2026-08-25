@@ -45,8 +45,8 @@
 
 
 -- =====================================================================================
--- A. OBJECT EXISTENCE -- 17 tables and 2 functions, read from the catalog.
---    The seventeenth, plm.nbcu_asset_ip_family, arrives with migration 20260811070000
+-- A. OBJECT EXISTENCE -- 16 tables and 2 functions, read from the catalog.
+--    The sixteenth, plm.nbcu_asset_ip_family, arrives with migration 20260811070000
 --    (issue #757). NOTE FOR WHOEVER SEES THIS FAIL: this file REQUIRES that migration.
 --    Until it is applied to the database under test, section A fails on the missing
 --    table -- that is the intended coupling, not a bug in the test.
@@ -57,7 +57,7 @@ declare
 begin
   raise notice '=== A. OBJECT EXISTENCE (to_regclass / pg_proc) ===';
   foreach v_name in array array[
-    'plm.nbcu_capture','plm.nbcu_right','plm.nbcu_scope','plm.nbcu_property',
+    'plm.nbcu_capture','plm.nbcu_scope','plm.nbcu_property',
     'plm.nbcu_ip_family','plm.nbcu_character','plm.nbcu_style_guide','plm.nbcu_asset',
     'plm.nbcu_asset_metadata_value','plm.nbcu_asset_scope','plm.nbcu_ip_family_property',
     'plm.nbcu_property_character','plm.nbcu_asset_property','plm.nbcu_asset_character',
@@ -251,12 +251,12 @@ begin
       raise warning 'FAIL %: primary key starts with %, not capture_id', r.tbl, r.first_col;
     else v_pass := v_pass + 1; end if;
   end loop;
-  -- 16 of the 17 tables must have been examined (nbcu_capture is keyed on its own id).
-  -- A silent zero here would "pass". Bumped from 15 by #757, which added the
-  -- seventeenth table, plm.nbcu_asset_ip_family.
-  if v_pass + v_fail <> 16 then
+  -- 15 of the 16 tables must have been examined (nbcu_capture is keyed on its own id).
+  -- A silent zero here would "pass". #757 added plm.nbcu_asset_ip_family;
+  -- #1242 later removed the contract-derived plm.nbcu_right table.
+  if v_pass + v_fail <> 15 then
     v_fail := v_fail + 1;
-    raise warning 'FAIL examined % capture-scoped tables, expected 16', v_pass + v_fail;
+    raise warning 'FAIL examined % capture-scoped tables, expected 15', v_pass + v_fail;
   end if;
 
   raise notice '=== C. FK ENDPOINTS ARE CAPTURE-SCOPED ===';
@@ -290,16 +290,16 @@ $$;
 -- D. RLS IS ON, AND THE GRANTS ARE THE IMMUTABILITY MECHANISM.
 --    anon gets NOTHING. authenticated gets SELECT and only SELECT, gated by the
 --    <table>_plm_read policy added for issue #1249. service_role gets SELECT everywhere,
---    INSERT on the 16 snapshot tables, and MUST NOT hold UPDATE or DELETE anywhere --
+--    INSERT on the 15 snapshot tables, and MUST NOT hold UPDATE or DELETE anywhere --
 --    that absence is what makes a landed row immutable.
---    (15 -> 16 snapshot tables with #757's plm.nbcu_asset_ip_family; nbcu_capture is
+--    (14 -> 15 snapshot tables with #757's plm.nbcu_asset_ip_family; nbcu_capture is
 --    still the one table service_role may not INSERT into directly.)
 -- =====================================================================================
 do $$
 declare
   r record; v_pass integer := 0; v_fail integer := 0; v_n integer;
   v_tables text[] := array[
-    'nbcu_capture','nbcu_right','nbcu_scope','nbcu_property','nbcu_ip_family',
+    'nbcu_capture','nbcu_scope','nbcu_property','nbcu_ip_family',
     'nbcu_character','nbcu_style_guide','nbcu_asset','nbcu_asset_metadata_value',
     'nbcu_asset_scope','nbcu_ip_family_property','nbcu_property_character',
     'nbcu_asset_property','nbcu_asset_character','nbcu_asset_style_guide',
@@ -786,7 +786,6 @@ begin
   delete from plm.nbcu_ip_family            where capture_id = v_cap;
   delete from plm.nbcu_property             where capture_id = v_cap;
   delete from plm.nbcu_scope                where capture_id = v_cap;
-  delete from plm.nbcu_right                where capture_id = v_cap;
   delete from plm.nbcu_capture              where id = v_cap;
 
   select count(*) into v_n from plm.nbcu_capture where capture_key like 'nbcu:ZZTEST%';
@@ -1161,8 +1160,8 @@ begin
   else v_pass := v_pass+1; end if;
 
   -- I6. No NBCU table gained a broad write grant through the schema default privileges.
-  --     Enumerated from pg_class, so the seventeenth table is covered automatically and
-  --     an eighteenth added later cannot slip past this test.
+  --     Enumerated from pg_class, so all 16 tables remaining after #1242 are covered
+  --     automatically and a later addition cannot slip past this test.
   select count(*) into v_n
     from pg_class c, unnest(array['UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']) q
    where c.relnamespace='plm'::regnamespace and c.relkind='r' and c.relname like 'nbcu\_%'
@@ -1174,8 +1173,8 @@ begin
 
   select count(*) into v_n from pg_class
    where relnamespace='plm'::regnamespace and relkind='r' and relname like 'nbcu\_%';
-  if v_n <> 17 then v_fail := v_fail+1;
-    raise warning 'I6 FAIL: % plm.nbcu_* tables, expected 17', v_n;
+  if v_n <> 16 then v_fail := v_fail+1;
+    raise warning 'I6 FAIL: % plm.nbcu_* tables, expected 16', v_n;
   else v_pass := v_pass+1; end if;
 
   raise notice 'I: % passed / % failed', v_pass, v_fail;

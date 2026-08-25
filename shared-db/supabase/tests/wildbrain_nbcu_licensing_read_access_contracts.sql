@@ -82,7 +82,7 @@ declare
     'wildbrain_asset_category','wildbrain_asset_nature','wildbrain_character',
     'wildbrain_asset','wildbrain_asset_character','wildbrain_guide',
     'wildbrain_guide_alias','wildbrain_asset_guide',
-    'nbcu_capture','nbcu_right','nbcu_scope','nbcu_property','nbcu_ip_family',
+    'nbcu_capture','nbcu_scope','nbcu_property','nbcu_ip_family',
     'nbcu_character','nbcu_style_guide','nbcu_asset','nbcu_asset_metadata_value',
     'nbcu_asset_scope','nbcu_ip_family_property','nbcu_property_character',
     'nbcu_asset_property','nbcu_asset_character','nbcu_asset_style_guide',
@@ -90,8 +90,8 @@ declare
 begin
   raise notice '=== A. CATALOGUE ===';
 
-  if array_length(v_tables, 1) <> 28 then
-    raise exception 'A FAILED (fixture): the table list is %, expected the 28 objects '
+  if array_length(v_tables, 1) <> 27 then
+    raise exception 'A FAILED (fixture): the table list is %, expected the 27 objects '
       'named in claim #1252', array_length(v_tables, 1);
   end if;
 

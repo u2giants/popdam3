@@ -184,14 +184,14 @@ BEGIN
       INSERT INTO dflow.sample_shipment(
         origin_location_type,origin_location_id,destination_location_type,destination_location_id,
         state,actor_user,actor_role,idempotency_key,request_hash)
-      VALUES('factory',v_factories[v_i]::text,'office','ningbo','draft',
+      VALUES('factory',v_factories[v_i]::text,'office','Ningbo','draft',
         'contract-test','ningbo','issue-1422-return','hash')
       RETURNING sample_shipment_id INTO v_return;
       INSERT INTO dflow.sample_shipment_line(
         sample_id_fk,sample_shipment_id,quantity_intended,
         origin_location_type,origin_location_id,destination_location_type,destination_location_id,
         route_leg,idempotency_key,request_hash,created_by_user,created_by_role)
-      VALUES(v_children[v_i],v_return,1,'factory',v_factories[v_i]::text,'office','ningbo',
+      VALUES(v_children[v_i],v_return,1,'factory',v_factories[v_i]::text,'office','Ningbo',
         'factory_return_to_ningbo','issue-1422-return-line','hash','contract-test','ningbo')
       RETURNING shipment_line_id INTO v_return_line;
 
@@ -221,7 +221,7 @@ BEGIN
       END;
 
       PERFORM dflow.post_sample_movement(
-        v_children[v_i],1,'in_transit',v_return::text,'office','ningbo','receive',
+        v_children[v_i],1,'in_transit',v_return::text,'office','Ningbo','receive',
         'contract-test','ningbo','issue-1422-return-receive','hash',NULL,v_return_line);
       BEGIN
         PERFORM dflow.post_sample_movement(
@@ -230,6 +230,37 @@ BEGIN
         RAISE EXCEPTION 'already-consumed outbound transit was accepted';
       EXCEPTION WHEN check_violation THEN NULL;
       END;
+    ELSIF v_i=2 THEN
+      -- The endpoint comparison is deliberately exact. The canonical app value
+      -- succeeds above; the legacy lowercase spelling must remain rejected.
+      INSERT INTO dflow.sample_shipment(
+        origin_location_type,origin_location_id,destination_location_type,destination_location_id,
+        state,actor_user,actor_role,idempotency_key,request_hash)
+      VALUES('factory',v_factories[v_i]::text,'office','ningbo','draft',
+        'contract-test','ningbo','issue-1502-lowercase-return','hash')
+      RETURNING sample_shipment_id INTO v_return;
+      INSERT INTO dflow.sample_shipment_line(
+        sample_id_fk,sample_shipment_id,quantity_intended,
+        origin_location_type,origin_location_id,destination_location_type,destination_location_id,
+        route_leg,idempotency_key,request_hash,created_by_user,created_by_role)
+      VALUES(v_children[v_i],v_return,1,'factory',v_factories[v_i]::text,'office','ningbo',
+        'factory_return_to_ningbo','issue-1502-lowercase-return-line','hash','contract-test','ningbo')
+      RETURNING shipment_line_id INTO v_return_line;
+
+      SELECT count(*) INTO v_before FROM dflow.sample_movement
+      WHERE sample_id_fk=v_children[v_i];
+      BEGIN
+        PERFORM dflow.post_sample_movement(
+          v_children[v_i],1,'in_transit',v_outbound::text,'in_transit',v_return::text,'return',
+          'contract-test','ningbo','issue-1502-lowercase-reroute','hash',NULL,v_return_line);
+        RAISE EXCEPTION 'lowercase Ningbo return destination was accepted';
+      EXCEPTION WHEN check_violation THEN NULL;
+      END;
+      SELECT count(*) INTO v_after FROM dflow.sample_movement
+      WHERE sample_id_fk=v_children[v_i];
+      IF v_after <> v_before THEN
+        RAISE EXCEPTION 'rejected lowercase return wrote a movement row';
+      END IF;
     END IF;
   END LOOP;
 
