@@ -57,6 +57,17 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #679 REPLACED, 2026-08-25. Both carry correct SQL and BOTH ARE UNPROMOTABLE:
+    # their only preview applies ran on commits a squash merge left outside main's
+    # history, so prove_historical_original_apply_runs refuses their byte binding
+    # (measured, runs 32845346966 and 32850264285), and neither can ever earn a
+    # qualifying run because preview already has them applied. Replaced by
+    # 20260825124200 (the pmt_collection vocabulary DDL) and 20260825130500 (the
+    # forward loader repair), both applied to production on 2026-08-25.
+    # Promoting either now would overwrite the repaired plm.load_pmt_capture_chunk
+    # body with an older rewrite and silently restore the issue #1418 defect.
+    "20260814223552",
+    "20260825094455",
     # Held historical FR ruling is superseded by guarded forward 20260818174350.
     "20260802171000",
     # #853/#868 unsafe transaction-framed bridge cutover. The explicit COMMIT
