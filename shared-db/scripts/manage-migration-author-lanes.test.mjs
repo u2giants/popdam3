@@ -767,6 +767,10 @@ test('historical preview recovery shares the preview lock and requires current m
   const circular=acquireExclusive('preview-recovery',{owner:'recovery',pr:1372,headSha:'main'},io)
   assert.equal(circular.ref,EXCLUSIVE_REFS.preview)
   releaseOwnedRef(EXCLUSIVE_REFS.preview,circular.ownerSha,io)
+  io.getPr=()=>({number:1495,merged:false,state:'open',head:{sha:'exact-1439-pending-head'}})
+  const issue1439=acquireExclusive('preview-recovery',{owner:'recovery',pr:1495,headSha:'main'},io)
+  assert.equal(issue1439.ref,EXCLUSIVE_REFS.preview)
+  releaseOwnedRef(EXCLUSIVE_REFS.preview,issue1439.ownerSha,io)
 })
 
 // ---------------------------------------------------------------------------

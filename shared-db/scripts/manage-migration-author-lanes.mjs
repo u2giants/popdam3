@@ -1895,12 +1895,13 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
     } else if (kind === 'preview-recovery') {
       if (metadata.headSha !== io.mainSha?.()) throw new LaneError('historical preview recovery requires the exact current main SHA')
       const pr = io.getPr?.(metadata.pr)
-      // #1211 is the one proven circular case: its corrected migration cannot be
+      // #1211 and #1439 are the proven circular cases: their corrected migrations cannot be
       // previewed (and therefore cannot be merged) until the abandoned preview-only
       // ledger row from the SAME PR is removed. The recovery workflow independently
       // pins the exact issue, claim, versions, run, artifact, and live PR head.
       const pending1211 = Number(metadata.pr) === 1372 && pr?.state === 'open' && pr?.merged !== true && Boolean(pr?.head?.sha)
-      if (!pending1211 && (pr?.merged !== true || !pr?.merge_commit_sha)) throw new LaneError('historical preview recovery requires an already-merged source PR or the exact allowlisted #1211 recovery PR')
+      const pending1439 = Number(metadata.pr) === 1495 && pr?.state === 'open' && pr?.merged !== true && Boolean(pr?.head?.sha)
+      if (!pending1211 && !pending1439 && (pr?.merged !== true || !pr?.merge_commit_sha)) throw new LaneError('historical preview recovery requires an already-merged source PR or an exact allowlisted pending-replacement PR')
     } else {
       const pr = io.getPr?.(metadata.pr)
       if (!pr?.head?.sha || pr.head.sha !== metadata.headSha) throw new LaneError('exclusive lane head SHA does not match the live pull request')
