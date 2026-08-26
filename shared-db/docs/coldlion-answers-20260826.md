@@ -20,29 +20,42 @@ stored or computed, the exact prepack allocation, and whether the inputs are exp
 
 **ColdLion:** *"We use the same formulas as report now."*
 
-**Verified — the fields are alive.** They were 0% populated across 1,671 rows when we measured
-them. On the 2026-08-04..05 window, of 24 `orderHistory` rows:
+**Verified — but the fields are NOT broadly populated.** They were 0% across 1,671 rows when we
+measured them before. Re-measured 2026-08-26 across **26 one-day windows, 291 rows, spanning
+2019-03 to 2026-08**:
 
-| Field | Populated |
-|---|---|
-| `unshippedQty` | 8 / 24 |
-| `linePickQty` | 8 / 24 |
-| `subQty` | 8 / 24 |
-| `lineInvoiceQty` | 0 / 24 |
-| `lineOpenQty` | 0 / 24 |
+| Field | Populated | Where |
+|---|---|---|
+| `unshippedQty` | 12 / 291 (4.1%) | **2026-08 windows only** |
+| `subQty` | 12 / 291 (4.1%) | **2026-08 windows only** |
+| `linePickQty` | 8 / 291 (2.7%) | **2026-08-04 only** |
+| `lineOpenQty` | 4 / 291 (1.4%) | **2026-08-18 only** |
+| `lineInvoiceQty` | 0 / 291 | nowhere |
+| `lineQty`, `orderQty`, `salesOrderLineNo` | 291 / 291 | everywhere |
 
-So the API now applies the report's own formulas to `unshippedQty` / `linePickQty` / `subQty`.
-`lineInvoiceQty` and `lineOpenQty` remain zero, consistent with their 2026-08-18 answer that
-those two are not carried at component level.
+**Every window from 2019-03 through 2026-07 returns zero for all five.** Only the two most recent
+windows carry values. Two readings fit that equally well and the API cannot separate them:
 
-**Loader consequence:** use `unshippedQty` and `linePickQty` as the open/unshipped quantities and
-stop treating them as dead fields. **Re-measure population before the historical load** — our
-earlier 0% readings were taken before this change, so any conclusion drawn from them about older
-windows must be re-taken, not inherited.
+1. **Legitimate.** Open, unshipped and picked quantities are only non-zero while an order is still
+   open. Everything older is closed, so zero is the true answer, and there is nothing to fix.
+2. **The change is forward-only.** The report formulas are applied as rows are written, so history
+   was never backfilled.
 
-**Still not answered in words:** the exact allocation formula. We now get the computed result
-instead, which is what we needed; if a number ever looks wrong we have no formula to check it
-against.
+**We cannot tell which from the API**, because the fields that would settle it are themselves
+empty: `lineInvoiceQty`, `shipQty`, `shipAmount`, `invoiceNoString` and `invoiceDateString` are
+**empty on all 291 rows**, so no row carries any evidence of having shipped or been invoiced. This
+is now the single most important thing to ask ColdLion (§5, item 1).
+
+**Loader consequence:** treat `unshippedQty` / `linePickQty` / `lineOpenQty` as **live but
+overwhelmingly zero**. Do not drop the columns, and do not compute an invoiced or shipped quantity
+from this feed — nothing in it reports one. No negative values appeared anywhere in the 291 rows.
+
+**Still not answered in words:** the exact allocation formula. We get the computed result instead;
+if a number ever looks wrong we have no formula to check it against.
+
+**Method:** 26 single-day `GET /EhpApi/orderHistory` calls, `companyCode=EDGEHOME`, roughly two per
+year 2019-2026 plus the two most recent. Raw payloads are customer order data and are deliberately
+**not** committed to this repo; the calls are reproducible from the dates above.
 
 ---
 
@@ -118,20 +131,27 @@ This is now **ours to answer**, and it is the first time ColdLion has invited a 
 register entry 2.11. What we owe them, from the evidence above and in
 [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md):
 
-1. **`lineInvoiceQty` and `lineOpenQty` are still always zero** on `orderHistory` (0 / 24 on the
-   verification window, 0 across 1,671 earlier rows). Their 2026-08-18 answer was to use
-   `unshippedQty` / `linePickQty` instead. Ask them to confirm this is intended and permanent, so
-   we can drop the two columns rather than carry two dead fields forever.
-2. **`stageCode` is documented as an example, not an allowed-value list** — ask for the complete
+1. **Seven `orderHistory` fields are empty on every one of 291 rows spanning 2019-2026:**
+   `lineInvoiceQty`, `shipQty`, `shipAmount`, `invoiceNoString`, `invoiceDateString`, `subDimCode`
+   and `itemImage`. **The consequence is the important part: no row in the feed carries any
+   evidence that an order shipped or was invoiced.** Ask whether that is intended — and if invoiced
+   and shipped quantities exist on the report, how we are meant to obtain them.
+2. **Are the open/unshipped quantities backfilled?** After the formula change, `unshippedQty`,
+   `linePickQty`, `lineOpenQty` and `subQty` are populated **only on 2026-08 rows** and zero on
+   every window from 2019 through 2026-07. Ask them to confirm whether older rows are genuinely
+   zero because those orders are closed, or whether history was simply not recalculated. This
+   decides whether our historical load can trust the value or must ignore it.
+3. **`stageCode` is documented as an example, not an allowed-value list** — ask for the complete
    set, and for the same treatment on every other fixed-choice field and parameter (no `enum`
    appears anywhere in the spec today).
-3. **The 7-day-cap refusal is malformed** — HTTP 400 on the wire with `"status": 500` /
+4. **The 7-day-cap refusal is malformed** — HTTP 400 on the wire with `"status": 500` /
    `"Internal Server Error"` in the body. Already reported as an observation; worth repeating
    here since it invites clients to retry a permanent input error forever.
-4. **Negative quantities and costs** — `linePickQty`, `unshippedQty` and `subQty` reach -564.
+5. **Negative quantities and costs** — `linePickQty`, `unshippedQty` and `subQty` reach -564.
    Confirm these are genuine reversals rather than a report artefact, since we will be loading
-   them as-is.
-5. **Blank component merch groups on API-created SKUs** — their 2026-08-20 answer said some SKUs
+   them as-is. **None appeared in the 291-row re-measure** — they are in the production feed, not
+   this one.
+6. **Blank component merch groups on API-created SKUs** — their 2026-08-20 answer said some SKUs
    created through the API around the merch-group change still hold values in the *old* slot
    positions and "probably need to update with the new MG information". Ask whether they intend to
    re-map those at their end; if not, we need the old-slot rule in writing.
@@ -139,6 +159,6 @@ register entry 2.11. What we owe them, from the evidence above and in
 **No new states requested.** `ISS`, `INTRAN` and `REC` cover everything we have seen; we are
 asking for the list to be authoritative, not longer.
 
-**Before sending:** re-run the field-population measurement across several windows spanning
-2019-2026, not just one recent day. A one-window sample is enough to prove a field is alive; it is
-not enough to tell ColdLion a field is dead.
+**Done 2026-08-26:** the field-population measurement was re-run across 26 windows spanning
+2019-2026 before drafting the list above. Items 1 and 2 come from it and would have been wrong if
+written from the single-day sample.
