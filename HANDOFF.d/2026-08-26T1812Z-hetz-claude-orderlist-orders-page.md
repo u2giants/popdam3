@@ -20,16 +20,19 @@ meet these one at a time.
 
 **A wrong guess is recoverable, but ask before spending the effort**
 
-2. **Rebuild vs recover the `/orders` page.** A finished, preview-tested `/orders`
-   page was built on **2026-08-17**, committed **locally on some machine**, and
-   deliberately never pushed (pushing to `main` deploys). It is **not** on GitHub,
-   **not** on `hetz`, and Albert confirmed **not** on `edge-dev` or `4837`. He was
-   going to check **T16** on the evening of 2026-08-26.
-   **Ask first:** "Did T16 have it?" Run on T16, in the PopDAM folder:
-   `git log --all --oneline --since=2026-08-15 -- src/pages/OrdersPage.tsx`
-   Output = recover it. No output = rebuild from the spec in
-   `shared-db/plan_popdam_order_list.md` Phase 3 (it is written file-by-file).
-   *Recommendation:* ask before rebuilding — a five-second check can save a session.
+2. **RECOVERED 2026-08-26 — how should it land?** The finished `/orders` page was
+   NOT lost. It is commit **`0b661992`**, *"feat: add PopDAM OrderList page at
+   /orders"*, authored 2026-08-16 23:30 EDT on THIS VPS. It had become a **dangling
+   commit** — a real commit whose branch had been deleted, so `git log --all` and
+   `git branch -a` could not see it and it was invisible to every ordinary search.
+   Found with `git fsck --lost-found`. It is now preserved as branch
+   **`rescue/orders-page`** and tag **`orders-page-2026-08-16`**, both pushed to
+   GitHub. 23 files, 3,294 insertions, including 5 test files and `docs/ORDER_LIST.md`.
+   **Ask:** land it on `main` as-is (it deploys on push), or land it behind an
+   admin-only gate first? *Recommendation:* rebase onto current `main`, run the
+   tests, review the diff, then land it normally — the page was already verified
+   signed-in against preview, and the Master Data it needs is now loaded in
+   production, which it was not when the page was written.
 
 **Not part of this work and nobody is on it**
 
@@ -141,10 +144,15 @@ candidate against the full production item set.
 
 ### Not started
 
-- **The `/orders` page — step 4.** There is **no `/orders` route, page, or
-  component anywhere in `u2giants/popdam3`**, on any branch, on GitHub or on this
-  machine. `src/pages/` has no `OrdersPage.tsx`. See §0 item 2 for the recovery
-  check before rebuilding.
+- **The `/orders` page — step 4 — is WRITTEN but not on `main`.** Recovered
+  2026-08-26 as commit `0b661992`, preserved on branch `rescue/orders-page` and
+  tag `orders-page-2026-08-16` (both on GitHub). It is **not** merged, so
+  `main` still has no `/orders` route. It was written against `main` as of
+  `8cb757ad` (2026-08-16) and has **not** been rebased onto the ~10 days of `main`
+  since. What it contains: `src/pages/OrdersPage.tsx`, `src/components/orders/`
+  (6 components), `src/hooks/useOrderList.ts`, `src/lib/order-list.ts`,
+  `src/types/order-list.ts`, 5 test files, `docs/ORDER_LIST.md`, plus route/nav
+  wiring in `src/App.tsx` and `src/components/AppHeader.tsx`.
 - **Deploy and verify — step 5.**
 
 ### Commit / push / deploy status of THIS session
@@ -182,12 +190,18 @@ candidate against the full production item set.
   production import ran 2026-08-13. Trust the verification READMEs and issue #91
   over the plan's STATUS table. The plan's **Phase 3 build spec is still good** —
   it is only the status rows that rotted.
-- **Searching this machine for the lost `/orders` page found nothing.** Checked:
-  all branches (`git branch -a` → only `main` and this session's worktree branch),
-  all remote refs (`git ls-remote origin` → only `refs/heads/main` plus PR refs),
-  the git stash, the filesystem (`find` for `*Order*Page*` → only PopPIM's unrelated
-  `poppim-web/src/features/orders/OrdersPage.tsx`), and this machine's Claude
-  session transcripts (no hit for "OrdersPage"). It is genuinely not on `hetz`.
+- **⚠️ THE BIGGEST MISTAKE OF THIS SESSION: I concluded the `/orders` page was
+  lost, and it was sitting on this machine the whole time.** I checked branches
+  (`git branch -a`), remote refs (`git ls-remote origin`), the stash, the
+  filesystem (`find` for `*Order*Page*`), and session transcripts — all came back
+  empty, and I reported the page as gone. **Every one of those searches is blind to
+  a dangling commit.** The work had been committed and then its branch deleted (or
+  `main` reset past it), leaving a real commit in `.git` that NOTHING except
+  `git fsck` will show you. **The lesson for any future session: when work is
+  described as "committed locally but never pushed" and you cannot find it, run
+  `git fsck --lost-found` and date every dangling commit BEFORE concluding
+  anything is lost.** The one-liner that found it:
+  `for c in $(git fsck --lost-found | awk '/dangling commit/{print $3}'); do git log -1 --format='%H %ad %s' --date=short $c; done | grep -i order`
 - **`tools/compare-coldlion-designflow-daily.mjs` and
   `check-coldlion-designflow-sync-health.mjs` do NOT compare against Cloud SQL** —
   despite the names. They compare taxonomy state inside Supabase. The real
@@ -241,14 +255,29 @@ candidate against the full production item set.
 
 ## 6. Exact next steps
 
-**Step A — recover or confirm-lost the existing page (do this FIRST; 5 seconds).**
-On **T16**, in the PopDAM folder:
-`git log --all --oneline --since=2026-08-15 -- src/pages/OrdersPage.tsx`
-*You'll know it worked when:* either a commit SHA prints (→ recover that commit:
-`git format-patch -1 <sha>`, bring it to a machine with push access, apply it, and
-skip to Step C) **or** nothing prints (→ the page is gone; go to Step B).
+**Step A — DONE 2026-08-26. The page was recovered.** It is commit `0b661992` on
+branch `rescue/orders-page` (also tag `orders-page-2026-08-16`), pushed to GitHub.
+Nothing needs rebuilding. Skip to Step B'.
 
-**Step B — build `/orders` to spec.** The full file-by-file specification is
+**Step B' — rebase, verify, and land the recovered page.**
+1. `git fetch origin && git checkout rescue/orders-page && git rebase origin/main`
+   — it was written against `8cb757ad` and `main` has moved ~10 days. Expect
+   conflicts in `docs/SCHEMA.md` (the commit rewrites 1,266 lines of it) and
+   possibly `src/lib/app-mode.ts`.
+2. Run the test suite; the commit ships 5 order-list test files including
+   `src/test/order-list-routing.test.ts`, which proves PopSG cannot expose the route.
+3. **Re-verify against preview signed in.** The page was verified on 2026-08-16
+   when `plm.item` was EMPTY — every Master Data cell would have shown the import
+   snapshot fallback. Now that 23,997 lines are linked, the live Master Data path
+   renders for the first time. **This is the one part that has never actually been
+   seen working.** Confirm the description column populates and check it reads
+   `plm.item.description` and not `name` (§7).
+4. Land on `main` per Step C.
+*You'll know it worked when:* the rebase is clean, tests pass, and a signed-in
+preview run shows real Master Data descriptions on the order lines rather than
+"from import snapshot" labels.
+
+**Step B (only if the recovered commit turns out to be unusable) — build `/orders` to spec.** The full file-by-file specification is
 `shared-db/plan_popdam_order_list.md` **Phase 3** (steps 3.1–3.4). Follow it as
 written; it is current even though the plan's STATUS table is not. In summary:
 1. `src/types/order-list.ts`, `src/lib/order-list.ts`, `src/hooks/useOrderList.ts`
@@ -349,10 +378,15 @@ All verified working on `hetz` on 2026-08-26.
 
 ## 9. Open questions and risks
 
-- **RISK — the lost page (highest).** If T16 does not have it, roughly a session of
-  rebuild work is required. Mitigated by the Phase 3 spec being written file-by-file
-  and by the database side being complete and proven. **Decided 2026-08-26:** do not
-  start rebuilding until T16 has been checked.
+- **RESOLVED 2026-08-26 — the page was never lost.** Recovered from a dangling
+  commit on this VPS (`0b661992`) and preserved as branch `rescue/orders-page` and
+  tag `orders-page-2026-08-16`, both pushed to GitHub. No rebuild is needed. The
+  remaining risk is only the rebase onto ~10 days of `main` and the untested live
+  Master Data path (§6 Step B').
+- **RISK — the recovered page has never been seen with real Master Data.** It was
+  verified on 2026-08-16 when `plm.item` was empty, so every Master Data cell fell
+  back to the import snapshot. The live path renders for the first time after the
+  rebase. Budget time to look at it properly.
 - **RISK — pushing `/orders` deploys it.** Weigh a flag/admin-gate landing against
   holding code back. Holding it back is what lost the last one. **Decided
   2026-08-26 (implicitly, by the loss):** prefer landing behind a switch.
