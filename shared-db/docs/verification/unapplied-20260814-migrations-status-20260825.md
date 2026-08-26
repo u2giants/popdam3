@@ -37,7 +37,16 @@ absent, which is true only of production).
 > `plm.pmt_collection.paramount_term` is gone, the loader carries the `nullif` repair and
 > references `pmt_metadata_element`, `api.pmt_style_guides` returns the constant label, and
 > `pmt_authorized_title_property.paramount_property_name` is nullable. A Paramount capture can
-> run. **No production Paramount data capture has been authorized or performed.**
+> run.
+>
+> **CORRECTION, 2026-08-26.** The last sentence of this box originally read "No production Paramount
+> data capture has been authorized or performed." That was true when written and is now false: the
+> first real production load — the deliverable of issue #679's own title — ran on **2026-08-25,
+> 10:24-10:26**. Capture `d4d678ae-44c4-4edb-a5ea-edde413dc0fc`, status `complete`, kind `full`,
+> 33,862 assets and 207,522 metadata values, `captured_by` "Codex production capture", noted as a
+> "brand-new governed production capture after issue #679 structural handback". Measured read-only
+> against production `qsllyeztdwjgirsysgai` on 2026-08-26. The capability is not merely unblocked in
+> principle; it has been exercised.
 >
 > **What in this file still stands:** the analysis of the problem, and sections 2, 3 and 4. The
 > Warner cleanup `20260814170749` (section 2) is structurally stranded and must never be

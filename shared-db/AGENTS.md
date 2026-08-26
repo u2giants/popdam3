@@ -1133,7 +1133,7 @@ links from the 63 migrated issues and from merged PR bodies:
 
 ## 11c. The orchestrator ROUTING CONTRACT — how you find who to send work to
 
-**Added 2026-08-26, issue #1605.** The marker answers "is someone running". Until this
+**Added 2026-08-26, issue #1605.** The marker answers "has someone claimed the role". Until this
 contract it did **not** answer "where do I send work", and a session with no answer to that
 resolved the destination from conversation history and an old handoff — and delegated an
 authorized structural request to an orchestrator session that **had already closed**. The
@@ -1165,7 +1165,8 @@ briefing: HANDOFF.d/2026-08-26T1409Z-edge-dev-codex-orchestrator-1579-fresh-sess
 ```
 ````
 
-`route_id` is the **routable** handle, and its shape depends on the engine:
+`route_id` is the **declared address**, and its shape depends on the engine. The guard validates
+that shape and nothing else — see the "what this does NOT do" note at the end of this section:
 
 | `engine` | `route_id` | How another session reaches it |
 |---|---|---|
@@ -1187,9 +1188,9 @@ remembering to stop using it. **Re-resolve before every delegation.**
 
 | Exit | State | What it means and what to do |
 |---|---|---|
-| 0 | `active` | One valid marker. Its `route_id` is your destination. |
+| 0 | `declared` | One valid marker. Its `route_id` is where to TRY. It is not proof anyone is there. |
 | 3 | `none` | Zero markers — **no active orchestrator**. **QUEUE the work** until a successor starts. Not permission to dispatch, and not permission to start orchestrating without claiming a marker yourself. |
-| 1 | `ambiguous` | Two or more markers. **Unsafe.** Do not guess which is live; do not route to either. |
+| 1 | `unsafe` | Anything that fails the marker guard — two or more markers, or the retired `coordinator-marker` label alive. Do not guess which is live; do not route to either. |
 | 1 | `invalid` | A marker is open but names no usable target. An orchestrator **may be live and unreachable** — stop. |
 | 2 | `unknown` | GitHub could not be read. **Assume a marker exists.** |
 

@@ -9,6 +9,34 @@ and read-only queries against the **production** ledger and catalog
 
 ---
 
+> ## ✅ OUTCOME, 2026-08-26 — every migration this audit covers is now resolved. Read this box first.
+>
+> This file remains the reference for **what each migration contains and why**. Its *status* claims
+> below are history. Measured read-only against production `qsllyeztdwjgirsysgai` on 2026-08-26:
+>
+> - **Paramount — done, and the capability is proven back on.** Applied:
+>   `20260814193351 → 20260814213043 → 20260825124200 → 20260825130500` (owner-authorized
+>   four-version window, issue #679). `20260814223552` and `20260825094455` are hard-blocked and
+>   must never be promoted — they carry correct SQL but unpromotable byte bindings, and either one
+>   would now overwrite the repaired loader and silently restore the #1418 defect. A **brand-new
+>   governed production capture completed 2026-08-25 10:24–10:26** (`d4d678ae-…`, 33,862 assets,
+>   207,522 metadata values), so the blocked-capture finding in item 1 is resolved by evidence, not
+>   by inference.
+> - **Warner #958 — done.** Reissued with identical executable SQL as `20260825201330` (issue #1517)
+>   and applied 2026-08-25. Confirmed: the eight legacy tables and both stale API views are gone and
+>   `plm.wb_property_character_normalized` still holds its 4,158 rows.
+> - **`20260814233342` and `20260814233423` — retired and hard-blocked**, as recommended (PR #1402).
+> - **Source resolution — still unbuilt, now owned.** `plm.source_resolution` does not exist and both
+>   original migrations are permanently retired; issue #1609 carries the replacement, including the
+>   `core.property` trap that would otherwise repeat the `core.character` mistake.
+> - **The systemic cause is now a tracked issue: #1608** — nothing refuses a promotion whose
+>   migration was re-derived from a base the target database does not have. That is what stranded
+>   these migrations and what left production incoherent for a day.
+>
+> Companion status record: `unapplied-20260814-migrations-status-20260825.md`.
+
+---
+
 ## Bottom line for the owner
 
 **One business capability is switched off right now: a new Paramount capture cannot succeed.** The
