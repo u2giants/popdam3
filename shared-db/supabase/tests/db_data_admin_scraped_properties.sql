@@ -102,6 +102,18 @@ begin
   insert into plm.lucasfilm_dcp_property (source_system, source_id, display_name)
   values ('lucasfilm_dcpvault', v_search || '/galaxy_far_far_away', null);
 
+  insert into plm.dcp_property_licensor_resolution (
+    source_system, source_property_id, presentation_licensor_key,
+    presentation_licensor_name, resolution_status, authority_kind,
+    authority_reference, evidence_reference, source_hash, resolved_at
+  ) values
+    ('disney_dcpvault', v_search || '/journey-to-the-moon''s-edge', 'disney', 'Disney',
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('a',64), now()),
+    ('marvel_dcpvault', v_search || '/ignored-derived-name', 'marvel', 'Marvel',
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('b',64), now()),
+    ('lucasfilm_dcpvault', v_search || '/galaxy_far_far_away', 'star-wars', 'Star Wars',
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('c',64), now());
+
   -- Fixed, non-licensed synthetic IDs exercise malformed terminal segments and
   -- prove that a DCP studio outside #1546's three-target allowlist keeps the
   -- pre-existing explicit fallback.
