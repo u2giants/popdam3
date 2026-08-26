@@ -17,6 +17,9 @@ owner: codex/orchestrator-1571-closeout
 2. **DesignFlow production-isolation cutover — issue #1353.** The isolated schema exists, but the exact data copy, secret rebinding, and service switch remain separately owner-gated after rehearsal. Recommendation: leave it gated until the cutover session presents the exact resources, timing, verification, and rollback. #1353 already carries `needs-albert`.
 3. **Queue/business-priority decisions — issue #1291.** This older owner-summary issue remains open and already carries `needs-albert`. Its facts may be stale; recommendation: the successor should reconcile it before asking Albert anything from it, and close or update resolved entries rather than re-asking settled questions.
 4. **ColdLion phases 2–6 priority — issue #1204.** The work is already authorized in full, but the issue still carries `needs-albert` for scheduling priority. Recommendation: reconcile it with #1291 and the current licensing implementation plan, then ask once only if a real priority choice remains.
+5. **Fresh-empty DesignFlow production schema — issue #1352.** The structural foundation exists, but this issue remains blocked while the production cutover design and prerequisites are reconciled. Recommendation: handle #1352 and #1353 as one cutover decision package after the timed rehearsal; do not ask about them separately.
+6. **Universe A retirement — issue #1238.** The issue carries `needs-albert` for the governed deletion outcome. Recommendation: re-prove all successor dependencies and recoverability immediately before presenting the exact deletion action; do not infer fresh authorization from the old title or ruling alone.
+7. **Orphan `designflow` schema — issue #778.** Earlier deletion approval was invalidated when live cross-schema dependencies and remaining data moves were discovered. Recommendation: keep deletion blocked until the attachment move, the two collided IDs, both lookup functions, and inbound foreign keys have explicit resolved outcomes; then return one exact, recoverable deletion action to Albert.
 
 ### Already settled — do not re-ask
 
@@ -85,7 +88,7 @@ The session also resumed #1187, repaired dependency-completion evidence through 
 - #1452: DesignFlow unread-notification index. Dispatchable in the fresh five-empty-lane audit.
 - #1575: owner-gated production decision for `20260826035157`; carries `needs-albert`.
 - #1576: this coordination handover and its eventual retirement.
-- #1353, #1291, and #1204: existing owner-routed issues; all carry `needs-albert`. #1137 still says `status: owner-decision`, but its title/body explicitly say no owner decision remains, so this closeout did not add a misleading label; the successor should correct that stale classification.
+- #1353, #1352, #1291, #1238, #1204, and #778: pre-existing owner-routed or owner-gated issues; all carry `needs-albert`. #1137 still says `status: owner-decision`, but its title/body explicitly say no owner decision remains, so this closeout did not add a misleading label; the successor should correct that stale classification.
 - After the two stale claims were released, the final queue audit reported five empty lanes, `fullyAudited: true`, no malformed or unlabelled issues, and `REFILL REQUIRED NOW: #1467, #1259, #1453, #1452`. Its earlier malformed item was #1575's initial column-claim spelling; this closeout corrected the scope block before the passing audit.
 - Curated Master Data issues #933, #640, #562, and #505 remain FORK work, not author-lane structural work. Numerous repository-maintenance/documentation issues remain visible but are owned by separate repo sessions under the 2026-08-21 owner ruling.
 
@@ -119,7 +122,7 @@ The session also resumed #1187, repaired dependency-completion evidence through 
 3. Dispatch #1467, #1259, #1453, and #1452 into four isolated author worktrees with exact object claims; refill the fifth lane if another eligible item appears. **Success:** no safe author lane is empty while fully audited dispatchable structural work exists.
 4. Keep preview, merge, reviewer assignment operations, and production serialized. After every merge, refresh other active branches and re-review changed heads. **Success:** every merge is exact-head reviewed, preview-proven, guarded, and followed by completion/claim release.
 5. Put #1575 to Albert once. If he authorizes exact migration `20260826035157`, regenerate production dry-run and immutable evidence on then-current main and promote only that version. If he does not, leave it preview-only. **Success:** either the version is governed-production-live with ledger/catalog proof or #1575 remains openly owner-gated; no broad drift apply occurs.
-6. Reconcile #1291 before presenting any older owner questions, and keep #1353 gated to its dedicated production cutover session. **Success:** Albert is not re-asked settled questions and no infrastructure cutover occurs under structural-orchestrator authority.
+6. Reconcile the complete older owner list in §0 before presenting it: combine #1352/#1353, reconcile #1204 with #1291, and re-prove the destructive prerequisites for #1238/#778. **Success:** Albert receives one current, non-duplicative decision package and no destructive or infrastructure action occurs under stale authority.
 7. When all #1576 obligations are finished or carried forward, delete this file and close #1576 in the same successor closeout PR. **Success:** no closed-issue handoff file remains stale.
 
 ## 7. Constraints and gotchas in force
@@ -145,7 +148,7 @@ The session also resumed #1187, repaired dependency-completion evidence through 
 ## 9. Open questions and risks
 
 - The new owner decision is only #1575: whether to promote exact migration `20260826035157`.
-- #1353 and #1291 are older owner-routed issues and may contain stale moving facts; reconcile before action or re-questioning.
+- #1352, #1353, #1291, #1238, #1204, and #778 are older owner-gated issues and may contain stale moving facts; reconcile before action or re-questioning.
 - #1137 has stale `status: owner-decision` wording despite explicitly saying no owner decision remains. Correct its classification before interpreting it as an Albert blocker.
 - Preview state was not independently ledger-audited during closeout because the local token was absent. Treat it as shared and changed until proven otherwise.
 - The open PR #1379 is outside orchestrator scope. Do not merge it as queue work.
@@ -194,4 +197,4 @@ The session also resumed #1187, repaired dependency-completion evidence through 
 1. **Comprehensive for a newcomer:** yes. §§1–3 define the repository, purpose, exact SHA/version, production/preview state, issues, claims, queue, and handoff lifecycle.
 2. **Preserves all session knowledge:** yes. §§4–5 record every known dead end and non-obvious finding; Part B separates Nietzsche, Volta, Lorentz, and the coordinator lane.
 3. **Execution-ready:** yes. §6 gives ordered actions with objective success gates; §§7–9 cover governance, access, secrets, risks, and moving facts.
-4. **Owner-decision complete:** yes. A line-by-line sweep of §§1–9 and Part B found #1575 as this session's only new owner decision and also surfaced pre-existing owner-routed #1353/#1291/#1204. All four appear in §0 with recommendations; #1137 is explicitly identified as stale classification rather than a real owner ask, and settled items are listed not to re-ask.
+4. **Owner-decision complete:** yes. A line-by-line sweep of §§1–9, Part B, and the live open `needs-albert` label found #1575 as this session's only new owner decision and surfaced pre-existing #1352/#1353/#1291/#1238/#1204/#778. All seven appear in §0 with recommendations; #1137 is explicitly identified as stale classification rather than a real owner ask, and settled items are listed not to re-ask.
