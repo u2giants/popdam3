@@ -162,3 +162,62 @@ asking for the list to be authoritative, not longer.
 **Done 2026-08-26:** the field-population measurement was re-run across 26 windows spanning
 2019-2026 before drafting the list above. Items 1 and 2 come from it and would have been wrong if
 written from the single-day sample.
+
+---
+
+## 6. Draft reply to ColdLion — for Albert to send
+
+**Status: drafted 2026-08-26, not yet sent.** If it is sent, record the date on register entry
+2.11. Every number below comes from the 26-window re-measure in §1.
+
+> **Subject:** API vs report — differences we see, and one question back
+>
+> Hi JamieLynn,
+>
+> Thank you — we have verified all three changes on our side. `SalesOrderLineNo` and `StageCode`
+> are both coming through and populated, and the report formulas are visible on the quantity
+> fields. That removes two workarounds we were relying on, so it is a real help.
+>
+> You asked for any differences between the API and the report. We sampled 26 individual days
+> spread across 2019 to August 2026 — 291 order-history lines — and here is everything we found.
+> We are not asking for any new stages; `ISS`, `INTRAN` and `REC` cover everything we see.
+>
+> **1. Nothing in `orderHistory` reports shipping or invoicing.** Seven fields are empty on all
+> 291 lines, across every year: `lineInvoiceQty`, `shipQty`, `shipAmount`, `invoiceNoString`,
+> `invoiceDateString`, `subDimCode` and `itemImage`. Is that intended? If invoiced and shipped
+> quantities appear on the report, how should we be getting them from the API?
+>
+> **2. Were the new quantity formulas applied to history?** After your change, `unshippedQty`,
+> `linePickQty`, `lineOpenQty` and `subQty` carry values only on our August 2026 samples. Every
+> window from 2019 through July 2026 returns zero for all four. We cannot tell whether those older
+> zeros are correct because the orders are closed, or whether history simply was not recalculated
+> — and because of item 1 there is nothing in the row to tell us. We are loading the full history
+> back to 2019-01-01, so this decides whether we can trust the value or must ignore it.
+>
+> **3. `stageCode` in Swagger says "Example", not the allowed values.** Thank you for adding the
+> description. Could it state the complete allowed list instead? An example does not tell us a
+> fourth stage has not been added, which is the case we cannot detect on our own. Same request for
+> any other field or parameter with a fixed set of values — there are no declared value lists
+> anywhere in the spec today.
+>
+> **4. The 7-day-window refusal returns two different error codes.** The response is HTTP 400 on
+> the wire but the body says `"status": 500` and `"Internal Server Error"`. A client that reads the
+> body will treat a permanent input error as a temporary server fault and retry it forever. Not
+> urgent for us — we know the rule — but worth correcting.
+>
+> **5. Negative quantities on production history.** `linePickQty`, `unshippedQty` and `subQty` go
+> as low as -564 there. Please confirm those are genuine reversals rather than a reporting
+> artefact; we will be loading them as they come.
+>
+> **6. The SKUs affected by the merch-group change.** From your note on 20 August: some SKUs
+> created through the API around that time still hold their values in the old merch-group
+> positions, and you thought they probably need updating to the new ones. Do you plan to re-map
+> those at your end? If not, we will read the old positions instead — we would just like that
+> confirmed in writing so we do not treat a blank as missing data.
+>
+> **One operational note:** we have moved to one-day windows for the historical pull, as you
+> suggested. That is roughly 2,800 calls to cover 2019 to date. If a larger window would be easier
+> on your side at some hour of the day, tell us and we will schedule around it.
+>
+> Thanks again,
+> Albert
