@@ -30,7 +30,8 @@
  * empty, failed, or unparseable response as zero. It has three outcomes:
  *
  *   OK      0 or 1 open marker.
- *   FAIL    2 or more open markers, or the retired label is alive (B1a).
+ *   FAIL    2 or more open markers, the retired label is alive (B1a), or the
+ *           single open marker carries no valid routing contract (#1605).
  *   UNKNOWN gh errored, returned no JSON, or returned an empty body where a
  *           JSON array was required. Exits NON-ZERO, and says so in those words.
  *
@@ -42,16 +43,38 @@
  * the collision VISIBLE on the next PR or scheduled run instead of silent.
  * That is the whole claim. Do not oversell it.
  *
+ * ROUTING (#1605)
+ * ---------------
+ * Counting markers answers "is someone running". It never answered "WHERE DO I
+ * SEND WORK", and a session with no answer to that resolved the destination
+ * from conversation history and an old handoff -- and delegated to an
+ * orchestrator that had already closed. Every open marker must now carry an
+ * `orchestrator-routing` block; see `scripts/lib/orchestrator-routing.mjs`.
+ *
+ * `--resolve` is the ONLY sanctioned way to obtain a delegation target. It
+ * reads the CURRENT open marker and nothing else, so closing or handing over a
+ * marker invalidates the old target by construction.
+ *
+ * ⚠️ NONE AND INVALID ARE DIFFERENT ANSWERS AND NEITHER IS PERMISSION TO
+ * DISPATCH. None means nobody is running -- QUEUE the work until a successor
+ * starts. Invalid means an orchestrator may be live and unreachable -- STOP.
+ * Collapsing either into the other is the defect B1 exists to prevent.
+ *
  * USAGE
  *   node scripts/check-orchestrator-marker.mjs [--repo owner/name] [--json]
+ *   node scripts/check-orchestrator-marker.mjs --resolve [--repo owner/name] [--json]
  *
  * EXIT CODES
  *   0  OK
- *   1  FAIL     -- more than one marker, or the retired label is alive
+ *   1  FAIL     -- more than one marker, the retired label is alive, or the
+ *                  open marker's routing contract is missing or malformed
  *   2  UNKNOWN  -- could not determine. Treat as "assume a marker exists".
+ *   3  NONE     -- `--resolve` only: no open marker, so NO ACTIVE ORCHESTRATOR.
+ *                  Queue the work. This is not a licence to dispatch.
  */
 
 import { execFileSync } from 'node:child_process'
+import { parseRoutingBlock, validateRouting } from './lib/orchestrator-routing.mjs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -64,6 +87,8 @@ export const DEFAULT_REPO = 'u2giants/shared-db'
 export const EXIT_OK = 0
 export const EXIT_FAIL = 1
 export const EXIT_UNKNOWN = 2
+/** `--resolve` only: no open marker at all. Queue the work; do not dispatch. */
+export const EXIT_NONE = 3
 
 /** Thrown when the answer cannot be determined. Never downgraded to "none". */
 export class Unknown extends Error {}
@@ -94,7 +119,7 @@ export function evaluate(issues) {
 
   const markers = realIssues
     .filter((i) => labelsOf(i).includes(MARKER_LABEL))
-    .map((i) => ({ number: i.number, title: i.title }))
+    .map((i) => ({ number: i.number, title: i.title, body: i.body ?? '', createdAt: i.created_at ?? null }))
 
   const retired = realIssues
     .filter((i) => labelsOf(i).includes(RETIRED_MARKER_LABEL))
@@ -136,13 +161,131 @@ export function evaluateLabels(labels) {
   return []
 }
 
-export function formatReport({ markers, retired, problems }) {
+/**
+ * The routing contract took effect on this date (#1605).
+ *
+ * A marker opened BEFORE it cannot be failed for lacking a block that did not
+ * exist when it was written -- marker #1602 was live at merge. Grandfathering
+ * keeps the PR guard honest instead of red for a reason no PR author can fix.
+ *
+ * ⚠️ IT IS SCOPED TO THE PR GUARD AND NOTHING ELSE. `--resolve` NEVER
+ * grandfathers: a grandfathered marker still carries no address, so it still
+ * cannot be routed to, and saying otherwise would hand back a destination that
+ * does not exist. That is the original defect.
+ *
+ * It is the day AFTER this merged, not the day of. Marker #1602 was opened on
+ * 2026-08-26, hours before the contract existed; a same-day cutoff would fail
+ * the live orchestrator's marker for not carrying a block nobody could have
+ * written yet. The first marker that can honestly be held to this is the first
+ * one opened after it shipped.
+ */
+export const CONTRACT_EFFECTIVE_DATE = '2026-08-27'
+
+/**
+ * Validate the routing contract on the open markers.
+ *
+ * Only meaningful for exactly one marker: zero has nothing to validate, and two
+ * or more already FAIL on count -- routing problems would be noise on top of an
+ * ambiguity the session must resolve first.
+ *
+ * @param markers from `evaluate`
+ * @param predecessorRouteIdOf optional `(issueNumber) => routeId|null`
+ */
+export function evaluateRouting(markers, predecessorRouteIdOf = () => null) {
+  if (markers.length !== 1) return { problems: [], warnings: [], routing: null }
+  const [marker] = markers
+
+  const fields = parseRoutingBlock(marker.body)
+  const handover = fields?.handover_issue?.replace(/^#/, '')
+  const predecessorRouteId =
+    handover && /^\d+$/.test(handover) ? predecessorRouteIdOf(Number(handover)) : null
+
+  const { valid, problems, routing } = validateRouting(fields, { predecessorRouteId })
+  if (valid) return { problems: [], warnings: [], routing }
+
+  const grandfathered =
+    marker.createdAt && marker.createdAt.slice(0, 10) < CONTRACT_EFFECTIVE_DATE
+
+  const prefixed = problems.map((p) => `marker #${marker.number}: ${p}`)
+  if (grandfathered) {
+    return {
+      problems: [],
+      warnings: [
+        ...prefixed,
+        `marker #${marker.number} opened ${marker.createdAt.slice(0, 10)}, before the routing ` +
+          `contract took effect on ${CONTRACT_EFFECTIVE_DATE}, so this does not fail the guard. ` +
+          `It DOES mean the marker names no delegation target: \`--resolve\` reports it INVALID ` +
+          `and no session may route to it. Edit the marker to add the block, or close it.`,
+      ],
+      routing: null,
+    }
+  }
+  return { problems: prefixed, warnings: [], routing: null }
+}
+
+/**
+ * Resolve the delegation target from the CURRENT open marker and nothing else.
+ *
+ * Never consults conversation history, a handoff file, or a closed marker --
+ * which is what makes closing or handing over a marker invalidate the old
+ * target automatically rather than by anyone remembering to.
+ *
+ * @returns {{state: 'active'|'none'|'ambiguous'|'invalid', ...}}
+ */
+export function resolveTarget(markers, predecessorRouteIdOf = () => null) {
+  if (markers.length === 0) {
+    return {
+      state: 'none',
+      routing: null,
+      message:
+        'NO ACTIVE ORCHESTRATOR: zero open markers. QUEUE the work until a successor starts ' +
+        'and opens one. Zero markers is not permission to dispatch, and it is not permission ' +
+        'to start orchestrating without claiming a marker yourself.',
+    }
+  }
+  if (markers.length > 1) {
+    return {
+      state: 'ambiguous',
+      routing: null,
+      message:
+        `AMBIGUOUS and UNSAFE: ${markers.length} open markers (${markers.map((m) => `#${m.number}`).join(', ')}). ` +
+        'Two orchestrators dispatching at once is how this repo produced four competing ' +
+        'migrations on one function. Do not guess which is live and do not route to either.',
+    }
+  }
+  const { problems, warnings, routing } = evaluateRouting(markers, predecessorRouteIdOf)
+  if (routing) return { state: 'active', routing, message: null, marker: markers[0].number }
+  return {
+    state: 'invalid',
+    routing: null,
+    marker: markers[0].number,
+    message:
+      `UNROUTABLE: marker #${markers[0].number} is open but names no usable delegation target. ` +
+      'An orchestrator may be live and unreachable. This is NOT "no orchestrator" -- do not ' +
+      'fall back to a handoff, an old marker, or conversation history for an address. ' +
+      'Reasons:\n' +
+      [...problems, ...warnings].map((p) => `  - ${p}`).join('\n'),
+  }
+}
+
+export function formatReport({ markers, retired, problems, warnings = [], routing = null }) {
   const lines = []
   lines.push(`Open \`${MARKER_LABEL}\` issues: ${markers.length}`)
   for (const m of markers) lines.push(`  #${m.number} ${m.title}`)
   if (retired.length > 0) {
     lines.push(`Open \`${RETIRED_MARKER_LABEL}\` issues: ${retired.length}`)
     for (const m of retired) lines.push(`  #${m.number} ${m.title}`)
+  }
+  if (routing) {
+    lines.push('')
+    lines.push(`Delegation target (#1605): ${routing.howToReach}`)
+    lines.push(`  session_name: ${routing.sessionName}`)
+    lines.push(`  owner: ${routing.owner}   machine: ${routing.machine}   started: ${routing.started}`)
+  }
+  if (warnings.length > 0) {
+    lines.push('')
+    lines.push('WARNING (grandfathered — does not fail this check):')
+    for (const w of warnings) lines.push(`  - ${w}`)
   }
   if (problems.length === 0) {
     lines.push('')
@@ -160,6 +303,44 @@ export function formatReport({ markers, retired, problems }) {
       'collision visible, not impossible.',
   )
   return lines.join('\n')
+}
+
+/**
+ * Human-readable delegation target for `--resolve`.
+ *
+ * ⚠️ THE HEADING SAYS "DECLARED", NOT "ACTIVE", AND THAT IS DELIBERATE. It read
+ * `ACTIVE ORCHESTRATOR` until an independent Codex GPT-5.6 review on 2026-08-26
+ * pointed out that nothing here proves activity. This repository has no session
+ * API: it validates the SHAPE of an id, never that the session exists, is
+ * running, belongs to the named owner or machine, is the shared-db
+ * orchestrator, or can receive anything. A fabricated UUID with otherwise valid
+ * fields resolves exactly like a real one. What is proven is narrow and worth
+ * stating exactly: ONE open marker DECLARES this address.
+ */
+export function formatTarget({ routing, marker }) {
+  return [
+    `MARKER-DECLARED TARGET — resolved from open marker #${marker} only.`,
+    '',
+    `  identifier:   ${routing.identifier}`,
+    `  session_name: ${routing.sessionName}`,
+    `  engine:       ${routing.engine}`,
+    `  route_id:     ${routing.routeId}`,
+    `  owner:        ${routing.owner}`,
+    `  machine:      ${routing.machine}`,
+    `  started:      ${routing.started}`,
+    `  handover:     ${routing.handoverIssue ? `#${routing.handoverIssue}` : 'none (cold start)'}`,
+    `  briefing:     ${routing.briefing}`,
+    '',
+    `  TRY IT BY:    ${routing.howToReach}`,
+    '',
+    'This came from the CURRENT open marker. Do not route from a handoff, a closed marker, ' +
+      'or conversation history — those are how a delegation reached a session that had ' +
+      'already closed. Re-resolve before every delegation; a handover changes this target.',
+    '',
+    'NOT PROVEN: that this session exists, is running, is reachable, or is the orchestrator. ' +
+      'Only that one open marker declares this address. Confirm you got a reply — silence is ' +
+      'not delivery, and this tool cannot tell you the difference.',
+  ].join('\n')
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +384,11 @@ export const defaultIo = {
    */
   openIssues: (repo) => ghJson(['api', '--paginate', `repos/${repo}/issues?state=open&per_page=100`]),
   labels: (repo) => ghJson(['api', '--paginate', `repos/${repo}/labels?per_page=100`]),
+  /**
+   * One issue's body, open or CLOSED — a predecessor marker is closed by
+   * definition, so this cannot reuse `openIssues`.
+   */
+  issueBody: (repo, number) => ghJson(['api', `repos/${repo}/issues/${number}`])?.body ?? '',
 }
 
 // ---------------------------------------------------------------------------
@@ -213,10 +399,58 @@ export function main(argv = [], io = defaultIo) {
   const repoFlag = argv.indexOf('--repo')
   const repo = repoFlag !== -1 ? argv[repoFlag + 1] : process.env.GITHUB_REPOSITORY || DEFAULT_REPO
   const asJson = argv.includes('--json')
+  const resolving = argv.includes('--resolve')
+
+  /**
+   * The predecessor's routable id, read from the handover issue it names.
+   *
+   * ⚠️ A LOOKUP FAILURE IS `Unknown`, NOT `null`. This originally swallowed the
+   * error and returned null "so that an unreadable predecessor cannot block a
+   * successor that recorded a valid id of its own". Independent Codex GPT-5.6
+   * review, 2026-08-26, showed that is fail-OPEN and defeats the check outright:
+   * a successor honestly declares `handover_issue: 1579`, copies #1579's stale
+   * id, GitHub read of #1579 transiently fails, the copy compares against null
+   * and PASSES — routing to the dead session this contract exists to prevent.
+   * Availability is not the property being protected here. If the inheritance
+   * check cannot run, the answer is UNKNOWN.
+   */
+  const predecessorRouteIdOf = (number) =>
+    parseRoutingBlock(io.issueBody(repo, number))?.route_id ?? null
 
   let result
   try {
     result = evaluate(io.openIssues(repo))
+
+    if (resolving) {
+      // ⚠️ THE SAFETY FINDINGS GATE RESOLUTION. Found 2026-08-26 by independent
+      // Codex GPT-5.6 review: this originally passed only `result.markers` to
+      // `resolveTarget` and never consulted `result.problems` or the label
+      // check. One valid marker PLUS an open `coordinator-marker` issue then
+      // FAILED the guard and RESOLVED to an active target on the same input --
+      // routing straight past a detected second-orchestrator signal. Anything
+      // that fails the guard must refuse to resolve.
+      const unsafe = [...result.problems, ...evaluateLabels(io.labels(repo))]
+      if (unsafe.length > 0) {
+        const message =
+          'UNSAFE — refusing to resolve a delegation target. The marker guard failed on this ' +
+          'repository state, so no address here can be trusted. Resolve the collision first:\n' +
+          unsafe.map((p) => `  - ${p}`).join('\n')
+        if (asJson) console.log(JSON.stringify({ state: 'unsafe', routing: null, message }, null, 2))
+        else console.log(message)
+        return EXIT_FAIL
+      }
+
+      const target = resolveTarget(result.markers, predecessorRouteIdOf)
+      if (asJson) console.log(JSON.stringify(target, null, 2))
+      else console.log(target.state === 'active' ? formatTarget(target) : target.message)
+      if (target.state === 'active') return EXIT_OK
+      return target.state === 'none' ? EXIT_NONE : EXIT_FAIL
+    }
+
+    const routingResult = evaluateRouting(result.markers, predecessorRouteIdOf)
+    result.problems.push(...routingResult.problems)
+    result.warnings = routingResult.warnings
+    result.routing = routingResult.routing
     result.problems.push(...evaluateLabels(io.labels(repo)))
     result.ok = result.problems.length === 0
   } catch (error) {
@@ -224,7 +458,8 @@ export function main(argv = [], io = defaultIo) {
       // Loud, and explicitly NOT a pass. Silence here is the original defect.
       console.error(`UNKNOWN: ${error.message}`)
       console.error(
-        'Could not determine how many orchestrator markers are open. This is NOT "none open". ' +
+        'Could not determine how many orchestrator markers are open. This is NOT "none open", ' +
+          'and under --resolve it is NOT "no active orchestrator". ' +
           'Assume a marker exists and confirm by hand before dispatching anything:',
       )
       console.error(`  gh api "repos/${repo}/issues?state=open&per_page=100" --paginate --jq '.[] | select(.labels[].name=="${MARKER_LABEL}") | .number'`)

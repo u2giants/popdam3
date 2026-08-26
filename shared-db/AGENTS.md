@@ -43,6 +43,11 @@ AI sessions from breaking each other through the one database they all depend on
 > **Started in `shared-db` and you are not the orchestrator? Stop and hand over.**
 > This repo runs **one orchestrator session**, which dispatches every task to
 > sub-agents in isolated worktrees.
+> **To find out who that is and where to send work, run
+> `node scripts/check-orchestrator-marker.mjs --resolve` — §11c.** It is the only
+> sanctioned source of a routing target. Never take one from conversation history,
+> a `HANDOFF.d/` file, or a closed marker: that is how an authorized request was
+> once delegated to an orchestrator session that had already closed.
 > **Scope: STRUCTURE, not data (§0.0-B, owner ruling 2026-08-13).** This repo and its
 > orchestrator govern the *shape* of the database — schema, tables, columns, views, functions,
 > triggers, RLS, indexes, migrations. An application session changing its own *rows* does not
@@ -1126,6 +1131,116 @@ links from the 63 migrated issues and from merged PR bodies:
 
 ---
 
+## 11c. The orchestrator ROUTING CONTRACT — how you find who to send work to
+
+**Added 2026-08-26, issue #1605.** The marker answers "is someone running". Until this
+contract it did **not** answer "where do I send work", and a session with no answer to that
+resolved the destination from conversation history and an old handoff — and delegated an
+authorized structural request to an orchestrator session that **had already closed**. The
+request went nowhere and nobody was told.
+
+### The standard identifier is `shared-db.orch`
+
+Owner instruction, Albert Hazan, 2026-08-26. It is a **fixed constant**, not a naming
+suggestion. The orchestrator's session display name must begin with it, so the orchestrator
+is identifiable in a session list and by any tool that can only see session titles.
+
+⚠️ **The name is a discovery HINT and never an authority.** Session titles are not unique
+and nothing enforces them. **Route on the marker, never on a name.**
+
+### Every open marker carries a routing block
+
+````
+```orchestrator-routing
+status: active
+identifier: shared-db.orch
+engine: codex
+session_name: shared-db.orch EDGE-DEV resume-1579
+route_id: 01a0387e-2895-72d3-97c2-55838595c69e
+owner: u2giants
+machine: EDGE-DEV
+started: 2026-08-26T14:39:25Z
+handover_issue: 1579
+briefing: HANDOFF.d/2026-08-26T1409Z-edge-dev-codex-orchestrator-1579-fresh-session.md
+```
+````
+
+`route_id` is the **routable** handle, and its shape depends on the engine:
+
+| `engine` | `route_id` | How another session reaches it |
+|---|---|---|
+| `codex` | the Codex thread UUID from the session rollout `session_id` | `codex-reply` with that `threadId` |
+| `claude` | the Claude `sessionId`, e.g. `local_<uuid>` | a Claude cross-session message to that session |
+
+`handover_issue` is the predecessor marker, or `none` for a cold start. Every field is
+required; **blank is never a default** — state a value or `none`.
+
+### Resolve the destination this way, and only this way
+
+```bash
+node scripts/check-orchestrator-marker.mjs --resolve
+```
+
+It reads the **current open marker and nothing else**. That is what makes closing or handing
+over a marker invalidate the old routing target automatically, rather than by everyone
+remembering to stop using it. **Re-resolve before every delegation.**
+
+| Exit | State | What it means and what to do |
+|---|---|---|
+| 0 | `active` | One valid marker. Its `route_id` is your destination. |
+| 3 | `none` | Zero markers — **no active orchestrator**. **QUEUE the work** until a successor starts. Not permission to dispatch, and not permission to start orchestrating without claiming a marker yourself. |
+| 1 | `ambiguous` | Two or more markers. **Unsafe.** Do not guess which is live; do not route to either. |
+| 1 | `invalid` | A marker is open but names no usable target. An orchestrator **may be live and unreachable** — stop. |
+| 2 | `unknown` | GitHub could not be read. **Assume a marker exists.** |
+
+⚠️ **`none` and `invalid` are different answers with opposite consequences, and neither may
+be collapsed into the other.** `none` means nobody is running. `invalid` means somebody may
+be running and you cannot reach them. Treating `invalid` as `none` is how a second
+orchestrator starts; treating `none` as a green light is how work gets dispatched to nobody.
+
+⚠️ **Never fall back to conversation history, a closed marker, a `HANDOFF.d/` file, or a
+remembered id for a routing target.** Those are precisely what produced the failure this
+contract exists to prevent. If `--resolve` will not give you an address, you do not have one.
+
+### Starting as the orchestrator
+
+Open the marker with a complete, valid routing block **recording your own new `route_id`**.
+A successor that copies its predecessor's id is rejected by the guard — that copy is exactly
+how delegations kept arriving at a closed session.
+
+⚠️ **The inheritance check is a trap, not a proof.** It fires only when the marker declares a
+numeric `handover_issue` whose issue is readable and carries a parseable block. It does not
+catch a reused id from an older ancestor, a wrong predecessor number, a `handover_issue: none`
+that is a lie, or a fabricated id with the right shape. **Recording your own real id is your
+obligation; the guard catches the common copy, not every possible one.**
+
+### Handing over
+
+Close your marker. The successor opens its own with **its own new `route_id`**. There is no
+edit-in-place handover: the old target must stop resolving the moment you stop running.
+
+### What this does NOT do
+
+It publishes an **address**, and validates only its **shape**. There is no session API here, so
+nothing checks that the session exists, is running, belongs to the declared owner or machine,
+is the orchestrator, or can receive anything — a fabricated id with otherwise valid fields
+resolves exactly like a real one. What a resolved target proves is narrow: **one open marker
+declares this address.** Confirm you got a reply; silence is not delivery, and this tool cannot
+tell the difference.
+
+It does not invent a delivery channel and it does not promise
+delivery. `plan_orchestrator-workflow-gaps.md` §C recorded that nothing here reaches a
+running session; that remains true of this repository. Claude cross-session messaging and
+Codex `codex-reply` are the channels, they live outside this repo, and both needed an
+address the marker never published. **A resolved target means "this is where to send it",
+never "it was received".**
+
+⚠️ **Markers opened before 2026-08-27 are grandfathered by the PR guard only** — they could
+not carry a block that did not exist. `--resolve` **never** grandfathers: such a marker still
+carries no address and still cannot be routed to. Edit it to add the block, or close it.
+
+---
+
 ## 12. Standing facts an incoming session must know
 
 > **Re-homed from `COORDINATOR_INTAKE.md` on 2026-08-07, verbatim.** These ten rules
@@ -1145,6 +1260,7 @@ have already happened in this repo, more than once.
 
 1. **One orchestrator.** All work is dispatched to sub-agents in isolated
    worktrees. If you were not started as the orchestrator, you are not it.
+   **Resolve who it is with `--resolve`, never from memory — §11c.**
 2. **SUPERSEDED 2026-08-14, RAISED 2026-08-25:** up to **five** unrelated
    migrations may be authored concurrently under exact object claims and atomic
    version reservations. Preview, merges and production promotion remain one at
