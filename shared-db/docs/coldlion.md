@@ -4,7 +4,7 @@
 except by a broken link. Everything ColdLion lives in the documents below. Read this page
 first, then go to the one you need.
 
-**Last reviewed: 2026-08-19.**
+**Last reviewed: 2026-08-26.**
 
 ---
 
@@ -56,6 +56,7 @@ Owner ruling 2026-08-09.
 |---|---|
 | [`coldlion-erp-api-reference.md`](coldlion-erp-api-reference.md) | Every endpoint, its parameters, paging, auth, the division matrix, which four endpoints are writable |
 | [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | The two history feeds in depth: the 7-day window cap, row identity, the malformed error contract, dead fields |
+| [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md) | ColdLion's 2026-08-26 answers, each verified live: `salesOrderLineNo` and `stageCode` are now IN the API, the report formulas are applied, `orderHistory` has no hidden dimension — and the one question ColdLion asked us back |
 | **The live spec** — `GET /EhpApi/v2/api-docs` | The final authority when a document and reality disagree. It has been right and our docs wrong at least once |
 
 ### What the data means to the business

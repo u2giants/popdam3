@@ -97,6 +97,14 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 > transient server fault and **retry it forever**. Branch on the wire status and on the `message`
 > text, never on the body's `status`.
 
+> ### 🔄 UPDATED 2026-08-26 — `stageCode` is now RETURNED on every `prodHistory` row, and
+> `salesOrderLineNo` is now returned on every `orderHistory` row. ColdLion added both, and also
+> applied the report's own quantity formulas, so `unshippedQty`/`linePickQty`/`subQty` are no
+> longer always zero on `orderHistory`. **Stop stamping the stage from the request and stop
+> deriving the sales-order line key.** See
+> [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md). Anything below about those
+> fields being absent or dead describes the API before that date.
+
 > ### ⚠️⚠️ The default `prodHistory` response is INCOMPLETE — fetch every `stageCode`
 > **Without `stageCode`, `prodHistory` returns only the `ISS` (issued) lines.** Verified 2026-08-18:
 > for 2026-08-03..09 the default returned 67 rows, identical to `stageCode=ISS`, while
