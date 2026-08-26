@@ -1828,7 +1828,8 @@ declare
     ['sega\_%',      'sega'],
     ['peanuts\_%',   'peanuts'],
     ['wildbrain\_%', 'wildbrain'],
-    ['sesame\_%',    'sesame']
+    ['sesame\_%',    'sesame'],
+    ['coke\_%',      'coca-cola']
   ];
 begin
   raise notice '=== I. api.source_capture_inventory CLASSIFIES WILDBRAIN ===';

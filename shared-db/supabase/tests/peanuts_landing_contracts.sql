@@ -1350,7 +1350,8 @@ declare
     -- registered in the view. This block failed first, naming this array. One row, and
     -- nothing else in this file changed.
     ['wildbrain\_%', 'wildbrain'],
-    ['sesame\_%',    'sesame']
+    ['sesame\_%',    'sesame'],
+    ['coke\_%',      'coca-cola']
   ];
 begin
   -- Every pre-existing source keeps its classification. If a Peanuts branch had been

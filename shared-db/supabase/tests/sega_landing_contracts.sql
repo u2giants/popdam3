@@ -1675,7 +1675,8 @@ declare
     ['erp\_%',       'coldlion'],
     ['peanuts\_%',   'peanuts'],
     ['wildbrain\_%', 'wildbrain'],
-    ['sesame\_%',    'sesame']
+    ['sesame\_%',    'sesame'],
+    ['coke\_%',      'coca-cola']
   ];
 begin
   for r in

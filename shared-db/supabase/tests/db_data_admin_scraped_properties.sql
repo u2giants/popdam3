@@ -1,4 +1,4 @@
--- Rollback-safe contract for issue #1533.
+-- Rollback-safe contract for issues #1533 and #1546.
 
 begin;
 
@@ -96,11 +96,21 @@ begin
   end;
 
   insert into plm.dcp_property (source_system, source_id, display_name)
-  values ('disney_dcpvault', v_search || '-Disney', null);
+  values ('disney_dcpvault', v_search || '/journey-to-the-moon''s-edge', null);
   insert into plm.marvel_dcp_property (source_system, source_id, display_name)
-  values ('marvel_dcpvault', v_search || '-Marvel', v_search || ' Marvel name');
+  values ('marvel_dcpvault', v_search || '/ignored-derived-name', v_search || ' Marvel name');
   insert into plm.lucasfilm_dcp_property (source_system, source_id, display_name)
-  values ('lucasfilm_dcpvault', v_search || '-StarWars', v_search || ' Star Wars name');
+  values ('lucasfilm_dcpvault', v_search || '/galaxy_far_far_away', null);
+
+  -- Fixed, non-licensed synthetic IDs exercise malformed terminal segments and
+  -- prove that a DCP studio outside #1546's three-target allowlist keeps the
+  -- pre-existing explicit fallback.
+  insert into plm.dcp_property (source_system, source_id, display_name) values
+    ('disney_dcpvault', 'zz-contract-1546/trailing/', null),
+    ('disney_dcpvault', 'zz-contract-1546/---___', null),
+    ('disney_dcpvault', 'zz-contract-1546/we''re-ready', null);
+  insert into plm.twentieth_century_dcp_property (source_system, source_id, display_name)
+  values ('twentieth_century_dcpvault', 'zz-contract-1546/not-targeted', null);
 
   insert into plm.pmt_capture (
     capture_id, status, capture_kind, source_url, library_name, started_at,
@@ -211,12 +221,65 @@ begin
 
   if not exists (
     select 1 from jsonb_array_elements(v_rows) r
-    where r ->> 'source_property_id' = v_search || '-Disney'
+    where r ->> 'source_property_id' = v_search || '/journey-to-the-moon''s-edge'
       and r -> 'source_property_name' = 'null'::jsonb
-      and r ->> 'display_label' = '[Unlabeled source ID: ' || v_search || '-Disney]'
+      and r ->> 'display_label' = 'Journey to the Moon''s Edge'
   ) then
-    raise exception 'null source label was hidden or replaced with an invented name';
+    raise exception 'Disney DCP terminal slug was not converted to a presentation label';
   end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id' = v_search || '/ignored-derived-name'
+      and r ->> 'source_property_name' = v_search || ' Marvel name'
+      and r ->> 'display_label' = v_search || ' Marvel name'
+  ) then
+    raise exception 'future nonblank Marvel source display name did not override derivation';
+  end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id' = v_search || '/galaxy_far_far_away'
+      and r -> 'source_property_name' = 'null'::jsonb
+      and r ->> 'display_label' = 'Galaxy Far Far Away'
+      and r ->> 'presentation_licensor_name' = 'Star Wars'
+      and r ->> 'source_system' = 'lucasfilm_dcpvault'
+  ) then
+    raise exception 'Lucasfilm DCP underscore slug or Star Wars provenance changed';
+  end if;
+
+  select api.db_data_admin_scraped_properties('zz-contract-1546', null, 100) into v_page;
+  v_rows := v_page -> 'rows';
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id' = 'zz-contract-1546/trailing/'
+      and r ->> 'display_label' = '[Unlabeled source ID: zz-contract-1546/trailing/]'
+  ) or not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id' = 'zz-contract-1546/---___'
+      and r ->> 'display_label' = '[Unlabeled source ID: zz-contract-1546/---___]'
+  ) then
+    raise exception 'malformed or empty DCP terminal segment did not retain fallback';
+  end if;
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id' = 'zz-contract-1546/we''re-ready'
+      and r ->> 'display_label' = 'We''re Ready'
+  ) then
+    raise exception 'common apostrophe contraction was not capitalized conservatively';
+  end if;
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_table' = 'plm.twentieth_century_dcp_property'
+      and r ->> 'source_property_id' = 'zz-contract-1546/not-targeted'
+      and r ->> 'display_label' = '[Unlabeled source ID: zz-contract-1546/not-targeted]'
+  ) then
+    raise exception 'non-target source fallback changed';
+  end if;
+
+  -- Restore the main fixture result for the remaining source and pagination checks.
+  select api.db_data_admin_scraped_properties(v_search, null, 100) into v_page;
+  v_rows := v_page -> 'rows';
 
   select count(*) into v_count
   from jsonb_array_elements(v_rows) r

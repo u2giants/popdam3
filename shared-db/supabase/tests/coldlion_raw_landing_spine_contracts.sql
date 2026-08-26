@@ -295,7 +295,8 @@ end;
 $$;
 
 -- =====================================================================================
--- H. window_ledger behaviour: exactly 7 days, one row per start, evidenced outcomes.
+-- H. window_ledger behaviour: exactly 7 days on one fixed grid, one row per start,
+-- evidenced outcomes.
 -- =====================================================================================
 do $$
 declare
@@ -304,16 +305,16 @@ declare
   v_updated_after timestamptz;
 begin
   insert into coldlion.sync_run (endpoint, company_code, requested_by, window_from, window_to)
-  values ('/prodHistory', 'ZZTEST', 'ZZTEST', date '2026-02-01', date '2026-02-07')
+  values ('/prodHistory', 'ZZTEST', 'ZZTEST', date '2026-02-03', date '2026-02-09')
   returning id into v_run;
 
   insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
-  values ('/prodHistory', 'ZZTEST', date '2026-02-01', date '2026-02-07');
+  values ('/prodHistory', 'ZZTEST', date '2026-02-03', date '2026-02-09');
 
   -- Exactly seven days, not "at most".
   begin
     insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
-    values ('/prodHistory', 'ZZTEST', date '2026-03-01', date '2026-03-04');
+    values ('/prodHistory', 'ZZTEST', date '2026-03-03', date '2026-03-06');
     raise exception 'H FAILED: a short window was accepted; a gap either side would be invisible';
   exception when check_violation then null;
   end;
@@ -321,7 +322,7 @@ begin
   -- Only the two capped endpoints have windows at all.
   begin
     insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
-    values ('/items', 'ZZTEST', date '2026-03-01', date '2026-03-07');
+    values ('/items', 'ZZTEST', date '2026-03-03', date '2026-03-09');
     raise exception 'H FAILED: a non-history endpoint was given a window ledger row';
   exception when check_violation then null;
   end;
@@ -329,29 +330,38 @@ begin
   -- One row per (endpoint, company, start).
   begin
     insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
-    values ('/prodHistory', 'ZZTEST', date '2026-02-01', date '2026-02-07');
+    values ('/prodHistory', 'ZZTEST', date '2026-02-03', date '2026-02-09');
     raise exception 'H FAILED: the same window was recorded twice';
   exception when unique_violation then null;
+  end;
+
+  -- A shifted seven-day window would overlap the fixed backfill grid even though
+  -- its start differs, so the anchor constraint must reject it.
+  begin
+    insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
+    values ('/prodHistory', 'ZZTEST', date '2026-02-05', date '2026-02-11');
+    raise exception 'H FAILED: a shifted overlapping seven-day grid was accepted';
+  exception when check_violation then null;
   end;
 
   -- A failed window must say why; a loaded window must carry its evidence.
   begin
     update coldlion.window_ledger set state = 'failed'
-     where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-01';
+     where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
     raise exception 'H FAILED: a window failed silently';
   exception when check_violation then null;
   end;
 
   begin
     update coldlion.window_ledger set state = 'loaded'
-     where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-01';
+     where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
     raise exception 'H FAILED: a window was marked loaded with no row count, time or run';
   exception when check_violation then null;
   end;
 
   begin
     update coldlion.window_ledger set state = 'archived'
-     where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-01';
+     where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
     raise exception 'H FAILED: an unknown state was accepted';
   exception when check_violation then null;
   end;
@@ -360,22 +370,22 @@ begin
   -- whole transaction, so "later than before" proves nothing here; "not the stale value
   -- the caller wrote" does.
   select updated_at into v_updated_before from coldlion.window_ledger
-   where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-01';
+   where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
 
   update coldlion.window_ledger
      set state = 'loaded', row_count = 265, loaded_at = now(), last_run_id = v_run,
          attempt_count = 1, updated_at = timestamptz '2000-01-01Z'
-   where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-01';
+   where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
 
   select updated_at into v_updated_after from coldlion.window_ledger
-   where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-01';
+   where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
 
   if v_updated_after = timestamptz '2000-01-01Z' or v_updated_after < v_updated_before then
     raise exception 'H FAILED: the set_updated_at trigger did not fire (before %, after %)',
       v_updated_before, v_updated_after;
   end if;
 
-  raise notice 'H PASSED: window_ledger enforces the 7-day grid, unique starts and evidenced outcomes.';
+  raise notice 'H PASSED: window_ledger enforces one anchored 7-day grid, unique starts and evidenced outcomes.';
 end;
 $$;
 
