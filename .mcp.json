@@ -2,7 +2,12 @@
   "mcpServers": {
     "supabase": {
       "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref", "qsllyeztdwjgirsysgai"],
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--project-ref",
+        "qsllyeztdwjgirsysgai"
+      ],
       "env": {
         "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
       }
@@ -23,10 +28,24 @@
     },
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest", "--headless"],
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless"
+      ],
       "env": {
         "PLAYWRIGHT_BROWSERS_PATH": "/opt/playwright"
       }
+    },
+    "railway": {
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "mcp-remote@0.1.38",
+        "https://mcp.railway.com"
+      ],
+      "command": "cmd"
     }
   }
 }
