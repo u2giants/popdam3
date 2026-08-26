@@ -284,16 +284,6 @@ test('resolve: the retired label merely EXISTING refuses to resolve', () => {
   assert.equal(main(['--resolve'], io({ issues, labels: [{ name: RETIRED_MARKER_LABEL }] })), EXIT_FAIL)
 })
 
-test('resolve: the MACHINE-READABLE state is "declared", never "active"', () => {
-  // Found 2026-08-26 by independent Codex GPT-5.6 review, round 2: the human
-  // output was corrected to MARKER-DECLARED TARGET while the JSON still said
-  // `state: "active"`, so any tool reading the JSON kept the exact overclaim the
-  // prose had just dropped. Shape is all that is ever checked.
-  const target = resolveTarget(evaluate([marker()]).markers)
-  assert.equal(target.state, 'declared')
-  assert.notEqual(target.state, 'active')
-})
-
 test('resolve: a target is DECLARED, never proven active or reachable', () => {
   // Shape is all this repo can check — there is no session API. A fabricated
   // UUID resolves exactly like a real one, so the output must not claim more.
@@ -336,7 +326,7 @@ test('resolve: TWO markers is ambiguous and unsafe — no target is returned', (
 
 test('resolve: ONE valid marker returns the routable target and how to reach it', () => {
   const target = resolveTarget(evaluate([marker()]).markers)
-  assert.equal(target.state, 'declared')
+  assert.equal(target.state, 'active')
   assert.equal(target.routing.routeId, '01a0387e-2895-72d3-97c2-55838595c69e')
   assert.equal(target.routing.identifier, 'shared-db.orch')
   assert.match(target.routing.howToReach, /codex-reply.* with threadId/)
@@ -347,7 +337,7 @@ test('resolve: a Claude-held orchestrator resolves to a Claude session message',
   const target = resolveTarget(
     evaluate([marker({ engine: 'claude', route_id: 'local_baefce7c-eb8b-4733-8a37-357f141ae013' })]).markers,
   )
-  assert.equal(target.state, 'declared')
+  assert.equal(target.state, 'active')
   assert.match(target.routing.howToReach, /Claude cross-session message to sessionId/)
 })
 

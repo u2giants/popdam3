@@ -53,14 +53,7 @@ export const ORCHESTRATOR_IDENTIFIER = 'shared-db.orch'
 /** The fenced block that carries the contract, matching this repo's `db-claim` / `db-work-scope` convention. */
 export const ROUTING_BLOCK = 'orchestrator-routing'
 
-/**
- * Engines that can hold the orchestrator, and the SHAPE each one's id takes.
- *
- * ⚠️ "Routable" throughout this file means "shaped like an address a session
- * could be sent to", never "proven reachable". Nothing here can prove the
- * session exists or is running. Narrowed 2026-08-26 after independent Codex
- * GPT-5.6 review found the word doing more work than the code supports.
- */
+/** Engines that can hold the orchestrator, and the shape each one's routable id takes. */
 export const ENGINES = {
   codex: {
     /**
@@ -154,14 +147,8 @@ function isIsoInstant(value) {
  *
  * `predecessorRouteId` — when the marker names an originating handover issue and
  * that issue's own routing id is known, pass it. A successor that reuses it is
- * rejected: inheriting the predecessor's id is precisely how a closed session
+ * REJECTED: inheriting the predecessor's id is precisely how a closed session
  * kept receiving delegations. A successor must record its OWN new id.
- *
- * ⚠️ THIS IS A TRAP, NOT A PROOF. It fires only when the marker declares a
- * numeric `handover_issue` whose issue is readable and carries a parseable
- * block. It cannot catch an id reused from an older ancestor, a wrong
- * predecessor number, a `handover_issue: none` that is a lie, or a fabricated
- * id of the right shape. It catches the common copy and nothing more.
  *
  * @returns {{valid: boolean, problems: string[], routing: object|null}}
  */

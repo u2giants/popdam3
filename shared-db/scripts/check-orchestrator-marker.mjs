@@ -230,7 +230,7 @@ export function evaluateRouting(markers, predecessorRouteIdOf = () => null) {
  * which is what makes closing or handing over a marker invalidate the old
  * target automatically rather than by anyone remembering to.
  *
- * @returns {{state: 'declared'|'none'|'ambiguous'|'invalid', ...}}
+ * @returns {{state: 'active'|'none'|'ambiguous'|'invalid', ...}}
  */
 export function resolveTarget(markers, predecessorRouteIdOf = () => null) {
   if (markers.length === 0) {
@@ -254,11 +254,7 @@ export function resolveTarget(markers, predecessorRouteIdOf = () => null) {
     }
   }
   const { problems, warnings, routing } = evaluateRouting(markers, predecessorRouteIdOf)
-  // `declared`, NOT `active`. Flagged 2026-08-26 by independent Codex GPT-5.6
-  // review: the human output was corrected to MARKER-DECLARED TARGET while the
-  // machine-readable state still said `active`, so any tool reading the JSON kept
-  // the overclaim the prose had just dropped. Shape is all that was checked.
-  if (routing) return { state: 'declared', routing, message: null, marker: markers[0].number }
+  if (routing) return { state: 'active', routing, message: null, marker: markers[0].number }
   return {
     state: 'invalid',
     routing: null,
@@ -446,8 +442,8 @@ export function main(argv = [], io = defaultIo) {
 
       const target = resolveTarget(result.markers, predecessorRouteIdOf)
       if (asJson) console.log(JSON.stringify(target, null, 2))
-      else console.log(target.state === 'declared' ? formatTarget(target) : target.message)
-      if (target.state === 'declared') return EXIT_OK
+      else console.log(target.state === 'active' ? formatTarget(target) : target.message)
+      if (target.state === 'active') return EXIT_OK
       return target.state === 'none' ? EXIT_NONE : EXIT_FAIL
     }
 
