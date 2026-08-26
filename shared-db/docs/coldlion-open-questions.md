@@ -59,7 +59,7 @@ the requested one — that check is now free and catches a mis-stamped loader im
 | 2.8 | ✅ **ANSWERED 2026-08-26 — see §4.** *"We use the same formulas as report now."* The three fields that measured 0% now carry values — but **re-measured 2026-08-26 over 26 windows / 291 rows / 2019-2026, they are populated ONLY on 2026-08 rows** (4.1% overall). We cannot tell from the API whether older zeros are true closed-order zeros or an un-backfilled history, because `lineInvoiceQty`, `shipQty`, `shipAmount`, `invoiceNoString` and `invoiceDateString` are **empty on all 291 rows** — nothing in the feed reports shipping or invoicing at all. That question is now item 2 of 2.11. | JamieLynn | [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md) §1 | **Answered 2026-08-26.** |
 | 2.9 | ⚠️ **PARTIALLY ANSWERED 2026-08-26 — see §4.** *"Changed the doc."* `stageCode` now has a description, but it says **"Example"**, not "allowed values", and **no `enum` exists anywhere in the spec**. Not closed; goes back in the next reply. | JamieLynn | [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md) §2 | **Answered 2026-08-26, unsatisfactorily.** |
 | 2.10 | ✅ **ANSWERED 2026-08-26 — see §4.** *"Added SalesOrderLineNo and StageCode."* Both verified live and populated. Both workarounds retire. | JamieLynn | [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md) §3 | **Answered 2026-08-26.** |
-| 2.11 | **ColdLion asked US a question (2026-08-26): *"Please send us any difference between the api and report, any states you want to add."*** First time they have invited a list. Six items drafted — the **seven always-empty `orderHistory` fields** (no row reports shipping or invoicing at all), whether the new quantity formulas were backfilled to history, the "Example" vs allowed-values gap, the malformed 7-day-cap error, negative quantities, and the un-remapped API-created SKUs. **No new stages wanted.** | **us → JamieLynn** | [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md) §5 | **Reply DRAFTED 2026-08-26** — [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md) §6, ready for Albert to send. Record the send date here when it goes. |
+| 2.11 | **ColdLion asked US a question (2026-08-26): *"Please send us any difference between the api and report, any states you want to add."*** First time they have invited a list. Five items sent — the **seven always-empty `orderHistory` fields** (no row reports shipping or invoicing at all), whether the new quantity formulas were backfilled to history, the "Example" vs allowed-values gap, the malformed 7-day-cap error, negative quantities. The sixth (un-remapped API-created SKUs) was withdrawn as ours to do. **No new stages wanted.** | **us → JamieLynn** | [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md) §5 | **SENT 2026-08-26 15:44 — items 1-5 only. Awaiting reply.** Item 6 (merch-group re-mapping) was **withdrawn before sending: it is our work, not ColdLion's** — see §5. |
 
 ## 3. Reported to ColdLion as observations — no answer needed
 
@@ -104,6 +104,20 @@ the requested one — that check is now free and catches a mis-stamped loader im
   and Property lifecycle status. Signed entitlement schedules and explicit owner rulings remain
   higher authority, and disagreement or ambiguity must abstain rather than overwrite. This is the
   canonical rule in `docs/business-rules/licensing-master-data.md` and is implemented by PR #1432.
+- **Re-mapping the API-created SKUs to the new merch-group codes is OURS, not ColdLion's.**
+  Albert, 2026-08-26, withdrawing item 6 from the reply before it was sent: *"that would be our
+  responsibility to do and I can't seem to get AI to do a good enough job understanding a product
+  and how it should map to the new MG codes."* Two consequences, and neither is optional:
+  1. **Do not ask ColdLion to fix these rows.** They will not, and it is not their job.
+  2. **An AI-generated merch-group mapping is not acceptable output on its own.** It has been
+     attempted and it was not good enough. Anything proposed here is a **draft for Albert to
+     review**, never a load. The blocker is understanding what a product actually is from its
+     description — see [`item-description-mg-classification-process.md`](item-description-mg-classification-process.md)
+     and the `item-description-taxonomy` skill, which exist for exactly this problem.
+
+  Until the re-map happens, **the old merch-group slot positions remain the source for affected
+  rows** (ColdLion, 2026-08-20). A blank component merch group is not missing data.
+
 - **History depth is 2019-01-01.** Settled repeatedly by Albert, most recently 2026-08-20. It is D9
   of the landing plan. Stop listing it as an open question.
 

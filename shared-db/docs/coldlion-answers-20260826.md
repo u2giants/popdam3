@@ -156,7 +156,7 @@ register entry 2.11. What we owe them, from the evidence above and in
    positions and "probably need to update with the new MG information". Ask whether they intend to
    re-map those at their end; if not, we need the old-slot rule in writing.
 
-**No new states requested.** `ISS`, `INTRAN` and `REC` cover everything we have seen; we are
+**Item 6 was withdrawn as ours to do (register §5). No new states requested.** `ISS`, `INTRAN` and `REC` cover everything we have seen; we are
 asking for the list to be authoritative, not longer.
 
 **Done 2026-08-26:** the field-population measurement was re-run across 26 windows spanning
@@ -167,8 +167,13 @@ written from the single-day sample.
 
 ## 6. Draft reply to ColdLion — for Albert to send
 
-**Status: drafted 2026-08-26, not yet sent.** If it is sent, record the date on register entry
-2.11. Every number below comes from the 26-window re-measure in §1.
+**Status: SENT 2026-08-26 15:44, items 1-5. Awaiting reply.** Every number comes from the 26-window
+re-measure in §1.
+
+**Item 6 below was withdrawn before sending.** Albert: re-mapping those SKUs is our responsibility,
+not ColdLion's, and AI attempts at deciding a product's merch group from its description have not
+been good enough to use. It is now an owner ruling in the register §5 — **leave the paragraph here
+for the record, but it was not sent.**
 
 > **Subject:** API vs report — differences we see, and one question back
 >
@@ -209,7 +214,7 @@ written from the single-day sample.
 > as low as -564 there. Please confirm those are genuine reversals rather than a reporting
 > artefact; we will be loading them as they come.
 >
-> **6. The SKUs affected by the merch-group change.** From your note on 20 August: some SKUs
+> **6. [WITHDRAWN — NOT SENT] The SKUs affected by the merch-group change.** From your note on 20 August: some SKUs
 > created through the API around that time still hold their values in the old merch-group
 > positions, and you thought they probably need updating to the new ones. Do you plan to re-map
 > those at your end? If not, we will read the old positions instead — we would just like that
