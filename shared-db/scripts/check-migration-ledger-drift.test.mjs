@@ -45,7 +45,7 @@ const classifications = (versions, kind = 'genuinely-pending') => Object.fromEnt
 )
 
 const ruleFixture = (overrides = {}) => ({
-  retired: [], hardBlocked: [], bundle: [], frHeld: [], frRemoval: [], atomic: [], coPresence: [], ...overrides,
+  retired: [], hardBlocked: [], bundle: [], frHeld: [], frRemoval: [], atomic: [], coPresence: [], derivedFrom: {}, ...overrides,
 })
 
 const files = (versions) => versions.map((v) => `supabase/migrations/${v}_thing.sql`)
@@ -214,6 +214,53 @@ test('future FR removal versions inherit the deliberate owner-held bundle', () =
     assert.equal(result[version].kind, 'deliberately-held')
     assert.match(result[version].reason, /200, 210, 220, 230/)
   }
+})
+
+// Issue #1608 ask 3: a version whose declared base is unapplied in the target is
+// not the same risk as an ordinary pending version, and today they are
+// indistinguishable in this report.
+test('a pending version whose declared base is unapplied gets its own kind', () => {
+  const rules = ruleFixture({ derivedFrom: { 200: ['100'] } })
+  const result = classifyPendingWithRules(['200'], ['090'], rules)
+  assert.equal(result['200'].kind, 'base-absent')
+  assert.match(result['200'].reason, /does NOT have 100/)
+  assert.match(result['200'].reason, /would not fail/)
+})
+
+test('the same version reads as ordinary pending once its base is applied', () => {
+  const rules = ruleFixture({ derivedFrom: { 200: ['100'] } })
+  assert.equal(classifyPendingWithRules(['200'], ['100'], rules)['200'].kind, 'genuinely-pending')
+})
+
+test('only the bases the target actually lacks are named', () => {
+  const rules = ruleFixture({ derivedFrom: { 200: ['100', '110'] } })
+  const reason = classifyPendingWithRules(['200'], ['100'], rules)['200'].reason
+  assert.match(reason, /does NOT have 110/)
+})
+
+test('base-absent never overrides a retirement, which is the stronger statement', () => {
+  const rules = ruleFixture({ retired: ['200'], derivedFrom: { 200: ['100'] } })
+  assert.equal(classifyPendingWithRules(['200'], [], rules)['200'].kind, 'retired')
+})
+
+test('base-absent is actionable drift, not an intentional exclusion', () => {
+  const rules = ruleFixture({ derivedFrom: { 200: ['100'] } })
+  const classifications = classifyPendingWithRules(['200'], ['090'], rules)
+  validatePendingClassifications(['200'], classifications)
+  const assessed = assessDrift(
+    { mergedNotApplied: ['200'], appliedNotMerged: [], driftFound: true },
+    classifications,
+  )
+  assert.deepEqual(assessed.actionableMergedNotApplied, ['200'])
+  assert.deepEqual(assessed.intentionallyExcluded, [])
+})
+
+test('the real 2026-08-24 migration is reported as base-absent from the guard rules', () => {
+  // End-to-end through the Python emission, so a broken import or a dropped
+  // `derivedFrom` key fails here rather than silently degrading to "pending".
+  const result = guardClassifications(['20260824135515'], ['20260811030000'])
+  assert.equal(result['20260824135515'].kind, 'base-absent')
+  assert.match(result['20260824135515'].reason, /20260814223552/)
 })
 
 test('REFUSES incomplete, unknown, or reasonless pending classification', () => {

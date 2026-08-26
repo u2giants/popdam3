@@ -801,6 +801,40 @@ Then: merge to `main` (this auto-syncs the `shared-db/` folder into all apps) an
 promote to **production only in an approved window**. Docs-only PRs (no schema
 change) need just items 1 and "it reads correctly" — merge them promptly.
 
+### 5.0-D Declare what a re-derived migration was derived from — `-- derived-from:` (issue #1608, added 2026-08-26)
+
+Loader-style migrations here are authored as a **full re-derivation of the
+then-current object body on `main`**. A file that does
+`create or replace function|view` therefore depends on its base being present
+**in the target database** — and on 2026-08-24 one was promoted to production
+without it. The apply did not fail; it replaced the object with a body written
+for a different world, and post-apply catalog verification stayed green because
+the object still existed. Three migrations were retired over it.
+
+If your migration re-replaces an object an earlier migration also replaces, put
+**one machine-readable line** in the header:
+
+```sql
+-- derived-from: 20260814223552
+```
+
+or, if it writes the object from scratch and depends on no earlier rewrite:
+
+```sql
+-- derived-from: none
+```
+
+`scripts/migration_derivation.py` reads it. The Python test suite refuses a pull
+request that omits it (mandatory for every migration stamped 2026-08-27 or
+later), and the promotion lane refuses an allowlist whose member declares a base
+the target ledger does not have. The escape hatch is
+`--derivation-override VERSION:BASE=<what the database will actually hold>`,
+which is recorded verbatim in the run log. The drift report shows such a version
+as `[BASE-ABSENT]`, not as ordinary pending work.
+
+Do **not** add the line to an already-merged migration — that changes its bytes.
+Merged files that need a declaration get one in `LEGACY_DECLARATIONS`.
+
 ### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` on the full repo set, ALWAYS inside the pruned temp checkout (learned 2026-07-23; recipe corrected 2026-07-27; wording made self-consistent 2026-08-09)
 
 > **Moved 2026-08-20** to [`docs/production-promotion-procedure.md`](docs/production-promotion-procedure.md) (issue #1331). Text unchanged; the section number is unchanged, so `AGENTS.md §5.1` still resolves.
@@ -1133,7 +1167,7 @@ links from the 63 migrated issues and from merged PR bodies:
 
 ## 11c. The orchestrator ROUTING CONTRACT — how you find who to send work to
 
-**Added 2026-08-26, issue #1605.** The marker answers "is someone running". Until this
+**Added 2026-08-26, issue #1605.** The marker answers "has someone claimed the role". Until this
 contract it did **not** answer "where do I send work", and a session with no answer to that
 resolved the destination from conversation history and an old handoff — and delegated an
 authorized structural request to an orchestrator session that **had already closed**. The
@@ -1165,7 +1199,8 @@ briefing: HANDOFF.d/2026-08-26T1409Z-edge-dev-codex-orchestrator-1579-fresh-sess
 ```
 ````
 
-`route_id` is the **routable** handle, and its shape depends on the engine:
+`route_id` is the **declared address**, and its shape depends on the engine. The guard validates
+that shape and nothing else — see the "what this does NOT do" note at the end of this section:
 
 | `engine` | `route_id` | How another session reaches it |
 |---|---|---|
@@ -1187,9 +1222,9 @@ remembering to stop using it. **Re-resolve before every delegation.**
 
 | Exit | State | What it means and what to do |
 |---|---|---|
-| 0 | `active` | One valid marker. Its `route_id` is your destination. |
+| 0 | `declared` | One valid marker. Its `route_id` is where to TRY. It is not proof anyone is there. |
 | 3 | `none` | Zero markers — **no active orchestrator**. **QUEUE the work** until a successor starts. Not permission to dispatch, and not permission to start orchestrating without claiming a marker yourself. |
-| 1 | `ambiguous` | Two or more markers. **Unsafe.** Do not guess which is live; do not route to either. |
+| 1 | `unsafe` | Anything that fails the marker guard — two or more markers, or the retired `coordinator-marker` label alive. Do not guess which is live; do not route to either. |
 | 1 | `invalid` | A marker is open but names no usable target. An orchestrator **may be live and unreachable** — stop. |
 | 2 | `unknown` | GitHub could not be read. **Assume a marker exists.** |
 

@@ -31,7 +31,11 @@ and read-only queries against the **production** ledger and catalog
 >   `core.property` trap that would otherwise repeat the `core.character` mistake.
 > - **The systemic cause is now a tracked issue: #1608** — nothing refuses a promotion whose
 >   migration was re-derived from a base the target database does not have. That is what stranded
->   these migrations and what left production incoherent for a day.
+>   these migrations and what left production incoherent for a day. **Closed by a machine check,
+>   2026-08-26:** migrations now declare `-- derived-from: <version>`; the promotion lane refuses
+>   an allowlist whose member declares a base the target ledger does not have, and the drift report
+>   labels such a version `[BASE-ABSENT]`. See `scripts/migration_derivation.py` and AGENTS.md
+>   section 5.0-D.
 >
 > Companion status record: `unapplied-20260814-migrations-status-20260825.md`.
 

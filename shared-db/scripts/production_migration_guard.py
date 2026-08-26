@@ -11,6 +11,13 @@ import re
 import subprocess
 import sys
 
+from migration_derivation import (
+    DerivationError,
+    DerivationRefusal,
+    assert_derivation_bases,
+    parse_overrides,
+)
+
 VERSION_RE = re.compile(r"^\d{14}$")
 REMOTE_TABLE_RE = re.compile(r"^\s*(?:\d{14})?\s*\|\s*(\d{14})\s*\|")
 MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
@@ -1197,7 +1204,10 @@ def assert_content_manifest(directory: Path) -> None:
 
 
 def validate_candidates(
-    migrations: dict[str, Path], allowlist: list[str], remote: set[str]
+    migrations: dict[str, Path],
+    allowlist: list[str],
+    remote: set[str],
+    derivation_overrides: dict[tuple[str, str], str] | None = None,
 ) -> None:
     unknown = [version for version in allowlist if version not in migrations]
     if unknown:
@@ -1212,6 +1222,34 @@ def validate_candidates(
     # `assert_bounded` calls `assert_atomic_batches` directly, so no subcommand
     # that can reach production routes around it.
     assert_atomic_batches(allowlist, remote)
+    # Issue #1608: a migration that re-derives a whole object body carries a
+    # silent dependency on its base being IN THE TARGET DATABASE. Ledger-aware
+    # for the same reason `assert_atomic_batches` is, and placed here so both
+    # `prepare` and `preflight` route through it. `assert_bounded` calls it
+    # directly, so no subcommand that can reach production skips it.
+    assert_declared_bases_present(migrations, allowlist, remote, derivation_overrides)
+
+
+def assert_declared_bases_present(
+    migrations: dict[str, Path],
+    allowlist: list[str],
+    remote: set[str] | frozenset[str],
+    derivation_overrides: dict[tuple[str, str], str] | None = None,
+) -> None:
+    """Translate the derivation gate's refusal into this module's ``GuardError``.
+
+    The refusal is a promotion decision and belongs in the same failure channel
+    as every other guard rule. A MALFORMED declaration is an authoring fault and
+    is deliberately left as itself rather than dressed up as a lane refusal.
+    """
+    try:
+        recorded = assert_derivation_bases(
+            allowlist, migrations, remote, derivation_overrides
+        )
+    except DerivationRefusal as exc:
+        raise GuardError(str(exc)) from exc
+    for line in recorded:
+        print(line)
 
 
 # ---------------------------------------------------------------------------
@@ -1878,11 +1916,16 @@ def preflight_batch(
         )
 
 
-def preflight(repo: Path, raw_allowlist: str, ledger: Path) -> None:
+def preflight(
+    repo: Path,
+    raw_allowlist: str,
+    ledger: Path,
+    derivation_overrides: dict[tuple[str, str], str] | None = None,
+) -> None:
     remote = parse_remote_versions(ledger)
     allowlist = parse_allowlist(raw_allowlist, remote)
     migrations = local_migrations(repo)
-    validate_candidates(migrations, allowlist, remote)
+    validate_candidates(migrations, allowlist, remote, derivation_overrides)
     preflight_batch(migrations, allowlist, remote)
     print(
         f"PREFLIGHT OK: {len(allowlist)} migrations, no missing non-deferrable "
@@ -1891,11 +1934,18 @@ def preflight(repo: Path, raw_allowlist: str, ledger: Path) -> None:
     )
 
 
-def prepare(repo: Path, output: Path, commit_sha: str, raw_allowlist: str, ledger: Path) -> None:
+def prepare(
+    repo: Path,
+    output: Path,
+    commit_sha: str,
+    raw_allowlist: str,
+    ledger: Path,
+    derivation_overrides: dict[tuple[str, str], str] | None = None,
+) -> None:
     remote = parse_remote_versions(ledger)
     allowlist = parse_allowlist(raw_allowlist, remote)
     migrations = local_migrations(repo)
-    validate_candidates(migrations, allowlist, remote)
+    validate_candidates(migrations, allowlist, remote, derivation_overrides)
     # AGENTS.md section 6.8: the whole batch must be proven runnable end to end
     # before anything is applied, never one migration at a time.
     preflight_batch(migrations, allowlist, remote)
@@ -1921,7 +1971,12 @@ def prepare(repo: Path, output: Path, commit_sha: str, raw_allowlist: str, ledge
     write_content_manifest(output)
 
 
-def assert_bounded(directory: Path, raw_allowlist: str, ledger: Path) -> None:
+def assert_bounded(
+    directory: Path,
+    raw_allowlist: str,
+    ledger: Path,
+    derivation_overrides: dict[tuple[str, str], str] | None = None,
+) -> None:
     """Re-prove that a checkout is still bounded, immediately before it is pushed.
 
     ``prepare`` prunes the checkout to exactly ``remote | allowlist`` and that
@@ -1935,6 +1990,13 @@ def assert_bounded(directory: Path, raw_allowlist: str, ledger: Path) -> None:
     # Re-prove atomicity at the point of use too, for the same reason this
     # function re-proves boundedness: `prepare` and the push are separate steps.
     assert_atomic_batches(allowlist, remote)
+    # Re-prove the declared derivation bases here too, and against the files
+    # ACTUALLY IN THE CHECKOUT about to be pushed rather than the ones `prepare`
+    # read. This is the last step before the push, and a declaration that changed
+    # in between must not be taken on trust (issue #1608).
+    assert_declared_bases_present(
+        local_migrations(directory), allowlist, remote, derivation_overrides
+    )
     keep = remote | set(allowlist)
     on_disk = set(local_migrations(directory))
     if not on_disk:
@@ -1981,6 +2043,26 @@ def verify_dry_run(path: Path, raw_allowlist: str, ledger: Path | None = None) -
         )
 
 
+def _add_derivation_override(sub: argparse.ArgumentParser) -> None:
+    """The recorded escape hatch for the issue #1608 derivation gate.
+
+    Repeatable, and each value must name the resulting state -- see
+    `migration_derivation.parse_overrides`. Accepted overrides are PRINTED into
+    the run log rather than merely honoured, so the decision survives the run.
+    """
+    sub.add_argument(
+        "--derivation-override",
+        action="append",
+        default=[],
+        metavar="VERSION:BASE=NOTE",
+        help=(
+            "Promote VERSION even though its declared base BASE is absent from the "
+            "target ledger. NOTE must state what the database will actually hold "
+            "afterwards and is recorded verbatim in the run log."
+        ),
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     subs = parser.add_subparsers(dest="command", required=True)
@@ -1990,14 +2072,17 @@ def main() -> int:
     prep.add_argument("--commit-sha", required=True)
     prep.add_argument("--allowlist", required=True)
     prep.add_argument("--remote-ledger", type=Path, required=True)
+    _add_derivation_override(prep)
     pre = subs.add_parser("preflight")
     pre.add_argument("--repo", type=Path, required=True)
     pre.add_argument("--allowlist", required=True)
     pre.add_argument("--remote-ledger", type=Path, required=True)
+    _add_derivation_override(pre)
     bounded = subs.add_parser("assert-bounded")
     bounded.add_argument("--dir", dest="directory", type=Path, required=True)
     bounded.add_argument("--allowlist", required=True)
     bounded.add_argument("--remote-ledger", type=Path, required=True)
+    _add_derivation_override(bounded)
     verify = subs.add_parser("verify-dry-run")
     verify.add_argument("--dry-run-output", type=Path, required=True)
     # REQUIRED on the CLI even though the Python function's `ledger` is
@@ -2011,6 +2096,7 @@ def main() -> int:
     verify.add_argument("--allowlist", required=True)
     args = parser.parse_args()
     try:
+        overrides = parse_overrides(getattr(args, "derivation_override", []))
         if args.command == "prepare":
             prepare(
                 args.repo.resolve(),
@@ -2018,16 +2104,19 @@ def main() -> int:
                 args.commit_sha,
                 args.allowlist,
                 args.remote_ledger,
+                overrides,
             )
         elif args.command == "preflight":
-            preflight(args.repo.resolve(), args.allowlist, args.remote_ledger)
+            preflight(
+                args.repo.resolve(), args.allowlist, args.remote_ledger, overrides
+            )
         elif args.command == "assert-bounded":
             assert_bounded(
-                args.directory.resolve(), args.allowlist, args.remote_ledger
+                args.directory.resolve(), args.allowlist, args.remote_ledger, overrides
             )
         else:
             verify_dry_run(args.dry_run_output, args.allowlist, args.remote_ledger)
-    except (GuardError, OSError, subprocess.CalledProcessError) as exc:
+    except (GuardError, DerivationError, OSError, subprocess.CalledProcessError) as exc:
         print(f"BLOCKED: {exc}", file=sys.stderr)
         return 1
     return 0

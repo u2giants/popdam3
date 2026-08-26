@@ -90,7 +90,7 @@ export const PROJECT_REFS = {
 /** Thrown when an input cannot be gathered. Never swallowed into a green result. */
 export class Unknown extends Error {}
 
-export const PENDING_KINDS = new Set(['genuinely-pending', 'guarded-batch', 'deliberately-held', 'retired'])
+export const PENDING_KINDS = new Set(['genuinely-pending', 'guarded-batch', 'deliberately-held', 'retired', 'base-absent'])
 export const INTENTIONALLY_EXCLUDED_KINDS = new Set(['deliberately-held', 'retired'])
 
 /**
@@ -105,8 +105,16 @@ import json, sys
 from pathlib import Path
 root = Path(sys.argv[1])
 sys.path.insert(0, str(root / 'scripts'))
-from production_migration_guard import HARD_BLOCKED, BUNDLE_20260804, FR_HELD_20260803, FR_COMPATIBILITY_VERSIONS, FR_REMOVAL_VERSIONS, CO_PRESENCE_RULES, ATOMIC_BATCHES, PREVIEW_ONLY_HISTORICAL_RESTORATIONS
+from production_migration_guard import HARD_BLOCKED, BUNDLE_20260804, FR_HELD_20260803, FR_COMPATIBILITY_VERSIONS, FR_REMOVAL_VERSIONS, CO_PRESENCE_RULES, ATOMIC_BATCHES, PREVIEW_ONLY_HISTORICAL_RESTORATIONS, local_migrations
 from post_batch_app_verification import RETIRED_VERSION_REASONS, RETIRED_VERSIONS
+from migration_derivation import declared_bases
+# Issue #1608 ask 3: a version whose declared base is unapplied in the target is
+# not the same risk as an ordinary pending version, and the report must say so.
+derived_from = {
+  v: sorted(b)
+  for v, path in local_migrations(root).items()
+  if (b := declared_bases(v, path=path))
+}
 print(json.dumps({
   'retired': sorted(RETIRED_VERSIONS), 'hardBlocked': sorted(HARD_BLOCKED),
   'retiredReasons': RETIRED_VERSION_REASONS,
@@ -116,6 +124,7 @@ print(json.dumps({
   'frRemoval': sorted(FR_REMOVAL_VERSIONS),
   'coPresence': [{'create': c, 'fixes': sorted(f), 'why': w} for c, f, w in CO_PRESENCE_RULES],
   'atomic': [{'name': n, 'basis': b, 'why': w, 'members': sorted(m)} for n, b, w, m in ATOMIC_BATCHES],
+  'derivedFrom': derived_from,
 }))
 `
   let raw
@@ -144,6 +153,7 @@ export function classifyPendingWithRules(versions, appliedVersions, rules) {
   const frCompatibility = new Set(rules.frCompatibility ?? [])
   const frRemoval = new Set(rules.frRemoval)
   const previewOnlyHistorical = new Set(rules.previewOnlyHistorical ?? [])
+  const derivedFrom = rules.derivedFrom ?? {}
   const result = {}
   for (const version of versions) {
     if (retired.has(version)) {
@@ -162,6 +172,25 @@ export function classifyPendingWithRules(versions, appliedVersions, rules) {
     }
     if (hardBlocked.has(version)) {
       result[version] = { kind: 'retired', reason: 'production_migration_guard.HARD_BLOCKED: the general production lane refuses this version outright. Do not apply it.' }
+      continue
+    }
+    // Issue #1608. This version re-derives a whole object body from a base the
+    // target database does not hold. Applying it would SUCCEED and silently
+    // install a body written for a different world — the 2026-08-24 failure.
+    // Checked before the guarded-batch and genuinely-pending branches because it
+    // is a strictly sharper statement than either, and reported as its own kind
+    // so it stops looking like ordinary pending work.
+    const unsatisfied = (derivedFrom[version] ?? []).filter((base) => !applied.has(base))
+    if (unsatisfied.length > 0) {
+      result[version] = {
+        kind: 'base-absent',
+        reason:
+          `Declares \`-- derived-from: ${(derivedFrom[version] ?? []).join(', ')}\` and this database ` +
+          `does NOT have ${unsatisfied.join(', ')}. It re-derives a whole object body, so applying it ` +
+          'here would not fail — it would replace the object with a body written against a base this ' +
+          'database never got (issue #1608). Apply the missing base(s) in the same bounded window, or ' +
+          'promote with a recorded --derivation-override naming the resulting state.',
+      }
       continue
     }
     const matches = []

@@ -432,6 +432,11 @@ def prove_preview_migration_contents(
 PREVIEW_PRODUCER_PATHS = (
     PREVIEW_WORKFLOW,
     "scripts/production_migration_guard.py",
+    # Local import of the guard, and the only thing that reads a migration's
+    # `-- derived-from:` declaration (issue #1608). An unpinned copy could
+    # declare every base satisfied and the guard would believe it, which is the
+    # same one-level-down door the .mjs entries below were pinned to close.
+    "scripts/migration_derivation.py",
     "scripts/atomic_migration_apply.py",
     # Runs FIRST in the preview job, to acquire the lane, before any evidence
     # byte exists. Unpinned, it was a complete forgery path.
