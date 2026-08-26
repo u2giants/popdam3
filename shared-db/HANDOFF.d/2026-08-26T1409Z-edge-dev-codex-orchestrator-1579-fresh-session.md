@@ -1,7 +1,7 @@
 ---
-issue: 1579
+issue: 1598
 status: OPEN
-owner: codex/orchestrator-1579
+owner: codex/orchestrator-1579-handover
 ---
 
 # Orchestrator #1579 fresh-session handoff
@@ -28,7 +28,7 @@ The next orchestrator must put the whole current owner-decision list to Albert i
 
 `u2giants/shared-db` is the governed source of truth for the shared Supabase database structure used by DB Data Admin, PopDAM, PopCRM, PIM, and DesignFlow. The sole orchestrator does triage, isolated author dispatch, independent exact-head review, guarded merge, preview rehearsal, production promotion, and live reconciliation. It does not author structural work in its own context and does not own ordinary application row writes.
 
-The active orchestrator marker is GitHub issue #1579. The working coordinator checkout is `C:\repos\shared-db-worktrees\orchestrator-1579`. This handoff deliberately keeps marker #1579 open because the next fresh session is a continuation, not a completed shutdown.
+The outgoing orchestrator marker is GitHub issue #1579. The working coordinator checkout is `C:\repos\shared-db-worktrees\orchestrator-1579`. Marker #1579 closes only after this updated handoff is merged; successor intake is issue #1598, and the incoming session must open its own marker before coordinating work.
 
 ## 2. What we set out to do this session, and why
 
@@ -44,10 +44,10 @@ The remaining objective is to finish the four still-open author PRs through revi
 
 ### Coordinator and queue
 
-- Marker #1579 is OPEN. It is the single-orchestrator lock.
+- Marker #1579 was the outgoing single-orchestrator lock and is closed as the final external action after this handoff update merges. Successor issue #1598 remains open.
 - `origin/main` was `deac67d7f405674dc6995ed1b64b0c3463859835`.
 - The highest migration filename version on current `origin/main` is `20260826130049`. Always re-derive it before allocating a new version.
-- `node scripts/manage-migration-author-lanes.mjs --queue-audit` returned `fullyAudited: true`, with no malformed, unclassified, unlabelled issues or dependency cycles. Four lanes are occupied and lane 5 is empty; `dispatchable` is empty. Do not invent a fifth task just to fill the lane.
+- The final `node scripts/manage-migration-author-lanes.mjs --queue-audit` returned `fullyAudited: true`, with no malformed, unclassified, or unlabelled issues. Four lanes are occupied and lane 5 is empty; new issue #1599 is the single current `dispatchable` item. The incoming orchestrator must re-audit, then may admit #1599 to lane 5 if the live conflict check remains clear.
 - No preview, merge, or production lock is held. The #1592 production freeze was explicitly released on marker #1579.
 - Preview contains every migration rehearsed by completed runs described below, including `20260826123102` and `20260826130049`. It is a shared mutable rehearsal database, not clean or disposable.
 
@@ -63,6 +63,11 @@ The remaining objective is to finish the four still-open author PRs through revi
 2. **#1259 / claim #1581 / PR #1586** — version `20260826120056`, branch `codex/issue-1259-fr-hardening-1579`, worktree `C:\repos\shared-db-worktrees\issue-1259-1579`, head `1c7612011adec7cb7ec73affbff449615c1df359`. PR is mergeable but blocked by ephemeral run `32967160937`. Relevant failures include `licensing_write_authority_guard_contracts.sql` and `coldlion_active_status_contracts.sql`: the changed guard raises `coldlion_status authorization may change only Property status to active or inactive`. The author must reconcile the intended FR hardening with existing ColdLion status contracts, rerun exact-head CI, and not weaken unrelated contracts.
 3. **#1453 / claim #1583 / PR #1588** — version `20260826120132`, branch `codex/issue-1453-attachment-index-1579`, worktree `C:\repos\shared-db-worktrees\issue-1453-1579`, head `4fda42aac36c890b278244082b23e34da2005da3`. Ephemeral DB and other checks pass, but lease run `32968301917` fails because the PR writes undeclared `index dflow.itemattachment_item_num_id_fk_idx` and quoted table `dflow."itemattachment"`. Expand the active claim from the issue using the guarded tool after correcting the issue scope to the exact quoted table/index identities; then rerun exact-head CI.
 4. **#1452 / claim #1584 / PR #1587** — version `20260826120144`, branch `codex/issue-1452-notification-index-1579`, worktree `C:\repos\shared-db-worktrees\issue-1452-1579`, head `b9614b918e8ecfed93d6b93a2d3ba694995a9538`. All author checks were green. It indexes unread notification queries. It has not received the current orchestrator's external exact-head review, merge, preview, or production promotion.
+
+### New queue arrivals during closeout
+
+- **#1599 — source-purpose and review-evidence contract for Scraped Properties.** Owner-authorized structural work on `api.db_data_admin_scraped_properties`; final audit selected it as the one dispatchable item for lane 5. It must expose the existing per-row OPA `resolution_reason`, state that the captured OPA relationship is Property -> Character rather than Studio -> Property, and never join `brandPropertyID` to `licensedPropertyID` or treat constant `optionSourceID=1007` as known authority. It also requires governed exact-identity DCP decision supersession/history, latest-approved fail-closed presentation, and a truthful `supported_owner_source_label` evidence status distinct from OPA-exact evidence. The canonical Licensing Master Data rules must record: OPA=Submissions; DCP Vault=Disney/Lucasfilm Creative only; Marvel Creative=ASGARD only; mixed-guide DCP Marvel tags remain raw evidence but are excluded from licensor presentation; landing family is never authority. Private replacement rows load only after production structure verification.
+- **#1597 — repair `public.propagate_group_tags_batch`.** A ready structural compatibility repair discovered during closeout. It preserves the existing capability while supplying required `asset_tags.category/status`. It remains queued behind the higher-priority single available lane selection unless the refreshed audit says otherwise.
 
 Claim #1582 / version `20260826120113` was released and closed after live/main audit proved #1204's requested history tables already landed through #1184, PR #1456, migration `20260825023430`, preview `32802353986`, and production `32802595923`. Version `20260826120113` remains permanently reserved and must never be reused.
 
@@ -94,7 +99,7 @@ Claim #1582 / version `20260826120113` was released and closed after live/main a
 
 ## 6. Exact next steps
 
-1. Re-open marker #1579 and read this file plus `AGENTS.md` and the complete `shared-db-orchestrator` operating manual. Re-run `git fetch`, queue audit, open PR/claim/lock inventory, current main, and migration ledger drift before action. **Gate:** exactly one marker (#1579), fully audited queue, and no unexplained exclusive lock.
+1. Read successor issue #1598 and this file plus `AGENTS.md` and the complete `shared-db-orchestrator` operating manual. Prove no marker is open, open one new marker for the incoming session, then re-run `git fetch`, queue audit, open PR/claim/lock inventory, current main, and migration ledger drift before action. **Gate:** exactly one newly created marker, fully audited queue, and no unexplained exclusive lock.
 2. Send PR #1586 back to its author lane with the exact ephemeral failures above. Require a focused correction that preserves ColdLion status behavior and the FR authority goal. **Gate:** every required check, including ephemeral DB, passes on a new exact head.
 3. Correct #1453's machine-readable scope and use `--expand-active-claim-from-issue` for claim #1583 to include `index dflow.itemattachment_item_num_id_fk_idx` and exact table spelling. **Gate:** Migration Author Lease passes on PR #1588 exact head without bypassing the guard.
 4. Recheck PRs #1585 and #1587 against current main. If their exact heads and full checks remain valid, allocate independent reviewers one at a time with `--assign-reviewer`; use only the returned reviewer/wrapper and post the full review artifacts. **Gate:** APPROVE on each exact head with full coverage and no material objection.
@@ -102,12 +107,12 @@ Claim #1582 / version `20260826120113` was released and closed after live/main a
 6. After each merge, run the bounded post-merge preview rehearsal for only that migration at exact current main. Do not batch unrelated migrations unless the governance rules explicitly allow it. **Gate:** successful preview run plus pinned artifact digest and verified ledger delta.
 7. For each production candidate, run exact-main immutable review evidence and production dry-run, announce a merge freeze, then dispatch the authorized apply with exact allowlist, confirmation, source PR, preview run/digest, and review run/digest. **Gate:** production workflow succeeds through catalog verification; direct read-only live reconciliation matches the migration; freeze is explicitly released.
 8. Close the source issue only after its application/live outcome is proven, not merely after schema deployment. **Gate:** issue comment names PR, migration, preview, dry-run, production run, and live proof.
-9. Re-run the fully audited queue after every claim release. Lane 5 is currently empty because there is no dispatchable structural issue; keep it empty until a valid non-overlapping ready issue appears. **Gate:** no malformed/unclassified/unlabelled issue and any new claim is conflict-free.
+9. Re-run the fully audited queue immediately. If #1599 remains the single dispatchable non-overlapping item, admit it to lane 5 with a new permanent version and isolated author worktree; preserve its two evidence-correction comments and coordinate the API contract with the DB Data Admin UI consumer. #1597 remains queued unless the audit ordering changes. **Gate:** no malformed/unclassified/unlabelled issue, exact object claim is conflict-free, and the author brief forbids false OPA hierarchy inference, table-family authority, broad DCP UPDATE grants, and private licensed content.
 10. At the end of the next phase, re-read every downstream step 5–9 through plan-end and report any assumption invalidated by new merges, failures, queue changes, or production evidence. Carry all remaining obligations into the next handoff before cutting context again. **Gate:** the successor can identify every remaining phase and no new fact exists only in chat.
 
 ## 7. Constraints and gotchas in force
 
-- One orchestrator only; marker #1579 stays open during the immediate fresh-session continuation.
+- One orchestrator only. Marker #1579 belongs to the outgoing session and must not be reopened; the incoming session creates exactly one new marker after proving the board clear.
 - The orchestrator coordinates only. Structural authoring happens in isolated agent worktrees. Repo maintenance/documentation is listed for visibility but belongs to separately started repo sessions.
 - Never fill a lane with non-dispatchable work merely to reach five occupied lanes.
 - Independent review is separate from tests. Exact-head APPROVE is required before guarded merge.
