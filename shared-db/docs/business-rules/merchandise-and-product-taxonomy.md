@@ -113,6 +113,11 @@ MG10 means Demographic, also called Age Group, in the three current divisions. I
 
 Seven categories cover **twenty** MG01 Product Types. Category constrains dependent choices such as valid sizes. A Product Type may not belong to two categories unless the business explicitly changes this rule.
 
+The category names shown above are migration-authoritative display labels. A governed
+rewording ships in a new `shared-db` migration; replay intentionally restores the declared
+label instead of preserving an out-of-band database edit. Application logic must continue
+to use the stable category code, not the display label.
+
 **Q TBD storage — Settled, owner ruling by Albert Hazan on 2026-08-18.** `Q TBD storage` is a real Product Type and its category is **Storage**. This replaces the earlier statement that a twentieth Product Type existed in every division with an **Unknown** category; that statement was wrong on both counts. `MerchGroup_Rework.xlsx` carries only the other nineteen, so the workbook still needs updating by the business to match the ruling. Until it does, **this recorded ruling is the authority for `Q`, not the workbook.**
 
 ### Division scope of a Product Type

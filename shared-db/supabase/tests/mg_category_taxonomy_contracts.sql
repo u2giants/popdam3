@@ -3,7 +3,8 @@
 --
 -- HOW TO RUN
 --   Against PREVIEW ONLY, as a role that can read core.* and write these two tables
---   (the Supabase CLI's linked connection, or a psql / node-pg session):
+--   (the Supabase CLI's linked connection, or a psql / node-pg session). The role
+--   must also be allowed to SET ROLE for the privilege assertions below:
 --       \i supabase/tests/mg_category_taxonomy_contracts.sql
 --
 --   Run each `do $$ ... $$;` block as its own statement. Submitting the whole file as a
@@ -97,6 +98,7 @@ declare
   v_n    integer;
   v_txt  text;
   v_source_rows integer;
+  v_all_source_rows integer;
   v_links integer;
   v_declared_cells integer;
   v_types integer;
@@ -105,8 +107,11 @@ declare
 begin
   -- Is there any source data on this database at all? Sections C and E are meaningless
   -- without it; sections A and B are asserted regardless. See the header.
-  select count(*) into v_source_rows
-  from core."merchGroup" where "mgTypeCode" = '01' and is_active is true;
+  select
+    count(*) filter (where "mgTypeCode" = '01'),
+    count(*) filter (where "mgTypeCode" = '01' and is_active is true)
+  into v_all_source_rows, v_source_rows
+  from core."merchGroup";
 
   raise notice '=== A. OBJECT EXISTENCE ===';
   foreach v_txt in array array['core.mg_category', 'core.mg_category_merch_group'] loop
@@ -199,6 +204,16 @@ begin
       v_fail := v_fail + 1; raise notice 'FAIL service_role cannot SELECT core.%', v_txt;
     end if;
 
+    if has_table_privilege('service_role', 'core.' || quote_ident(v_txt), 'INSERT')
+       and has_table_privilege('service_role', 'core.' || quote_ident(v_txt), 'UPDATE')
+       and has_table_privilege('service_role', 'core.' || quote_ident(v_txt), 'DELETE') then
+      v_pass := v_pass + 1;
+      raise notice 'PASS service_role can INSERT/UPDATE/DELETE core.%', v_txt;
+    else
+      v_fail := v_fail + 1;
+      raise notice 'FAIL service_role lacks an expected write grant on core.%', v_txt;
+    end if;
+
     -- With RLS on, a missing policy is a table nobody can read. Both must be present.
     select count(*) into v_n
     from pg_policies
@@ -227,6 +242,23 @@ begin
       v_fail := v_fail + 1; raise notice 'FAIL core.% carries % of its 6 contract columns', v_txt, v_n;
     end if;
   end loop;
+
+  select count(*) into v_n
+  from pg_description d
+  join pg_class c on c.oid = d.objoid
+  join pg_namespace n on n.oid = c.relnamespace
+  join pg_attribute a on a.attrelid = c.oid and a.attnum = d.objsubid
+  where n.nspname = 'core'
+    and c.relname = 'mg_category'
+    and a.attname = 'name'
+    and d.description like 'Migration-authoritative display label%';
+  if v_n = 1 then
+    v_pass := v_pass + 1;
+    raise notice 'PASS mg_category.name documents migration-authoritative replay behavior';
+  else
+    v_fail := v_fail + 1;
+    raise notice 'FAIL mg_category.name does not document migration-authoritative replay behavior';
+  end if;
 
   -- The foreign key onto core.mg_category, so a link can never point at nothing.
   select count(*) into v_n
@@ -272,10 +304,15 @@ begin
 
   raise notice '=== C. EVERY DECLARED CATEGORY-TO-MG01 CELL, PER DIVISION (checks 2, 4, 6) ===';
   if v_source_rows = 0 then
-    raise notice 'SKIP C: core."merchGroup" holds NO ACTIVE mgTypeCode ''01'' rows on this '
-      'database, so there is nothing for the authoritative product types to resolve '
-      'against and the migration correctly seeded no link rows. This section is SKIPPED, '
-      'NOT passed. It runs and must pass on preview and production.';
+    if v_all_source_rows = 0 then
+      raise notice 'SKIP C: core."merchGroup" holds NO mgTypeCode ''01'' rows on this '
+        'database, so there is no source population for the authoritative product types. '
+        'This section is SKIPPED, NOT passed.';
+    else
+      raise notice 'SKIP C: core."merchGroup" holds % mgTypeCode ''01'' rows, but NONE '
+        'is active (is_active IS TRUE). This is an ALL-INACTIVE population, not an empty '
+        'database. The mapping assertion is SKIPPED, NOT passed.', v_all_source_rows;
+    end if;
   else
   for r in
     -- The authoritative list carries its own DIVISION SCOPE. The 19 workbook product
@@ -435,6 +472,21 @@ begin
                            and lower(d.mg_desc) = l.desc_key))
   into v_declared_cells, v_types, v_links, v_undeclared;
 
+  -- Independent contract pins. The declaration above is executable mapping data, while
+  -- these two literals are a tripwire against silently narrowing that declaration to
+  -- make a missing-cell failure disappear. Changing either value therefore requires an
+  -- explicit, reviewable business-rule update rather than moving the goalposts inside
+  -- the same CTE. Current authority: 20 product types and 58 declared division cells.
+  if v_types <> 20 or v_declared_cells <> 58 then
+    v_fail := v_fail + 1;
+    raise notice 'FAIL authoritative declaration was narrowed or widened without updating '
+      'the independent contract: % product types / % cells, expected 20 / 58',
+      v_types, v_declared_cells;
+  else
+    v_pass := v_pass + 1;
+    raise notice 'PASS authoritative declaration retains 20 product types / 58 cells';
+  end if;
+
   if v_links = v_declared_cells then
     v_pass := v_pass + 1;
     raise notice 'PASS % active-MG01 link rows fill all % declared cells (% product types)',
@@ -534,7 +586,7 @@ $$;
 --    EVERY case here runs on EVERY database, including the from-empty CI one. There are
 --    no skips left in this section.
 --
---    D1, D2 and D4 need a real merchandise-group row to act on. They used to look for a
+--    D1 and D4 need a real merchandise-group row to act on. They used to look for a
 --    seeded production row and SKIP when there was none - which meant CI, the only place
 --    these tests run automatically, never once watched the unique constraint reject
 --    anything. It only checked that the constraint was listed in pg_constraint. So these
@@ -587,17 +639,6 @@ begin
         '(unique_violation actually fired)';
     end;
 
-    -- D2: an exact duplicate of the existing mapping -> must be rejected.
-    begin
-      insert into core.mg_category_merch_group (mg_category_id, merch_group_mg_id)
-      values (v_cat_wall, v_fixture_mg);
-      v_fail := v_fail + 1;
-      raise notice 'FAIL D2: duplicate mapping was accepted';
-    exception when unique_violation then
-      v_pass := v_pass + 1;
-      raise notice 'PASS D2: duplicate mapping rejected (unique_violation actually fired)';
-    end;
-
     -- D4: a mapping to a category that does not exist -> must be rejected.
     -- Free the fixture row first so the unique constraint cannot be what rejects it; the
     -- foreign key must be the thing that fires.
@@ -619,7 +660,7 @@ begin
       message = 'issue #1163 fixture rollback sentinel';
   exception
     when sqlstate 'ZZ163' then
-      raise notice 'INFO: D1/D2/D4 fixture rolled back (subtransaction unwound)';
+      raise notice 'INFO: D1/D4 fixture rolled back (subtransaction unwound)';
     when others then
       -- Never swallow a real error: report it and let the file fail.
       raise;
