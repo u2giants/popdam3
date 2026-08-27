@@ -1125,3 +1125,33 @@ or treating `ambiguous_submission` as proof can create duplicate charges or
 apply results to the wrong page. Only `lease_receipt_issued = true` with its
 receipt authorizes submission. OpenRouter retains batch inputs and outputs for
 30 days and is checked no faster than every 10 seconds.
+
+---
+
+## 75. Signed-in Requests Die at 8 Seconds — Never Ask for Rows and an Exact Count Together (fixed 2026-08-26)
+
+**Looks like**: the `/orders` grid loads fine in local development against the
+same production database, then fails on the live site with
+`canceling statement due to statement timeout` and shows no rows at all.
+
+**Actually**: the `authenticated` Postgres role carries
+`statement_timeout = 8s` (`anon` gets 3s). PostgREST computes an exact count in
+the **same statement** that returns the rows, so one `select(..., { count:
+"exact" })` pays for both. Returning 100 rows from `api.dam_order_list` costs
+~50 ms; counting all 24,486 exactly costs ~2.2 s as `authenticated`, because the
+security-invoker view re-checks every row against RLS on `plm.production_order`,
+`plm.production_order_line`, `core.customer`, `core.factory` and `plm.item`.
+Combined, one request sat close enough to the 8 s ceiling that a cold cache or a
+busy moment tipped it over — and the entire screen died over one number.
+
+**Operator view**: the summary counts above the grid still populate (they come
+from a separate, cheap call) while the grid itself shows the timeout error. That
+split is the tell.
+
+**Do not change because**: rows and the total are now two requests
+(`src/hooks/useOrderList.ts`). The rows decide whether a block succeeds; the
+count is best-effort, cached per filter/search result set, and reported as
+**unknown — never 0** when it fails, which AG Grid renders as "of more".
+Re-merging them to "save a round trip" reintroduces the outage. The same trap
+applies to any large RLS-heavy view in this app: measure the count separately as
+the `authenticated` role, not as `postgres`, which has no such timeout.

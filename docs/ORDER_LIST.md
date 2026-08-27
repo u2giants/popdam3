@@ -65,6 +65,15 @@ Date filters, plus the free-text search box, which searches
 The summary counts (total, linked, ambiguous, not linked) are read as count
 queries over the whole dataset, not derived from loaded rows.
 
+**The block's rows and its exact total are two separate requests** (fixed
+2026-08-26). Asking PostgREST for both in one call put the request that renders
+the screen within reach of the 8-second `authenticated` statement timeout, and
+in production it exceeded it — the whole grid failed with `canceling statement
+due to statement timeout`. Rows cost ~50 ms; an exact count of the view costs
+~2.2 s under RLS. The count is now best-effort, cached per filter/search result
+set, and reported as **unknown, never 0**, when it fails — which the grid shows
+as "of more". See `docs/KNOWN_QUIRKS.md` #75. Do not re-merge them.
+
 ## Master Data rules
 
 - An order line points at a canonical `plm.item`. Master Data is reached through
@@ -87,11 +96,13 @@ Read and write follow the collaborative Master Data model: any signed-in PopDAM
 user can read and edit. There is no delete; corrections use status and void
 fields so history survives.
 
-> **Open shared-db question, not decided here.** The four OrderList tables are
-> readable by every authenticated account (`USING (true)` policies on both
-> preview and production). That is recorded as open question 2 in the shared-db
-> plan `plan_popdam_order_list.md` and must be settled before the production
-> data is treated as protected.
+> **Settled by the owner, 2026-08-26.** Albert Hazan ruled that **everyone
+> signed in should be able to see OrderList data**. The four OrderList tables
+> carry `USING (true)` SELECT policies for `authenticated`, which already match
+> the ruling, so no policy change was required — read access is now a deliberate,
+> approved decision rather than an unreviewed default. Writes remain restricted
+> to `plm_admin_write` (administrator role). This closes open question 2 in the
+> shared-db plan `plan_popdam_order_list.md`.
 
 ## Verification (2026-08-16, preview `rjyboqwcdzcocqgmsyel`)
 
@@ -107,13 +118,32 @@ Checked in the real app, signed in, against the preview database:
 - a saved view was created (60 columns of state) and deleted;
 - Columns panel, compact width (900px) and the PopSG exclusion all behave.
 
+## Verification (2026-08-26, production `qsllyeztdwjgirsysgai`)
+
+Checked in the deployed app at `dam.designflow.app/orders`, signed in as an
+administrator, at build `47a42e92`:
+
+- **24,486 shown of 24,486 lines · Linked to Master Data: 24,473 · Ambiguous: 0
+  · Not linked: 0**; page 1 of 245 at 100 rows per page;
+- Master Data descriptions render live on every row (no `at import` fallback);
+- no console errors beyond the pre-existing AG Grid trial-licence notice.
+
+**Not yet exercised against live production orders:** cell editing, the order
+editor dialog, manual relink, and saved views. Those paths were proven on
+preview on 2026-08-16 and are unchanged, but they write to real orders and
+deserve a human pass before staff rely on them.
+
 ## Current data state
 
-Master Data links are still empty for almost every line: the historical import
-ran before `plm.item` was populated, so lines carry `unmatched`/`ambiguous` with
-no `item_id`. With `plm.item` now populated on preview, **23,956 of 24,010 lines
-resolve to exactly one canonical item**, but the stored links are only written
-when the shared-db relink pass runs (shared-db issues #853 / #1080). Until then
-this page shows the import snapshot for those rows and says so on every row.
+**Production is fully linked (2026-08-26).** `plm.item` holds **19,362** items
+loaded from ColdLion through `plm.import_item_master_data`; the style-item
+bridge carries `plm_item_id` on 14,621 rows; and
+`public.relink_dam_order_lines_bulk()` linked **23,997 of 24,010 order lines**
+with zero ties and zero no-candidates. The remaining 13 are
+`not_applicable` — lines with no SKU to match. Link integrity was checked: zero
+rows where `plm.item.item_number` disagrees with the line's `sku_normalized`.
+
+The import-snapshot fallback therefore no longer fires in normal use. It stays
+in the code because new orders can arrive before their item does.
 
 Production holds the same 24,010 lines but `plm.item` there is still empty.
