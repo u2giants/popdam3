@@ -14,12 +14,7 @@
 
 import { serviceClient } from "../service-client.ts";
 import { err, json } from "../http.ts";
-import {
-  AUTHORITATIVE_TAG_MODEL,
-  AUTHORITATIVE_TAG_SOURCE,
-  authoritativeTagsAreCurrent,
-  deriveAuthoritativeGroupTags,
-} from "../tagging-metadata-policy.js";
+import { AUTHORITATIVE_TAG_MODEL, AUTHORITATIVE_TAG_SOURCE, authoritativeTagsAreCurrent, deriveAuthoritativeGroupTags } from "../tagging-metadata-policy.js";
 
 export const LEGACY_PROPAGATION_DEPRECATION =
   "Tag propagation is deprecated and no longer copies tags between files. This ran the safe group-metadata refresh instead.";
@@ -37,8 +32,7 @@ type GroupRow = {
   group_ai_tagged_at: string | null;
 };
 
-const GROUP_COLUMNS =
-  "id, product_category, group_ai_description, group_ai_description_source, " +
+const GROUP_COLUMNS = "id, product_category, group_ai_description, group_ai_description_source, " +
   "group_ai_description_model, group_ai_evidence_asset_ids, group_ai_tagged_at";
 
 function desiredTags(group: GroupRow) {
@@ -65,7 +59,7 @@ async function refreshOneGroup(
 
   const current = authoritativeTagsAreCurrent(
     desired as Array<{ tag: string; category: string }>,
-    ((stored ?? []) as Array<{ tag: string; category: string; status: string }>),
+    (stored ?? []) as Array<{ tag: string; category: string; status: string }>,
   );
 
   if (current) {
@@ -126,14 +120,24 @@ export async function handleBulkPropagateGroupTags(body: Record<string, unknown>
 
   const groups = (data ?? []) as unknown as GroupRow[];
   if (!groups.length) {
-    return json({ ok: true, refreshed: 0, unchanged: 0, failed: 0, done: true, nextOffset: cursor, deprecated: true, deprecation_notice: LEGACY_PROPAGATION_DEPRECATION });
+    return json({
+      ok: true,
+      refreshed: 0,
+      unchanged: 0,
+      failed: 0,
+      done: true,
+      nextOffset: cursor,
+      deprecated: true,
+      deprecation_notice: LEGACY_PROPAGATION_DEPRECATION,
+    });
   }
 
   let refreshed = 0, unchanged = 0, failed = 0;
   for (const group of groups) {
     try {
       const outcome = await refreshOneGroup(db, group);
-      if (outcome === "refreshed") refreshed++; else unchanged++;
+      if (outcome === "refreshed") refreshed++;
+      else unchanged++;
     } catch (refreshError) {
       failed++;
       console.error("refresh-group-metadata: group failed", {
