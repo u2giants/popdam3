@@ -75,6 +75,19 @@ due to statement timeout`. Rows cost ~50 ms; an exact count of the view costs
 set, and reported as **unknown, never 0**, when it fails — which the grid shows
 as "of more". See `docs/KNOWN_QUIRKS.md` #75. Do not re-merge them.
 
+**What the exact count actually costs** (re-measured on production as
+`authenticated`, 2026-08-27, issue #100). The original "~2.2 s under RLS"
+reading blamed the wrong thing. Every RLS policy on the joined tables is
+`using (true)`, so it folds away and costs nothing; a *warm* count is 161 ms.
+The cost is **cold-cache sequential IO** — 24,835 shared buffers (~194 MB), of
+which 16,943 are a full scan of `plm.style_tracker_item_bridge`, a 132 MB table
+holding ~24 MB of live data. That scan happens because the bridge has no index
+on `plm_item_id`, the column this view joins it on, and the join cannot be
+pruned: the bridge genuinely fans out (24,010 order lines to 24,486 view rows).
+The remedy is two indexes in `u2giants/shared-db` (issue #1657), which drop the
+cold read to roughly 2,000 buffers. **When measuring this again, look at
+`buffers`, not at RLS.**
+
 ## Master Data rules
 
 - An order line points at a canonical `plm.item`. Master Data is reached through

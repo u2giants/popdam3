@@ -1138,11 +1138,23 @@ same production database, then fails on the live site with
 `statement_timeout = 8s` (`anon` gets 3s). PostgREST computes an exact count in
 the **same statement** that returns the rows, so one `select(..., { count:
 "exact" })` pays for both. Returning 100 rows from `api.dam_order_list` costs
-~50 ms; counting all 24,486 exactly costs ~2.2 s as `authenticated`, because the
-security-invoker view re-checks every row against RLS on `plm.production_order`,
-`plm.production_order_line`, `core.customer`, `core.factory` and `plm.item`.
-Combined, one request sat close enough to the 8 s ceiling that a cold cache or a
-busy moment tipped it over — and the entire screen died over one number.
+~50 ms; counting all 24,486 exactly costs seconds as `authenticated`. Combined,
+one request sat close enough to the 8 s ceiling that a cold cache or a busy
+moment tipped it over — and the entire screen died over one number.
+
+**Correction, 2026-08-27 (issue #100): the count is not slow because of RLS.**
+This quirk originally blamed the security-invoker view re-checking every row
+against RLS. Re-measured on production as `authenticated`, that is wrong — every
+policy on the joined tables is `using (true)` and folds away, and a warm count is
+161 ms. The real cost is **cold-cache sequential IO**: 24,835 shared buffers
+(~194 MB) per count, 16,943 of them a full scan of `plm.style_tracker_item_bridge`
+(132 MB of heap for ~24 MB of live data), because that table has no index on
+`plm_item_id` — the column `api.dam_order_list` joins it on — and the join cannot
+be pruned, since the bridge genuinely fans out. Fixed in `u2giants/shared-db`
+issue #1657 by adding that index plus a count-covering index on
+`plm.production_order_line`. **Measure this class of problem with
+`explain (analyze, buffers)` and read the buffer counts; "it must be RLS" cost a
+day here.**
 
 **Operator view**: the summary counts above the grid still populate (they come
 from a separate, cheap call) while the grid itself shows the timeout error. That
@@ -1153,8 +1165,8 @@ split is the tell.
 count is best-effort, cached per filter/search result set, and reported as
 **unknown — never 0** when it fails, which AG Grid renders as "of more".
 Re-merging them to "save a round trip" reintroduces the outage. The same trap
-applies to any large RLS-heavy view in this app: measure the count separately as
-the `authenticated` role, not as `postgres`, which has no such timeout.
+applies to any large view in this app: measure the count separately as the
+`authenticated` role, not as `postgres`, which has no such timeout.
 
 ---
 
