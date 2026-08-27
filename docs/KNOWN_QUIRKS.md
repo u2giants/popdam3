@@ -1155,3 +1155,56 @@ count is best-effort, cached per filter/search result set, and reported as
 Re-merging them to "save a round trip" reintroduces the outage. The same trap
 applies to any large RLS-heavy view in this app: measure the count separately as
 the `authenticated` role, not as `postgres`, which has no such timeout.
+
+---
+
+## 76. A Lenient Parser Turns "I Can't Read This" Into "The User Cleared It" (fixed 2026-08-26)
+
+**Looks like**: a staff member types something wrong into an OrderList date or
+number cell, the toast says **"Order saved"**, and the value that was there is
+now gone. No error, no rollback, nothing in the logs to suggest a problem.
+
+**Actually**: `parseOrderDate` and `parseOrderNumber` in `src/lib/order-list.ts`
+return `null` for anything they cannot parse — and `null` is also exactly how
+"the user cleared this field" is expressed. `coerceFieldValue` handed that `null`
+to `update_dam_order`, which dutifully wrote a deliberate-looking erasure. The
+save genuinely succeeded, so every honesty mechanism in the page (the failure
+toast, the visible rollback) correctly stayed quiet. Reproduced end to end
+against production during the 2026-08-26 human pass: a real date was set, then
+`not-a-date` was typed over it, and the date was gone after a reload.
+
+**Operator view**: the only symptom is missing data noticed later. There is no
+error to search for, which is what makes this class of bug expensive.
+
+**Do not change because**: `coerceFieldValueStrict` now refuses non-empty input
+it cannot parse, naming the column in the message, and the grid turns the refusal
+into a toast and rolls the cell back without sending a request. Clearing a cell
+to empty still writes `null`, because that is a real edit and must keep working.
+Any new OrderList write path must use `coerceFieldValueStrict`, never the lenient
+`coerceFieldValue`. The general rule: **a parser that returns the same value for
+"empty" and "unreadable" must never feed a write.**
+
+---
+
+## 77. A Field the Grid Needs but Never Displays Is Not Fetched (fixed 2026-08-26)
+
+**Looks like**: voiding an order reports success and the database really does
+record the void, but the row keeps rendering as a live order and reopening it
+offers **Void** again instead of **Restore**. The feature looks half-built when
+the write side is entirely correct.
+
+**Actually**: `ORDER_LIST_SELECT` in `src/hooks/useOrderList.ts` is built from
+the GRID's column list plus a handful of named extras, to keep each block small
+(the full view is ~2.2 KB per row). `order_voided_at` drives row styling and the
+editor's Void/Restore choice but is not a displayed column, so it was never
+requested — `getRowStyle` and `isVoided` were reading `undefined` on every row.
+
+**Operator view**: a voided order is indistinguishable from a live one in the
+grid. Since `api.dam_order_list` deliberately does **not** filter voided rows
+out, that is a business-data hazard, not a cosmetic one.
+
+**Do not change because**: both void columns are now named explicitly in the
+select list and a test asserts they stay there. More generally, anything the grid
+*reasons about* has to be in that list, not just what it *shows* — and component
+tests will not catch the omission, because they hand the grid a row object that
+already carries every field.
