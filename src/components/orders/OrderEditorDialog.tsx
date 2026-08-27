@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { coerceFieldValue, patchKeyFor } from "@/lib/order-list";
+import { coerceFieldValueStrict, patchKeyFor } from "@/lib/order-list";
 import type { OrderHeaderPatch, OrderLinePatch, OrderListRow } from "@/types/order-list";
 
 // `field` is the view column, which is what a row carries. It is translated to
@@ -39,12 +39,21 @@ const LINE_FIELDS: LineFieldSpec[] = [
 
 export type OrderEditorMode = "create" | "edit";
 
+/**
+ * Voiding is how a correction is made: the contract has no delete RPC, so an
+ * order that should not exist is voided with a reason and its history survives.
+ * `api.dam_order_list` does NOT filter voided rows out, so a voided order stays
+ * visible in the grid, marked as voided, and can be restored from here.
+ */
+export type OrderVoidRequest = { voided: boolean; void_reason: string | null };
+
 type Props = {
   mode: OrderEditorMode;
   row: OrderListRow | null;
   isSaving: boolean;
   onClose: () => void;
   onSubmit: (payload: { order: OrderHeaderPatch; line: OrderLinePatch }) => void;
+  onSetVoided?: (request: OrderVoidRequest) => void;
 };
 
 function initialValues(row: OrderListRow | null) {
@@ -56,12 +65,16 @@ function initialValues(row: OrderListRow | null) {
 
 /**
  * Create or edit one order and its line. Validation happens before the call so a
- * bad value is refused here rather than turning into a database error.
+ * bad value is refused here rather than turning into a database error -- or, worse,
+ * into a silent `null` that erases the field it was meant to change.
  */
-export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit }: Props) {
+export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit, onSetVoided }: Props) {
   const [values, setValues] = useState<Record<string, string>>(() => initialValues(row));
   const [error, setError] = useState<string | null>(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [confirmingVoid, setConfirmingVoid] = useState(false);
 
+  const isVoided = Boolean(row?.order_voided_at);
   const title = mode === "create" ? "New order" : `Edit order ${row?.production_order_number ?? ""}`;
 
   const canSubmit = useMemo(() => {
@@ -75,22 +88,35 @@ export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit }: Pr
       setError('Licensed / Generic must be exactly "licensed" or "generic".');
       return;
     }
-    const quantity = values.quantity_ordered.trim();
-    if (quantity && !Number.isFinite(Number(quantity))) {
-      setError("Quantity must be a number.");
+
+    // Refuse anything that cannot be parsed, rather than writing it away as null.
+    const order: OrderHeaderPatch = {};
+    const line: OrderLinePatch = {};
+    try {
+      for (const spec of HEADER_FIELDS) {
+        (order as any)[patchKeyFor(spec.field)] = coerceFieldValueStrict(spec.field, values[spec.field]);
+      }
+      for (const spec of LINE_FIELDS) {
+        (line as any)[patchKeyFor(spec.field)] = coerceFieldValueStrict(spec.field, values[spec.field]);
+      }
+    } catch (validationError) {
+      setError((validationError as Error).message);
+      return;
+    }
+
+    setError(null);
+    onSubmit({ order, line });
+  }
+
+  function handleVoid() {
+    if (!onSetVoided) return;
+    const reason = voidReason.trim();
+    if (!reason) {
+      setError("Say why this order is being voided, so the record explains itself later.");
       return;
     }
     setError(null);
-
-    const order: OrderHeaderPatch = {};
-    for (const spec of HEADER_FIELDS) {
-      (order as any)[patchKeyFor(spec.field as string)] = coerceFieldValue(spec.field as string, values[spec.field]);
-    }
-    const line: OrderLinePatch = {};
-    for (const spec of LINE_FIELDS) {
-      (line as any)[patchKeyFor(spec.field as string)] = coerceFieldValue(spec.field as string, values[spec.field]);
-    }
-    onSubmit({ order, line });
+    onSetVoided({ voided: true, void_reason: reason });
   }
 
   return (
@@ -102,6 +128,14 @@ export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit }: Pr
             Order facts stay on the order. Product facts come from Master Data through the linked Style #.
           </DialogDescription>
         </DialogHeader>
+
+        {isVoided && (
+          <div className="rounded-md border border-amber-500/50 bg-amber-100 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            This order is <strong>voided</strong>
+            {row?.order_void_reason ? <> &mdash; {row.order_void_reason}</> : null}. It stays in OrderList as history.
+            Restore it to put it back in use.
+          </div>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2">
           <section className="space-y-3">
@@ -137,15 +171,55 @@ export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit }: Pr
           </section>
         </div>
 
+        {mode === "edit" && onSetVoided && confirmingVoid && !isVoided && (
+          <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+            <p className="text-sm font-medium text-destructive">Void this order?</p>
+            <p className="text-xs text-muted-foreground">
+              Nothing is deleted. The order stays in OrderList marked as voided, and can be restored.
+            </p>
+            <Input
+              value={voidReason}
+              aria-label="Void reason"
+              placeholder="Why is this being voided?"
+              onChange={(event) => setVoidReason(event.target.value)}
+            />
+          </div>
+        )}
+
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="button" disabled={!canSubmit || isSaving} onClick={handleSubmit}>
-            {isSaving ? "Saving..." : mode === "create" ? "Create order" : "Save changes"}
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          <div className="flex gap-2">
+            {mode === "edit" && onSetVoided && !isVoided && (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                disabled={isSaving}
+                onClick={() => (confirmingVoid ? handleVoid() : setConfirmingVoid(true))}
+              >
+                {confirmingVoid ? "Confirm void" : "Void order"}
+              </Button>
+            )}
+            {mode === "edit" && onSetVoided && isVoided && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSaving}
+                onClick={() => onSetVoided({ voided: false, void_reason: null })}
+              >
+                Restore order
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={!canSubmit || isSaving} onClick={handleSubmit}>
+              {isSaving ? "Saving..." : mode === "create" ? "Create order" : "Save changes"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
