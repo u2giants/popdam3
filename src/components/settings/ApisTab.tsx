@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 import { toast } from "sonner";
+import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -584,24 +585,7 @@ export function AiModelsConfigSection() {
   }
 
   const save = useMutation({
-    mutationFn: async () => {
-      let models: unknown;
-      try {
-        models = modelsJson.trim() ? JSON.parse(modelsJson) : [];
-      } catch {
-        throw new Error("Invalid JSON in AI Models");
-      }
-      const entries: Record<string, unknown> = {
-        AI_MODELS: models,
-        AI_TASK_MODELS: taskModels,
-        AI_MODEL_DISPLAY_NAMES: displayNames,
-      };
-      if (openRouterKey.trim()) entries.OPENROUTER_API_KEY = openRouterKey.trim();
-      if (googleKey.trim()) entries.GOOGLE_AI_API_KEY = googleKey.trim();
-      if (anthropicKey.trim()) entries.ANTHROPIC_API_KEY = anthropicKey.trim();
-      if (openaiKey.trim()) entries.OPENAI_API_KEY = openaiKey.trim();
-      return call("set-config", { entries });
-    },
+    mutationFn: (draft: AiModelConfigDraft) => saveAiModelConfig(call, draft),
     onSuccess: () => {
       toast.success("AI configuration saved");
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
@@ -957,9 +941,18 @@ export function AiModelsConfigSection() {
         </div>
 
         <Button
+          type="button"
           size="sm"
           className="gap-1.5 h-8 text-xs"
-          onClick={() => save.mutate()}
+          onClick={() => save.mutate({
+            modelsJson,
+            taskModels: { ...taskModels },
+            displayNames: { ...displayNames },
+            openRouterKey,
+            googleKey,
+            anthropicKey,
+            openaiKey,
+          })}
           disabled={save.isPending || !!jsonError || !isDirty}
         >
           <Save className="h-3.5 w-3.5" />
