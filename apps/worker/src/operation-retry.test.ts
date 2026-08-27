@@ -20,6 +20,7 @@ test("backoff is bounded and jittered around the configured schedule", () => {
 
 test("only transient interruption reasons retry", () => {
   assert.equal(isTransientInterruption("statement_timeout"), true);
+  assert.equal(isTransientInterruption("dependency_timeout"), true);
   assert.equal(isTransientInterruption("connection_error"), true);
   assert.equal(isTransientInterruption("legacy_cursor"), false);
   assert.equal(isTransientInterruption("unknown"), false);

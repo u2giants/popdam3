@@ -27,6 +27,7 @@ import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
 import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type StructuredOutputMethod } from "../model-capabilities.js";
+import { withDependencyTimeout } from "../bounded-dependency.js";
 import {
   buildImageTaggingMessages,
   buildImageTaggingPrompt,
@@ -75,11 +76,11 @@ let cacheExpiresAt = 0;
 export async function getVisionModels(): Promise<{ primary: string; fallback: string | null; providerPin: string | null }> {
   if (cachedModels && Date.now() < cacheExpiresAt) return cachedModels;
   const client = db();
-  const { data } = await client
-    .from("admin_config")
-    .select("value")
-    .eq("key", "AI_TASK_MODELS")
-    .maybeSingle();
+  const { data, error } = await withDependencyTimeout(
+    "AI task model config read",
+    client.from("admin_config").select("value").eq("key", "AI_TASK_MODELS").maybeSingle(),
+  );
+  if (error) logger.warn("ai-tag: model config unavailable; using the last known/default model", { error: error.message });
   const models = data?.value as Record<string, string> | null;
   cachedModels = {
     primary: models?.vision_tagging || DEFAULT_VISION_MODEL,

@@ -15,6 +15,7 @@
 import { config } from "./config.js";
 import { db } from "./supabase.js";
 import { logger } from "./logger.js";
+import { withDependencyTimeout } from "./bounded-dependency.js";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -34,11 +35,10 @@ function unwrap(value: unknown): string {
 }
 
 async function readKeyFromAdminConfig(): Promise<string> {
-  const { data, error } = await db()
-    .from("admin_config")
-    .select("value")
-    .eq("key", "OPENROUTER_API_KEY")
-    .maybeSingle();
+  const { data, error } = await withDependencyTimeout(
+    "OpenRouter key config read",
+    db().from("admin_config").select("value").eq("key", "OPENROUTER_API_KEY").maybeSingle(),
+  );
   if (error) throw new Error(error.message);
   return unwrap(data?.value);
 }

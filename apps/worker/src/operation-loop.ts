@@ -252,6 +252,7 @@ export function normalizeBatchError(error: unknown, fallback = "Batch failed (ha
 
 export function classifyError(msg: string): string {
   const m = msg.toLowerCase();
+  if (m.includes("config read timed out") || m.includes("dependency timed out")) return "dependency_timeout";
   if (m.includes("57014") || m.includes("statement timeout")) return "statement_timeout";
   if (m.includes("handler supplied no message")) return "missing_error_message";
   if (m.includes("bad gateway") || m.includes("502") || m.includes("503") || m.includes("504")) return "gateway_timeout";

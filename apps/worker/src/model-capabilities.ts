@@ -1,6 +1,7 @@
 import { baseModelId } from "./openrouter.js";
 import { logger } from "./logger.js";
 import { db } from "./supabase.js";
+import { withDependencyTimeout } from "./bounded-dependency.js";
 
 export type StructuredOutputMethod = "json_schema" | "json_object" | "tool_named" | "tool_required" | "tool_auto" | "json_repair";
 export type CapabilitySource = "live" | "stale_cache" | "override" | "unknown";
@@ -106,7 +107,10 @@ export async function getModelCapabilities(apiKey: string, modelId: string, over
 
 export async function getRuntimeModelCapabilities(apiKey: string, modelId: string): Promise<ModelCapabilities> {
   if (!overrideCache || Date.now() - overrideCache.fetchedAt > 60_000) {
-    const { data, error } = await db().from("admin_config").select("value").eq("key", "AI_MODEL_CAPABILITY_OVERRIDES").maybeSingle();
+    const { data, error } = await withDependencyTimeout(
+      "AI capability override config read",
+      db().from("admin_config").select("value").eq("key", "AI_MODEL_CAPABILITY_OVERRIDES").maybeSingle(),
+    );
     if (error) logger.warn("ai capabilities: override config unavailable; using built-in safety defaults", { error: error.message });
     const value = data?.value;
     overrideCache = { fetchedAt: Date.now(), value: value && typeof value === "object" && !Array.isArray(value) ? value as CapabilityOverrides : {} };

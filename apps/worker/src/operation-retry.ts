@@ -9,6 +9,7 @@ const TRANSIENT_REASONS = new Set([
   "connection_error",
   "rate_limited",
   "stale_run",
+  "dependency_timeout",
 ]);
 
 export function isTransientInterruption(reason?: string): boolean {
