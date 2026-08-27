@@ -73,8 +73,16 @@ year 2019-2026 plus the two most recent. Raw payloads are customer order data an
 
 **ColdLion:** *"Changed the doc."*
 
-**Verified — partially done.** `prodHistory.stageCode` now carries a description:
-`"Production stage code. Example: ISS, INTRAN, REC"`.
+> **✅ UPDATED 2026-08-27 — ColdLion finished this one.** Re-checked the live spec: `stageCode` now
+> reads `"Production stage code"` and carries a real `enum` of `["ISS","INTRAN","REC"]`. The
+> "Example" wording is gone. **The stageCode half of this question is closed.** What remains is that
+> it is the only enum in the entire spec, and no response field carries a description in any of the
+> seven definitions — the reply narrows the ask to `mgTypeCode`, `divisionCode`, `active` and the
+> undocumented response fields. See
+> [`coldlion-19k-row-resample-20260827.md`](coldlion-19k-row-resample-20260827.md).
+
+**Verified 2026-08-26 — partially done at the time.** `prodHistory.stageCode` then carried the
+description `"Production stage code. Example: ISS, INTRAN, REC"`.
 
 Two gaps remain, and they matter for exactly the reason we asked:
 

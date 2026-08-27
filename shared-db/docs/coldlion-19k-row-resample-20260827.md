@@ -168,6 +168,11 @@ to 2026-08-27, dumped and analysed offline. Findings, all reproducible from the 
 - **No byte-identical duplicate rows appear in this sample.** The "138 identical rows" figure from
   the earlier resample is **not repeated to ColdLion** — it was not reproduced here and may have
   been an overlapping-window artefact of that run.
+- **Issue 3 is now half closed.** Re-checked the live spec 2026-08-27: `stageCode` no longer says
+  "Example" and carries a real `enum` of `ISS`, `INTRAN`, `REC`. It is still the **only** enum in
+  the whole spec (1 occurrence), and **no response field carries any description** across all seven
+  definitions. The reply credits the fix and narrows the ask to `mgTypeCode`, `divisionCode`,
+  `active`, and the undocumented response fields.
 - **30 rows carry `salesOrderLineNo` 0**, in 2020, 2024 and 2025. The earlier "103 rows, 51 in 2026"
   figure is **not repeated** — this sample shows no 2026 cases.
 
@@ -216,8 +221,31 @@ to 2026-08-27, dumped and analysed offline. Findings, all reproducible from the 
 > value on exactly twelve lines — the same twelve negative ones above. Everything else from 2019
 > through 2025 is zero. Should we read that as "those orders are closed, so zero is correct", or
 > were the new formulas applied only going forward? We are loading history back to 2019, so it
-> decides whether we trust the value or ignore it. Issue 3 is unchanged, and we are still not asking
-> for any new stages.
+> decides whether we trust the value or ignore it.
+>
+> **Issue 3 — half of it is now closed, thank you.** When I wrote on Wednesday, `stageCode` carried
+> the description *"Production stage code. Example: ISS, INTRAN, REC"*. Checking the spec again
+> today, it now reads *"Production stage code"* with a proper declared value list of `ISS`,
+> `INTRAN`, `REC`. That is exactly what we needed, and it means we can detect a fourth stage
+> automatically instead of finding out when a load breaks. Consider that part closed.
+>
+> What is left is that `stageCode` is the **only** declared value list in the entire spec — one, out
+> of every parameter and every field. Four places where the same treatment would help us most, in
+> priority order:
+>
+> - **`mgTypeCode`** on `/merchGroupHeaders` and `/merchGroupDetails`. Its description is just
+>   "mgTypeCode". We are rebuilding our merchandise hierarchy on these, so the complete list of
+>   merchandise group types is the single most valuable one to us.
+> - **`divisionCode`** on `/orderHistory`, `/items` and `/itemDetails`. We currently pass
+>   `EDGEHOME` and hope nothing else exists.
+> - **`active`** on `/customers`, `/vendors`, `/salespersons`, `/seasons` and `/merchGroupDetails` —
+>   we assume true/false, but it is not stated.
+> - **On the response side, no field carries any description at all**, across all seven definitions.
+>   The ones we have to interpret without documentation are `labelCode`, `warehouseCode`,
+>   `sizeCode`, `colorCode`, `dimCode` and `merchGroup01` through `merchGroup06`. Even a one-line
+>   description each would remove a lot of guesswork.
+>
+> We are still not asking for any new stages.
 >
 > **Issue 6 (new) — the same sales order line comes back twice, and we cannot tell which row is
 > real.** 320 rows across 34 orders in our sample share a sales order number and line number with
