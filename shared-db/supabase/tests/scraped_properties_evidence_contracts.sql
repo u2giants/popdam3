@@ -101,10 +101,44 @@ begin
   select api.db_data_admin_scraped_properties(v_search, null, 100) into v_page;
   select r into v_row from jsonb_array_elements(v_page -> 'rows') r
   where r ->> 'source_table' = 'plm.dcp_property';
-  if v_row ->> 'presentation_licensor_name' <> 'Star Wars'
+  if v_row ->> 'presentation_licensor_name' <> 'Lucasfilm / Star Wars - Creative (DCP Vault)'
      or v_row ->> 'source_purpose' <> 'Creative (DCP Vault)'
      or v_row ?| array['authority_reference','evidence_reference','source_hash','approved_by'] then
     raise exception 'latest approved DCP decision or private envelope contract changed';
+  end if;
+
+  if position('Marvel - Creative (ASGARD)' in pg_get_functiondef(v_sig::regprocedure)) = 0
+     or position('plm.marvel_asgard_style_guide' in pg_get_functiondef(v_sig::regprocedure)) = 0
+     or position('Marvel - Creative (DCP Vault)' in pg_get_functiondef(v_sig::regprocedure)) > 0
+     or position('review_reason' in pg_get_functiondef(v_sig::regprocedure)) = 0
+     or position('evidence_basis' in pg_get_functiondef(v_sig::regprocedure)) = 0
+     or position('review_guidance' in pg_get_functiondef(v_sig::regprocedure)) = 0 then
+    raise exception 'Scraped Properties presentation or review-detail contract changed';
+  end if;
+
+  insert into plm.dcp_property (source_system, source_id, display_name)
+  values ('disney_dcpvault', v_search || '/conflict', v_search || ' conflict');
+  insert into plm.dcp_property_licensor_resolution (
+    source_system, source_property_id, presentation_licensor_key,
+    presentation_licensor_name, resolution_status, authority_kind,
+    authority_reference, evidence_reference, source_hash, resolved_at,
+    decision_version, approval_status, approved_at, approved_by, decision_reason
+  ) values (
+    'disney_dcpvault', v_search || '/conflict', null, null,
+    'authority_conflict', 'conflicting_direct_authority', 'synthetic',
+    'private-pointer', repeat('e',64), now(), 1, 'approved', now(),
+    'contract', 'synthetic authority conflict'
+  );
+
+  select api.db_data_admin_scraped_properties(v_search || ' conflict', null, 100)
+    into v_page;
+  select r into v_row from jsonb_array_elements(v_page -> 'rows') r
+  where r ->> 'source_property_id' = v_search || '/conflict';
+  if v_row ->> 'presentation_licensor_name' <> 'DCP Vault - authority conflict'
+     or v_row ->> 'review_reason' <> 'Conflicting approved authority evidence names more than one presentation scope; Licensing must resolve the exact source identity.'
+     or v_row ->> 'evidence_basis' <> 'approved exact-identity DCP authority decisions'
+     or v_row ->> 'review_guidance' <> 'Compare the direct authority records and approve one superseding exact-identity decision. Do not infer authority from a property name or landing table.' then
+    raise exception 'authority-conflict RPC guidance contract changed: %', v_row;
   end if;
 
   begin

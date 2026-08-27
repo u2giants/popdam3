@@ -5,14 +5,14 @@
 | Step | Status | Date | Evidence / starting point |
 |---|---|---|---|
 | 0. Freeze the baseline and reproduce the current shortfall | ⬜ not started | | Reproduce the 2026-08-17 run: 2,294 three-level, 7,496 two-level, 2,600 MG01-only, and the 10,096-item depth-3 shortfall in Section 3. |
-| 1. Add the merchandise-group code-validity layer | ⬜ not started | | 13.2% of post-change teaching rows carry an MG03 undefined for their MG01+MG02 (Finding F8). |
-| 2. Rebuild the parser on three independent axes | ⬜ not started | | Form / material / embellishment, replacing the blended product-type string (Findings F5-F7). |
-| 3. Give embellishment an explicit "none" state and map it to MG03 `0` | ⬜ not started | | MG03 `0` exists and is used by 581 post-change items (Finding F4). |
+| 1. Add the merchandise-group code-validity layer | ⬜ not started | | 13.2% of post-change teaching rows carry an MG03 undefined for their MG01+MG02 (Finding F5). |
+| 2. Rebuild the parser on three independent axes | ⬜ not started | | Form / material / embellishment, replacing the blended product-type string (Findings F1-F4). |
+| 3. Give embellishment an explicit `none` state with an evidence-gated route to MG03 `0` | ⬜ not started | | MG03 `0` exists and is used by 581 post-change items, but token absence alone cannot assign it (Finding F4 and resolved Q4). |
 | 4. Re-key the association maps and matcher onto the axes | ⬜ not started | | MG01 from form, MG02 from form+material, MG03 from form+material+embellishment. |
-| 5. Add axis-separation, contamination, and validity tests | ⬜ not started | | Extends the existing 14 tests; none of them currently detect Findings F7 or F8. |
+| 5. Add axis-separation, contamination, validity, and no-evidence guards | ⬜ not started | | Extends the existing 14 tests; none currently detect the axis collision, invalid depth-three evidence, or unsafe blank-to-`0` mapping. |
 | 6. Rerun, re-measure, regenerate the workbook, update documentation | ⬜ not started | | Report the new match distribution against the Section 3 baseline. |
 
-**Current state:** Written and awaiting owner review. Nothing implemented. The 2026-08-17 method described in `plan_item_description_mg_taxonomy_repair.md` remains the live method until this plan lands.
+**Current state:** Revised after resolving Q2-Q4 from committed workbook, Item Master, and live-taxonomy snapshot evidence. Nothing implemented. The 2026-08-17 method described in `plan_item_description_mg_taxonomy_repair.md` remains the live method until this plan lands.
 
 ---
 
@@ -26,7 +26,7 @@ When this plan is complete:
 
 - item descriptions are parsed into the three axes the merchandise-group system actually encodes — physical form, material, and embellishment — and never into a single blended product name;
 - a material word alone never determines what a product is, so a storage bin made of canvas is classified as storage, not as a canvas;
-- an item whose description fully describes a plain, unembellished product receives the real "no embellishment" MG03 code rather than a blank;
+- an item whose reviewed description positively establishes a plain, unembellished product may receive the real "no embellishment" MG03 code when both the workbook and qualifying post-change evidence support it;
 - an item whose description is merely silent about embellishment still receives a blank, and the two cases are distinguishable in the output;
 - no post-change item teaches the matcher a merchandise-group combination that the rework workbook does not define;
 - the reported match distribution reflects genuine evidence limits rather than parser artifacts.
@@ -101,7 +101,7 @@ The reviewer workbook covering the top 25 is `outputs/issue-1113-taxonomy/mg_dep
 ### In scope
 
 - Rebuilding description parsing onto form, material, and embellishment axes.
-- Adding an explicit "no embellishment" state and mapping it to the real MG03 code.
+- Adding an explicit "no embellishment" state and mapping it to the real MG03 code only when the reviewed wording, workbook, and qualifying later evidence all support it.
 - Validating post-change teaching rows against the rework workbook's code dictionary.
 - Re-keying the three association maps and the matcher onto the axes.
 - Extending the test suite to cover axis separation, contamination, and code validity.
@@ -112,7 +112,7 @@ The reviewer workbook covering the top 25 is `outputs/issue-1113-taxonomy/mg_dep
 
 - Any database read or write. This plan touches no schema and no rows.
 - Changing `full_item_master.csv` or `MerchGroup_Rework.xlsx`. They are source records.
-- Correcting miscoded post-change items in the ERP. This plan *reports* invalid codes; fixing them in the source system is a separate owner decision (Open question Q2).
+- Correcting miscoded post-change items in the ERP. This plan reports invalid codes; fixing them in the source system is a separate future decision and is not authorized here.
 - Applying any proposed merchandise group to a live item. The output remains a review artifact.
 - Lowering the confidence thresholds to buy a better headline number (Rejected approach R5).
 - Re-opening the settled decisions in `plan_item_description_mg_taxonomy_repair.md` §8 that this plan does not explicitly supersede.
@@ -135,7 +135,7 @@ The four defects below are the subject of this plan. Each is evidenced in Sectio
 1. Description parsing produces one blended product string that mixes all three taxonomy axes.
 2. A material word with no form word is treated as a product, so items made *of* a material are classified as that material.
 3. "No embellishment stated" and "embellishment not readable" are the same value, so neither can be proposed.
-4. Post-change rows teach the matcher without being checked against the merchandise-group code dictionary.
+4. Post-change rows teach the matcher without being checked against the merchandise-group code dictionary at the depth they teach.
 
 ### Repository state
 
@@ -209,7 +209,7 @@ Every post-change row is currently trusted as ground truth. Checking the stored 
 
 The largest single invalid combination is `A|A|A` with **210 items** — and this is the rival candidate in the worst signature in the entire analysis. For Stretched/Box + Canvas the workbook defines MG03 codes `0, 1, 2, 8, 9, B, D, E, G, H, P, Q, W, Y`. **There is no `A`.**
 
-So the rank-1 conflict — `A|A2|01` at 163 items against `A|A2|A2` at 134 — is substantially a contest between a valid code and one the taxonomy does not define. It is likely a data-quality problem in the ERP rather than a business distinction requiring a ruling. Any earlier statement of mine that framed rank 1 purely as a business ruling was wrong, and this finding supersedes it.
+So the rank-1 conflict — `A|A2|01` at 163 items against `A|A2|A2` at 134 — is substantially a contest between a valid code and one the workbook does not define for this pair. The committed live-taxonomy snapshot resolves the affected rows, not the workbook's global currency: `A2 = Plain` under Canvas is active only for division `SP001`, while all 210 questioned post-change rows belong to `CW001` or `EH001`, where that child is inactive; no active Canvas child `A3` exists. Their MG03 values are invalid for their divisions and pair, while their MG01 and MG02 remain valid evidence. The active `SP001` child remains a separately reported workbook/snapshot discrepancy. Any earlier statement that framed rank 1 purely as a business ruling was wrong, and this finding supersedes it.
 
 ### F6 — Thin evidence and a hard threshold interact badly
 
@@ -263,8 +263,8 @@ The governed-dictionary contract exists because an earlier fuzzy matcher produce
 2. **Form beats material.** When a description contains both, the form determines the product. "Canvas Storage Bin" is a bin.
 3. **A material word alone never implies a form**, except through a named default rule (decision 4).
 4. House shorthand is expressed as **explicit, recorded default rules**, never as regex ordering. The first is: bare *canvas* with no form word means stretched canvas wall art. Each default is named, listed in the dictionary ledger, individually switchable, and reported with its own count so its effect is always visible.
-5. Embellishment is **tri-state**: `stated`, `none`, `unreadable`. Only `none` maps to MG03 `0`. `unreadable` continues to produce a blank.
-6. A post-change row whose MG01+MG02+MG03 is not defined in the rework workbook **does not teach**. It is excluded from the association maps and reported.
+5. Embellishment is **tri-state**: `stated`, `none`, `unreadable`. `none` requires explicit plain/unembellished wording or a reviewed dictionary ruling for that complete wording; merely finding no known embellishment token is `unreadable`, not positive evidence. Only supported `none` may map to MG03 `0`. `unreadable` continues to produce a blank.
+6. Code validity is evaluated independently at each depth. A valid MG01 may teach the MG01 map. A valid MG01+MG02 may teach the pair map even when MG03 is invalid. Only a valid full combination may teach the depth-three map. Every invalid suffix is excluded at its depth and reported; valid shallower evidence is retained.
 7. Pre-cutoff stored MG values remain non-evidence. Unchanged from the existing plan.
 8. Licensor, property, character, artwork, slogan, colour and size remain non-evidence. Unchanged.
 9. Confidence thresholds are **not** relaxed as part of this work. If the axis rebuild justifies revisiting them, that is a separate proposal with its own evidence.
@@ -276,9 +276,9 @@ The governed-dictionary contract exists because an earlier fuzzy matcher produce
 - Whether material should fall back to a broad family when an exact material is unrecognised.
 - Whether to keep the blended product name in the output as a display column for reviewer familiarity. Recommended yes, clearly marked as non-authoritative.
 
-### Owner decisions required before Phase 4 completes
+### Owner decision still required before Phase 4 completes
 
-Recorded as Q1-Q4 in Section 12.
+Only the additional house-shorthand question remains open as Q1 in Section 12. Q2-Q4 are resolved below and are now binding implementation rules.
 
 ## 9. Executable implementation plan
 
@@ -291,14 +291,14 @@ Recorded as Q1-Q4 in Section 12.
 
 ### Phase 1 — merchandise-group code-validity layer
 
-1. Parse `MerchGroup_Rework.xlsx` sheet `Final Version` (header row 3) into a code dictionary of valid `(MG01, MG02, MG03)` combinations, with their human-readable names.
+1. Parse `MerchGroup_Rework.xlsx` sheet `Final Version` (header row 3) into three independent validity sets with human-readable names: every distinct MG01, every distinct MG01+MG02 pair, and every complete MG01+MG02+MG03 combination. Do not derive a parent set by filtering on whether its child is valid.
 2. Compare on the **first character** of the stored MG02 and MG03 values (F1).
-3. Classify every post-change row as `valid`, `invalid_mg03_for_pair`, or `invalid_pair`.
-4. Exclude non-valid rows from all three association maps.
-5. Emit `post_change_code_validity_report.csv`: every excluded row with its stored codes, description, and which check it failed, sorted by frequency.
-6. Assert the Phase 0 counts are unchanged for valid rows, so the exclusion is the only difference.
+3. Classify every post-change row independently at each depth as `valid_mg01`, `valid_pair`, and `valid_full`, with explicit invalid reasons for each failed depth.
+4. Admit each row only to the maps whose depth is valid: an invalid MG03 cannot teach depth three but does not erase a valid pair or MG01; an invalid pair cannot teach depths two or three but does not erase a valid MG01.
+5. Emit `post_change_code_validity_report.csv`: every row excluded at any depth, its stored codes, the depth-specific validity flags and reasons, and which shallower maps still retain it, sorted by frequency.
+6. Assert map eligibility reconciles independently at all three depths, so every retained or excluded vote has one recorded validity reason.
 
-**Expected at this phase:** roughly 480 rows leave the teaching pool, including the 210 `A|A|A` rows. Coverage may *fall* slightly here. That is correct — bad evidence is being removed. Do not compensate for it elsewhere.
+**Expected at this phase:** roughly 480 rows leave the depth-three teaching pool, including the 210 `A|A|A` rows. Their valid upper levels remain eligible for the shallower maps. Depth-three coverage may *fall* slightly here. That is correct — bad suffix evidence is being removed without wasting valid parent evidence. Do not compensate for it elsewhere.
 
 ### Phase 2 — three-axis parser
 
@@ -317,8 +317,8 @@ Recorded as Q1-Q4 in Section 12.
 ### Phase 3 — embellishment tri-state
 
 1. Implement the three states from locked decision 5.
-2. `none` requires positive evidence: the description names a form and a material and contains no embellishment word, and the wording is dictionary-accepted. Silence in a sparse or placeholder description is `unreadable`, never `none`.
-3. Map `none` to MG03 code `0` **only where the workbook defines `0` for that MG01+MG02.** Where it does not, the result stays blank and is reported.
+2. `none` requires positive evidence: explicit plain/unembellished wording, or a reviewed dictionary ruling that the complete accepted wording denotes the plain product. Naming a form and material while containing no recognised embellishment word is not enough; that silence is `unreadable` until reviewed.
+3. Map `none` to MG03 code `0` only where the workbook defines `0` for that MG01+MG02 **and** at least two qualifying post-change rows support that same form+material+none association under the existing confidence gates. The workbook validates the code; it does not by itself prove that a historical description belongs there. Without qualifying later evidence, MG03 stays blank and the output records `definition_exists_but_no_observed_support`.
 4. Carry `embellishment_state` into every output so a reviewer can always tell "plainly has none" from "cannot tell".
 5. Report the three state counts against the 37.5% empty-treatment baseline from F4.
 
@@ -352,7 +352,7 @@ Extending the existing 14. Every one of these fails against today's code, which 
 **Axis separation**
 1. A canvas storage bin parses to form `storage bin`, material `canvas` — never product `Canvas`.
 2. A canvas hamper, a canvas tote and a canvas toy chest all parse to storage forms.
-3. `Glitter Canvas`, `Foil Canvas` and `Printed Canvas` produce the **same** form and material, differing only in embellishment.
+3. `Glitter Canvas`, `Foil Canvas` and `Printed Canvas` produce the same form and material. Glitter and Foil produce stated embellishments; Printed does not by itself decide between `none` and `unreadable` because print/artwork has zero MG weight.
 4. Form beats material whenever both appear, regardless of word order.
 5. A named default rule fires only for a bare material with no form word, and is recorded in the output when it does.
 
@@ -362,22 +362,25 @@ Extending the existing 14. Every one of these fails against today's code, which 
 8. An artwork, licensor, property or size word alone never changes any axis.
 
 **Embellishment tri-state**
-9. A plain printed canvas with a stated size yields embellishment state `none` and proposes MG03 `0`.
+9. A fixture with explicit `Plain Canvas` wording, a workbook-defined `0`, and at least two qualifying later rows yields embellishment state `none` and proposes MG03 `0`.
 10. A sparse or placeholder description yields `unreadable` and proposes nothing.
 11. `none` never maps to `0` for an MG01+MG02 where the workbook does not define `0`.
 12. `none` and `unreadable` are distinguishable in every output artifact.
+13. A form+material description with no recognised embellishment token and no reviewed plain ruling is `unreadable`, not `none`.
+14. A reviewed `none` wording whose pair has workbook code `0` but fewer than two qualifying later rows leaves MG03 blank and records `definition_exists_but_no_observed_support`.
 
 **Code validity**
-13. A post-change row with an MG03 undefined for its MG01+MG02 does not appear in any association map.
-14. `A|A|A` specifically is excluded and appears in the validity report — the direct regression test for F5.
-15. Validity comparison uses the first character of the stored two-character codes.
+15. A post-change row with an MG03 undefined for its MG01+MG02 cannot teach depth three but still teaches a valid pair and MG01.
+16. `A|A|A` specifically is excluded from depth three, retained at valid shallower depths, and appears in the validity report — the direct regression test for F5.
+17. Validity comparison uses the first character of the stored two-character codes.
+18. An invalid pair under a workbook-defined MG01 cannot teach depths two or three but still teaches that independently valid MG01.
 
 **Preserved invariants**
-16. The date split still accounts for every source row.
-17. Pre-cutoff stored MG values still never influence a proposal.
-18. Only `accepted` and `alias` entries teach or receive.
-19. A failed three-level match still falls back rather than reporting an MG01 failure.
-20. Thresholds are unchanged from the 2026-08-17 implementation.
+19. The date split still accounts for every source row.
+20. Pre-cutoff stored MG values still never influence a proposal.
+21. Only `accepted` and `alias` entries teach or receive.
+22. A failed three-level match still falls back rather than reporting an MG01 failure.
+23. Thresholds are unchanged from the 2026-08-17 implementation.
 
 ## 11. Constraints, standing rules, and gotchas
 
@@ -396,13 +399,13 @@ Extending the existing 14. Every one of these fails against today's code, which 
 ### Definition of done
 
 1. Phases 0-6 complete with the STATUS table updated as each lands.
-2. All 20 new tests plus the 14 existing tests pass.
-3. The code-validity report exists and the invalid combinations, including `A|A|A`, are excluded from teaching.
+2. All 23 new tests plus the 14 existing tests pass.
+3. The code-validity report exists; invalid suffixes, including `A|A|A`, are excluded only at the depths they invalidate, while independently valid parent evidence remains eligible.
 4. No canvas storage item appears in a wall-art evidence pool.
 5. `canvas|stretched|plain or printed` and `canvas|stretched|printed` no longer exist as separate competing signatures.
-6. Embellishment state is reported in three values, and `none` proposes MG03 `0` wherever the workbook defines it.
+6. Embellishment state is reported in three values; `none` proposes MG03 `0` only when explicit or reviewed plain evidence, a workbook-valid `0`, and qualifying post-change support all pass.
 7. The new match distribution is published against the Section 3 baseline, with each movement attributed.
-8. Every remaining unresolved item carries a named cause: no evidence, evidence below threshold, embellishment unreadable, or awaiting an owner ruling.
+8. Every remaining unresolved item carries one named cause, including no evidence, evidence below threshold, embellishment unreadable, `definition_exists_but_no_observed_support`, or awaiting an owner ruling.
 9. The permanent process document, both Skill copies, and AGENTS.md describe the three-axis method.
 10. No database object was read or written.
 
@@ -415,15 +418,18 @@ Every change is confined to the analysis directory and generated artifacts. Reve
 - **A default rule quietly does too much work.** Mitigated by locked decision 4: named, counted, individually switchable, reported.
 - **Re-reviewing the dictionary reintroduces subjective judgment.** Mitigated by the unchanged reviewed-status contract and the axis-migration report.
 - **Excluding invalid teaching rows thins already-thin evidence.** Real. It is still correct, and Phase 1 reports the cost explicitly.
-- **The `A` code turns out to be legitimate and newer than the workbook.** Q2 settles this before Phase 1 is final; the code-validity layer is data-driven and absorbs an updated dictionary without a redesign.
+- **The committed taxonomy snapshot may become stale.** It is supporting evidence for the Q2 audit, not the runtime code authority: the committed workbook supplies the three validity sets. Record the snapshot's 2026-08-07 capture date and report its active `SP001` Plain child as a workbook/snapshot discrepancy; do not generalize the 210 affected `CW001`/`EH001` rows into a claim that no newer code exists anywhere.
 - **The rebuild does not move the number much.** Possible. The finding would then be that the shortfall is genuine evidence scarcity, which is itself a defensible answer and is worth knowing.
 
-### Open questions for the owner
+### Open question for the owner
 
-- **Q1 — House shorthand.** Bare *canvas* means stretched canvas wall art. Are there other shorthands where a material name implies a product? Candidates seen in the data: *greyboard*, *MDF*, *lenticular*.
-- **Q2 — The `A` MG03 code for canvas.** 210 post-change items carry `A|A2|A2`, and `A` is not defined as an MG03 for Stretched/Box + Canvas. Is it a miscode to be corrected in the ERP, or a newer code the rework workbook predates? This decides whether 2,491 blocked items need a business ruling or a data fix.
-- **Q3 — Scope of exclusion.** Should a post-change row with an invalid MG03 be excluded from teaching entirely, or still allowed to teach MG01 and MG02 where those are valid? Recommendation: allow it to teach the valid levels, since discarding a correct MG01+MG02 over a bad MG03 wastes scarce evidence.
-- **Q4 — Proposing `0` without direct precedent.** Where a description is plainly unembellished but no post-change item exists for that exact form+material+none combination, should MG03 `0` be proposed from the workbook definition alone, or withheld for lack of observed evidence? Recommendation: propose it, flagged as definition-based rather than evidence-based, since `0` is the taxonomy's own default.
+- **Q1 — House shorthand.** Bare *canvas* means stretched canvas wall art. Are there other shorthands where a material name implies a product? Candidates seen in the data: *greyboard*, *MDF*, *lenticular*. Until ruled, none receives an automatic form default.
+
+### Resolved questions — binding for implementation
+
+- **Q2 — The `A` MG03 code for canvas. Resolved as invalid for the affected rows.** The workbook does not define it for Stretched/Box + Canvas. The committed 2026-08-07 taxonomy snapshot contains `A2 = Plain` under Canvas only as active in `SP001`; it is inactive in `CW001` and `EH001`, and no active Canvas child `A3` exists. All 210 questioned post-change rows are in `CW001` or `EH001`. Exclude their MG03 vote, retain their valid parents, and report them. The active `SP001` child is separately reported as a workbook/snapshot discrepancy; these 210 rows do not prove whether the workbook is globally current. Do not alter the ERP in this work.
+- **Q3 — Scope of exclusion. Resolved depth by depth.** Preserve every valid parent level. An invalid MG03 blocks only depth three; an invalid pair blocks depths two and three; an invalid MG01 blocks all depths. This follows the three independent-map contract and avoids throwing away scarce valid evidence.
+- **Q4 — Proposing `0` without direct precedent. Resolved as withhold.** The workbook is code authority, not row-classification evidence. Without at least two qualifying post-change rows for the reviewed form+material+none association, leave MG03 blank and state that code `0` exists but observed support is absent. This preserves the existing rule that unsupported lower levels stay blank.
 
 ## Plan self-audit
 
@@ -431,5 +437,5 @@ Every change is confined to the analysis directory and generated artifacts. Reve
 - **Does it touch the database?** No. Section 4 and constraint 1 forbid it, and Section 2 records why the structure orchestrator is not involved.
 - **Does it overturn settled decisions?** It supersedes the single-product-type keying of the 2026-08-17 method and that method's treatment of blank embellishment. Every other locked decision in `plan_item_description_mg_taxonomy_repair.md` §8 is preserved and restated in Section 8.
 - **Could it make the output look better without being better?** The known shortcut is R2, rejected explicitly. Thresholds are locked. Coverage is expected to fall before it rises.
-- **What would make this plan wrong?** If Q2 establishes `A` as a valid newer code, F5 shrinks substantially and rank 1 returns to being a business ruling. F2, F3 and F4 would be unaffected.
+- **What would make this plan wrong?** Newer authoritative taxonomy evidence could show `A2 = Plain` was activated for `CW001` or `EH001` after the committed snapshot. Until then, the workbook, live-taxonomy snapshot, and affected-row divisions agree that those 210 MG03 votes are invalid. F2, F3 and F4 are unaffected either way.
 - **What is the single most important thing not to get wrong?** Mapping blank embellishment to MG03 `0` without first separating "plainly none" from "cannot tell". It would resolve thousands of items and quietly mislabel an unknown share of them.

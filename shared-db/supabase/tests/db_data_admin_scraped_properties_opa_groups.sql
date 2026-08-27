@@ -165,7 +165,7 @@ begin
   if not exists (
     select 1 from jsonb_array_elements(v_rows) r
     where r ->> 'source_table' = 'plm.dcp_property'
-      and r ->> 'presentation_licensor_name' = 'Disney'
+      and r ->> 'presentation_licensor_name' = 'Disney - Creative (DCP Vault)'
       and r ->> 'source_system' = 'disney_dcpvault'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
@@ -175,7 +175,7 @@ begin
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
     where r ->> 'source_table' = 'plm.lucasfilm_dcp_property'
-      and r ->> 'presentation_licensor_name' = 'Star Wars'
+      and r ->> 'presentation_licensor_name' = 'Lucasfilm / Star Wars - Creative (DCP Vault)'
       and r ->> 'source_system' = 'lucasfilm_dcpvault'
   ) then
     raise exception 'DCP Vault presentation groups or provenance changed';

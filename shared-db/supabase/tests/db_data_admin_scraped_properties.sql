@@ -218,7 +218,7 @@ begin
 
   if not exists (
     select 1 from jsonb_array_elements(v_rows) r
-    where r ->> 'presentation_licensor_name' = 'Disney'
+    where r ->> 'presentation_licensor_name' = 'Disney - Creative (DCP Vault)'
       and r ->> 'source_table' = 'plm.dcp_property'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
@@ -226,7 +226,7 @@ begin
       and r ->> 'source_table' = 'plm.marvel_dcp_property'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
-    where r ->> 'presentation_licensor_name' = 'Star Wars'
+    where r ->> 'presentation_licensor_name' = 'Lucasfilm / Star Wars - Creative (DCP Vault)'
       and r ->> 'source_system' = 'lucasfilm_dcpvault'
   ) then
     raise exception 'Disney Creative, retained Marvel-tag evidence, and Star Wars Creative groups are not distinct';
@@ -255,7 +255,7 @@ begin
     where r ->> 'source_property_id' = v_search || '/galaxy_far_far_away'
       and r -> 'source_property_name' = 'null'::jsonb
       and r ->> 'display_label' = 'Galaxy Far Far Away'
-      and r ->> 'presentation_licensor_name' = 'Star Wars'
+      and r ->> 'presentation_licensor_name' = 'Lucasfilm / Star Wars - Creative (DCP Vault)'
       and r ->> 'source_system' = 'lucasfilm_dcpvault'
   ) then
     raise exception 'Lucasfilm DCP underscore slug or Star Wars provenance changed';

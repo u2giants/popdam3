@@ -98,11 +98,11 @@ begin
   end if;
 
   if (select count(*) from jsonb_array_elements(v_rows) r
-      where r ->> 'presentation_licensor_name' = 'Disney') <> 2
+      where r ->> 'presentation_licensor_name' = 'Disney - Creative (DCP Vault)') <> 2
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'presentation_licensor_name' = 'DCP Vault - non-authoritative Marvel tag') <> 2
      or (select count(*) from jsonb_array_elements(v_rows) r
-         where r ->> 'presentation_licensor_name' = 'Star Wars') <> 1
+         where r ->> 'presentation_licensor_name' = 'Lucasfilm / Star Wars - Creative (DCP Vault)') <> 1
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'presentation_licensor_name' = 'DCP Vault - authority conflict') <> 0
      or (select count(*) from jsonb_array_elements(v_rows) r
@@ -117,7 +117,7 @@ begin
      or exists (select 1 from jsonb_array_elements(v_rows) r
                where r ->> 'source_table' = 'plm.lucasfilm_dcp_property'
                  and r ->> 'source_property_id' = v_search || '/l-1'
-                 and r ->> 'presentation_licensor_name' <> 'Disney') then
+                 and r ->> 'presentation_licensor_name' <> 'Disney - Creative (DCP Vault)') then
     raise exception 'landing-table family still controls presentation licensor';
   end if;
 
