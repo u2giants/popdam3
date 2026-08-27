@@ -1080,6 +1080,58 @@ class PreflightNegativeTests(unittest.TestCase):
                     local_migrations(repo), ["20260103000000"], {"20260101000000"}
                 )
 
+    def test_applied_dynamic_ddl_creation_contradicts_the_refusal(self) -> None:
+        """#1645. An APPLIED file creates the object inside a dollar-quoted body.
+
+        The plain-text creator (20260101000000) is NOT applied, so the
+        creation-only model refused the batch. Production has held the object
+        since the applied 20260102000000 executed it as dynamic DDL, so the
+        positive evidence for that refusal is false and the check stays silent.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            repo = write_migrations(
+                Path(directory),
+                {
+                    "20260101000000_original.sql": (
+                        "create table plm.alert (id uuid primary key);"
+                    ),
+                    "20260102000000_forward.sql": (
+                        "select plm.run($ddl$create table if not exists "
+                        "plm.alert (id uuid primary key)$ddl$);"
+                    ),
+                    "20260103000000_user.sql": (
+                        "create trigger t after insert on plm.alert "
+                        "for each row execute function plm.f();"
+                    ),
+                },
+            )
+            preflight_batch(
+                local_migrations(repo), ["20260103000000"], {"20260102000000"}
+            )
+
+    def test_unapplied_dynamic_ddl_creation_does_not_rescue_a_batch(self) -> None:
+        """The rescue reads the APPLIED prefix only -- never a pending file."""
+        with tempfile.TemporaryDirectory() as directory:
+            repo = write_migrations(
+                Path(directory),
+                {
+                    "20260101000000_base.sql": "create table plm.base (id uuid);",
+                    "20260102000000_forward.sql": (
+                        "select plm.run($ddl$create table if not exists "
+                        "plm.alert (id uuid primary key)$ddl$);"
+                    ),
+                    "20260103000000_maker.sql": "create table plm.alert (id uuid);",
+                    "20260104000000_user.sql": (
+                        "create trigger t after insert on plm.alert "
+                        "for each row execute function plm.f();"
+                    ),
+                },
+            )
+            with self.assertRaises(GuardError):
+                preflight_batch(
+                    local_migrations(repo), ["20260104000000"], {"20260101000000"}
+                )
+
     def test_drop_trigger_if_exists_does_not_save_a_missing_table(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repo = write_migrations(

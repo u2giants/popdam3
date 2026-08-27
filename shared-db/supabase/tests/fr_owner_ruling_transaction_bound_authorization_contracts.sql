@@ -10,11 +10,16 @@
 -- not green. Every proof increments a counter and the counter is asserted at
 -- the end, so a block that silently never runs is red too. There is not one
 -- `raise warning` in this file, by design.
+--
+-- CI-ONLY CONTRACT TEST. Run this only in the repository's from-empty CI
+-- database. It intentionally creates a fixture with licensor code `FR`; preview
+-- already contains the real unique `FR` row, so running this file there fails
+-- at fixture setup and does not test the guard.
 
 begin;
 
--- The test needs the owner-ruling table. On preview it already exists. On the
--- from-empty CI database it does NOT: both 20260802171000 and 20260818174350
+-- The from-empty CI database does not have the owner-ruling table: both
+-- 20260802171000 and 20260818174350
 -- abort on their `select ... into strict` for the FR/FK rows, so their
 -- `create table` rolls back with them. Creating it here (inside this
 -- transaction, rolled back at the end) is test scaffolding, not a schema
@@ -39,7 +44,7 @@ create table if not exists core.taxonomy_owner_ruling (
 do $$
 declare
   v_checks integer := 0;
-  v_expected_checks constant integer := 28;
+  v_expected_checks constant integer := 31;
   v_ruled_at constant timestamptz := timestamptz '2026-08-02 12:00:00+00';
   v_ruler constant text := 'contract-test ruler';
   v_fr uuid;
@@ -360,12 +365,25 @@ begin
          'ruling', null,
          'migration', '20260802171000')),
        'must state the exact historical ruling text'),
-      -- `supersedes` is optional, but when present its value is bound.
+      -- The guarded replacement must carry the exact supersedes value.
       (jsonb_build_object('owner_ruling', jsonb_build_object(
          'ruled_by', v_ruler, 'ruled_on', '2026-08-02',
          'ruling', 'never a real licensor; created by mistake',
          'migration', '20260818174350', 'supersedes', '19990101000000')),
-       'supersedes an unexpected migration')
+       'must supersede 20260802171000'),
+      -- Historical 20260802171000 carried no supersedes key; even the otherwise
+      -- correct pointer is refused on that metadata shape.
+      (jsonb_build_object('owner_ruling', jsonb_build_object(
+         'ruled_by', v_ruler, 'ruled_on', '2026-08-02',
+         'ruling', 'never a real licensor; created by mistake',
+         'migration', '20260802171000', 'supersedes', '20260802171000')),
+       'historical ruling migration 20260802171000 must not carry supersedes'),
+      -- Replacement 20260818174350 is not admitted without its provenance link.
+      (jsonb_build_object('owner_ruling', jsonb_build_object(
+         'ruled_by', v_ruler, 'ruled_on', '2026-08-02',
+         'ruling', 'never a real licensor; created by mistake',
+         'migration', '20260818174350')),
+       'replacement ruling migration 20260818174350 must supersede 20260802171000')
     ) as t(delta, msg)
   loop
     begin
@@ -480,6 +498,30 @@ begin
            metadata = coalesce(metadata,'{}'::jsonb) || v_delta
      where id = v_fr;
     raise exception 'the guard accepted a write with a spare FR authorization outstanding';
+  exception when others then
+    if position('exactly one may be outstanding' in sqlerrm) = 0 then raise; end if;
+    v_checks := v_checks + 1;
+  end;
+  delete from plm.licensing_write_authorization
+   where write_kind = 'owner_ruling_fr_inactivation' and consumed_at is null and id <> v_auth;
+
+  -- ==================================================================
+  -- 16b. EXPIRY-BLIND LATCH: even an expired spare FR authorization
+  --      blocks the write. This is deliberate fail-closed behavior, not
+  --      an expiry filter bug. A superuser must investigate and remove the
+  --      stale committed row before retrying the bundle.
+  -- ==================================================================
+  insert into plm.licensing_write_authorization
+    (backend_pid, transaction_id, target_table, write_kind, plan_id, plan_hash, actor, protected_columns, expires_at)
+  values
+    (pg_backend_pid(), txid_current(), 'core.licensor', 'owner_ruling_fr_inactivation', gen_random_uuid(), repeat('f',64),
+     'fr-contract-test-expired-latch', array['status'], clock_timestamp() - interval '1 minute');
+  begin
+    update core.licensor
+       set status = 'inactive',
+           metadata = coalesce(metadata,'{}'::jsonb) || v_delta
+     where id = v_fr;
+    raise exception 'the guard ignored an expired spare FR authorization';
   exception when others then
     if position('exactly one may be outstanding' in sqlerrm) = 0 then raise; end if;
     v_checks := v_checks + 1;
@@ -633,6 +675,15 @@ begin
     if position('no exact transaction-bound authorization' in sqlerrm) = 0 then raise; end if;
     v_checks := v_checks + 1;
   end;
+
+  -- This forward hardening must patch the current guard, not recreate the
+  -- pre-#1339/#1429 body. Keep the two later capability boundaries explicit.
+  if position('if tg_op = ''DELETE'' then' in pg_get_functiondef('app.enforce_licensing_write_authority()'::regprocedure)) = 0 then
+    raise exception 'FR hardening erased canonical licensing DELETE protection';
+  end if;
+  if position('tg_table_name not in (''licensor'',''property'')' in pg_get_functiondef('app.enforce_licensing_write_authority()'::regprocedure)) = 0 then
+    raise exception 'FR hardening erased ColdLion Licensor/Property status capability';
+  end if;
 
   if v_checks <> v_expected_checks then
     raise exception 'FR owner-ruling contract ran % of % proofs -- a block was skipped', v_checks, v_expected_checks;

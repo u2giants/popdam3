@@ -1829,6 +1829,32 @@ def hard_references(raw: str) -> list[tuple[str, str]]:
     return found
 
 
+def _created_by_applied_dynamic_ddl(
+    obj: str, migrations: dict[str, Path], remote: set[str]
+) -> bool:
+    """True when an APPLIED migration creates `obj` inside a dollar-quoted body.
+
+    Only the remote-applied prefix is consulted, so no PENDING file can feed
+    this path. It reads a widened body, so a dollar-quoted block that is not
+    executed DDL could still contradict a refusal wrongly -- the same residual
+    the module header already owns: this check may REJECT, never APPROVE, and
+    the rehearsal against a production-shaped database stays the real gate. See
+    the call site in `preflight_batch` for why it is not a widening of
+    `available`.
+    """
+    for version in sorted(remote):
+        path = migrations.get(version)
+        if path is None:
+            continue
+        raw = path.read_text(encoding="utf-8")
+        text = strip_sql(raw, keep_regclass=False, keep_dollar=True)
+        for pattern in CREATE_RES:
+            for match in pattern.finditer(text):
+                if f"{match.group(1)}.{match.group(2)}" == obj:
+                    return True
+    return False
+
+
 def preflight_batch(
     migrations: dict[str, Path], allowlist: list[str], remote: set[str]
 ) -> None:
@@ -1902,6 +1928,29 @@ def preflight_batch(
             if not known:
                 # No local file creates it -- it predates the tracked history or
                 # is not ours. Stay silent: this check may reject, never approve.
+                continue
+            # #1645. THE EVIDENCE CAN BE CONTRADICTED BY AN APPLIED FILE.
+            #
+            # `created_objects` reads a stripped body, so an object created by
+            # an ALREADY-APPLIED migration through a dollar-quoted DDL literal
+            # (20260825082910 creates public.style_group_tags inside
+            # `pg_temp.popdam_1479_apply_final_ddl($ddl$create table ...$ddl$)`)
+            # never enters `available`. The scanner then blamed the object on
+            # the OLDEST file that creates it in plain text -- here the
+            # permanently HARD_BLOCKED 20260825010603 -- and refused a batch
+            # whose dependency production has satisfied since 2026-08-25. That
+            # is a false REJECT with no legal remedy: the named prerequisite may
+            # never be promoted.
+            #
+            # This is deliberately a RESCUE, not a widening of `available`. The
+            # strict scan still decides what is available to UNAPPLIED files, so
+            # no false ACCEPT is introduced: the widened read is consulted only
+            # against the remote-applied prefix, and only to decide whether the
+            # positive evidence for a refusal survives. When it is contradicted
+            # the check falls back to the module's standing policy for an
+            # unknown creator -- stay silent. It may still REJECT; it is still
+            # never an APPROVAL.
+            if _created_by_applied_dynamic_ddl(obj, migrations, remote):
                 continue
             problems.append(
                 f"{version} references missing {obj} ({reason}); "

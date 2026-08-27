@@ -112,3 +112,20 @@ Four apps share this database: Poppim, PopCRM, PopDAM and DesignFlow PLM.
 sync has never recorded a run, so there is no ColdLion-sourced licensor data to reconcile this
 ruling against. ColdLion also has no active/inactive marker of its own — which is the original
 reason this gap existed at all.
+
+## 8. FR bundle authorization recovery
+
+The FR write guard permits exactly one unconsumed
+`owner_ruling_fr_inactivation` authorization across the table. That check
+deliberately ignores `expires_at`. Therefore an expired authorization left by an
+abandoned or failed FR bundle blocks every later FR attempt. This is a fail-closed
+operational latch: expiry does not make an unexplained committed authorization
+safe to ignore.
+
+When the guard reports that another FR authorization is outstanding, do not
+weaken the guard or issue another authorization. A superuser must inspect the
+single stale row and its transaction/audit evidence, establish why it was left
+unconsumed, and delete only that exact authorization before retrying the complete
+bundle. The normal successful path remains unchanged: the exact guarded write
+consumes its authorization and writes immutable audit evidence in the same
+transaction.
