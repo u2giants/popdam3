@@ -90,7 +90,9 @@ corsServe(async (req) => {
 
       try {
         const embedding = await embedText(row.search_text);
-        if (!Array.isArray(embedding) || embedding.length !== 384) throw new Error(`Permanent: expected 384 embedding dimensions, received ${embedding?.length ?? 0}`);
+        if (!Array.isArray(embedding) || embedding.length !== 384) {
+          throw new Error(`Permanent: expected 384 embedding dimensions, received ${embedding?.length ?? 0}`);
+        }
         const { data: updated, error } = await db.rpc("upsert_dam_search_embedding", {
           p_document_type: row.document_type,
           p_entity_id: row.entity_id,
