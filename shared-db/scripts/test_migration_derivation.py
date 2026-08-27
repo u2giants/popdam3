@@ -306,6 +306,15 @@ class TheMandate(unittest.TestCase):
         )
         assert_declarations_present(migrations)
 
+    def test_a_future_rewrite_with_a_named_base_satisfies_the_mandate(self):
+        first, second = "20260827000000", "20260828000000"
+        body = "create or replace function plm.load_x() returns int as $$ begin return 0; end $$ language plpgsql;\n"
+        migrations = write_tree(
+            Path(self.tmp.name),
+            {first: body, second: f"-- derived-from: {first}\n" + body},
+        )
+        assert_declarations_present(migrations)
+
     def test_the_whole_repository_satisfies_the_mandate(self):
         # THIS is the machine check for ask 2. It runs over the real tree on
         # every pull request (the workflow's `python -m unittest scripts/test_*.py`
@@ -315,15 +324,13 @@ class TheMandate(unittest.TestCase):
         # migration that re-replaces an object and says nothing, it fails here.
         assert_declarations_present(local_migrations(REPO))
 
-    def test_the_mandate_cutoff_covers_all_future_work(self):
-        # One second after the newest merged migration. Lowering it would demand
-        # edits to merged files (byte bindings); raising it would silently
-        # un-gate real new migrations. Both are the failure this gate exists to
-        # prevent, arriving through the constant instead of through an allowlist.
+    def test_the_mandate_cutoff_is_pinned(self):
+        # The first instant governed by the declaration contract. Lowering it
+        # would demand edits to merged files (byte bindings); raising it would
+        # silently un-gate real new migrations. Pin the boundary itself, not the
+        # repository maximum: legitimate migrations at or after this version
+        # must be allowed when they satisfy the contract above.
         self.assertEqual(DECLARATION_MANDATE_FROM, "20260827000000")
-        # Every merged file predates it, so no merged byte has to change; the
-        # companion test above proves the tree passes the mandate as it stands.
-        self.assertTrue(all(v < DECLARATION_MANDATE_FROM for v in local_migrations(REPO)))
 
 
 class WiredIntoTheLane(unittest.TestCase):

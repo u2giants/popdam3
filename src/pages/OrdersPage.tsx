@@ -4,7 +4,11 @@ import type { AgGridReact } from "ag-grid-react";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 
-import { OrderEditorDialog, type OrderEditorMode } from "@/components/orders/OrderEditorDialog";
+import {
+  OrderEditorDialog,
+  type OrderEditorMode,
+  type OrderVoidRequest,
+} from "@/components/orders/OrderEditorDialog";
 import { MasterDataLinkDialog } from "@/components/orders/MasterDataLinkDialog";
 import { OrderListGrid } from "@/components/orders/OrderListGrid";
 import { OrderListSummary } from "@/components/orders/OrderListSummary";
@@ -116,6 +120,30 @@ export default function OrdersPage() {
       });
     },
     [refreshRows, updateOrder],
+  );
+
+  const handleEditOrder = useCallback((row: OrderListRow) => {
+    setEditor({ mode: "edit", row });
+  }, []);
+
+  /**
+   * Void or restore. There is deliberately no delete RPC, so a correction stamps
+   * `voided_at` and keeps the record; `api.dam_order_list` still returns it, and
+   * the grid renders it struck through.
+   */
+  const handleSetVoided = useCallback(
+    (request: OrderVoidRequest) => {
+      if (!editor?.row) return;
+      updateOrder.mutate(
+        {
+          p_order_id: editor.row.order_id,
+          p_order_patch: { voided: request.voided, void_reason: request.void_reason },
+          p_line_patches: [],
+        },
+        { onSuccess: () => setEditor(null) },
+      );
+    },
+    [editor, updateOrder],
   );
 
   const handleSaveView = useCallback(
@@ -241,6 +269,7 @@ export default function OrdersPage() {
             datasource={datasource}
             onCellEdited={handleCellEdited}
             onRelink={setRelinkRow}
+            onEditOrder={handleEditOrder}
           />
         </div>
       </div>
@@ -251,6 +280,7 @@ export default function OrdersPage() {
           row={editor.row}
           isSaving={createOrder.isPending || updateOrder.isPending}
           onClose={() => setEditor(null)}
+          onSetVoided={editor.mode === "edit" ? handleSetVoided : undefined}
           onSubmit={({ order, line }) => {
             if (editor.mode === "create") {
               createOrder.mutate({ p_order: order, p_lines: [line] }, { onSuccess: () => setEditor(null) });

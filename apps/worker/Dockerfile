@@ -22,6 +22,8 @@ COPY vendor/tag-asset-contract.js /supabase/functions/_shared/tag-asset-contract
 COPY vendor/tag-asset-contract.d.ts /supabase/functions/_shared/tag-asset-contract.d.ts
 COPY vendor/tagging-metadata-policy.js /supabase/functions/_shared/tagging-metadata-policy.js
 COPY vendor/tagging-metadata-policy.d.ts /supabase/functions/_shared/tagging-metadata-policy.d.ts
+COPY vendor/tag-style-group-contract.js /supabase/functions/_shared/tag-style-group-contract.js
+COPY vendor/tag-style-group-contract.d.ts /supabase/functions/_shared/tag-style-group-contract.d.ts
 RUN npm run build
 
 # Remove devDependencies

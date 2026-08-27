@@ -72,7 +72,7 @@ function humanizeError(raw: string): string {
 let cachedModels: { primary: string; fallback: string | null; providerPin: string | null } | null = null;
 let cacheExpiresAt = 0;
 
-async function getVisionModels(): Promise<{ primary: string; fallback: string | null; providerPin: string | null }> {
+export async function getVisionModels(): Promise<{ primary: string; fallback: string | null; providerPin: string | null }> {
   if (cachedModels && Date.now() < cacheExpiresAt) return cachedModels;
   const client = db();
   const { data } = await client
@@ -94,7 +94,7 @@ async function getVisionModels(): Promise<{ primary: string; fallback: string | 
 }
 
 /** Returns true if the error is specific to the model/provider (not a transient infra failure). */
-function isModelSpecificError(msg: string): boolean {
+export function isModelSpecificError(msg: string): boolean {
   return (
     msg.includes("data_inspection_failed") ||
     msg.includes("DataInspection") ||
@@ -205,9 +205,14 @@ async function buildBatchAssetRequest(
   };
 }
 
-async function applyBatchTagResult(assetId: string, tagData: Record<string, unknown>, model: string): Promise<void> {
+export async function applyBatchTagResult(
+  assetId: string,
+  tagData: Record<string, unknown>,
+  model: string,
+  injectedClient?: ReturnType<typeof db>,
+): Promise<void> {
   validateTagAssetData(tagData, "batch");
-  const client = db();
+  const client = injectedClient ?? db();
   const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku").eq("id", assetId).single();
   if (assetError || !asset) throw new Error(`Asset reload failed: ${assetError?.message ?? assetId}`);
   const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };

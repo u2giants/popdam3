@@ -18,9 +18,11 @@ import type { BatchResult, OpState } from "./types.js";
 import { hasSubmissionLeaseReceipt, isGuardedEnvelope } from "./operation-lease.js";
 import { handleBulkAiTag } from "./handlers/ai-tagging.js";
 import { handleAiTagBakeoff } from "./handlers/ai-tag-bakeoff.js";
+import { handleStyleGroupProfiles } from "./handlers/ai-style-group-profile.js";
 import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
 import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
+import { handleRefreshGroupMetadata } from "./handlers/group-metadata-refresh.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
 import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
 import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-tags.js";
@@ -48,6 +50,7 @@ const OP_LANES: Record<string, string> = {
   "ai-tag-untagged": "ai-tagging",
   "ai-tag-all": "ai-tagging",
   "ai-tag-groups": "ai-tagging",
+  "ai-tag-group-profiles": "ai-tagging",
   "ai-tag-bakeoff": "ai-tagging",
   "rebuild-style-groups": "style-groups",
   "reconcile-style-group-stats": "style-groups",
@@ -56,9 +59,11 @@ const OP_LANES: Record<string, string> = {
   "erp-enrichment": "erp",
   "erp-classify": "erp",
   "propagate-group-tags": "style-groups",
+  "refresh-group-metadata": "style-groups",
   "cleanup-mega-group-tags": "style-groups",
   "relink-orphaned-assets": "style-groups",
   "tag-popsg-files": "popsg-tags",
+  "rich-pdf-extract": "rich-pdf",
 };
 
 // Cross-lane conflicts — operations in DIFFERENT lanes that still cannot run simultaneously.
@@ -68,13 +73,16 @@ const OP_LANES: Record<string, string> = {
 //   supabase/functions/_shared/operation-constants.ts  (backend enforcement)
 //   src/components/settings/diagnostics/types.ts       (UI pre-flight check)
 const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
-  "ai-tag-untagged":      ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
-  "ai-tag-all":           ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
-  "ai-tag-groups":        ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
-  "ai-tag-bakeoff":       ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
-  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff"],
-  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff"],
-  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "erp-enrichment"],
+  "ai-tag-untagged":      ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-all":           ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-groups":        ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "refresh-group-metadata"],
+  "ai-tag-bakeoff":       ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
+  "rich-pdf-extract":     ["rebuild-style-groups"],
+  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
   "backfill-sku-names":   ["erp-enrichment"],
   "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
 };
@@ -113,6 +121,18 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         total: (prev.total as number) || (batch.total_count as number) || 0,
         failure_samples: [...prevFail, ...batchFail].slice(-200),
         skip_samples: [...prevSkip, ...batchSkip].slice(-200),
+      };
+    }
+    case "ai-tag-group-profiles": {
+      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
+      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
+      return {
+        profiled: ((prev.profiled as number) || 0) + ((batch.profiled as number) || 0),
+        skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
+        visual_analysis_unavailable: ((prev.visual_analysis_unavailable as number) || 0) + ((batch.visual_analysis_unavailable as number) || 0),
+        total: (prev.total as number) || (batch.total_count as number) || 0,
+        failure_samples: [...prevFail, ...batchFail].slice(-200),
       };
     }
     case "ai-tag-bakeoff": {
@@ -161,11 +181,20 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         total: ((prev.total as number) || 0) + ((batch.total as number) || 0),
       };
     case "propagate-group-tags":
+    case "refresh-group-metadata": {
+      // Terminology deliberately changed from "assets propagated" to "groups
+      // refreshed": nothing is copied between files any more.
+      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
+      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
       return {
-        propagated: ((prev.propagated as number) || 0) + ((batch.propagated as number) || 0),
-        skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
+        refreshed: ((prev.refreshed as number) || 0) + ((batch.refreshed as number) || 0),
+        unchanged: ((prev.unchanged as number) || 0) + ((batch.unchanged as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         total: prev.total || 0,
+        failure_samples: [...prevFail, ...batchFail].slice(-200),
+        ...(batch.deprecated ? { deprecated: true, deprecation_notice: batch.deprecation_notice } : {}),
       };
+    }
     case "cleanup-mega-group-tags":
       return {
         groups_processed: ((prev.groups_processed as number) || 0) + ((batch.groups_processed as number) || 0),
@@ -280,6 +309,8 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
     case "ai-tag-all":
     case "ai-tag-groups":
       return `Tagged ${progress.tagged}. ${progress.visual_analysis_unavailable || 0} visual analyses unavailable. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed.`;
+    case "ai-tag-group-profiles":
+      return `Profiled ${progress.profiled || 0} style groups. ${progress.visual_analysis_unavailable || 0} without usable representative images. ${progress.failed || 0} failed.`;
     case "ai-tag-bakeoff":
       return `Evaluated ${progress.evaluated || 0} model responses. ${progress.failed || 0} failed.`;
     case "rebuild-style-groups":
@@ -291,7 +322,8 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
     case "erp-classify":
       return `AI-classified ${progress.classified || 0} items (${progress.skipped_unclassifiable || 0} unclassifiable)`;
     case "propagate-group-tags":
-      return `Propagated tags across ${progress.propagated || 0} groups (${progress.skipped || 0} skipped)`;
+    case "refresh-group-metadata":
+      return `Refreshed ${progress.refreshed || 0} style groups (${progress.unchanged || 0} already current, ${progress.failed || 0} failed)`;
     case "cleanup-mega-group-tags":
       return `Cleaned ${progress.groups_processed || 0} mega-groups: ${progress.tags_deleted || 0} tags deleted, ${progress.characters_deleted || 0} characters removed, ${progress.metadata_cleared || 0} assets metadata cleared`;
     case "relink-orphaned-assets":
@@ -336,12 +368,16 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
       return handleBulkAiTag(opState, true);
     case "ai-tag-bakeoff":
       return handleAiTagBakeoff(opState);
+    case "ai-tag-group-profiles":
+      return handleStyleGroupProfiles(opState);
     case "rebuild-style-groups":
       return handleRebuildStyleGroups(opState);
     case "reconcile-style-group-stats":
       return handleReconcileStyleGroupStats(opState);
     case "propagate-group-tags":
       return handlePropagateGroupTags(opState);
+    case "refresh-group-metadata":
+      return handleRefreshGroupMetadata(opState);
     case "cleanup-mega-group-tags":
       return handleCleanupMegaGroupTags(opState);
     case "relink-orphaned-assets":

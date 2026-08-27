@@ -30,6 +30,15 @@ export const TAG_SOURCE_PRIORITY = Object.freeze({
   legacy_unscoped: 50,
 });
 
+/**
+ * Provenance of a group fact derived deterministically from the Style Group's own
+ * columns. Both the worker and the edge refresh path must agree on these: the
+ * group RPC's DELETE is scoped by source AND model, so a drift between the two
+ * would leave rows written under the old value permanently un-superseded.
+ */
+export const AUTHORITATIVE_TAG_SOURCE = "authoritative";
+export const AUTHORITATIVE_TAG_MODEL = "derived";
+
 export const GROUP_AI_AUTO_PROMOTION_CONFIDENCE = 0.85;
 export const GROUP_AI_AUTO_PROMOTION_MIN_EVIDENCE = 2;
 
@@ -63,4 +72,20 @@ export function deriveAuthoritativeGroupTags(group) {
     seen.add(tag);
     return [{ tag, category, source: "authoritative", status: "active", confidence: 1, evidence: { field: category } }];
   });
+}
+
+/**
+ * True when a group's stored authoritative rows already match what its own
+ * columns imply, so a refresh can skip the write. Only `active` rows count as
+ * current: a rejected tombstone is not a fact.
+ */
+export function authoritativeTagsAreCurrent(desired, stored) {
+  const key = (tag, category) => `${normalizeMetadataTag(tag)}|${String(category)}`;
+  const desiredKeys = new Set((desired ?? []).map((row) => key(row.tag, row.category)));
+  const storedKeys = new Set(
+    (stored ?? []).filter((row) => row?.status === "active").map((row) => key(row.tag, row.category)),
+  );
+  if (desiredKeys.size !== storedKeys.size) return false;
+  for (const value of desiredKeys) if (!storedKeys.has(value)) return false;
+  return true;
 }

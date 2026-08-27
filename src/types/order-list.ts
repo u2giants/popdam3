@@ -126,6 +126,13 @@ export type OrderHeaderPatch = Partial<{
   container_booking_group: string | null;
   mbl: string | null;
   close_tracking: boolean | null;
+  /**
+   * Corrections void instead of deleting: there is deliberately no delete RPC, so
+   * business history survives. `true` stamps `voided_at`/`voided_by`, `false`
+   * clears them again.
+   */
+  voided: boolean;
+  void_reason: string | null;
 }>;
 
 /** Fields on an order line that `public.update_dam_order` accepts as a patch. */

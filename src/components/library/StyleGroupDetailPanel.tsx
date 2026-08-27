@@ -716,16 +716,20 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
     updateAsset.mutate({ tags: detailAsset.tags.filter((t) => t !== tag) });
   };
 
-  const handleSyncGroupTags = async () => {
+  // Refreshes the group's own shared facts and its search entry. It deliberately
+  // does NOT copy tags between files any more — that is what made a technical
+  // drawing inherit a photograph's view and colours.
+  const handleRefreshGroupMetadata = async () => {
     setSyncingTags(true);
     try {
-      const result = await adminApi("sync-group-tags", { group_id: group.id });
+      await adminApi("refresh-group-metadata", { group_id: group.id });
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-      toast("Tags synced across group", {
-        description: `${result.siblings_updated} assets updated, ${result.tags_propagated} tags propagated`,
+      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+      toast("Group metadata refreshed", {
+        description: "Shared product facts and search were updated. Individual file tags were not changed.",
       });
     } catch (e: any) {
-      toast.error("Sync failed", { description: e.message });
+      toast.error("Refresh failed", { description: e.message });
     } finally {
       setSyncingTags(false);
     }
@@ -1191,18 +1195,17 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                       />
                       <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
                     </form>
-                    {(groupAssets?.length ?? 0) > 1 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs w-full mt-2"
-                        onClick={handleSyncGroupTags}
-                        disabled={syncingTags}
-                      >
-                        {syncingTags ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Tag className="h-3 w-3 mr-1" />}
-                        Sync Tags to All Group Members
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs w-full mt-2"
+                      onClick={handleRefreshGroupMetadata}
+                      disabled={syncingTags}
+                      title="Updates this group's shared product facts and search entry. Individual file tags are left alone."
+                    >
+                      {syncingTags ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Tag className="h-3 w-3 mr-1" />}
+                      Refresh Group Metadata
+                    </Button>
                   </div>
                 )}
 

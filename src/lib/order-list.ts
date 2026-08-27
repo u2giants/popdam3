@@ -325,7 +325,8 @@ export type OrderListEdit = {
  * as an error rather than a save that quietly does nothing.
  */
 export function buildOrderListEdit(row: OrderListRow, field: string, value: unknown): OrderListEdit {
-  const patchValue = coerceFieldValue(field, value);
+  // Strict on purpose: a value we cannot parse must be refused, never written as null.
+  const patchValue = coerceFieldValueStrict(field, value);
   if (isOrderHeaderField(field)) {
     return {
       orderId: row.order_id,
@@ -376,6 +377,51 @@ export function coerceFieldValue(field: string, value: unknown) {
   if (NUMBER_FIELDS.has(field)) return parseOrderNumber(value);
   if (BOOLEAN_FIELDS.has(field)) return parseOrderBoolean(value);
   return parseOrderText(value);
+}
+
+/** The column header a user actually sees, for error messages. Falls back to the field name. */
+export function columnHeaderFor(field: string): string {
+  return ORDER_LIST_COLUMNS.find((column) => column.field === field)?.header ?? field;
+}
+
+/**
+ * Same as `coerceFieldValue`, but REFUSES input it cannot understand instead of
+ * turning it into `null`.
+ *
+ * The lenient parsers return `null` both for "the user cleared this field" and
+ * for "this text is not a date/number/yes-no". Writing that `null` through means
+ * typing `not-a-date` over a real date ERASES it and reports "Order saved" --
+ * silent data loss with a success message (observed in production 2026-08-26).
+ * Clearing a field to empty is still legitimate and still writes `null`; only
+ * non-empty unparseable input throws, and the caller turns that into a toast.
+ */
+export function coerceFieldValueStrict(field: string, value: unknown) {
+  const text = parseOrderText(value);
+  // Empty means "clear this field", which is a real and allowed edit.
+  if (text === null) return coerceFieldValue(field, value);
+
+  if (DATE_FIELDS.has(field)) {
+    const parsed = parseOrderDate(value);
+    if (parsed === null) {
+      throw new Error(`"${text}" is not a date. ${columnHeaderFor(field)} needs YYYY-MM-DD, or an empty cell to clear it.`);
+    }
+    return parsed;
+  }
+  if (NUMBER_FIELDS.has(field)) {
+    const parsed = parseOrderNumber(value);
+    if (parsed === null) {
+      throw new Error(`"${text}" is not a number. ${columnHeaderFor(field)} needs a number, or an empty cell to clear it.`);
+    }
+    return parsed;
+  }
+  if (BOOLEAN_FIELDS.has(field)) {
+    const parsed = parseOrderBoolean(value);
+    if (parsed === null) {
+      throw new Error(`"${text}" is not a yes or no. ${columnHeaderFor(field)} needs yes or no, or an empty cell to clear it.`);
+    }
+    return parsed;
+  }
+  return text;
 }
 
 /**

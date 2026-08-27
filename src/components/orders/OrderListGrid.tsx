@@ -5,6 +5,7 @@ import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import { AgGridReact, type CustomCellRendererProps } from "ag-grid-react";
 
 import { MasterDataLinkCell } from "@/components/orders/MasterDataLinkCell";
+import { OrderActionsCell } from "@/components/orders/OrderActionsCell";
 import { useAppearance } from "@/hooks/useAppearance";
 import {
   ORDER_LIST_COLUMNS,
@@ -103,18 +104,36 @@ export type OrderListGridProps = {
   datasource: IDatasource;
   onCellEdited: (event: CellValueChangedEvent<OrderListRow>) => void;
   onRelink: (row: OrderListRow) => void;
+  onEditOrder: (row: OrderListRow) => void;
   onDisplayedRowsChanged?: (count: number) => void;
 };
 
 export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGridProps>(function OrderListGrid(
-  { datasource, onCellEdited, onRelink, onDisplayedRowsChanged },
+  { datasource, onCellEdited, onRelink, onEditOrder, onDisplayedRowsChanged },
   ref,
 ) {
   const { theme } = useAppearance();
 
   const columnDefs = useMemo<ColDef<OrderListRow>[]>(
-    () =>
-      ORDER_LIST_COLUMNS.map((column) => {
+    () => [
+      // Not a view column: the only way to open an existing order in the editor,
+      // which is also where an order is voided or restored.
+      {
+        colId: "row_actions",
+        headerName: "",
+        width: 76,
+        minWidth: 76,
+        pinned: "left",
+        editable: false,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        suppressHeaderMenuButton: true,
+        cellRenderer: (params: CustomCellRendererProps<OrderListRow>) => (
+          <OrderActionsCell row={params.data ?? undefined} onEditOrder={onEditOrder} />
+        ),
+      },
+      ...ORDER_LIST_COLUMNS.map((column) => {
         const base: ColDef<OrderListRow> = {
           colId: column.field,
           field: column.field as ColDef<OrderListRow>["field"],
@@ -152,7 +171,8 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
 
         return base;
       }),
-    [onRelink],
+    ],
+    [onEditOrder, onRelink],
   );
 
   return (
@@ -169,7 +189,12 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       maxBlocksInCache={20}
       infiniteInitialRowCount={ORDER_LIST_FETCH_BATCH_SIZE}
       getRowId={(params) => params.data.order_line_id}
-      getRowStyle={(params) => (params.data && needsReview(params.data) ? { backgroundColor: "#fef3c7", color: "#713f12" } : undefined)}
+      // A voided order is still returned by the view, so it has to LOOK voided --
+      // otherwise a cancelled order reads as a live one.
+      getRowStyle={(params) => {
+        if (params.data?.order_voided_at) return { opacity: 0.55, textDecoration: "line-through" };
+        return params.data && needsReview(params.data) ? { backgroundColor: "#fef3c7", color: "#713f12" } : undefined;
+      }}
       onCellValueChanged={onCellEdited}
       onModelUpdated={(event) => onDisplayedRowsChanged?.(event.api.getDisplayedRowCount())}
       suppressDragLeaveHidesColumns

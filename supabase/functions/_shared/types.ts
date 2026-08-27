@@ -44,6 +44,8 @@ export type BulkOperationKey =
   | "ai-tag-untagged"
   | "ai-tag-all"
   | "ai-tag-groups"
+  | "ai-tag-group-profiles"
+  | "refresh-group-metadata"
   | "reconcile-style-group-stats"
   | "erp-enrichment"
   | "erp-classify"

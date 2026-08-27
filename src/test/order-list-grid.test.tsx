@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { OrderListGrid } from "@/components/orders/OrderListGrid";
@@ -27,12 +27,20 @@ function row(overrides: Partial<OrderListRow>): OrderListRow {
   } as unknown as OrderListRow;
 }
 
-function renderGrid(rows: OrderListRow[]) {
+function renderGrid(rows: OrderListRow[], onEditOrder = vi.fn()) {
   // Stands in for the database: the grid asks for a bounded block of rows.
   const datasource = {
     getRows: (params: any) => params.successCallback(rows, rows.length),
   };
-  return render(<OrderListGrid datasource={datasource} onCellEdited={vi.fn()} onRelink={vi.fn()} />);
+  const utils = render(
+    <OrderListGrid
+      datasource={datasource}
+      onCellEdited={vi.fn()}
+      onRelink={vi.fn()}
+      onEditOrder={onEditOrder}
+    />,
+  );
+  return { ...utils, onEditOrder };
 }
 
 describe("OrderList grid", () => {
@@ -64,5 +72,29 @@ describe("OrderList grid", () => {
     for (const header of ["Import PO #", "Vendor", "Customer", "Style #", "Master Data Link", "Quantity"]) {
       expect(screen.getAllByText(header).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("OrderList grid: opening an existing order", () => {
+  it("gives every row a way into the order editor", async () => {
+    const onEditOrder = vi.fn();
+    renderGrid([row({})], onEditOrder);
+
+    const edit = await screen.findByRole("button", { name: /edit order PO-1/i });
+    fireEvent.click(edit);
+
+    expect(onEditOrder).toHaveBeenCalledTimes(1);
+    expect(onEditOrder.mock.calls[0][0].order_id).toBe("order-1");
+  });
+
+  it("marks a voided order instead of showing it as a live one", async () => {
+    // `api.dam_order_list` does not filter voided rows out, so the grid must.
+    const { container } = renderGrid([
+      row({ order_voided_at: "2026-08-26T00:00:00Z", order_void_reason: "created in error" } as Partial<OrderListRow>),
+    ]);
+
+    await waitFor(() => expect(screen.getByText("PO-1")).toBeTruthy());
+    const struck = container.querySelector('.ag-row[style*="line-through"]');
+    expect(struck).toBeTruthy();
   });
 });
