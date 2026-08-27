@@ -218,6 +218,12 @@ class ParsedDescription:
     dictionary_status: str
     family_id: str
     matched_product_wording: str
+    form: str
+    taxonomy_subtype: str
+    material: str
+    embellishment: str
+    embellishment_state: str
+    default_rule_applied: str
 
 
 def parse_description(description: str, licensors, properties, dictionary: dict[str, dict] | None = None) -> ParsedDescription:
@@ -230,6 +236,12 @@ def parse_description(description: str, licensors, properties, dictionary: dict[
         status = semantic.status
         family_id = ""
         matched_wording = semantic.matched_wording
+        form = semantic.form
+        subtype = semantic.subtype
+        material = semantic.material
+        embellishment = semantic.embellishment
+        embellishment_state = semantic.embellishment_state
+        default_rule = semantic.default_rule_applied
     else:
         record = dictionary.get(normalize(candidate_wording(description)), {})
         product_type = record.get("canonical_physical_product", "")
@@ -239,6 +251,12 @@ def parse_description(description: str, licensors, properties, dictionary: dict[
         family_id = record.get("family_id", "")
         matched_wording = record.get("matched_product_wording", "")
         basis = "Exact reviewed dictionary wording" if status in {"accepted", "alias"} else record.get("semantic_decision", "Dictionary review required")
+        form = record.get("form", "")
+        subtype = record.get("taxonomy_subtype", "")
+        material = record.get("material", "")
+        embellishment = record.get("embellishment", treatment)
+        embellishment_state = record.get("embellishment_state", "unreadable")
+        default_rule = record.get("default_rule_applied", "")
     size, _ = extract_size(description)
     licensor = find_name(description, licensors)
     prop = find_name(description, properties)
@@ -248,7 +266,11 @@ def parse_description(description: str, licensors, properties, dictionary: dict[
     artwork = DIMENSION.sub(" ", artwork)
     artwork = re.sub(r"[_|]+", " ", artwork)
     artwork = " ".join(artwork.split()).strip(" -_,;:/")
-    return ParsedDescription(product_type, construction, treatment, size, licensor, prop, artwork, basis, status, family_id, matched_wording)
+    return ParsedDescription(
+        product_type, construction, treatment, size, licensor, prop, artwork, basis,
+        status, family_id, matched_wording, form, subtype, material, embellishment,
+        embellishment_state, default_rule,
+    )
 
 
 def product_key(value: str) -> str:
@@ -304,24 +326,71 @@ def mg01_product_family(product: str) -> str:
 
 def semantic_key(row: pd.Series, depth: int) -> str:
     product = row.get("Product Type", "")
+    form = row.get("Form", "") or mg01_product_family(product)
+    subtype = row.get("Taxonomy Subtype", "") or row.get("Construction Shape", "")
+    embellishment = row.get("Embellishment", "") or row.get("Treatment", "")
     if depth == 1:
-        values = [mg01_product_family(product)]
+        values = [form]
     elif depth == 2:
-        values = [product, row.get("Construction Shape", "")]
+        values = [form, subtype]
     else:
-        values = [product, row.get("Construction Shape", ""), row.get("Treatment", "")]
+        values = [form, subtype, embellishment]
     return "|".join(normalize(value) for value in values)
 
 
-def build_associations(post: pd.DataFrame) -> tuple[dict[int, list[dict]], dict[int, dict[str, Counter]]]:
+@dataclass(frozen=True)
+class TaxonomyValidity:
+    mg01: frozenset[str]
+    pairs: frozenset[tuple[str, str]]
+    full: frozenset[tuple[str, str, str]]
+
+
+def short_code(value: object) -> str:
+    text = str(value or "").strip().upper()
+    return text[:1]
+
+
+def load_taxonomy_validity(workbook: Path) -> TaxonomyValidity:
+    rows = pd.read_excel(workbook, sheet_name="Final Version", header=2, dtype=str).fillna("")
+    mg01 = frozenset(short_code(value) for value in rows["MG01 code"] if short_code(value))
+    pairs = frozenset(
+        (short_code(row["MG01 code"]), short_code(row["MG02 code"]))
+        for _, row in rows.iterrows()
+        if short_code(row["MG01 code"]) and short_code(row["MG02 code"])
+    )
+    full = frozenset(
+        (short_code(row["MG01 code"]), short_code(row["MG02 code"]), short_code(row["MG03 code"]))
+        for _, row in rows.iterrows()
+        if short_code(row["MG01 code"]) and short_code(row["MG02 code"]) and short_code(row["MG03 code"])
+    )
+    return TaxonomyValidity(mg01, pairs, full)
+
+
+def code_validity(row: pd.Series, validity: TaxonomyValidity) -> tuple[bool, bool, bool]:
+    one = short_code(row.get("MG01", ""))
+    two = short_code(row.get("MG02", ""))
+    three = short_code(row.get("MG03", ""))
+    return one in validity.mg01, (one, two) in validity.pairs, (one, two, three) in validity.full
+
+
+def build_associations(post: pd.DataFrame, validity: TaxonomyValidity | None = None) -> tuple[dict[int, list[dict]], dict[int, dict[str, Counter]]]:
     groups: dict[int, list[dict]] = {}
     reverse: dict[int, dict[str, Counter]] = {}
     for depth in (1, 2, 3):
+        validity_mask = pd.Series(True, index=post.index)
+        if validity is not None:
+            validity_column = {1: "Valid MG01", 2: "Valid MG01+MG02", 3: "Valid MG01+MG02+MG03"}[depth]
+            validity_mask = post[validity_column].eq("Yes")
+        state_mask = pd.Series(True, index=post.index)
+        if depth == 3 and "Embellishment State" in post.columns:
+            state_mask = post["Embellishment State"].isin(["stated", "none"])
         usable = (
             post[[f"MG0{i}" for i in range(1, depth + 1)]].ne("").all(axis=1)
             & post["Dictionary Status"].isin(["accepted", "alias"])
             & post["Description Usable for Product Matching"].eq("Yes")
             & post["Product Type"].ne("")
+            & validity_mask
+            & state_mask
         )
         source = post[usable].copy()
         if source.empty:
@@ -366,26 +435,38 @@ def choose_at_level(signature_key: str, depth: int, associations: dict[str, Coun
     }
 
 
-def classify_product_type(product_type: str, reverse: dict[int, dict[str, Counter]], construction: str = "", treatment: str = "") -> dict:
+def classify_axes(form: str, subtype: str, embellishment: str, embellishment_state: str, reverse: dict[int, dict[str, Counter]], validity: TaxonomyValidity | None = None) -> dict:
     for depth in (3, 2, 1):
         if depth == 3:
-            values = [product_type, construction, treatment]
+            if embellishment_state not in {"stated", "none"} or not embellishment:
+                continue
+            values = [form, subtype, embellishment]
         elif depth == 2:
-            values = [product_type, construction]
+            values = [form, subtype]
         else:
-            values = [mg01_product_family(product_type)]
+            values = [form]
         if not values[0]:
             continue
         decision = choose_at_level("|".join(normalize(value) for value in values), depth, reverse[depth])
         if decision:
+            if depth < 3 and embellishment_state == "none":
+                decision["mg03_reason"] = "definition_exists_but_no_observed_support"
             return decision
         if depth == 1 and values[0] in MG01_FAMILY_CODES:
             return {
                 "depth": 1, "key": MG01_FAMILY_CODES[values[0]], "support": 0, "total": 0,
                 "share": 1, "basis": "Exact physical format in the approved MG01 taxonomy",
                 "distribution": f"{values[0]}: {MG01_FAMILY_CODES[values[0]]}",
+                "mg03_reason": "definition_exists_but_no_observed_support" if embellishment_state == "none" else "",
             }
-    return {"depth": 0, "key": "", "support": 0, "total": 0, "share": 0, "basis": "No reliable post-change product-type association", "distribution": ""}
+    return {"depth": 0, "key": "", "support": 0, "total": 0, "share": 0, "basis": "No reliable post-change three-axis association", "distribution": "", "mg03_reason": ""}
+
+
+def classify_product_type(product_type: str, reverse: dict[int, dict[str, Counter]], construction: str = "", treatment: str = "") -> dict:
+    """Compatibility wrapper for focused tests and external callers."""
+    form = mg01_product_family(product_type)
+    state = "stated" if treatment else "unreadable"
+    return classify_axes(form, construction, treatment, state, reverse)
 
 
 def usable_description(value: str) -> bool:
@@ -396,7 +477,9 @@ def load_product_dictionary(path: Path) -> dict[str, dict]:
     rows = pd.read_csv(path, dtype=str).fillna("")
     required = {
         "observed_normalized_wording", "canonical_physical_product", "construction_shape",
-        "treatment", "status", "family_id", "matched_product_wording", "semantic_decision",
+        "treatment", "form", "taxonomy_subtype", "material", "embellishment",
+        "embellishment_state", "default_rule_applied", "status", "family_id",
+        "matched_product_wording", "semantic_decision",
     }
     missing = required - set(rows.columns)
     if missing:
@@ -421,16 +504,32 @@ def run(source: Path, output: Path, reference: Path | None, dictionary_path: Pat
     pre = data[data["Created Date"].lt(CUTOFF)].copy()
     if len(post) + len(pre) != len(data):
         raise AssertionError("The date split did not account for every source row")
-    groups, reverse = build_associations(post)
-    signatures = list(zip(pre["Product Type"], pre["Construction Shape"], pre["Treatment"], pre["Dictionary Status"]))
+    validity = load_taxonomy_validity(source.with_name("MerchGroup_Rework.xlsx"))
+    flags = [code_validity(row, validity) for _, row in post.iterrows()]
+    for index, name in enumerate(("Valid MG01", "Valid MG01+MG02", "Valid MG01+MG02+MG03")):
+        post[name] = ["Yes" if value[index] else "No" for value in flags]
+    post["Code Validity Reason"] = [
+        "valid_full" if full else "invalid_mg03_for_pair" if pair else "invalid_pair" if one else "invalid_mg01"
+        for one, pair, full in flags
+    ]
+    validity_columns_all = ["Valid MG01", "Valid MG01+MG02", "Valid MG01+MG02+MG03", "Code Validity Reason"]
+    for column in validity_columns_all:
+        data[column] = ""
+        data.loc[post.index, column] = post[column]
+    groups, reverse = build_associations(post, validity)
+    signatures = list(zip(
+        pre["Form"], pre["Taxonomy Subtype"], pre["Embellishment"],
+        pre["Embellishment State"], pre["Dictionary Status"],
+    ))
     decision_by_signature = {}
-    for product, construction, treatment, status in set(signatures):
-        if status in {"accepted", "alias"} and product:
-            decision_by_signature[(product, construction, treatment, status)] = classify_product_type(product, reverse, construction, treatment)
+    for form, subtype, embellishment, embellishment_state, status in set(signatures):
+        signature = (form, subtype, embellishment, embellishment_state, status)
+        if status in {"accepted", "alias"} and form:
+            decision_by_signature[signature] = classify_axes(form, subtype, embellishment, embellishment_state, reverse, validity)
         else:
-            decision_by_signature[(product, construction, treatment, status)] = {
+            decision_by_signature[signature] = {
                 "depth": 0, "key": "", "support": 0, "total": 0, "share": 0,
-                "basis": "No accepted physical-product dictionary entry", "distribution": "",
+                "basis": "No accepted three-axis dictionary entry", "distribution": "", "mg03_reason": "",
             }
     decisions = [decision_by_signature[value] for value in signatures]
     proposed = [decision["key"].split("|") if decision["key"] else [] for decision in decisions]
@@ -442,6 +541,7 @@ def run(source: Path, output: Path, reference: Path | None, dictionary_path: Pat
     pre["Evidence Support"] = [decision["support"] for decision in decisions]
     pre["Evidence Total"] = [decision["total"] for decision in decisions]
     pre["Evidence Share"] = [decision["share"] for decision in decisions]
+    pre["MG03 Unresolved Reason"] = [decision.get("mg03_reason", "") for decision in decisions]
     pre["Artwork Used for MG Decision"] = "No"
     def outcome(row: pd.Series) -> str:
         if row["Matched Level"] == 3:
@@ -457,6 +557,26 @@ def run(source: Path, output: Path, reference: Path | None, dictionary_path: Pat
     output.mkdir(parents=True, exist_ok=True)
     data.drop(columns=["Created Date"]).to_csv(output / "all_item_description_chunks.csv", index=False, encoding="utf-8-sig")
     pre.drop(columns=["Created Date"]).to_csv(output / "historical_hierarchical_mg_matches.csv", index=False, encoding="utf-8-sig")
+    invalid = post[post["Valid MG01+MG02+MG03"].eq("No")].copy()
+    invalid["Retained Teaching Depths"] = invalid.apply(
+        lambda row: "MG01+MG02; MG01" if row["Valid MG01+MG02"] == "Yes" else "MG01" if row["Valid MG01"] == "Yes" else "None",
+        axis=1,
+    )
+    validity_columns = [
+        "Company", "Division", "Item #", "Item Desc", "CreatedTime", "MG01", "MG02", "MG03",
+        "Valid MG01", "Valid MG01+MG02", "Valid MG01+MG02+MG03", "Code Validity Reason", "Retained Teaching Depths",
+    ]
+    invalid[[column for column in validity_columns if column in invalid.columns]].to_csv(
+        output / "post_change_code_validity_report.csv", index=False, encoding="utf-8-sig"
+    )
+    migration_columns = [
+        "Item #", "Item Desc", "CreatedTime", "Product Type", "Construction Shape", "Treatment",
+        "Form", "Taxonomy Subtype", "Material", "Embellishment", "Embellishment State", "Default Rule Applied",
+        "Dictionary Status",
+    ]
+    data[[column for column in migration_columns if column in data.columns]].to_csv(
+        output / "axis_migration_report.csv", index=False, encoding="utf-8-sig"
+    )
     for depth, label in ((1, "mg01"), (2, "mg01_mg02"), (3, "mg01_mg02_mg03")):
         (output / f"post_change_{label}_product_types.json").write_text(json.dumps(groups[depth], indent=2, ensure_ascii=False), encoding="utf-8")
     counts = Counter(decision["depth"] for decision in decisions)
@@ -474,6 +594,10 @@ def run(source: Path, output: Path, reference: Path | None, dictionary_path: Pat
             & no_mg01["Dictionary Status"].isin(["accepted", "alias"])
         ).sum()),
         "historical_no_usable_accepted_product_type": int(pre["Outcome Bucket"].eq("No usable accepted product type").sum()),
+        "post_change_invalid_full_code_rows": int(post["Valid MG01+MG02+MG03"].eq("No").sum()),
+        "post_change_invalid_full_valid_pair_rows": int((post["Valid MG01+MG02+MG03"].eq("No") & post["Valid MG01+MG02"].eq("Yes")).sum()),
+        "embellishment_state_counts_all_rows": data["Embellishment State"].value_counts().to_dict(),
+        "default_rule_counts_all_rows": data["Default Rule Applied"].replace("", "none").value_counts().to_dict(),
     }
     (output / "hierarchical_match_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary

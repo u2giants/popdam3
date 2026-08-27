@@ -1,6 +1,6 @@
 # Historical item product taxonomy and MG review
 
-> **Permanent process:** Read [`../../item-description-mg-classification-process.md`](../../item-description-mg-classification-process.md) before running or changing this analysis. The approved method parses all descriptions into five fields, builds three independent post-change product-type maps, and matches historical types in the order MG01+MG02+MG03, MG01+MG02, then MG01.
+> **Permanent process:** Read [`../../item-description-mg-classification-process.md`](../../item-description-mg-classification-process.md) before running or changing this analysis. The approved method separates physical form, family-specific subtype/material, and embellishment; validates evidence independently at every depth; then matches from three axes to two to one.
 
 The earlier exact-signature workflow described below is retained as investigation history. It is not the approved classification method because it did not build or try an independent MG01 map.
 
@@ -9,14 +9,14 @@ The earlier exact-signature workflow described below is retained as investigatio
 The permanent implementation is now:
 
 1. Build one exact dictionary row for every distinct observed Item Description wording.
-2. Split accepted descriptions into physical product, construction or shape, treatment, size, licensor, property, and artwork wording.
+2. Split accepted descriptions into physical form, family-specific subtype/material, explicit embellishment state, size, licensor, property, and artwork wording.
 3. Mark descriptions that do not state a physical product as `needs_review` or `placeholder`. They never teach or receive an MG value.
-4. Build the MG01, MG01+MG02, and MG01+MG02+MG03 association maps independently, using only items created May 14, 2025 or later and only accepted dictionary entries.
+4. Build the MG01, MG01+MG02, and MG01+MG02+MG03 association maps independently, using only accepted later rows whose code is valid at that exact depth.
 5. Match each historical accepted product at the deepest supported level. Try MG01+MG02+MG03, then MG01+MG02, then the approved broad MG01 physical format.
 6. Never use historical MG values, licensor, property, character, artwork, slogan, color, or size to choose a proposed MG value.
 7. Require at least two later items, a minimum winning share, and a clear lead over the second choice before proposing MG02 or MG03. Leave unsupported lower levels blank.
 
-The August 17, 2026 final run accounts for all 19,302 source rows: 3,658 later items and 15,644 historical items. Historical results are 2,294 full three-level matches, 7,496 two-level matches, and 2,600 MG01-only matches. There are zero accepted historical product types that fail to receive MG01. A separate 3,254 rows are held back because the description does not contain an accepted physical product type; these are not guessed and are listed individually in the workbook.
+The August 27, 2026 final run accounts for all 19,302 source rows: 3,658 later items and 15,644 historical items. Historical results are 1,781 full three-axis matches, 8,102 two-axis matches, 2,502 MG01-only matches, and 3,259 held back. Of the held-back rows, 3,254 lack a usable accepted product and five have readable accepted products without reliable MG01 evidence. The lower full-match count is intentional: missing embellishment and invalid newer MG03 codes no longer manufacture depth-three evidence.
 
 The final workbook is `outputs/issue-1113-taxonomy/item_mg_taxonomy_final.xlsx`. Its sheets are Summary, the three independent combination lists, all Historical Recommendations, the complete Dictionary Ledger, Residual Review, and Precision Review.
 

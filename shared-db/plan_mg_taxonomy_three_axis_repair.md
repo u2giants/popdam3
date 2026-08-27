@@ -4,15 +4,15 @@
 
 | Step | Status | Date | Evidence / starting point |
 |---|---|---|---|
-| 0. Freeze the baseline and reproduce the current shortfall | ⬜ not started | | Reproduce the 2026-08-17 run: 2,294 three-level, 7,496 two-level, 2,600 MG01-only, and the 10,096-item depth-3 shortfall in Section 3. |
-| 1. Add the merchandise-group code-validity layer | ⬜ not started | | 13.2% of post-change teaching rows carry an MG03 undefined for their MG01+MG02 (Finding F5). |
-| 2. Rebuild the parser on three independent axes | ⬜ not started | | Form / material / embellishment, replacing the blended product-type string (Findings F1-F4). |
-| 3. Give embellishment an explicit `none` state with an evidence-gated route to MG03 `0` | ⬜ not started | | MG03 `0` exists and is used by 581 post-change items, but token absence alone cannot assign it (Finding F4 and resolved Q4). |
-| 4. Re-key the association maps and matcher onto the axes | ⬜ not started | | MG01 from form, MG02 from form+material, MG03 from form+material+embellishment. |
-| 5. Add axis-separation, contamination, validity, and no-evidence guards | ⬜ not started | | Extends the existing 14 tests; none currently detect the axis collision, invalid depth-three evidence, or unsafe blank-to-`0` mapping. |
-| 6. Rerun, re-measure, regenerate the workbook, update documentation | ⬜ not started | | Report the new match distribution against the Section 3 baseline. |
+| 0. Freeze the baseline and reproduce the current shortfall | ✅ complete | 2026-08-27 | Reproduced 2,294 three-level, 7,496 two-level, 2,600 MG01-only, and 3,254 held back. |
+| 1. Add the merchandise-group code-validity layer | ✅ complete | 2026-08-27 | Independent validity gates exclude 504 invalid full-code rows while retaining 363 valid pairs. |
+| 2. Rebuild the parser on three independent axes | ✅ complete | 2026-08-27 | Parser now emits form, family-specific subtype/material, embellishment, and provenance. |
+| 3. Give embellishment an explicit `none` state with an evidence-gated route to MG03 `0` | ✅ complete | 2026-08-27 | `stated`, `none`, and `unreadable` are distinct; no-evidence `none` falls back with an explicit reason. |
+| 4. Re-key the association maps and matcher onto the axes | ✅ complete | 2026-08-27 | All three maps use depth-scoped axis keys and deepest-first fallback. |
+| 5. Add axis-separation, contamination, validity, and no-evidence guards | ✅ complete | 2026-08-27 | 37 tests pass, including all 23 new safeguards. |
+| 6. Rerun, re-measure, regenerate the workbook, update documentation | ✅ complete | 2026-08-27 | 1,781 full, 8,102 pair, 2,502 MG01-only, 3,259 held back; final eight-sheet workbook regenerated. |
 
-**Current state:** Revised after resolving Q2-Q4 from committed workbook, Item Master, and live-taxonomy snapshot evidence. Nothing implemented. The 2026-08-17 method described in `plan_item_description_mg_taxonomy_repair.md` remains the live method until this plan lands.
+**Current state:** Complete. The three-axis method supersedes the 2026-08-17 blended-signature matcher. MG02 is deliberately family-specific: it is material for some families and subtype or placement for others, as defined by the workbook.
 
 ---
 

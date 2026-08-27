@@ -62,7 +62,7 @@ def build(source: Path, output: Path) -> dict:
         if errors:
             raise ValueError(f"Invalid dictionary signature for {wording!r}: {errors}")
         later_evidence = evidence_by_wording.get(wording, {1: Counter(), 2: Counter(), 3: Counter()})
-        family_material = f"{signature.physical_product}|{signature.construction_shape}|{signature.treatment}"
+        family_material = f"{signature.form}|{signature.subtype}|{signature.embellishment}|{signature.physical_product}"
         family_id = "PT-" + hashlib.sha1(normalize(family_material).encode("utf-8")).hexdigest()[:10].upper() if signature.physical_product else ""
         display = part["Observed Wording"].value_counts().index[0] if len(part) else ""
         status = signature.status
@@ -76,6 +76,12 @@ def build(source: Path, output: Path) -> dict:
             "canonical_physical_product": signature.physical_product,
             "construction_shape": signature.construction_shape,
             "treatment": signature.treatment,
+            "form": signature.form,
+            "taxonomy_subtype": signature.subtype,
+            "material": signature.material,
+            "embellishment": signature.embellishment,
+            "embellishment_state": signature.embellishment_state,
+            "default_rule_applied": signature.default_rule_applied,
             "status": status,
             "alias_target_family_id": family_id if status == "alias" else "",
             "semantic_decision": signature.decision,
@@ -85,9 +91,9 @@ def build(source: Path, output: Path) -> dict:
             "post_change_mg01_distribution": render_distribution(later_evidence[1]),
             "post_change_mg01_mg02_distribution": render_distribution(later_evidence[2]),
             "post_change_mg01_mg02_mg03_distribution": render_distribution(later_evidence[3]),
-            "reviewer": "Codex semantic rule review",
-            "review_date": "2026-08-17",
-            "dictionary_version": "2026-08-17-v1",
+            "reviewer": "Codex three-axis semantic review",
+            "review_date": "2026-08-27",
+            "dictionary_version": "2026-08-27-v2",
             "singleton_exception": "",
         })
 

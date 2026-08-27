@@ -15,7 +15,7 @@
 | 9. Update permanent documentation and every skill copy | ✅ complete | 2026-08-17 | The permanent process and repository runbook describe the implemented governed-dictionary method. |
 | 10. Land the implementation safely | ✅ complete | 2026-08-17 | Implementation, workbook, tests, governed Skill, PR, and issue closure were completed together. |
 
-**Current state:** Complete. The workbook and repeatable implementation are the permanent result of issue #1113.
+**Current state:** Superseded on 2026-08-27 by `plan_mg_taxonomy_three_axis_repair.md`. Its governed dictionary and exact-only safeguards remain, but the blended product/construction/treatment signature and August 17 counts are historical rather than current.
 
 ---
 

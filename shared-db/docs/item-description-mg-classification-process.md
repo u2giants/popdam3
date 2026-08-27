@@ -4,7 +4,7 @@
 
 This is the permanent operating rule for interpreting item descriptions and proposing the new merchandise-group hierarchy for items created before May 14, 2025.
 
-The active plan to replace the incomplete provisional dictionary and unsafe live fuzzy assignment is [`../plan_item_description_mg_taxonomy_repair.md`](../plan_item_description_mg_taxonomy_repair.md). Until that plan is complete, existing workbook results are audit artifacts, not final recoding recommendations.
+The implemented governing plan is [`../plan_mg_taxonomy_three_axis_repair.md`](../plan_mg_taxonomy_three_axis_repair.md). The earlier dictionary repair plan is retained as history.
 
 The process does not redefine, repair, renumber, or overwrite MG01, MG02, MG03, or MG04. It changes only the analysis used to propose codes for historical items. The Item Master and source files remain unchanged until a separate update is explicitly approved.
 
@@ -24,7 +24,7 @@ Moving the boundary by one day changes the evidence population and requires writ
 
 ## Step 1: parse every full item description
 
-Every old and new item description is divided into five business fields:
+Every old and new item description is divided into the five review fields below and three independent merchandise-group axes:
 
 1. **Product type:** the physical product a merchant would say is being sold. Material, construction, or treatment stays only when it distinguishes a real product family.
 2. **Size:** every stated physical dimension and unit, including depth or height.

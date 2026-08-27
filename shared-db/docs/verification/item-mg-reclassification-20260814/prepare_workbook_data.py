@@ -21,9 +21,9 @@ def main() -> None:
     precision = json.loads((args.run / "precision_review.json").read_text(encoding="utf-8"))
     historical = pd.read_csv(args.run / "historical_hierarchical_mg_matches.csv", dtype=str).fillna("")
     dictionary = pd.read_csv(args.dictionary, dtype=str).fillna("")
-    keep = ["Item #", "Item Desc", "CreatedTime", "Product Type", "Construction Shape", "Treatment", "Size", "Licensor", "Property", "Artwork Description", "Dictionary Status", "Current MG01" , "Current MG02", "Current MG03"]
+    keep = ["Item #", "Item Desc", "CreatedTime", "Product Type", "Form", "Taxonomy Subtype", "Material", "Embellishment", "Embellishment State", "Default Rule Applied", "Size", "Licensor", "Property", "Artwork Description", "Dictionary Status", "Current MG01" , "Current MG02", "Current MG03"]
     historical = historical.rename(columns={"MG01": "Current MG01", "MG02": "Current MG02", "MG03": "Current MG03"})
-    keep = [c for c in keep if c in historical.columns] + ["Proposed MG01", "Proposed MG02", "Proposed MG03", "Matched Level", "Match Basis", "Evidence Support", "Evidence Total", "Evidence Share", "Outcome Bucket"]
+    keep = [c for c in keep if c in historical.columns] + ["Proposed MG01", "Proposed MG02", "Proposed MG03", "Matched Level", "Match Basis", "Evidence Support", "Evidence Total", "Evidence Share", "Outcome Bucket", "MG03 Unresolved Reason"]
     historical = historical[keep]
     combos = {}
     for depth, name in ((1, "mg01"), (2, "mg01_mg02"), (3, "mg01_mg02_mg03")):
@@ -41,7 +41,7 @@ def main() -> None:
         combos[str(depth)] = rows
     residual = dictionary[dictionary["status"].isin(["needs_review", "placeholder"])].copy()
     residual = residual.sort_values(["all_item_count", "observed_display_wording"], ascending=[False, True])
-    dictionary_cols = ["family_id", "status", "canonical_physical_product", "construction_shape", "treatment", "observed_display_wording", "all_item_count", "post_change_item_count", "semantic_decision"]
+    dictionary_cols = ["family_id", "status", "canonical_physical_product", "form", "taxonomy_subtype", "material", "embellishment", "embellishment_state", "default_rule_applied", "observed_display_wording", "all_item_count", "post_change_item_count", "semantic_decision"]
     payload = {
         "summary": summary, "precision": precision, "combinations": combos,
         "historical": records(historical), "dictionary": records(dictionary[dictionary_cols]),

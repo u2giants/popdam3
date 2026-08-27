@@ -68,6 +68,12 @@ class SemanticSignature:
     matched_wording: str = ""
     status: str = "needs_review"
     decision: str = "No reviewed physical-product rule matched"
+    form: str = ""
+    subtype: str = ""
+    material: str = ""
+    embellishment: str = ""
+    embellishment_state: str = "unreadable"
+    default_rule_applied: str = ""
 
     @property
     def full_key(self) -> str:
@@ -162,6 +168,7 @@ PRODUCT_PATTERNS: tuple[tuple[str, str, str], ...] = (
     ("Storage Chest", "Plastic", r"\bplastic storage chest\b"),
     ("Storage Bin", "Fabric", r"\b(?:storage |fabric |woven |oxford |greyboard |tapered |rectangle |square |medium |large )+bin\b|\bstorage bin\b"),
     ("Storage Basket", "Fabric", r"\b(?:storage |plush |rope |woven |seagrass )+basket\b|\bstorage basket\b"),
+    ("Storage Tote", "Fabric", r"\b(?:storage |fabric |canvas |woven )+tote\b|\bstorage tote\b"),
     ("Storage Cube", "Collapsible", r"\b(?:storage |fabric |nonwoven |collapsible )+cube\b|\bdesktop cube\b"),
     ("Storage Ottoman", "MDF", r"\b(?:mdf )?storage ottoman\b"),
     ("Storage Organizer", "Hanging", r"\b(?:hanging |closet |shoe |file |pocket |storage )+organi[sz]er\b"),
@@ -210,7 +217,7 @@ PRODUCT_PATTERNS: tuple[tuple[str, str, str], ...] = (
 PRODUCT_PATTERNS = tuple((product, construction, re.compile(pattern, re.I)) for product, construction, pattern in PRODUCT_PATTERNS)
 
 
-def treatment_from_text(text: str, product: str) -> str:
+def embellishment_from_text(text: str) -> tuple[str, str]:
     checks = (
         ("DIY", r"\b(?:diy|pbn|paint by numbers?|paint your own)\b"),
         ("LED", r"\b(?:led|light up|lightup|backlit|neon)\b"),
@@ -225,14 +232,96 @@ def treatment_from_text(text: str, product: str) -> str:
         ("Shaped", r"\b(?:shaped|die cut|arched|round|hexagon|custom shape)\b"),
         ("Attachment", r"\b(?:attachment|raised|layered|fabric bow|grommet|shoelace)\b"),
         ("Debossed or Embossed", r"\b(?:debossed|embossed|raised embossed)\b"),
-        ("Printed", r"\b(?:printed|print)\b"),
     )
     for treatment, pattern in checks:
         if re.search(pattern, text):
-            return treatment
-    if product in {"Canvas", "Framed Print", "Framed Glass Art", "Door Mat"}:
-        return "Plain or Printed"
+            return treatment, "stated"
+    if re.search(r"\b(?:plain|unembellished|no embellishment)\b", text):
+        return "None", "none"
+    return "", "unreadable"
+
+
+def material_from_text(text: str) -> str:
+    checks = (
+        ("Crumb Rubber", r"\bcrumb rubber\b"),
+        ("Memory Foam", r"\bmemory foam\b"),
+        ("MDF", r"\bmdf\b"),
+        ("Greyboard", r"\bgreyboard\b"),
+        ("Canvas", r"\bcanvas(?:es)?\b"),
+        ("Lenticular", r"\blenticular\b"),
+        ("Acrylic", r"\bacrylic\b"),
+        ("Polyresin", r"\bpolyresin\b"),
+        ("Ceramic", r"\bceramic\b"),
+        ("Glass", r"\bglass\b"),
+        ("Mirror", r"\bmirror\b"),
+        ("Metal", r"\b(?:metal|tin|aluminium|aluminum|iron|steel)\b"),
+        ("Plastic", r"\b(?:plastic|pvc|polypropylene|pp molded)\b"),
+        ("Fabric", r"\b(?:fabric|nonwoven|non woven|oxford|felt|plush|linen|burlap|velvet)\b"),
+        ("Paper", r"\b(?:paper|paperboard|print|poster)\b"),
+        ("Wood", r"\b(?:wood|wooden)\b"),
+        ("Coir", r"\bcoir\b"),
+        ("Foam", r"\bfoam\b"),
+        ("Concrete", r"\bconcrete\b"),
+        ("Natural Fiber", r"\b(?:rope|seagrass|rattan)\b"),
+    )
+    for material, pattern in checks:
+        if re.search(pattern, text):
+            return material
     return ""
+
+
+def form_for_product(product: str) -> str:
+    if product in {"Canvas", "Paint-Your-Own Canvas Set"}:
+        return "Stretched or Box"
+    if product.startswith("Framed ") or product in {"Photo Frame"}:
+        return "Framed" if product != "Photo Frame" else "Photo Frames"
+    if product in {"Wall Plaque", "Wall Sign", "Tall Wall Sign", "Door Hanger"}:
+        return "Plaque"
+    if product in {"Wall Shelf", "Wall Hook", "Memo Board", "Functional Board"}:
+        return "Functional Wall"
+    if product in {"Hanging Wall Art", "Wall Decal", "Foam Wall Decor", "Wall Light", "Wall Decor", "Paper Shade"}:
+        return "Other Wall"
+    if product in {"Tabletop Block", "Tabletop Monogram", "Perpetual Calendar"}:
+        return "Block"
+    if product == "Tabletop Box":
+        return "Box"
+    if product in {"Mug", "Bookend", "Candle Holder", "Snow Globe", "Tabletop Planter", "Bank", "Tray or Dish"}:
+        return "Object" if product != "Bank" else "Other Tabletop"
+    if product in {"Tabletop LED Art", "Tabletop Easel"}:
+        return "Other Tabletop"
+    if "Clock" in product:
+        return "Clocks"
+    if product in {"Storage Hamper", "Storage Toy Chest", "Storage Chest", "Storage Bin", "Storage Basket", "Storage Tote", "Storage Cube", "Storage Ottoman"}:
+        return "Soft Storage"
+    if product == "Hard Storage Box":
+        return "Hard Storage"
+    if product in {"Storage Organizer", "Storage Tower"}:
+        return "Other Storage"
+    if product in {"Stationery Organizer", "Pencil Cup", "Memo Holder", "Phone Stand", "Headphone Stand"}:
+        return "Stationery Organization"
+    if product in {"Tablet Stand", "Desk Organizer", "Lap Desk", "Desk Mat"}:
+        return "Desk Accessories"
+    if product in {"Monitor Stand", "Embroidery Kit", "Display Rack", "Book"}:
+        return "Other Workspace"
+    if product in {"Door Mat", "Kitchen Mat", "Rug"}:
+        return "Floor Coverings"
+    if product in {"Garden Sign or Flag", "Birdhouse or Feeder", "Stepping Stone", "Garden Tool", "Garden Thermometer", "Watering Can", "Garden Kneeler", "Garden Decor"}:
+        return "Garden"
+    return ""
+
+
+def subtype_for_product(product: str, construction: str) -> str:
+    fixed = {
+        "Canvas": "Canvas", "Paint-Your-Own Canvas Set": "Canvas",
+        "Wall Clock": "Wall Clock", "Desktop Clock": "Desktop Clock",
+        "Storage Hamper": "Hamper", "Storage Bin": "Bin", "Storage Basket": "Basket", "Storage Tote": "Basket",
+        "Storage Toy Chest": "Chest", "Storage Chest": "Chest", "Storage Tower": "Tower or Stand",
+        "Storage Cube": "Cube", "Storage Ottoman": "Ottoman", "Storage Organizer": "Organizer",
+        "Door Mat": "Door", "Kitchen Mat": "Kitchen", "Rug": "Rug",
+        "Pencil Cup": "Pencil Cup", "Phone Stand": "Phone Stand", "Headphone Stand": "Headphone Stand",
+        "Desk Mat": "Desk Mat", "Monitor Stand": "Monitor Stand", "Lap Desk": "Lap Desk",
+    }
+    return fixed.get(product, construction or product)
 
 
 def classify_semantic_signature(value: object) -> SemanticSignature:
@@ -241,19 +330,32 @@ def classify_semantic_signature(value: object) -> SemanticSignature:
     if reason:
         return SemanticSignature(status="placeholder", decision=reason)
     text = normalize(original)
+    matches = []
     for product, construction, pattern in PRODUCT_PATTERNS:
         match = pattern.search(text)
         if not match:
             continue
-        treatment = treatment_from_text(text, product)
         wording = " ".join(match.group(0).split())
+        matches.append((len(wording.split()), len(wording), product != "Canvas", product, construction, wording))
+    if matches:
+        _, _, _, product, construction, wording = max(matches)
+        embellishment, state = embellishment_from_text(text)
+        form = form_for_product(product)
+        subtype = subtype_for_product(product, construction)
+        default_rule = "bare_canvas_means_stretched_wall_art" if product == "Canvas" else ""
         return SemanticSignature(
             physical_product=product,
             construction_shape=construction,
-            treatment=treatment,
+            treatment=embellishment,
             matched_wording=wording,
             status="accepted",
-            decision="Reviewed physical-product rule matched the full description",
+            decision="Reviewed three-axis product rule matched the full description",
+            form=form,
+            subtype=subtype,
+            material=material_from_text(text),
+            embellishment=embellishment,
+            embellishment_state=state,
+            default_rule_applied=default_rule,
         )
     return SemanticSignature()
 
