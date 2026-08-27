@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "SUPABASE_URL=http://localhost SUPABASE_SERVICE_ROLE_KEY=test tsx --test src/ai-tag-cursor.test.ts src/operation-retry.test.ts src/operation-lease.test.ts src/operation-loop.test.ts src/style-group-representatives.test.ts src/handlers/ai-style-group-profile.test.ts src/handlers/group-metadata-refresh.test.ts src/handlers/ai-tagging-batch-state.test.ts src/handlers/ai-tagging-scope.test.ts src/handlers/ai-tagging.test.ts src/handlers/erp.test.ts src/openrouter.test.ts src/model-capabilities.test.ts src/structured-output.test.ts src/handlers/rich-pdf.test.ts src/openrouter-key.test.ts",
+    "test": "SUPABASE_URL=http://localhost SUPABASE_SERVICE_ROLE_KEY=test tsx --test \"src/**/*.test.ts\"",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },

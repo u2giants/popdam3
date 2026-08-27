@@ -23,8 +23,32 @@ export const JUNK_FILENAMES = new Set<string>([
 ]);
 
 /**
+ * Glob patterns from JUNK_FILENAMES, compiled once at module load.
+ *
+ * Every character outside the `*` wildcard is regex-escaped. Without escaping,
+ * the Office temp pattern "~$*" compiled to /^~$.*$/ — where `$` is an
+ * end-of-string anchor, not a literal — so it matched only the single
+ * character "~" and never matched "~$budget.xlsx".
+ */
+const JUNK_GLOB_PATTERNS: RegExp[] = [...JUNK_FILENAMES]
+  .filter((pattern) => pattern.includes("*"))
+  .map((pattern) =>
+    new RegExp(
+      "^" +
+        pattern
+          .split("*")
+          .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+          .join(".*") +
+        "$",
+    )
+  );
+
+/**
  * Check if a filename matches any known junk patterns.
  * Supports exact matches and glob patterns (e.g., "~$*" matches "~$foo.docx").
+ *
+ * Called once per scanned file, so the patterns are precompiled above rather
+ * than rebuilt on every call.
  */
 export function isJunkFilename(filename: string): boolean {
   // Exact match
@@ -33,16 +57,7 @@ export function isJunkFilename(filename: string): boolean {
   }
 
   // Glob pattern matching (for patterns like "~$*")
-  for (const pattern of JUNK_FILENAMES) {
-    if (pattern.includes("*")) {
-      const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
-      if (regex.test(filename)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return JUNK_GLOB_PATTERNS.some((regex) => regex.test(filename));
 }
 
 /**
@@ -133,6 +148,7 @@ export const PDF_KEYWORD_EXCLUSIONS = new Set<string>([
   "style guide",
   "guidelines",
   "brand guide",
+  "brand-guide",
   "brandguide",
 ]);
 

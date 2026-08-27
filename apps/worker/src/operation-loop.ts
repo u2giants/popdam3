@@ -708,7 +708,28 @@ export async function tick(): Promise<void> {
         ...claimedState,
         external_job: { ...claimedState.external_job!, lease_token: claim.lease_token ?? undefined },
       });
-      if (!result.ok) throw new Error(result.error ?? "OpenRouter submission failed");
+      if (!result.ok) {
+        // Previously this threw straight out of tick(). index.ts only logs, so
+        // the operation stayed "running" in admin_config with no error visible
+        // in the UI and with this worker still holding the submission lease.
+        // Persist the same interrupted state the dispatch-throw path writes.
+        const errMsg = result.error ?? "OpenRouter submission failed";
+        const reason = classifyError(errMsg);
+        submissionLeaseTokens.delete(opKey);
+        logger.error("tick: OpenRouter submission failed", { opKey, error: errMsg });
+        await persistOpState(opKey, {
+          ...claimedState,
+          cursor,
+          progress,
+          status: "interrupted",
+          interruption_reason_code: reason,
+          error: errMsg,
+          last_successful_cursor: cursor,
+          next_auto_resume_at: nextAutoResumeAt(reason, claimedState),
+          updated_at: new Date().toISOString(),
+        });
+        return;
+      }
       const submittedState: OpState = {
         ...claimedState,
         status: result.done ? "completed" : "running",

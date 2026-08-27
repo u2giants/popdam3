@@ -255,10 +255,14 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
     ]),
   );
 
+  // sha256 over the full extracted text is not cheap, so hash each sample once
+  // here and reuse the value in the extraction loop below.
+  const hashByAssetId = new Map<string, string>();
   const work = eligible.filter((r) => {
     const asset = assetById.get(r.asset_id);
     if (!asset) return false; // deleted / missing
     const hash = sha256(r.extracted_text as string);
+    hashByAssetId.set(r.asset_id, hash);
     return existingHash.get(r.asset_id) !== hash;
   });
 
@@ -274,7 +278,7 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
       slice.map(async (r) => {
         const asset = assetById.get(r.asset_id)!;
         const text = r.extracted_text as string;
-        const hash = sha256(text);
+        const hash = hashByAssetId.get(r.asset_id) as string;
         const docKind = docKindFromFilename(r.filename ?? "");
         try {
           const result = await deepSeekChat({
@@ -321,11 +325,19 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
   }
 
   // 5. Roll up affected groups + refresh their search documents.
-  for (const gid of affectedGroups) {
-    const { error: rollupErr } = await client.rpc("refresh_style_group_rich_metadata", { p_style_group_id: gid });
-    if (rollupErr) logger.warn(`refresh_style_group_rich_metadata failed for ${gid}: ${rollupErr.message}`);
-    const { error: searchErr } = await client.rpc("refresh_dam_search_style_group_document", { p_style_group_id: gid });
-    if (searchErr) logger.warn(`refresh_dam_search_style_group_document failed for ${gid}: ${searchErr.message}`);
+  //    Two round trips per group run serially otherwise, which dominates the
+  //    tick once a batch touches many groups. Use the same bounded concurrency
+  //    as the extraction step.
+  const groupIds = [...affectedGroups];
+  for (let i = 0; i < groupIds.length; i += concurrency) {
+    await Promise.all(
+      groupIds.slice(i, i + concurrency).map(async (gid) => {
+        const { error: rollupErr } = await client.rpc("refresh_style_group_rich_metadata", { p_style_group_id: gid });
+        if (rollupErr) logger.warn(`refresh_style_group_rich_metadata failed for ${gid}: ${rollupErr.message}`);
+        const { error: searchErr } = await client.rpc("refresh_dam_search_style_group_document", { p_style_group_id: gid });
+        if (searchErr) logger.warn(`refresh_dam_search_style_group_document failed for ${gid}: ${searchErr.message}`);
+      }),
+    );
   }
 
   return {

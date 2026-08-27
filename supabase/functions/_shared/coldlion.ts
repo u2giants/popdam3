@@ -5,6 +5,9 @@ const COMPANY = "EDGEHOME";
 
 // In-memory cache so we only fetch once per Edge Function cold start
 const cache: Record<string, Record<string, string>> = {};
+// In-flight fetches, so concurrent callers for the same key share one request
+// instead of each stampeding ColdLion before the cache is populated.
+const inFlight = new Map<string, Promise<Record<string, string>>>();
 let _apiKey: string | null = null;
 
 async function getApiKey(): Promise<string> {
@@ -36,6 +39,23 @@ export async function getMgLookup(
   const cacheKey = `${mgTypeCode}:${divisionCode}`;
   if (cache[cacheKey]) return cache[cacheKey];
 
+  const pending = inFlight.get(cacheKey);
+  if (pending) return pending;
+
+  const fetchPromise = fetchMgLookup(mgTypeCode, divisionCode, cacheKey);
+  inFlight.set(cacheKey, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    inFlight.delete(cacheKey);
+  }
+}
+
+async function fetchMgLookup(
+  mgTypeCode: string,
+  divisionCode: string,
+  cacheKey: string,
+): Promise<Record<string, string>> {
   const apiKey = await getApiKey();
   const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COMPANY}` +
     `&mgTypeCode=${mgTypeCode}&divisionCode=${divisionCode}`;

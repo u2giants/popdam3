@@ -38,7 +38,11 @@ describe("isJunkFilename", () => {
   it("should return true for Office temp files matching glob pattern", () => {
     expect(isJunkFilename("~$budget.xlsx")).toBe(true);
     expect(isJunkFilename("~$report.docx")).toBe(true);
-    expect(isJunkFilename("~temp.pptx")).toBe(true);
+  });
+
+  it("should not match a bare ~ prefix — that is isJunkPrefix's job", () => {
+    expect(isJunkFilename("~temp.pptx")).toBe(false);
+    expect(isJunkPrefix("~temp.pptx")).toBe(true);
   });
 });
 
@@ -74,7 +78,9 @@ describe("isMacResourceFork", () => {
 describe("isExcludedDirectory", () => {
   it("should return true for macOS __MACOSX", () => {
     expect(isExcludedDirectory("__MACOSX")).toBe(true);
-    expect(isExcludedDirectory("__MacOSX")).toBe(false); // Case-sensitive
+    // Matching is case-insensitive: the same folder is spelled differently by
+    // Windows, macOS and Synology.
+    expect(isExcludedDirectory("__MacOSX")).toBe(true);
   });
 
   it("should return true for __OLD and ___OLD directories", () => {

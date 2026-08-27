@@ -432,11 +432,15 @@ function auditDescription(entry: AuditLogEntry) {
   return `${displayAuditValue(entry.old_value)} -> ${displayAuditValue(entry.new_value)}`;
 }
 
+// Constructing an Intl.DateTimeFormat is far more expensive than formatting
+// with one, and this is called once per audit-log entry on every render.
+const auditTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
 function formatAuditTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return auditTimeFormatter.format(new Date(value));
 }
 
 async function fetchRows(sourceSheet: string) {

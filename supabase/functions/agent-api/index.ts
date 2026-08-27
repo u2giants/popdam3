@@ -1925,16 +1925,23 @@ async function handleCheckChanged(body: Record<string, unknown>) {
       .in("relative_path", needsRender)
       .eq("is_deleted", false);
 
-    for (const asset of renderAssets ?? []) {
-      const { data: existing } = await db
+    // One SELECT + one INSERT per asset used to run serially here, which is the
+    // agent check-in hot path. Resolve the whole batch in two round trips.
+    const assetIds = (renderAssets ?? []).map((a: { id: string }) => a.id);
+    if (assetIds.length > 0) {
+      const { data: queued } = await db
         .from("render_queue")
-        .select("id")
-        .eq("asset_id", asset.id)
-        .in("status", ["pending", "claimed"])
-        .maybeSingle();
+        .select("asset_id")
+        .in("asset_id", assetIds)
+        .in("status", ["pending", "claimed"]);
 
-      if (!existing) {
-        await db.from("render_queue").insert({ asset_id: asset.id, status: "pending" });
+      const alreadyQueued = new Set((queued ?? []).map((q: { asset_id: string }) => q.asset_id));
+      const toQueue = assetIds
+        .filter((id: string) => !alreadyQueued.has(id))
+        .map((id: string) => ({ asset_id: id, status: "pending" }));
+
+      if (toQueue.length > 0) {
+        await db.from("render_queue").insert(toQueue);
       }
     }
   }
