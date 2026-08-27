@@ -101,6 +101,16 @@ MG10 means Demographic, also called Age Group, in the three current divisions. I
 
 `mgCategory` is a hidden broad grouping of real MG01 Product Types. It is not another MG hierarchy level and does not replace MG01.
 
+**Settled — owner ruling by Albert Hazan, 2026-08-27.** An item's `mgCategory`
+is resolved only from its division-qualified MG01 definition. MG02 and MG03 never
+affect the category. Items created on or before May 13, 2025 return no category;
+items created May 14, 2025 or later may resolve one. This date restriction is
+temporary and obsolete only after a separately verified project has reclassified
+**every** historical item under the new MG01+MG02+MG03 methodology. Retire it only
+through a later governed migration carrying that complete-reclassification
+evidence. Partial analysis, proposed workbook values, or elapsed time do not prove
+completion. Categories are resolved at read time and are not written onto item rows.
+
 | Category | MG01 Product Types |
 |---|---|
 | Wall | A Stretched/Box; B Framed; C Plaque; D Functional; E Other Wall |

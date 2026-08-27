@@ -150,75 +150,116 @@ for the first correction and the method.
 
 ---
 
-## Reply to ColdLion — rewritten 2026-08-27
+## Reply to ColdLion — rewritten 2026-08-27 (v3, with worked examples)
 
-**Status: drafted 2026-08-27, NOT yet sent.** Record the send date on register entry 2.11 once it
-goes. Supersedes the earlier draft in this file; every figure is from the 19,008-row re-test above.
+**Status: drafted 2026-08-27, NOT yet sent.** Supersedes both earlier drafts in this file.
 
-> **Subject:** The negative-quantity examples you asked for — and two corrections to Wednesday's list
+**Why v3 exists.** Albert, 2026-08-27: *"you can't just say you found a problem, YOU MUST GIVE
+ACTUAL EXAMPLES,"* and the issue numbering must continue from the 2026-08-26 email so each issue
+keeps one number for its whole life. The duplicate-row and line-number-zero problems are therefore
+**issues 6 and 7**, each with named orders.
+
+**Evidence for this version:** a fresh 63-window sweep, **14,474 `orderHistory` lines**, 2019-01-01
+to 2026-08-27, dumped and analysed offline. Findings, all reproducible from the orders named below:
+
+- **160 colliding keys covering 320 rows across 34 distinct sales orders**, in 2019, 2020, 2021,
+  2022, 2023, 2025 and 2026. Every collision's rows came from the **same** API window, so this is
+  not an artefact of overlapping requests.
+- **No byte-identical duplicate rows appear in this sample.** The "138 identical rows" figure from
+  the earlier resample is **not repeated to ColdLion** — it was not reproduced here and may have
+  been an overlapping-window artefact of that run.
+- **30 rows carry `salesOrderLineNo` 0**, in 2020, 2024 and 2025. The earlier "103 rows, 51 in 2026"
+  figure is **not repeated** — this sample shows no 2026 cases.
+
+> **Subject:** Negative-quantity examples, two corrections, and issues 6 and 7
 >
 > Hi JamieLynn,
 >
-> Here are the real examples behind the negative quantities. While pulling them I widened our
-> sample considerably — 19,008 order lines from 2019 to date, against 291 on Wednesday — and that
-> turned up two mistakes of my own. Apologies for the noise; both were our sampling, not your
-> system.
+> Here are the real examples behind the negative quantities. While pulling them I widened our sample
+> considerably — 14,474 order lines spread across 2019 to today, against 291 on Wednesday — and that
+> turned up two mistakes of my own, plus two new issues. I have kept Wednesday's numbering so each
+> issue keeps one number from here on.
 >
-> **The negative quantities — twelve lines, and my figure was wrong.** I said they reach -564. They
-> do not; the range is -3 to -8. Every one is the same shape: the line was invoiced for more than
-> it was ordered for, so the open quantity goes negative.
+> **Issue 5 — the negative quantities you asked about. Twelve lines, and my figure was wrong.** I
+> said they reach -564. They do not; the range is -3 to -8. Every one has the same shape: the line
+> was invoiced for more than it was ordered for, so the open quantity goes negative.
 >
-> Seven lines in 2020, all customer AAF100, all ordered 1 and invoiced 4:
+> Seven lines in 2020, all customer AAF100, every one ordered 1 and invoiced 4:
 >
 > - 3 June 2020 — order 7113851 line 1, item BFC102ASW
 > - 8 June 2020 — order 7114426 lines 1 and 3, items BFC102AMV and BFC102ASW
-> - 6 July 2020 — orders 7114895 line 2, 7114908 line 2, 7114912 line 1, item BFC102AMV
+> - 6 July 2020 — orders 7114895 line 2, 7114908 line 2 and 7114912 line 1, item BFC102AMV
 > - 8 July 2020 — order 7114963 line 2, item BFC102AMV
 >
-> Five lines on a single order for customer DY001, 2 December 2025 — order 7127496:
+> Five lines on one order for customer DY001, 2 December 2025 — order 7127496:
 >
 > - line 2, GFE52SWDV01 — ordered 9, invoiced 13
 > - line 12, VS162SWMF01 — ordered 12, invoiced 20
 > - line 13, VS162SWR201 — ordered 12, invoiced 16
 > - lines 16 and 17, VSM93SWDV01 and VSM93SWTF01 — ordered 12, invoiced 20
 >
-> The arithmetic looks right, so my question is about the orders rather than the report: is
+> The arithmetic looks right, so the question is about the orders rather than the report: is
 > invoicing four against a line ordered for one something you would expect here, or do these look
 > like errors on your side?
 >
-> **Correction 1 — please disregard item 1 of Wednesday's email.** I said nothing in `orderHistory`
-> reports shipping or invoicing. That is false. Invoice number, invoice date, invoiced quantity and
-> shipped quantity are populated on roughly 80% of lines, in every year from 2019 onward. Our sample
-> had simply landed on 26 quiet days. The only fields I now see empty everywhere are `subDimCode`
-> and `itemImage`, and neither matters to us.
+> **Issue 1 — please disregard it; I was wrong.** I said nothing in `orderHistory` reports shipping
+> or invoicing. That is false. Invoice number, invoice date, invoiced quantity and shipped quantity
+> are populated on roughly 80% of lines, in every year from 2019 onward — order 7109618 below is one
+> of thousands. Our sample had landed on 26 quiet days. The only fields I now see empty everywhere
+> are `subDimCode` and `itemImage`, and neither matters to us.
 >
-> **Correction 2 — please disregard item 4 as well.** I reported that the 7-day range refusal
-> returns 400 on the wire but 500 in the body. I re-tested it today on both endpoints, with 8-day
-> and 31-day ranges: it is clean, 400 in both places, with a clear message naming the rule. Nothing
-> for you to fix.
+> **Issue 4 — please disregard this one too.** I reported that the 7-day range refusal returns 400
+> on the wire but 500 in the body. I re-tested today on both endpoints with 8-day and 31-day ranges:
+> it is clean, 400 in both places, with a clear message naming the rule. Nothing for you to fix.
 >
-> **Two new things the larger sample found, and these do affect our load.**
+> **Issue 2 stands, and is now sharper.** Outside 2026, the open and unshipped quantities carry a
+> value on exactly twelve lines — the same twelve negative ones above. Everything else from 2019
+> through 2025 is zero. Should we read that as "those orders are closed, so zero is correct", or
+> were the new formulas applied only going forward? We are loading history back to 2019, so it
+> decides whether we trust the value or ignore it. Issue 3 is unchanged, and we are still not asking
+> for any new stages.
 >
-> **A. We cannot tell one line from another.** About 2% of the 19,008 lines share the same sales
-> order number, line number and component. Of those, 138 are identical in all 59 fields we receive.
-> Others differ only in invoiced quantity, shipped quantity or price — which suggests one line can
-> produce more than one row, perhaps one per invoice or shipment. Could you tell us what makes a row
-> unique? We need a stable key to load against, and today no combination of the fields you return is
-> unique. For the 138 that are identical in every field, we would also like to know whether to keep
-> both or drop the duplicate.
+> **Issue 6 (new) — the same sales order line comes back twice, and we cannot tell which row is
+> real.** 320 rows across 34 orders in our sample share a sales order number and line number with
+> another row. Three worked examples:
 >
-> **B. `SalesOrderLineNo` comes back as 0 on some lines.** 103 of the 19,008 — and 51 of those are
-> 2026, so it is not just old data. Order 7114895 is a clear case: six different items all carrying
-> line number 0. Is that expected for certain order types? This is the field we were planning to key
-> on, so it matters to us.
+> **6a. Order 7109618** — customer HLL770, start date 1 April 2019, your PO W0349282. Line 1 comes
+> back twice. Both rows are item MFZ82WABM, both say ordered 375, both carry invoice 4 dated 30
+> April 2019. They disagree on the rest:
 >
-> **Item 2 from Wednesday still stands, and is now sharper.** Outside 2026, the open and unshipped
-> quantities carry a value on exactly twelve lines — the same twelve negative ones above. Everything
-> else from 2019 through 2025 is zero. Should we read that as "those orders are closed, so zero is
-> correct", or were the new formulas applied only going forward? We are loading history back to
-> 2019, so it decides whether we trust the value or ignore it.
+> - row one — price 39.88, invoiced 375, shipped 375, order amount 14,955.00
+> - row two — price 41.60, invoiced 0, shipped 0, order amount 15,600.00
 >
-> Items 3 and 5 from Wednesday are unchanged, and we are still not asking for any new stages.
+> Lines 2 and 3 of the same order behave identically — line 2 is 39.88/invoiced 375 against
+> 41.60/invoiced 0, and line 3 is 40.28/invoiced 309 against 42.00/invoiced 0. It reads as though we
+> are getting both the ordered price and the invoiced price as two rows, but nothing in the row says
+> which is which.
+>
+> **6b. Order 7121891** — customer JEM090, start date 17 March 2023, your PO 217457. Line 6 comes
+> back twice with **two different items**: PMABSE01S, invoiced 24, and 4PSBSE01S, invoiced 0. Same
+> line number, same price of 1.15, different product. If two products can share one line number, we
+> have no way to say which one line 6 is.
+>
+> **6c. Order 7124128** — customer MOD010, 4 September 2024, your PO 663594206. Item BG1SF01S comes
+> back four times, all quantity 1,080, at four different prices: 1.31, 2.40, 3.00 and 3.30.
+>
+> What we need from you is one sentence: **what makes an `orderHistory` row unique?** We are building
+> a load that has to insert each line exactly once, and no combination of the fields you return is
+> unique today. If a line legitimately produces one row per price, per invoice or per shipment, tell
+> us which and we will key on it.
+>
+> **Issue 7 (new) — `SalesOrderLineNo` comes back as 0.** 30 rows in our sample, and it is not
+> confined to old data: 2020, 2024 and 2025. Examples:
+>
+> - **Order 7114595** — customer AAF100, 24 June 2020, your PO 0051463610. Two different items,
+>   3FZ17WBBM and GFZ52MCSP, both carrying line number 0, both quantity 1 at price 0.00.
+> - **Order 7124128** — customer MOD010, 4 September 2024, PO 663594206. Four rows, all line 0.
+> - **Order 7126086** — customer MOD011, 14 July 2025, PO 665480703. Eight rows, all line 0, item
+>   BGPS604, quantity 9,792, invoices 6015220, 6015221 and 6015222.
+>
+> This is the field you added for us in your last release and the one we intended to key our load
+> on, so it matters: is 0 expected for certain order types — samples, or orders entered a particular
+> way — or does it indicate the line number was not carried across?
 >
 > Thanks for your patience with the corrections,
 > Albert

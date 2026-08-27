@@ -118,6 +118,12 @@ the requested one — that check is now free and catches a mis-stamped loader im
   Until the re-map happens, **the old merch-group slot positions remain the source for affected
   rows** (ColdLion, 2026-08-20). A blank component merch group is not missing data.
 
+- **Every problem we report to ColdLion carries named examples, and issue numbers never change.**
+  Albert, 2026-08-27: *"you can't just say you found a problem, YOU MUST GIVE ACTUAL EXAMPLES."*
+  A count is not a report. Each issue gets a sales order number, customer, date, PO and item, and
+  keeps the number it was first given so a thread can be followed across emails — the duplicate-row
+  and line-number-zero problems are **issues 6 and 7**, continuing the 2026-08-26 list of 1-5.
+
 - **Never send an outward claim measured on a thin sample.** Albert, 2026-08-27: *"if so, we have
   to increase the sample size."* Two of the five items emailed to ColdLion on 2026-08-26 were
   false, and a third quoted an unreproducible figure from our own notes. All three came from a
