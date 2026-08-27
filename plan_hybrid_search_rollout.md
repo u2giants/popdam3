@@ -2,7 +2,7 @@
 
 **Tracking:** [PopDAM issue #97](https://github.com/u2giants/popdam3/issues/97)
 
-**Plan handoff:** [HANDOFF.d/2026-08-24T1433Z-hetz-codex-hybrid-search-plan.md](HANDOFF.d/2026-08-24T1433Z-hetz-codex-hybrid-search-plan.md)
+**Plan handoff:** [HANDOFF.d/2026-08-27T2258Z-hetz-codex-hybrid-search-completion.md](HANDOFF.d/2026-08-27T2258Z-hetz-codex-hybrid-search-completion.md)
 
 **Created:** 2026-08-24
 

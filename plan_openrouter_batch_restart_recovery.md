@@ -1,6 +1,6 @@
 # OpenRouter Batch Restart Recovery Implementation Plan
 
-Linked handoff: [`HANDOFF.d/2026-08-18T1409Z-hetz-codex-openrouter-batch-recovery.md`](HANDOFF.d/2026-08-18T1409Z-hetz-codex-openrouter-batch-recovery.md)
+Linked handoff: [`HANDOFF.d/2026-08-27T2258Z-hetz-codex-openrouter-batch-live-proof.md`](HANDOFF.d/2026-08-27T2258Z-hetz-codex-openrouter-batch-live-proof.md)
 
 Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues/92)
 
