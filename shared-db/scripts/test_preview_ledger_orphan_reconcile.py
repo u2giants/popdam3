@@ -77,10 +77,64 @@ class Tests(unittest.TestCase):
         with self.assertRaises(M.Refusal):
             M.validate_pinned_evidence(case,args)
 
+    def test_issue_1467_rehearsal_reset_tuple_and_evidence_are_narrowly_supported(self):
+        case=M.SUPPORTED_CASES[(1467,1580,1585,'20260827183106','20260827183106')]
+        self.assertEqual(case,{
+            'mode':'rehearsal_reset',
+            'original_run_head':'4355d0567de4bf9168f5701efc7107215ee386f3',
+            'preview_run_id':33106059012,
+            'preview_artifact_id':9660512462,
+            'preview_artifact_digest':'sha256:308962bcc35231b9c1d9187761822428ae34d89980c145baff9394d80dde7c7a',
+            'issue_state':'open',
+            'claim_state':'open',
+        })
+        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
+        self.assertIn('1467:1580:1585:20260827183106:20260827183106) ;;',workflow)
+        # The same-version inner guard must name this version, or the YAML step refuses
+        # the reset before Python ever sees it.
+        self.assertIn('case "$ORPHAN" in 20260824004025|20260827183106) ;;',workflow)
+
+    def test_issue_1467_evidence_pins_refuse_substitution(self):
+        case=M.SUPPORTED_CASES[(1467,1580,1585,'20260827183106','20260827183106')]
+        args=type('A',(),{
+            'preview_run_id':33106059012,
+            'preview_artifact_id':9660512462,
+            'preview_artifact_digest':'sha256:308962bcc35231b9c1d9187761822428ae34d89980c145baff9394d80dde7c7a',
+        })()
+        M.validate_pinned_evidence(case,args)
+        args.preview_artifact_digest='sha256:0'
+        with self.assertRaises(M.Refusal):
+            M.validate_pinned_evidence(case,args)
+
+    def test_every_rehearsal_reset_target_can_actually_be_reapplied(self):
+        """A rehearsal reset deletes the preview ledger row so the SAME bytes apply again.
+
+        A migration that carries its own transaction control, or that is not
+        re-appliable, must therefore never be allowlisted: the reset would leave
+        preview with the objects present and the ledger row gone -- strictly worse
+        than the stranded state it was meant to repair. This is exactly why the
+        #1645 version 20260827183011 was NOT added; it opens with `begin;` and
+        creates non-idempotent tables and triggers.
+        """
+        migrations=P.parent.parent/'supabase/migrations'
+        reset_versions={key[4] for key,case in M.SUPPORTED_CASES.items() if case['mode']=='rehearsal_reset' and len(key)==5}
+        self.assertTrue(reset_versions)
+        for version in sorted(reset_versions):
+            with self.subTest(version=version):
+                # load_replacement refuses an empty migration or any transaction control.
+                path,statements=M.load_replacement(migrations,version)
+                self.assertTrue(statements)
+                body=path.read_text(encoding='utf-8').lower()
+                self.assertNotIn(chr(10)+'begin;',body)
+                self.assertNotIn(chr(10)+'commit;',body)
+
     def test_supported_cases_enforce_their_exact_issue_and_claim_states(self):
         self.assertEqual(M.expected_work_states(M.SUPPORTED_CASES[(1615,1636,1637)]),('open','closed'))
         self.assertEqual(M.expected_work_states(M.SUPPORTED_CASES[(1422,1423,1424)]),('closed','closed'))
         self.assertEqual(M.expected_work_states(M.SUPPORTED_CASES[(1439,1488,1495)]),('open','open'))
+        # rehearsal_reset defaults claim_state to 'closed'; #1580 is open, so the case overrides it.
+        self.assertEqual(M.expected_work_states(M.SUPPORTED_CASES[(1467,1580,1585,'20260827183106','20260827183106')]),('open','open'))
+        self.assertEqual(M.expected_work_states(M.SUPPORTED_CASES[(1211,1371,1372,'20260824004025','20260824004025')]),('open','closed'))
 
     def test_byte_identical_rename_refuses_different_migration_statements(self):
         case=M.SUPPORTED_CASES[(1615,1636,1637)]

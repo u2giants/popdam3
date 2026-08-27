@@ -32,6 +32,15 @@ SUPPORTED_CASES = {
         "mode": "rehearsal_reset",
         "original_run_head": "88ebd0272a163d32aefe748d59c7096c8fe54d0e",
     },
+    (1467, 1580, 1585, "20260827183106", "20260827183106"): {
+        "mode": "rehearsal_reset",
+        "original_run_head": "4355d0567de4bf9168f5701efc7107215ee386f3",
+        "preview_run_id": 33106059012,
+        "preview_artifact_id": 9660512462,
+        "preview_artifact_digest": "sha256:308962bcc35231b9c1d9187761822428ae34d89980c145baff9394d80dde7c7a",
+        "issue_state": "open",
+        "claim_state": "open",
+    },
     (1422, 1423, 1424): {
         "mode": "replacement_pending",
         "orphan_version": "20260824150630",
