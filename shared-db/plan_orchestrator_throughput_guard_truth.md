@@ -18,7 +18,7 @@
 
 | Step | Outcome | State | Evidence |
 |---|---|---|---|
-| 0 | Plan written, registered in `AGENTS.md` and `HANDOFF.d/`, tracking issue opened | ✅ done 2026-08-27 | issue #1680; `grep -n plan_orchestrator_throughput_guard_truth AGENTS.md HANDOFF.d/*.md` returns a hit in both; merge commit recorded below |
+| 0 | Plan written, registered in `AGENTS.md` and `HANDOFF.d/`, tracking issue opened | ✅ done 2026-08-27 | merge commit `172d2bb` (PR #1679, all 16 required checks green); issue #1680 open and labelled `db-work`; `grep -n plan_orchestrator_throughput_guard_truth AGENTS.md HANDOFF.d/*.md` returns a hit in both files |
 | 1 | One SQL lexer, shared by every scanner; dollar-quoted DDL is never invisible | ⬜ open | — |
 | 2 | `scripts/catalog-truth.mjs` — one command that answers "does this object actually exist, and what created it" | ⬜ open | — |
 | 3 | Guards must consult catalog truth before concluding "missing", and must say so in their failure text | ⬜ open | — |
