@@ -28,7 +28,7 @@ function orderListTable() {
  * Columns the grid actually reads. The full view is about 2.2 KB per row, so
  * selecting only these keeps each block small.
  */
-const ORDER_LIST_SELECT = Array.from(
+export const ORDER_LIST_SELECT = Array.from(
   new Set<string>([
     "order_line_id",
     "order_id",
@@ -42,6 +42,12 @@ const ORDER_LIST_SELECT = Array.from(
     "snapshot_license_status",
     "item_description",
     "item_name",
+    // Void state is not a grid column, but the grid must still know it: a voided
+    // order is rendered struck through and the editor offers Restore instead of
+    // Void. Leaving it out made both silently do nothing (caught in production
+    // during the 2026-08-26 human pass).
+    "order_voided_at",
+    "line_voided_at",
     ...ORDER_LIST_COLUMNS.map((column) => column.field as string),
   ]),
 ).join(",");

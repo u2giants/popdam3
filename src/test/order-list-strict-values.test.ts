@@ -59,3 +59,16 @@ describe("OrderList strict value coercion", () => {
     expect(buildOrderListEdit(row, "order_date", "").orderPatch).toEqual({ order_date: null });
   });
 });
+
+describe("OrderList row fetch covers void state", () => {
+  it("asks the view for the void columns the grid needs but never displays", async () => {
+    // `order_voided_at` drives the struck-through row and the editor's
+    // Void/Restore choice, and it is not a grid column -- so it has to be named
+    // explicitly or it never arrives, and both features silently do nothing.
+    // That is exactly what happened in production on 2026-08-26.
+    const { ORDER_LIST_SELECT } = await import("@/hooks/useOrderList");
+    const columns = ORDER_LIST_SELECT.split(",");
+    expect(columns).toContain("order_voided_at");
+    expect(columns).toContain("line_voided_at");
+  });
+});
