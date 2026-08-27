@@ -6,6 +6,8 @@ Bulk operations are orchestrated by a **persistent Node.js worker running on Rai
 
 The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`WORKER_POLL_INTERVAL_MS`, configurable). When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no Supabase edge-function timeout constraint — it runs until the operation completes, the user stops it, or it errors. The pg_cron schedule that previously called the edge function every minute was removed in migration `20260322000000`.
 
+`embed-dam-search` is the search-index operation. The Railway worker is the only component allowed to claim documents; the edge function only embeds documents carrying the worker's live lease token, and database writes also require the matching content hash. The admin card exposes coverage, start/stop/resume, and terminal-error requeue. Automatic freshness is off unless `SEARCH_AUTO_EMBED_ENABLED` is exactly `true`, and is then bounded to one 25-document batch per minute.
+
 **Authoritative code locations:**
 - Orchestrator: `apps/worker/src/operation-loop.ts` (Railway)
 - Operation definitions: `supabase/functions/_shared/operation-constants.ts`

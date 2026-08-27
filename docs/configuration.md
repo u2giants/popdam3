@@ -109,6 +109,8 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 | `DIGITAL_OCEAN_SPACES_*` | DigitalOcean Spaces non-secret config (bucket, region, endpoint, public_base_url) |
 | `COLDLION_*` | ERP API credentials |
 | `BULK_OPERATIONS` | State for all bulk jobs (see `docs/BULK_JOBS.md`) |
+| `SEARCH_MODE` | `keyword` (default) or `hybrid`; keep keyword until search security, coverage, quality, fallback, and rollback gates pass |
+| `SEARCH_AUTO_EMBED_ENABLED` | Boolean search-index freshness switch; absent/false is off, true permits one bounded worker batch per minute |
 | `SCAN_REQUEST` | Pending scan trigger flags for agents |
 | `STYLE_GUIDE_CRAWL_REQUEST` | Pending PopSG crawl trigger |
 | `ERP_LAST_SYNC_DATE` | Watermark for incremental ERP sync |

@@ -45,7 +45,7 @@ Located in `apps/worker/`. A persistent Node.js process deployed on Railway (aut
 
 **What it does:** polls `admin_config.BULK_OPERATIONS` every 1 s (configurable). Each tick reads the operations JSON blob, detects stale locks, auto-resumes interrupted ops, promotes queued ops into empty lanes with conflict isolation, dispatches batch handlers, and persists state back via the `update_bulk_operation` RPC. There is no HTTP endpoint; all triggering is done by writing to `admin_config.BULK_OPERATIONS` from the frontend or admin API.
 
-**Handlers:** `ai-tagging.ts` (production AI tag operations), `ai-tag-bakeoff.ts` (non-destructive model bake-off using the same tagging contract), `erp.ts` (ERP enrichment + AI category classification), `style-groups.ts` (rebuild, reconcile, cleanup), `relink-orphaned.ts`, `tag-propagation.ts`.
+**Handlers:** `ai-tagging.ts` (production AI tag operations), `ai-tag-bakeoff.ts` (non-destructive model bake-off using the same tagging contract), `erp.ts` (ERP enrichment + AI category classification), `style-groups.ts` (rebuild, reconcile, cleanup), `relink-orphaned.ts`, `tag-propagation.ts`, and `embed-search.ts` (leased search-document embeddings).
 
 **Lane isolation:** ops are assigned lanes (`ai-tagging`, `style-groups`, `erp`, `metadata`). Cross-lane conflicts are enforced (e.g., `ai-tag-*` and `rebuild-style-groups` cannot run concurrently). Kill switches stop a lane after 20 identical errors or 80%+ failure rate over 50+ items.
 
@@ -103,6 +103,8 @@ The PopDAM library search uses indexed database RPCs before applying the normal 
 - GIN indexes and search RPCs live in canonical `shared-db` migrations `20260709150000_dam_full_text_search.sql`, `20260709151000_dam_full_text_search_preserve_substring.sql`, `20260713215134_dam_search_index_speed.sql`, `20260713221518_dam_hybrid_search_foundation.sql`, `20260714165000_dam_search_spiderman_normalization.sql`, and `20260714173500_dam_search_synonyms.sql`.
 
 The current search foundation adds `dam_search_documents`, a flattened document table with a stored generated `tsvector`, trigram indexes for SKU/path-style substring fields, `pg_stat_statements`/`index_advisor` support, and optional pgvector embeddings. `search_assets_full_text` and `search_style_groups_full_text` remain compatibility wrappers over the new document search RPC. The frontend caps the RPC handoff at 500 IDs and still uses that capped indexed result set for broad matches. If the RPC times out or is missing during a deploy ordering mismatch, it falls back to the older metadata substring search. This preserves SKU-prefix behavior such as `3fz` matching `3FZ93DYEC01`, while making narrower tech-pack/licensor-sheet text queries searchable through the extracted PDF text index.
+
+Search documents now include active asset tags, active Style Group tags, and canonical character names through shared-db migration `20260825082910`; candidate/rejected tags are excluded. Embeddings use exclusive expiring database leases: the Railway worker claims, the edge runtime generates a 384-dimension `gte-small` vector only for the supplied lease, and the database accepts the result only when lease token and content hash still match. `SEARCH_MODE=keyword` remains the safe default until the authorization-safe filtered ranked contract and production rollout gates are complete.
 
 See `docs/SEARCH_PERFORMANCE.md` for the search monitoring and embedding runbook.
 

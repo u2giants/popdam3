@@ -62,6 +62,7 @@ If restoration fails for any file:
 - MUST NOT run the web UI
 - MUST NOT host the database
 - MUST NOT implement search/filter/count logic (that belongs in the cloud DB)
+- MAY claim bounded DAM search-document embedding work through the governed lease RPC. The worker is the sole claimer; the edge function only computes vectors for live leased rows, and the database validates lease plus content hash before saving.
 - MUST NOT do AI tagging inference locally (unless explicitly added as a future phase)
 - MUST NOT require inbound networking from the cloud into the NAS
 - MUST NOT transfer full PSD/AI files to the cloud
