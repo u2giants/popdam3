@@ -41,10 +41,18 @@ windows carry values. Two readings fit that equally well and the API cannot sepa
 2. **The change is forward-only.** The report formulas are applied as rows are written, so history
    was never backfilled.
 
-**We cannot tell which from the API**, because the fields that would settle it are themselves
-empty: `lineInvoiceQty`, `shipQty`, `shipAmount`, `invoiceNoString` and `invoiceDateString` are
-**empty on all 291 rows**, so no row carries any evidence of having shipped or been invoiced. This
-is now the single most important thing to ask ColdLion (§5, item 1).
+> **⚠️ CORRECTED 2026-08-27 — this paragraph was wrong, and it was wrong in the email we sent.**
+> It said `lineInvoiceQty`, `shipQty`, `shipAmount`, `invoiceNoString` and `invoiceDateString` are
+> empty on every row, so nothing reports shipping or invoicing. On a **3,981-row** sweep those
+> fields are **68-70% populated, in every year 2019-2026**. The 291-row sample was drawn from 26
+> single days and simply landed on light ones. Only `subDimCode` and `itemImage` are genuinely
+> always empty. See
+> [`coldlion-negative-quantities-evidence-20260827.md`](coldlion-negative-quantities-evidence-20260827.md)
+> §2 — **a correction is owed to ColdLion.**
+
+Because invoicing *is* populated throughout, the "older orders are closed, so zero is correct"
+reading is the more likely one — but it still needs their confirmation, since the historical load
+depends on it.
 
 **Loader consequence:** treat `unshippedQty` / `linePickQty` / `lineOpenQty` as **live but
 overwhelmingly zero**. Do not drop the columns, and do not compute an invoiced or shipped quantity
@@ -131,11 +139,10 @@ This is now **ours to answer**, and it is the first time ColdLion has invited a 
 register entry 2.11. What we owe them, from the evidence above and in
 [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md):
 
-1. **Seven `orderHistory` fields are empty on every one of 291 rows spanning 2019-2026:**
-   `lineInvoiceQty`, `shipQty`, `shipAmount`, `invoiceNoString`, `invoiceDateString`, `subDimCode`
-   and `itemImage`. **The consequence is the important part: no row in the feed carries any
-   evidence that an order shipped or was invoiced.** Ask whether that is intended — and if invoiced
-   and shipped quantities exist on the report, how we are meant to obtain them.
+1. ❌ **RETRACTED 2026-08-27 — sent in error.** This claimed seven fields are empty on every row and
+   that nothing reports shipping or invoicing. **False:** on 3,981 rows the invoice and ship fields
+   are 68-70% populated across every year. Only `subDimCode` and `itemImage` are always empty, and
+   neither matters to us. **Correct this with ColdLion.**
 2. **Are the open/unshipped quantities backfilled?** After the formula change, `unshippedQty`,
    `linePickQty`, `lineOpenQty` and `subQty` are populated **only on 2026-08 rows** and zero on
    every window from 2019 through 2026-07. Ask them to confirm whether older rows are genuinely

@@ -424,10 +424,18 @@ charges. Not worth chasing unless a report trips over them.
 `REC` receipt is never confused with an unlinked `ISS` order. Report pre-2022 purchase-to-sales
 joins as progressively incomplete rather than as zero.
 
-### 5.6 Negative quantities and costs are real
+### 5.6 Negative quantities and costs are real — but rare, and NOT -564
 
-`linePickQty`, `unshippedQty` and `subQty` reach **-564**; `prodCost`, `extCost` and
-`lastProdCost` reach **-85**. Returns or credits. Do not add non-negative constraints.
+> **CORRECTED 2026-08-27.** This section claimed quantities reach **-564**. A 3,981-row sweep of
+> `orderHistory` across 2019-2026, plus 198 `prodHistory` rows on all three stages, **could not
+> reproduce that figure.** The only negatives found anywhere are **four rows**, all July 2020, all
+> item `BFC102AMV` for customer `AAF100`, at **-3** (`unshippedAmount` -24.00). The cause is
+> visible in the row: `lineQty` 1 against `lineInvoiceQty` 4. **Do not quote -564 to ColdLion.**
+> Full evidence: [`coldlion-negative-quantities-evidence-20260827.md`](coldlion-negative-quantities-evidence-20260827.md).
+
+Negatives are real, so **do not add non-negative constraints** — but they are a handful of rows,
+not a routine occurrence, and the ones we can see are an order/invoice mismatch rather than a
+credit.
 
 ### 5.7 Merch groups: `merchGroup*` is the assortment, `ppkMerchGroup*` is the component
 
