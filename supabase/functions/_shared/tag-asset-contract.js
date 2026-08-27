@@ -1,3 +1,5 @@
+import { ASSET_TAG_CATEGORIES } from "./tagging-metadata-policy.js";
+
 export const CONTENT_TYPE_VALUES = [
   "source_art",
   "style_guide_art",
@@ -15,20 +17,29 @@ export const CONTENT_TYPE_VALUES = [
   "other",
 ];
 
-export const TAG_ASSET_REQUIRED_FIELDS = ["tags", "ai_description", "scene_description", "content_type"];
+export const TAG_ASSET_REQUIRED_FIELDS = ["asset_tags", "ai_description", "scene_description", "content_type"];
 
 export const TAG_ASSET_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    tags: {
+    asset_tags: {
       type: "array",
-      minItems: 6,
+      minItems: 4,
       maxItems: 18,
-      uniqueItems: true,
-      items: { type: "string" },
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          tag: { type: "string", description: "Concise lowercase file-specific search term." },
+          category: { type: "string", enum: ASSET_TAG_CATEGORIES },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+          evidence: { type: "array", items: { type: "string" }, description: "Short visible evidence from this file only." },
+        },
+        required: ["tag", "category", "confidence", "evidence"],
+      },
       description:
-        "Return 6-18 concise, distinct, lowercase search tags. Cover the applicable character/property, product type, image category, view, asset kind, style, motif, and major colors. Use the exact PopDAM category labels defined in the prompt. Always include the specific product type (e.g. 'lapdesk', 'backpack', 'mug', 'desk organizer', 'lunchbox', 'tee') - derive it from the ERP Product Description if provided, otherwise from filename or folder path. Never use filler tags such as 'image', 'design', 'art', 'asset', 'colorful', or 'product'.",
+        "Return 4-18 distinct facts visible in this file only. Product identity, licensor, property, and SKU facts belong to the Style Group and must not appear here.",
     },
     ai_description: {
       type: "string",
@@ -68,8 +79,6 @@ export const TAG_ASSET_SCHEMA = {
       items: { type: "string" },
       description: "UUIDs of identified characters from taxonomy",
     },
-    licensor_id: { type: ["string", "null"], description: "UUID of identified licensor" },
-    property_id: { type: ["string", "null"], description: "UUID of identified property" },
     designer_name: {
       type: ["string", "null"],
       description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
@@ -110,7 +119,7 @@ export function buildTaggingSystemPrompt(context) {
 
   return `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
 
-Analyze the thumbnail image and file metadata to produce structured tags.
+Analyze the thumbnail image and file metadata to produce structured file-only tags.
 
 File: ${asset.filename ?? ""}
 Path: ${asset.relative_path ?? ""}
@@ -120,19 +129,21 @@ ${erpContext}${itemDescriptionContext}${pdfContext}
 Known taxonomy:
 ${taxonomyContext}
 
-Write for PopDAM search and browsing. Users are non-technical designers, salespeople, and production staff searching licensed consumer-product assets by character/property, product, visual style, color, motif, view, use case, and document type.
+Write for PopDAM search and browsing. Users are non-technical designers, salespeople, and production staff searching files by visible character, visual style, color, motif, view, use case, and document type. Product identity is supplied separately by the Style Group.
 
 Description rules:
-- ai_description: one search-friendly sentence, 14-28 words. Include the most useful searchable facts visible or supported by metadata: character/property, product or asset kind, view/shot type, art style/treatment, motif/theme, major colors, and placement/use.
+- ai_description: one search-friendly sentence, 14-28 words. Include only file-specific facts: visible character, file/asset kind, view/shot type, art style/treatment, motif/theme, major colors, and placement/use.
 - scene_description: one literal visual sentence, 10-24 words. Describe only what is visible: subject, composition, pose/action, product area, angle, colors, readable text, and photo/render/document cues.
 - Recognize asset kinds such as source art, icons, badges, patterns, allover prints, style-guide art, full product photos, renders, mockups, professional/lifestyle photography, close-ups/details, tech packs, licensing sheets, spec/layout documents, packaging art, stickers, and J-cards.
 - Product context: PopDAM often includes wall art/canvas/framed prints, clocks, storage boxes/bins, lap desks/desktop items, mats, tabletop/garden decor, and packaging. Use this only as context; never force a product type if it is not visible or supported by filename/path/ERP metadata.
 - Avoid marketing copy, subjective praise, long lists, tiny irrelevant details, vague words, and multi-sentence answers.
 
 Tag rules:
-- Return 6-18 distinct lowercase tags. Prefer short, natural search terms; use singular nouns unless the image clearly shows multiples.
+- Return 4-18 distinct asset_tags objects. Prefer short, natural search terms; use singular nouns unless the image clearly shows multiples.
+- Every tag must describe this file's visible content or file/document presentation. Use only these categories: ${ASSET_TAG_CATEGORIES.join(", ")}.
+- Do not return licensor, property, SKU, product identity, or authoritative product-description terms as asset tags. Those facts are read-only context owned by the Style Group.
 - Include every applicable category label from the controlled list below exactly as written. Do not create synonyms or near-duplicates for these labels.
-- Include useful character/property, product type, image category, view, asset kind, visual style/treatment, motif/theme, and 1-3 dominant colors when supported.
+- Include useful visible characters, image category, view, asset kind, visual style/treatment, motif/theme, and 1-3 dominant colors when supported.
 - Never use filler tags such as "image", "design", "art", "asset", "colorful", "nice", "graphic", or "product" by themselves.
 - Do not guess. A filename/path/ERP description may establish product context, but visual categories and photography views must be supported by the image. If a character, property, view, readable word, or asset kind is unclear, omit that tag.
 
@@ -147,7 +158,7 @@ Controlled image categories:
 - "freelancer illustration": standalone commissioned illustration or clearly identified freelancer art. Also set art_source to freelancer. Do not infer freelancer status from illustration style alone; require filename, path, document text, or metadata support.
 
 Category examples:
-- Front-facing studio backpack photo: tags include "professional photography", "straight view", and "backpack"; content_type is product_photo.
+- Front-facing studio product photo: tags include "professional photography" and "straight view"; content_type is product_photo. The Style Group supplies the product type.
 - Product worn or used by a person: tags include "professional photography" and "lifestyle / in-use image"; content_type is lifestyle_photo.
 - Person deliberately holding an item to demonstrate its physical size: tags include "professional photography" and "person holding item / size scale image"; content_type is product_photo.
 - Standalone character composition not applied to merchandise: tags include "design asset" and "artwork"; content_type is source_art or style_guide_art as supported by metadata.
@@ -165,22 +176,21 @@ Based on the image and metadata, identify:
 7. Asset type: art_piece or product
 8. Art source: freelancer, straight_style_guide, or style_guide_composition
 9. Content type: choose exactly one primary file kind from source_art, style_guide_art, pattern_allover, icon_badge, product_photo, lifestyle_photo, render_mockup, tech_pack, licensing_sheet, spec_layout_doc, packaging_art, sticker, jcard, or other. Classify from the image together with the filename and path.
-10. Product type - always derive from the ERP Product Description if provided (e.g. "Lap Desk" -> tag "lapdesk"), otherwise infer from filename or folder path. Include as a tag even when the image shows artwork rather than the physical product.
-11. Suggested licensor_id and property_id from the taxonomy (if identifiable)
-12. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
-13. Cover description rule - **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
+10. Treat licensor, property, SKU, and product description as read-only context. Never return or rewrite their IDs and never add them as file tags.
+11. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
+12. Cover description rule - **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
    - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field - the image often shows artwork/art assets, NOT the actual product.
    - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
    - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
    - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
-14. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions - include them regardless. Return as files_used. If no such section exists, return an empty array.
+13. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions - include them regardless. Return as files_used. If no such section exists, return an empty array.
 ${
     usingPriorityOnly
       ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
       : ""
   }${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}
 
-Return structured data matching the tag_asset schema. Do not invent UUIDs. Use character_ids, licensor_id, and property_id only for exact matches from the provided taxonomy.`;
+Return structured data matching the tag_asset schema. Do not invent UUIDs. Use character_ids only for exact visible matches from the provided taxonomy.`;
 }
 
 /**

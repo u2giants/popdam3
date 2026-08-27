@@ -60,25 +60,26 @@ begin
   insert into plm.dcp_property_licensor_resolution (
     source_system, source_property_id, presentation_licensor_key,
     presentation_licensor_name, resolution_status, authority_kind,
-    authority_reference, evidence_reference, source_hash, resolved_at
+    authority_reference, evidence_reference, source_hash, resolved_at,
+    decision_version, approval_status, approved_at, approved_by, decision_reason
   ) values
     ('disney_dcpvault', v_search || '/d-1', 'disney', 'Disney',
      'supported_signed_contract', 'signed_contract', 'synthetic-authority',
-     'private-evidence-pointer', repeat('1',64), now()),
+     'private-evidence-pointer', repeat('1',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision'),
     ('disney_dcpvault', v_search || '/d-2', 'marvel', 'Marvel',
      'supported_core_ownership', 'canonical_core', 'synthetic-authority',
-     'private-evidence-pointer', repeat('2',64), now()),
+     'private-evidence-pointer', repeat('2',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision'),
     ('disney_dcpvault', v_search || '/d-3', 'star-wars', 'Star Wars',
      'supported_owner_approved_opa', 'owner_approved_opa', 'synthetic-authority',
-     'private-evidence-pointer', repeat('3',64), now()),
+     'private-evidence-pointer', repeat('3',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision'),
     ('marvel_dcpvault', v_search || '/m-1', null, null,
      'authority_conflict', 'multiple_authorities', 'synthetic-authority',
-     'private-evidence-pointer', repeat('4',64), null),
+     'private-evidence-pointer', repeat('4',64), null, 1, 'approved', now(), 'contract', 'synthetic conflict'),
     ('marvel_dcpvault', v_search || '/m-2', null, null,
-     'unresolved', null, null, null, repeat('5',64), null),
+     'unresolved', null, null, null, repeat('5',64), null, 1, 'approved', now(), 'contract', 'synthetic unresolved'),
     ('lucasfilm_dcpvault', v_search || '/l-1', 'disney', 'Disney',
      'supported_core_ownership', 'canonical_core', 'synthetic-authority',
-     'private-evidence-pointer', repeat('6',64), now());
+     'private-evidence-pointer', repeat('6',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision');
   -- l-2 deliberately has no mapping and must fail closed.
 
   loop
@@ -99,13 +100,13 @@ begin
   if (select count(*) from jsonb_array_elements(v_rows) r
       where r ->> 'presentation_licensor_name' = 'Disney') <> 2
      or (select count(*) from jsonb_array_elements(v_rows) r
-         where r ->> 'presentation_licensor_name' = 'Marvel') <> 1
+         where r ->> 'presentation_licensor_name' = 'DCP Vault - non-authoritative Marvel tag') <> 2
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'presentation_licensor_name' = 'Star Wars') <> 1
      or (select count(*) from jsonb_array_elements(v_rows) r
-         where r ->> 'presentation_licensor_name' = 'DCP Vault - authority conflict') <> 1
+         where r ->> 'presentation_licensor_name' = 'DCP Vault - authority conflict') <> 0
      or (select count(*) from jsonb_array_elements(v_rows) r
-         where r ->> 'presentation_licensor_name' = 'DCP Vault - unresolved') <> 2 then
+         where r ->> 'presentation_licensor_name' = 'DCP Vault - unresolved') <> 1 then
     raise exception 'evidence-backed DCP aggregate groups changed';
   end if;
 

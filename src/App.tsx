@@ -25,6 +25,7 @@ import PopSGLibraryPage from "./pages/popsg/PopSGLibraryPage";
 import PopSGSettingsPage from "./pages/popsg/PopSGSettingsPage";
 import FileBrowserPage from "./pages/FileBrowserPage";
 import StylesPage from "./pages/StylesPage";
+import OrdersPage from "./pages/OrdersPage";
 import SellThroughExportPage from "./pages/SellThroughExportPage";
 import { IS_POPSG } from "@/lib/app-mode";
 import PropertyReconciliationVisualPage from "@/features/popsg-property-reconciliation/PropertyReconciliationVisualPage";
@@ -61,6 +62,7 @@ const App = () => (
                 <Route path="/library" element={IS_POPSG ? <PopSGLibraryPage /> : <Index />} />
                 <Route path="/files" element={<FileBrowserPage />} />
                 {!IS_POPSG && <Route path="/sell-through" element={<SellThroughExportPage />} />}
+                {!IS_POPSG && <Route path="/orders" element={<OrdersPage />} />}
                 <Route path="/styles" element={<StylesPage />} />
                 <Route path="/settings" element={IS_POPSG ? <PopSGSettingsPage /> : <SettingsPage />} />
                 {!IS_POPSG && (

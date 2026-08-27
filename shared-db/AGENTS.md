@@ -21,7 +21,7 @@ and dissemination process is
 
 ## Historical item merchandise-group classification
 
-Before interpreting `full_item_master.csv`, changing item-description parsing, or reporting historical MG match counts, read [`docs/item-description-mg-classification-process.md`](docs/item-description-mg-classification-process.md). The active remediation plan is [`plan_item_description_mg_taxonomy_repair.md`](plan_item_description_mg_taxonomy_repair.md); follow its STATUS table and do not recreate the unsafe provisional/fuzzy method. The permanent rule is: parse every description into product type, size, licensor, property, and artwork; build independent post-May-13 maps for MG01, MG01+MG02, and MG01+MG02+MG03; then match old product types from three levels to two to one. A failed full-key match is never an MG01 failure.
+Before interpreting `full_item_master.csv`, changing item-description parsing, or reporting historical MG match counts, read [`docs/item-description-mg-classification-process.md`](docs/item-description-mg-classification-process.md). The active remediation plan is [`plan_item_description_mg_taxonomy_repair.md`](plan_item_description_mg_taxonomy_repair.md); follow its STATUS table and do not recreate the unsafe provisional/fuzzy method. **A proposed successor, [`plan_mg_taxonomy_three_axis_repair.md`](plan_mg_taxonomy_three_axis_repair.md), is written and awaiting owner review** — it re-keys matching onto the three axes the merchandise-group system actually encodes (MG01 form, MG02 material, MG03 embellishment) and carries the 2026-08-26 measurements behind that change. It is not yet approved and does not yet govern; read it before re-deriving why the three-level match rate is low. The permanent rule is: parse every description into product type, size, licensor, property, and artwork; build independent post-May-13 maps for MG01, MG01+MG02, and MG01+MG02+MG03; then match old product types from three levels to two to one. A failed full-key match is never an MG01 failure.
 
 ## Active contracts and implementation plans
 
@@ -1190,7 +1190,7 @@ status: active
 identifier: shared-db.orch
 engine: codex
 session_name: shared-db.orch EDGE-DEV resume-1579
-route_id: 01a0387e-2895-72d3-97c2-55838595c69e
+route_id: 00000000-0000-7000-8000-00000000a1a1
 owner: u2giants
 machine: EDGE-DEV
 started: 2026-08-26T14:39:25Z

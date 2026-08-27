@@ -59,6 +59,16 @@ No refresh hard-deletes licensing Master Data.
 - OPA submission evidence and ASGARD Creative Asset evidence must retain separate source provenance. Where the two use different labels, preserve both and leave any unresolved mapping explicit rather than forcing a name match.
 - Historical Marvel submission records created before the December 2025 transition retain their original source provenance. This ruling changes the current workflow authority; it does not relabel historical records as OPA-originated.
 
+## Disney source-purpose authority
+
+**Status: Settled. Authority: Albert Hazan, 2026-08-26.**
+
+- OPA is the Submissions workflow for Disney, Marvel, Lucasfilm / Star Wars, and Pixar. Marvel submissions remain under the Disney OPA branch by business rule.
+- Direct OPA creation-branch membership is authoritative studio/licensor scope evidence. Property-name keywords and landing-table families are not authority. One Property may legitimately appear in more than one route, and absent or conflicting current approved scope evidence remains explicit for Licensing review.
+- DCP Vault is Creative authority only for Disney and Lucasfilm / Star Wars. Marvel Creative authority is ASGARD only. Marvel-tagged DCP rows are retained as mixed-guide raw evidence but excluded from Marvel Creative presentation.
+- DCP presentation decisions preserve exact source identity and immutable supersession history. Only the deterministic latest approved decision is current. `supported_owner_source_label` means an owner-approved source-title-family declaration; it is not exact OPA evidence.
+- The known OPA Property-to-Character extract does not prove that other portal hierarchy relationships are absent. Capture direct hierarchy selectors when available; never synthesize them from `brandPropertyID`, constant `optionSourceID`, names, or table families.
+
 ## Talent likeness and royalty
 
 Marvel charges two additional royalty percentage points when artwork contains talent likeness. Marvel is the only Licensor with this confirmed rule. The likeness flag belongs to the specific Style Guide Asset file, never to the Character or Property.

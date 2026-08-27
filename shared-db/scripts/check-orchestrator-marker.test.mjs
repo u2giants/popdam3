@@ -40,7 +40,7 @@ const ROUTING = (over = {}) => {
     identifier: 'shared-db.orch',
     engine: 'codex',
     session_name: 'shared-db.orch EDGE-DEV resume-1579',
-    route_id: '01a0387e-2895-72d3-97c2-55838595c69e',
+    route_id: '00000000-0000-7000-8000-00000000a1a1',
     owner: 'u2giants',
     machine: 'EDGE-DEV',
     started: '2026-08-26T14:39:25Z',
@@ -211,8 +211,8 @@ test('a PLACEHOLDER route_id FAILS — it reads as answered and routes nowhere',
 test('a route_id of the wrong SHAPE for its engine FAILS', () => {
   // A Claude sessionId in a Codex marker routes nowhere: `codex-reply` takes a
   // thread UUID. Cross-engine paste is the likeliest hand-authoring error.
-  assert.equal(main([], io({ issues: [marker({ route_id: 'local_baefce7c-eb8b-4733-8a37-357f141ae013' })] })), EXIT_FAIL)
-  assert.equal(main([], io({ issues: [marker({ engine: 'claude', route_id: 'local_baefce7c-eb8b-4733-8a37-357f141ae013' })] })), EXIT_OK)
+  assert.equal(main([], io({ issues: [marker({ route_id: 'local_00000000-0000-4000-8000-00000000c3c3' })] })), EXIT_FAIL)
+  assert.equal(main([], io({ issues: [marker({ engine: 'claude', route_id: 'local_00000000-0000-4000-8000-00000000c3c3' })] })), EXIT_OK)
   assert.equal(main([], io({ issues: [marker({ engine: 'perl' })] })), EXIT_FAIL)
 })
 
@@ -236,13 +236,13 @@ test('an unorderable start time FAILS', () => {
 
 test('a SUCCESSOR that inherits its predecessor route_id FAILS', () => {
   // The exact defect: the successor's marker pointed at the closed session.
-  const inherited = '01a0387e-2895-72d3-97c2-55838595c69e'
+  const inherited = '00000000-0000-7000-8000-00000000a1a1'
   const issues = [marker({ handover_issue: '1579', route_id: inherited })]
   const bodies = { 1579: ROUTING({ route_id: inherited }) }
   assert.equal(main([], io({ issues, bodies })), EXIT_FAIL)
 
   // Its OWN new id is what the contract requires, and it passes.
-  const own = [marker({ handover_issue: '1579', route_id: '01a03125-3b15-7373-b7fc-4b95ca9e49d1' })]
+  const own = [marker({ handover_issue: '1579', route_id: '00000000-0000-7000-8000-00000000b2b2' })]
   assert.equal(main([], io({ issues: own, bodies })), EXIT_OK)
 })
 
@@ -337,7 +337,7 @@ test('resolve: TWO markers is ambiguous and unsafe — no target is returned', (
 test('resolve: ONE valid marker returns the routable target and how to reach it', () => {
   const target = resolveTarget(evaluate([marker()]).markers)
   assert.equal(target.state, 'declared')
-  assert.equal(target.routing.routeId, '01a0387e-2895-72d3-97c2-55838595c69e')
+  assert.equal(target.routing.routeId, '00000000-0000-7000-8000-00000000a1a1')
   assert.equal(target.routing.identifier, 'shared-db.orch')
   assert.match(target.routing.howToReach, /codex-reply.* with threadId/)
   assert.equal(main(['--resolve'], io({ issues: [marker()] })), EXIT_OK)
@@ -345,7 +345,7 @@ test('resolve: ONE valid marker returns the routable target and how to reach it'
 
 test('resolve: a Claude-held orchestrator resolves to a Claude session message', () => {
   const target = resolveTarget(
-    evaluate([marker({ engine: 'claude', route_id: 'local_baefce7c-eb8b-4733-8a37-357f141ae013' })]).markers,
+    evaluate([marker({ engine: 'claude', route_id: 'local_00000000-0000-4000-8000-00000000c3c3' })]).markers,
   )
   assert.equal(target.state, 'declared')
   assert.match(target.routing.howToReach, /Claude cross-session message to sessionId/)

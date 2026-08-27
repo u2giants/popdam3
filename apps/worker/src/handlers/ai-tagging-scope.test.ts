@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { validateTagAssetData } from "./ai-tagging-shared.js";
+import { writeAssetAiTags } from "./ai-tagging.js";
 
 type FixtureAsset = { id: string; descriptor: string; legacy_tags: string[] };
 type FixtureGroup = {
@@ -15,10 +16,15 @@ type FixtureGroup = {
 const fixturePath = fileURLToPath(new URL("../fixtures/ai-tagging-scope/groups.json", import.meta.url));
 const groups = JSON.parse(readFileSync(fixturePath, "utf8")) as FixtureGroup[];
 
-function legacyResult(tags: string[]) {
-  const padded = [...tags, "licensed product", "consumer product", "commercial artwork"];
+function typedResult(tags: string[]) {
+  const padded = [...tags, "visible detail", "file-specific treatment", "composed scene", "surface detail"];
   return {
-    tags: [...new Set(padded)].slice(0, 18),
+    asset_tags: [...new Set(padded)].slice(0, 18).map((tag) => ({
+      tag,
+      category: tag.includes("view") ? "view" : tag.match(/blue|black|green|pink|red|silver/) ? "color" : "visible_content",
+      confidence: 0.9,
+      evidence: [`synthetic evidence for ${tag}`],
+    })),
     ai_description: "Synthetic search description for characterization only.",
     scene_description: "Synthetic literal scene description.",
     content_type: "render_mockup",
@@ -32,24 +38,42 @@ test("scope fixtures are synthetic, diverse, and contain no external image input
   assert.ok(groups.flatMap((group) => group.assets).every((asset) => !("thumbnail_url" in asset)));
 });
 
-test("legacy flat contract accepts mixed group and file facts", () => {
+test("typed asset contract accepts file facts and rejects the legacy flat shape", () => {
   for (const group of groups) {
     for (const asset of group.assets) {
-      assert.doesNotThrow(() => validateTagAssetData(legacyResult(asset.legacy_tags), "legacy_fixture"));
+      const fileTags = asset.legacy_tags.filter((tag) => !Object.values(group.authoritative).map((value) => value.toLowerCase()).includes(tag));
+      assert.doesNotThrow(() => validateTagAssetData(typedResult(fileTags), "typed_fixture"));
     }
   }
-
-  const photo = groups[0].assets[1].legacy_tags;
-  assert.ok(photo.includes("backpack"), "group product fact is stored in the same flat array");
-  assert.ok(photo.includes("professional photography"), "file image type is stored in the same flat array");
+  assert.throws(() => validateTagAssetData({
+    tags: ["backpack", "professional photography", "3/4 view", "blue", "licensed product", "mockup"],
+    ai_description: "legacy",
+    scene_description: "legacy",
+    content_type: "product_photo",
+  }, "legacy_fixture"), /asset_tags must be an array/);
 });
 
-test("legacy asset_id,tag upsert key cannot preserve manual and AI provenance together", () => {
-  const manual = { asset_id: groups[0].assets[1].id, tag: "blue", source: "manual" };
-  const ai = { asset_id: groups[0].assets[1].id, tag: "blue", source: "ai" };
+test("production writer uses the atomic manual-wins RPC instead of direct asset_tags upsert", async () => {
+  const calls: Array<{ name: string; params: Record<string, unknown> }> = [];
+  const client = {
+    rpc: async (name: string, params: Record<string, unknown>) => {
+      calls.push({ name, params });
+      return { error: null };
+    },
+  };
+  const assetId = groups[0].assets[1].id;
+  await writeAssetAiTags(client, assetId, "fixture-model", typedResult(["blue", "3/4 view", "studio scene", "visible zipper"]));
 
-  assert.deepEqual([manual.asset_id, manual.tag], [ai.asset_id, ai.tag]);
-  assert.notEqual(manual.source, ai.source);
-  // Current writers upsert AI rows on (asset_id, tag), so this collision is the
-  // characterization that Step 2's atomic manual-wins contract must eliminate.
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "replace_asset_ai_tag_result");
+  assert.equal(calls[0].params.p_asset_id, assetId);
+  assert.equal(calls[0].params.p_source, "ai");
+  assert.equal(calls[0].params.p_model, "fixture-model");
+  assert.deepEqual((calls[0].params.p_tags as Array<Record<string, unknown>>)[0], {
+    tag: "blue",
+    category: "color",
+    status: "active",
+    confidence: 0.9,
+    evidence: ["synthetic evidence for blue"],
+  });
 });

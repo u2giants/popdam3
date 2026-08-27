@@ -105,14 +105,15 @@ begin
   insert into plm.dcp_property_licensor_resolution (
     source_system, source_property_id, presentation_licensor_key,
     presentation_licensor_name, resolution_status, authority_kind,
-    authority_reference, evidence_reference, source_hash, resolved_at
+    authority_reference, evidence_reference, source_hash, resolved_at,
+    decision_version, approval_status, approved_at, approved_by, decision_reason
   ) values
     ('disney_dcpvault', v_search || '/journey-to-the-moon''s-edge', 'disney', 'Disney',
-     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('a',64), now()),
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('a',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision'),
     ('marvel_dcpvault', v_search || '/ignored-derived-name', 'marvel', 'Marvel',
-     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('b',64), now()),
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('b',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision'),
     ('lucasfilm_dcpvault', v_search || '/galaxy_far_far_away', 'star-wars', 'Star Wars',
-     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('c',64), now());
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('c',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision');
 
   -- Fixed, non-licensed synthetic IDs exercise malformed terminal segments and
   -- prove that a DCP studio outside #1546's three-target allowlist keeps the
@@ -221,14 +222,14 @@ begin
       and r ->> 'source_table' = 'plm.dcp_property'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
-    where r ->> 'presentation_licensor_name' = 'Marvel'
+    where r ->> 'presentation_licensor_name' = 'DCP Vault - non-authoritative Marvel tag'
       and r ->> 'source_table' = 'plm.marvel_dcp_property'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
     where r ->> 'presentation_licensor_name' = 'Star Wars'
       and r ->> 'source_system' = 'lucasfilm_dcpvault'
   ) then
-    raise exception 'Disney, Marvel, and Star Wars presentation groups are not distinct';
+    raise exception 'Disney Creative, retained Marvel-tag evidence, and Star Wars Creative groups are not distinct';
   end if;
 
   if not exists (

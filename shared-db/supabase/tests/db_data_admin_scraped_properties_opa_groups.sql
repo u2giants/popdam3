@@ -98,14 +98,15 @@ begin
   insert into plm.dcp_property_licensor_resolution (
     source_system, source_property_id, presentation_licensor_key,
     presentation_licensor_name, resolution_status, authority_kind,
-    authority_reference, evidence_reference, source_hash, resolved_at
+    authority_reference, evidence_reference, source_hash, resolved_at,
+    decision_version, approval_status, approved_at, approved_by, decision_reason
   ) values
     ('disney_dcpvault', v_search || '/disney-dcp', 'disney', 'Disney',
-     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('a',64), now()),
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('a',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision'),
     ('marvel_dcpvault', v_search || '/marvel-dcp', 'marvel', 'Marvel',
-     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('b',64), now()),
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('b',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision'),
     ('lucasfilm_dcpvault', v_search || '/star-wars-dcp', 'star-wars', 'Star Wars',
-     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('c',64), now());
+     'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('c',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision');
 
   v_cursor := null;
   loop
@@ -135,22 +136,22 @@ begin
 
   if (select count(*) from jsonb_array_elements(v_rows) r
       where r ->> 'source_table' = 'plm.opa_property'
-        and r ->> 'presentation_licensor_name' = 'Disney OPA') <> 244
+        and r ->> 'presentation_licensor_name' = 'Disney - Submissions (OPA)') <> 244
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'source_table' = 'plm.opa_property'
-           and r ->> 'presentation_licensor_name' = 'Marvel OPA') <> 205
+           and r ->> 'presentation_licensor_name' = 'Marvel - Submissions (OPA)') <> 205
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'source_table' = 'plm.opa_property'
-           and r ->> 'presentation_licensor_name' = 'Lucasfilm / Star Wars OPA') <> 2
+           and r ->> 'presentation_licensor_name' = 'Lucasfilm / Star Wars - Submissions (OPA)') <> 2
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'source_table' = 'plm.opa_property'
-           and r ->> 'presentation_licensor_name' = 'Pixar OPA') <> 64
+           and r ->> 'presentation_licensor_name' = 'Pixar - Submissions (OPA)') <> 64
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'source_table' = 'plm.opa_property'
-           and r ->> 'presentation_licensor_name' = 'Disney OPA - ambiguous crossover') <> 20
+           and r ->> 'presentation_licensor_name' = 'OPA - scope conflict') <> 20
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'source_table' = 'plm.opa_property'
-           and r ->> 'presentation_licensor_name' = 'Disney OPA - unresolved') <> 910 then
+           and r ->> 'presentation_licensor_name' = 'OPA - unresolved') <> 910 then
     raise exception 'the six OPA presentation outcomes changed';
   end if;
 
@@ -169,7 +170,7 @@ begin
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
     where r ->> 'source_table' = 'plm.marvel_dcp_property'
-      and r ->> 'presentation_licensor_name' = 'Marvel'
+      and r ->> 'presentation_licensor_name' = 'DCP Vault - non-authoritative Marvel tag'
       and r ->> 'source_system' = 'marvel_dcpvault'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r

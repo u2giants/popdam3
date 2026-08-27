@@ -11,6 +11,7 @@ import {
   buildTaggingSystemPrompt,
   isStyleGuideSourcePdf,
 } from "../../../../supabase/functions/_shared/tag-asset-contract.js";
+import { ASSET_TAG_CATEGORIES, normalizeMetadataTag } from "../tagging-metadata-policy.js";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
 
@@ -90,18 +91,31 @@ function isToolCapabilityError(error: unknown): boolean {
 
 export function validateTagAssetData(value: Record<string, unknown>, mode: string) {
   const errors: string[] = [];
-  if (!Array.isArray(value.tags)) {
-    errors.push("tags must be an array");
+  if (!Array.isArray(value.asset_tags)) {
+    errors.push("asset_tags must be an array");
   } else {
-    const tags = value.tags;
-    if (tags.length < 6 || tags.length > 18) errors.push("tags must contain 6-18 items");
-    if (tags.some((tag) => typeof tag !== "string" || tag.trim().length === 0)) {
-      errors.push("every tag must be a non-empty string");
+    const tags = value.asset_tags as Array<Record<string, unknown>>;
+    if (tags.length < 4 || tags.length > 18) errors.push("asset_tags must contain 4-18 items");
+    const normalizedTags: string[] = [];
+    for (const item of tags) {
+      if (!item || typeof item !== "object") {
+        errors.push("every asset tag must be an object");
+        continue;
+      }
+      const tag = normalizeMetadataTag(item.tag);
+      if (!tag) errors.push("every asset tag must have a non-empty tag");
+      else normalizedTags.push(tag);
+      if (typeof item.category !== "string" || !ASSET_TAG_CATEGORIES.includes(item.category)) {
+        errors.push("every asset tag must use an asset-only category");
+      }
+      if (typeof item.confidence !== "number" || item.confidence < 0 || item.confidence > 1) {
+        errors.push("every asset tag confidence must be between 0 and 1");
+      }
+      if (!Array.isArray(item.evidence) || item.evidence.length === 0 || item.evidence.some((entry) => typeof entry !== "string" || !entry.trim())) {
+        errors.push("every asset tag must contain string evidence");
+      }
     }
-    const normalizedTags = tags
-      .filter((tag): tag is string => typeof tag === "string")
-      .map((tag) => tag.trim().toLowerCase());
-    if (new Set(normalizedTags).size !== normalizedTags.length) errors.push("tags must be distinct");
+    if (new Set(normalizedTags).size !== normalizedTags.length) errors.push("asset tags must be distinct");
   }
   if (typeof value.ai_description !== "string" || value.ai_description.trim().length === 0) {
     errors.push("ai_description must be a non-empty string");
@@ -134,7 +148,7 @@ function withJsonObjectInstruction(messages: ChatMessage[]): ChatMessage[] {
     {
       role: "user",
       content:
-        "Return only a valid JSON object matching the tag_asset schema. Include at minimum tags, ai_description, and scene_description. Do not wrap it in markdown or prose.",
+        "Return only a valid JSON object matching the tag_asset schema. Include at minimum asset_tags, ai_description, scene_description, and content_type. Do not wrap it in markdown or prose.",
     },
   ];
 }
@@ -145,7 +159,7 @@ function withJsonRepairInstruction(messages: ChatMessage[], errorMessage: string
     {
       role: "user",
       content:
-        `The previous response could not be parsed or validated as JSON: ${errorMessage.slice(0, 300)}. Return a corrected JSON object only. Include tags, ai_description, scene_description, and content_type. No markdown, no commentary.`,
+        `The previous response could not be parsed or validated as JSON: ${errorMessage.slice(0, 300)}. Return a corrected JSON object only. Include asset_tags, ai_description, scene_description, and content_type. No markdown, no commentary.`,
     },
   ];
 }

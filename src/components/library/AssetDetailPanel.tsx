@@ -375,7 +375,9 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
     const tag = tagInput.trim().toLowerCase();
     if (!tag || asset.tags.includes(tag)) return;
     const { data, error } = await supabase.from("asset_tags").upsert(
-      { asset_id: asset.id, tag, source: "manual" },
+      // category/status became required in shared-db #1427. Keep this explicit
+      // until the normal generated-type sync includes those columns.
+      { asset_id: asset.id, tag, source: "manual", category: "other", status: "active" } as never,
       { onConflict: "asset_id,tag" }
     ).select("id");
     if (error) { toast.error("Failed to add tag", { description: error.message }); return; }

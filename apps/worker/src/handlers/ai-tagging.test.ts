@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleBulkAiTag, isRetryableStructuredOutputError, type AiTagRpcClient } from "./ai-tagging.js";
+import { handleBulkAiTag, isRetryableStructuredOutputError, isVisualAnalysisUnavailableError, type AiTagRpcClient } from "./ai-tagging.js";
 
 test("new executor aggregate errors retain same-model retry behavior", () => {
   assert.equal(isRetryableStructuredOutputError("Structured output failed: json_schema: no parsable JSON"), true);
   assert.equal(isRetryableStructuredOutputError("Structured output failed: data_inspection_failed"), false);
+});
+
+test("durable preparation classifies missing and inaccessible thumbnails as unavailable", () => {
+  assert.equal(isVisualAnalysisUnavailableError(new Error("Asset has no thumbnail: fixture")), true);
+  assert.equal(isVisualAnalysisUnavailableError(new Error("Thumbnail fetch HTTP 403")), true);
+  assert.equal(isVisualAnalysisUnavailableError(new Error("Thumbnail fetch HTTP 404")), true);
+  assert.equal(isVisualAnalysisUnavailableError(new Error("Thumbnail fetch HTTP 500")), false);
 });
 
 const IDS = [
@@ -144,4 +151,21 @@ test("required asset scope fails closed before querying the whole library", asyn
   assert.equal(result.done, true);
   assert.match(result.error ?? "", /no asset ID/i);
   assert.equal(calls.length, 0);
+});
+
+test("no-preview assets are counted as visual analysis unavailable, not failed or tagged", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const result = await handleBulkAiTag(
+    { status: "running", cursor: 0 },
+    false,
+    {
+      client: fakeClient([{ data: [candidate(IDS[0], 1)], error: null }], calls),
+      tagAsset: async () => ({ outcome: "visual_analysis_unavailable", error: "No thumbnail URL" }),
+    },
+  );
+
+  assert.equal(result.tagged, 0);
+  assert.equal(result.failed, 0);
+  assert.equal(result.visual_analysis_unavailable, 1);
+  assert.match((result.skip_samples as Array<{ reason: string }>)[0].reason, /unavailable/i);
 });

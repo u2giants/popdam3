@@ -351,7 +351,11 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
     );
     const { tagData: output, usage, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 4000);
 
-    const tags = normalizeTags(output.tags);
+    const tags = normalizeTags(
+      Array.isArray(output.asset_tags)
+        ? output.asset_tags.map((item) => item && typeof item === "object" ? (item as Record<string, unknown>).tag : null)
+        : [],
+    );
     const { characterIds, propertyId, debug } = await normalizeModelTaxonomy(asset, output, tags);
     const { characterNames, propertyName } = await resolveNames(characterIds, propertyId);
     const costUsd = computeCostUsd(usage, pricing);

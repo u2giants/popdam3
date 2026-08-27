@@ -43,6 +43,7 @@ import {
   Sun,
   Moon,
   Bell,
+  ClipboardList,
   Database,
   ImageDown,
   MoreHorizontal,
@@ -59,6 +60,7 @@ const popdamNavItems = [
   { to: "/files", label: "Files", icon: FolderOpen },
   { to: "/sell-through", label: "Sell-through", icon: ImageDown },
   { href: "https://dam.designflow.app/styles", label: "Master Data", icon: Database },
+  { to: "/orders", label: "Orders", icon: ClipboardList },
   { to: "/setup", label: "Setup", icon: Wand2 },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/downloads", label: "Downloads", icon: Download },
@@ -76,7 +78,7 @@ const navItems = IS_POPSG ? popsgNavItems : popdamNavItems;
  * Nav entries that collapse into a single "More" menu in compact chrome mode,
  * so the header keeps room for the status cluster on short/narrow screens.
  */
-const SECONDARY_NAV_LABELS = new Set(["Sell-through", "Master Data", "Setup"]);
+const SECONDARY_NAV_LABELS = new Set(["Sell-through", "Master Data", "Orders", "Setup"]);
 
 const ACCENT_OPTIONS: { value: Accent; label: string; color: string }[] = [
   { value: "indigo", label: "Indigo", color: "#6366f1" },
