@@ -60,6 +60,19 @@ SUPPORTED_CASES = {
         "issue_state": "open",
         "claim_state": "closed",
     },
+    (1658, 1659, 1660): {
+        "mode": "replacement_pending",
+        "orphan_version": "20260827134155",
+        "replacement_version": "20260827171526",
+        "orphan_run_head": "b49a5665060fcc9a100f12a096460ea44a30451c",
+        # The apply was dispatched from main against the PR commit, so the run head is
+        # the workflow definition commit and the applied source is this commit. Older
+        # cases dispatched from the branch itself, where the two are the same sha.
+        "orphan_commit_sha": "d15a69a825cbf0d365b1ffac825a2db4c22db63b",
+        "preview_run_id": 33095556822,
+        "preview_artifact_id": 9656250972,
+        "preview_artifact_digest": "sha256:ec03dc67ce845c6db231a56555803d1daddd6869fc61019ccd89f3f27f6878ce",
+    },
 }
 
 
@@ -162,10 +175,11 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
         raise Refusal("preview run is not the governed shared migration workflow")
     if artifact.get("id") != args.preview_artifact_id or artifact.get("workflow_run", {}).get("id") != args.preview_run_id or artifact.get("digest") != args.preview_artifact_digest or artifact.get("expired"):
         raise Refusal("preview artifact identity or digest mismatch")
-    if artifact.get("name") != f"preview-migration-apply-{run.get('head_sha')}":
-        raise Refusal("preview artifact is not the exact run-head apply evidence")
+    orphan_commit = case.get("orphan_commit_sha", run.get("head_sha"))
+    if artifact.get("name") != f"preview-migration-apply-{orphan_commit}":
+        raise Refusal("preview artifact is not the exact applied-source apply evidence")
     expected_run_head = case.get("original_run_head", case.get("orphan_run_head", run.get("head_sha")))
-    if expected_run_head != run.get("head_sha") or run.get("head_sha") != git(args.orphan_source_dir, "rev-parse", "HEAD"):
+    if expected_run_head != run.get("head_sha") or orphan_commit != git(args.orphan_source_dir, "rev-parse", "HEAD"):
         raise Refusal("preview run is not the exact orphan source commit")
 
     before_path = args.preview_evidence_dir / "preview-ledger-before.txt"
