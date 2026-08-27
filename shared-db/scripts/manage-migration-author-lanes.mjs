@@ -2047,7 +2047,12 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       // pins the exact issue, claim, versions, run, artifact, and live PR head.
       const pending1211 = Number(metadata.pr) === 1372 && pr?.state === 'open' && pr?.merged !== true && Boolean(pr?.head?.sha)
       const pending1439 = Number(metadata.pr) === 1495 && pr?.state === 'open' && pr?.merged !== true && Boolean(pr?.head?.sha)
-      if (!pending1211 && !pending1439 && (pr?.merged !== true || !pr?.merge_commit_sha)) throw new LaneError('historical preview recovery requires an already-merged source PR or an exact allowlisted pending-replacement PR')
+      // #1658/PR #1660 is the same circular case: the abandoned preview-only row
+      // 20260827134155 blocks EVERY preview apply in the repository, including the
+      // replacement 20260827171526 that PR #1660 itself carries, so the PR cannot be
+      // previewed and therefore cannot be merged until that row is removed.
+      const pending1658 = Number(metadata.pr) === 1660 && pr?.state === 'open' && pr?.merged !== true && Boolean(pr?.head?.sha)
+      if (!pending1211 && !pending1439 && !pending1658 && (pr?.merged !== true || !pr?.merge_commit_sha)) throw new LaneError('historical preview recovery requires an already-merged source PR or an exact allowlisted pending-replacement PR')
     } else {
       const pr = io.getPr?.(metadata.pr)
       if (!pr?.head?.sha || pr.head.sha !== metadata.headSha) throw new LaneError('exclusive lane head SHA does not match the live pull request')
