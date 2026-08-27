@@ -1,5 +1,7 @@
 import { isAiTagCursor } from "./ai-tag-cursor.js";
 
+const UUID_CURSOR_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const AUTO_RESUME_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 300_000] as const;
 const TRANSIENT_REASONS = new Set([
   "statement_timeout",
@@ -17,6 +19,11 @@ export function isValidAutoResumeCursor(opKey: string, cursor: unknown): boolean
   if (typeof cursor === "number") return Number.isFinite(cursor) && cursor >= 0;
   if (opKey === "ai-tag-untagged" || opKey === "ai-tag-all" || opKey === "ai-tag-groups") {
     return isAiTagCursor(cursor);
+  }
+  // Style Group profiling keysets by style_groups.id, so its resumable cursor is a
+  // bare UUID. Without this the op cannot auto-resume after a Railway restart.
+  if (opKey === "ai-tag-group-profiles") {
+    return typeof cursor === "string" && UUID_CURSOR_RE.test(cursor);
   }
   return false;
 }

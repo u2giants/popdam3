@@ -72,7 +72,7 @@ function humanizeError(raw: string): string {
 let cachedModels: { primary: string; fallback: string | null; providerPin: string | null } | null = null;
 let cacheExpiresAt = 0;
 
-async function getVisionModels(): Promise<{ primary: string; fallback: string | null; providerPin: string | null }> {
+export async function getVisionModels(): Promise<{ primary: string; fallback: string | null; providerPin: string | null }> {
   if (cachedModels && Date.now() < cacheExpiresAt) return cachedModels;
   const client = db();
   const { data } = await client

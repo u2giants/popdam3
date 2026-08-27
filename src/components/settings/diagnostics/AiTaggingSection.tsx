@@ -5,7 +5,7 @@ import { isResumableOperationCursor, usePersistentOperation } from "@/hooks/useP
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, RefreshCw, Loader2, XCircle, Share2 } from "lucide-react";
+import { Sparkles, RefreshCw, Loader2, XCircle, Share2, Layers } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES, operationReasonLabel, timeAgo } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
@@ -149,6 +149,68 @@ export function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<t
   );
 }
 
+function GroupProfileProgress({ op }: { op: ReturnType<typeof usePersistentOperation> }) {
+  const s = op.state;
+  const p = s.progress;
+  if (!p) return null;
+
+  const profiled = (p.profiled as number) || 0;
+  const unavailable = (p.visual_analysis_unavailable as number) || 0;
+  const failed = (p.failed as number) || 0;
+  const total = (p.total as number) || 0;
+  const done = profiled + unavailable + failed;
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
+
+  const isTerminal = s.status === "completed" || s.status === "failed";
+  const endTime = !op.isActive && s.updated_at ? new Date(s.updated_at).getTime() : Date.now();
+  const elapsedMs = s.started_at ? endTime - new Date(s.started_at).getTime() : 0;
+  const rate = calcRate(done, elapsedMs);
+  const canResume = (s.status === "failed" || s.status === "interrupted")
+    && isResumableOperationCursor("ai-tag-group-profiles", s.cursor);
+
+  return (
+    <div className="space-y-2 rounded-md border border-border/50 p-3">
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center gap-2">
+          {op.isActive && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+          <span className="font-medium">{OP_NAMES["ai-tag-group-profiles"]}</span>
+          <StatusBadge status={s.status} reasonCode={s.interruption_reason_code} />
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+          {!op.isActive && s.updated_at && (
+            <span title={new Date(s.updated_at).toLocaleString()}>
+              {isTerminal ? "Finished" : "Stopped"} {timeAgo(s.updated_at)}
+            </span>
+          )}
+          {op.isActive && elapsedMs > 0 && <span>Elapsed: {formatDuration(elapsedMs)}</span>}
+          {op.isActive && (
+            <Button variant="ghost" size="sm" className="h-5 px-1.5 text-destructive hover:text-destructive" onClick={() => op.stop()}>
+              <XCircle className="h-3 w-3" />
+            </Button>
+          )}
+          {canResume && (
+            <Button
+              variant="ghost" size="sm" className="h-5 px-2 text-xs text-primary hover:text-primary"
+              onClick={() => op.start({ confirmMessage: `Resume Style Group profiling? (${done.toLocaleString()} groups already processed)` })}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" /> Resume
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="text-xs text-muted-foreground tabular-nums">
+        {profiled.toLocaleString()} profiled
+        {unavailable > 0 && <> · {unavailable.toLocaleString()} without usable images</>}
+        {failed > 0 && <> · {failed.toLocaleString()} failed</>}
+        {pct !== null && <> · {pct}%</>}
+        {rate > 0 && op.isActive && <> · {rate.toFixed(1)}/s</>}
+      </div>
+      {s.error && <p className="text-xs text-destructive">{s.error}</p>}
+      {s.result_message && !op.isActive && <p className="text-xs text-muted-foreground">{s.result_message}</p>}
+    </div>
+  );
+}
+
 function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperation> }) {
   const s = op.state;
   const p = s.progress;
@@ -277,6 +339,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const tagUntaggedOp = usePersistentOperation("ai-tag-untagged");
   const tagAllOp = usePersistentOperation("ai-tag-all");
   const propagateOp = usePersistentOperation("propagate-group-tags");
+  const groupProfileOp = usePersistentOperation("ai-tag-group-profiles");
 
   const { data: tagCounts } = useQuery({
     queryKey: ["untagged-asset-count"],
@@ -310,8 +373,10 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   // dialog will handle the cross-lane conflict if the worker can't accept the new op yet.
   const anyTaggingActive =
     tagUntaggedOp.isActive || tagUntaggedOp.isQueued ||
-    tagAllOp.isActive    || tagAllOp.isQueued;
-  const anyActive = anyTaggingActive || propagateOp.isActive || propagateOp.isQueued;
+    tagAllOp.isActive    || tagAllOp.isQueued ||
+    groupProfileOp.isActive || groupProfileOp.isQueued;
+  const anyActive = anyTaggingActive || propagateOp.isActive || propagateOp.isQueued
+    || groupProfileOp.isActive || groupProfileOp.isQueued;
 
   function runBulkTag(mode: "untagged" | "all") {
     const op = mode === "all" ? tagAllOp : tagUntaggedOp;
@@ -326,6 +391,16 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
         initialProgress: {},
       }),
       () => op.queue({ initialProgress: {} }),
+    );
+  }
+
+  function runGroupProfiles() {
+    requestOp("ai-tag-group-profiles", OP_NAMES["ai-tag-group-profiles"],
+      () => groupProfileOp.start({
+        confirmMessage: `Build a shared artwork profile for each of the ${totalGroups.toLocaleString()} style groups? Product facts are written once on the group — no file tags are copied to siblings. Continue?`,
+        initialProgress: { total: totalGroups },
+      }),
+      () => groupProfileOp.queue({ initialProgress: { total: totalGroups } }),
     );
   }
 
@@ -367,6 +442,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const showTagUntagged = tagUntaggedOp.state.status !== "idle" && tagUntaggedOp.state.progress;
   const showTagAll = tagAllOp.state.status !== "idle" && tagAllOp.state.progress;
   const showPropagate = propagateOp.state.status !== "idle" && propagateOp.state.progress;
+  const showGroupProfiles = groupProfileOp.state.status !== "idle" && groupProfileOp.state.progress;
 
   return (
     <Card>
@@ -434,6 +510,21 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
             <TooltipTrigger asChild>
               <Button
                 variant="outline" size="sm" className="gap-1.5"
+                onClick={runGroupProfiles}
+                disabled={anyActive || totalGroups === 0}
+              >
+                {groupProfileOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Layers className="h-3.5 w-3.5" />}
+                {groupProfileOp.isInterrupted ? "Profile Groups (interrupted)" : "Profile Style Groups"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[280px] text-center">
+              Builds one shared product/artwork profile per style group from several representative files. Group facts stay on the group — nothing is copied onto sibling files.
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline" size="sm" className="gap-1.5"
                 onClick={runBulkPropagate}
                 disabled={anyActive || totalGroups === 0}
               >
@@ -450,6 +541,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
         {/* Show each operation's progress independently, stacked */}
         {showTagUntagged && <TaggingProgress opKey="ai-tag-untagged" op={tagUntaggedOp} />}
         {showTagAll && <TaggingProgress opKey="ai-tag-all" op={tagAllOp} />}
+        {showGroupProfiles && <GroupProfileProgress op={groupProfileOp} />}
         {showPropagate && <PropagationProgress op={propagateOp} />}
       </CardContent>
     </Card>
