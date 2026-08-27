@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { isMetaDirectModel, isTerminalMetaModelApiError, metaChatCompletion } from "../meta-model-api.js";
 import { db } from "../supabase.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
-import { imageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
+import { imageContent, publicImageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput, type OutputAttempt } from "../structured-output.js";
 import {
@@ -322,6 +322,19 @@ export function buildImageTaggingMessages(systemPrompt: string, image: ImageData
       role: "user",
       content: [
         imageContent(image.base64, image.mimeType),
+        { type: "text", text: userText },
+      ],
+    },
+  ];
+}
+
+export function buildBatchImageTaggingMessages(systemPrompt: string, imageUrl: string, userText: string): ChatMessage[] {
+  return [
+    { role: "system", content: systemPrompt },
+    {
+      role: "user",
+      content: [
+        publicImageContent(imageUrl),
         { type: "text", text: userText },
       ],
     },

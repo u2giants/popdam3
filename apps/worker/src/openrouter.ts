@@ -120,6 +120,7 @@ export function buildOpenRouterBatchPayload(items: OpenRouterBatchSubmission[]) 
     throw new Error(`OpenRouter batch requires 1-${MAX_BATCH_REQUESTS} requests`);
   }
   const baseModel = baseModelId(items[0].request.model);
+  for (const { request } of items) assertBatchCompatibleMedia(request.messages);
   return {
     endpoint: "/v1/chat/completions",
     model: baseModel,
@@ -129,6 +130,24 @@ export function buildOpenRouterBatchPayload(items: OpenRouterBatchSubmission[]) 
       return { custom_id: customId, body };
     }),
   };
+}
+
+function assertBatchCompatibleMedia(messages: ChatMessage[]): void {
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (part.type !== "image_url") continue;
+      let url: URL;
+      try {
+        url = new URL(part.image_url.url);
+      } catch {
+        throw new Error("OpenRouter batch image URLs must be valid public http(s) URLs");
+      }
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error("OpenRouter batch image URLs must be public http(s) URLs; data URIs are not supported");
+      }
+    }
+  }
 }
 
 export async function submitOpenRouterBatch(apiKey: string, items: OpenRouterBatchSubmission[]): Promise<OpenRouterBatchRecord> {
@@ -288,6 +307,15 @@ export function imageContent(base64: string, mimeType: string): ContentPart {
     type: "image_url",
     image_url: { url: `data:${mimeType};base64,${base64}` },
   };
+}
+
+/** Build an image content part that the Batch API can fetch asynchronously. */
+export function publicImageContent(url: string): ContentPart {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Batch image URL must use public http(s)");
+  }
+  return { type: "image_url", image_url: { url: parsed.toString() } };
 }
 
 /** Build a tool definition from name, description, and JSON Schema parameters */

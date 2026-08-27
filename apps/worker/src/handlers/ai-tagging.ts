@@ -30,6 +30,7 @@ import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type Structured
 import { withDependencyTimeout } from "../bounded-dependency.js";
 import {
   buildImageTaggingMessages,
+  buildBatchImageTaggingMessages,
   buildImageTaggingPrompt,
   callTagAssetModel,
   fetchImageData,
@@ -175,13 +176,10 @@ async function buildBatchAssetRequest(
   const typed = asset as BatchAsset;
   if (!force && typed.status === "tagged" && typed.ai_tagged_at) return null;
   if (!typed.thumbnail_url) throw new Error(`Asset has no thumbnail: ${assetId}`);
-  const [prompt, image] = await Promise.all([
-    buildImageTaggingPrompt(typed),
-    fetchImageData(typed.thumbnail_url),
-  ]);
-  const messages = buildImageTaggingMessages(
+  const prompt = await buildImageTaggingPrompt(typed);
+  const messages = buildBatchImageTaggingMessages(
     prompt,
-    image,
+    typed.thumbnail_url,
     "Analyze this design asset image and return structured tags matching the tag_asset schema.",
   );
   const request: ChatCompletionRequest = {

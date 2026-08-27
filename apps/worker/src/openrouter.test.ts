@@ -58,6 +58,24 @@ test("batch builder enforces the 100 request provider limit", () => {
   assert.throws(() => buildOpenRouterBatchPayload(Array.from({ length: 101 }, (_, index) => ({ ...item, customId: `asset-${index}` }))));
 });
 
+test("batch builder accepts public image URLs and rejects data URIs before submission", () => {
+  const request = {
+    model: "google/gemini:batch",
+    messages: [{ role: "user" as const, content: [{ type: "image_url" as const, image_url: { url: "https://cdn.example.test/asset.jpg" } }] }],
+  };
+  const payload = buildOpenRouterBatchPayload([{ customId: "asset", request }]);
+  assert.deepEqual(payload.requests[0].body.messages, request.messages);
+
+  const dataUriRequest = {
+    ...request,
+    messages: [{ role: "user" as const, content: [{ type: "image_url" as const, image_url: { url: "data:image/jpeg;base64,AA==" } }] }],
+  };
+  assert.throws(
+    () => buildOpenRouterBatchPayload([{ customId: "asset", request: dataUriRequest }]),
+    /public http\(s\).*data URIs are not supported/,
+  );
+});
+
 test("synchronous callers cannot use batch-only models", async () => {
   await assert.rejects(() => chatCompletion("key", {
     model: "google/gemini-3.7-flash:batch",
