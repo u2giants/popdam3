@@ -22,6 +22,8 @@ export const OP_NAMES: Record<string, string> = {
   "cleanup-mega-group-tags": "Clean Mega-Group Tags",
   "relink-orphaned-assets": "Relink Orphaned Assets",
   "rich-pdf-extract": "Rich PDF Extract",
+  "embed-dam-search": "Embed DAM Search",
+  "tag-popsg-files": "Tag PopSG Files",
 };
 
 // ── Parallel Lane System ────────────────────────────────────────────
@@ -45,6 +47,8 @@ export const OP_LANES: Record<string, string> = {
   "cleanup-mega-group-tags": "style-groups",
   "relink-orphaned-assets": "style-groups",
   "rich-pdf-extract": "rich-pdf",
+  "embed-dam-search": "search-index",
+  "tag-popsg-files": "popsg-tags",
 };
 
 export function getLane(opKey: string): string {
@@ -172,4 +176,6 @@ export const OP_ACTIONS: Record<string, string> = {
   "refresh-group-metadata": "refresh-group-metadata",
   "cleanup-mega-group-tags": "cleanup-mega-group-tags",
   "rich-pdf-extract": "rich-pdf-extract",
+  "embed-dam-search": "embed-dam-search",
+  "tag-popsg-files": "tag-popsg-files",
 };

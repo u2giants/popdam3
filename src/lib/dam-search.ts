@@ -4,13 +4,16 @@ export type SearchMode = "keyword" | "hybrid";
 export type DamDocumentType = "asset" | "style_group";
 
 let searchModePromise: Promise<SearchMode> | null = null;
+let searchModeExpiresAt = 0;
+const SEARCH_MODE_TTL_MS = 30_000;
 
 export function parseSearchMode(value: unknown): SearchMode {
   return value === "hybrid" ? "hybrid" : "keyword";
 }
 
 export function getSearchMode(): Promise<SearchMode> {
-  if (!searchModePromise) {
+  if (!searchModePromise || Date.now() >= searchModeExpiresAt) {
+    searchModeExpiresAt = Date.now() + SEARCH_MODE_TTL_MS;
     searchModePromise = (async () => {
       const { data, error } = await supabase
         .from("admin_config")
@@ -22,6 +25,11 @@ export function getSearchMode(): Promise<SearchMode> {
     })();
   }
   return searchModePromise;
+}
+
+export function invalidateSearchMode(): void {
+  searchModePromise = null;
+  searchModeExpiresAt = 0;
 }
 
 export async function fetchHybridSearchIds(

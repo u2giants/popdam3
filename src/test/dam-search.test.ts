@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, maybeSingle } = vi.hoisted(() => ({ invoke: vi.fn(), maybeSingle: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { functions: { invoke } },
+  supabase: { functions: { invoke }, from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }) },
 }));
 
-import { fetchHybridSearchIds, fetchSearchIds, parseSearchMode, sortByRank } from "@/lib/dam-search";
+import { fetchHybridSearchIds, fetchSearchIds, getSearchMode, invalidateSearchMode, parseSearchMode, sortByRank } from "@/lib/dam-search";
 
 describe("DAM hybrid search", () => {
-  beforeEach(() => invoke.mockReset());
+  beforeEach(() => { invoke.mockReset(); maybeSingle.mockReset(); invalidateSearchMode(); });
 
   it("maps only matching edge results to ranked entity IDs", async () => {
     invoke.mockResolvedValue({
@@ -36,6 +36,14 @@ describe("DAM hybrid search", () => {
     expect(parseSearchMode(undefined)).toBe("keyword");
     expect(parseSearchMode("anything-else")).toBe("keyword");
     expect(parseSearchMode("hybrid")).toBe("hybrid");
+  });
+
+  it("invalidates the cached mode so activation and rollback are visible", async () => {
+    maybeSingle.mockResolvedValueOnce({ data: { value: "hybrid" }, error: null });
+    await expect(getSearchMode()).resolves.toBe("hybrid");
+    maybeSingle.mockResolvedValueOnce({ data: { value: "keyword" }, error: null });
+    invalidateSearchMode();
+    await expect(getSearchMode()).resolves.toBe("keyword");
   });
 
   it("keeps keyword mode on the existing keyword callback", async () => {

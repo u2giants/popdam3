@@ -9,6 +9,7 @@ import { AiTaggingSection } from "./diagnostics/AiTaggingSection";
 import { ConflictDialog, type ConflictState } from "./diagnostics/ConflictDialog";
 import { QueueManagerDialog } from "./diagnostics/QueueManagerDialog";
 import { AiTaggingInstructionsSection, CharacterStatsSection, AiModelsConfigSection } from "./ApisTab";
+import { SearchIndexCard } from "./SearchIndexCard";
 
 export default function AiTaggingTab() {
   const { call } = useAdminApi();
@@ -96,6 +97,7 @@ export default function AiTaggingTab() {
       </div>
 
       <AiTaggingSection requestOp={requestOp} />
+      <SearchIndexCard />
       <AiModelsConfigSection />
       <AiTaggingInstructionsSection />
       <CharacterStatsSection />

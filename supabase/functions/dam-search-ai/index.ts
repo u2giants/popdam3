@@ -33,7 +33,7 @@ async function authenticateUser(req: Request) {
     { global: { headers: { Authorization: header } } },
   );
   const { error: serviceRoleError } = await serviceRoleClient.rpc("get_dam_search_embedding_status");
-  if (!serviceRoleError) return { userId: "system", serviceRole: true };
+  if (!serviceRoleError) return { userId: "system", serviceRole: true, admin: true, client: serviceRoleClient };
 
   const client = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -42,7 +42,8 @@ async function authenticateUser(req: Request) {
   );
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user?.id) return null;
-  return { userId: data.user.id, serviceRole: false };
+  const { data: role } = await serviceClient().from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
+  return { userId: data.user.id, serviceRole: false, admin: Boolean(role), client };
 }
 
 async function embedText(input: string) {
@@ -62,56 +63,79 @@ corsServe(async (req) => {
   const action = typeof body.action === "string" ? body.action : "search";
 
   if (action === "embed-batch") {
-    if (!auth.serviceRole) return err("embed-batch requires service-role authorization", 403);
+    return err("embed-batch was retired; the Railway worker is the only embedding claimer", 410);
+  }
 
-    const limit = Math.min(100, Math.max(1, Number(body.limit) || 25));
+  if (action === "embed-leased") {
+    if (!auth.serviceRole) return err("embed-leased requires service-role authorization", 403);
+    const input = Array.isArray(body.documents) ? body.documents.slice(0, 100) : [];
+    if (input.length === 0) return err("No leased documents supplied", 400);
     const db = serviceClient();
-    const { data: docs, error: claimError } = await db.rpc("claim_dam_search_embedding_documents", {
-      p_limit: limit,
-    });
-    if (claimError) throw claimError;
-
     let embedded = 0;
     let failed = 0;
-    for (const doc of docs ?? []) {
+    let stale = 0;
+    for (const doc of input) {
       const row = doc as {
         document_type: string;
         entity_id: string;
         search_text: string;
         content_sha256: string;
+        lease_token: string;
       };
+
+      if (!(["asset", "style_group"].includes(row.document_type)) || !row.entity_id || !row.search_text || !row.content_sha256 || !row.lease_token) {
+        failed += 1;
+        continue;
+      }
 
       try {
         const embedding = await embedText(row.search_text);
+        if (!Array.isArray(embedding) || embedding.length !== 384) throw new Error(`Permanent: expected 384 embedding dimensions, received ${embedding?.length ?? 0}`);
         const { data: updated, error } = await db.rpc("upsert_dam_search_embedding", {
           p_document_type: row.document_type,
           p_entity_id: row.entity_id,
           p_content_sha256: row.content_sha256,
+          p_lease_token: row.lease_token,
           p_embedding: embedding,
           p_embedding_model: "gte-small",
         });
         if (error) throw error;
         if (updated) embedded += 1;
+        else stale += 1;
       } catch (e) {
         failed += 1;
+        const message = e instanceof Error ? e.message : String(e);
         await db.rpc("mark_dam_search_embedding_error", {
           p_document_type: row.document_type,
           p_entity_id: row.entity_id,
           p_content_sha256: row.content_sha256,
-          p_error: e instanceof Error ? e.message : String(e),
+          p_lease_token: row.lease_token,
+          p_error: message,
+          p_category: message.startsWith("Permanent:") ? "permanent" : "transient",
         });
       }
     }
 
     const { data: status } = await db.rpc("get_dam_search_embedding_status");
-    return json({ ok: true, claimed: docs?.length ?? 0, embedded, failed, status });
+    return json({ ok: true, embedded, failed, stale, status });
   }
 
   if (action === "embedding-status") {
+    if (!auth.admin) return err("Admin authorization required", 403);
     const db = serviceClient();
     const { data, error } = await db.rpc("get_dam_search_embedding_status");
     if (error) throw error;
     return json({ ok: true, status: data });
+  }
+
+  if (action === "reset-embedding-errors") {
+    if (!auth.admin) return err("Admin authorization required", 403);
+    const { data, error } = await serviceClient().rpc("reset_dam_search_embedding_errors", {
+      p_document_type: typeof body.document_type === "string" ? body.document_type : null,
+      p_entity_ids: null,
+    });
+    if (error) throw error;
+    return json({ ok: true, reset: data });
   }
 
   if (action === "search") {

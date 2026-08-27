@@ -13,6 +13,7 @@
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { tick } from "./operation-loop.js";
+import { maybeEmbedPendingSearchDocuments } from "./handlers/embed-search.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -46,6 +47,7 @@ async function main() {
   while (running) {
     try {
       await tick();
+      await maybeEmbedPendingSearchDocuments();
     } catch (e) {
       logger.error("worker: unhandled error in tick", {
         error: e instanceof Error ? e.message : String(e),

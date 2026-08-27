@@ -27,6 +27,7 @@ import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handler
 import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
 import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-tags.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
+import { handleEmbedSearch } from "./handlers/embed-search.js";
 import {
   getNextAutoResumeAt,
   isTransientInterruption,
@@ -64,6 +65,7 @@ const OP_LANES: Record<string, string> = {
   "relink-orphaned-assets": "style-groups",
   "tag-popsg-files": "popsg-tags",
   "rich-pdf-extract": "rich-pdf",
+  "embed-dam-search": "search-index",
 };
 
 // Cross-lane conflicts — operations in DIFFERENT lanes that still cannot run simultaneously.
@@ -223,6 +225,17 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
           ...(Array.isArray(batch.failure_samples) ? batch.failure_samples : []),
         ].slice(-100),
       };
+    case "embed-dam-search":
+      return {
+        claimed: ((prev.claimed as number) || 0) + ((batch.claimed as number) || 0),
+        embedded: ((prev.embedded as number) || 0) + ((batch.embedded as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
+        stale: ((prev.stale as number) || 0) + ((batch.stale as number) || 0),
+        total_documents: (batch.total_documents as number) || (prev.total_documents as number) || 0,
+        embedded_documents: (batch.embedded_documents as number) || (prev.embedded_documents as number) || 0,
+        pending_documents: (batch.pending_documents as number) ?? (prev.pending_documents as number) ?? 0,
+        exhausted_documents: (batch.exhausted_documents as number) ?? (prev.exhausted_documents as number) ?? 0,
+      };
     default:
       return { ...prev, ...batch };
   }
@@ -337,6 +350,8 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
       return `Relinked ${progress.relinked || 0} orphaned assets${progress.errors ? `, ${progress.errors} errors` : ""}`;
     case "tag-popsg-files":
       return `Tagged ${progress.processed || 0} PopSG files with ${progress.tags_written || 0} direct relationships and ${progress.consensus_relationships || 0} folder-consensus relationships. ${progress.failed || 0} failed.`;
+    case "embed-dam-search":
+      return `Embedded ${progress.embedded || 0} search documents. ${progress.pending_documents || 0} pending, ${progress.exhausted_documents || 0} terminal.`;
     default:
       return "Operation completed";
   }
@@ -397,6 +412,8 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
       return handleRichPdfExtract(opState);
     case "tag-popsg-files":
       return handlePopSGFileTags(opState);
+    case "embed-dam-search":
+      return handleEmbedSearch(opState);
     default:
       return { ok: false, done: false, error: `Unknown operation: ${opKey}` };
   }
