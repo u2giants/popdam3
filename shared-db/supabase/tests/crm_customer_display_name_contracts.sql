@@ -1,4 +1,5 @@
--- Contract tests for issue #1544 / migration 20260826001704.
+-- Contract tests for issues #1544 and #1615 / migrations 20260826001704 and
+-- 20260827095753.
 -- All fixture changes are transaction-bound and rolled back.
 
 begin;
@@ -21,14 +22,17 @@ begin
   if to_regprocedure('api.crm_update_customer(uuid,text,text,text,text,text,text)') is not null then
     raise exception 'retired seven-argument crm_update_customer overload still exists';
   end if;
-  if to_regprocedure('api.crm_update_customer(uuid,text,text,text,text,text,text,text)') is null then
-    raise exception 'missing eight-argument crm_update_customer replacement';
+  if to_regprocedure('api.crm_update_customer(uuid,text,text,text,text,text,text,text)') is not null then
+    raise exception 'retired eight-argument crm_update_customer overload still exists';
+  end if;
+  if to_regprocedure('api.crm_update_customer(uuid,text,text,text,text,text,text,text,boolean)') is null then
+    raise exception 'missing nine-argument crm_update_customer replacement';
   end if;
 
   select p.prosecdef, p.proconfig, p.proargnames, p.pronargdefaults
     into v_definer, v_config, v_arg_names, v_defaults
   from pg_proc p
-  where p.oid = 'api.crm_update_customer(uuid,text,text,text,text,text,text,text)'::regprocedure;
+  where p.oid = 'api.crm_update_customer(uuid,text,text,text,text,text,text,text,boolean)'::regprocedure;
 
   if not v_definer
      or not ('search_path=app, core, crm, public' = any(coalesce(v_config, array[]::text[]))) then
@@ -36,16 +40,17 @@ begin
   end if;
   if v_arg_names <> array[
        'p_customer_id', 'p_name', 'p_domain', 'p_customer_status',
-       'p_chain_type', 'p_routing_aliases', 'p_so_patterns', 'p_display_name'
-     ]::text[] or v_defaults <> 7 then
+       'p_chain_type', 'p_routing_aliases', 'p_so_patterns', 'p_display_name',
+       'p_clear_domain'
+     ]::text[] or v_defaults <> 8 then
     raise exception 'RPC argument order/names/defaults changed: names %, defaults %',
       v_arg_names, v_defaults;
   end if;
 
   if has_function_privilege(
-       'public', 'api.crm_update_customer(uuid,text,text,text,text,text,text,text)', 'execute')
+       'public', 'api.crm_update_customer(uuid,text,text,text,text,text,text,text,boolean)', 'execute')
      or not has_function_privilege(
-       'authenticated', 'api.crm_update_customer(uuid,text,text,text,text,text,text,text)', 'execute') then
+       'authenticated', 'api.crm_update_customer(uuid,text,text,text,text,text,text,text,boolean)', 'execute') then
     raise exception 'RPC execute grants are not public=denied/authenticated=allowed';
   end if;
   if has_table_privilege('authenticated', 'core.customer', 'insert')
@@ -115,6 +120,31 @@ begin
     p_display_name => null);
   if v_row.display_name <> 'Issue 1544 display label' then
     raise exception 'null display_name did not preserve the current label';
+  end if;
+
+  select * into v_row
+  from api.crm_update_customer(
+    p_customer_id => v_customer_id,
+    p_domain => 'issue-1615.example.invalid');
+  if v_row.domain <> 'issue-1615.example.invalid' then
+    raise exception 'non-null domain update was not preserved';
+  end if;
+
+  select * into v_row
+  from api.crm_update_customer(
+    p_customer_id => v_customer_id,
+    p_domain => null);
+  if v_row.domain <> 'issue-1615.example.invalid' then
+    raise exception 'null domain did not preserve the current domain';
+  end if;
+
+  select * into v_row
+  from api.crm_update_customer(
+    p_customer_id => v_customer_id,
+    p_domain => 'must-not-win.example.invalid',
+    p_clear_domain => true);
+  if v_row.domain is not null then
+    raise exception 'p_clear_domain did not take precedence over p_domain';
   end if;
 end;
 $$;

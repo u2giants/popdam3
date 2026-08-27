@@ -1,5 +1,6 @@
 """Disposable PostgreSQL rollback proof for preview ledger reconciliation."""
 import os, pathlib, subprocess, sys, unittest
+from unittest.mock import patch
 
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent))
 import preview_ledger_orphan_reconcile as reconcile
@@ -28,5 +29,24 @@ create trigger break_reconciliation before delete on supabase_migrations.schema_
         with self.assertRaises(RuntimeError):
             reconcile.reconcile(self.url(),os.environ.copy(),args,self.statements,self.statements,'replacement_already_applied')
         self.assertEqual(self.psql(f"select string_agg(version,',' order by version) from supabase_migrations.schema_migrations where version in ('{self.old}','{self.replacement}')"),f'{self.old},{self.replacement}')
+
+    def test_byte_identical_rename_rolls_back_when_statements_change_after_initial_read(self):
+        self.psql(f"""drop trigger if exists break_reconciliation on supabase_migrations.schema_migrations;
+delete from supabase_migrations.schema_migrations where version in ('{self.old}','{self.replacement}');
+insert into supabase_migrations.schema_migrations values ('{self.old}',null,'old');""")
+        args=type('A',(),{
+            'orphan_version':self.old,
+            'replacement_version':self.replacement,
+            'replacement_migration':pathlib.Path(f'{self.replacement}_replacement.sql'),
+            'mode':'apply',
+        })()
+        initial=[{'version':self.old,'statements':['select 1'],'name':'old'}]
+        with patch.object(reconcile,'ledger_rows',return_value=initial):
+            with self.assertRaises(RuntimeError):
+                reconcile.reconcile(self.url(),os.environ.copy(),args,self.statements,self.statements,'byte_identical_rename')
+        self.assertEqual(
+            self.psql(f"select version from supabase_migrations.schema_migrations where version in ('{self.old}','{self.replacement}')"),
+            self.old,
+        )
 
 if __name__=='__main__': unittest.main()

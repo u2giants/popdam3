@@ -48,6 +48,18 @@ SUPPORTED_CASES = {
         "replacement_version": "20260825110813",
         "orphan_run_head": "8db5074d814118311269d0d3ac04eb2f3ad40928",
     },
+    (1615, 1636, 1637): {
+        "mode": "byte_identical_rename",
+        "orphan_version": "20260827031236",
+        "replacement_version": "20260827095753",
+        "orphan_run_head": "9f0753c89d3bf1e64b52877400098f3cd086a9ea",
+        "preview_run_id": 33059235415,
+        "preview_artifact_id": 9640989399,
+        "preview_artifact_digest": "sha256:d41f5cc6250eb783b4e17399e3927cd9ada32ac26a12adcc8124a1f5d3262d03",
+        "merged_source": True,
+        "issue_state": "open",
+        "claim_state": "closed",
+    },
 }
 
 
@@ -93,6 +105,20 @@ def validate_pinned_evidence(case: dict, args) -> None:
             raise Refusal("preview run or artifact is not the pinned supported-case evidence")
 
 
+def expected_work_states(case: dict) -> tuple[str, str]:
+    issue_state = case.get("issue_state", "closed" if case.get("merged_source") else "open")
+    claim_state = case.get(
+        "claim_state",
+        "closed" if case["mode"] == "rehearsal_reset" or case.get("merged_source") else "open",
+    )
+    return issue_state, claim_state
+
+
+def assert_case_statement_contract(case: dict, orphan_statements: list[str], replacement_statements: list[str]) -> None:
+    if case["mode"] == "byte_identical_rename" and orphan_statements != replacement_statements:
+        raise Refusal("byte-identical ledger rename requires exact migration statement identity")
+
+
 def validate_governance(args, orphan_statements: list[str], replacement_statements: list[str]) -> dict:
     repo = args.repo.resolve()
     if git(repo, "rev-parse", "HEAD") != args.main_sha or git(repo, "rev-parse", "origin/main") != args.main_sha:
@@ -107,13 +133,13 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
         raise Refusal("orphan version still exists on current main")
     if case.get("orphan_version", args.orphan_version) != args.orphan_version or case.get("replacement_version", args.replacement_version) != args.replacement_version:
         raise Refusal("migration versions do not match the explicitly supported reconciliation case")
+    assert_case_statement_contract(case, orphan_statements, replacement_statements)
     issue, claim, pr, pr_files, run, artifact = (read_json(p) for p in (args.issue_json, args.claim_json, args.pr_json, args.pr_files_json, args.run_json, args.artifact_json))
-    expected_issue_state = "closed" if case.get("merged_source") else "open"
+    expected_issue_state, expected_claim_state = expected_work_states(case)
     if issue.get("number") != args.issue or issue.get("state") != expected_issue_state:
         raise Refusal("work issue is not the exact supported-case issue")
-    expected_claim_state = "closed" if case["mode"] == "rehearsal_reset" or case.get("merged_source") else "open"
     if claim.get("number") != args.claim or claim.get("state") != expected_claim_state or f"#{args.issue}" not in claim.get("title", ""):
-        raise Refusal("claim is not the exact open issue claim")
+        raise Refusal("claim state or identity does not match the supported reconciliation case")
     if not re.search(rf"^version: {re.escape(args.replacement_version)}$", claim.get("body", ""), re.M):
         raise Refusal("claim does not bind the replacement version")
     if pr.get("number") != args.source_pr:
@@ -180,6 +206,34 @@ def reconcile(url: str, env: dict[str, str], args, expected_orphan: list[str], e
     if args.mode == "check":
         return before, before
     expected_json = json.dumps(expected_orphan, separators=(",", ":"))
+    if case_mode == "byte_identical_rename":
+        replacement_name = args.replacement_migration.stem.split("_", 1)[1].replace("'", "''")
+        sql = rf"""\set ON_ERROR_STOP on
+begin;
+lock table supabase_migrations.schema_migrations in exclusive mode;
+do $reconcile$
+declare n integer;
+begin
+  if (select count(*) from supabase_migrations.schema_migrations where version in ('{args.orphan_version}','{args.replacement_version}')) <> 1
+     or not exists (select 1 from supabase_migrations.schema_migrations where version='{args.orphan_version}') then
+    raise exception 'ledger ownership changed before reconciliation';
+  end if;
+  if (select to_jsonb(statements) from supabase_migrations.schema_migrations where version='{args.orphan_version}') is distinct from $expected${expected_json}$expected$::jsonb then
+    raise exception 'ledger statements changed before reconciliation';
+  end if;
+  update supabase_migrations.schema_migrations
+  set version='{args.replacement_version}', name='{replacement_name}'
+  where version='{args.orphan_version}';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'reconciliation did not rename exactly one row'; end if;
+end $reconcile$;
+commit;
+"""
+        psql(url, env, sql)
+        after = ledger_rows(url, env, args.orphan_version, args.replacement_version)
+        if len(after) != 1 or str(after[0].get("version")) != args.replacement_version or after[0].get("statements") != expected_replacement:
+            raise Refusal("post-reconciliation readback is not the exact renamed ledger row")
+        return before, after
     sql = rf"""\set ON_ERROR_STOP on
 begin;
 lock table supabase_migrations.schema_migrations in exclusive mode;
