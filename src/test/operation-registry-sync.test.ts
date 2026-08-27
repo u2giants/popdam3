@@ -25,19 +25,20 @@ function parseWorkerMap(header: string): Record<string, string[] | string> {
   const start = workerSource.indexOf(header);
   expect(start, `${header} must exist in the worker`).toBeGreaterThan(-1);
   const body = workerSource.slice(start + header.length);
-  const end = body.indexOf("\n};");
+  const source = body.slice(0, body.indexOf("\n};"));
   const entries: Record<string, string[] | string> = {};
-  for (const line of body.slice(0, end).split("\n")) {
-    const listMatch = line.match(/^\s*"([^"]+)":\s*\[([^\]]*)\]/);
-    if (listMatch) {
-      entries[listMatch[1]] = listMatch[2]
-        .split(",")
-        .map((value) => value.trim().replace(/^"|"$/g, ""))
-        .filter(Boolean);
-      continue;
-    }
-    const valueMatch = line.match(/^\s*"([^"]+)":\s*"([^"]+)"/);
-    if (valueMatch) entries[valueMatch[1]] = valueMatch[2];
+
+  // Arrays may be written on one line or reflowed across several by a formatter,
+  // so match across newlines rather than line by line. A line-based parser would
+  // silently skip a reflowed entry and report agreement that was never checked.
+  for (const match of source.matchAll(/"([^"]+)":\s*\[([\s\S]*?)\]/g)) {
+    entries[match[1]] = match[2]
+      .split(",")
+      .map((value) => value.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean);
+  }
+  for (const match of source.matchAll(/"([^"]+)":\s*"([^"]+)"/g)) {
+    if (!(match[1] in entries)) entries[match[1]] = match[2];
   }
   return entries;
 }

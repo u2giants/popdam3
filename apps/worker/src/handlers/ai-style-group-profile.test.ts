@@ -451,3 +451,34 @@ test("the profiling cursor auto-resumes after a worker restart", () => {
   assert.equal(isValidAutoResumeCursor("ai-tag-group-profiles", "not-a-uuid"), false);
   assert.equal(isValidAutoResumeCursor("ai-tag-group-profiles", 0), true, "the initial numeric cursor still resumes");
 });
+
+test("a group touched only by the safe refresh is still eligible for profiling", () => {
+  // The governed RPC stamps group_ai_tagged_at on EVERY write, including the
+  // Step 6 refresh. Keying default eligibility off that timestamp would let one
+  // bulk refresh silently exclude most of the library from ever being profiled,
+  // so eligibility is decided by provenance instead.
+  const source = readFileSync(new URL("./ai-style-group-profile.ts", import.meta.url), "utf8");
+  const start = source.indexOf("async function defaultFetchGroups");
+  const body = source.slice(start, source.indexOf("\n}", start));
+  assert.ok(
+    !/\.is\("group_ai_tagged_at", null\)/.test(body),
+    "eligibility must not be decided by group_ai_tagged_at",
+  );
+  assert.match(body, /group_ai_description_source\.is\.null/);
+  assert.match(body, /group_ai_description_source\.neq\.\$\{GROUP_PROFILE_SOURCE\}/);
+});
+
+test("the profile pass and the refresh agree on the authoritative provenance", async () => {
+  const policy = await import("../tagging-metadata-policy.js");
+  assert.equal(AUTHORITATIVE_SOURCE, policy.AUTHORITATIVE_TAG_SOURCE);
+  assert.equal(AUTHORITATIVE_MODEL, policy.AUTHORITATIVE_TAG_MODEL);
+  // The group RPC's DELETE is scoped by source AND model, so a drift between the
+  // worker and the edge refresh would strand rows written under the old value.
+  const edge = readFileSync(
+    new URL("../../../../supabase/functions/_shared/admin-handlers/tag-propagation-handlers.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(!/=\s*"authoritative"/.test(edge), "the edge path must import the shared constant, not redeclare it");
+  assert.ok(!/=\s*"derived"/.test(edge), "the edge path must import the shared constant, not redeclare it");
+  assert.match(edge, /AUTHORITATIVE_TAG_SOURCE/);
+});

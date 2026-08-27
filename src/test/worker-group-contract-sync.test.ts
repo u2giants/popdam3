@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as canonical from "../../supabase/functions/_shared/tag-style-group-contract.js";
 import * as workerVendor from "../../apps/worker/vendor/tag-style-group-contract.js";
@@ -77,5 +78,36 @@ describe("Style Group contract scope enforcement", () => {
     expect(item.properties.confidence.maximum).toBe(1);
     expect(item.properties.evidence_asset_ids.uniqueItems).toBe(true);
     expect(schema.properties.group_tags.maxItems).toBe(18);
+  });
+});
+
+/**
+ * The Railway image imports the VENDOR copy of the shared tagging policy (see the
+ * COPY lines in apps/worker/Dockerfile), while every test here imports the repo
+ * canonical. Without this comparison, vendor rot ships to production with an
+ * all-green suite — a silent failure by construction.
+ */
+const policyCanonicalPath = "supabase/functions/_shared/tagging-metadata-policy.js";
+const policyIsDirty = execFileSync("git", ["status", "--porcelain", "--", policyCanonicalPath], {
+  encoding: "utf8",
+}).trim().length > 0;
+
+describe.skipIf(policyIsDirty)("Railway worker tagging-policy mirror", () => {
+  it("is byte-identical to the canonical policy", () => {
+    for (const [canonicalFile, vendorFile] of [
+      [policyCanonicalPath, "apps/worker/vendor/tagging-metadata-policy.js"],
+      ["supabase/functions/_shared/tagging-metadata-policy.d.ts", "apps/worker/vendor/tagging-metadata-policy.d.ts"],
+    ]) {
+      expect(readFileSync(vendorFile, "utf8"), `${vendorFile} has drifted from ${canonicalFile}`)
+        .toBe(readFileSync(canonicalFile, "utf8"));
+    }
+  });
+
+  it("exports the provenance the group refresh and the profile pass both depend on", async () => {
+    const vendorPolicy = await import("../../apps/worker/vendor/tagging-metadata-policy.js");
+    const canonicalPolicy = await import("../../supabase/functions/_shared/tagging-metadata-policy.js");
+    expect(vendorPolicy.AUTHORITATIVE_TAG_SOURCE).toBe(canonicalPolicy.AUTHORITATIVE_TAG_SOURCE);
+    expect(vendorPolicy.AUTHORITATIVE_TAG_MODEL).toBe(canonicalPolicy.AUTHORITATIVE_TAG_MODEL);
+    expect(typeof vendorPolicy.authoritativeTagsAreCurrent).toBe("function");
   });
 });

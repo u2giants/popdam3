@@ -13,3 +13,9 @@ export function deriveAuthoritativeGroupTags(group: {
   little_theme?: string | null;
   design_style?: string | null;
 }): Array<{ tag: string; category: string; source: "authoritative"; status: "active"; confidence: 1; evidence: { field: string } }>;
+export const AUTHORITATIVE_TAG_SOURCE: string;
+export const AUTHORITATIVE_TAG_MODEL: string;
+export function authoritativeTagsAreCurrent(
+  desired: ReadonlyArray<{ tag: string; category: string }>,
+  stored: ReadonlyArray<{ tag: string; category: string; status: string }>,
+): boolean;

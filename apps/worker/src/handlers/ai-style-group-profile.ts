@@ -33,6 +33,8 @@ import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type Structured
 import { executeStructuredOutput } from "../structured-output.js";
 import type { BatchResult, OpenRouterBatchJobState, OpState } from "../types.js";
 import {
+  AUTHORITATIVE_TAG_MODEL,
+  AUTHORITATIVE_TAG_SOURCE,
   deriveAuthoritativeGroupTags,
   GROUP_TAG_CATEGORIES,
   groupAiStatus,
@@ -58,8 +60,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SCHEMA_NAME = "tag_style_group";
 
 export const GROUP_PROFILE_SOURCE = "group_ai";
-export const AUTHORITATIVE_SOURCE = "authoritative";
-export const AUTHORITATIVE_MODEL = "derived";
+export { AUTHORITATIVE_TAG_SOURCE as AUTHORITATIVE_SOURCE, AUTHORITATIVE_TAG_MODEL as AUTHORITATIVE_MODEL };
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ export type StyleGroupProfileRow = {
   rich_metadata: unknown;
   primary_asset_id: string | null;
   group_ai_description: string | null;
+  group_ai_description_source?: string | null;
 };
 
 export type StyleGroupProfileData = {
@@ -247,8 +249,8 @@ export async function writeStyleGroupProfile(
   if (input.authoritativeTags.length > 0) {
     const authoritative = await client.rpc("replace_style_group_ai_profile", {
       p_style_group_id: input.groupId,
-      p_source: AUTHORITATIVE_SOURCE,
-      p_model: AUTHORITATIVE_MODEL,
+      p_source: AUTHORITATIVE_TAG_SOURCE,
+      p_model: AUTHORITATIVE_TAG_MODEL,
       p_description: input.description,
       p_tags: input.authoritativeTags,
       p_evidence_asset_ids: input.evidenceAssetIds,
@@ -269,7 +271,8 @@ export async function writeStyleGroupProfile(
 // ── Default data access ──────────────────────────────────────────────────────
 
 const GROUP_COLUMNS =
-  "id, sku, item_description, licensor_name, property_name, product_category, rich_metadata, primary_asset_id, group_ai_description";
+  "id, sku, item_description, licensor_name, property_name, product_category, rich_metadata, primary_asset_id, " +
+  "group_ai_description, group_ai_description_source";
 const MEMBER_COLUMNS =
   "id, filename, relative_path, file_type, content_type, file_size, thumbnail_url";
 
@@ -277,7 +280,11 @@ async function defaultFetchGroups(options: { cursor: string | null; limit: numbe
   const client = db();
   let query = client.from("style_groups").select(GROUP_COLUMNS).order("id", { ascending: true }).limit(options.limit);
   if (options.groupIds?.length) query = query.in("id", options.groupIds);
-  else if (!options.force) query = query.is("group_ai_tagged_at", null);
+  // "Not yet profiled" must be decided by PROVENANCE, not by group_ai_tagged_at.
+  // The governed RPC stamps that timestamp on every write, including the safe
+  // group-metadata refresh (Step 6) — so keying off it would let one bulk refresh
+  // silently exclude most of the library from ever being profiled.
+  else if (!options.force) query = query.or(`group_ai_description_source.is.null,group_ai_description_source.neq.${GROUP_PROFILE_SOURCE}`);
   if (options.cursor) query = query.gt("id", options.cursor);
   const { data, error } = await query;
   if (error) throw new Error(`Style group candidate fetch failed: ${error.message}`);

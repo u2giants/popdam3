@@ -212,11 +212,34 @@ function providerPatterns(results: BakeoffResult[]) {
     .sort((a, b) => (b.failed - a.failed) || (b.succeeded - a.succeeded) || a.model.localeCompare(b.model));
 }
 
+/**
+ * The bake-off mirrors production tagging, so it must show the same structured
+ * asset-only shape production writes: "tag (category)". Categories live in the
+ * stored raw_output; result.tags is the flattened compatibility array.
+ */
+export function structuredTagSummary(result: Pick<BakeoffResult, "tags" | "raw_output">): string {
+  const structured = result.raw_output?.asset_tags;
+  if (Array.isArray(structured) && structured.length > 0) {
+    const labelled = structured
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const row = item as Record<string, unknown>;
+        const tag = typeof row.tag === "string" ? row.tag.trim() : "";
+        if (!tag) return null;
+        const category = typeof row.category === "string" ? row.category.trim() : "";
+        return category ? `${tag} (${category})` : tag;
+      })
+      .filter((value): value is string => Boolean(value));
+    if (labelled.length > 0) return labelled.join(", ");
+  }
+  return result.tags.length ? result.tags.join(", ") : "No tags";
+}
+
 function fieldValue(result: BakeoffResult | undefined, field: Field) {
   if (!result) return "Pending";
   if (result.status === "failed") return result.error_message || "Failed";
   if (result.status !== "succeeded") return result.status;
-  if (field === "tags") return result.tags.length ? result.tags.join(", ") : "No tags";
+  if (field === "tags") return structuredTagSummary(result);
   if (field === "description") return result.ai_description || "No description";
   if (field === "characters") return result.character_names.length ? result.character_names.join(", ") : "No characters";
   return result.property_name || "No property";

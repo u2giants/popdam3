@@ -45,7 +45,7 @@ import {
 
 import { handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
-import { handleBulkPropagateGroupTags, handleCountGroupsForPropagation } from "../_shared/admin-handlers/tag-propagation-handlers.ts";
+import { handleBulkPropagateGroupTags, handleCountGroupsForPropagation, handleRefreshGroupMetadata } from "../_shared/admin-handlers/tag-propagation-handlers.ts";
 import { handleBackfillPdfFilesUsed, handleResolveSkuFilesUsed } from "../_shared/admin-handlers/pdf-files-handlers.ts";
 
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_shared/admin-handlers/erp-handlers.ts";
@@ -152,6 +152,7 @@ const USER_ACCESSIBLE_ACTIONS = new Set([
   "get-sibling-scan-by-folder",
   "ingest-sibling-images",
   "sync-group-tags",
+  "refresh-group-metadata",
   "fetch-thumbnail-by-url",
 ]);
 
@@ -1790,26 +1791,13 @@ corsServe(async (req: Request) => {
       case "count-groups-for-propagation":
         return await handleCountGroupsForPropagation();
 
-      // ── Tag propagation ──
-      case "sync-group-tags": {
-        const groupId = typeof body.group_id === "string" ? body.group_id : null;
-        if (!groupId) return err("group_id is required");
-        const { propagateGroupTags } = await import("../_shared/tag-propagation.ts");
-        // Find the primary asset (or first tagged asset) as the source
-        const db = serviceClient();
-        const { data: group } = await db.from("style_groups").select("primary_asset_id").eq("id", groupId).single();
-        let sourceId = group?.primary_asset_id;
-        if (!sourceId) {
-          // Fallback: first tagged asset in the group
-          const { data: tagged } = await db.from("assets")
-            .select("id").eq("style_group_id", groupId).eq("is_deleted", false)
-            .not("ai_tagged_at", "is", null).limit(1).single();
-          sourceId = tagged?.id;
-        }
-        if (!sourceId) return err("No tagged asset found in this group to propagate from");
-        const result = await propagateGroupTags(sourceId, groupId, { onlyUntagged: false });
-        return json({ ok: true, ...result });
-      }
+      // ── Style Group metadata refresh ──
+      // "sync-group-tags" is the retired copy-to-siblings action, kept as a
+      // compatibility alias so existing clients keep working. It now runs the
+      // safe refresh and touches no asset row.
+      case "sync-group-tags":
+      case "refresh-group-metadata":
+        return await handleRefreshGroupMetadata(body);
 
       // ── Purge (from purge-handlers.ts) ──
       case "purge-old-assets":

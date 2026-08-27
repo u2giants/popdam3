@@ -17,7 +17,8 @@ export const OP_NAMES: Record<string, string> = {
   "reconcile-style-group-stats": "Reconcile Stats",
   "erp-enrichment": "ERP Enrichment",
   "erp-classify": "ERP Classify",
-  "propagate-group-tags": "Propagate Group Tags",
+  "propagate-group-tags": "Propagate Group Tags (deprecated)",
+  "refresh-group-metadata": "Refresh Group Metadata",
   "cleanup-mega-group-tags": "Clean Mega-Group Tags",
   "relink-orphaned-assets": "Relink Orphaned Assets",
   "rich-pdf-extract": "Rich PDF Extract",
@@ -40,6 +41,7 @@ export const OP_LANES: Record<string, string> = {
   "erp-enrichment": "erp",
   "erp-classify": "erp",
   "propagate-group-tags": "style-groups",
+  "refresh-group-metadata": "style-groups",
   "cleanup-mega-group-tags": "style-groups",
   "relink-orphaned-assets": "style-groups",
   "rich-pdf-extract": "rich-pdf",
@@ -110,9 +112,9 @@ export function classifyInterruptionReason(
 //   licensor/property code columns on assets and style_groups → data races.
 
 export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
-  "ai-tag-untagged": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles"],
-  "ai-tag-all": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles"],
-  "ai-tag-groups": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles"],
+  "ai-tag-untagged": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-all": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-groups": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-group-profiles": [
     "rebuild-style-groups",
     "reprocess-metadata",
@@ -121,9 +123,11 @@ export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
     "ai-tag-all",
     "ai-tag-groups",
     "ai-tag-bakeoff",
+    "refresh-group-metadata",
   ],
-  "ai-tag-bakeoff": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles"],
+  "ai-tag-bakeoff": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
   "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
   "rich-pdf-extract": ["rebuild-style-groups"],
   "reprocess-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
@@ -165,6 +169,7 @@ export const OP_ACTIONS: Record<string, string> = {
   "erp-enrichment": "apply-erp-enrichment",
   "erp-classify": "classify-erp-categories",
   "propagate-group-tags": "bulk-propagate-group-tags",
+  "refresh-group-metadata": "refresh-group-metadata",
   "cleanup-mega-group-tags": "cleanup-mega-group-tags",
   "rich-pdf-extract": "rich-pdf-extract",
 };

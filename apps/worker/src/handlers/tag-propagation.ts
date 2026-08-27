@@ -1,41 +1,23 @@
 /**
- * Tag propagation handler — persistent worker version.
+ * Legacy `propagate-group-tags` entry point.
  *
- * Calls the propagate_group_tags_batch RPC directly.
- * Same logic as the RPC_DIRECT_OPS path in bulk-job-runner/index.ts.
+ * This operation used to copy one asset's tags, characters, and identity onto
+ * every sibling in the Style Group, which is exactly the cross-file contamination
+ * issue #96 exists to remove. It is now a thin compatibility alias over the safe
+ * group-metadata refresh: the user keeps the capability, but no asset row is ever
+ * read from or written to by it.
+ *
+ * The canonical key is `refresh-group-metadata`. This alias stays until the
+ * shared-db orchestrator retires `propagate_group_tags_batch` in a later additive
+ * migration, after production has run one full cycle safely.
  */
 
-import { db } from "../supabase.js";
-import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
+import { handleLegacyPropagationAlias, type RefreshDependencies } from "./group-metadata-refresh.js";
 
-export async function handlePropagateGroupTags(opState: OpState): Promise<BatchResult> {
-  const client = db();
-  const rpcCursor =
-    typeof opState.cursor === "string" && opState.cursor !== "0" && opState.cursor !== ""
-      ? opState.cursor
-      : null;
-
-  const { data, error: rpcErr } = await client.rpc("propagate_group_tags_batch", {
-    p_cursor: rpcCursor,
-    p_batch_size: 200,
-  });
-
-  if (rpcErr) {
-    logger.error("propagate-group-tags: rpc error", { error: rpcErr.message });
-    return { ok: false, done: false, error: rpcErr.message };
-  }
-
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row) {
-    return { ok: false, done: false, error: "No result from propagate_group_tags_batch" };
-  }
-
-  return {
-    ok: true,
-    done: row.done ?? true,
-    propagated: row.propagated ?? 0,
-    skipped: row.skipped ?? 0,
-    nextOffset: row.next_cursor ?? rpcCursor,
-  };
+export async function handlePropagateGroupTags(
+  opState: OpState,
+  dependencies: RefreshDependencies = {},
+): Promise<BatchResult> {
+  return handleLegacyPropagationAlias(opState, dependencies);
 }

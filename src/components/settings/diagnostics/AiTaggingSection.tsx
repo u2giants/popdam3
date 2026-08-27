@@ -211,15 +211,16 @@ function GroupProfileProgress({ op }: { op: ReturnType<typeof usePersistentOpera
   );
 }
 
-function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperation> }) {
+function GroupRefreshProgress({ op }: { op: ReturnType<typeof usePersistentOperation> }) {
   const s = op.state;
   const p = s.progress;
   if (!p) return null;
 
-  const propagated = (p.propagated as number) || 0;
-  const skipped = (p.skipped as number) || 0;
+  const refreshed = (p.refreshed as number) || 0;
+  const unchanged = (p.unchanged as number) || 0;
+  const failed = (p.failed as number) || 0;
   const total = (p.total as number) || 0;
-  const done = propagated + skipped;
+  const done = refreshed + unchanged + failed;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
 
   const isTerminal = s.status === "completed" || s.status === "failed";
@@ -234,7 +235,7 @@ function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperat
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
           {op.isActive && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
-          <span className="font-medium">Propagate Group Tags</span>
+          <span className="font-medium">{OP_NAMES["refresh-group-metadata"]}</span>
           <StatusBadge status={s.status} reasonCode={s.interruption_reason_code} />
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
@@ -253,7 +254,7 @@ function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperat
             <Button
               variant="ghost" size="sm" className="h-5 px-2 text-xs text-primary hover:text-primary"
               onClick={() => op.start({
-                confirmMessage: `Resume propagation from group ${s.cursor?.toLocaleString()}? (${((p.propagated as number) || 0) + ((p.skipped as number) || 0)} already processed)`,
+                confirmMessage: `Resume the group metadata refresh? (${((p.refreshed as number) || 0) + ((p.unchanged as number) || 0)} groups already processed)`,
               })}
             >
               <RefreshCw className="h-3 w-3 mr-1" /> Resume
@@ -290,8 +291,9 @@ function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperat
       )}
 
       <div className="flex gap-4 text-xs text-muted-foreground">
-        <span>Propagated: <span className="text-foreground font-medium">{propagated.toLocaleString()}</span></span>
-        {skipped > 0 && <span>Skipped: <span className="text-foreground font-medium">{skipped.toLocaleString()}</span></span>}
+        <span>Refreshed: <span className="text-foreground font-medium">{refreshed.toLocaleString()}</span></span>
+        {unchanged > 0 && <span>Already current: <span className="text-foreground font-medium">{unchanged.toLocaleString()}</span></span>}
+        {failed > 0 && <span>Failed: <span className="text-foreground font-medium">{failed.toLocaleString()}</span></span>}
       </div>
 
       {(s.status === "failed" || s.status === "interrupted") && s.error && (
@@ -338,7 +340,12 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
 
   const tagUntaggedOp = usePersistentOperation("ai-tag-untagged");
   const tagAllOp = usePersistentOperation("ai-tag-all");
-  const propagateOp = usePersistentOperation("propagate-group-tags");
+  // Canonical key. `propagate-group-tags` remains a compatibility alias in the
+  // backend, but the UI only ever starts the safe refresh.
+  const groupRefreshOp = usePersistentOperation("refresh-group-metadata");
+  // During the transition an in-flight run may still be under the deprecated key.
+  // Watch it too so its progress is visible instead of silently disappearing.
+  const legacyPropagateOp = usePersistentOperation("propagate-group-tags");
   const groupProfileOp = usePersistentOperation("ai-tag-group-profiles");
 
   const { data: tagCounts } = useQuery({
@@ -354,7 +361,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   });
 
   const { data: groupCounts } = useQuery({
-    queryKey: ["groups-for-propagation"],
+    queryKey: ["groups-for-refresh"],
     queryFn: async () => {
       const r = await call("count-groups-for-propagation");
       return { totalGroups: r.total_groups as number };
@@ -367,15 +374,16 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const waitingForSiblings = tagCounts?.waitingForSiblings ?? 0;
 
   // anyTaggingActive: a tagging op is running or queued → block starting another tagging op.
-  // anyActive: includes propagation too → only used for the propagate button.
-  // Keeping these separate lets the user start tagging even when propagation is still
-  // running/queued (e.g. left over from a previous "Tag + Propagate" run). The conflict
+  // anyActive: includes the group refresh too → only used for the refresh button.
+  // Keeping these separate lets the user start tagging even when a refresh is still
+  // running/queued (e.g. left over from a previous "Tag + Refresh" run). The conflict
   // dialog will handle the cross-lane conflict if the worker can't accept the new op yet.
   const anyTaggingActive =
     tagUntaggedOp.isActive || tagUntaggedOp.isQueued ||
     tagAllOp.isActive    || tagAllOp.isQueued ||
     groupProfileOp.isActive || groupProfileOp.isQueued;
-  const anyActive = anyTaggingActive || propagateOp.isActive || propagateOp.isQueued
+  const anyActive = anyTaggingActive || groupRefreshOp.isActive || groupRefreshOp.isQueued
+    || legacyPropagateOp.isActive || legacyPropagateOp.isQueued
     || groupProfileOp.isActive || groupProfileOp.isQueued;
 
   function runBulkTag(mode: "untagged" | "all") {
@@ -404,33 +412,33 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
     );
   }
 
-  function runBulkPropagate() {
-    requestOp("propagate-group-tags", OP_NAMES["propagate-group-tags"],
-      () => propagateOp.start({
-        confirmMessage: `Propagate product-level tags across all ${totalGroups.toLocaleString()} style groups? This merges tags from tagged assets to their untagged siblings. Continue?`,
+  function runGroupRefresh() {
+    requestOp("refresh-group-metadata", OP_NAMES["refresh-group-metadata"],
+      () => groupRefreshOp.start({
+        confirmMessage: `Refresh shared product facts and search for all ${totalGroups.toLocaleString()} style groups? Individual file tags are not changed and nothing is copied between files. Continue?`,
         initialProgress: { total: totalGroups },
       }),
-      () => propagateOp.queue({ initialProgress: { total: totalGroups } }),
+      () => groupRefreshOp.queue({ initialProgress: { total: totalGroups } }),
     );
   }
 
-  function runTagAndPropagate() {
+  function runTagAndRefresh() {
     const total = untaggedCount;
-    // Start tagging from scratch. If propagation is already queued/running from a prior
+    // Start tagging from scratch. If a refresh is already queued/running from a prior
     // "Tag + Propagate" run, reset it first so we don't have a stale queued entry blocking
     // the new flow. The worker enforces OP_CONFLICTS and won't promote propagation until
     // tagging completes — so these two jobs run sequentially automatically.
     const startFn = async () => {
-      // If propagation is queued or running from before, reset it to avoid stale queue entry
-      if (propagateOp.isActive || propagateOp.isQueued) {
-        await propagateOp.reset();
+      // If a refresh is queued or running from before, reset it to avoid a stale queue entry
+      if (groupRefreshOp.isActive || groupRefreshOp.isQueued) {
+        await groupRefreshOp.reset();
       }
       await tagUntaggedOp.start({
-        confirmMessage: `Smart Tag + Propagate: AI-tag representative assets (one per style group, ~3x parallel), then propagate tags to all siblings. Continue?`,
+        confirmMessage: `Smart Tag + Refresh: AI-tag untagged files, then refresh each style group's shared product facts and search. No tags are copied between files. Continue?`,
         initialProgress: {},
         forceRestart: true,
       });
-      await propagateOp.queue({ initialProgress: { total: totalGroups } });
+      await groupRefreshOp.queue({ initialProgress: { total: totalGroups } });
     };
     requestOp("ai-tag-untagged", OP_NAMES["ai-tag-untagged"],
       startFn,
@@ -441,7 +449,8 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   // Determine which ops have non-idle state (show progress for each independently)
   const showTagUntagged = tagUntaggedOp.state.status !== "idle" && tagUntaggedOp.state.progress;
   const showTagAll = tagAllOp.state.status !== "idle" && tagAllOp.state.progress;
-  const showPropagate = propagateOp.state.status !== "idle" && propagateOp.state.progress;
+  const showGroupRefresh = groupRefreshOp.state.status !== "idle" && groupRefreshOp.state.progress;
+  const showLegacyRefresh = legacyPropagateOp.state.status !== "idle" && legacyPropagateOp.state.progress;
   const showGroupProfiles = groupProfileOp.state.status !== "idle" && groupProfileOp.state.progress;
 
   return (
@@ -482,15 +491,15 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
             <TooltipTrigger asChild>
               <Button
                 variant="default" size="sm" className="gap-1.5"
-                onClick={() => runTagAndPropagate()}
+                onClick={() => runTagAndRefresh()}
                 disabled={anyTaggingActive || (untaggedCount === 0 && totalGroups === 0)}
               >
-                {(tagUntaggedOp.isActive || propagateOp.isActive) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Sparkles className="h-3.5 w-3.5" /><Share2 className="h-3.5 w-3.5" /></>}
-                Tag + Propagate
+                {(tagUntaggedOp.isActive || groupRefreshOp.isActive) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Sparkles className="h-3.5 w-3.5" /><Share2 className="h-3.5 w-3.5" /></>}
+                Tag + Refresh
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[280px] text-center">
-              One-click workflow: AI-tag one representative per group (smart-skip), then automatically propagate tags to all siblings. Fastest way to tag everything.
+            <TooltipContent side="bottom" className="max-w-[300px] text-center">
+              One-click workflow: AI-tag untagged files, then refresh every group's shared product facts and search. Nothing is copied between files.
             </TooltipContent>
           </Tooltip>
           <Tooltip>
@@ -525,15 +534,15 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
             <TooltipTrigger asChild>
               <Button
                 variant="outline" size="sm" className="gap-1.5"
-                onClick={runBulkPropagate}
+                onClick={runGroupRefresh}
                 disabled={anyActive || totalGroups === 0}
               >
-                {propagateOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
-                {propagateOp.isInterrupted ? "Propagate (interrupted)" : "Propagate Group Tags"}
+                {groupRefreshOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+                {groupRefreshOp.isInterrupted ? "Refresh Metadata (interrupted)" : "Refresh Group Metadata"}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[260px] text-center">
-              Sync product-level tags (licensor, property, characters, themes) from tagged assets to untagged siblings across all {totalGroups.toLocaleString()} style groups.
+            <TooltipContent side="bottom" className="max-w-[280px] text-center">
+              Brings each of the {totalGroups.toLocaleString()} style groups' shared product facts and search entries up to date. Nothing is copied between files — individual file tags are left alone.
             </TooltipContent>
           </Tooltip>
         </div>
@@ -542,7 +551,8 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
         {showTagUntagged && <TaggingProgress opKey="ai-tag-untagged" op={tagUntaggedOp} />}
         {showTagAll && <TaggingProgress opKey="ai-tag-all" op={tagAllOp} />}
         {showGroupProfiles && <GroupProfileProgress op={groupProfileOp} />}
-        {showPropagate && <PropagationProgress op={propagateOp} />}
+        {showGroupRefresh && <GroupRefreshProgress op={groupRefreshOp} />}
+        {showLegacyRefresh && <GroupRefreshProgress op={legacyPropagateOp} />}
       </CardContent>
     </Card>
   );
