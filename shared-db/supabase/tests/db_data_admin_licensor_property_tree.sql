@@ -134,6 +134,12 @@ begin
     (v_base + 5, 'G-' || v_suffix, v_search || ' Gamma', null);
   v_expected := array[v_base + 1, v_base + 2, v_base + 3, v_base + 4, v_base + 5];
 
+  -- Issue #1684 makes this legacy table read-only. Disable only its named EOL
+  -- trigger inside this rollback-only fixture so the pre-cutover read contract
+  -- remains testable without weakening the live guard.
+  alter table core.properties_and_characters
+    disable trigger properties_and_characters_eol_write_guard;
+
   insert into core.properties_and_characters (
     id, name, type, licensor_id, source_licensed_property_id
   ) values
@@ -164,6 +170,8 @@ begin
   ) values (
     v_orphan_id, v_search || ' Orphan', 'PROPERTY', v_base + 9999, 'portal-orphan-' || v_suffix
   );
+  alter table core.properties_and_characters
+    enable trigger properties_and_characters_eol_write_guard;
 
   -- Traverse every entity page. The same normalized title plus page size two
   -- exercises both halves of the (normalized title, integer id) cursor.

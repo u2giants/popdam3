@@ -33,6 +33,11 @@ begin
 
   insert into core."licenseList" ("licenseList_code", "licenseList_title", "licenseList_status")
   values ('SYN-1380', 'Synthetic Licensor 1380', 'ACTIVE') returning "licenseList_id" into v_licensor;
+  -- Issue #1684 makes this legacy table read-only. Disable only its named EOL
+  -- trigger for rollback-only fixture setup, then restore it before exercising
+  -- the Warner routine.
+  alter table core.properties_and_characters
+    disable trigger properties_and_characters_eol_write_guard;
   -- The captured CI baseline intentionally has no default/sequence for this legacy
   -- integer key. Serialize fixture allocation and provide explicit rollback-safe IDs.
   lock table core.properties_and_characters in share row exclusive mode;
@@ -42,6 +47,8 @@ begin
   values (v_property,'Synthetic Property 1380','PROPERTY',v_licensor,'SYN-PROP-1380');
   insert into core.properties_and_characters(id,name,type,licensor_id,source_licensed_property_id,source_character_id)
   values (v_character,'Synthetic Character 1380','CHARACTER',v_licensor,'SYN-PROP-1380','SYN-CHAR-1380');
+  alter table core.properties_and_characters
+    enable trigger properties_and_characters_eol_write_guard;
 
   insert into plm.wb_capture(capture_id,chunk_number,target,status,captured_at,private_source_commit,snapshot_sha256,expected_row_count,captured_by,source_url,started_at)
   values (v_capture,0,'wb_asset_normalized','loading',date '2099-08-23','synthetic',repeat('a',64),1,'synthetic','https://example.invalid',now());

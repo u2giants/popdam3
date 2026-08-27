@@ -217,6 +217,106 @@ function makeBaseVersions(versions) {
   return file
 }
 
+function makeDiff(file, addedLine) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'check-sql-diff-'))
+  const diff = path.join(dir, 'change.diff')
+  writeFileSync(diff, `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -0,0 +1 @@\n+${addedLine}\n`)
+  return diff
+}
+
+function makeReplacementDiff(file, removedLine, addedLine) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'check-sql-diff-'))
+  const diff = path.join(dir, 'change.diff')
+  writeFileSync(diff, `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-${removedLine}\n+${addedLine}\n`)
+  return diff
+}
+
+function makeAddedFileDiff(file, lines) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'check-sql-diff-'))
+  const diff = path.join(dir, 'change.diff')
+  writeFileSync(diff, `diff --git a/${file} b/${file}\n--- /dev/null\n+++ b/${file}\n@@ -0,0 +1,${lines.length} @@\n${lines.map((line) => `+${line}`).join('\n')}\n`)
+  return diff
+}
+
+test('issue 1684 EOL guard rejects a new combined-table dependency', () => {
+  withFixture(['20260801120000_fixture.sql'], (dir) => {
+    const result = runGuards(dir, {
+      mainNewest: '20260801100000',
+      env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(makeDiff('apps/example/query.ts', 'select * from core.properties_and_characters')) },
+    })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /net-new runtime or migration references/)
+  })
+})
+
+test('issue 1684 EOL guard permits maintenance with no net-new dependency', () => {
+  withFixture(['20260801120000_fixture.sql'], (dir) => {
+    const result = runGuards(dir, {
+      mainNewest: '20260801100000',
+      env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(makeReplacementDiff('apps/example/query.ts', 'select * from core.properties_and_characters', 'select id from "core"."properties_and_characters"')) },
+    })
+    assert.equal(result.status, 0, result.stderr)
+  })
+})
+
+test('issue 1684 EOL guard catches quoted and search-path-relative references', () => {
+  for (const addedLine of ['select * from "core"."properties_and_characters"', 'set search_path = core; select * from properties_and_characters']) {
+    withFixture(['20260801120000_fixture.sql'], (dir) => {
+      const result = runGuards(dir, {
+        mainNewest: '20260801100000',
+        env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(makeDiff('apps/example/query.sql', addedLine)) },
+      })
+      assert.notEqual(result.status, 0)
+    })
+  }
+})
+
+test('issue 1684 EOL guard does not confuse the separate dflow tables with core', () => {
+  withFixture(['20260801120000_fixture.sql'], (dir) => {
+    const result = runGuards(dir, {
+      mainNewest: '20260801100000',
+      env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(makeDiff('apps/example/query.sql', 'select * from dflow.properties_and_characters union all select * from "dflow_prod"."properties_and_characters"')) },
+    })
+    assert.equal(result.status, 0, result.stderr)
+  })
+})
+
+test('issue 1684 EOL guard permits a declared replacement body for an existing RPC dependency', () => {
+  withFixture(['20260801120000_fixture.sql'], (dir) => {
+    const diff = makeAddedFileDiff('supabase/migrations/20260828000000_maintain_tree.sql', [
+      '-- maintains-eol-dependency: function api.db_data_admin_licensor_property_tree',
+      'create or replace function api.db_data_admin_licensor_property_tree() returns bigint language sql as $body$',
+      '  select count(*) from "core"."properties_and_characters";',
+      '$body$;',
+    ])
+    const result = runGuards(dir, { mainNewest: '20260801100000', env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(diff) } })
+    assert.equal(result.status, 0, result.stderr)
+  })
+})
+
+test('issue 1684 EOL guard rejects undeclared or out-of-body references in a maintenance migration', () => {
+  for (const lines of [
+    ['create or replace function api.db_data_admin_licensor_property_tree() returns bigint language sql as $body$', 'select count(*) from core.properties_and_characters;', '$body$;'],
+    ['-- maintains-eol-dependency: function api.db_data_admin_licensor_property_tree', 'create or replace function api.db_data_admin_licensor_property_tree() returns bigint language sql as $body$', 'select 1;', '$body$;', 'select * from properties_and_characters;'],
+  ]) {
+    withFixture(['20260801120000_fixture.sql'], (dir) => {
+      const diff = makeAddedFileDiff('supabase/migrations/20260828000000_bad_maintenance.sql', lines)
+      const result = runGuards(dir, { mainNewest: '20260801100000', env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(diff) } })
+      assert.notEqual(result.status, 0)
+    })
+  }
+})
+
+test('issue 1684 EOL guard allows only its exact staging migration', () => {
+  withFixture(['20260801120000_fixture.sql'], (dir) => {
+    const result = runGuards(dir, {
+      mainNewest: '20260801100000',
+      env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(makeDiff('supabase/migrations/20260827222039_eol_core_properties_and_characters.sql', 'comment on table core.properties_and_characters is \'EOL\';')) },
+    })
+    assert.equal(result.status, 0, result.stderr)
+  })
+})
+
 const baseEnv = () => ({ CHECK_SQL_BASE_VERSIONS: toBashPath(makeBaseVersions(['20260101000000'])) })
 
 test('Guard B2 passes a migration timestamped after everything the ledger holds', () => {

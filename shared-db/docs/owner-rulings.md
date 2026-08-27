@@ -33,7 +33,7 @@
 | [6.13](#613-owner-rulings-paramount-landing-tables-and-sub-licensors-albert-hazan-2026-08-07) | OWNER RULINGS — Paramount landing tables and sub-licensors (Albert Hazan, 2026-08-07) |
 | [6.13-A](#613-a-owner-ruling-the-paramount-five-table-cap-is-lifted-and-the-build-hold-is-released-albert-hazan-2026-08-09) | OWNER RULING — the Paramount five-table cap is lifted and the build hold is released (Albert Hazan, 2026-08-09) |
 | [6.14](#614-owner-ruling-this-repository-is-public-no-personal-identifiers-in-anything-you-write-from-now-on-albert-hazan-2026-08-09) | OWNER RULING — this repository is PUBLIC; no personal identifiers in anything you write from now on (Albert Hazan, 2026-08-09) |
-| [6.15](#615-owner-ruling-there-are-exactly-two-kinds-of-property-list-and-coreproperty-universe-a-is-to-be-deleted-albert-hazan-2026-08-19) | OWNER RULING — there are exactly TWO kinds of property list, and `core.property` (Universe A) is to be DELETED (Albert Hazan, 2026-08-19) |
+| [6.15](#615-historical-owner-ruling-two-source-lists--entity-destination-superseded-by-1684) | HISTORICAL OWNER RULING — two source lists; entity destination superseded by #1684 |
 | [6.17](#617-owner-ruling-designflows-numeric-division-ids-are-wrong-and-do-not-come-to-this-database-the-coldlion-division-code-is-the-only-division-there-is-albert-hazan-2026-08-19) | OWNER RULING — DesignFlow's numeric division ids are WRONG and do NOT come to this database; the ColdLion division CODE is the only division there is (Albert Hazan, 2026-08-19) |
 | [6.16](#616-owner-ruling-licence-contracts-are-not-a-source-for-this-database-and-licence-term-and-territory-do-not-belong-in-it-at-all-albert-hazan-2026-08-19) | OWNER RULING — licence CONTRACTS are NOT a source for this database, and licence TERM and TERRITORY do not belong in it at all (Albert Hazan, 2026-08-19) |
 
@@ -1320,7 +1320,7 @@ future sessions know the sweep was done and the result was consciously accepted,
 Removing any of it from the working tree does not remove it from history, so removal buys
 nothing and costs review risk. **Do not start a cleanup pass without a fresh owner ruling.**
 
-### 6.15 OWNER RULING — there are exactly TWO kinds of property list, and `core.property` (Universe A) is to be DELETED (Albert Hazan, 2026-08-19)
+### 6.15 HISTORICAL OWNER RULING — two source lists; entity destination superseded by #1684
 
 **His words, in chat, 2026-08-19:**
 
@@ -1329,7 +1329,9 @@ nothing and costs review risk. **Do not start a cleanup pass without a fresh own
 > the Coldlion api. The scrape lists show what properties we are licensed for, and the
 > Coldlion list shows which ones we actually use."
 
-**This is the settled architecture for licensed properties and characters. Do not re-ask it.**
+**Historical ruling, superseded in part later on 2026-08-27.** The source distinction remains
+settled, but the entity-table destination below no longer does: issue #1684 explicitly keeps
+`core.property`, restores separate `core.character`, and retires the mixed table.
 
 > ### AMENDMENT — Albert Hazan, 2026-08-27: there is a THIRD kind, and it is the one the apps use
 >
@@ -1342,12 +1344,11 @@ nothing and costs review risk. **Do not start a cleanup pass without a fresh own
 > the **reconciled canonical layer** — the result of matching a scrape list against the ColdLion
 > list — and it is the ONLY layer applications are allowed to consume.
 >
-> This does not revive Universe A. `core.property` still dies (see the 2026-08-27 disposal
-> ruling below). The third kind is **Universe B**, which already has exactly this shape:
-> `core.properties_and_characters` carries the licensors' own `source_licensed_property_id` /
-> `source_character_id` (the scrape side) and keys to `core."licenseList"` (the ColdLion side),
-> with `core.property_character_associations` for the relationships. Universe A had neither
-> side's keys, which is precisely why it could never be the reconciliation.
+> **Later same-day amendment — issue #1684:** the reconciled layer uses distinct entity datasets.
+> Properties live in `core.property`; Characters live in `core.character`; membership is an
+> explicit relationship. `core.properties_and_characters` is EOL, may receive no new dependencies,
+> and will be removed. Its rows are disposable and must not be copied into either canonical table;
+> future canonical rows come only from normalized source evidence through governed Master Data.
 >
 > Rules that follow from this:
 >
@@ -1383,14 +1384,18 @@ It is hand-made. It carries none of the licensors' own primary keys, so it can n
 matched row-for-row against a portal capture, and 16 of its rows are stored at CHARACTER
 grain in a table named `property`. It satisfies neither of the two kinds above.
 
-**Universe B survives** — `core.properties_and_characters` (10,122 rows, integer keys,
+**SUPERSEDED entity-table destination (historical evidence only).** The former Universe B was
+`core.properties_and_characters` (10,122 rows, integer keys,
 `source_licensed_property_id` / `source_character_id`), `core.property_character_associations`
 (9,622 rows), keyed to `core."licenseList"`. Membership in the portal captures is **proven,
 not assumed**: 112/112 sampled Disney OPA `characterID` values present, 6/6 sampled Warner
 STARLABS `characters.csv:source_id` values present. `licenseList` 13 (`CC`) is the one known
 exception — synthetic hand-made IDs (`COKE-CHAR-00n`), not portal-derived.
 
-#### The deletion is NOT authorized to just happen
+#### SUPERSEDED deletion destination — do not execute against `core.property`
+
+The process safeguards below remain useful history, but issue #1684 reversed the destination:
+`core.property` remains, separate `core.character` is restored, and the mixed table is retired.
 
 The ruling settles the DESTINATION. It does not waive §4.2, the migration process, or the
 blast-radius work. Before `core.property`, `core.character`, `core.property_character` and
@@ -1405,13 +1410,13 @@ blast-radius work. Before `core.property`, `core.character`, `core.property_char
 
 **Do not drop anything on the strength of this section alone.**
 
-#### OWNER RULING — the 260 rows are DISPOSABLE (Albert Hazan, 2026-08-27)
+#### SUPERSEDED OWNER RULING — the 260 `core.property` rows were called disposable
 
 **His word, in chat, 2026-08-27, after the full feed-and-consumer investigation was put to him:** "disposable."
 
-Nothing is to be salvaged out of `core.property`. No row is to be carried into the reconciled
-layer, including the 16 rows stored at character grain. Step 3 above ("anything genuinely worth
-keeping must be moved FIRST") is hereby answered: nothing is worth keeping.
+This no longer authorizes deleting `core.property`; issue #1684 explicitly keeps it as the Property
+dataset. It remains historical evidence that no row should be copied from the mixed table merely
+to preserve its current contents.
 
 The investigation behind the ruling (live, production, 2026-08-27, recorded on issue #1238):
 

@@ -8,6 +8,103 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # `bash scripts/check-sql.sh` set none of them and behave exactly as before.
 migration_dir="${CHECK_SQL_MIGRATION_DIR:-$root_dir/supabase/migrations}"
 
+# Issue #1684 Phase 1: reject every new runtime or migration dependency on the
+# EOL mixed table. The diff makes existing historical references the exact
+# grandfathered set. The one staging migration is the only new migration
+# allowlisted; the final drop must receive its own reviewed exception later.
+check_eol_combined_table_references() {
+  local diff_file="${CHECK_SQL_EOL_DIFF_FILE:-}"
+  local remove_diff=0
+  if [[ -z "$diff_file" ]]; then
+    # Fixture-driven migration-guard tests have no meaningful repository diff.
+    [[ -n "${CHECK_SQL_MIGRATION_DIR:-}" ]] && return 0
+    local eol_base="origin/${GITHUB_BASE_REF:-main}"
+    if ! git -C "$root_dir" rev-parse --verify --quiet "$eol_base" >/dev/null; then
+      echo "ERROR: issue #1684 EOL guard cannot resolve base $eol_base." >&2
+      return 2
+    fi
+    diff_file="$(mktemp)"
+    remove_diff=1
+    git -C "$root_dir" diff --unified=0 --no-ext-diff "$eol_base" -- . > "$diff_file"
+  fi
+
+  node - "$diff_file" <<'NODE'
+const fs = require('node:fs')
+const diff = fs.readFileSync(process.argv[2], 'utf8')
+const allowed = 'supabase/migrations/20260827222039_eol_core_properties_and_characters.sql'
+const deltas = new Map()
+const maintenanceAllowed = new Set([
+  'api.db_data_admin_licensor_property_tree',
+  'plm.sync_wb_canonical_relationship_edges',
+])
+const maintenance = new Map()
+const validationFailures = []
+let current = ''
+function referenceCount(text) {
+  const withoutOtherSchemas = text.replace(/(?:"dflow(?:_prod)?"|dflow(?:_prod)?)\s*\.\s*(?:"properties_and_characters"|properties_and_characters)/gi, '')
+  return (withoutOtherSchemas.match(/(?<![A-Za-z0-9_])"?properties_and_characters"?(?![A-Za-z0-9_])/gi) || []).length
+}
+for (const line of diff.split(/\r?\n/)) {
+  const header = line.match(/^\+\+\+ b\/(.+)$/)
+  if (header) {
+    current = header[1]
+    maintenance.set(current, { declared: new Set(), completed: new Set(), active: null, tag: null })
+    continue
+  }
+  if (current === allowed || current === 'scripts/check-sql.sh') continue
+  if (current.endsWith('.md')) continue
+  if (current.startsWith('supabase/tests/') || /\.test\.[cm]?js$/.test(current)) continue
+  if (line.startsWith('+') && !line.startsWith('+++')) {
+    const text = line.slice(1)
+    const state = maintenance.get(current)
+    const declaration = text.match(/^\s*--\s*maintains-eol-dependency:\s*function\s+([a-z0-9_.]+)\s*$/i)
+    if (declaration) {
+      const name = declaration[1].toLowerCase()
+      if (!maintenanceAllowed.has(name)) validationFailures.push(`${current}: unknown EOL dependency maintenance declaration ${name}`)
+      else state.declared.add(name)
+      continue
+    }
+    const functionStart = text.match(/\bcreate\s+or\s+replace\s+function\s+(api\.db_data_admin_licensor_property_tree|plm\.sync_wb_canonical_relationship_edges)\b/i)
+    if (functionStart) {
+      const name = functionStart[1].toLowerCase()
+      if (!state.declared.has(name)) validationFailures.push(`${current}: ${name} maintenance is missing its exact declaration`)
+      else state.active = name
+    }
+    const wasTagged = state.tag !== null
+    if (state.active && !state.tag) {
+      const tag = text.match(/\bas\s+(\$[A-Za-z0-9_]*\$)/i)
+      if (tag) state.tag = tag[1]
+    }
+    if (!state.active) deltas.set(current, (deltas.get(current) || 0) + referenceCount(text))
+    if (state.active && wasTagged && text.includes(state.tag)) {
+      state.completed.add(state.active)
+      state.active = null
+      state.tag = null
+    }
+  }
+  if (line.startsWith('-') && !line.startsWith('---'))
+    deltas.set(current, (deltas.get(current) || 0) - referenceCount(line.slice(1)))
+}
+for (const [file, state] of maintenance) {
+  if (state.active) validationFailures.push(`${file}: maintained EOL function body did not close`)
+  for (const name of state.declared) if (!state.completed.has(name)) validationFailures.push(`${file}: declared maintenance for ${name} did not contain its complete function body`)
+}
+const failures = [...deltas].filter(([, delta]) => delta > 0)
+if (failures.length || validationFailures.length) {
+  console.error('ERROR: net-new runtime or migration references to core.properties_and_characters are forbidden by issue #1684:')
+  for (const [file, delta] of failures) console.error(`  ${file}: reference count increased by ${delta}`)
+  for (const failure of validationFailures) console.error(`  ${failure}`)
+  console.error(`Only the exact EOL staging migration is allowlisted: ${allowed}`)
+  console.error(`Replacement bodies may maintain only these existing dependencies with an exact -- maintains-eol-dependency declaration: ${[...maintenanceAllowed].join(', ')}`)
+  process.exit(1)
+}
+console.log('Issue #1684 EOL reference guard passed: no new dependency was introduced.')
+NODE
+  local result=$?
+  [[ "$remove_diff" -eq 0 ]] || rm -f "$diff_file"
+  return "$result"
+}
+
 # No two migrations may share a version (the leading 14-digit timestamp).
 # Supabase's ledger `supabase_migrations.schema_migrations` keys on the version
 # ALONE, not the filename, so a duplicate is silently skipped on first apply and
@@ -373,9 +470,12 @@ fi
 rm -f "$base_versions_file"
 
 if [[ -n "${CHECK_SQL_MIGRATIONS_ONLY:-}" ]]; then
+  check_eol_combined_table_references
   echo "Migration guards passed (CHECK_SQL_MIGRATIONS_ONLY set; content checks skipped)."
   exit 0
 fi
+
+check_eol_combined_table_references
 
 required_files=(
   "20260621150714_foundation.sql"
