@@ -41,5 +41,7 @@ Product category: ${styleGroup.product_category ?? "unknown"}
 Rich PDF summary: ${richMetadata ? JSON.stringify(richMetadata).slice(0, 4000) : "none"}
 Representative assets: ${representativeAssets.map((asset) => `${asset.id}: ${asset.descriptor ?? asset.content_type ?? "unknown"}`).join("; ")}
 
-Return group_ai_description plus group_tags. Group tags may describe product type, artwork theme/style, occasion, audience, or technique only when supported across the group. Never rewrite or contradict licensor, property, SKU, product category, or item description. Never promote file type, view, scene, color, or a character visible in only one representative to the group. Cite every supporting representative in evidence_asset_ids. Use only these categories: ${GROUP_TAG_CATEGORIES.join(", ")}.`;
+Return group_ai_description plus group_tags. Group tags may describe product type, artwork theme/style, occasion, audience, or technique only when supported across the group. Never rewrite or contradict licensor, property, SKU, product category, or item description. Never promote file type, view, scene, color, or a character visible in only one representative to the group. Cite every supporting representative in evidence_asset_ids. Use only these categories: ${
+    GROUP_TAG_CATEGORIES.join(", ")
+  }.`;
 }

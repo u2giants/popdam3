@@ -1,9 +1,21 @@
 export const ASSET_TAG_CATEGORIES = [
-  "file_type", "view", "scene", "color", "visible_content", "technique", "other",
+  "file_type",
+  "view",
+  "scene",
+  "color",
+  "visible_content",
+  "technique",
+  "other",
 ];
 
 export const GROUP_TAG_CATEGORIES = [
-  "product_type", "theme", "style", "occasion", "audience", "technique", "other",
+  "product_type",
+  "theme",
+  "style",
+  "occasion",
+  "audience",
+  "technique",
+  "other",
 ];
 
 export const TAG_STATUSES = ["active", "candidate", "rejected"];
@@ -32,7 +44,7 @@ export function sourcePriority(source) {
 export function groupAiStatus(confidence, evidenceAssetIds) {
   const distinctEvidence = new Set((evidenceAssetIds ?? []).filter(Boolean));
   return Number(confidence) >= GROUP_AI_AUTO_PROMOTION_CONFIDENCE &&
-    distinctEvidence.size >= GROUP_AI_AUTO_PROMOTION_MIN_EVIDENCE
+      distinctEvidence.size >= GROUP_AI_AUTO_PROMOTION_MIN_EVIDENCE
     ? "active"
     : "candidate";
 }
