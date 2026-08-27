@@ -17,7 +17,7 @@ begin
     v_capture,'marvel_asgard','https://synthetic.invalid/asgard','synthetic licensed scope',
     'contract-1','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     '2026-08-26T00:00:00Z',
-    '{"categories":1,"guides":1,"nodes":12,"pages":3,"assets":2,"node_assets":3,"characters":2,"asset_characters":2,"terms":6,"asset_terms":6,"asset_likeness":2}',
+    '{"categories":1,"guides":1,"nodes":12,"pages":3,"assets":2,"node_assets":4,"characters":2,"asset_characters":2,"terms":6,"asset_terms":6,"asset_likeness":2}',
     '{"fixture":"invented"}'
   );
   -- Exact replay is idempotent.
@@ -25,7 +25,7 @@ begin
     v_capture,'marvel_asgard','https://synthetic.invalid/asgard','synthetic licensed scope',
     'contract-1','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     '2026-08-26T00:00:00Z',
-    '{"categories":1,"guides":1,"nodes":12,"pages":3,"assets":2,"node_assets":3,"characters":2,"asset_characters":2,"terms":6,"asset_terms":6,"asset_likeness":2}',
+    '{"categories":1,"guides":1,"nodes":12,"pages":3,"assets":2,"node_assets":4,"characters":2,"asset_characters":2,"terms":6,"asset_terms":6,"asset_likeness":2}',
     '{"fixture":"invented"}'
   );
 
@@ -66,8 +66,8 @@ begin
       union all select jsonb_build_object('source_identity_key','term-keyword-b','term_kind','descriptive_keyword','source_term_key','term-source-keyword-b','exact_value','Invented B','normalized_search_value','invented b','raw_source','{}'::jsonb)
     ) terms),
     'checkpoints',jsonb_build_array(
-      jsonb_build_object('style_guide_identity_key','guide-1','guide_node_identity_key','node-12','page_number',1,'page_size',2,'expected_page_count',2,'expected_asset_count',2,'observed_asset_count',2,'request_sha256',repeat('b',64),'result_sha256',repeat('c',64),'status','complete'),
-      jsonb_build_object('style_guide_identity_key','guide-1','guide_node_identity_key','node-12','page_number',2,'page_size',2,'expected_page_count',2,'expected_asset_count',0,'observed_asset_count',0,'request_sha256',repeat('d',64),'result_sha256',repeat('e',64),'status','complete'))
+      jsonb_build_object('style_guide_identity_key','guide-1','guide_node_identity_key','node-12','page_number',1,'page_size',3,'expected_page_count',2,'expected_asset_count',3,'observed_asset_count',3,'request_sha256',repeat('b',64),'result_sha256',repeat('c',64),'status','complete'),
+      jsonb_build_object('style_guide_identity_key','guide-1','guide_node_identity_key','node-12','page_number',2,'page_size',3,'expected_page_count',2,'expected_asset_count',0,'observed_asset_count',0,'request_sha256',repeat('d',64),'result_sha256',repeat('e',64),'status','complete'))
   ));
 
   insert into plm.marvel_asgard_capture_checkpoint(capture_key,style_guide_id,guide_node_id,page_number,page_size,expected_page_count,expected_asset_count,observed_asset_count,request_sha256,result_sha256,status)
@@ -76,9 +76,10 @@ begin
 
   perform plm.load_marvel_asgard_chunk(v_capture,'marvel_asgard','relationships',jsonb_build_object(
     'node_assets',jsonb_build_array(
-      jsonb_build_object('guide_node_identity_key','node-12','page_number',1,'asset_identity_key','asset-1','source_display_order',1,'raw_observation_sha256',repeat('1',64)),
-      jsonb_build_object('guide_node_identity_key','node-12','page_number',1,'asset_identity_key','asset-2','source_display_order',2,'raw_observation_sha256',repeat('2',64)),
-      jsonb_build_object('guide_node_identity_key','node-11','page_number',1,'asset_identity_key','asset-1','source_display_order',1,'raw_observation_sha256',repeat('3',64))),
+      jsonb_build_object('guide_node_identity_key','node-12','page_number',1,'asset_identity_key','asset-1','file_observation_key','obs-1a','exact_filename','invented-one-a.bin','file_extension','bin','file_size_bytes',10,'source_display_order',1,'raw_observation_sha256',repeat('1',64),'raw_observation',jsonb_build_object('fixture','one-a')),
+      jsonb_build_object('guide_node_identity_key','node-12','page_number',1,'asset_identity_key','asset-1','file_observation_key','obs-1b','exact_filename','invented-one-b.bin','file_extension','bin','file_size_bytes',11,'source_display_order',2,'raw_observation_sha256',repeat('2',64),'raw_observation',jsonb_build_object('fixture','one-b')),
+      jsonb_build_object('guide_node_identity_key','node-12','page_number',1,'asset_identity_key','asset-2','file_observation_key','obs-2','exact_filename','invented-two.bin','file_extension','bin','file_size_bytes',20,'source_display_order',3,'raw_observation_sha256',repeat('3',64),'raw_observation',jsonb_build_object('fixture','two')),
+      jsonb_build_object('guide_node_identity_key','node-11','page_number',1,'asset_identity_key','asset-1','file_observation_key','obs-1-node11','exact_filename','invented-one-a.bin','file_extension','bin','file_size_bytes',10,'source_display_order',1,'raw_observation_sha256',repeat('4',64),'raw_observation',jsonb_build_object('fixture','one-node11'))),
     'asset_characters',jsonb_build_array(
       jsonb_build_object('asset_identity_key','asset-1','character_identity_key','character-1','raw_observation','{}'::jsonb),
       jsonb_build_object('asset_identity_key','asset-1','character_identity_key','character-2','raw_observation','{}'::jsonb)),
@@ -110,11 +111,11 @@ begin
     raise exception 'missing parent unexpectedly accepted';
   exception when others then if sqlerrm not like '%unresolved or cross-guide parent%' then raise; end if; end;
   -- Exact observation replay is idempotent, but changed direct evidence fails closed.
-  perform plm.load_marvel_asgard_chunk(v_capture,'marvel_asgard','relationships-replay',jsonb_build_object('node_assets',jsonb_build_array(jsonb_build_object('guide_node_identity_key','node-12','page_number',1,'asset_identity_key','asset-1','source_display_order',1,'raw_observation_sha256',repeat('1',64)))));
+  perform plm.load_marvel_asgard_chunk(v_capture,'marvel_asgard','relationships-replay',jsonb_build_object('node_assets',jsonb_build_array(jsonb_build_object('guide_node_identity_key','node-12','page_number',1,'asset_identity_key','asset-1','file_observation_key','obs-1a','exact_filename','invented-one-a.bin','file_extension','bin','file_size_bytes',10,'source_display_order',1,'raw_observation_sha256',repeat('1',64),'raw_observation',jsonb_build_object('fixture','one-a')))));
   begin
-    perform plm.load_marvel_asgard_chunk(v_capture,'marvel_asgard','relationships-conflict',jsonb_build_object('node_assets',jsonb_build_array(jsonb_build_object('guide_node_identity_key','node-12','page_number',2,'asset_identity_key','asset-1','source_display_order',1,'raw_observation_sha256',repeat('9',64)))));
+    perform plm.load_marvel_asgard_chunk(v_capture,'marvel_asgard','relationships-conflict',jsonb_build_object('node_assets',jsonb_build_array(jsonb_build_object('guide_node_identity_key','node-12','page_number',1,'asset_identity_key','asset-1','file_observation_key','obs-1a','exact_filename','invented-one-conflict.bin','file_extension','bin','file_size_bytes',10,'source_display_order',1,'raw_observation_sha256',repeat('1',64),'raw_observation',jsonb_build_object('fixture','one-a')))));
     raise exception 'observation conflict unexpectedly accepted';
-  exception when others then if sqlerrm not like '%node-asset replay conflict%' then raise; end if; end;
+  exception when others then if sqlerrm not like '%file-observation replay conflict%' then raise; end if; end;
   -- A node identity cannot silently move to another guide. A raw source node key may,
   -- however, legitimately recur under a different guide.
   begin
@@ -130,7 +131,9 @@ begin
   if (select max(depth) from plm.marvel_asgard_guide_node where last_seen_capture_key=v_capture) <> 12 then raise exception '12-level hierarchy was not retained'; end if;
   select id into v_asset from plm.marvel_asgard_asset where source_identity_key='asset-1';
   select count(*) into v_count from plm.marvel_asgard_node_asset_observation where capture_key=v_capture and asset_id=v_asset;
-  if v_count<>2 then raise exception 'asset multi-node observation failed: %',v_count; end if;
+  if v_count<>3 then raise exception 'asset multi-filename observation failed: %',v_count; end if;
+  if (select count(*) from plm.marvel_asgard_node_asset_observation where capture_key=v_capture and guide_node_id=(select id from plm.marvel_asgard_guide_node where source_identity_key='node-12') and asset_id=v_asset)<>2 then raise exception 'one source UUID did not retain two file observations'; end if;
+  if (select count(distinct exact_filename) from plm.marvel_asgard_node_asset_observation where capture_key=v_capture and guide_node_id=(select id from plm.marvel_asgard_guide_node where source_identity_key='node-12') and asset_id=v_asset)<>2 then raise exception 'distinct filenames sharing one source UUID were lost'; end if;
   if (select count(*) from plm.marvel_asgard_asset where source_identity_key='asset-1')<>1 then raise exception 'asset identity duplicated'; end if;
   if (select count(*) from plm.marvel_asgard_asset_character_observation where capture_key=v_capture and asset_id=v_asset)<>2 then raise exception 'many-to-many characters failed'; end if;
   if (select count(*) from plm.marvel_asgard_asset_term_observation where capture_key=v_capture and asset_id=v_asset)<>6 then raise exception 'typed terms failed'; end if;
