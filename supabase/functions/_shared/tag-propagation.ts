@@ -152,7 +152,7 @@ export async function propagateGroupTags(
   // 6. Build all mutations in memory, then execute in bulk
   let totalTagsPropagated = 0;
   let totalCharsPropagated = 0;
-  const allNewTags: Array<{ asset_id: string; tag: string; source: string }> = [];
+  const allNewTags: Array<{ asset_id: string; tag: string; source: string; category: string; status: string }> = [];
   const allNewChars: Array<{ asset_id: string; character_id: string }> = [];
   const metaUpdatePromises: Promise<unknown>[] = [];
 
@@ -177,7 +177,13 @@ export async function propagateGroupTags(
       const existing = siblingTagSets.get(sibling.id) ?? new Set();
       for (const t of productTags) {
         if (!existing.has(t)) {
-          allNewTags.push({ asset_id: sibling.id, tag: t, source: "ai" });
+          allNewTags.push({
+            asset_id: sibling.id,
+            tag: t,
+            source: "ai",
+            category: "legacy_unscoped",
+            status: "active",
+          });
           totalTagsPropagated++;
         }
       }

@@ -133,9 +133,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function isVisualAnalysisUnavailableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.startsWith("Asset has no thumbnail:") ||
+    /Thumbnail fetch HTTP (403|404)\b/.test(error.message);
+}
+
 // ── Single-asset tagging via OpenRouter ──────────────────────────────────────
 
-type TagOutcome = { outcome: "tagged" | "skipped" | "failed"; error?: string };
+type TagOutcome = { outcome: "tagged" | "skipped" | "failed" | "visual_analysis_unavailable"; error?: string };
 
 type BatchAsset = {
   id: string;
@@ -208,20 +214,9 @@ async function applyBatchTagResult(assetId: string, tagData: Record<string, unkn
   for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "designer_name", "technical_designer_name", "freelancer_name"]) {
     if (tagData[key]) updates[key] = tagData[key];
   }
-  if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
-  if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
-  let { error } = await client.from("assets").update(updates).eq("id", assetId);
-  if (error && (error.code === "23503" || error.code === "22P02")) {
-    delete updates.licensor_id; delete updates.property_id;
-    error = (await client.from("assets").update(updates).eq("id", assetId)).error;
-  }
+  const { error } = await client.from("assets").update(updates).eq("id", assetId);
   if (error) throw new Error(`DB write failed: ${error.message}`);
-  if (Array.isArray(tagData.tags)) {
-    const deleted = await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
-    if (deleted.error) throw new Error(`AI tag cleanup failed: ${deleted.error.message}`);
-    const savedTags = await client.from("asset_tags").upsert(tagData.tags.map((tag) => ({ asset_id: assetId, tag: String(tag).trim().toLowerCase(), source: "ai" })), { onConflict: "asset_id,tag" });
-    if (savedTags.error) throw new Error(`AI tag write failed: ${savedTags.error.message}`);
-  }
+  await writeAssetAiTags(client, assetId, model, tagData);
   if (Array.isArray(tagData.character_ids)) {
     const rows = tagData.character_ids.filter(isValidUuid).map((character_id) => ({ asset_id: assetId, character_id }));
     if (rows.length) {
@@ -238,6 +233,32 @@ async function applyBatchTagResult(assetId: string, tagData: Record<string, unkn
       if (savedFiles.error) throw new Error(`Style-guide source write failed: ${savedFiles.error.message}`);
     }
   }
+}
+
+export function assetTagsForRpc(tagData: Record<string, unknown>) {
+  if (!Array.isArray(tagData.asset_tags)) return [];
+  return (tagData.asset_tags as Array<Record<string, unknown>>).map((item) => ({
+    tag: String(item.tag ?? "").trim().replace(/\s+/g, " ").toLowerCase(),
+    category: item.category,
+    status: "active",
+    confidence: item.confidence,
+    evidence: item.evidence,
+  }));
+}
+
+export async function writeAssetAiTags(
+  client: { rpc: (name: string, params: Record<string, unknown>) => PromiseLike<{ error: null | { message: string } }> },
+  assetId: string,
+  model: string,
+  tagData: Record<string, unknown>,
+) {
+  const result = await client.rpc("replace_asset_ai_tag_result", {
+    p_asset_id: assetId,
+    p_source: "ai",
+    p_model: model,
+    p_tags: assetTagsForRpc(tagData),
+  });
+  if (result.error) throw new Error(`Atomic AI tag write failed: ${result.error.message}`);
 }
 
 export interface AiTagRpcClient {
@@ -343,9 +364,18 @@ async function handleDurableBatchTag(
   if (action.type === "submit") {
     const outputMethod = job.output_method ?? "json_schema";
     const submissions = [];
+    let visualAnalysisUnavailable = 0;
     for (const item of job.items ?? []) {
-      const prepared = await buildBatchAssetRequest(item.asset_id, tagAll, model, item.custom_id, provider, outputMethod);
-      if (prepared) submissions.push(prepared);
+      try {
+        const prepared = await buildBatchAssetRequest(item.asset_id, tagAll, model, item.custom_id, provider, outputMethod);
+        if (prepared) submissions.push(prepared);
+      } catch (error) {
+        if (isVisualAnalysisUnavailableError(error)) {
+          visualAnalysisUnavailable++;
+          continue;
+        }
+        throw error;
+      }
     }
     if (!submissions.length) {
       return {
@@ -354,6 +384,7 @@ async function handleDurableBatchTag(
         nextOffset: job.next_cursor ?? job.page_cursor ?? 0,
         clear_external_job: true,
         skipped: job.items?.length ?? 0,
+        visual_analysis_unavailable: visualAnalysisUnavailable,
       };
     }
     const created = await submitOpenRouterBatch(apiKey, submissions);
@@ -371,6 +402,7 @@ async function handleDurableBatchTag(
         next_poll_at: new Date(Date.now() + 10_000).toISOString(),
         items: job.items?.filter((item) => submittedIds.has(item.custom_id)).map((item) => ({ ...item, status: "submitted" })),
       },
+      visual_analysis_unavailable: visualAnalysisUnavailable,
       last_stage: "model_inference",
     };
   }
@@ -482,7 +514,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
   const thumbnailUrl = asset.thumbnail_url;
   if (!thumbnailUrl) {
     logger.warn("ai-tag: no thumbnail_url", { assetId });
-    return { outcome: "failed", error: "No thumbnail URL" };
+    return { outcome: "visual_analysis_unavailable", error: "No thumbnail URL" };
   }
 
   const systemPrompt = await buildImageTaggingPrompt(asset);
@@ -495,7 +527,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
     if (msg.includes("Thumbnail fetch HTTP 403") || msg.includes("Thumbnail fetch HTTP 404")) {
       const status = msg.match(/HTTP (\d+)/)?.[1] ?? "unknown";
       await client.from("assets").update({ thumbnail_error: `Thumbnail not found in storage (HTTP ${status})` }).eq("id", assetId);
-      return { outcome: "skipped" };
+      return { outcome: "visual_analysis_unavailable", error: `Thumbnail unavailable (HTTP ${status})` };
     }
     return { outcome: "failed", error: `Thumbnail fetch error: ${msg.slice(0, 200)}` };
   }
@@ -536,37 +568,25 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
         if (tagData.art_source) updates.art_source = tagData.art_source;
         if (tagData.design_style) updates.design_style = tagData.design_style;
         if (tagData.design_ref) updates.design_ref = tagData.design_ref;
-        if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
-        if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
         if (tagData.designer_name) updates.designer_name = tagData.designer_name;
         if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
         if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
 
-        let { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
-
-        // FK constraint failure: AI hallucinated a licensor/property UUID — retry without FK fields
-        if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
-          logger.warn("ai-tag: FK/type error, retrying without licensor_id/property_id", { assetId, error: updateErr.message });
-          delete updates.licensor_id;
-          delete updates.property_id;
-          const retry = await client.from("assets").update(updates).eq("id", assetId);
-          updateErr = retry.error;
-        }
+        const { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
 
         if (updateErr) {
           logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
           return { outcome: "failed", error: `DB write failed: ${humanizeError(updateErr.message ?? "").slice(0, 300)}` };
         }
 
-        // Write tags to asset_tags table
-        if (Array.isArray(tagData.tags) && tagData.tags.length > 0) {
-          await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
-          const tagRows = (tagData.tags as string[]).map((t: string) => ({
-            asset_id: assetId,
-            tag: t.trim().toLowerCase(),
-            source: "ai",
-          }));
-          await client.from("asset_tags").upsert(tagRows, { onConflict: "asset_id,tag" });
+        // Replace only AI-owned file tags through the production atomic RPC.
+        // Manual rows and rejected tombstones remain authoritative.
+        try {
+          await writeAssetAiTags(client, assetId, model, tagData);
+        } catch (tagWriteError) {
+          const message = tagWriteError instanceof Error ? tagWriteError.message : String(tagWriteError);
+          logger.error("ai-tag: atomic tag write failed", { assetId, error: message });
+          return { outcome: "failed", error: `AI tag write failed: ${humanizeError(message).slice(0, 300)}` };
         }
 
         // Write character links
@@ -661,7 +681,7 @@ export async function handleBulkAiTag(
 
   // Fast path: tag specific assets by ID (used for single-asset re-tag from UI)
   if (assetIds && assetIds.length > 0) {
-    let tagged = 0, skipped = 0, failed = 0;
+    let tagged = 0, skipped = 0, failed = 0, visualAnalysisUnavailable = 0;
     const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
 
     for (let i = 0; i < assetIds.length; i += CONCURRENCY) {
@@ -676,6 +696,7 @@ export async function handleBulkAiTag(
         if (r.status === "fulfilled") {
           if (r.value.outcome === "tagged") tagged++;
           else if (r.value.outcome === "skipped") skipped++;
+          else if (r.value.outcome === "visual_analysis_unavailable") visualAnalysisUnavailable++;
           else { failed++; failureSamples.push({ at: new Date().toISOString(), asset_id: r.value.asset_id, filename: "", relative_path: "", error: r.value.error ?? "AI call failed" }); }
         } else {
           failed++;
@@ -684,7 +705,7 @@ export async function handleBulkAiTag(
       }
     }
 
-    return { ok: true, done: true, tagged, skipped, failed, failure_samples: failureSamples, skip_samples: [], nextOffset: rawCursor ?? 0, last_stage: "tag_write" };
+    return { ok: true, done: true, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, failure_samples: failureSamples, skip_samples: [], nextOffset: rawCursor ?? 0, last_stage: "tag_write" };
   }
 
   let cursor;
@@ -775,6 +796,7 @@ export async function handleBulkAiTag(
   let tagged = 0;
   let skipped = 0;
   let failed = 0;
+  let visualAnalysisUnavailable = 0;
   const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
   const skipSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; reason: string }> = [];
 
@@ -801,6 +823,15 @@ export async function handleBulkAiTag(
             filename: (asset.filename as string) || "(unknown)",
             relative_path: (asset.relative_path as string) || "(unknown)",
             reason: "Already tagged",
+          });
+        } else if (outcome === "visual_analysis_unavailable") {
+          visualAnalysisUnavailable++;
+          skipSamples.push({
+            at: new Date().toISOString(),
+            asset_id: asset.id as string,
+            filename: (asset.filename as string) || "(unknown)",
+            relative_path: (asset.relative_path as string) || "(unknown)",
+            reason: "Visual analysis unavailable: no usable thumbnail",
           });
         } else {
           failed++;
@@ -839,6 +870,7 @@ export async function handleBulkAiTag(
     tagged,
     skipped,
     failed,
+    visual_analysis_unavailable: visualAnalysisUnavailable,
     failure_samples: failureSamples.slice(-200),
     skip_samples: skipSamples.slice(-200),
     nextOffset: nextCursor,

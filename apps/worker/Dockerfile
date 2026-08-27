@@ -20,6 +20,8 @@ COPY src/ ./src/
 # imports resolve inside the isolated image build.
 COPY vendor/tag-asset-contract.js /supabase/functions/_shared/tag-asset-contract.js
 COPY vendor/tag-asset-contract.d.ts /supabase/functions/_shared/tag-asset-contract.d.ts
+COPY vendor/tagging-metadata-policy.js /supabase/functions/_shared/tagging-metadata-policy.js
+COPY vendor/tagging-metadata-policy.d.ts /supabase/functions/_shared/tagging-metadata-policy.d.ts
 RUN npm run build
 
 # Remove devDependencies

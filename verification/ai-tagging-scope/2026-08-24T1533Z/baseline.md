@@ -20,6 +20,7 @@ This is aggregate-only evidence for plan Step 1. It contains no licensed filenam
 | Thumbnail-backed non-deleted assets | 126,860 |
 | Non-deleted assets with `ai_tagged_at IS NULL` | 37,323 |
 | Style Groups | 10,776 |
+| Groups with 0 assets | 2 (derived from the original total and non-zero buckets; not directly queried in the original session) |
 | Groups with 1 asset | 544 |
 | Groups with 2–5 assets | 3,717 |
 | Groups with 6–20 assets | 5,973 |
@@ -40,19 +41,11 @@ op run --env-file /tmp/popdam-baseline.env -- psql \
   -v ON_ERROR_STOP=1 -At -F '|'
 ```
 
-Queries set read-only mode and a bounded timeout, then ran exact `count(*)` aggregates over:
-
-```sql
-public.assets WHERE is_deleted = false;
-public.assets WHERE is_deleted = false AND thumbnail_url IS NOT NULL;
-public.assets WHERE is_deleted = false AND ai_tagged_at IS NULL;
-public.style_groups;
-public.style_groups grouped into asset_count buckets 1, 2–5, 6–20, and 21+;
-public.asset_tags WHERE source IN ('ai', 'manual');
-public.asset_tags JOIN public.assets for the bounded sibling phrase measure described above;
-```
+The exact executable SQL, including the full 551-pair join, normalization, source behavior, and group buckets, is stored beside this file as `baseline.sql`. The original run omitted the zero-size bucket query; its two-row value is an arithmetic residual, explicitly labeled rather than presented as a directly observed historical count.
 
 An initial combined 8-second query timed out during the untagged count after safely returning the first two aggregates. The remaining exact reads were rerun with a bounded 60-second statement timeout and completed. No partial result is used for any count above.
+
+Grok correctly identified that the original artifact did not measure manual values present only in the compatibility `assets.tags` array. That historical pre-normalization count cannot be reconstructed after #1427's production reconciliation. A read-only post-reconciliation check on 2026-08-25 returned `assets_with_manual_only_compatibility_values = 0` against target `qsllyeztdwjgirsysgai`; this proves the current repair state, not the missing historical baseline.
 
 ## Synthetic characterization fixtures
 
@@ -60,7 +53,7 @@ An initial combined 8-second query timed out during the untagged count after saf
 - Test: `apps/worker/src/handlers/ai-tagging-scope.test.ts`.
 - Coverage: tech pack + product photograph + mockup; source art + product render; and two character/color variants.
 - All UUIDs, names, descriptions, and metadata are synthetic. There are no image URLs or licensed inputs.
-- Characterization records that today’s contract accepts shared product/property terms and file-specific image/view/color terms in the same flat array, and that the `(asset_id, tag)` upsert key cannot represent manual and AI provenance simultaneously.
+- The initial characterization recorded the flat contract and collision risk. Grok found the collision assertion tautological. The Step 3 inversion now rejects the legacy flat shape and exercises the real production writer helper, proving it calls `replace_asset_ai_tag_result` with typed asset-only rows rather than directly deleting/upserting `asset_tags`.
 
 ## Verification
 

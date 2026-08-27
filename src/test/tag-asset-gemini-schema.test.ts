@@ -19,7 +19,6 @@ describe("toGeminiSchema", () => {
 
   it("collapses union types to a single string type", () => {
     expect(gemini.properties.cover_description.type).toBe("string");
-    expect(gemini.properties.licensor_id.type).toBe("string");
     expect(Array.isArray(gemini.properties.asset_type.type)).toBe(false);
   });
 
@@ -40,7 +39,8 @@ describe("toGeminiSchema", () => {
   });
 
   it("preserves required fields and array item types", () => {
-    expect(gemini.required).toEqual(["tags", "ai_description", "scene_description", "content_type"]);
-    expect(gemini.properties.tags.items.type).toBe("string");
+    expect(gemini.required).toEqual(["asset_tags", "ai_description", "scene_description", "content_type"]);
+    expect(gemini.properties.asset_tags.items.type).toBe("object");
+    expect(gemini.properties.asset_tags.items.properties.tag.type).toBe("string");
   });
 });

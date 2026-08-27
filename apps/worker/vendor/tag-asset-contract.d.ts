@@ -2,6 +2,13 @@ export const TAG_ASSET_REQUIRED_FIELDS: readonly string[];
 export const TAG_ASSET_SCHEMA: Record<string, unknown>;
 export const CONTENT_TYPE_VALUES: readonly string[];
 
+export interface AssetTagResult {
+  tag: string;
+  category: string;
+  confidence: number;
+  evidence: string[];
+}
+
 export interface TaggingPromptContext {
   asset: {
     filename: string | null;

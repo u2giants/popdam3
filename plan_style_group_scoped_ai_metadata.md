@@ -9,11 +9,11 @@ Fresh sessions start at **Step 1**. At the end of every phase, re-read every dow
 
 | Step | Status | Date | Evidence / next action |
 |---|---|---|---|
-| 1. Reconfirm baseline and capture fixtures | ✅ complete | 2026-08-24 | Baseline began at `ae029a53`, then safely fast-forwarded over non-overlapping shared-db sync `993c099a`; synthetic fixtures and 66-test worker suite pass; aggregate production baseline is at `verification/ai-tagging-scope/2026-08-24T1533Z/baseline.md`. Step 2 is next. |
-| 2. Land the governed shared-db contract | 🟨 routed | 2026-08-24 | Governed structural request filed as `u2giants/shared-db#1427` and handed to active orchestrator marker #1419; await claim, preview, merge, and promotion evidence before Step 3. |
-| 3. Add typed scope/category policy and structured contracts | ⬜ open | 2026-08-24 | Implement §9 Step 3 only after the shared-db contract is merged/applied. |
+| 1. Reconfirm baseline and capture fixtures | ✅ complete | 2026-08-25 | Grok REVISE findings corrected: exact SQL is committed, the two zero-size groups are labeled as a derived historical residual, the unavailable pre-normalization manual-array measure is disclosed, and the tautological collision test is replaced by a real atomic-writer test. |
+| 2. Land the governed shared-db contract | ✅ complete | 2026-08-25 | `u2giants/shared-db#1427` closed after PRs #1444/#1462/#1473/#1476/#1482/#1486; production ledger `20260825041343` + `20260825082910` and live catalog/RPC/trigger evidence verified on `qsllyeztdwjgirsysgai`. |
+| 3. Add typed scope/category policy and structured contracts | ✅ complete | 2026-08-26 | Typed shared policy and both contracts are implemented and validated. GLM's focused correction review returned APPROVE after the three requested fixes. Shared-db #1498 is production-complete at migration `20260825165139`; #1597 / PR #1604 is merged at `7da455b1ce7444f864f899d75007510c0ee21dd2`, and production ledger `20260826144047` was independently verified. Land this reviewed increment, then start Step 4. |
 | 4. Build the Style Group profile pass | ⬜ open | 2026-08-24 | Implement §9 Step 4. |
-| 5. Convert per-file tagging to asset-only visual analysis | ⬜ open | 2026-08-24 | Implement §9 Step 5. |
+| 5. Convert per-file tagging to asset-only visual analysis | 🟨 in progress | 2026-08-26 | Normal and durable writers share the structured asset-only RPC path; Railway vendor copies and the persisted `visual_analysis_unavailable` counter are implemented and GLM-approved. Shared-db #1498 and compatibility repair #1597 are production-complete. Remaining Step 5 work begins after the Step 4 group-profile pass lands. |
 | 6. Replace propagation with group-metadata refresh | ⬜ open | 2026-08-24 | Implement §9 Step 6; do not remove the user capability. |
 | 7. Combine scopes in search and UI | ⬜ open | 2026-08-24 | Implement §9 Step 7 and visually verify both detail panels. |
 | 8. Backfill safely and run a bounded production pilot | ⬜ open | 2026-08-24 | Implement §9 Step 8 with exact-target proof and before/after evidence. |

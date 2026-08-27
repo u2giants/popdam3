@@ -93,7 +93,7 @@ function detectStaleRun(op: OpState): boolean {
 
 // ── Progress accumulator — mirrors buildProgress() in bulk-job-runner ────────
 
-function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: BatchResult): Record<string, unknown> {
+export function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: BatchResult): Record<string, unknown> {
   // Normalize dynamic keys for matching
   const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
   switch (normalizedKey) {
@@ -108,6 +108,7 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
         tagged: ((prev.tagged as number) || 0) + ((batch.tagged as number) || 0),
         skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
+        visual_analysis_unavailable: ((prev.visual_analysis_unavailable as number) || 0) + ((batch.visual_analysis_unavailable as number) || 0),
         // Prefer previously-set total; fall back to batch-supplied count (set by handler when total is unknown)
         total: (prev.total as number) || (batch.total_count as number) || 0,
         failure_samples: [...prevFail, ...batchFail].slice(-200),
@@ -272,13 +273,13 @@ function detectFailureKillSwitch(progress: Record<string, unknown>, startedAt?: 
   return null;
 }
 
-function buildResultMessage(opKey: string, progress: Record<string, unknown>): string {
+export function buildResultMessage(opKey: string, progress: Record<string, unknown>): string {
   const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
   switch (normalizedKey) {
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":
-      return `Tagged ${progress.tagged}. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed.`;
+      return `Tagged ${progress.tagged}. ${progress.visual_analysis_unavailable || 0} visual analyses unavailable. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed.`;
     case "ai-tag-bakeoff":
       return `Evaluated ${progress.evaluated || 0} model responses. ${progress.failed || 0} failed.`;
     case "rebuild-style-groups":
