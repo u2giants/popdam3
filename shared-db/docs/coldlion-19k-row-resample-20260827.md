@@ -150,70 +150,75 @@ for the first correction and the method.
 
 ---
 
-## Draft follow-up email — for Albert to send
+## Reply to ColdLion — rewritten 2026-08-27
 
-**Status: drafted 2026-08-27, not yet sent.** Record the send date on register entry 2.11.
+**Status: drafted 2026-08-27, NOT yet sent.** Record the send date on register entry 2.11 once it
+goes. Supersedes the earlier draft in this file; every figure is from the 19,008-row re-test above.
 
-> **Subject:** Correction to Wednesday's list, and the examples you asked for
+> **Subject:** The negative-quantity examples you asked for — and two corrections to Wednesday's list
 >
 > Hi JamieLynn,
 >
-> You asked for real examples of the negative quantities. In pulling them I sampled far more data
-> than my Wednesday email was based on — 19,008 order lines across 2019 to date, against 291
-> before — and I have to correct two things I sent you. Apologies; both were my sampling, not your
+> Here are the real examples behind the negative quantities. While pulling them I widened our
+> sample considerably — 19,008 order lines from 2019 to date, against 291 on Wednesday — and that
+> turned up two mistakes of my own. Apologies for the noise; both were our sampling, not your
 > system.
 >
-> **First, the correction. Item 1 of Wednesday's email was wrong.** I said nothing in the API
-> reports shipping or invoicing. That is not true: invoice number, invoice date, invoiced quantity
-> and shipped quantity are populated on about 80% of lines, in every year from 2019 onward. My
-> sample had landed on 26 unusually quiet days. Please disregard that item entirely. The only two
-> fields I now see empty everywhere are `subDimCode` and `itemImage`, and neither matters to us.
+> **The negative quantities — twelve lines, and my figure was wrong.** I said they reach -564. They
+> do not; the range is -3 to -8. Every one is the same shape: the line was invoiced for more than
+> it was ordered for, so the open quantity goes negative.
 >
-> **Second, item 4 was also wrong.** I reported that the 7-day range refusal returns HTTP 400 on
-> the wire but 500 in the body. I re-tested it today on both endpoints and it is clean — 400 in
-> both places, with a clear message naming the rule. Nothing to fix; please disregard.
+> Seven lines in 2020, all customer AAF100, all ordered 1 and invoiced 4:
 >
-> **The negative quantities you asked about — twelve lines, and the figure I quoted was wrong
-> too.** I said -564; the real range is -3 to -8. Every one is the same shape: the line was
-> invoiced for more than it was ordered for, so the open quantity goes negative.
+> - 3 June 2020 — order 7113851 line 1, item BFC102ASW
+> - 8 June 2020 — order 7114426 lines 1 and 3, items BFC102AMV and BFC102ASW
+> - 6 July 2020 — orders 7114895 line 2, 7114908 line 2, 7114912 line 1, item BFC102AMV
+> - 8 July 2020 — order 7114963 line 2, item BFC102AMV
 >
-> The 2020 cluster, all customer AAF100:
+> Five lines on a single order for customer DY001, 2 December 2025 — order 7127496:
 >
-> - Order 7113851 line 1, item BFC102ASW, 3 June 2020 — ordered 1, invoiced 4, open -3
-> - Order 7114426 lines 1 and 3, items BFC102AMV and BFC102ASW, 8 June 2020 — ordered 1, invoiced 4
-> - Orders 7114895 line 2, 7114908 line 2 and 7114912 line 1, item BFC102AMV, 6 July 2020 — ordered 1, invoiced 4
-> - Order 7114963 line 2, item BFC102AMV, 8 July 2020 — ordered 1, invoiced 4
+> - line 2, GFE52SWDV01 — ordered 9, invoiced 13
+> - line 12, VS162SWMF01 — ordered 12, invoiced 20
+> - line 13, VS162SWR201 — ordered 12, invoiced 16
+> - lines 16 and 17, VSM93SWDV01 and VSM93SWTF01 — ordered 12, invoiced 20
 >
-> The 2025 cluster, all on one order for customer DY001, 2 December 2025:
+> The arithmetic looks right, so my question is about the orders rather than the report: is
+> invoicing four against a line ordered for one something you would expect here, or do these look
+> like errors on your side?
 >
-> - Order 7127496 line 2, GFE52SWDV01 — ordered 9, invoiced 13
-> - Order 7127496 line 12, VS162SWMF01 — ordered 12, invoiced 20
-> - Order 7127496 line 13, VS162SWR201 — ordered 12, invoiced 16
-> - Order 7127496 lines 16 and 17, VSM93SWDV01 and VSM93SWTF01 — ordered 12, invoiced 20
+> **Correction 1 — please disregard item 1 of Wednesday's email.** I said nothing in `orderHistory`
+> reports shipping or invoicing. That is false. Invoice number, invoice date, invoiced quantity and
+> shipped quantity are populated on roughly 80% of lines, in every year from 2019 onward. Our sample
+> had simply landed on 26 quiet days. The only fields I now see empty everywhere are `subDimCode`
+> and `itemImage`, and neither matters to us.
 >
-> The arithmetic is behaving correctly, so my question is about the orders rather than the report:
-> is invoicing four against a line ordered for one an expected situation here, or do these look
-> like errors to you?
+> **Correction 2 — please disregard item 4 as well.** I reported that the 7-day range refusal
+> returns 400 on the wire but 500 in the body. I re-tested it today on both endpoints, with 8-day
+> and 31-day ranges: it is clean, 400 in both places, with a clear message naming the rule. Nothing
+> for you to fix.
 >
-> **Two new things the larger sample turned up, and these do matter to us.**
+> **Two new things the larger sample found, and these do affect our load.**
 >
-> **A. Some lines come back more than once, and 138 of them are identical in every field.** Across
-> the 19,008 lines, about 2% share the same sales order, line number and component. Some differ
-> only in invoiced quantity, shipped quantity or price — which makes me think a line can produce
-> more than one row, perhaps one per invoice or shipment. If that is so, could you tell us what
-> makes a row unique? We need something we can use as a primary key, and today no combination of
-> the fields we receive is unique. For the 138 that are identical in all 59 fields, we would just
-> like to know whether we should drop the duplicate or count both.
+> **A. We cannot tell one line from another.** About 2% of the 19,008 lines share the same sales
+> order number, line number and component. Of those, 138 are identical in all 59 fields we receive.
+> Others differ only in invoiced quantity, shipped quantity or price — which suggests one line can
+> produce more than one row, perhaps one per invoice or shipment. Could you tell us what makes a row
+> unique? We need a stable key to load against, and today no combination of the fields you return is
+> unique. For the 138 that are identical in every field, we would also like to know whether to keep
+> both or drop the duplicate.
 >
-> **B. `SalesOrderLineNo` comes back as 0 on some lines.** 103 of the 19,008 — 51 of them in 2026,
-> so it is not only old data. Order 7114895 is a clear example: six different items, all sharing
-> line number 0. Is that expected for certain order types?
+> **B. `SalesOrderLineNo` comes back as 0 on some lines.** 103 of the 19,008 — and 51 of those are
+> 2026, so it is not just old data. Order 7114895 is a clear case: six different items all carrying
+> line number 0. Is that expected for certain order types? This is the field we were planning to key
+> on, so it matters to us.
 >
-> Item 2 from Wednesday still stands, and the larger sample sharpens it: outside 2026, the open and
-> unshipped quantities are populated on exactly twelve lines — and they are the same twelve
-> negative lines above. So for 2019 through 2025 those fields are otherwise always zero. Should we
-> read that as "those orders are closed, so zero is correct", or were the new formulas applied only
-> going forward?
+> **Item 2 from Wednesday still stands, and is now sharper.** Outside 2026, the open and unshipped
+> quantities carry a value on exactly twelve lines — the same twelve negative ones above. Everything
+> else from 2019 through 2025 is zero. Should we read that as "those orders are closed, so zero is
+> correct", or were the new formulas applied only going forward? We are loading history back to
+> 2019, so it decides whether we trust the value or ignore it.
+>
+> Items 3 and 5 from Wednesday are unchanged, and we are still not asking for any new stages.
 >
 > Thanks for your patience with the corrections,
 > Albert
