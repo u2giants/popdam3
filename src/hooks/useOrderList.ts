@@ -46,6 +46,9 @@ const ORDER_LIST_SELECT = Array.from(
   ]),
 ).join(",");
 
+/** A count-only request still needs a column list; keep it to one cheap column. */
+const ORDER_LIST_COUNT_SELECT = "order_line_id";
+
 export type OrderListBlockRequest = {
   startRow: number;
   endRow: number;
@@ -54,32 +57,103 @@ export type OrderListBlockRequest = {
   search?: string;
 };
 
-export type OrderListBlock = { rows: OrderListRow[]; totalRowCount: number };
+/**
+ * `totalRowCount` is null when the exact count is not (yet) known. The grid
+ * treats that as "there is more", which is honest: it never invents a total.
+ */
+export type OrderListBlock = { rows: OrderListRow[]; totalRowCount: number | null };
+
+/** Applies filters, search and sort identically to the row and count queries. */
+function applyOrderListShape<T>(query: T, request: OrderListBlockRequest, withSort: boolean): T {
+  let q = query as any;
+
+  for (const filter of buildOrderListFilters(request.filterModel as Record<string, any> | null)) {
+    if (filter.operator === "is") q = q.is(filter.column, null);
+    else if (filter.operator === "not.is") q = q.not(filter.column, "is", null);
+    else if (filter.operator === "not.ilike") q = q.not(filter.column, "ilike", filter.value);
+    else q = q.filter(filter.column, filter.operator, filter.value);
+  }
+
+  const search = buildOrderListSearchClause(request.search ?? "");
+  if (search) q = q.or(search);
+
+  // Sorting is pointless work for a count-only request.
+  if (withSort) {
+    for (const sort of buildOrderListSort(request.sortModel)) {
+      q = q.order(sort.column, { ascending: sort.ascending, nullsFirst: false });
+    }
+  }
+
+  return q as T;
+}
+
+/** Identifies one result set, so its total is counted once and not per block. */
+function orderListCountKey(request: OrderListBlockRequest): string {
+  return JSON.stringify({ filter: request.filterModel ?? null, search: request.search ?? "" });
+}
+
+const orderListCountCache = new Map<string, number>();
+
+/** Exposed for tests; also called when a new search or filter is applied. */
+export function clearOrderListCountCache() {
+  orderListCountCache.clear();
+}
+
+/**
+ * Exact row count for the current filter/search, as a SEPARATE request.
+ *
+ * PostgREST computes an exact count in the SAME statement that returns the
+ * rows. Counting this view exactly costs ~2s as `authenticated` (every row is
+ * re-checked against RLS on the order tables, core.customer, core.factory and
+ * plm.item), while returning 100 rows costs ~50ms. Asking for both together
+ * put the ONE request that renders the screen within reach of the 8s
+ * `authenticated` statement_timeout, and under real conditions it exceeded it:
+ * the whole grid failed with "canceling statement due to statement timeout"
+ * (observed in production 2026-08-26). Splitting them means a slow or failed
+ * count can never stop the rows from rendering.
+ */
+async function fetchOrderListCount(request: OrderListBlockRequest): Promise<number | null> {
+  const key = orderListCountKey(request);
+  const cached = orderListCountCache.get(key);
+  if (cached !== undefined) return cached;
+
+  const query = applyOrderListShape(
+    orderListTable().select(ORDER_LIST_COUNT_SELECT, { count: "exact", head: true }),
+    request,
+    false,
+  );
+
+  const { count, error } = await query;
+  // Best effort by design: an unknown total is a live grid, not a dead screen.
+  if (error || count == null) return null;
+
+  orderListCountCache.set(key, count);
+  return count;
+}
 
 /**
  * One bounded block of the view. Sorting, filtering and search all run in the
  * database, so results cover every matching row, not only the loaded ones.
+ *
+ * The rows and the total are two independent requests. The rows decide whether
+ * this call succeeds; the total is best-effort and cached per result set.
  */
 export async function fetchOrderListBlock(request: OrderListBlockRequest): Promise<OrderListBlock> {
-  let query = orderListTable().select(ORDER_LIST_SELECT, { count: "exact" });
+  const rowQuery = applyOrderListShape(orderListTable().select(ORDER_LIST_SELECT), request, true);
 
-  for (const filter of buildOrderListFilters(request.filterModel as Record<string, any> | null)) {
-    if (filter.operator === "is") query = query.is(filter.column, null);
-    else if (filter.operator === "not.is") query = query.not(filter.column, "is", null);
-    else if (filter.operator === "not.ilike") query = query.not(filter.column, "ilike", filter.value);
-    else query = query.filter(filter.column, filter.operator, filter.value);
-  }
+  const [rowResult, countResult] = await Promise.allSettled([
+    rowQuery.range(request.startRow, Math.max(request.endRow - 1, request.startRow)),
+    fetchOrderListCount(request),
+  ]);
 
-  const search = buildOrderListSearchClause(request.search ?? "");
-  if (search) query = query.or(search);
-
-  for (const sort of buildOrderListSort(request.sortModel)) {
-    query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false });
-  }
-
-  const { data, count, error } = await query.range(request.startRow, Math.max(request.endRow - 1, request.startRow));
+  if (rowResult.status === "rejected") throw rowResult.reason;
+  const { data, error } = rowResult.value;
   if (error) throw error;
-  return { rows: (data ?? []) as OrderListRow[], totalRowCount: count ?? 0 };
+
+  return {
+    rows: (data ?? []) as OrderListRow[],
+    totalRowCount: countResult.status === "fulfilled" ? countResult.value : null,
+  };
 }
 
 export type OrderListStatusCounts = {

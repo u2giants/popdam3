@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  clearOrderListCountCache,
   fetchOrderListBlock,
   useCreateOrder,
   useOrderListLinkCandidates,
@@ -65,7 +66,9 @@ export default function OrdersPage() {
           });
           setLoadError(null);
           setFilteredCount(block.totalRowCount);
-          params.successCallback(block.rows, block.totalRowCount);
+          // undefined = "total not known yet"; the grid keeps paging instead of
+          // pretending the result set ends at the block it just received.
+          params.successCallback(block.rows, block.totalRowCount ?? undefined);
         } catch (error) {
           // Never fail silently: the grid shows nothing, so say why.
           setLoadError((error as Error)?.message ?? "unknown error");
@@ -78,6 +81,7 @@ export default function OrdersPage() {
 
   // A new search term is a different result set, so the cached blocks go.
   useEffect(() => {
+    clearOrderListCountCache();
     gridRef.current?.api?.setGridOption("datasource", datasource);
   }, [datasource]);
 
