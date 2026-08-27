@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -611,27 +611,51 @@ export type Database = {
       asset_tags: {
         Row: {
           asset_id: string
+          category: string
+          confidence: number | null
           created_at: string
           created_by: string | null
+          evidence: Json
           id: string
+          model: string | null
+          rejected_at: string | null
+          rejected_by: string | null
           source: string
+          status: string
           tag: string
+          updated_at: string
         }
         Insert: {
           asset_id: string
+          category: string
+          confidence?: number | null
           created_at?: string
           created_by?: string | null
+          evidence?: Json
           id?: string
+          model?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           source?: string
+          status: string
           tag: string
+          updated_at?: string
         }
         Update: {
           asset_id?: string
+          category?: string
+          confidence?: number | null
           created_at?: string
           created_by?: string | null
+          evidence?: Json
           id?: string
+          model?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           source?: string
+          status?: string
           tag?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -930,8 +954,15 @@ export type Database = {
           customer: string | null
           document_type: string
           embedding: string | null
+          embedding_attempts: number
           embedding_error: string | null
+          embedding_error_category: string | null
+          embedding_lease_expires_at: string | null
+          embedding_lease_owner: string | null
+          embedding_lease_token: string | null
+          embedding_max_attempts: number
           embedding_model: string | null
+          embedding_next_retry_at: string | null
           embedding_updated_at: string | null
           entity_id: string
           indexed_at: string
@@ -950,8 +981,15 @@ export type Database = {
           customer?: string | null
           document_type: string
           embedding?: string | null
+          embedding_attempts?: number
           embedding_error?: string | null
+          embedding_error_category?: string | null
+          embedding_lease_expires_at?: string | null
+          embedding_lease_owner?: string | null
+          embedding_lease_token?: string | null
+          embedding_max_attempts?: number
           embedding_model?: string | null
+          embedding_next_retry_at?: string | null
           embedding_updated_at?: string | null
           entity_id: string
           indexed_at?: string
@@ -970,8 +1008,15 @@ export type Database = {
           customer?: string | null
           document_type?: string
           embedding?: string | null
+          embedding_attempts?: number
           embedding_error?: string | null
+          embedding_error_category?: string | null
+          embedding_lease_expires_at?: string | null
+          embedding_lease_owner?: string | null
+          embedding_lease_token?: string | null
+          embedding_max_attempts?: number
           embedding_model?: string | null
+          embedding_next_retry_at?: string | null
           embedding_updated_at?: string | null
           entity_id?: string
           indexed_at?: string
@@ -2044,6 +2089,65 @@ export type Database = {
           },
         ]
       }
+      style_group_tags: {
+        Row: {
+          category: string
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          evidence: Json
+          id: string
+          model: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          source: string
+          status: string
+          style_group_id: string
+          tag: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence?: Json
+          id?: string
+          model?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          source?: string
+          status?: string
+          style_group_id: string
+          tag: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence?: Json
+          id?: string
+          model?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          source?: string
+          status?: string
+          style_group_id?: string
+          tag?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_group_tags_style_group_id_fkey"
+            columns: ["style_group_id"]
+            isOneToOne: false
+            referencedRelation: "style_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_groups: {
         Row: {
           asset_count: number | null
@@ -2057,6 +2161,11 @@ export type Database = {
           division_name: string | null
           folder_path: string
           freelancer_name: string | null
+          group_ai_description: string | null
+          group_ai_description_model: string | null
+          group_ai_description_source: string | null
+          group_ai_evidence_asset_ids: string[]
+          group_ai_tagged_at: string | null
           id: string
           is_licensed: boolean | null
           item_description: string | null
@@ -2103,6 +2212,11 @@ export type Database = {
           division_name?: string | null
           folder_path: string
           freelancer_name?: string | null
+          group_ai_description?: string | null
+          group_ai_description_model?: string | null
+          group_ai_description_source?: string | null
+          group_ai_evidence_asset_ids?: string[]
+          group_ai_tagged_at?: string | null
           id?: string
           is_licensed?: boolean | null
           item_description?: string | null
@@ -2151,6 +2265,11 @@ export type Database = {
           division_name?: string | null
           folder_path?: string
           freelancer_name?: string | null
+          group_ai_description?: string | null
+          group_ai_description_model?: string | null
+          group_ai_description_source?: string | null
+          group_ai_evidence_asset_ids?: string[]
+          group_ai_tagged_at?: string | null
           id?: string
           is_licensed?: boolean | null
           item_description?: string | null
@@ -3138,11 +3257,18 @@ export type Database = {
         Returns: Json
       }
       claim_dam_search_embedding_documents: {
-        Args: { p_limit?: number }
+        Args: {
+          p_lease_seconds?: number
+          p_limit?: number
+          p_worker_id?: string
+        }
         Returns: {
+          attempt: number
           content_sha256: string
           document_type: string
           entity_id: string
+          lease_expires_at: string
+          lease_token: string
           search_text: string
         }[]
       }
@@ -3311,6 +3437,22 @@ export type Database = {
           total_exec_ms: number
         }[]
       }
+      get_effective_asset_metadata: {
+        Args: { p_asset_id: string }
+        Returns: {
+          category: string
+          confidence: number
+          created_by: string
+          effective_licensor_id: string
+          effective_property_id: string
+          model: string
+          scope: string
+          source: string
+          status: string
+          style_group_id: string
+          tag: string
+        }[]
+      }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       get_path_facets: { Args: { p_customer_id?: string }; Returns: Json }
       get_pdf_rich_extraction_hashes: {
@@ -3394,10 +3536,12 @@ export type Database = {
       }
       mark_dam_search_embedding_error: {
         Args: {
+          p_category?: string
           p_content_sha256: string
           p_document_type: string
           p_entity_id: string
           p_error: string
+          p_lease_token: string
         }
         Returns: boolean
       }
@@ -3513,6 +3657,14 @@ export type Database = {
         Args: { p_asset_id: string }
         Returns: undefined
       }
+      refresh_dam_search_documents_batch: {
+        Args: {
+          p_asset_ids?: string[]
+          p_limit?: number
+          p_style_group_ids?: string[]
+        }
+        Returns: Json
+      }
       refresh_dam_search_style_group_document: {
         Args: { p_style_group_id: string }
         Returns: undefined
@@ -3566,6 +3718,26 @@ export type Database = {
         Args: { p_file_id: string; p_tag_id: string }
         Returns: boolean
       }
+      replace_asset_ai_tag_result: {
+        Args: {
+          p_asset_id: string
+          p_model: string
+          p_source: string
+          p_tags: Json
+        }
+        Returns: Json
+      }
+      replace_style_group_ai_profile: {
+        Args: {
+          p_description: string
+          p_evidence_asset_ids?: string[]
+          p_model: string
+          p_source: string
+          p_style_group_id: string
+          p_tags?: Json
+        }
+        Returns: Json
+      }
       replace_style_guide_deterministic_tags: {
         Args: {
           p_file_id: string
@@ -3581,6 +3753,10 @@ export type Database = {
       }
       requeue_all_failed_sg_jobs: {
         Args: { p_limit?: number }
+        Returns: number
+      }
+      reset_dam_search_embedding_errors: {
+        Args: { p_document_type?: string; p_entity_ids?: string[] }
         Returns: number
       }
       reset_stale_jobs: {
@@ -3730,166 +3906,6 @@ export type Database = {
           snapshot_hash: string
         }[]
       }
-      sync_wb_asset: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset_franchise_property: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset_style_guide: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_franchise_property: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_property_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_style_guide: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
       taxonomy_breaker_enforcement_status: { Args: never; Returns: Json }
       taxonomy_circuit_breaker_state: {
         Args: { p_lane?: string }
@@ -3936,6 +3952,7 @@ export type Database = {
           p_embedding: string
           p_embedding_model?: string
           p_entity_id: string
+          p_lease_token: string
         }
         Returns: boolean
       }
