@@ -54,9 +54,7 @@ function readScope(body: Record<string, unknown>): Scope | null {
 }
 
 function target(scope: Scope) {
-  return scope === "asset"
-    ? { table: ASSET_TABLE, key: ASSET_KEY }
-    : { table: GROUP_TABLE, key: GROUP_KEY };
+  return scope === "asset" ? { table: ASSET_TABLE, key: ASSET_KEY } : { table: GROUP_TABLE, key: GROUP_KEY };
 }
 
 function readEntityId(body: Record<string, unknown>, scope: Scope): string | null {
