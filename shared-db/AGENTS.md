@@ -1190,7 +1190,7 @@ status: active
 identifier: shared-db.orch
 engine: codex
 session_name: shared-db.orch EDGE-DEV resume-1579
-route_id: 01a0387e-2895-72d3-97c2-55838595c69e
+route_id: 00000000-0000-7000-8000-00000000a1a1
 owner: u2giants
 machine: EDGE-DEV
 started: 2026-08-26T14:39:25Z
