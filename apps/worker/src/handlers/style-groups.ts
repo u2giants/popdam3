@@ -41,7 +41,7 @@ type RebuildState = {
   finalize_cursor?: number;
 };
 
-function formatError(e: unknown): string {
+export function formatError(e: unknown): string {
   if (e && typeof e === "object") {
     const err = e as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
     const parts = [
@@ -51,8 +51,10 @@ function formatError(e: unknown): string {
       err.hint ? `hint=${String(err.hint)}` : null,
     ].filter(Boolean);
     if (parts.length > 0) return parts.join(" | ");
+    return "Database error supplied no message";
   }
-  return String(e);
+  const fallback = String(e ?? "").trim();
+  return fallback || "Database error supplied no message";
 }
 
 function isStatementTimeout(msg: string): boolean {
@@ -159,7 +161,18 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
       .from("assets")
       .select("id", { count: "exact", head: true })
       .eq("is_deleted", false);
-    if (countErr) return { ok: false, done: false, error: countErr.message, stage: "clear_assets" };
+    if (countErr) {
+      return {
+        ok: false,
+        done: false,
+        error: formatBatchError({
+          rpc: "assets_exact_count",
+          stage: "clear_assets",
+          rawError: formatError(countErr),
+        }),
+        error_stage: "clear_assets",
+      };
+    }
     state.total_assets = count ?? 0;
     await saveState(state);
   }
@@ -216,7 +229,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
           elapsedMs,
           error: msg,
         });
-        return { ok: false, done: false, error: detailedError, stage: "clear_assets" };
+        return { ok: false, done: false, error: detailedError, error_stage: "clear_assets" };
       }
 
       const nextBatch = Math.max(clearMinBatch, Math.floor(batchSize / 2));
@@ -233,7 +246,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     }
 
     if (!result) {
-      return { ok: false, done: false, error: "clear_assets failed after adaptive retries", stage: "clear_assets" };
+      return { ok: false, done: false, error: "clear_assets failed after adaptive retries", error_stage: "clear_assets" };
     }
 
     const hasMore = result.has_more ?? false;
@@ -267,12 +280,12 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     if (state.last_group_id) q = q.gt("id", state.last_group_id);
 
     const { data: rows, error: fetchErr } = await q;
-    if (fetchErr) return { ok: false, done: false, error: fetchErr.message, stage: "delete_groups" };
+    if (fetchErr) return { ok: false, done: false, error: formatError(fetchErr), error_stage: "delete_groups" };
 
     const ids = (rows ?? []).map((r: { id: string }) => r.id);
     if (ids.length > 0) {
       const { error: delErr } = await client.from("style_groups").delete().in("id", ids);
-      if (delErr) return { ok: false, done: false, error: delErr.message, stage: "delete_groups" };
+      if (delErr) return { ok: false, done: false, error: formatError(delErr), error_stage: "delete_groups" };
     }
 
     const reachedEnd = ids.length < GROUP_DELETE_BATCH;
@@ -337,7 +350,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     }
 
     const row = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
-    if (!row) return { ok: false, done: false, error: "No result from rebuild_style_groups_batch", stage: "rebuild_assets" };
+    if (!row) return { ok: false, done: false, error: "No result from rebuild_style_groups_batch", error_stage: "rebuild_assets" };
 
     const reachedEnd = row.done ?? true;
     const totalProcessed = (state.total_processed ?? 0) + rebuildBatch;
@@ -409,7 +422,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     }
 
     const row = Array.isArray(data) ? data[0] : data;
-    if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch", stage: "finalize_stats" };
+    if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch", error_stage: "finalize_stats" };
 
     const returnedSub = (row.sub as string) ?? sub;
     const isDone = (row.done as boolean) ?? false;
@@ -453,7 +466,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     };
   }
 
-  return { ok: false, done: false, error: "Unknown rebuild state" };
+  return { ok: false, done: false, error: "Unknown rebuild state", error_stage: state.stage };
 }
 
 // ── Reconcile stats — batched via reconcile_style_group_stats_batch ──
@@ -512,11 +525,12 @@ export async function handleReconcileStyleGroupStats(opState: OpState): Promise<
         elapsedMs,
         rawError: msg,
       }),
+      error_stage: "reconcile_stats",
     };
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch" };
+  if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch", error_stage: "reconcile_stats" };
 
   const returnedSub = (row.sub as string) ?? sub;
   const isDone = (row.done as boolean) ?? false;
@@ -560,7 +574,7 @@ export async function handleCleanupMegaGroupTags(opState: OpState): Promise<Batc
   });
 
   if (rpcErr) {
-    return { ok: false, done: false, error: rpcErr.message };
+    return { ok: false, done: false, error: formatError(rpcErr) };
   }
 
   const row = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;

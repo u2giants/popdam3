@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildResultMessage, mergeProgress, scopeSingleAssetTag } from "./operation-loop.js";
+import { buildResultMessage, classifyError, interruptionReason, mergeProgress, nextAutoResumeAt, normalizeBatchError, scopeSingleAssetTag } from "./operation-loop.js";
 
 const ASSET_ID = "123e4567-e89b-42d3-a456-426614174000";
 
@@ -33,4 +33,18 @@ test("AI progress persists and reports visual-analysis-unavailable outcomes", ()
   assert.equal(progress.tagged, 5);
   assert.equal(progress.visual_analysis_unavailable, 3);
   assert.match(buildResultMessage("ai-tag-all", progress), /3 visual analyses unavailable/);
+});
+
+test("blank handler errors are made explicit and are not classified as unknown", () => {
+  const error = normalizeBatchError("   ");
+
+  assert.equal(error, "Batch failed (handler supplied no message)");
+  assert.equal(classifyError(error), "missing_error_message");
+});
+
+test("Postgres timeout codes classify even when the database message is blank", () => {
+  const reason = interruptionReason({ ok: false, done: false, error: "code=57014" });
+
+  assert.equal(reason, "statement_timeout");
+  assert.ok(nextAutoResumeAt(reason, { status: "interrupted", auto_resume_attempts: 0 }));
 });

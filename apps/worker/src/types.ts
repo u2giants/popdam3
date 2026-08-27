@@ -17,7 +17,12 @@ export type OperationStage =
   | "image_fetch"
   | "model_inference"
   | "tag_write"
-  | "state_persist";
+  | "state_persist"
+  | "clear_assets"
+  | "delete_groups"
+  | "rebuild_assets"
+  | "finalize_stats"
+  | "reconcile_stats";
 
 export interface OpState {
   status: OpStatus;

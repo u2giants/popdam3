@@ -231,23 +231,30 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
 // ── Error classifier ─────────────────────────────────────────────────────────
 
 /** Map a raw error message to a known reason_code. */
-function classifyError(msg: string): string {
+export function normalizeBatchError(error: unknown, fallback = "Batch failed (handler supplied no message)"): string {
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  return fallback;
+}
+
+export function classifyError(msg: string): string {
   const m = msg.toLowerCase();
-  if (m.includes("canceling statement due to statement timeout")) return "statement_timeout";
+  if (m.includes("57014") || m.includes("statement timeout")) return "statement_timeout";
+  if (m.includes("handler supplied no message")) return "missing_error_message";
   if (m.includes("bad gateway") || m.includes("502") || m.includes("503") || m.includes("504")) return "gateway_timeout";
   if (m.includes("too many connections") || m.includes("connection refused")) return "connection_error";
   if (m.includes("rate limit") || m.includes("429")) return "rate_limited";
   return "unknown";
 }
 
-function interruptionReason(result: BatchResult): string {
+export function interruptionReason(result: BatchResult): string {
   if (result.error_code === "legacy_cursor" || result.error_code === "invalid_cursor") {
     return result.error_code;
   }
-  return classifyError(result.error ?? "Batch failed");
+  return classifyError(normalizeBatchError(result.error));
 }
 
-function nextAutoResumeAt(reason: string, op: OpState): string | undefined {
+export function nextAutoResumeAt(reason: string, op: OpState): string | undefined {
   if (!isTransientInterruption(reason)) return undefined;
   if ((op.auto_resume_attempts ?? 0) >= AUTO_RESUME_MAX_ATTEMPTS) return undefined;
   return getNextAutoResumeAt(Date.now(), op.auto_resume_attempts ?? 0);
@@ -659,7 +666,7 @@ export async function tick(): Promise<void> {
           : currentState.external_job,
       });
     } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e);
+      const errMsg = normalizeBatchError(e, "Dispatch failed without an error message");
       const reason = classifyError(errMsg);
       logger.error("tick: dispatch threw", { opKey, error: errMsg });
       await persistOpState(opKey, {
@@ -713,7 +720,7 @@ export async function tick(): Promise<void> {
         // the operation stayed "running" in admin_config with no error visible
         // in the UI and with this worker still holding the submission lease.
         // Persist the same interrupted state the dispatch-throw path writes.
-        const errMsg = result.error ?? "OpenRouter submission failed";
+        const errMsg = normalizeBatchError(result.error, "OpenRouter submission failed without an error message");
         const reason = classifyError(errMsg);
         submissionLeaseTokens.delete(opKey);
         logger.error("tick: OpenRouter submission failed", { opKey, error: errMsg });
@@ -809,7 +816,7 @@ export async function tick(): Promise<void> {
     }
 
     if (!result.ok) {
-      const batchErr = result.error ?? "Batch failed";
+      const batchErr = normalizeBatchError(result.error);
       const reason = interruptionReason(result);
       logger.error("tick: batch failed", {
         opKey,
