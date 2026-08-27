@@ -1329,8 +1329,36 @@ nothing and costs review risk. **Do not start a cleanup pass without a fresh own
 > the Coldlion api. The scrape lists show what properties we are licensed for, and the
 > Coldlion list shows which ones we actually use."
 
-**This is the settled architecture for licensed properties and characters. Do not re-ask it,
-and do not propose a third list.**
+**This is the settled architecture for licensed properties and characters. Do not re-ask it.**
+
+> ### AMENDMENT — Albert Hazan, 2026-08-27: there is a THIRD kind, and it is the one the apps use
+>
+> **His words, in chat, 2026-08-27:**
+>
+> > "there needs to be a third: the reconciliation of those 2. the tables that all the apps
+> > actually use"
+>
+> The two kinds above are **sources**. Neither is what an application reads. The third kind is
+> the **reconciled canonical layer** — the result of matching a scrape list against the ColdLion
+> list — and it is the ONLY layer applications are allowed to consume.
+>
+> This does not revive Universe A. `core.property` still dies (see the 2026-08-27 disposal
+> ruling below). The third kind is **Universe B**, which already has exactly this shape:
+> `core.properties_and_characters` carries the licensors' own `source_licensed_property_id` /
+> `source_character_id` (the scrape side) and keys to `core."licenseList"` (the ColdLion side),
+> with `core.property_character_associations` for the relationships. Universe A had neither
+> side's keys, which is precisely why it could never be the reconciliation.
+>
+> Rules that follow from this:
+>
+> 1. **Applications read the reconciled layer only.** A screen, report or API that reads a raw
+>    `plm.*` scrape table or a raw ColdLion feed table directly is a defect.
+> 2. **The reconciled layer is derived, never hand-typed.** Every row traces to a scrape row, a
+>    ColdLion row, or both. A row that traces to neither is invented data.
+> 3. **A match failure is a finding, not a row to create.** Unmatched on either side gets
+>    surfaced for a decision (issue #1661 covers the ColdLion side of that reconciliation).
+> 4. **Owner decisions about a row live with the reconciled row**, not with a source row.
+>    This is what `plm.source_resolution` (issue #1609) attaches to.
 
 #### The two kinds, and what each one MEANS
 
@@ -1376,6 +1404,32 @@ blast-radius work. Before `core.property`, `core.character`, `core.property_char
    FIRST, with its licensor source ID attached, or it is gone.
 
 **Do not drop anything on the strength of this section alone.**
+
+#### OWNER RULING — the 260 rows are DISPOSABLE (Albert Hazan, 2026-08-27)
+
+**His word, in chat, 2026-08-27, after the full feed-and-consumer investigation was put to him:** "disposable."
+
+Nothing is to be salvaged out of `core.property`. No row is to be carried into the reconciled
+layer, including the 16 rows stored at character grain. Step 3 above ("anything genuinely worth
+keeping must be moved FIRST") is hereby answered: nothing is worth keeping.
+
+The investigation behind the ruling (live, production, 2026-08-27, recorded on issue #1238):
+
+- **Writers:** two governed functions only — `plm.promote_coldlion_source_owned` and
+  `public.promote_property_alias_batch`. No application, no trigger, no inbound foreign key,
+  no PostgREST role grant. The "unfound DesignFlow writer" the dispatch gate waited on **does
+  not exist**; the 5 rows added 2026-08-25 were the authorized `#539` / `#1177` batch.
+- **Readers:** `api.pm_pipeline_page` joins it through `pim.product.property_id`, and all
+  17,909 `pim.product` rows have `property_id` NULL — the join returns nothing. The only other
+  reader is the DB Data Admin viewer.
+- **Capture wiring:** twelve `plm.*` scrape tables carry a `core_property_id` column and
+  **every one is 0% populated** across ~6,400 rows. `core.licensor` is different and is NOT
+  disposable: `plm.style_tracker_item_bridge.core_licensor_id` is populated on 8,568 of
+  15,619 rows.
+
+Steps 1 and 2 still stand: the seven read-only functions that reference the table must be
+re-pointed or dropped in the same change, and the drop lands as a normal branch/PR/preview/
+production-evidence migration.
 
 #### What this ruling immediately settles
 
