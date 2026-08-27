@@ -45,6 +45,10 @@ import {
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useEffectiveAssetTags } from "@/hooks/useEffectiveAssetTags";
+import { ScopedTagSections, type ScopedTagAction } from "@/components/library/ScopedTagSections";
 import CheckoutBar from "@/components/library/CheckoutBar";
 
 // ── File type colours (same palette as AssetGrid) ─────────────
@@ -179,7 +183,6 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
   const compact = useCompactChrome();
   const queryClient = useQueryClient();
   const [editingTags, setEditingTags] = useState(false);
-  const [tagInput, setTagInput] = useState("");
   const [aiTagging, setAiTagging] = useState(false);
   const [pathMode, setPathModeState] = useState<PathMode>(getPreferredPathMode);
   const [syncRoot, setSyncRootState] = useState<string>(getUserSyncRoot() ?? "");
@@ -351,48 +354,32 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
     }
   };
 
-  // ── Tag provenance ────────────────────────────────────────────
-  const { data: assetTags } = useQuery({
-    queryKey: ["asset-tags", asset.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("asset_tags")
-        .select("id, tag, source, created_by")
-        .eq("asset_id", asset.id)
-        .order("tag");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  // ── Scoped metadata (Style Group facts + this file's own facts) ──
+  // Group facts are read live through the governed contract; they are never
+  // copied onto the asset, so nothing here can contaminate a sibling file.
+  const { call: adminApi } = useAdminApi();
+  const { isAdmin } = useIsAdmin();
+  const { data: effective, isLoading: effectiveLoading } = useEffectiveAssetTags(asset.id);
+  const [tagBusy, setTagBusy] = useState(false);
 
-  const tagSourceMap = new Map<string, string>();
-  for (const t of assetTags ?? []) {
-    tagSourceMap.set(t.tag, t.source);
-  }
+  const handleTagAction: ScopedTagAction = async ({ scope, tag, action }) => {
+    setTagBusy(true);
+    try {
+      const payload: Record<string, unknown> = { scope, tag };
+      if (scope === "asset") payload.asset_id = asset.id;
+      else payload.style_group_id = effective?.styleGroupId ?? asset.style_group_id;
 
-  // ── Tag CRUD ──────────────────────────────────────────────────
-  const addTag = async () => {
-    const tag = tagInput.trim().toLowerCase();
-    if (!tag || asset.tags.includes(tag)) return;
-    const { data, error } = await supabase.from("asset_tags").upsert(
-      // category/status became required in shared-db #1427. Keep this explicit
-      // until the normal generated-type sync includes those columns.
-      { asset_id: asset.id, tag, source: "manual", category: "other", status: "active" } as never,
-      { onConflict: "asset_id,tag" }
-    ).select("id");
-    if (error) { toast.error("Failed to add tag", { description: error.message }); return; }
-    if (!data || data.length === 0) { toast.error("Failed to add tag", { description: "Write was blocked — you may not have permission" }); return; }
-    queryClient.invalidateQueries({ queryKey: ["assets"] });
-    queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
-    setTagInput("");
-  };
+      if (action === "add") await adminApi("add-scoped-tag", payload);
+      else if (action === "remove") await adminApi("remove-scoped-tag", payload);
+      else await adminApi("review-scoped-tag", { ...payload, decision: action });
 
-  const removeTag = async (tag: string) => {
-    const { data, error } = await supabase.from("asset_tags").delete().eq("asset_id", asset.id).eq("tag", tag).select("id");
-    if (error) { toast.error("Failed to remove tag", { description: error.message }); return; }
-    if (!data || data.length === 0) { toast.error("Failed to remove tag", { description: "Write was blocked — you may not have permission" }); return; }
-    queryClient.invalidateQueries({ queryKey: ["assets"] });
-    queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
+      queryClient.invalidateQueries({ queryKey: ["effective-asset-tags", asset.id] });
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+    } catch (e: unknown) {
+      toast.error("Could not update tags", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setTagBusy(false);
+    }
   };
 
   // ── Paths ─────────────────────────────────────────────────────
@@ -776,36 +763,24 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
                     {editingTags ? "Done" : "Edit"}
                   </Button>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {asset.tags.length === 0 && (
-                    <span className="text-xs" style={{ color: "var(--pd-fg-subtle)" }}>No tags</span>
-                  )}
-                  {asset.tags.map((tag) => {
-                    const source = tagSourceMap.get(tag);
-                    const isAi = source === "ai";
-                    return (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className={cn("text-xs gap-1", isAi ? "bg-tag text-tag-foreground" : "bg-accent text-accent-foreground")}
-                        title={isAi ? `Added by AI${asset.ai_model ? ` (${asset.ai_model})` : ""}` : "Added manually"}
-                      >
-                        {isAi && <Sparkles className="h-2.5 w-2.5 opacity-60" />}
-                        {tag}
-                        {editingTags && (
-                          <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        )}
-                      </Badge>
-                    );
-                  })}
-                </div>
-                {editingTags && (
-                  <form onSubmit={(e) => { e.preventDefault(); addTag(); }} className="flex gap-1.5">
-                    <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Add tag…" className="h-7 text-xs bg-background" />
-                    <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
-                  </form>
+                {effectiveLoading && (
+                  <span className="text-xs" style={{ color: "var(--pd-fg-subtle)" }}>Loading tags…</span>
+                )}
+                {effective && (
+                  <ScopedTagSections
+                    groupTags={effective.groupTags}
+                    groupCandidates={effective.groupCandidates}
+                    assetTags={effective.assetTags}
+                    assetCandidates={effective.assetCandidates}
+                    rejected={effective.rejected}
+                    hasStyleGroup={Boolean(effective.styleGroupId)}
+                    editing={editingTags}
+                    busy={tagBusy}
+                    onAction={handleTagAction}
+                    canReview={isAdmin}
+                    canEditGroup={isAdmin}
+                    visualAnalysisUnavailable={!asset.thumbnail_url && effective.assetTags.length === 0}
+                  />
                 )}
               </section>
 

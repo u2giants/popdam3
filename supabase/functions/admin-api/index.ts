@@ -157,6 +157,9 @@ const USER_ACCESSIBLE_ACTIONS = new Set([
   "ingest-sibling-images",
   "sync-group-tags",
   "refresh-group-metadata",
+  "add-scoped-tag",
+  "remove-scoped-tag",
+  "review-scoped-tag",
   "fetch-thumbnail-by-url",
 ]);
 
@@ -1802,6 +1805,14 @@ corsServe(async (req: Request) => {
       case "sync-group-tags":
       case "refresh-group-metadata":
         return await handleRefreshGroupMetadata(body);
+
+      // ── Scoped tag review (Style Group vs This file) ──
+      case "add-scoped-tag":
+        return await handleAddScopedTag(body, userId);
+      case "remove-scoped-tag":
+        return await handleRemoveScopedTag(body, userId);
+      case "review-scoped-tag":
+        return await handleReviewScopedTag(body, userId);
 
       // ── Purge (from purge-handlers.ts) ──
       case "purge-old-assets":

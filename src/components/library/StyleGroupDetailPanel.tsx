@@ -19,11 +19,14 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import { useEffectiveAssetTags } from "@/hooks/useEffectiveAssetTags";
+import { ScopedTagSections, type ScopedTagAction } from "@/components/library/ScopedTagSections";
 import {
   X, ImageOff, Copy, Check, Star, Loader2,
   ChevronLeft, ChevronRight, Sparkles, Clock,
   HardDrive, Tag, FileText, FolderSearch, FolderOpen, Download,
   ClipboardList, Share2,
+  Layers,
 } from "lucide-react";
 import {
   ContextMenu,
@@ -37,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { Constants } from "@/integrations/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 interface StyleGroupDetailPanelProps {
   group: StyleGroup;
@@ -480,12 +484,12 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
   const compact = useCompactChrome();
   const queryClient = useQueryClient();
   const { call: adminApi } = useAdminApi();
+  const { isAdmin } = useIsAdmin();
   const [localPrimaryId, setLocalPrimaryId] = useState<string | null>(group.primary_asset_id);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [tagInput, setTagInput] = useState("");
   const [aiTagging, setAiTagging] = useState(false);
   const [syncingTags, setSyncingTags] = useState(false);
 
@@ -703,17 +707,33 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
     }
   };
 
-  // Tags
-  const addTag = () => {
+  // ── Scoped metadata for the selected file ────────────────────────────
+  // Both detail panels now write through the SAME normalized contract. This
+  // panel used to mutate assets.tags directly, which bypassed provenance and
+  // could silently overwrite a manual fact.
+  const { data: effective, isLoading: effectiveLoading } = useEffectiveAssetTags(detailAsset?.id);
+  const [tagBusy, setTagBusy] = useState(false);
+
+  const handleTagAction: ScopedTagAction = async ({ scope, tag, action }) => {
     if (!detailAsset) return;
-    const tag = tagInput.trim().toLowerCase();
-    if (!tag || detailAsset.tags.includes(tag)) return;
-    updateAsset.mutate({ tags: [...detailAsset.tags, tag] });
-    setTagInput("");
-  };
-  const removeTag = (tag: string) => {
-    if (!detailAsset) return;
-    updateAsset.mutate({ tags: detailAsset.tags.filter((t) => t !== tag) });
+    setTagBusy(true);
+    try {
+      const payload: Record<string, unknown> = { scope, tag };
+      if (scope === "asset") payload.asset_id = detailAsset.id;
+      else payload.style_group_id = group.id;
+
+      if (action === "add") await adminApi("add-scoped-tag", payload);
+      else if (action === "remove") await adminApi("remove-scoped-tag", payload);
+      else await adminApi("review-scoped-tag", { ...payload, decision: action });
+
+      queryClient.invalidateQueries({ queryKey: ["effective-asset-tags", detailAsset.id] });
+      queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+    } catch (e: unknown) {
+      toast.error("Could not update tags", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setTagBusy(false);
+    }
   };
 
   // Refreshes the group's own shared facts and its search entry. It deliberately
@@ -734,10 +754,6 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
       setSyncingTags(false);
     }
   };
-
-  useEffect(() => {
-    setTagInput("");
-  }, [detailAsset?.id]);
 
   async function handleAssetCheckout(assetId: string) {
     try {
@@ -1169,32 +1185,27 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                   </div>
                 )}
 
-                {/* TAGS */}
+                {/* TAGS — Style Group facts and this file's own facts, kept apart */}
                 {detailAsset && (
                   <div>
                     <SectionLabel><span className="flex items-center gap-1.5"><Tag className="h-3 w-3" /> Tags</span></SectionLabel>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {detailAsset.tags.length === 0 && (
-                        <span className="text-[12px] text-muted-foreground/50">No tags</span>
-                      )}
-                      {detailAsset.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs bg-tag text-tag-foreground gap-1">
-                          {tag}
-                          <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                    <form onSubmit={(e) => { e.preventDefault(); addTag(); }} className="flex gap-1.5">
-                      <Input
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        placeholder="Add tag…"
-                        className="h-7 text-xs bg-background"
+                    {effectiveLoading && <span className="text-[12px] text-muted-foreground/50">Loading tags…</span>}
+                    {effective && (
+                      <ScopedTagSections
+                        groupTags={effective.groupTags}
+                        groupCandidates={effective.groupCandidates}
+                        assetTags={effective.assetTags}
+                        assetCandidates={effective.assetCandidates}
+                        rejected={effective.rejected}
+                        hasStyleGroup
+                        editing
+                        busy={tagBusy}
+                        onAction={handleTagAction}
+                        canReview={isAdmin}
+                        canEditGroup={isAdmin}
+                        visualAnalysisUnavailable={!detailAsset.thumbnail_url && effective.assetTags.length === 0}
                       />
-                      <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
-                    </form>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1209,7 +1220,33 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                   </div>
                 )}
 
-                {/* AI ANALYSIS */}
+                {/* GROUP ARTWORK SUMMARY — a product-level fact, distinct from
+                    the per-file AI analysis directly below it. */}
+                {(group as { group_ai_description?: string | null }).group_ai_description && (
+                  <div>
+                    <SectionLabel>
+                      <span
+                        className="flex items-center gap-1.5"
+                        title={`Source: ${(group as { group_ai_description_source?: string | null }).group_ai_description_source ?? "unknown"}${
+                          (group as { group_ai_description_model?: string | null }).group_ai_description_model
+                            ? ` · Model: ${(group as { group_ai_description_model?: string | null }).group_ai_description_model}`
+                            : ""
+                        }`}
+                      >
+                        <Layers className="h-3 w-3" /> Group Artwork Summary
+                      </span>
+                    </SectionLabel>
+                    <p className="text-[12px] text-foreground/80 leading-relaxed">
+                      {(group as { group_ai_description?: string | null }).group_ai_description}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Describes the whole product, built from several representative files. It is not a
+                      description of the file selected above.
+                    </p>
+                  </div>
+                )}
+
+                {/* AI ANALYSIS — this file only */}
                 {detailAsset && (
                   <div>
                     <SectionLabel>
@@ -1217,7 +1254,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                         className="flex items-center gap-1.5"
                         title={(detailAsset as any).ai_model ? `Model: ${(detailAsset as any).ai_model}${(detailAsset as any).ai_tagged_at ? ` · Tagged ${format(new Date((detailAsset as any).ai_tagged_at), "MMM d, yyyy HH:mm")}` : ""}` : undefined}
                       >
-                        <Sparkles className="h-3 w-3" /> AI Analysis
+                        <Sparkles className="h-3 w-3" /> AI Analysis · This file
                         {(detailAsset as any).ai_model && (
                           <span className="normal-case font-normal tracking-normal text-[10px] truncate max-w-[120px]" title={(detailAsset as any).ai_model}>
                             {(detailAsset as any).ai_model.split("/").pop()}

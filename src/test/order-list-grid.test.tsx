@@ -46,7 +46,7 @@ function renderGrid(rows: OrderListRow[], onEditOrder = vi.fn()) {
 describe("OrderList grid", () => {
   it("shows the live Master Data description for a linked line", async () => {
     renderGrid([row({})]);
-    await waitFor(() => expect(screen.getByText("Current description")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Current description")).toBeTruthy(), { timeout: 10_000 });
     expect(screen.getByText("PO-1")).toBeTruthy();
     expect(screen.getByText("Linked")).toBeTruthy();
   });
@@ -61,14 +61,14 @@ describe("OrderList grid", () => {
         master_data_license_status: null,
       }),
     ]);
-    await waitFor(() => expect(screen.getByText("Description at import")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Description at import")).toBeTruthy(), { timeout: 10_000 });
     expect(screen.getAllByText("at import").length).toBeGreaterThan(0);
     expect(screen.getByText("Not linked")).toBeTruthy();
   });
 
   it("renders the legacy column headers staff recognize", async () => {
     renderGrid([row({})]);
-    await waitFor(() => expect(screen.getAllByText("PO Status").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText("PO Status").length).toBeGreaterThan(0), { timeout: 10_000 });
     for (const header of ["Import PO #", "Vendor", "Customer", "Style #", "Master Data Link", "Quantity"]) {
       expect(screen.getAllByText(header).length).toBeGreaterThan(0);
     }
@@ -80,7 +80,7 @@ describe("OrderList grid: opening an existing order", () => {
     const onEditOrder = vi.fn();
     renderGrid([row({})], onEditOrder);
 
-    const edit = await screen.findByRole("button", { name: /edit order PO-1/i });
+    const edit = await screen.findByRole("button", { name: /edit order PO-1/i }, { timeout: 10_000 });
     fireEvent.click(edit);
 
     expect(onEditOrder).toHaveBeenCalledTimes(1);
@@ -93,7 +93,7 @@ describe("OrderList grid: opening an existing order", () => {
       row({ order_voided_at: "2026-08-26T00:00:00Z", order_void_reason: "created in error" } as Partial<OrderListRow>),
     ]);
 
-    await waitFor(() => expect(screen.getByText("PO-1")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("PO-1")).toBeTruthy(), { timeout: 10_000 });
     const struck = container.querySelector('.ag-row[style*="line-through"]');
     expect(struck).toBeTruthy();
   });

@@ -238,6 +238,18 @@ Thumbnail carousel showing all non-deleted member assets. Click to expand to ful
 - Latest file date
 - Is licensed flag
 
+### Group Artwork Summary
+A product-level description built from several representative member files, shown
+above (and distinct from) the per-file "AI Analysis · This file" section. Its
+tooltip names the source and model that produced it.
+
+### Refresh Group Metadata
+Replaces the former "Sync Tags to All Group Members" button. It brings the group's
+shared product facts and its search entry up to date. It does **not** copy tags
+between files — individual file tags are left alone. The bulk equivalent is the
+`refresh-group-metadata` operation in Settings; the old `propagate-group-tags`
+key still works as a deprecated alias that runs the same safe refresh.
+
 ### 4. Licensing & Taxonomy
 - Licensor name / code
 - Property name / code
@@ -303,9 +315,52 @@ Opens on the right side when an individual asset is selected. Shows:
 - Timestamps: `modified_at`, `file_created_at`, `ingested_at`, `ai_tagged_at`
 - Licensor + property assignment
 - Workflow status selector (editable)
-- AI tags and characters
+- **Tags in two scopes** — see "Scoped metadata" below
+- Characters
 - Quick hash (for debugging)
 - Network path links
+
+---
+
+## Scoped metadata: "Style Group" vs "This file"
+
+Both detail panels render tags through `ScopedTagSections.tsx`, fed by
+`useEffectiveAssetTags.ts`, which reads the governed contract
+`public.get_effective_asset_metadata`.
+
+**Style Group** — facts shared by every file of the product: licensor, property,
+product type, the authoritative item description, and supported artwork themes.
+These rows live once on `style_group_tags` and are **never copied onto member
+assets**. Before issue #96 they were copied, which is how a technical drawing
+ended up tagged "professional photography, 3/4 view, blue".
+
+**This file** — facts about the one file: its kind, view, visible characters,
+colours, scene, readable text, placement. These live on `asset_tags`.
+
+Behavior a reader should be able to rely on:
+
+- **Editing defaults to "This file."** Adding a shared product fact requires
+  deliberately choosing "Whole Style Group", so a group fact can never be created
+  by accident while someone tidies one image.
+- **Candidates are shown separately** ("Suggested — confirm to make searchable").
+  An AI group fact only becomes active on its own at >= 0.85 confidence with two
+  distinct member files as evidence; everything else waits for a person.
+- **Removing an AI fact writes a rejected tombstone**, so a later AI run cannot
+  reinstate it. Removing a *manual* fact deletes only that manual fact.
+  Rejected facts are listed while editing and can be restored.
+- **A fact from Master Data cannot be rejected here.** It has no remove control
+  and the server refuses it; it changes when Master Data changes.
+- **Every chip carries its source** in a tooltip — Manual, Master Data, ERP,
+  Rich PDF, Group AI, File AI, Legacy (unscoped) — plus category, model, and
+  confidence where they help review.
+- **A file with no usable preview** says "Visual analysis unavailable" instead of
+  appearing untagged, and remains findable through its Style Group.
+
+Server side, all four actions go through `admin-api` (`add-scoped-tag`,
+`remove-scoped-tag`, `review-scoped-tag`) which authenticate the caller and record
+provenance: `created_by` for a manual add, `rejected_by`/`rejected_at` for a
+rejection, and reviewer/decision/timestamp in the row's `evidence` for an approve
+or demote.
 
 ---
 
