@@ -17,9 +17,12 @@ begin
      or to_regclass('public.asset_tags_active_asset_idx') is null then
     raise exception 'PopDAM #1427 final tables/index are incomplete';
   end if;
-  if to_regclass('public.asset_tags_forward_asset_id_idx') is null
-     or to_regclass('public.asset_tags_pending_metadata_normalization_idx') is null then
+  if to_regclass('public.asset_tags_forward_asset_id_idx') is null then
     raise exception 'PopDAM deliberate-held compatibility recovery indexes are missing';
+  end if;
+  -- Issue #1467 (20260827183106) retired the normalization accelerator.
+  if to_regclass('public.asset_tags_pending_metadata_normalization_idx') is not null then
+    raise exception 'retired normalization accelerator index is still present';
   end if;
   if (
     select col_description(a.attrelid,a.attnum)

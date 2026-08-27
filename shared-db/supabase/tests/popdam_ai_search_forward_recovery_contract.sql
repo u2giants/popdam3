@@ -15,10 +15,11 @@ begin
   end if;
 
   -- The historical complete preview contract remains intact. Prerequisite A
-  -- recreated this index, and recovery B deliberately retains it so cleanup
-  -- cannot block final activation under persistent live snapshots.
-  if to_regclass('public.asset_tags_pending_metadata_normalization_idx') is null then
-    raise exception 'deliberate-held normalization recovery index is missing';
+  -- recreated this index and recovery B deliberately retained it so cleanup
+  -- could not block final activation under persistent live snapshots. Issue
+  -- #1467 (20260827183106) retired it after activation, so it must be ABSENT.
+  if to_regclass('public.asset_tags_pending_metadata_normalization_idx') is not null then
+    raise exception 'retired normalization accelerator index is still present';
   end if;
 
   if not exists (
