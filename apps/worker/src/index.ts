@@ -14,6 +14,7 @@ import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { tick } from "./operation-loop.js";
 import { maybeEmbedPendingSearchDocuments } from "./handlers/embed-search.js";
+import { withDependencyTimeout } from "./bounded-dependency.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -37,7 +38,10 @@ async function main() {
 
   // Verify Supabase connection
   const { db } = await import("./supabase.js");
-  const { error: pingErr } = await db().from("admin_config").select("key").limit(1);
+  const { error: pingErr } = await withDependencyTimeout(
+    "worker startup Supabase check",
+    db().from("admin_config").select("key").limit(1),
+  );
   if (pingErr) {
     logger.error("worker: Supabase connection failed", { error: pingErr.message });
     process.exit(1);
@@ -47,7 +51,7 @@ async function main() {
   while (running) {
     try {
       await tick();
-      await maybeEmbedPendingSearchDocuments();
+      await withDependencyTimeout("search embedding maintenance", maybeEmbedPendingSearchDocuments());
     } catch (e) {
       logger.error("worker: unhandled error in tick", {
         error: e instanceof Error ? e.message : String(e),

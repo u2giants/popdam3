@@ -28,6 +28,7 @@ import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
 import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-tags.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
+import { withDependencyTimeout } from "./bounded-dependency.js";
 import {
   getNextAutoResumeAt,
   isTransientInterruption,
@@ -502,8 +503,16 @@ export async function tick(): Promise<void> {
   const client = db();
 
   // Best-effort, self-throttled (weekly) — never blocks or breaks the op loop.
-  await maybeMirrorSeaDrive();
-  await processPendingPopSGTags();
+  try {
+    await withDependencyTimeout("SeaDrive mirror maintenance", maybeMirrorSeaDrive());
+  } catch (error) {
+    logger.warn("tick: SeaDrive maintenance exceeded its budget; continuing to queued operations", { error: String(error) });
+  }
+  try {
+    await withDependencyTimeout("PopSG pending-tag maintenance", processPendingPopSGTags());
+  } catch (error) {
+    logger.warn("tick: PopSG maintenance exceeded its budget; continuing to queued operations", { error: String(error) });
+  }
 
   // Load all operations
   const { data: configRow, error: configErr } = await client
