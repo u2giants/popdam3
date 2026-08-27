@@ -56,9 +56,13 @@ describe("no application path null-fills group identity onto member assets", () 
     "ai_description",
   ];
 
+  // Test files legitimately name the symbol they assert is gone, so they are
+  // excluded. Everything else under these paths is production code.
+  const EXCLUDE_TESTS = [":!*.test.ts", ":!*.test.tsx"];
+
   function grep(pattern: string, paths: string[]): string {
     try {
-      return execFileSync("git", ["grep", "-n", "-e", pattern, "--", ...paths], { encoding: "utf8" }).trim();
+      return execFileSync("git", ["grep", "-n", "-e", pattern, "--", ...paths, ...EXCLUDE_TESTS], { encoding: "utf8" }).trim();
     } catch (error) {
       // git grep exits 1 with no match.
       expect((error as { status?: number }).status).toBe(1);

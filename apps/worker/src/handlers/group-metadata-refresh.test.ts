@@ -185,7 +185,9 @@ test("no production path still calls the legacy copy helper", () => {
   try {
     hits = execFileSync("git", [
       "grep", "-l", "-e", "propagateGroupTags", "-e", "_shared/tag-propagation",
-      "--", "src", "apps", "supabase/functions",
+      // Test files legitimately name the symbol they assert is gone, so they are
+      // excluded. Everything else under these paths is production code.
+      "--", "src", "apps", "supabase/functions", ":!*.test.ts", ":!*.test.tsx",
     ], { cwd: root, encoding: "utf8" }).trim();
   } catch (error) {
     const status = (error as { status?: number }).status;
