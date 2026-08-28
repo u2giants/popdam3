@@ -88,6 +88,7 @@ type StyleRow = {
 type SheetColumn = {
   letter: string;
   header: string;
+  headerTooltip?: string;
   width?: number;
   pinned?: "left";
   hide?: boolean;
@@ -95,6 +96,7 @@ type SheetColumn = {
   legacyKey?: string;
   linkKind?: FieldKey;
   optionKind?: "customer" | "licensor" | "designer" | "factory" | "packagingType";
+  date?: boolean;
 };
 
 type ReviewItem = {
@@ -223,6 +225,7 @@ const licensedColumns: SheetColumn[] = [
   { letter: "S", header: "Concept Approved with Comments", width: 225, legacyKey: "concept_approved_with_comments" },
   { letter: "T", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
   { letter: "U", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
+  { letter: "SAMPLE_ETA", header: "Sample ETA", headerTooltip: "ETA From Factory", width: 150, legacyKey: "sample_eta", date: true },
   { letter: "W", header: "Sample Photos Received", width: 200, legacyKey: "sample_photos_received" },
   { letter: "X", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
   { letter: "Y", header: "Pre Production Resubmit", width: 205, legacyKey: "pre_production_resubmit" },
@@ -257,6 +260,7 @@ const genericColumns: SheetColumn[] = [
   { letter: "I", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
   { letter: "R", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
   { letter: "S", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
+  { letter: "SAMPLE_ETA", header: "Sample ETA", headerTooltip: "ETA From Factory", width: 150, legacyKey: "sample_eta", date: true },
   { letter: "T", header: "RFQ Code", width: 150, legacyKey: "rfq_code" },
   { letter: "U", header: "Sample Received", width: 170, legacyKey: "sample_received" },
   { letter: "V", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
@@ -1512,13 +1516,15 @@ export default function StylesPage() {
       ...active.columns.map((column): ColDef<StyleRow> => ({
         colId: column.letter,
         headerName: column.header,
-        headerTooltip: `${column.letter}: ${column.header}`,
+        headerTooltip: column.headerTooltip ?? `${column.letter}: ${column.header}`,
         width: column.width ?? 140,
         pinned: column.pinned,
         hide: column.hide,
         editable: true,
         cellEditor:
-          column.typedField === "description"
+          column.date
+            ? "agDateStringCellEditor"
+            : column.typedField === "description"
             ? DescriptionBuilderEditor
             : column.optionKind || column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
               ? "agRichSelectCellEditor"
@@ -1547,7 +1553,8 @@ export default function StylesPage() {
                 formatValue: column.optionKind === "customer" ? (customerId: string) => customerOptionById.get(customerId) ?? customerId : undefined,
               }
             : undefined,
-        filter: true,
+        filter: column.date ? "agDateColumnFilter" : true,
+        cellDataType: column.date ? "dateString" : undefined,
         sortable: true,
         resizable: true,
         valueGetter: (params) =>
