@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_historical_original_apply_runs, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS
+from production_business_risk_gate import api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_historical_original_apply_runs, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION
 
 
 def tree_ref(endpoint):
@@ -2829,6 +2829,86 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             [*args[:3], ["20260813210000"]],
         ]:
             self.assertFalse(is_pinned_historical_disney_source(*changed))
+
+
+class GovernedHistoricalSupersessionTests(unittest.TestCase):
+    def exercise(self, *, mutate=None, changed_version=False):
+        case = GOVERNED_HISTORICAL_SUPERSESSION
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            migrations = root / "supabase/migrations"
+            migrations.mkdir(parents=True)
+            migration = migrations / f"{case['version']}_clear_domain.sql"
+            migration.write_text("select 1;\n", encoding="utf-8")
+            statement = ["select 1"]
+            base = {
+                "schema": "shared-db-preview-ledger-orphan-reconciliation/v1",
+                "issue": 1615, "claim": 1636, "source_pr": 1637,
+                "orphan_version": case["original_version"],
+                "replacement_version": case["version"],
+                "preview_run_id": case["original_run_id"],
+                "preview_artifact_id": case["original_artifact_id"],
+                "preview_artifact_digest": case["original_artifact_digest"],
+                "main_sha": case["reconciliation_head"],
+                "governance": {
+                    "case_mode": "byte_identical_rename",
+                    "orphan_sha256": canonical_sha256(migration),
+                    "replacement_sha256": canonical_sha256(migration),
+                },
+            }
+            old = [{"version": case["original_version"], "name": "x", "statements": statement}]
+            new = [{"version": case["version"], "name": "x", "statements": statement}]
+            check = {**base, "mode": "check", "before": old, "after": old}
+            applied = {**base, "mode": "apply", "before": old, "after": new}
+            if mutate:
+                mutate(check, applied)
+            archive = root / "fixture.zip"
+            with zipfile.ZipFile(archive, "w") as z:
+                z.writestr("reconciliation-check.json", json.dumps(check))
+                z.writestr("reconciliation-apply.json", json.dumps(applied))
+            fixture_digest = "sha256:" + hashlib.sha256(archive.read_bytes()).hexdigest()
+            saved = case["reconciliation_artifact_digest"]
+            case["reconciliation_artifact_digest"] = fixture_digest
+            try:
+                def api(endpoint):
+                    if endpoint.endswith("/pulls/1644"):
+                        return {"merged": True, "merge_commit_sha": case["reconciliation_head"]}
+                    if "/compare/" in endpoint:
+                        return {"status": "ahead", "behind_by": 0}
+                    if endpoint.endswith(f"/actions/runs/{case['reconciliation_run_id']}"):
+                        return {"status": "completed", "conclusion": "success",
+                                "event": "workflow_dispatch", "head_sha": case["reconciliation_head"],
+                                "path": ".github/workflows/preview-ledger-orphan-reconciliation.yml"}
+                    if endpoint.endswith("/artifacts?per_page=100"):
+                        return {"artifacts": [{"id": case["reconciliation_artifact_id"],
+                            "digest": fixture_digest, "expired": False,
+                            "name": f"preview-ledger-orphan-reconciliation-{case['original_version']}",
+                            "workflow_run": {"id": case["reconciliation_run_id"]}}]}
+                    raise AssertionError(endpoint)
+                def downloader(_artifact_id, destination):
+                    Path(destination).write_bytes(archive.read_bytes())
+                return prove_governed_historical_supersession(
+                    version="20260827095754" if changed_version else case["version"],
+                    source_pr=case["source_pr"], run_id=case["original_run_id"],
+                    original_commit=case["original_commit"],
+                    original_artifact={"id": case["original_artifact_id"],
+                                       "digest": case["original_artifact_digest"]},
+                    repo_root=root, main_sha="f" * 40, api=api, downloader=downloader,
+                )
+            finally:
+                case["reconciliation_artifact_digest"] = saved
+
+    def test_exact_governed_rename_is_accepted(self):
+        self.assertEqual(self.exercise(), "20260827031236")
+
+    def test_exception_is_not_generalised_to_another_version(self):
+        self.assertIsNone(self.exercise(changed_version=True))
+
+    def test_statement_change_is_refused(self):
+        with self.assertRaisesRegex(RiskGateError, "statement-identical rename"):
+            self.exercise(mutate=lambda _check, applied: applied["after"][0].update(
+                statements=["select 2"]
+            ))
 
 
 if __name__ == "__main__":

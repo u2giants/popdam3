@@ -50,6 +50,18 @@ HISTORICAL_DISNEY_SOURCE = {
     "merge": "96bf385aa5c0f703ec98f5730249f586964f5142",
     "allowlist": ["20260813210000", "20260813220000"],
 }
+GOVERNED_HISTORICAL_SUPERSESSION = {
+    "version": "20260827095753", "original_version": "20260827031236",
+    "source_pr": 1637, "original_run_id": 33059235415,
+    "original_commit": "9f0753c89d3bf1e64b52877400098f3cd086a9ea",
+    "original_artifact_id": 9640989399,
+    "original_artifact_digest": "sha256:d41f5cc6250eb783b4e17399e3927cd9ada32ac26a12adcc8124a1f5d3262d03",
+    "reconciliation_run_id": 33064019675,
+    "reconciliation_head": "5366c09cccc60928111a9dcc025aa44bc98af8ca",
+    "reconciliation_artifact_id": 9642944726,
+    "reconciliation_artifact_digest": "sha256:cdaef42d0994892f55a0b65aa288c3c0d10896a5e449010fc9920d8b1d5d28df",
+    "reconciliation_pr": 1644,
+}
 RISK_TEXT = {
     "permanent_data_rewrite_or_loss": "existing production data may be lost or permanently altered",
     "expected_downtime": "users may be interrupted",
@@ -792,6 +804,104 @@ def artifact_texts(artifact: dict, downloader: Callable[[int, Path], None]) -> d
             }
 
 
+def prove_governed_historical_supersession(
+    *, version: str, source_pr: int, run_id: int, original_commit: str,
+    original_artifact: dict[str, Any], repo_root: Path, main_sha: str,
+    api: Callable[[str], Any], downloader: Callable[[int, Path], None],
+) -> str | None:
+    """Return the old ledger version only for the exact #1615/#1646 rename."""
+    case = GOVERNED_HISTORICAL_SUPERSESSION
+    if (version, source_pr, run_id, original_commit) != (
+        case["version"], case["source_pr"], case["original_run_id"], case["original_commit"],
+    ):
+        return None
+    if (original_artifact.get("id"), original_artifact.get("digest")) != (
+        case["original_artifact_id"], case["original_artifact_digest"],
+    ):
+        raise RiskGateError("governed supersession original artifact identity changed")
+
+    pr = api_object(api, f"repos/{REPOSITORY}/pulls/{case['reconciliation_pr']}")
+    if pr.get("merged") is not True or pr.get("merge_commit_sha") != case["reconciliation_head"]:
+        raise RiskGateError("governed supersession reconciliation PR is not the pinned merge")
+    prove_applied_commit_is_main_line(case["reconciliation_head"], main_sha, api)
+    reconcile_run = api_object(
+        api, f"repos/{REPOSITORY}/actions/runs/{case['reconciliation_run_id']}"
+    )
+    expected_run = {
+        "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
+        "path": ".github/workflows/preview-ledger-orphan-reconciliation.yml",
+        "head_sha": case["reconciliation_head"],
+    }
+    if any(reconcile_run.get(key) != value for key, value in expected_run.items()):
+        raise RiskGateError("governed supersession reconciliation run identity changed")
+    artifacts = api_object(
+        api, f"repos/{REPOSITORY}/actions/runs/{case['reconciliation_run_id']}/artifacts?per_page=100",
+    ).get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != 1 or not isinstance(artifacts[0], dict):
+        raise RiskGateError("governed supersession reconciliation artifact is ambiguous")
+    artifact = artifacts[0]
+    if (
+        artifact.get("id") != case["reconciliation_artifact_id"]
+        or artifact.get("digest") != case["reconciliation_artifact_digest"]
+        or artifact.get("expired") is not False
+        or artifact.get("name") != f"preview-ledger-orphan-reconciliation-{case['original_version']}"
+        or artifact.get("workflow_run", {}).get("id") != case["reconciliation_run_id"]
+    ):
+        raise RiskGateError("governed supersession reconciliation artifact identity changed")
+
+    with tempfile.TemporaryDirectory(prefix="production-risk-supersession-") as temp:
+        archive_path = Path(temp, "reconciliation.zip")
+        downloader(artifact["id"], archive_path)
+        if "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest() != case["reconciliation_artifact_digest"]:
+            raise RiskGateError("governed supersession reconciliation download digest changed")
+        try:
+            with zipfile.ZipFile(archive_path) as archive:
+                names = {Path(name).name: name for name in archive.namelist() if not name.endswith("/")}
+                if set(names) != {"reconciliation-check.json", "reconciliation-apply.json"}:
+                    raise RiskGateError("governed supersession reconciliation evidence set changed")
+                check = json.loads(archive.read(names["reconciliation-check.json"]))
+                applied = json.loads(archive.read(names["reconciliation-apply.json"]))
+        except (zipfile.BadZipFile, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise RiskGateError("governed supersession reconciliation evidence is unreadable") from exc
+
+    fixed = {
+        "schema": "shared-db-preview-ledger-orphan-reconciliation/v1",
+        "issue": 1615, "claim": 1636, "source_pr": 1637,
+        "orphan_version": case["original_version"], "replacement_version": version,
+        "preview_run_id": case["original_run_id"],
+        "preview_artifact_id": case["original_artifact_id"],
+        "preview_artifact_digest": case["original_artifact_digest"],
+        "main_sha": case["reconciliation_head"],
+    }
+    for record, mode in ((check, "check"), (applied, "apply")):
+        if not isinstance(record, dict) or record.get("mode") != mode or any(
+            record.get(key) != value for key, value in fixed.items()
+        ):
+            raise RiskGateError("governed supersession reconciliation tuple changed")
+    before, after = applied.get("before"), applied.get("after")
+    if (
+        not isinstance(before, list) or not isinstance(after, list)
+        or len(before) != 1 or len(after) != 1
+        or before[0].get("version") != case["original_version"]
+        or after[0].get("version") != version
+        or before[0].get("name") != after[0].get("name")
+        or before[0].get("statements") != after[0].get("statements")
+        or check.get("before") != check.get("after")
+    ):
+        raise RiskGateError("governed supersession did not prove one statement-identical rename")
+    governance = applied.get("governance")
+    current = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
+    if (
+        not isinstance(governance, dict)
+        or governance.get("case_mode") != "byte_identical_rename"
+        or governance.get("orphan_sha256") != governance.get("replacement_sha256")
+        or len(current) != 1
+        or canonical_sha256(current[0]) != governance.get("replacement_sha256")
+    ):
+        raise RiskGateError("governed supersession bytes do not match exact main")
+    return case["original_version"]
+
+
 def prove_historical_original_apply_runs(
     *, record: dict, allowlist: list[str], repo_root: Path, main_sha: str,
     api: Callable[[str], Any], downloader: Callable[[int, Path], None],
@@ -917,7 +1027,12 @@ def prove_historical_original_apply_runs(
         artifact, original_commit = preview_applied_commit(
             api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id
         )
-        if original_commit not in source_pr_commits(source_pr, "", main_sha, api):
+        superseded_from = prove_governed_historical_supersession(
+            version=version, source_pr=source_pr, run_id=run_id,
+            original_commit=original_commit, original_artifact=artifact,
+            repo_root=repo_root, main_sha=main_sha, api=api, downloader=downloader,
+        )
+        if superseded_from is None and original_commit not in source_pr_commits(source_pr, "", main_sha, api):
             prove_applied_commit_is_main_line(original_commit, main_sha, api)
         # THE WORKFLOW THAT EXECUTED, on this side too. `original_commit` is only
         # what the job CHOSE to advertise in its artifact name; `run["head_sha"]`
@@ -933,7 +1048,7 @@ def prove_historical_original_apply_runs(
                 f"original apply run {run_id} for {version} does not name the commit whose "
                 "workflow executed (head_sha)"
             )
-        if run_head not in source_pr_commits(source_pr, "", main_sha, api):
+        if superseded_from is None and run_head not in source_pr_commits(source_pr, "", main_sha, api):
             prove_applied_commit_is_main_line(run_head, main_sha, api)
         # PINNED TO THE MERGE COMMIT, NOT TO EACH OTHER AND NOT TO TODAY'S MAIN.
         # Round 5 pinned these two commits to each other, and the round-6 review
@@ -971,9 +1086,10 @@ def prove_historical_original_apply_runs(
             before_path.write_text(texts.get("preview-ledger-before.txt", ""), encoding="utf-8")
             after_path.write_text(texts.get("preview-ledger-after.txt", ""), encoding="utf-8")
             gained = parse_remote_versions(after_path) - parse_remote_versions(before_path)
-        if version not in gained:
+        evidence_version = superseded_from or version
+        if evidence_version not in gained:
             raise RiskGateError(
-                f"original apply run {run_id} did not apply {version} to preview "
+                f"original apply run {run_id} did not apply {evidence_version} to preview "
                 "(its ledger delta does not add that version)"
             )
         # THE DATABASE THE ORIGINAL RUN WROTE TO. Decided explicitly in the #1213
@@ -1017,7 +1133,7 @@ def prove_historical_original_apply_runs(
                     f"original apply run {run_id} for {version} was performed against the "
                     "PRODUCTION project; that is not a preview rehearsal"
                 )
-        recorded = preview_content_manifest(texts).get(version)
+        recorded = preview_content_manifest(texts).get(evidence_version)
         if not isinstance(recorded, str) or not re.fullmatch(r"[0-9a-f]{64}", recorded):
             raise RiskGateError(
                 f"original apply run {run_id} recorded no usable digest for {version}"
