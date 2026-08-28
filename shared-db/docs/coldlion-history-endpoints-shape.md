@@ -104,6 +104,13 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 > deriving the sales-order line key.** See
 > [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md). Anything below about those
 > fields being absent or dead describes the API before that date.
+>
+> **⚠️ CORRECTED 2026-08-28 — `salesOrderLineNo` is NOT a key.** ColdLion (JamieLynn) confirmed the
+> feed assembles Sales Order, Prepack Detail, Pick Ticket and Invoice, and the line number is
+> **re-assigned at pick and at invoice**. `(salesOrderNo, salesOrderLineNo)` is therefore not
+> unique and never will be. Do not de-duplicate on it and do not sum split lines — both prices on a
+> split line are real. See
+> [`business-rules/erp-orders-and-source-meaning.md`](business-rules/erp-orders-and-source-meaning.md).
 
 > ### ⚠️⚠️ The default `prodHistory` response is INCOMPLETE — fetch every `stageCode`
 > **Without `stageCode`, `prodHistory` returns only the `ISS` (issued) lines.** Verified 2026-08-18:
