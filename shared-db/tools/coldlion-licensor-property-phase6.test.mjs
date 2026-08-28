@@ -116,6 +116,14 @@ test("workflow is workflow_dispatch-first, preview-only, schedule-exact", () => 
   assert.doesNotMatch(workflow, /date -u \+%H/);
 });
 
+test("a pre-link failure still delivers a database-independent GitHub alert", () => {
+  assert.match(workflow, /failed before an alert row was readable/);
+  assert.match(workflow, /pre-link\/fault fallback/);
+  assert.match(workflow, /database-independent fallback/);
+  assert.match(workflow, /gh issue create/);
+  assert.match(workflow, /Human response owner: Albert Hazan/);
+});
+
 test("phase6 SQL contracts cover append-only, baseline, and force_fail drills", () => {
   assert.match(contracts, /force_fail/);
   assert.match(contracts, /append-only|APPEND-ONLY|two same-day/i);
