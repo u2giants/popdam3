@@ -227,13 +227,16 @@ reached.
 
 ## Current data state
 
-**Production is fully linked (2026-08-26).** `plm.item` holds **19,362** items
+**Production linkage after the 2026-08-28 Master Data refresh.** `plm.item` holds **19,362** items
 loaded from ColdLion through `plm.import_item_master_data`; the style-item
-bridge carries `plm_item_id` on 14,621 rows; and
+bridge carries `plm_item_id` on 14,732 rows; and
 `public.relink_dam_order_lines_bulk()` linked **23,997 of 24,010 order lines**
-with zero ties and zero no-candidates. The remaining 13 are
-`not_applicable` — lines with no SKU to match. Link integrity was checked: zero
-rows where `plm.item.item_number` disagrees with the line's `sku_normalized`.
+with zero ties and zero no-candidates. The 2026-08-28 workbook refresh removed
+the current style records behind 10 previously linked order lines; those stale
+links were deliberately cleared and now show as unmatched instead of displaying
+obsolete Master Data. Production therefore has 23,987 linked lines, 10 unmatched
+lines, and 13 `not_applicable` lines with no SKU. Link integrity was checked:
+zero linked order items are absent from the refreshed Styles bridge.
 
-The import-snapshot fallback therefore no longer fires in normal use. It stays
-in the code because new orders can arrive before their item does.
+The import-snapshot fallback now applies to the 10 unmatched historical lines
+and remains necessary when a new order arrives before its item does.
