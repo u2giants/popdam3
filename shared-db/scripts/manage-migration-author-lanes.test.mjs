@@ -1312,6 +1312,14 @@ test('same-owner split recovery is pinned and rejects removed files, duplicate v
   io=splitIo({getPr:()=>({state:'open',head:{ref:'codex/source'}})});assert.throws(()=>recoverSameOwnerSplit({...splitOptions,targetBranch:'codex/source'},NOW,io),/different pull-request branches/)
   io=splitIo();io.prSources=()=>[{label:'PR #999 "duplicate version"',objects:['table core.unrelated'],versions:['20260816045130']}];assert.throws(()=>recoverSameOwnerSplit(splitOptions,NOW,io),/version collision/)
 })
+test('same-owner split recovery allows unrelated removed files while retaining migration proof',()=>{
+  const io=splitIo({getPrFiles:(n)=>[
+    {status:'removed',filename:'scripts/obsolete-contract.test.mjs'},
+    {status:'renamed',filename:`supabase/migrations/${Number(n)===1060?'20260816045130_a':'20260816063532_b'}.sql`},
+  ]})
+  const result=recoverSameOwnerSplit(splitOptions,NOW,io)
+  assert.deepEqual(result.versions,['20260816045130','20260816063532'])
+})
 test('same-owner split recovery refuses rollback mutations after mutex ownership loss',()=>{
   const io=splitIo();const update=io.updateIssue;let updates=0;io.updateIssue=(n,fields)=>{updates++;const result=update(n,fields);if(updates===1)io.refs.set(MUTEX_REF,'successor');return result}
   assert.throws(()=>recoverSameOwnerSplit(splitOptions,NOW,io),/ROLLBACK NOT ATTEMPTED/);assert.equal(updates,1)
@@ -1501,6 +1509,20 @@ test('general active-claim version supersession is idempotent from immutable evi
   const second=supersedeActiveClaimVersion(reversionArgs,NOW,io)
   assert.equal(second.idempotent,true);assert.equal(second.newVersion,first.newVersion);assert.equal(second.newHead,first.newHead)
   assert.equal(io.refs.get(`refs/db-claims/${io.old}`),'1'.repeat(40));assert.equal(io.refs.get(`refs/db-claims/${io.fresh}`),'2'.repeat(40))
+})
+test('general version supersession allows unrelated removals but refuses removed migration files',()=>{
+  const allowed=reversionIo({getPrFiles:()=>[
+    {status:'removed',filename:'scripts/obsolete-contract.test.mjs'},
+    {status:'modified',filename:'supabase/migrations/20260816044638_repair.sql'},
+  ]})
+  assert.equal(supersedeActiveClaimVersion(reversionArgs,NOW,allowed).newVersion,allowed.fresh)
+
+  const refused=reversionIo({getPrFiles:()=>[
+    {status:'removed',filename:'supabase/migrations/20260816044638_repair.sql'},
+    {status:'removed',filename:'scripts/obsolete-contract.test.mjs'},
+  ]})
+  assert.throws(()=>supersedeActiveClaimVersion(reversionArgs,NOW,refused),/removes a migration file/)
+  assert.equal(refused.issue.body,reversionIo().issue.body)
 })
 
 // Issue #1165. A stale PR readback after a landed push is eventual consistency,

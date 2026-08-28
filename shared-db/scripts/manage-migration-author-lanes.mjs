@@ -1483,8 +1483,9 @@ function workstreamKey(title) {
   return match[1]
 }
 function migrationVersions(files) {
-  if(files.some((file)=>file.status==='removed'))throw new LaneError('pull request removes a file; split recovery refuses it')
-  return files.map((file)=>file.filename ?? file.path ?? '').map((name)=>/^supabase\/migrations\/(\d{14})_[^/]+\.sql$/.exec(name)?.[1]).filter(Boolean)
+  const namedFiles=files.map((file)=>({file,name:file.filename ?? file.path ?? ''}))
+  if(namedFiles.some(({file,name})=>file.status==='removed'&&name.startsWith('supabase/migrations/')))throw new LaneError('pull request removes a migration file; split recovery refuses it')
+  return namedFiles.map(({name})=>/^supabase\/migrations\/(\d{14})_[^/]+\.sql$/.exec(name)?.[1]).filter(Boolean)
 }
 function replaceLeaseLocation(body, branch, worktree) {
   const fence=/```db-author-lease\s*\n([\s\S]*?)```/.exec(body)
