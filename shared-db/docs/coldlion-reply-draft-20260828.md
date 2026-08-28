@@ -169,10 +169,10 @@ was phased, that is just as useful to know — we would handle it differently.
 
 **Issue 12 — four item flags that overlap, and we do not know which one is authoritative.**
 
-An item carries `ItemStatus`, `Active`, `ItemAvailable` and `ItemDiscontinued`. Across 18,911 items
-they disagree in ways we cannot resolve from outside: `ItemStatus` is `A` on a third of items and
-blank on the rest; `Active` is `N` on 408; `ItemDiscontinued` is `Y` on 546; `ItemAvailable` is `N`
-on 10.
+An item carries `ItemStatus`, `Active`, `ItemAvailable` and `ItemDiscontinued`. Across our full
+catalogue of 19,362 items they disagree in ways we cannot resolve from outside: `ItemStatus` is `A`
+on 6,676 items and blank on the rest; `Active` is `N` on 459; `ItemDiscontinued` is `Y` on 546;
+`ItemAvailable` is `N` on 11.
 
 **Which one should we treat as "do not sell this any more"?** And is the blank `ItemStatus` on
 two-thirds of the catalogue meaningful, or simply a field nobody fills in? We currently use `Active`,
@@ -197,8 +197,8 @@ everywhere. **What is `RoyaltyCode` for, and which of the two should we trust fo
    that reliable, or can a person's name appear on an API-created item?
 2. A production-history request with no stage returns only issued lines — not everything. We found
    that the hard way and now always iterate the three stages. Is that the intended default?
-3. `Udf01` carries `LIC`, `EP`, `DEC`, `GKC` or `WB` on about 1,600 items and is blank elsewhere.
-   What is it?
+3. `Udf01` carries `LIC` (1,324), `EP` (506), `DEC` (134), `GKC` (110) or `WB` (2) on about 2,080
+   items and is blank elsewhere. What is it?
 4. We read `BrandAssuranceNo` as the licensor's approval reference for the artwork. Correct?
 5. We read `ProdReferenceNo` as the link from a sales-order line to the production order that made
    the goods. Correct?
