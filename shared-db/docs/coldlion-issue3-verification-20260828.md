@@ -53,7 +53,11 @@ a sample.
 
 - Stop hard-coding division codes; read `/divisions`.
 - Ignore `sizeRangeCode`. **Product size is merchandise group 04**, which is populated.
-- `mgTypeCode` runs 01–14; slots 01–06 are the live hierarchy, 07–14 are legacy positions.
+- `mgTypeCode` runs 01–14. **Ten slots have headers, not six**, and the names come from
+  `/merchGroupHeaders` **per division** — CW001/SP001 read 05/06/07 as Licensor / Property / Style
+  Guide, EH001 reads them as Big Theme / Little Theme / Art Type. Slots 07–10 carry data on
+  5.7%–27.2% of items; 11–14 are empty everywhere. Our earlier note calling 07–14 "legacy
+  positions" was wrong.
 - The merchandise-group `active` flag is `Y`/`N` — a two-value flag.
 
 ## Follow-up measurement, same day — order-history field population

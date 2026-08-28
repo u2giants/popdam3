@@ -245,27 +245,66 @@ It will never be part of this system. Filter it out at the point of ingestion ra
 travel downstream and get filtered repeatedly; and do not treat its absence from our merchandise-group
 renumbering dates as a gap to close. **Settled.**
 
-### The merchandise-group hierarchy, and what the renumbering left behind
+### The merchandise-group hierarchy, what it names, and what the renumbering left behind
 
-ColdLion carries **fourteen merchandise-group slots per item, of which six are the live hierarchy**:
-type, sub-type, material or embellishment, size, licensor, property. Slots seven to fourteen are
-legacy positions, kept because ColdLion renumbered the positions per division and never rewrote the
-older rows. **Settled** (documented by ColdLion 2026-08-28). Three consequences follow, and each has
-already caught somebody:
+ColdLion carries **fourteen merchandise-group slots per item.** Ten of them have names, and the
+names come from the ERP itself, through the merchandise-group headers endpoint. **Read the names
+from that endpoint. Do not hard-code them, and do not assume a slot means the same thing everywhere.**
+**Settled**, verified live 2026-08-28.
+
+- In POP Creations and Spruce the ten are: type, sub-type, sub-sub-type, size, licensor, property,
+  style guide, art source, artist, demographic.
+- **In Edge Home, slots five, six and seven mean something different** — big theme, little theme and
+  art type. Any logic that reads the fifth slot as "the licensor" across every division is wrong.
+- Slots eleven to fourteen have no name and no data anywhere. Treat them as absent.
+
+Two earlier notes here were wrong and are corrected: slots seven to ten are **not** leftovers from
+the renumbering — they are real, named axes, populated on roughly six to twenty-seven percent of
+items. And the third slot is "sub-sub-type", not "material or embellishment"; that was our own
+reading of the values, not the ERP's label. We have asked ColdLion to confirm how deliberately the
+last four named slots are maintained. **Proposed** until they answer.
+
+Three consequences follow, and each has already caught somebody:
 
 - **A blank merchandise group on a pre-renumbering row is not missing data.** The value is still
   sitting in the old slot. Never backfill from the master item without looking there first.
   **Settled.**
 - **A merchandise-group code means nothing on its own.** Its meaning is scoped by the category its
   top-level code belongs to, so the same code names different things in different product families.
-  Any read that ignores the category is simply wrong, and ColdLion's own documentation does not say
-  so. **Settled**, verified live.
+  That scoping applies to the first three slots only — the category comes back empty on licensor and
+  property. Any read that ignores the category is simply wrong, and ColdLion's own documentation does
+  not say so. **Settled**, verified live.
 - **Items created through ColdLion's API around the renumbering were never re-mapped.** Fixing them
   is **POP's work, not ColdLion's**, and it happens by owner decision — never by an automated
   mapping. See [`merchandise-and-product-taxonomy.md`](merchandise-and-product-taxonomy.md).
 
 A merchandise group also carries a lifecycle flag, and it is a plain yes/no — two values, no third
 state. **Settled.**
+
+### Things we worked out ourselves, that ColdLion has not confirmed
+
+Everything in this block currently matches the data. None of it came from ColdLion, so none of it is
+Settled, and each was put to them on 2026-08-28 as a confirm-or-correct question. **Treat a change in
+any of these as likely rather than surprising.**
+
+- **Item numbers are built from the merchandise groups**, not allocated freely — one character each
+  from the type, sub-type and sub-sub-type codes, then size, licensor and property, then a sequence.
+  The rule reproduces about ninety percent of recently created numbers. The other ten percent are
+  unexplained. **Proposed.**
+- **The renumbering dates** — POP Creations around late April 2025, Edge Home and Spruce around
+  September 2025 — were read off when the group definitions were last modified, not given to us.
+  They decide which rows we trust as-is. **Proposed.**
+- **Which flag means "retired" is unknown.** An item carries four overlapping ones: status, active,
+  available and discontinued, and they disagree. We use *active*. That is a guess. **Unknown.**
+- **Nothing in the ERP links a licensor to its properties.** We derived the link from which licensor
+  appears on items carrying each property, and hand-filled roughly forty properties that have no
+  items yet. Those forty are our knowledge, not the ERP's. There is also a royalty code on the item
+  whose values look like licensor codes but do not always agree with the licensor group; which of the
+  two governs licensing is **Unknown.**
+- Items created through the API appear to be identifiable by their created-by user; a production
+  history request with no stage appears to return only issued lines; and the meanings of the first
+  user-defined field, the brand-assurance number and the production-reference number are our
+  readings, not documented ones. **Proposed.**
 
 ### Product size comes from the hierarchy, not from the ERP's size field
 
