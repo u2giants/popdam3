@@ -152,7 +152,9 @@ for the first correction and the method.
 
 ## Reply to ColdLion — rewritten 2026-08-27 (v3, with worked examples)
 
-**Status: drafted 2026-08-27, NOT yet sent.** Supersedes both earlier drafts in this file.
+**Status: SENT Thu 2026-08-27 18:34 EST.** Supersedes both earlier drafts in this file. Issues 6
+and 7 are now formally raised with ColdLion, and the issue-3 stageCode half was credited as closed.
+Awaiting JamieLynn's reply.
 
 **Why v3 exists.** Albert, 2026-08-27: *"you can't just say you found a problem, YOU MUST GIVE
 ACTUAL EXAMPLES,"* and the issue numbering must continue from the 2026-08-26 email so each issue
