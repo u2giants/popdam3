@@ -388,6 +388,26 @@ BEHAVIOR_ENUM_VALUES = {
 }
 BEHAVIOR_TYPES = {"uuid", "text", "integer", "boolean", *BEHAVIOR_ENUM_VALUES}
 CATALOG_CONTRACTS = {
+    "core_licensor_code_key_nulls_distinct_v1": """
+      (select count(*) = 1
+        from pg_constraint c
+        join pg_class r on r.oid = c.conrelid
+        join pg_namespace n on n.oid = r.relnamespace
+        join pg_index i on i.indexrelid = c.conindid
+        where n.nspname = 'core'
+          and r.relname = 'licensor'
+          and c.conname = 'licensor_code_key'
+          and c.contype = 'u'
+          and c.convalidated
+          and c.conkey = array[
+            (select a.attnum
+              from pg_attribute a
+              where a.attrelid = r.oid
+                and a.attname = 'code'
+                and not a.attisdropped)
+          ]::smallint[]
+          and not i.indnullsnotdistinct)
+    """,
     "popdam_1427_relations_columns_v1": """
       to_regclass('public.style_group_tags') is not null
       and to_regclass('public.dam_search_documents') is not null

@@ -1526,6 +1526,30 @@ class BehavioralSidecarTests(unittest.TestCase):
         self.assertTrue(targets.is_empty())
         self.assertIn("final #1427 contract active", sql)
 
+    def test_real_1732_sidecar_is_hash_bound_catalog_only_and_exact_shape(self):
+        version = "20260828021051"
+        migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))
+        checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+        targets = derive_targets({version: migration}, [version])
+        sql = build_behavior_sql(checks)
+
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]["kind"], "catalog_contract")
+        self.assertEqual(
+            checks[0]["migration_sha256"],
+            "a13a0d1bd93cf733bd6592a567483c9cca5e20d1f412f7001fa4aa4f3e7b4c41",
+        )
+        self.assertTrue(targets.is_empty())
+        self.assertIn("from pg_constraint", sql)
+        self.assertIn("join pg_index", sql)
+        self.assertIn("c.conname = 'licensor_code_key'", sql)
+        self.assertIn("c.contype = 'u'", sql)
+        self.assertIn("c.convalidated", sql)
+        self.assertIn("c.conkey = array[", sql)
+        self.assertIn("a.attname = 'code'", sql)
+        self.assertIn("not i.indnullsnotdistinct", sql)
+        self.assertNotIn("from core.licensor", sql)
+
     def test_real_1177_sidecar_binds_current_migration_and_covers_full_outcome(self):
         version = "20260825050407"
         migration = REPO / "supabase" / "migrations" / (

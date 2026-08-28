@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260828021051",
+  "migration_sha256": "a13a0d1bd93cf733bd6592a567483c9cca5e20d1f412f7001fa4aa4f3e7b4c41",
+  "checks": [
+    {
+      "id": "core_licensor_code_key_nulls_distinct",
+      "kind": "catalog_contract",
+      "contract": "core_licensor_code_key_nulls_distinct_v1",
+      "expected_count": 1
+    }
+  ]
+}
