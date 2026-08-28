@@ -24,7 +24,7 @@ This is Phase 2 of the throughput repair. Phase 1 is [`plan_orchestrator_through
 | 7 | Preflight route and verifier compatibility before expensive work | ✅ done 2026-08-28 | thin Node qualification over Python risk/catalog diagnostics; #1684/#1720/#1646 fixtures |
 | 8 | Automate blocker transitions, capacity refill and resume | ✅ done 2026-08-28 | marker-bound live adapter; guarded transitions; successor-first ready refs; explicit UNVERIFIABLE exit 2 |
 | 9 | Integrate Phase 1 measurement and prove throughput without weakening safety | ✅ schema/report done 2026-08-28 | one ledger schema; separated waits; observed-only n=20 and zero-tolerance safety tests |
-| 10 | Full verification, staged rollout, landing and post-merge proof | 🚧 landing | Albert approved Codex GPT-5.6 Sol and DeepSeek; six-reviewer rotation and cap eight activated; merge/post-merge proof pending |
+| 10 | Full verification, staged rollout, landing and post-merge proof | ✅ done 2026-08-28 | shared-db merge `c33e68b`; skill merge `dcd3c14`; exact-head independent APPROVE; all required checks green; no migration or database write |
 
 **Fresh implementation starts at Step 1.** Use a fresh session at each phase boundary: Phase A = Steps 1–2, Phase B = Steps 3–4, Phase C = Steps 5–6, Phase D = Steps 7–9, Phase E = Step 10. Re-read the remaining plan and current `origin/main` before each phase.
 
