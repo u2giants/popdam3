@@ -233,6 +233,30 @@ ColdLion renumbered its merchandise-group positions per division. On rows create
   read of a merchandise group that ignores the category is wrong. **Settled**, verified live.
 - Merchandise groups carry a working active/inactive flag. **Settled.**
 
+### The company has four divisions, and ColdLion will now tell you which
+
+Asked for an authoritative list on 2026-08-27, ColdLion built a `/divisions` endpoint rather than
+sending a list. It returns four, all active: **POP Creations (Licensed Products)**, **Edge Home**,
+**Edgeucational Publishing** and **Spruce (Licensed Products)** — each with its own general-ledger
+code. **Settled**, verified live 2026-08-28. Nothing downstream should hard-code a division code.
+
+One caution that is ours, not theirs: our merchandise-group renumbering dates cover only three of
+the four divisions. Edgeucational Publishing is active and uncovered.
+
+### Product size does not come from the ERP's size field
+
+ColdLion's item size field carries a single value on every item, because POP does not sell apparel
+and never used it. **The real product-size axis is merchandise group 04**, which is populated.
+Confusing the two is an easy and expensive mistake: one field is dead, the other is the answer.
+**Settled** (JamieLynn 2026-08-28), verified on all 19,362 items.
+
+### There are fourteen merchandise-group slots and six of them are live
+
+Slots one to six are the working hierarchy — type, sub-type, material or embellishment, size,
+licensor, property. Slots seven to fourteen are legacy positions retained for rows created before
+the renumbering. The lifecycle flag on a merchandise group is a plain yes/no. **Settled**
+(documented by ColdLion 2026-08-28).
+
 ### What the ERP is not
 
 - **ColdLion's customer table is not POP's customer list.** It holds ship-to-only records, defunct
