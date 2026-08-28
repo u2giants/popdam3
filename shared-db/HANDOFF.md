@@ -36,6 +36,13 @@ in any markdown file says.
 **`AGENTS.md` is the router and the standing-rules home.** Read it first; it points at
 the deeper docs per task. Do not read every `.md` file in this repo.
 
+## Open proposal — author lane capacity
+
+**[`plan_author_lane_capacity_five_to_eight.md`](plan_author_lane_capacity_five_to_eight.md)**
+— proposed raise of `MAX_AUTHOR_LANES` from five to eight, with the reviewer-roster growth
+it requires. **Proposed, not applied.** The enforced cap is the constant in
+`scripts/manage-migration-author-lanes.mjs`, never this pointer.
+
 ## Standing rule — no document wins by name or by date
 
 Where `HANDOFF.d/`, this file, `AGENTS.md`, and the archives disagree, **re-derive the
