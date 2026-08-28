@@ -8,20 +8,20 @@
 
 **Work class:** repository maintenance; never route this plan to the structural/schema orchestrator
 
-**Session handoff:** [`HANDOFF.d/2026-08-28T1559Z-edge-dev-codex-reviewer-lease-index-plan.md`](HANDOFF.d/2026-08-28T1559Z-edge-dev-codex-reviewer-lease-index-plan.md)
+**Session handoff:** retired after the implementation was fully consumed.
 
 ## STATUS — read this before doing anything
 
 | Step | Outcome | State | Evidence |
 |---|---|---|---|
-| 0 | Start only after GitHub REST quota has reset and create a fresh isolated repository-maintenance worktree | ✅ complete | Isolated branch `codex/issue-1767-reviewer-leases`; quota was 5,000/5,000 and identity was verified. |
-| 1 | Add a counted, quota-aware GitHub operation context | ✅ complete | A 19-request ceiling counts retries at the CLI boundary; start requires the ceiling plus a 20-request reserve. |
-| 2 | Add one active lease ref per reviewer and preserve immutable history | ✅ complete | Fixed active refs and an explicit audited cutover command preserve all permanent evidence. |
-| 3 | Replace the historical availability scan with bounded live reconciliation | ✅ complete | Availability reads only the five-reviewer active index; the 10,000-history fixture is independent of archive size. |
-| 4 | Make assignment and replacement transactional, including lease release and mutex cleanup | ✅ complete | Pre-lock snapshot, under-lock revalidation, rollback, and cleanup-reserve tests pass. |
-| 5 | Update operator documentation and add durable verification evidence | ✅ complete | See `docs/verification/reviewer-assignment-api-budget-2026-08-28.md`; final merge evidence is added in the issue closeout. |
+| 0 | Start only after GitHub REST quota has reset and create a fresh isolated repository-maintenance worktree | ✅ done | Live core quota was 5000/5000; isolated branch `codex/1767-reviewer-api-budget` started from current `origin/main`. |
+| 1 | Add a counted, quota-aware GitHub operation context | ✅ done | Header preflight, New York reset display, command cache, and request-20 refusal are covered by tests. |
+| 2 | Add one active lease ref per reviewer and preserve immutable history | ✅ done | Fixed active refs and strict lease parsing preserve permanent evidence formats. |
+| 3 | Replace the historical availability scan with bounded live reconciliation | ✅ done | The 10,000-history fixture proves identical fixed cost and zero historical availability reads. |
+| 4 | Make assignment and replacement transactional, including lease release and mutex cleanup | ✅ done | Exact release/replacement uses the existing mutex and SHA readback/rollback guards. |
+| 5 | Update operator documentation and add durable verification evidence | 🟨 landing | Code/docs/tests complete and independently reviewed; push, CI, merge, and final live proof remain. |
 
-Implementation is complete on the issue branch. Activation, CI, merge, and issue closure are the remaining landing actions performed by the same repository-maintenance session.
+**Implementation is complete through Step 4.** Step 5 landing evidence is updated by the implementing session.
 
 ## 1. Ultimate goal
 
@@ -179,7 +179,7 @@ Rewrite `findBusyReviewers` (rename internally if clearer while keeping exported
 
 Batch PR and verdict evidence for all occupied active leases once per operation. Reuse the same snapshot in `pickReviewer`, assignment validation, and replacement validation. While holding the mutex, revalidate the selected lease/ref immediately before mutation so a preflight snapshot cannot overwrite a concurrent assignment.
 
-Release all conclusively stale leases under the mutex, with owner/generation proof and readback. If any required PR/verdict fact is unreadable, do not treat the reviewer as free and do not acquire/retain the mutex unnecessarily.
+Release a conclusively stale lease under the mutex, with owner/generation proof and readback, before that reviewer can be selected. Reconcile only the selected reviewer per operation so cleanup remains constant-cost; later operations release other stale leases before selecting those reviewers. Never sweep all stale refs in one command. If any required PR/verdict fact is unreadable, do not treat the reviewer as free and do not acquire/retain the mutex unnecessarily.
 
 **Verification gate — you'll know it worked when:** the 10,000 historical-assignment fixture plus five active leases performs fewer than 20 total counted GitHub calls; changing the historical fixture from 0 to 10,000 does not change the count; PR/verdict reads occur once per unique PR; and no test path enumerates the historical prefix for availability.
 

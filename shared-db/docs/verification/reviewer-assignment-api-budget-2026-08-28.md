@@ -1,19 +1,27 @@
 # Reviewer assignment API-budget verification — 2026-08-28
 
-Issue #1767 replaces permanent-history availability scans with a five-reviewer live lease index.
+Issue: #1767. Scope: repository coordination only; no database, preview, production, or application data changes.
 
-## Rerunnable checks
+## Preflight
 
-- `node --test scripts/manage-migration-author-lanes.test.mjs`
-- `git diff --check`
-- `ai-codex-review diff-review`
+- GitHub core quota: 5,000 remaining of 5,000; reset `2026-08-28 3:06:26 PM EDT` (`America/New_York`).
+- Branch: `codex/1767-reviewer-api-budget`, created from current `origin/main` in the delegated isolated worktree.
+- Committer: `Albert Hazan <u2giants@users.noreply.github.com>`.
 
-The focused manager suite passed 211/211 tests and the full required coordination suite passed 369/369 before landing. The scale fixture supplies 10,000 historical assignments and proves availability never lists the permanent assignment prefix. Budget tests prove quota failure occurs before owner-commit or mutex creation, every retry consumes the 19-request assignment ceiling, the evidence-heavy replacement path has a separate 39-request ceiling, cleanup reserve is available before the final mutex read, and unreadable live evidence fails closed.
+## Rerunnable tests
 
-The independent review found two high-risk gaps during implementation: stale lease state was not refreshed under the mutex, and activation had no executable path. Both were repaired. Stale candidates now receive a fresh batched state read under the mutex before deletion. Activation is an explicit bounded CLI operation that requires the exact issue, PR, and 40-character head for every currently open PR and rolls back partial active refs.
+`node --test scripts/manage-migration-author-lanes.test.mjs`
 
-## Cutover evidence
+Result: 237 passed, 0 failed. The fixture runs the complete assignment operation with both zero and 10,000 immutable historical assignment refs. Both use exactly 18 lowest-boundary test-I/O operations, including the durable cutover marker, read the active index once, and make zero availability calls to the historical assignment prefix. Wire-level tests run complete assignment and replacement operations with occupied reviewers inside the 19-request GitHub API ceiling, reserve cleanup capacity after locking, and prove every REST/GraphQL retry consumes budget and API request 20 is refused. The atomic Git transport does not consume the shared REST or GraphQL quota. Concurrent-successor, revived-stale assignment and replacement leases, exact-head verdict release on assignment and replacement retries, retired assignment and replacement restoration refusal, cursor-only recovery, missing failed-lease replacement, unrelated-live-lease, post-lock assignment/replacement PR-close, delayed visibility, lost mutex-create response, acquisition-proof failure, atomic-push failure, lost readback, crash-retry, and verification-sidecar preservation regressions prove newer leases survive, mutable reads are not cached, external PR changes block mutation, partial mutations never publish, and retries converge safely.
 
-The final cutover audit found five open PRs: #1660/#1658, #1712/#1684, #1748/#1722, #1749/#1645, and #1670/#778. Their exact heads matched the explicit command inputs, and no exact-head reviewer assignment ref existed for any of them. Activation therefore created zero active leases and the durable `refs/db-coordination/reviewer-index-cutover` marker. Live readback proved the marker exists, the active-ref count is zero, and the shared mutex count is zero. The command refuses if the open set or any head changes, creates live leases only for exact existing assignments, and rolls back partial active refs.
+`node --test scripts/check-migration-pr-lease.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/historical-migration-restorations.test.mjs scripts/lib/work-dependencies.test.mjs scripts/agent-work-contract.test.mjs scripts/db-coordination-events.test.mjs scripts/coordination-scenarios.test.mjs scripts/lib/exclusive-lease.test.mjs scripts/apply-lane-advisory-lock.test.mjs`
 
-No database, preview, production, licensed data, historical reviewer evidence, or reviewer policy is changed.
+Result: 395 passed, 0 failed.
+
+The focused suite covers low and unreadable quota before owner-commit/mutex acquisition, wire-level request-20 refusal including retries, strict lease parsing, verdict/head/closed-PR stale release, exact failure/replacement release, idempotency, conflicting leases, historical-reader compatibility, assignment/replacement rollback, mutex ownership loss, successor preservation, and bounded release readback.
+
+## Cutover and live proof
+
+Cutover audit complete before activation: one bounded GraphQL read found five open PRs (#1660, #1670, #1712, #1748, #1749), no GitHub review verdicts, and zero active reviewer refs. Five exact current-head assignment-ref reads, using each PR's linked issue, were all absent. No historical prefix was enumerated and no pre-cutover active lease needed creation.
+
+Live proof on PR #1777's first pushed head succeeded: sequence 454 assigned `glm-5.3` to exact SHA `e2a5a062155ea2498b342fdf1e91846d4ef5692f`; the cursor, active lease, and immutable assignment all pointed to commit `943314fa6d6162317676da3b5e13b79c7bd6a5a3`, and the shared mutex was absent. The first atomic readback was deliberately treated as stale/unknown; an idempotent retry returned the same assignment without advancing. The final amended PR head is assigned again and recorded on the PR before merge so the verdict remains exact-head bound.

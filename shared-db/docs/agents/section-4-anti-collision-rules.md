@@ -4,7 +4,9 @@
 >
 > **Active reviewer API-budget plan:** [`../../plan_reviewer_assignment_api_budget.md`](../../plan_reviewer_assignment_api_budget.md), issue #1767. Read its STATUS table before changing reviewer assignment. It replaces historical availability scans with at-most-five active reviewer leases, strict pre-lock quota/request checks, cached PR/verdict reads, and exhaustive mutex-cleanup tests. This is repository maintenance outside the structure/schema orchestrator.
 
-Reviewer assignment now reads only `refs/db-review-active/<reviewer>`, never permanent assignment history. Assignment is capped at 19 GitHub requests; the more evidence-heavy replacement command has its own 39-request ceiling. Both count retries and refuse before creating an owner commit or taking the mutex unless the account also retains a 20-request safety reserve. Stale leases are revalidated and released only while holding the shared mutex; unreadable evidence fails closed. The one-time activation command requires an explicit `issue:PR:head` entry for every open PR, so a stale or incomplete audit cannot enable the index. If mutex cleanup cannot be proved, use the guarded `recover-author-mutex.yml` workflow with the exact ref and SHA printed by the command; never delete the ref by hand.
+Reviewer availability is the bounded `refs/db-review-active/<reviewer>` index. Permanent assignment, replacement, and failure refs remain immutable audit evidence and are never scanned to decide availability. Each command reads the active prefix once, caches repeated evidence, refuses before creating an owner commit or mutex when GitHub quota is unreadable or below reserve, and stops before request 20. Quota reset errors use `America/New_York`.
+
+An exact-head verdict, terminal failure/replacement, moved head, merged PR, or closed PR makes a lease stale. Stale leases are deleted only while the global mutex is owned and the fixed ref still matches its expected SHA. If release cannot be proved, preserve the named ref/SHA and use the guarded `recover-author-mutex.yml` procedure.
 
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212) so the router stays under its
 80 KB ceiling. **Text unchanged, section number unchanged.** `AGENTS.md` §4 carries the operative
@@ -252,6 +254,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    `templates/delegation/debate-turn.md`, stopping at agreement or the initial
    review plus three rebuttals. If material disagreement remains, stop the merge
    and ask Albert one concise decision. Never send secrets or licensed rows.
+   Do not impose a fixed hard-kill timer on a reviewer that is still making progress.
 
    **A verdict with no coverage statement is not review evidence** (issue #1220,
    fixed wrapper-side in `ai-devops` PR #43). Two wrappers could finish a run
@@ -291,21 +294,6 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    production lane waiting on a reviewer process that cannot authenticate or
    write its own state. A real `REVISE` verdict is not a transport failure and
    must never be replaced.
-
-   **Guard diagnosis and reviewer liveness.** Run
-   `node scripts/triage-gate.mjs <guard>` first for a red guard. A proved root
-   cause requires a rerunnable command or verification artifact; after ten
-   minutes without proof, call it a `working hypothesis`. Never announce a
-   proved guard incident or close it while triage prints `LEDGER_MISSING`;
-   record the minimal blocker stub first. Scripts/docs/CI-only changes require
-   one independent reviewer; migrations, data movement, production applies,
-   and security/RLS changes require two. Probe process/session updates and a
-   non-empty reviewer stream before waiting. Replace only when there is no
-   verdict and no progress, or a concrete transport, coverage, or truncated
-   output failure. Never replace `REVISE` or reduce coverage: exhaust active
-   providers not failed on the exact head, use Codex overflow once, then fail
-   closed and return the exact blocker to the owner. Do not impose a fixed
-   hard-kill timer on a reviewer that is still making progress.
 
    Append objective reviewer evidence through an `ai-devops` PR to
    `models_comparison_grok_kim_glm.md`: issue/PR, requested and proven model,
