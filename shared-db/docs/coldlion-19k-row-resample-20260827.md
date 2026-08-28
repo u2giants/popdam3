@@ -293,3 +293,79 @@ to 2026-08-27, dumped and analysed offline. Findings, all reproducible from the 
 >
 > Thanks for your patience with the corrections,
 > Albert
+
+---
+
+## ColdLion's reply — received 2026-08-28 (JamieLynn)
+
+Answers to the v3 reply sent 2026-08-27 18:34 EST. All quotes verbatim.
+
+### Issue 5 — negative quantities: ANSWERED, both patterns are real
+
+Seven 2020 lines, customer AAF100 (orders 7113851, 7114426, 7114895, 7114908, 7114912, 7114963):
+
+> "I remember those orders from AAFES – believe what happened with these was on the way in
+> customer ordered in cases and stock was in pieces, so we had to manually explode into the pieces
+> and adjust the settings to send the EDI back out the right way. This looks right."
+
+Five lines on one order, customer DY001 (order 7127496):
+
+> "In this second scenario, we were shipping contractual samples and warehouse turned up more units
+> than expected. Your team wanted to ship everything, so we added them to pick. Yes this is
+> something I would expect if an order was changed later or something manual had to be done at a
+> stage other than initial order entry."
+
+**Loader consequence.** Do not reject, clamp or absolute-value a negative quantity. It records a
+manual correction made after initial order entry. Load as-is.
+
+### Issue 2 — historical zeros: ANSWERED
+
+> "If it has an invoice number, unless we shipped short or partial Open / Unshipped would drop to
+> zero."
+
+**Loader consequence.** A zero open/unshipped quantity on an invoiced row is a true zero, not an
+un-backfilled history. The catch is ours, not theirs: `invoiceNoString`, `lineInvoiceQty`,
+`shipQty`, `shipAmount` and `invoiceDateString` are still empty on every historical row, so we
+cannot see the invoice number this rule depends on and cannot apply the test row by row.
+
+### Issue 6 — no unique key: ANSWERED, and it changes the landing design
+
+**6a, order 7109618** — same item twice at 41.60 and 39.88:
+
+> "This is because the pricing changed at either pick or invoice level, so it split the lines. The
+> 41.60 is from the SO, the 39.88 is from the invoice. They're technically both real."
+
+**6b, order 7121891** — line 6 holds two different items:
+
+> "Pick ticket and invoice would get their own line numbers as well. The line number doesn't carry
+> forward unless all of the items are shipping on the same pick – on Sales Order 4PSBSE01S was line
+> 6, but we were short this item. On pick & invoice PMABSE01S is line 6."
+
+**6c, order 7124128:**
+
+> "This is tough because a change at any stage can cause a line split. This report is assembling
+> data from Sales Order, Prepack Detail, Pick Ticket and Invoice"
+
+**Loader consequence — the largest single design fact found so far.** `orderHistory` is not a
+sales-order table. It is a union of four documents: Sales Order, Prepack Detail, Pick Ticket and
+Invoice. `salesOrderLineNo` is re-assigned at pick and at invoice, so it is not stable across that
+union, and `(salesOrderNo, salesOrderLineNo)` is not a unique key and never will be.
+
+- Apparent duplicate rows are the same line observed at different stages. Do not de-duplicate them.
+- Both prices on a split line are real. Do not sum them — a naive sum double-counts revenue.
+- The landing table must keep every row and carry a stage/source marker.
+- **The feed does not say which of the four documents a row came from.** That is the next question
+  to ask ColdLion, and it is the one that makes the rest usable.
+
+### Issue 7 — `salesOrderLineNo` = 0 on 103 rows: PARTIALLY answered, still open
+
+> "It looks like in most of these cases the items or orders were canceled. The invoiced orders are
+> strange though. Tech team will look into it. Not sure what caused it."
+
+Canceled items and orders explain most of the 103. The invoiced ones are unexplained and are with
+ColdLion's tech team; no date was given. Stays open as register item 2.12.
+
+### Issue 3 remainder — no answer in this reply
+
+The narrowed ask (allowed-value lists for `mgTypeCode`, `divisionCode`, `active`, and descriptions
+for the undocumented response fields) was not addressed. Stays open as register item 2.13.
