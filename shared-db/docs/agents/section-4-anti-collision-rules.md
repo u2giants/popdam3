@@ -4,6 +4,8 @@
 >
 > **Active reviewer API-budget plan:** [`../../plan_reviewer_assignment_api_budget.md`](../../plan_reviewer_assignment_api_budget.md), issue #1767. Read its STATUS table before changing reviewer assignment. It replaces historical availability scans with at-most-five active reviewer leases, strict pre-lock quota/request checks, cached PR/verdict reads, and exhaustive mutex-cleanup tests. This is repository maintenance outside the structure/schema orchestrator.
 
+Reviewer assignment now reads only `refs/db-review-active/<reviewer>`, never permanent assignment history. Assignment is capped at 19 GitHub requests; the more evidence-heavy replacement command has its own 39-request ceiling. Both count retries and refuse before creating an owner commit or taking the mutex unless the account also retains a 20-request safety reserve. Stale leases are revalidated and released only while holding the shared mutex; unreadable evidence fails closed. The one-time activation command requires an explicit `issue:PR:head` entry for every open PR, so a stale or incomplete audit cannot enable the index. If mutex cleanup cannot be proved, use the guarded `recover-author-mutex.yml` workflow with the exact ref and SHA printed by the command; never delete the ref by hand.
+
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212) so the router stays under its
 80 KB ceiling. **Text unchanged, section number unchanged.** `AGENTS.md` §4 carries the operative
 summary and points here; where the two differ in wording, `AGENTS.md` wins.

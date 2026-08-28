@@ -5,7 +5,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
+import { hasVerdictForHead } from './manage-migration-author-lanes.mjs'
+import { REVIEW_ACTIVE_CUTOVER_REF } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, activateReviewerLeaseIndex, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, debitReviewRequestBudget, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ASSIGNMENT_API_BUDGET, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -328,6 +330,7 @@ function memoryIo() {
 
 function reviewIo(){
   const io=memoryIo(), commits=new Map();let seq=0
+  io.refs.set(REVIEW_ACTIVE_CUTOVER_REF,'cutover-complete')
   io.makeOwnerCommit=(message)=>{const sha=(++seq).toString(16).padStart(40,'0');commits.set(sha,{message});return sha}
   io.getCommit=(sha)=>commits.get(sha)
   io.updateRef=(ref,sha)=>io.refs.set(ref,sha)
@@ -335,6 +338,13 @@ function reviewIo(){
   io.getPr=(number)=>({number:Number(number),state:'open',head:{sha:'abcdef9',ref:'codex/x'}})
   io.getIssueComments=()=>[]
   io.getPrReviews=()=>[]
+  io.checkReviewAssignmentBudget=(limit)=>{io.calls.push(['budget',limit]);return {remaining:5000,maxRequests:limit}}
+  io.reviewLeaseStates=function(assignments){
+    return new Map(assignments.map((row)=>{
+      const pr=this.getPr(row.pr)
+      return [row.reviewer,{prState:pr?.state,headSha:pr?.head?.sha,hasVerdict:hasVerdictForHead(row.issue,row.pr,row.headSha,this)}]
+    }))
+  }
   return io
 }
 
@@ -343,6 +353,73 @@ test('reviewer cursor advances atomically through the durable round robin',()=>{
   for(let n=1;n<=5;n++)names.push(assignNextReviewer({issue:n,pr:100+n,headSha:`abcdef${n}`},io).reviewer)
   assert.deepEqual(names,['grok-4.6','glm-5.3','kimi-k3','muse-spark-1.2-contributor','grok-4.6'])
   assert.ok(io.refs.has(REVIEW_CURSOR_REF))
+})
+
+test('GitHub request budgeting debits every retry attempt, not one logical command',()=>{
+  let attempts=0,debits=0
+  const result=runGitHubCommand(['api','endpoint'],{executor:()=>{attempts++;if(attempts<3)throw commandFailure('HTTP 503: retry');return 'ok'},wait:()=>{},beforeAttempt:()=>{debits++}})
+  assert.equal(result,'ok');assert.equal(attempts,3);assert.equal(debits,3)
+})
+
+test('review assignment checks quota and its strict request budget before creating or locking anything',()=>{
+  const io=reviewIo();let commits=0
+  io.makeOwnerCommit=()=>{commits++;return '1'.repeat(40)}
+  io.checkReviewAssignmentBudget=(limit)=>{assert.equal(limit,REVIEW_ASSIGNMENT_API_BUDGET);throw new LaneError('remaining quota too low')}
+  assert.throws(()=>assignNextReviewer({issue:9,pr:109,headSha:'abcdef9'},io),/quota too low/)
+  assert.equal(commits,0)
+  assert.equal(io.readRef(MUTEX_REF),null)
+})
+
+test('ten thousand historical assignments are never scanned for availability',()=>{
+  const io=reviewIo(),listed=[]
+  for(let n=0;n<10000;n++)io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${n}-${n}-deadbeef${String(n).padStart(32,'0')}`,'f'.repeat(40))
+  const originalList=io.listRefs
+  io.listRefs=(prefix)=>{listed.push(prefix);return originalList(prefix)}
+  io.writeReviewerAssignment=()=>{io.calls.push(['batched-review-assignment'])}
+  io.calls.length=0
+  const result=assignNextReviewer({issue:20001,pr:20002,headSha:'abcdef9'},io)
+  assert.equal(result.reviewer,'grok-4.6')
+  assert.ok(listed.every((prefix)=>!prefix.startsWith(REVIEW_ASSIGNMENT_REF_PREFIX)),`historical prefix was scanned: ${listed.join(', ')}`)
+  assert.ok(listed.filter((prefix)=>prefix===REVIEW_ACTIVE_REF_PREFIX).length<=1)
+  assert.ok(io.calls.length<20,`assignment used ${io.calls.length} modeled GitHub calls`)
+  assert.equal(io.readRef(MUTEX_REF),null)
+})
+
+test('cleanup reserve is entered before the final mutex read after a full-budget assignment',()=>{
+  const io=reviewIo(),baseRead=io.readRef;let exhausted=false,cleanup=false
+  io.beginReviewAssignmentBudget=()=>{}
+  io.enterReviewAssignmentCleanup=()=>{cleanup=true}
+  io.endReviewAssignmentBudget=()=>{}
+  io.readRef=(ref)=>{if(exhausted&&ref===MUTEX_REF&&!cleanup)throw new LaneError('normal budget exhausted');return baseRead(ref)}
+  io.writeReviewerAssignment=()=>{exhausted=true}
+  const result=assignNextReviewer({issue:21001,pr:21002,headSha:'abcdef9'},io)
+  assert.equal(result.reviewer,'grok-4.6');assert.equal(io.readRef(MUTEX_REF),null)
+})
+
+test('replacement can spend fourteen normal requests and still retains five cleanup requests',()=>{
+  githubIo.beginReviewAssignmentBudget(REVIEW_ASSIGNMENT_API_BUDGET)
+  try{
+    for(let n=0;n<14;n++)assert.doesNotThrow(()=>debitReviewRequestBudget())
+    assert.throws(()=>debitReviewRequestBudget(),/cleanup requests reserved/)
+    githubIo.enterReviewAssignmentCleanup()
+    for(let n=0;n<5;n++)assert.doesNotThrow(()=>debitReviewRequestBudget())
+    assert.throws(()=>debitReviewRequestBudget(),/budget exhausted/)
+  }finally{githubIo.endReviewAssignmentBudget()}
+})
+
+test('reviewer lease activation requires exact issue PR head bindings and clears its mutex',()=>{
+  const refs=new Map(),head='a'.repeat(40),owner='b'.repeat(40)
+  const io={
+    beginReviewAssignmentBudget(){},endReviewAssignmentBudget(){},enterReviewAssignmentCleanup(){},checkReviewAssignmentBudget(){},prepareReviewerOperation(){},
+    openReviewCandidates:()=>[{number:22,headRefOid:head}],cutoverIssuePrBindings:()=>[true],reviewLeaseStates:()=>new Map(),makeOwnerCommit:()=>owner,
+    readRef:(ref)=>refs.get(ref)??null,refreshRef:(ref)=>refs.get(ref)??null,createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:(ref)=>{refs.delete(ref)},wait(){},
+  }
+  const result=activateReviewerLeaseIndex([{issue:11,pr:22,headSha:head}],io)
+  assert.deepEqual(result,{activated:true,active:0})
+  assert.equal(refs.get(REVIEW_ACTIVE_CUTOVER_REF),owner)
+  assert.equal(refs.has(MUTEX_REF),false)
+  const bad={...io,readRef:()=>null,cutoverIssuePrBindings:()=>[false]}
+  assert.throws(()=>activateReviewerLeaseIndex([{issue:99,pr:22,headSha:head}],bad),/issue-to-PR binding/)
 })
 
 // OVERFLOW ROUTING (owner instruction, 2026-08-25). Codex is the reviewer of last
@@ -357,6 +434,7 @@ function busyIo(){
     heads.set(pr,headSha)
     const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${row.name} issue=${issue} pr=${pr} head=${headSha}`)
     io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-${headSha}`,sha)
+    io.refs.set(`${REVIEW_ACTIVE_REF_PREFIX}/${row.name}`,sha)
   })
   io.getPr=(number)=>({number:Number(number),state:'open',head:{sha:heads.get(Number(number))??'abcdef9'}})
   return {io,heads}
@@ -379,7 +457,7 @@ test('one free active reviewer keeps the ordinary rotation and never reaches cod
   const openPr=io.getPr
   io.getPr=(number)=>Number(number)===musePr?{number:musePr,state:'closed',head:{sha:heads.get(musePr)}}:openPr(number)
   assert.ok(!findBusyReviewers(io).has('muse-spark-1.2-contributor'))
-  assert.equal(pickReviewer(1,io).name,'grok-4.6')
+  assert.equal(pickReviewer(1,io).name,'muse-spark-1.2-contributor')
 })
 
 test('a recorded verdict and a moved head both free the reviewer that held them',()=>{
@@ -394,16 +472,14 @@ test('a recorded verdict and a moved head both free the reviewer that held them'
   assert.ok(!findBusyReviewers(movedIo).has('grok-4.6'))
 })
 
-test('an unreadable busy probe keeps the rotation instead of diverting to paid overflow',()=>{
-  // FAIL OPEN. A probe that cannot read GitHub must never silently send every
-  // review to the provider that costs money per run.
+test('an unreadable busy probe refuses assignment instead of guessing availability',()=>{
   const {io}=busyIo()
   const blind={...io,listRefs:()=>{throw new Error('HTTP 500')}}
-  assert.equal(findBusyReviewers(blind),null)
-  assert.equal(pickReviewer(1,blind).name,'grok-4.6')
+  assert.throws(()=>findBusyReviewers(blind),/unreadable/)
+  assert.throws(()=>pickReviewer(1,blind),/unreadable/)
   const noListRefs={...io};delete noListRefs.listRefs
   assert.equal(findBusyReviewers(noListRefs),null)
-  assert.equal(pickReviewer(2,noListRefs).name,'glm-5.3')
+  assert.throws(()=>pickReviewer(2,noListRefs),/unavailable/)
 })
 
 test('retired reviewer names stay resolvable so historical review evidence never orphans',()=>{

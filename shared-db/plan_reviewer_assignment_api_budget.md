@@ -14,14 +14,14 @@
 
 | Step | Outcome | State | Evidence |
 |---|---|---|---|
-| 0 | Start only after GitHub REST quota has reset and create a fresh isolated repository-maintenance worktree | ⬜ open | Re-run the preflight in Step 0; do not infer quota from this planning session. |
-| 1 | Add a counted, quota-aware GitHub operation context | ⬜ open | Required tests and call-count assertions are in §10. |
-| 2 | Add one active lease ref per reviewer and preserve immutable history | ⬜ open | Required state-machine tests are in §10. |
-| 3 | Replace the historical availability scan with bounded live reconciliation | ⬜ open | The 10,000-history performance fixture must use fewer than 20 calls. |
-| 4 | Make assignment and replacement transactional, including lease release and mutex cleanup | ⬜ open | Failure-injection matrix is in §10. |
-| 5 | Update operator documentation and add durable verification evidence | ⬜ open | Required documents and landing gates are in §§9 and 13. |
+| 0 | Start only after GitHub REST quota has reset and create a fresh isolated repository-maintenance worktree | ✅ complete | Isolated branch `codex/issue-1767-reviewer-leases`; quota was 5,000/5,000 and identity was verified. |
+| 1 | Add a counted, quota-aware GitHub operation context | ✅ complete | A 19-request ceiling counts retries at the CLI boundary; start requires the ceiling plus a 20-request reserve. |
+| 2 | Add one active lease ref per reviewer and preserve immutable history | ✅ complete | Fixed active refs and an explicit audited cutover command preserve all permanent evidence. |
+| 3 | Replace the historical availability scan with bounded live reconciliation | ✅ complete | Availability reads only the five-reviewer active index; the 10,000-history fixture is independent of archive size. |
+| 4 | Make assignment and replacement transactional, including lease release and mutex cleanup | ✅ complete | Pre-lock snapshot, under-lock revalidation, rollback, and cleanup-reserve tests pass. |
+| 5 | Update operator documentation and add durable verification evidence | ✅ complete | See `docs/verification/reviewer-assignment-api-budget-2026-08-28.md`; final merge evidence is added in the issue closeout. |
 
-**Fresh session starts at Step 0.** No implementation has started. The planning branch changes documentation only.
+Implementation is complete on the issue branch. Activation, CI, merge, and issue closure are the remaining landing actions performed by the same repository-maintenance session.
 
 ## 1. Ultimate goal
 
