@@ -2,6 +2,19 @@
   "schema_version": 1,
   "migration_version": "20260807030000",
   "migration_sha256": "44749ef2e9e7568a96fc828a48c93267f1e53cda3c92d50f6a4284214e2ac84d",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 325,
+      "line_end": 325,
+      "disposition": "checks",
+      "check_ids": [
+        "coco_property_is_parented_to_disney",
+        "coco_owner_ruling_if_available"
+      ],
+      "reason": "The cited checks verify both the property parent and the optional owner-ruling row produced by the guarded dynamic insert; check IDs: coco_property_is_parented_to_disney, coco_owner_ruling_if_available."
+    }
+  ],
   "checks": [
     {
       "id": "coco_property_is_parented_to_disney",
@@ -19,6 +32,12 @@
           "equals": "7d141a6f-e229-46a2-b3f5-0ba0c97dd820"
         }
       ],
+      "expected_count": 1
+    },
+    {
+      "id": "coco_owner_ruling_if_available",
+      "kind": "catalog_contract",
+      "contract": "coco_owner_ruling_v1",
       "expected_count": 1
     }
   ]

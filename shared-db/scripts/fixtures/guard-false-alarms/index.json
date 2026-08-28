@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {"id":"incident-1645-dynamic-helper","landed_at":"2026-08-28T16:30:00.000Z","origin":"incident","guard":"production-migration-guard","objects":["public.style_group_tags"],"expected_verdict":"applied creator contradicts refusal","source_evidence":"issue #1645 and migrations 20260825010603, 20260825031841, 20260825082910","executable_test":"scripts.test_production_migration_guard.PreflightNegativeTests.test_applied_dynamic_ddl_creation_contradicts_the_refusal","ledger_id":"blk_16450000000000000000000000000000"},
+    {"id":"sql-lexical-shapes","landed_at":"2026-08-28T16:30:00.000Z","origin":"synthetic-shape","guard":"sidecar-presence","expected_verdict":"comments and strings are not markers; dynamic execute is","source_evidence":"mandatory migrations and production migration guard lexer tests","executable_test":"scripts/throughput-guard/false-alarm-corpus.test.mjs"},
+    {"id":"quoted-identities","landed_at":"2026-08-28T16:30:00.000Z","origin":"synthetic-shape","guard":"catalog-verification","expected_verdict":"quoted identifiers and spaced policies retain exact identity","source_evidence":"dflow AdditionalUserEmail and 20260825082910 catalog contracts","executable_test":"scripts/throughput-guard/false-alarm-corpus.test.mjs"},
+    {"id":"temporary-cleanup","landed_at":"2026-08-28T16:30:00.000Z","origin":"synthetic-shape","guard":"catalog-verification","expected_verdict":"same-migration dropped object is not durable","source_evidence":"20260825031841 asset_tags_pending_metadata_normalization_idx","executable_test":"scripts/throughput-guard/false-alarm-corpus.test.mjs"},
+    {"id":"cancelled-and-cascade","landed_at":"2026-08-28T16:30:00.000Z","origin":"synthetic-shape","guard":"production-migration-guard","expected_verdict":"cancelled work stays blocked and ON UPDATE CASCADE does not manufacture destructive risk","source_evidence":"existing queue dependency and production migration guard regression tests","executable_test":"cancelled dependency outcome plus ON UPDATE CASCADE production risk tests"}
+  ]
+}

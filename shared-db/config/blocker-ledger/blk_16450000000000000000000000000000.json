@@ -1,0 +1,19 @@
+{
+  "id": "blk_16450000000000000000000000000000",
+  "opened_at": "2026-08-27T00:00:00.000Z",
+  "resolved_at": null,
+  "first_red_check_at": null,
+  "diagnosis_proved_at": null,
+  "class": "guard-false-alarm",
+  "issue_or_pr": "issue #1645",
+  "guard": "production-migration-guard",
+  "object": "public.style_group_tags",
+  "symptom": "An applied dynamic creator was described as absent from migration evidence.",
+  "proof_command": "node scripts/catalog-truth.mjs --target production public.style_group_tags",
+  "resolution": null,
+  "fixed_by": null,
+  "corpus_fixture": "incident-1645-dynamic-helper",
+  "active_minutes_lost": null,
+  "wall_minutes_blocked": null,
+  "estimate": true
+}

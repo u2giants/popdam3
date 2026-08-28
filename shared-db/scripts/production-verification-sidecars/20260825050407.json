@@ -2,6 +2,22 @@
   "schema_version": 1,
   "migration_version": "20260825050407",
   "migration_sha256": "1c128b018f1dce969116292e5a7db2e9ccfbc140e6bd2bb873c98f48cac294ef",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 290,
+      "line_end": 290,
+      "disposition": "checks",
+      "check_ids": [
+        "paramount_am1_owner_approved_property_exists",
+        "paramount_am2_owner_approved_property_exists",
+        "paramount_mgm_owner_approved_property_exists",
+        "paramount_wnd_owner_approved_property_exists",
+        "paramount_ep_owner_approved_property_exists"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: paramount_am1_owner_approved_property_exists, paramount_am2_owner_approved_property_exists, paramount_mgm_owner_approved_property_exists, paramount_wnd_owner_approved_property_exists, paramount_ep_owner_approved_property_exists."
+    }
+  ],
   "checks": [
     {
       "id": "paramount_am1_owner_approved_property_exists",

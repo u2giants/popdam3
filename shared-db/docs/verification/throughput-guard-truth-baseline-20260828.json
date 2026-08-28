@@ -1,0 +1,399 @@
+{
+  "detector_schema_version": 1,
+  "detector_source_sha256": "57f67ebf3a2f53e0cff5e59c40de1333bcc8b1f818992c0d3a011d3ff966b66f",
+  "command": "node scripts/check-production-verification-sidecars.mjs",
+  "total_migration_files": 558,
+  "matched_count": 75,
+  "matched_paths": [
+    {
+      "version": "20260621150815",
+      "path": "supabase/migrations/20260621150815_app_core.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260621151024",
+      "path": "supabase/migrations/20260621151024_domain_tables.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260621151155",
+      "path": "supabase/migrations/20260621151155_api_rls_realtime.sql",
+      "marker_count": 13
+    },
+    {
+      "version": "20260621151254",
+      "path": "supabase/migrations/20260621151254_crm_integrity_triggers.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20260621151419",
+      "path": "supabase/migrations/20260621151419_crm_rls_realtime.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20260626170000",
+      "path": "supabase/migrations/20260626170000_fix_core_customer_leftovers.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20260630142000",
+      "path": "supabase/migrations/20260630142000_pm_pipeline_timeout_fixes.sql",
+      "marker_count": 4
+    },
+    {
+      "version": "20260701154948",
+      "path": "supabase/migrations/20260701154948_core_person_role_lookups.sql",
+      "marker_count": 7
+    },
+    {
+      "version": "20260707171500",
+      "path": "supabase/migrations/20260707171500_masterdata_designer_resolution.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260708183000",
+      "path": "supabase/migrations/20260708183000_masterdata_audit_log.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260710135600",
+      "path": "supabase/migrations/20260710135600_reconcile_style_tracker_tables.sql",
+      "marker_count": 69
+    },
+    {
+      "version": "20260710135700",
+      "path": "supabase/migrations/20260710135700_reconcile_style_tracker_functions.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260710135900",
+      "path": "supabase/migrations/20260710135900_reconcile_ai_tag_bakeoff.sql",
+      "marker_count": 27
+    },
+    {
+      "version": "20260710135950",
+      "path": "supabase/migrations/20260710135950_reconcile_dflow_baseline.sql",
+      "marker_count": 472
+    },
+    {
+      "version": "20260722004500",
+      "path": "supabase/migrations/20260722004500_db_data_admin_merge_fk_coverage.sql",
+      "marker_count": 4
+    },
+    {
+      "version": "20260722005200",
+      "path": "supabase/migrations/20260722005200_fix_db_data_admin_uuid_cursor_aggregates.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260722194000",
+      "path": "supabase/migrations/20260722194000_db_data_admin_merge_workflow.sql",
+      "marker_count": 6
+    },
+    {
+      "version": "20260722203100",
+      "path": "supabase/migrations/20260722203100_fix_db_data_admin_licensor_property_cursor_uuid.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260723112910",
+      "path": "supabase/migrations/20260723112910_dam_core_taxonomy_drop_legacy_fks.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260723112930",
+      "path": "supabase/migrations/20260723112930_dam_core_taxonomy_finalize_core_fks.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260723223100",
+      "path": "supabase/migrations/20260723223100_cover_dam_customer_fk_merges.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260724030000",
+      "path": "supabase/migrations/20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260727154500",
+      "path": "supabase/migrations/20260727154500_db_data_admin_bounded_production_forward.sql",
+      "marker_count": 63
+    },
+    {
+      "version": "20260728171500",
+      "path": "supabase/migrations/20260728171500_db_data_admin_tree_plm_division_names.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260729120000",
+      "path": "supabase/migrations/20260729120000_lock_down_public_security_definer_execute.sql",
+      "marker_count": 5
+    },
+    {
+      "version": "20260729130000",
+      "path": "supabase/migrations/20260729130000_production_safe_public_execute_lockdown.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260729180000",
+      "path": "supabase/migrations/20260729180000_revoke_anon_execute_style_tracker_and_cover_procedures.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260729210000",
+      "path": "supabase/migrations/20260729210000_close_anon_read_leaks_in_public.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20260807030000",
+      "path": "supabase/migrations/20260807030000_owner_ruling_coco_is_a_disney_license.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260810020000",
+      "path": "supabase/migrations/20260810020000_pmt_creative_library_landing.sql",
+      "marker_count": 11
+    },
+    {
+      "version": "20260810060000",
+      "path": "supabase/migrations/20260810060000_popdam_order_list_source_pair_nulls_distinct.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20260810070000",
+      "path": "supabase/migrations/20260810070000_nbcu_creative_asset_factory_landing.sql",
+      "marker_count": 8
+    },
+    {
+      "version": "20260810080000",
+      "path": "supabase/migrations/20260810080000_nbcu_revoke_default_granted_write_privileges.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20260810090000",
+      "path": "supabase/migrations/20260810090000_pmt_loader_target_guard_and_truncate_revoke.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260810110000",
+      "path": "supabase/migrations/20260810110000_warner_grants_rls_and_dam_order_list_invoker.sql",
+      "marker_count": 5
+    },
+    {
+      "version": "20260810120000",
+      "path": "supabase/migrations/20260810120000_wb_correct_read_claim_and_revoke_service_role_insert.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260810180000",
+      "path": "supabase/migrations/20260810180000_plm_default_privilege_hole_and_pg17_maintain_revokes.sql",
+      "marker_count": 6
+    },
+    {
+      "version": "20260810190000",
+      "path": "supabase/migrations/20260810190000_dcp_vault_source_landing.sql",
+      "marker_count": 9
+    },
+    {
+      "version": "20260811030000",
+      "path": "supabase/migrations/20260811030000_pmt_lossless_source_ids_and_asset_metadata_value.sql",
+      "marker_count": 4
+    },
+    {
+      "version": "20260811050000",
+      "path": "supabase/migrations/20260811050000_dcp_vault_metadata_landing.sql",
+      "marker_count": 10
+    },
+    {
+      "version": "20260811070000",
+      "path": "supabase/migrations/20260811070000_nbcu_asset_ip_family_relationship.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260812020000",
+      "path": "supabase/migrations/20260812020000_revoke_service_role_truncate_on_append_only_evidence_tables.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260813180000",
+      "path": "supabase/migrations/20260813180000_poppim_pim_authenticated_dml_grants.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260813231000",
+      "path": "supabase/migrations/20260813231000_wb_normalized_loaders_and_capture.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260814010000",
+      "path": "supabase/migrations/20260814010000_dcp_studio_separated_landing.sql",
+      "marker_count": 58
+    },
+    {
+      "version": "20260814130000",
+      "path": "supabase/migrations/20260814130000_sample_tracking_release_a.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260814223552",
+      "path": "supabase/migrations/20260814223552_pmt_collection_paramount_term_normalization.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260814233423",
+      "path": "supabase/migrations/20260814233423_remaining_source_resolution_durable_home.sql",
+      "marker_count": 11
+    },
+    {
+      "version": "20260819014639",
+      "path": "supabase/migrations/20260819014639_wildbrain_dam_source_landing.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260819015333",
+      "path": "supabase/migrations/20260819015333_sega_dsi_source_landing.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260819112524",
+      "path": "supabase/migrations/20260819112524_wildbrain_sega_finalize_count_range_and_root_gate.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20260819123658",
+      "path": "supabase/migrations/20260819123658_nbcu_capture_count_gate_null_and_type_hardening.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260819125713",
+      "path": "supabase/migrations/20260819125713_peanuts_tenovos_source_landing.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260819151536",
+      "path": "supabase/migrations/20260819151536_wildbrain_inventory_classification_and_finalize_extra_key_sweep.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260819212002",
+      "path": "supabase/migrations/20260819212002_sesame_workshop_netx_source_landing.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260820004338",
+      "path": "supabase/migrations/20260820004338_wildbrain_inventory_and_finalize_sweep_catalogue_verified.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260820133058",
+      "path": "supabase/migrations/20260820133058_dflow_art_piece_seq_clear_all_id_spaces.sql",
+      "marker_count": 5
+    },
+    {
+      "version": "20260823133150",
+      "path": "supabase/migrations/20260823133150_drop_empty_universe_a_character_tables.sql",
+      "marker_count": 4
+    },
+    {
+      "version": "20260823233716",
+      "path": "supabase/migrations/20260823233716_reconcile_dflow_referenced_sequence_ceilings.sql",
+      "marker_count": 4
+    },
+    {
+      "version": "20260824155745",
+      "path": "supabase/migrations/20260824155745_coldlion_merch_group_active_status.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260825011609",
+      "path": "supabase/migrations/20260825011609_source_inventory_bounded_reads.sql",
+      "marker_count": 7
+    },
+    {
+      "version": "20260825023430",
+      "path": "supabase/migrations/20260825023430_coldlion_raw_landing_phases_2_6.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260825031841",
+      "path": "supabase/migrations/20260825031841_popdam_ai_search_forward_recovery.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260825035129",
+      "path": "supabase/migrations/20260825035129_sega_inferred_asset_property.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260825041105",
+      "path": "supabase/migrations/20260825041105_sega_submission_property_and_inferred_links.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20260825050407",
+      "path": "supabase/migrations/20260825050407_coldlion_paramount_five_approved_gate.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260825082910",
+      "path": "supabase/migrations/20260825082910_popdam_ai_search_reconciliation_and_activation.sql",
+      "marker_count": 88
+    },
+    {
+      "version": "20260825124200",
+      "path": "supabase/migrations/20260825124200_pmt_collection_vocabulary_ddl_replacement.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260825130924",
+      "path": "supabase/migrations/20260825130924_drop_contract_rights_preserve_portal_sources.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260826001518",
+      "path": "supabase/migrations/20260826001518_coca_cola_brandcomply_landing.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260826123102",
+      "path": "supabase/migrations/20260826123102_split_opa_studio_groups_in_scraped_properties.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260826130049",
+      "path": "supabase/migrations/20260826130049_dcp_property_licensor_resolution.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260826200252",
+      "path": "supabase/migrations/20260826200252_scraped_properties_evidence_contract.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260827012253",
+      "path": "supabase/migrations/20260827012253_scraped_properties_live_acceptance.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260827133720",
+      "path": "supabase/migrations/20260827133720_harden_fr_authorization_metadata_contract.sql",
+      "marker_count": 1
+    }
+  ],
+  "enforced_versions": [
+    "20260621151155",
+    "20260701154948",
+    "20260710135600",
+    "20260710135700",
+    "20260710135900",
+    "20260710135950",
+    "20260727154500",
+    "20260807030000",
+    "20260823233716",
+    "20260825010603",
+    "20260825031841",
+    "20260825050407",
+    "20260825082910"
+  ]
+}

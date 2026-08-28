@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawn, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -1753,6 +1754,17 @@ test('REAL GIT: version rewrite discovers a migration whose version exists only 
   githubIo.rewriteVersion(repo,fresh,old)
   assert.equal(existsSync(oldFile),true);assert.equal(existsSync(newFile),false);assert.equal(readFileSync(path.join(repo,'docs/reversion.md'),'utf8'),`reserved version ${old}\n`)
 }))
+
+test('REAL GIT: version rewrite rekeys and rehashes its verification sidecar',()=>withReversionRepo({
+  'supabase/migrations/20260816044638_repair.sql':'-- version 20260816044638\nselect 1;\n',
+  'scripts/production-verification-sidecars/20260816044638.json':JSON.stringify({schema_version:1,migration_version:'20260816044638',migration_sha256:'0'.repeat(64),checks:[]}),
+  'scripts/production_business_risk_gate.py':'PREVIEW_PRODUCER_PATHS=("scripts/production-verification-sidecars/20260816044638.json",)\n',
+},(repo)=>{const old='20260816044638',fresh='20260816120000';githubIo.rewriteVersion(repo,old,fresh);const sidecar=JSON.parse(readFileSync(path.join(repo,'scripts/production-verification-sidecars',`${fresh}.json`),'utf8'));assert.equal(sidecar.migration_version,fresh);assert.equal(sidecar.migration_sha256,createHash('sha256').update(`-- version ${fresh}\nselect 1;\n`).digest('hex'));assert.equal(existsSync(path.join(repo,'scripts/production-verification-sidecars',`${old}.json`)),false);assert.match(readFileSync(path.join(repo,'scripts/production_business_risk_gate.py'),'utf8'),new RegExp(fresh));assert.doesNotMatch(readFileSync(path.join(repo,'scripts/production_business_risk_gate.py'),'utf8'),new RegExp(old))}))
+
+test('REAL GIT: sidecar rename failure restores migration, sidecar, and contents',()=>withReversionRepo({
+  'supabase/migrations/20260816044638_repair.sql':'-- version 20260816044638\nselect 1;\n',
+  'scripts/production-verification-sidecars/20260816044638.json':JSON.stringify({schema_version:1,migration_version:'20260816044638',migration_sha256:'0'.repeat(64),checks:[]}),
+},(repo)=>{const old='20260816044638',fresh='20260816120000',io={...githubIo,renameSidecarVersion(){throw new Error('injected sidecar rename failure')}};assert.throws(()=>io.rewriteVersion(repo,old,fresh),/injected sidecar rename failure/);assert.equal(existsSync(path.join(repo,'supabase/migrations',`${old}_repair.sql`)),true);assert.equal(existsSync(path.join(repo,'supabase/migrations',`${fresh}_repair.sql`)),false);const sidecar=JSON.parse(readFileSync(path.join(repo,'scripts/production-verification-sidecars',`${old}.json`),'utf8'));assert.equal(sidecar.migration_version,old);assert.equal(sidecar.migration_sha256,'0'.repeat(64))}))
 
 test('REAL GIT: version rewrite fails closed on missing, duplicate, and malformed migration filenames',()=>{
   const old='20260816044638',fresh='20260816120000'

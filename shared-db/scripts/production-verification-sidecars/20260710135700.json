@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260710135700",
+  "migration_sha256": "c4edbb96ee14a862db4388bf3eed8d1b0b32a5a3147793d5407e73639dbdb58c",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 655,
+      "line_end": 655,
+      "disposition": "checks",
+      "check_ids": [
+        "style_tracker_functions_contract"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: style_tracker_functions_contract."
+    }
+  ],
+  "checks": [
+    {
+      "id": "style_tracker_functions_contract",
+      "kind": "catalog_contract",
+      "contract": "style_tracker_functions_v1",
+      "expected_count": 1
+    }
+  ]
+}

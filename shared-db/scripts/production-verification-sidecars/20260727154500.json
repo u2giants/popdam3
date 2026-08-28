@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260727154500",
+  "migration_sha256": "8182f47dd414f6c1e1c4eca7d44e9731481884bf583a91bf6861ea7d313ae36c",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 11,
+      "line_end": 1723,
+      "disposition": "checks",
+      "check_ids": [
+        "db_data_admin_forward_contract"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: db_data_admin_forward_contract."
+    }
+  ],
+  "checks": [
+    {
+      "id": "db_data_admin_forward_contract",
+      "kind": "catalog_contract",
+      "contract": "db_data_admin_forward_v1",
+      "expected_count": 1
+    }
+  ]
+}

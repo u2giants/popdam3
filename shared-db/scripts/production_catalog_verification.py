@@ -380,6 +380,12 @@ BEHAVIOR_SIDECAR_DIR = Path("scripts/production-verification-sidecars")
 BEHAVIOR_SIDECAR_KEYS = {
     "schema_version", "migration_version", "migration_sha256", "checks"
 }
+BEHAVIOR_SIDECAR_MARKER_KEYS = BEHAVIOR_SIDECAR_KEYS | {
+    "marker_schema_version", "marker_reviews"
+}
+MARKER_SCHEMA_VERSION = 1
+MARKER_REVIEW_CHECK_KEYS = {"line_start", "line_end", "disposition", "check_ids", "reason"}
+MARKER_REVIEW_EMPTY_KEYS = {"line_start", "line_end", "disposition", "reason"}
 BEHAVIOR_ROW_COUNT_KEYS = {"id", "kind", "relation", "filters", "expected_count"}
 BEHAVIOR_CATALOG_CONTRACT_KEYS = {"id", "kind", "contract", "expected_count"}
 BEHAVIOR_FILTER_KEYS = {"column", "type", "equals"}
@@ -387,7 +393,265 @@ BEHAVIOR_ENUM_VALUES = {
     "app.entity_status": {"active", "inactive", "archived", "deleted", "potential"},
 }
 BEHAVIOR_TYPES = {"uuid", "text", "integer", "boolean", *BEHAVIOR_ENUM_VALUES}
+DFLOW_BASELINE_RELATIONS = (
+    'dflow."AdditionalUserEmail"','dflow."AuditLog"','dflow."ContainerHeader"','dflow."DesignTeamTime"','dflow."DesignTeamTime_id_seq"','dflow."DesignTeamTimes"','dflow."FOBCountry"','dflow."Factory"','dflow."FactoryTime"','dflow."FactoryTime_id_seq"','dflow."FactoryTimes"','dflow."GridAccessLevel"','dflow."GridChildrenLayout"','dflow."GridChildrenLayoutOrder"','dflow."GridLayout"','dflow."GridViewState"','dflow."LicenseFeedBacks"','dflow."LicensingTime"','dflow."LicensingTime_id_seq"','dflow."LicensingTimes"','dflow."OrderLeadTime"','dflow."ProdOrderDetail"','dflow."ProdOrderHeader"','dflow."ProdPaymentTerms"','dflow."ProdShipmentTransitTime"','dflow."ProductNickname"','dflow."RFQContainer"','dflow."RFQGroup"','dflow."RFQItem"','dflow."RFQItemDivision"','dflow."RFQItemStatus"','dflow."RFQStep"','dflow."RFQVendor"','dflow."RFQWhse"','dflow."RolePermissions"','dflow."Roles"','dflow."SeasonCode"','dflow."ShippingPort"','dflow."StandardizedDetail"','dflow."StandardizedGroup"','dflow."StandardizedProductElement"','dflow."StandardizedProductElementValue"','dflow."StandardizedProductType"','dflow."StandardizedSize"','dflow."StandardizedVendor"','dflow."StandardizedVersion"','dflow."StandardizedVersionDetail_id_seq"','dflow."StandardizedVersion_id_seq"','dflow."UDFComponent"','dflow."UDFElement"','dflow."UDFElementType"','dflow."UDFGroup"','dflow."UDFQuery"','dflow."UDFTable"','dflow."UIElements"','dflow."companyCode"','dflow."deliveryLocation"','dflow."divisionCode"','dflow."externalApi"','dflow."externalCustomer"','dflow."externalVendor"','dflow."itemAttachment"','dflow."itemDepth"','dflow."itemDetail"','dflow."itemHeader"','dflow."itemLicenseImage"','dflow."itemSize"','dflow."itemType"','dflow."licenseList"','dflow."licensingFeedbackReply"','dflow."licensingFeedbackReply_id_seq"','dflow."licensingMilestone"','dflow."licensingMilestone_id_seq"','dflow."licensingStatus"','dflow."merchGroup"','dflow."merchGroupHeaders"','dflow."merchGroupMaster"','dflow."merchGroupRelations"','dflow."productUserAssignment"','dflow."vendorGroup"','dflow."vendorGroup_id_seq"','dflow.age_group','dflow.age_group_id_seq','dflow.ai_cache_events','dflow.app_settings','dflow.art_piece','dflow.art_piece_attachment','dflow.art_piece_attachment_id_seq','dflow.art_piece_id_seq','dflow.art_types','dflow.art_types_id_seq','dflow.artist_types','dflow.artist_types_id_seq','dflow.artists','dflow.artists_id_seq','dflow.auth_token','dflow.comments','dflow.customers','dflow.email_logs','dflow.grid_cell_notes','dflow.groups','dflow.groups_id_seq','dflow.item_character_associations','dflow.item_character_associations_id_seq','dflow.item_prod_order_detail_associations','dflow.product_category','dflow.product_category_id_seq','dflow.properties_and_characters','dflow.properties_and_characters_id_seq','dflow.property_character_associations','dflow.quote_auth_token','dflow.user_notification','dflow.users','dflow.vendor'
+)
+DFLOW_BASELINE_INDEXES = (
+    'GridLayout_pkey','GridViewState_user_grid_view','ProdOrderDetail_pkey','RolePermissions_ElementId_fkey','RolePermissions_RoleId_fkey','RolePermissions_UserId_fkey','RolePermissions_unique_role_user_element','StandardizedVersionDetail_pkey','UIElements_ParentId_fkey','age_group_created_by_fkey','age_group_updated_by_fkey','ai_cache_events_created_at_idx','ai_cache_events_feature_created_at_idx','art_piece_attachment_art_piece_id_fkey','art_piece_attachment_company_code_fkey','art_piece_attachment_created_by_fkey','art_piece_attachment_divisioncode_id_fkey','art_piece_attachment_updated_by_fkey','art_piece_created_by_fkey','art_piece_divisioncode_id_fkey','art_piece_updated_by_fkey','art_types_created_by_fkey','art_types_divisioncode_id_fkey','art_types_updated_by_fkey','artist_types_created_by_fkey','artist_types_updated_by_fkey','artists_art_source_id_fkey','artists_artist_type_id_fkey','artists_created_by_fkey','artists_divisioncode_id_fkey','artists_updated_by_fkey','fki_art_piece_artist_id_fkey','grid_cell_notes_grid_row_col_uq','grid_cell_notes_grid_type_idx','idx_itemLicenseImage_item','idx_item_character_associations_character_id','idx_itemlicenseimage_item','idx_licensing_feedback_reply_status','idx_properties_licensor_id','idx_properties_name','idx_property_character_associations_character_id','idx_property_character_associations_licensor_id','idx_property_character_associations_property_id','idx_relations_child','idx_relations_grand_parent','idx_relations_parent','idx_rfqItem_copied_from_id','idx_rfqitem_choosen_vendor','idx_rfqitem_container','idx_rfqitem_customer','idx_rfqitem_delivery_loc','idx_rfqitem_divcode','idx_rfqitem_home_list','idx_rfqitem_rfq_group','idx_rfqitem_step','idx_rfqvendor_item_fk','idx_rfqvendor_vendor_archived','itemType_name_key','itemType_status_idx','item_prod_order_detail_associations_item_header_idx','item_prod_order_detail_associations_matched_item_number_idx','item_prod_order_detail_associations_prod_detail_idx','item_prod_order_detail_associations_unique_pair','productUserAssignment_user_idx','product_category_created_by_fkey','product_category_updated_by_fkey','quote_auth_token_pkey','uniq_grand_parent_parent_child','uniq_parent_child_no_grand','unique_character_entity','unique_item_stage','unique_property_entity'
+)
+DFLOW_BASELINE_CONTRACT = "not exists (select 1 from unnest(array[" + ",".join(
+    "'" + value.replace("'", "''") + "'" for value in DFLOW_BASELINE_RELATIONS
+) + "]::text[]) as expected(name) where to_regclass(expected.name) is null) and not exists (select 1 from unnest(array[" + ",".join(
+    "'" + value.replace("'", "''") + "'" for value in DFLOW_BASELINE_INDEXES
+) + "]::text[]) as expected(name) where to_regclass(format('dflow.%I', expected.name)) is null) and to_regprocedure('dflow.get_parent_id(character varying,character varying,integer)') is not null and to_regprocedure('dflow.get_child_id(character varying,character varying,character varying,character varying,character varying,integer)') is not null"
+DFLOW_BASELINE_FOREIGN_KEYS = (
+('dflow."RolePermissions"','RolePermissions_ElementId_fkey'),('dflow."RolePermissions"','RolePermissions_RoleId_fkey'),('dflow."RolePermissions"','RolePermissions_UserId_fkey'),('dflow."UIElements"','UIElements_ParentId_fkey'),
+('dflow.age_group','age_group_created_by_fkey'),('dflow.age_group','age_group_updated_by_fkey'),('dflow.art_piece','art_piece_age_group_id_fkey'),('dflow.art_piece','art_piece_art_source_id_fkey'),('dflow.art_piece','art_piece_art_type_id_fkey'),('dflow.art_piece','art_piece_artist_id_fkey'),
+('dflow.art_piece_attachment','art_piece_attachment_art_piece_id_fkey'),('dflow.art_piece_attachment','art_piece_attachment_company_code_fkey'),('dflow.art_piece_attachment','art_piece_attachment_created_by_fkey'),('dflow.art_piece_attachment','art_piece_attachment_divisioncode_id_fkey'),('dflow.art_piece_attachment','art_piece_attachment_updated_by_fkey'),
+('dflow.art_piece','art_piece_big_theme_id_fkey'),('dflow.art_piece','art_piece_created_by_fkey'),('dflow.art_piece','art_piece_divisioncode_id_fkey'),('dflow.art_piece','art_piece_licensor_id_fkey'),('dflow.art_piece','art_piece_little_theme_id_fkey'),('dflow.art_piece','art_piece_property_id_fkey'),('dflow.art_piece','art_piece_season_code_id_fkey'),('dflow.art_piece','art_piece_style_guide_id_fkey'),('dflow.art_piece','art_piece_updated_by_fkey'),
+('dflow.art_types','art_types_created_by_fkey'),('dflow.art_types','art_types_divisioncode_id_fkey'),('dflow.art_types','art_types_updated_by_fkey'),('dflow.artist_types','artist_types_created_by_fkey'),('dflow.artist_types','artist_types_updated_by_fkey'),('dflow.artists','artists_art_source_id_fkey'),('dflow.artists','artists_artist_type_id_fkey'),('dflow.artists','artists_created_by_fkey'),('dflow.artists','artists_divisioncode_id_fkey'),('dflow.artists','artists_updated_by_fkey'),
+('dflow."RFQItem"','fk_rfqItem_copied_from'),('dflow."itemLicenseImage"','itemLicenseImage_itemheader_id_fk_fkey'),('dflow.item_character_associations','item_character_associations_character_id_fkey'),('dflow.item_character_associations','item_character_associations_item_header_id_fkey'),('dflow.item_prod_order_detail_associations','item_prod_order_detail_associations_item_header_id_fkey'),('dflow.item_prod_order_detail_associations','item_prod_order_detail_associations_prod_order_detail_pkey_fkey'),
+('dflow."licensingFeedbackReply"','licensingFeedbackReply_licensing_status_id_fk_fkey'),('dflow."licensingStatus"','licensingStatus_tagged_group_id_fkey'),('dflow."merchGroupRelations"','merchGroupRelations_child_mg_id_fkey'),('dflow."merchGroupRelations"','merchGroupRelations_grand_parent_mg_id_fkey'),('dflow."merchGroupRelations"','merchGroupRelations_parent_mg_id_fkey'),('dflow."productUserAssignment"','productUserAssignment_item_id_fk_fkey'),('dflow."productUserAssignment"','productUserAssignment_user_id_fk_fkey'),('dflow.properties_and_characters','properties_and_characters_licensor_id_fkey'),('dflow.property_character_associations','property_character_associations_character_id_fkey'),('dflow.property_character_associations','property_character_associations_licensor_id_fkey'),('dflow.property_character_associations','property_character_associations_property_id_fkey'),
+)
+DFLOW_BASELINE_CONTRACT += " and not exists (select 1 from (values " + ",".join("('%s','%s')" % row for row in DFLOW_BASELINE_FOREIGN_KEYS) + ") expected(relation,conname) where not exists (select 1 from pg_constraint c where c.conrelid=to_regclass(expected.relation) and c.conname=expected.conname and c.contype='f' and c.convalidated))"
+API_RLS_RELATIONS = tuple("""app.profile app.user_role app.app_access app.file_object app.comment app.activity app.notification core.company core.company_source_ref core.contact core.contact_source_ref core.contact_company core.licensor core.property core.character core.taxonomy_source_ref core.product_category core.product_type core.product_subtype core.merch_group core.factory core.factory_source_ref core.vendor_contact core.sku_ref dam.style_group dam.asset dam.asset_character dam.asset_tag dam.asset_path_history dam.asset_checkout dam.agent_registration dam.helper_device dam.processing_queue dam.style_guide_file dam.sku_style_guide_source dam.erp_item_snapshot dam.production_order_snapshot pim.design_collection pim.project pim.design pim.product pim.stage pim.stage_history pim.product_submission pim.product_sample pim.revision_request pim.customer_order pim.checklist_item pim.product_assignee pim.product_file pim.product_update pim.product_tag pim.product_field pim.product_link pim.product_time_entry pim.saved_view pim.view_pref pim.design_asset pim.product_style_group crm.department crm.opportunity crm.opportunity_product crm.email_message crm.meeting_note crm.note crm.task crm.ignore_rule crm.ai_model_config crm.licensor_approval_thread plm.item plm.item_detail plm.item_attachment plm.art_piece plm.production_order plm.production_order_line plm.licensing_status plm.licensing_feedback plm.rfq_group plm.rfq_item plm.rfq_vendor plm.reference_value ingest.sync_run ingest.raw_record ingest.dedupe_candidate""".split())
+API_POLICY_GROUPS = (
+    (tuple("""app.file_object app.comment app.activity core.company core.contact core.contact_company core.licensor core.property core.character core.product_category core.product_type core.product_subtype core.merch_group core.factory core.vendor_contact core.sku_ref""".split()), (("shared_read", "SELECT"), ("admin_write", "ALL"))),
+    (tuple("""pim.design_collection pim.project pim.design pim.product pim.stage pim.stage_history pim.product_submission pim.product_sample pim.revision_request pim.customer_order pim.checklist_item pim.product_assignee pim.product_file pim.product_update pim.product_tag pim.product_field pim.product_link pim.product_time_entry pim.saved_view pim.view_pref pim.design_asset pim.product_style_group""".split()), (("pm_read", "SELECT"), ("pm_write", "ALL"))),
+    (tuple("""crm.department crm.opportunity crm.opportunity_product crm.email_message crm.meeting_note crm.note crm.task crm.ignore_rule crm.ai_model_config crm.licensor_approval_thread""".split()), (("crm_read", "SELECT"), ("crm_write", "ALL"))),
+    (tuple("""dam.style_group dam.asset dam.asset_character dam.asset_tag dam.asset_path_history dam.style_guide_file dam.sku_style_guide_source""".split()), (("dam_read", "SELECT"), ("dam_write", "ALL"))),
+    (tuple("""dam.asset_checkout dam.agent_registration dam.helper_device dam.processing_queue dam.erp_item_snapshot dam.production_order_snapshot app.user_role app.app_access core.company_source_ref core.contact_source_ref core.taxonomy_source_ref core.factory_source_ref ingest.sync_run ingest.raw_record ingest.dedupe_candidate""".split()), (("admin_only", "ALL"),)),
+    (tuple("""plm.item plm.item_detail plm.item_attachment plm.art_piece plm.production_order plm.production_order_line plm.licensing_status plm.licensing_feedback plm.rfq_group plm.rfq_item plm.rfq_vendor plm.reference_value""".split()), (("plm_read", "SELECT"), ("plm_admin_write", "ALL"))),
+)
+API_EXPLICIT_POLICIES = (("app.profile","profile_select_self_or_admin","SELECT"),("app.profile","profile_admin_write","ALL"),("app.notification","notification_select_own","SELECT"),("app.notification","notification_update_own_read_state","UPDATE"))
+API_POLICY_EXPRESSIONS = {
+    "shared_read": ("app.has_any_role(array['administrator','sales','licensing','designer','viewer','vendor']::app.app_role[])", None),
+    "admin_write": ("app.has_role('administrator')", "app.has_role('administrator')"),
+    "pm_read": ("app.has_app_access('pm') or app.has_role('administrator')", None),
+    "pm_write": ("app.has_role('administrator') or app.has_any_role(array['licensing','designer','sales']::app.app_role[])", "app.has_role('administrator') or app.has_any_role(array['licensing','designer','sales']::app.app_role[])"),
+    "crm_read": ("app.has_app_access('crm') or app.has_role('administrator')", None),
+    "crm_write": ("app.has_role('administrator') or app.has_any_role(array['sales','licensing']::app.app_role[])", "app.has_role('administrator') or app.has_any_role(array['sales','licensing']::app.app_role[])"),
+    "dam_read": ("app.has_app_access('dam') or app.has_role('administrator')", None),
+    "dam_write": ("app.has_role('administrator') or app.has_any_role(array['designer','licensing']::app.app_role[])", "app.has_role('administrator') or app.has_any_role(array['designer','licensing']::app.app_role[])"),
+    "admin_only": ("app.has_role('administrator')", "app.has_role('administrator')"),
+    "plm_read": ("app.has_app_access('plm') or app.has_role('administrator') or app.has_any_role(array['sales','licensing']::app.app_role[])", None),
+    "plm_admin_write": ("app.has_role('administrator')", "app.has_role('administrator')"),
+    "profile_select_self_or_admin": ("id = app.current_profile_id() or app.has_role('administrator')", None),
+    "profile_admin_write": ("app.has_role('administrator')", "app.has_role('administrator')"),
+    "notification_select_own": ("profile_id = app.current_profile_id() or app.has_role('administrator')", None),
+    "notification_update_own_read_state": ("profile_id = app.current_profile_id() or app.has_role('administrator')", "profile_id = app.current_profile_id() or app.has_role('administrator')"),
+}
+API_REALTIME_RELATIONS = tuple("""app.comment app.notification app.activity pim.product pim.stage_history pim.product_submission pim.product_sample pim.revision_request pim.customer_order pim.product_assignee crm.opportunity crm.task crm.note crm.email_message dam.asset dam.style_group""".split())
+def _quoted(values: tuple[str, ...]) -> str:
+    return ",".join("'" + value.replace("'", "''") + "'" for value in values)
+def _policy_group_contract(tables: tuple[str, ...], policies: tuple[tuple[str,str], ...]) -> str:
+    def norm(value: str | None) -> str:
+        without_casts=re.sub(r"::[a-z0-9_.\[\]]+", "", (value or "").lower())
+        return re.sub(r"[\s()]", "", without_casts).replace("'", "''")
+    expected=",".join("('%s','%s','%s','%s')" % (name,cmd,norm(API_POLICY_EXPRESSIONS[name][0]),norm(API_POLICY_EXPRESSIONS[name][1])) for name,cmd in policies)
+    normalize="regexp_replace(regexp_replace(lower(coalesce(%s,'')),'::[a-z0-9_.\\[\\]]+','','g'),'[[:space:]()]','','g')"
+    exact_count="not exists (select 1 from unnest(array[%s]::text[]) expected_table(name) where (select count(*) from pg_policies p where p.schemaname=split_part(expected_table.name,'.',1) and p.tablename=split_part(expected_table.name,'.',2)) <> %d)" % (_quoted(tables),len(policies))
+    expected_rows="not exists (select 1 from unnest(array[%s]::text[]) expected_table(name) cross join (values %s) expected_policy(policyname,cmd,qual,with_check) where not exists (select 1 from pg_policies p where p.schemaname=split_part(expected_table.name,'.',1) and p.tablename=split_part(expected_table.name,'.',2) and p.policyname=expected_policy.policyname and upper(p.cmd)=expected_policy.cmd and p.roles=array['authenticated']::name[] and %s=expected_policy.qual and %s=expected_policy.with_check))" % (_quoted(tables),expected,normalize % 'p.qual',normalize % 'p.with_check')
+    return f"({exact_count} and {expected_rows})"
+def _explicit_policy_contract() -> str:
+    def norm(value: str | None) -> str:
+        without_casts=re.sub(r"::[a-z0-9_.\[\]]+", "", (value or "").lower())
+        return re.sub(r"[\s()]", "", without_casts).replace("'", "''")
+    rows=",".join("('%s','%s','%s','%s','%s')" % (relation,name,cmd,norm(API_POLICY_EXPRESSIONS[name][0]),norm(API_POLICY_EXPRESSIONS[name][1])) for relation,name,cmd in API_EXPLICIT_POLICIES)
+    normalize="regexp_replace(regexp_replace(lower(coalesce(%s,'')),'::[a-z0-9_.\\[\\]]+','','g'),'[[:space:]()]','','g')"
+    exact_counts="(select count(*) from pg_policies where schemaname='app' and tablename='profile')=2 and (select count(*) from pg_policies where schemaname='app' and tablename='notification')=2"
+    expected_rows="not exists (select 1 from (values %s) expected(relation,policyname,cmd,qual,with_check) where not exists (select 1 from pg_policies p where p.schemaname=split_part(expected.relation,'.',1) and p.tablename=split_part(expected.relation,'.',2) and p.policyname=expected.policyname and upper(p.cmd)=expected.cmd and p.roles=array['authenticated']::name[] and %s=expected.qual and %s=expected.with_check))" % (rows,normalize % 'p.qual',normalize % 'p.with_check')
+    return f"({exact_counts} and {expected_rows})"
+API_RLS_REALTIME_CONTRACT = " and ".join([
+    "not exists (select 1 from unnest(array[%s]::text[]) expected(name) left join pg_class c on c.oid=to_regclass(expected.name) where c.oid is null or not c.relrowsecurity)" % _quoted(API_RLS_RELATIONS),
+    *(_policy_group_contract(tables, policies) for tables, policies in API_POLICY_GROUPS),
+    _explicit_policy_contract(),
+    "exists (select 1 from pg_publication where pubname='supabase_realtime') and not exists (select 1 from unnest(array[%s]::text[]) expected(name) where not exists (select 1 from pg_publication_tables p where p.pubname='supabase_realtime' and p.schemaname=split_part(expected.name,'.',1) and p.tablename=split_part(expected.name,'.',2)))" % _quoted(API_REALTIME_RELATIONS),
+])
+DFLOW_SEQUENCE_TARGETS = (
+    ('dflow."AuditLog_id_seq"','dflow."AuditLog"','id',1000000,610745),('dflow."Factory_id_seq"','dflow."Factory"','id',1000,201),
+    ('dflow."MerchGroup_mg_id_seq"','dflow."merchGroup"','mg_id',10000,4867),('dflow."ProdOrderHeader_id_seq"','dflow."ProdOrderHeader"','id',100000,15298),
+    ('dflow."RFQContainer_RFQContainer_id_seq"','dflow."RFQContainer"','RFQContainer_id',100,26),('dflow."RFQGroup_RFQGroup_id_seq"','dflow."RFQGroup"','RFQGroup_id',1000,424),
+    ('dflow."RFQItem_rfqItem_id_seq"','dflow."RFQItem"','rfqItem_id',100000,18128),('dflow."RFQVendor_RFQVendor_id_seq"','dflow."RFQVendor"','RFQVendor_id',100000,36912),
+    ('dflow."StandardizedGroup_id_seq"','dflow."StandardizedGroup"','id',1000,94),('dflow."StandardizedSize_id_seq"','dflow."StandardizedSize"','id',1000,644),
+    ('dflow.customers_customers_id_seq','dflow.customers','customers_id',1000,57),('dflow."externalCustomer_id_seq"','dflow."externalCustomer"','id',30000000,19142539),
+    ('dflow."externalVendor_id_seq"','dflow."externalVendor"','id',20000000,12258025),('dflow."licensingStatus_id_seq"','dflow."licensingStatus"','id',100000,16468),
+    ('dflow.user_notification_id_seq','dflow.user_notification','id',1000000,108207),('dflow.users_id_seq','dflow.users','id',1000,72),
+    ('dflow.vendor_vendor_id_seq','dflow.vendor','vendor_id',1000,299),('dflow."itemHeader_item_num_id_pk _seq"','dflow."itemHeader"','item_id_pk',100000,19877),
+)
+def _sequence_contract(row: tuple[str,str,str,int,int]) -> str:
+    sequence, table, column, floor, external = row
+    def scalar(query: str, alias: str) -> str:
+        quoted=query.replace("'", "''")
+        return "((xpath('/table/row/%s/text()',query_to_xml('%s',false,true,'')))[1]::text::bigint)" % (alias,quoted)
+    next_value=scalar("select case when is_called then last_value + 1 else last_value end as next_value from %s" % sequence,"next_value")
+    max_value=scalar('select coalesce(max("%s"),0) as max_id from %s' % (column.replace('"','""'),table),"max_id")
+    threshold=max(floor,external)
+    return "case when to_regclass('%s') is null then true when to_regclass('%s') is null then %s > %d else %s > greatest(%d,%s) end" % (sequence,table,next_value,threshold,next_value,threshold,max_value)
+DFLOW_SEQUENCE_CEILINGS_CONTRACT = " and ".join(_sequence_contract(row) for row in DFLOW_SEQUENCE_TARGETS)
+def _shape_contract(*, relations=(), indexes=(), constraints=(), routines=(), policies=(), triggers=()) -> str:
+    checks=[]
+    checks += ["to_regclass('%s') is not null" % value for value in relations]
+    checks += ["to_regclass('%s') is not null" % value for value in indexes]
+    checks += ["exists (select 1 from pg_constraint where conrelid=to_regclass('%s') and conname='%s' and convalidated)" % value for value in constraints]
+    checks += [("to_regprocedure('%s') is not null" % value if '(' in value else "(select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='%s' and p.proname='%s')=1" % tuple(value.split('.',1))) for value in routines]
+    policy_tables=sorted(set(table for table,_ in policies))
+    checks += ["(select relrowsecurity from pg_class where oid=to_regclass('%s'))" % table for table in policy_tables]
+    checks += ["exists (select 1 from pg_policies where schemaname='%s' and tablename='%s' and policyname='%s')" % (*table.split('.',1),name) for table,name in policies]
+    checks += ["(select count(*) from pg_policies where schemaname='%s' and tablename='%s')=%d" % (*table.split('.',1),sum(1 for owner,_ in policies if owner==table)) for table in policy_tables]
+    checks += ["exists (select 1 from pg_trigger where tgrelid=to_regclass('%s') and tgname='%s' and not tgisinternal and tgenabled<>'D')" % row for row in triggers]
+    return " and ".join(checks)
+STYLE_TRACKER_TABLES_CONTRACT = _shape_contract(
+    relations=('public.style_tracker_rows','plm.style_tracker_value_resolution','plm.style_tracker_item_bridge','public.style_tracker_audit_log','public.style_tracker_user_views','public.style_tracker_audit_log_with_user','public.style_tracker_rows_with_bridge'),
+    indexes=tuple('public.'+name for name in ('idx_style_tracker_audit_log_changed_at','idx_style_tracker_audit_log_row','idx_style_tracker_audit_log_sheet','idx_style_tracker_rows_group_id','idx_style_tracker_rows_row_data_gin','idx_style_tracker_rows_sku','idx_style_tracker_rows_source_sheet'))+tuple('plm.'+name for name in ('idx_style_tracker_item_bridge_company','idx_style_tracker_item_bridge_creative_designer','idx_style_tracker_item_bridge_erp_item','idx_style_tracker_item_bridge_match_status','idx_style_tracker_item_bridge_row','idx_style_tracker_item_bridge_sku','idx_style_tracker_item_bridge_style_group','idx_style_tracker_value_resolution_field_value')),
+    constraints=tuple((('public.style_tracker_audit_log' if name.startswith('style_tracker_audit_log_') else 'plm.style_tracker_item_bridge' if name.startswith('style_tracker_item_bridge_') else 'public.style_tracker_rows' if name.startswith('style_tracker_rows_') else 'public.style_tracker_user_views' if name.startswith('style_tracker_user_views_') else 'plm.style_tracker_value_resolution'),name) for name in """style_tracker_audit_log_pkey style_tracker_audit_log_style_tracker_row_id_fkey style_tracker_item_bridge_company_id_fkey style_tracker_item_bridge_core_licensor_id_fkey style_tracker_item_bridge_creative_designer_id_fkey style_tracker_item_bridge_erp_item_id_fkey style_tracker_item_bridge_factory_id_fkey style_tracker_item_bridge_pkey style_tracker_item_bridge_plm_item_id_fkey style_tracker_item_bridge_public_licensor_id_fkey style_tracker_item_bridge_row_unique style_tracker_item_bridge_style_group_id_fkey style_tracker_item_bridge_style_tracker_row_id_fkey style_tracker_item_bridge_updated_by_fkey style_tracker_rows_pkey style_tracker_rows_source_row_unique style_tracker_rows_updated_by_fkey style_tracker_user_views_pkey style_tracker_user_views_unique style_tracker_user_views_user_id_fkey style_tracker_value_resolution_pkey style_tracker_value_resolution_unique style_tracker_value_resolution_updated_by_fkey""".split()),
+    policies=(('plm.style_tracker_item_bridge','Authenticated users insert style tracker bridge'),('plm.style_tracker_value_resolution','Authenticated users insert style tracker value resolutions'),('plm.style_tracker_item_bridge','Authenticated users read style tracker bridge'),('plm.style_tracker_value_resolution','Authenticated users read style tracker value resolutions'),('plm.style_tracker_item_bridge','Authenticated users update style tracker bridge'),('plm.style_tracker_value_resolution','Authenticated users update style tracker value resolutions'),('public.style_tracker_rows','Admins delete style tracker rows'),('public.style_tracker_rows','Authenticated users insert style tracker rows'),('public.style_tracker_rows','Authenticated users read style tracker rows'),('public.style_tracker_rows','Authenticated users update style tracker rows'),('public.style_tracker_user_views','Users insert their own style tracker views'),('public.style_tracker_user_views','Users read their own style tracker views'),('public.style_tracker_user_views','Users update their own style tracker views'),('public.style_tracker_audit_log','style tracker audit readable by authenticated users')),
+)
+STYLE_TRACKER_COLUMNS = {
+    'public.style_tracker_rows': 'id source_workbook_id source_sheet source_row_number tracker_type sku group_id description customer designer commissioned upc customer_sku licensor license_status royalty concept_status pre_production_status production_status default_vendor discontinued notes row_data imported_at created_at updated_at updated_by'.split(),
+    'plm.style_tracker_value_resolution': 'id field_key raw_value normalized_value resolution_type target_schema target_table target_id target_label local_value confidence notes created_at updated_at updated_by'.split(),
+    'plm.style_tracker_item_bridge': 'id style_tracker_row_id bridge_source source_workbook_id source_sheet source_row_number tracker_type sku description customer_name designer_name commissioned upc customer_sku licensor_name license_status royalty concept_status pre_production_status production_status default_vendor_name discontinued notes erp_item_id style_group_id company_id public_licensor_id core_licensor_id factory_id plm_item_id match_status match_confidence match_notes raw_row_data last_matched_at created_at updated_at updated_by creative_designer_id'.split(),
+    'public.style_tracker_audit_log': 'id event_type style_tracker_row_id source_sheet source_row_number field_key column_letter old_value new_value metadata changed_by changed_at'.split(),
+    'public.style_tracker_user_views': 'id user_id source_sheet view_name column_state filter_model created_at updated_at'.split(),
+}
+STYLE_TRACKER_UUID_COLUMNS={
+    'public.style_tracker_rows': 'id updated_by'.split(),
+    'plm.style_tracker_value_resolution': 'id target_id updated_by'.split(),
+    'plm.style_tracker_item_bridge': 'id style_tracker_row_id erp_item_id style_group_id company_id public_licensor_id core_licensor_id factory_id plm_item_id updated_by creative_designer_id'.split(),
+    'public.style_tracker_audit_log': 'id style_tracker_row_id changed_by'.split(),
+    'public.style_tracker_user_views': 'id user_id'.split(),
+}
+STYLE_TRACKER_INTEGER_COLUMNS={'public.style_tracker_rows':['source_row_number'],'plm.style_tracker_item_bridge':['source_row_number'],'public.style_tracker_audit_log':['source_row_number']}
+STYLE_TRACKER_BOOLEAN_COLUMNS={'public.style_tracker_rows':['discontinued'],'plm.style_tracker_item_bridge':['discontinued']}
+STYLE_TRACKER_JSONB_COLUMNS={'public.style_tracker_rows':['row_data'],'plm.style_tracker_value_resolution':['notes'],'plm.style_tracker_item_bridge':['match_notes','raw_row_data'],'public.style_tracker_audit_log':['old_value','new_value','metadata'],'public.style_tracker_user_views':['column_state','filter_model']}
+STYLE_TRACKER_TIMESTAMP_COLUMNS={'public.style_tracker_rows':'imported_at created_at updated_at'.split(),'plm.style_tracker_value_resolution':'created_at updated_at'.split(),'plm.style_tracker_item_bridge':'last_matched_at created_at updated_at'.split(),'public.style_tracker_audit_log':['changed_at'],'public.style_tracker_user_views':'created_at updated_at'.split()}
+STYLE_TRACKER_NOT_NULL={
+    'public.style_tracker_rows':'id source_workbook_id source_sheet tracker_type row_data imported_at created_at updated_at'.split(),
+    'plm.style_tracker_value_resolution':'id field_key raw_value normalized_value resolution_type confidence notes created_at updated_at'.split(),
+    'plm.style_tracker_item_bridge':'id style_tracker_row_id bridge_source source_workbook_id source_sheet tracker_type match_status match_confidence match_notes raw_row_data created_at updated_at'.split(),
+    'public.style_tracker_audit_log':'id event_type metadata changed_at'.split(),
+    'public.style_tracker_user_views':'id user_id source_sheet view_name column_state filter_model created_at updated_at'.split(),
+}
+STYLE_TRACKER_DEFAULTS={
+    'public.style_tracker_rows':{'id':'gen_random_uuid()','source_workbook_id':"'1ZL6cEwydC0cWSGP2I92uILn1ixILr_qAeDfDfD6F214'::text",'row_data':"'{}'::jsonb",'imported_at':'now()','created_at':'now()','updated_at':'now()'},
+    'plm.style_tracker_value_resolution':{'id':'gen_random_uuid()','confidence':"'verified'::text",'notes':"'{}'::jsonb",'created_at':'now()','updated_at':'now()'},
+    'plm.style_tracker_item_bridge':{'id':'gen_random_uuid()','bridge_source':"'google_style_tracker'::text",'match_status':"'unmatched'::text",'match_confidence':"'possible'::text",'match_notes':"'{}'::jsonb",'raw_row_data':"'{}'::jsonb",'created_at':'now()','updated_at':'now()'},
+    'public.style_tracker_audit_log':{'id':'gen_random_uuid()','metadata':"'{}'::jsonb",'changed_by':'auth.uid()','changed_at':'now()'},
+    'public.style_tracker_user_views':{'id':'gen_random_uuid()','view_name':"'default'::text",'column_state':"'[]'::jsonb",'filter_model':"'{}'::jsonb",'created_at':'now()','updated_at':'now()'},
+}
+STYLE_TRACKER_INDEXES = (
+    ('plm.idx_style_tracker_item_bridge_company','plm.style_tracker_item_bridge','CREATE INDEX idx_style_tracker_item_bridge_company ON plm.style_tracker_item_bridge USING btree (company_id) WHERE (company_id IS NOT NULL)'),
+    ('plm.idx_style_tracker_item_bridge_creative_designer','plm.style_tracker_item_bridge','CREATE INDEX idx_style_tracker_item_bridge_creative_designer ON plm.style_tracker_item_bridge USING btree (creative_designer_id) WHERE (creative_designer_id IS NOT NULL)'),
+    ('plm.idx_style_tracker_item_bridge_erp_item','plm.style_tracker_item_bridge','CREATE INDEX idx_style_tracker_item_bridge_erp_item ON plm.style_tracker_item_bridge USING btree (erp_item_id) WHERE (erp_item_id IS NOT NULL)'),
+    ('plm.idx_style_tracker_item_bridge_match_status','plm.style_tracker_item_bridge','CREATE INDEX idx_style_tracker_item_bridge_match_status ON plm.style_tracker_item_bridge USING btree (match_status)'),
+    ('plm.idx_style_tracker_item_bridge_row','plm.style_tracker_item_bridge','CREATE INDEX idx_style_tracker_item_bridge_row ON plm.style_tracker_item_bridge USING btree (style_tracker_row_id)'),
+    ('plm.idx_style_tracker_item_bridge_sku','plm.style_tracker_item_bridge','CREATE INDEX idx_style_tracker_item_bridge_sku ON plm.style_tracker_item_bridge USING btree (upper(sku)) WHERE (sku IS NOT NULL)'),
+    ('plm.idx_style_tracker_item_bridge_style_group','plm.style_tracker_item_bridge','CREATE INDEX idx_style_tracker_item_bridge_style_group ON plm.style_tracker_item_bridge USING btree (style_group_id) WHERE (style_group_id IS NOT NULL)'),
+    ('plm.idx_style_tracker_value_resolution_field_value','plm.style_tracker_value_resolution','CREATE INDEX idx_style_tracker_value_resolution_field_value ON plm.style_tracker_value_resolution USING btree (field_key, normalized_value)'),
+    ('public.idx_style_tracker_audit_log_changed_at','public.style_tracker_audit_log','CREATE INDEX idx_style_tracker_audit_log_changed_at ON public.style_tracker_audit_log USING btree (changed_at DESC)'),
+    ('public.idx_style_tracker_audit_log_row','public.style_tracker_audit_log','CREATE INDEX idx_style_tracker_audit_log_row ON public.style_tracker_audit_log USING btree (style_tracker_row_id, changed_at DESC) WHERE (style_tracker_row_id IS NOT NULL)'),
+    ('public.idx_style_tracker_audit_log_sheet','public.style_tracker_audit_log','CREATE INDEX idx_style_tracker_audit_log_sheet ON public.style_tracker_audit_log USING btree (source_sheet, changed_at DESC)'),
+    ('public.idx_style_tracker_rows_group_id','public.style_tracker_rows','CREATE INDEX idx_style_tracker_rows_group_id ON public.style_tracker_rows USING btree (upper(group_id)) WHERE (group_id IS NOT NULL)'),
+    ('public.idx_style_tracker_rows_row_data_gin','public.style_tracker_rows','CREATE INDEX idx_style_tracker_rows_row_data_gin ON public.style_tracker_rows USING gin (row_data)'),
+    ('public.idx_style_tracker_rows_sku','public.style_tracker_rows','CREATE INDEX idx_style_tracker_rows_sku ON public.style_tracker_rows USING btree (upper(sku)) WHERE (sku IS NOT NULL)'),
+    ('public.idx_style_tracker_rows_source_sheet','public.style_tracker_rows','CREATE INDEX idx_style_tracker_rows_source_sheet ON public.style_tracker_rows USING btree (source_sheet, source_row_number)'),
+)
+STYLE_TRACKER_POLICIES = (
+    ('plm.style_tracker_item_bridge','Authenticated users insert style tracker bridge','INSERT',None,'true'),('plm.style_tracker_value_resolution','Authenticated users insert style tracker value resolutions','INSERT',None,'true'),
+    ('plm.style_tracker_item_bridge','Authenticated users read style tracker bridge','SELECT','true',None),('plm.style_tracker_value_resolution','Authenticated users read style tracker value resolutions','SELECT','true',None),
+    ('plm.style_tracker_item_bridge','Authenticated users update style tracker bridge','UPDATE','true','true'),('plm.style_tracker_value_resolution','Authenticated users update style tracker value resolutions','UPDATE','true','true'),
+    ('public.style_tracker_rows','Admins delete style tracker rows','DELETE',"has_role(auth.uid(), 'admin'::app_role)",None),('public.style_tracker_rows','Authenticated users insert style tracker rows','INSERT',None,'true'),
+    ('public.style_tracker_rows','Authenticated users read style tracker rows','SELECT','true',None),('public.style_tracker_rows','Authenticated users update style tracker rows','UPDATE','true','true'),
+    ('public.style_tracker_user_views','Users insert their own style tracker views','INSERT',None,'user_id = auth.uid()'),('public.style_tracker_user_views','Users read their own style tracker views','SELECT','user_id = auth.uid()',None),
+    ('public.style_tracker_user_views','Users update their own style tracker views','UPDATE','user_id = auth.uid()','user_id = auth.uid()'),('public.style_tracker_audit_log','style tracker audit readable by authenticated users','SELECT','true',None),
+)
+STYLE_TRACKER_CHECKS=(
+    ('public.style_tracker_rows','style_tracker_rows_tracker_type_check',"CHECK ((tracker_type = ANY (ARRAY['licensed'::text, 'generic'::text, 'vendor'::text, 'project'::text, 'order'::text, 'other'::text])))"),
+    ('plm.style_tracker_value_resolution','style_tracker_value_resolution_confidence_check',"CHECK ((confidence = ANY (ARRAY['verified'::text, 'probable'::text, 'possible'::text, 'conflict'::text])))"),
+    ('plm.style_tracker_value_resolution','style_tracker_value_resolution_field_key_check',"CHECK ((field_key = ANY (ARRAY['sku'::text, 'customer'::text, 'licensor'::text, 'designer'::text, 'factory'::text])))"),
+    ('plm.style_tracker_value_resolution','style_tracker_value_resolution_resolution_type_check',"CHECK ((resolution_type = ANY (ARRAY['canonical'::text, 'master_data'::text])))"),
+    ('plm.style_tracker_value_resolution','style_tracker_value_resolution_target_check',"CHECK ((((resolution_type = 'canonical'::text) AND (target_schema IS NOT NULL) AND (target_table IS NOT NULL) AND (target_id IS NOT NULL) AND (target_label IS NOT NULL) AND (local_value IS NULL)) OR ((resolution_type = 'master_data'::text) AND (local_value IS NOT NULL) AND (target_schema IS NULL) AND (target_table IS NULL) AND (target_id IS NULL))))"),
+    ('plm.style_tracker_item_bridge','style_tracker_item_bridge_match_confidence_check',"CHECK ((match_confidence = ANY (ARRAY['verified'::text, 'probable'::text, 'possible'::text, 'conflict'::text])))"),
+    ('plm.style_tracker_item_bridge','style_tracker_item_bridge_match_status_check',"CHECK ((match_status = ANY (ARRAY['unmatched'::text, 'matched'::text, 'partial'::text, 'needs_review'::text])))"),
+    ('plm.style_tracker_item_bridge','style_tracker_item_bridge_tracker_type_check',"CHECK ((tracker_type = ANY (ARRAY['licensed'::text, 'generic'::text, 'vendor'::text, 'project'::text, 'order'::text, 'other'::text])))"),
+    ('public.style_tracker_audit_log','style_tracker_audit_log_event_type_check',"CHECK ((event_type = ANY (ARRAY['row_added'::text, 'cell_update'::text, 'value_resolution'::text])))"),
+    ('public.style_tracker_user_views','style_tracker_user_views_source_sheet_check',"CHECK ((source_sheet = ANY (ARRAY['License.Style'::text, 'Generic.Style'::text])))"),
+)
+def _style_tracker_exact_contract() -> str:
+    checks=[]
+    def expected_norm(value: str | None) -> str:
+        without_casts=re.sub(r"::[a-z0-9_.\[\]]+", "", (value or "").lower())
+        return re.sub(r"[\s()]", "", without_casts).replace("'", "''")
+    for relation, columns in STYLE_TRACKER_COLUMNS.items():
+        schema, table=relation.split('.',1); expected=_quoted(columns)
+        checks.append("(select count(*) from information_schema.columns where table_schema='%s' and table_name='%s')=%d" % (schema,table,len(columns)))
+        def kind(name: str) -> str:
+            if name in STYLE_TRACKER_UUID_COLUMNS.get(relation,[]): return 'uuid'
+            if name in STYLE_TRACKER_INTEGER_COLUMNS.get(relation,[]): return 'integer'
+            if name in STYLE_TRACKER_BOOLEAN_COLUMNS.get(relation,[]): return 'boolean'
+            if name in STYLE_TRACKER_JSONB_COLUMNS.get(relation,[]): return 'jsonb'
+            if name in STYLE_TRACKER_TIMESTAMP_COLUMNS.get(relation,[]): return 'timestamp with time zone'
+            return 'text'
+        rows=','.join("('%s','%s','%s','%s')" % (name,kind(name),'NO' if name in STYLE_TRACKER_NOT_NULL[relation] else 'YES',STYLE_TRACKER_DEFAULTS.get(relation,{}).get(name,'').replace("'","''")) for name in columns)
+        checks.append("not exists (select 1 from (values %s) expected(name,data_type,is_nullable,column_default) where not exists (select 1 from information_schema.columns c where c.table_schema='%s' and c.table_name='%s' and c.column_name=expected.name and c.data_type=expected.data_type and c.is_nullable=expected.is_nullable and coalesce(c.column_default,'')=expected.column_default))" % (rows,schema,table))
+    normalize="regexp_replace(lower(replace(%s,'\"','')),'[[:space:]]+','','g')"
+    for index, owner, definition in STYLE_TRACKER_INDEXES:
+        checks.append("(select i.indrelid=to_regclass('%s') and %s=%s from pg_index i where i.indexrelid=to_regclass('%s'))" % (owner,normalize % "pg_get_indexdef(i.indexrelid)",normalize % ("'%s'" % definition.replace("'","''")),index))
+    for owner,name,definition in STYLE_TRACKER_CHECKS:
+        checks.append("exists (select 1 from pg_constraint c where c.conrelid=to_regclass('%s') and c.conname='%s' and c.contype='c' and c.convalidated and %s=%s)" % (owner,name,normalize % 'pg_get_constraintdef(c.oid)',normalize % ("'%s'" % definition.replace("'","''"))))
+    policy_norm="regexp_replace(regexp_replace(lower(coalesce(%s,'')),'::[a-z0-9_.\\[\\]]+','','g'),'[[:space:]()]','','g')"
+    for relation,name,command,qual,with_check in STYLE_TRACKER_POLICIES:
+        schema,table=relation.split('.',1)
+        checks.append("exists (select 1 from pg_policies p where p.schemaname='%s' and p.tablename='%s' and p.policyname='%s' and upper(p.cmd)='%s' and p.roles=array['authenticated']::name[] and %s='%s' and %s='%s')" % (schema,table,name.replace("'","''"),command,policy_norm % 'p.qual',expected_norm(qual),policy_norm % 'p.with_check',expected_norm(with_check)))
+    return ' and '.join(checks)
+STYLE_TRACKER_TABLES_CONTRACT += ' and ' + _style_tracker_exact_contract()
+STYLE_TRACKER_FUNCTIONS_CONTRACT = _shape_contract(routines=(
+    'plm.apply_style_tracker_designer_resolutions()','plm.normalize_style_tracker_value(text,text)','plm.refresh_style_tracker_item_bridge()',
+    'plm.set_style_tracker_bridge_audit_fields()','plm.set_style_tracker_value_resolution_audit_fields()',
+    'public.add_style_tracker_rows(text,text,integer)','public.log_style_tracker_row_audit()','public.refresh_style_tracker_item_bridge()',
+    'public.rls_auto_enable()','public.search_style_tracker_link_candidates(text,text,integer,text)',
+    'public.set_style_tracker_row_audit_fields()','public.upsert_style_tracker_value_resolution(text,text,text,text,text,uuid,text,text)',
+)) + " and md5((select prosrc from pg_proc where oid=to_regprocedure('public.rls_auto_enable()')))='99be20677b456ea8d3be47bdd44fb369'"
+AI_TAG_BAKEOFF_CONTRACT = _shape_contract(
+    relations=tuple("public."+value for value in "ai_tag_bakeoff_results ai_tag_bakeoff_reviews ai_tag_bakeoff_runs".split()),
+    indexes=tuple("public."+value for value in "idx_ai_tag_bakeoff_results_run_asset idx_ai_tag_bakeoff_results_status idx_ai_tag_bakeoff_reviews_run".split()),
+    constraints=tuple((('public.ai_tag_bakeoff_results' if name.startswith('ai_tag_bakeoff_results_') else 'public.ai_tag_bakeoff_reviews' if name.startswith('ai_tag_bakeoff_reviews_') else 'public.ai_tag_bakeoff_runs'),name) for name in """ai_tag_bakeoff_results_asset_id_fkey ai_tag_bakeoff_results_pkey ai_tag_bakeoff_results_property_id_fkey ai_tag_bakeoff_results_run_id_asset_id_model_slot_key ai_tag_bakeoff_results_run_id_fkey ai_tag_bakeoff_reviews_asset_id_fkey ai_tag_bakeoff_reviews_pkey ai_tag_bakeoff_reviews_reviewed_by_fkey ai_tag_bakeoff_reviews_run_id_asset_id_field_key ai_tag_bakeoff_reviews_run_id_fkey ai_tag_bakeoff_runs_created_by_fkey ai_tag_bakeoff_runs_pkey""".split()),
+    policies=tuple((table,policy) for table in ('public.ai_tag_bakeoff_results','public.ai_tag_bakeoff_reviews','public.ai_tag_bakeoff_runs') for policy in (f"Admin manage {table.split('.')[-1].replace('_',' ')}",f"Admin read {table.split('.')[-1].replace('_',' ')}")),
+)
+DB_DATA_ADMIN_FORWARD_CONTRACT = _shape_contract(relations=('app.db_data_admin_feature_gate',),routines=tuple("""api.db_data_admin_audit_list api.db_data_admin_licensor_property_tree api.db_data_admin_merge_customer api.db_data_admin_merge_vendor api.db_data_admin_preview_customer_merge api.db_data_admin_preview_vendor_merge api.db_data_admin_update_customer api.db_data_admin_update_vendor app.db_data_admin_customer_row app.db_data_admin_extension_conflicts app.db_data_admin_merge_execute app.db_data_admin_merge_fk_counts app.db_data_admin_merge_preview app.db_data_admin_reconcile_extension app.db_data_admin_single_record_writes_enabled app.db_data_admin_vendor_row""".split()),triggers=(('app.db_data_admin_feature_gate','set_updated_at'),))
+POPDAM_FORWARD_RECOVERY_CONTRACT = _shape_contract(
+    relations=('public.style_group_tags',),
+    indexes=tuple('public.'+value for value in "asset_tags_active_asset_idx dam_search_embedding_claim_idx style_group_tags_active_group_idx".split()),
+    constraints=tuple((('public.asset_tags' if name.startswith('asset_tags_') else 'public.dam_search_embeddings'),name) for name in """asset_tags_category_check asset_tags_confidence_check asset_tags_rejection_check asset_tags_source_normalized_check asset_tags_status_check asset_tags_tag_normalized_check dam_search_embedding_attempts_check dam_search_embedding_error_category_check""".split()),
+    routines=tuple('public.'+value for value in "claim_dam_search_embedding_documents get_dam_search_embedding_status get_effective_asset_metadata mark_dam_search_embedding_error refresh_dam_search_asset_document refresh_dam_search_documents_batch refresh_dam_search_style_group_document replace_asset_ai_tag_result replace_style_group_ai_profile reset_dam_search_embedding_errors sync_asset_tags_to_array trg_refresh_dam_tag_or_character upsert_dam_search_embedding".split()),
+    policies=(('public.style_group_tags','Authenticated read style_group_tags'),('public.style_group_tags','Admin manage style_group_tags')),
+    triggers=(('public.asset_tags','asset_tags_sync_assets_tags'),('public.asset_tags','asset_tags_dam_search_refresh'),('public.style_group_tags','style_group_tags_dam_search_refresh'),('public.asset_characters','asset_characters_dam_search_refresh')),
+)
 CATALOG_CONTRACTS = {
+    "api_rls_realtime_v1": API_RLS_REALTIME_CONTRACT,
+    "core_person_role_lookups_v1": """
+      not exists (
+        select 1
+        from unnest(array['creative_designer','technical_designer','freelance_designer','artist']::text[]) as expected(table_name)
+        left join pg_class c on c.oid=to_regclass(format('core.%I', expected.table_name))
+        where c.oid is null or not c.relrowsecurity
+          or (select count(*) from pg_policies p where p.schemaname='core' and p.tablename=expected.table_name
+              and (p.policyname,p.cmd) in (('shared_read','SELECT'),('admin_write','ALL'),('service_role_write','ALL'))) <> 3
+      )
+    """,
+    "style_tracker_tables_v1": STYLE_TRACKER_TABLES_CONTRACT,
+    "style_tracker_functions_v1": STYLE_TRACKER_FUNCTIONS_CONTRACT,
+    "ai_tag_bakeoff_v1": AI_TAG_BAKEOFF_CONTRACT,
+    "dflow_baseline_v1": DFLOW_BASELINE_CONTRACT,
+    "db_data_admin_forward_v1": DB_DATA_ADMIN_FORWARD_CONTRACT,
+    "dflow_sequence_ceilings_v1": DFLOW_SEQUENCE_CEILINGS_CONTRACT,
+    "popdam_forward_recovery_v1": POPDAM_FORWARD_RECOVERY_CONTRACT,
+    "coco_owner_ruling_v1": """
+      case when to_regclass('core.taxonomy_owner_ruling') is null then true else
+        cardinality(xpath('/table/row', query_to_xml(
+          'select 1 from core.taxonomy_owner_ruling where entity_schema=''core'' and entity_table=''property'' and entity_id=''5c03fc46-5a02-4da1-bcac-8969e74bbd8f''::uuid and entity_code=''CC'' and entity_name=''COCO'' and ruled_by=''Albert Hazan (owner)'' and ruled_at=''2026-08-06 12:00:00+00''::timestamptz',
+          false, true, ''))) = 1 end
+    """,
     "core_licensor_code_key_nulls_distinct_v1": """
       (select count(*) = 1
         from pg_constraint c
@@ -724,6 +988,103 @@ def _strict_keys(value: object, allowed: set[str], label: str) -> dict:
     return value
 
 
+def dynamic_execution_marker_lines(sql: str) -> list[int]:
+    """Return conservative dynamic-execution marker lines without inferring targets."""
+    chars = list(sql)
+    i = 0
+    state = "code"
+    escape_string = False
+    block_depth = 0
+    while i < len(chars):
+        if state == "code" and sql.startswith("--", i):
+            state = "line_comment"; chars[i] = chars[i + 1] = " "; i += 2; continue
+        if state == "line_comment":
+            if chars[i] == "\n": state = "code"
+            else: chars[i] = " "
+            i += 1; continue
+        if state == "code" and sql.startswith("/*", i):
+            state = "block_comment"; block_depth = 1; chars[i] = chars[i + 1] = " "; i += 2; continue
+        if state == "block_comment":
+            if sql.startswith("/*", i): chars[i] = chars[i + 1] = " "; block_depth += 1; i += 2
+            elif sql.startswith("*/", i):
+                chars[i] = chars[i + 1] = " "; block_depth -= 1; i += 2
+                if block_depth == 0: state = "code"
+            else:
+                if chars[i] != "\n": chars[i] = " "
+                i += 1
+            continue
+        if state == "code" and chars[i] == "'":
+            escape_string = i > 0 and sql[i - 1] in "eE" and (i < 2 or not (sql[i - 2].isalnum() or sql[i - 2] in "_$"))
+            state = "string"; i += 1; continue
+        if state == "string":
+            if escape_string and chars[i] == "\\" and i + 1 < len(chars):
+                chars[i] = " "
+                if chars[i + 1] != "\n": chars[i + 1] = " "
+                i += 2; continue
+            if chars[i] == "'" and i + 1 < len(chars) and chars[i + 1] == "'":
+                chars[i] = chars[i + 1] = " "; i += 2; continue
+            if chars[i] == "'": state = "code"
+            elif chars[i] != "\n": chars[i] = " "
+            i += 1; continue
+        i += 1
+    text = "".join(chars)
+    # Proven-static uses: privilege token and CREATE TRIGGER execution clause.
+    text = re.sub(r"(?is)\b(grant|revoke)\b[^;]*?\bexecute\b(?=[^;]*\bon\b)",
+                  lambda m: re.sub(r"(?i)\bexecute\b", " " * 7, m.group(0)), text)
+    text = re.sub(r"(?i)\bexecute\s+(?:function|procedure)\b",
+                  lambda m: " " * len(m.group(0)), text)
+    offsets = []
+    for match in re.finditer(r'(?i)\bexecute\b|(?:\b[a-z0-9_]*apply[a-z0-9_]*ddl\b|"[a-z0-9_]*apply[a-z0-9_]*ddl")\s*\(', text):
+        offsets.append(text.count("\n", 0, match.start()) + 1)
+    return sorted(set(offsets))
+
+
+def _validate_marker_reviews(item: dict, path: Path, migration_sql: str, check_ids: set[str]) -> None:
+    markers = dynamic_execution_marker_lines(migration_sql)
+    has_marker_fields = "marker_reviews" in item or "marker_schema_version" in item
+    if not markers and not has_marker_fields:
+        return
+    if item.get("marker_schema_version") != MARKER_SCHEMA_VERSION:
+        raise GuardError(f"{path}: marker_schema_version must be exactly {MARKER_SCHEMA_VERSION}")
+    reviews = item.get("marker_reviews")
+    if not isinstance(reviews, list) or not reviews:
+        raise GuardError(f"{path}: marker_reviews must be a non-empty array")
+    covered: list[int] = []
+    empty_only = True
+    previous_end = 0
+    for index, value in enumerate(reviews):
+        if not isinstance(value, dict):
+            raise GuardError(f"{path} marker review {index} must be an object")
+        disposition = value.get("disposition")
+        allowed = MARKER_REVIEW_CHECK_KEYS if disposition == "checks" else MARKER_REVIEW_EMPTY_KEYS if disposition == "no_durable_target" else set()
+        if not allowed:
+            raise GuardError(f"{path}: invalid marker disposition {disposition!r}")
+        review = _strict_keys(value, allowed, f"{path} marker review {index}")
+        start, end = review["line_start"], review["line_end"]
+        if not isinstance(start, int) or not isinstance(end, int) or start < 1 or end < start:
+            raise GuardError(f"{path}: invalid marker review range {start!r}-{end!r}")
+        if start <= previous_end:
+            raise GuardError(f"{path}: marker review ranges overlap or are not strictly ordered")
+        previous_end = end
+        covered.extend(line for line in markers if start <= line <= end)
+        if disposition == "checks":
+            empty_only = False
+            ids = review["check_ids"]
+            if not isinstance(ids, list) or not ids or any(value not in check_ids for value in ids):
+                raise GuardError(f"{path}: marker review cites an absent check")
+            reason = review["reason"]
+            if not isinstance(reason, str) or len(re.sub(r"\s", "", reason)) < 40:
+                raise GuardError(f"{path}: checks disposition requires a substantive marker-to-contract rationale")
+        else:
+            reason = review["reason"]
+            if not isinstance(reason, str) or len(re.sub(r"\s", "", reason)) < 40:
+                raise GuardError(f"{path}: no_durable_target reason must contain 40 non-whitespace characters")
+    if sorted(covered) != markers or len(covered) != len(set(covered)):
+        raise GuardError(f"{path}: marker reviews must cover every marker line exactly once; markers={markers}")
+    if not item["checks"] and not empty_only:
+        raise GuardError(f"{path}: empty checks require only no_durable_target reviews")
+
+
 def load_behavior_sidecars(
     repo: Path, migrations: dict[str, Path], allowlist: list[str]
 ) -> list[dict]:
@@ -744,12 +1105,19 @@ def load_behavior_sidecars(
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise GuardError(f"invalid behavioral sidecar {path}: {exc}") from exc
-        item = _strict_keys(raw, BEHAVIOR_SIDECAR_KEYS, str(path))
+        if not isinstance(raw, dict):
+            raise GuardError(f"{path}: sidecar must be an object")
+        allowed_top = BEHAVIOR_SIDECAR_MARKER_KEYS if (
+            "marker_reviews" in raw or "marker_schema_version" in raw
+        ) else BEHAVIOR_SIDECAR_KEYS
+        item = _strict_keys(raw, allowed_top, str(path))
         if item["schema_version"] != 1:
             raise GuardError(f"{path}: schema_version must be exactly 1")
         if item["migration_version"] != version:
             raise GuardError(f"{path}: migration_version must equal {version}")
-        migration = migrations[version]
+        migration = migrations.get(version)
+        if migration is None:
+            raise GuardError(f"{path}: migration {version} is missing from the repository")
         # Git stores text with LF, while a Windows checkout may materialise
         # CRLF. Bind to canonical text bytes so the same reviewed file has the
         # same hash on Windows and the Linux GitHub runner.
@@ -766,8 +1134,8 @@ def load_behavior_sidecars(
                 f"found {actual_hash}"
             )
         checks = item["checks"]
-        if not isinstance(checks, list) or not checks:
-            raise GuardError(f"{path}: checks must be a non-empty array")
+        if not isinstance(checks, list):
+            raise GuardError(f"{path}: checks must be an array")
         checked: list[dict] = []
         for index, value in enumerate(checks):
             if not isinstance(value, dict):
@@ -865,6 +1233,12 @@ def load_behavior_sidecars(
             parsed["migration_version"] = version
             parsed["migration_sha256"] = actual_hash
             checked.append(parsed)
+        _validate_marker_reviews(
+            item, path, canonical_bytes.decode("utf-8"),
+            {check["id"] for check in checked},
+        )
+        if not checks and "marker_reviews" not in item:
+            raise GuardError(f"{path}: empty checks require a reviewed marker declaration")
         sidecars.extend(checked)
     return sidecars
 

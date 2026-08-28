@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260621151155",
+  "migration_sha256": "01b8521b74c468950d07c3203f247c5916c94da2da6f3ca469506219f0997ee6",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 259,
+      "line_end": 506,
+      "disposition": "checks",
+      "check_ids": [
+        "api_rls_realtime_contract"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: api_rls_realtime_contract."
+    }
+  ],
+  "checks": [
+    {
+      "id": "api_rls_realtime_contract",
+      "kind": "catalog_contract",
+      "contract": "api_rls_realtime_v1",
+      "expected_count": 1
+    }
+  ]
+}

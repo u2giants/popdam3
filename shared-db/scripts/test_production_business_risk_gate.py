@@ -913,6 +913,15 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     def test_instance_binding_writer_is_a_pinned_preview_producer(self):
         self.assertIn("scripts/preview_instance_binding.py", PREVIEW_PRODUCER_PATHS)
 
+    def test_every_verification_sidecar_is_an_individually_pinned_producer(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        actual = {
+            path.relative_to(repo_root).as_posix()
+            for path in (repo_root / "scripts/production-verification-sidecars").glob("*.json")
+        }
+        pinned = {path for path in PREVIEW_PRODUCER_PATHS if path.startswith("scripts/production-verification-sidecars/")}
+        self.assertEqual(actual, pinned)
+
     PREVIEW_JOB_EXCLUSIONS = (
         # These run ONLY in the production-apply jobs, which check out exact main
         # and prove HEAD == origin/main before executing. They are not part of
@@ -920,6 +929,10 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         "scripts/production_business_risk_gate.py",
         "scripts/production_apply_review_evidence.py",
         "scripts/production_catalog_verification.py",
+        # Runtime data directory named by the verifier, not executable code.
+        # Every reviewed JSON file beneath it is pinned individually because
+        # GitHub's Contents API does not expose a directory as a blob.
+        "scripts/production-verification-sidecars",
         # Validate-only job, which produces no evidence.
         # Validate-only job. It produces no evidence, runs on a separate runner,
         # and a forged artifact under the preview name would collide with the
@@ -1322,6 +1335,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     # fails test_every_runtime_data_exemption_is_verified_somewhere until someone
     # either words it with the phrase or writes it a test.
     PHRASE_VERIFIED_EXEMPTIONS = frozenset({
+        "config/blocker-ledger",
         "supabase/tests",
         "supabase/ci-bootstrap",
         "config/production-risk-policy-activation.json",

@@ -13,15 +13,15 @@ This plan changes scripts, tests, workflows and documentation. It authorizes no 
 | Step | Deliverable | State | Evidence |
 |---|---|---|---|
 | 0 | Plan, handoff and tracking issue registered | ✅ done 2026-08-27 | registration merge `172d2bb`; rewrite merge `d4bbfceb`; reviewed revision merge `9bcbd305` |
-| 1 | Extend the existing version-keyed, hash-bound verification sidecars | ⬜ open | — |
-| 2 | Mechanical sidecar-presence and integrity guard | ⬜ open | — |
-| 3 | `catalog-truth` command reporting independent file, ledger and catalog states | ⬜ open | — |
-| 4 | Credentialed guards add truth context without changing refusals | ⬜ open | — |
-| 5 | Permanent false-alarm regression corpus | ⬜ open | — |
-| 6 | Blocker ledger and causal measurements | ⬜ open | — |
-| 7 | One-command red-check triage | ⬜ open | — |
-| 8 | Diagnosis and reviewer-liveness rules | ⬜ open | — |
-| 9 | Full verification, landing and post-merge proof | ⬜ open | — |
+| 1 | Extend the existing version-keyed, hash-bound verification sidecars | ✅ done 2026-08-28 | 13 mandatory versions reviewed; 13 strict sidecars present |
+| 2 | Mechanical sidecar-presence and integrity guard | ✅ done 2026-08-28 | full-tree checker, historical baseline and workflow enforcement pass |
+| 3 | `catalog-truth` command reporting independent file, ledger and catalog states | ✅ done 2026-08-28 | typed identities and independent-source outage tests pass |
+| 4 | Credentialed guards add truth context without changing refusals | ✅ done 2026-08-28 | existing acceptance exits preserved; 214 diagnostic sites explicitly audited |
+| 5 | Permanent false-alarm regression corpus | ✅ done 2026-08-28 | five executable fixtures pass, including #1645 and cancelled/cascade cases |
+| 6 | Blocker ledger and causal measurements | ✅ done 2026-08-28 | immutable stub, collision/concurrency, validation and report tests pass |
+| 7 | One-command red-check triage | ✅ done 2026-08-28 | exact issue-bound ledger and three-source triage tests pass |
+| 8 | Diagnosis and reviewer-liveness rules | ✅ done 2026-08-28 | rules and fail-closed reviewer evidence checks pass |
+| 9 | Full verification, landing and post-merge proof | 🟨 in progress 2026-08-28 | Python 3.13.15/3.12.13: identical 792-test pass; independent diff review APPROVE |
 
 **Fresh implementation starts at Step 1.** Phase A is Steps 1–5, Phase B is Steps 6–8, and Phase C is Step 9. Start a fresh session at each phase boundary and re-read the remaining plan before acting.
 

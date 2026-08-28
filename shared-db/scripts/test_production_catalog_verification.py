@@ -27,6 +27,7 @@ from production_catalog_verification import (  # noqa: E402
     run_query,
     ALWAYS_PROBED_ROLES,
     BASE_PRIVILEGES,
+    CATALOG_CONTRACTS,
     MAINTAIN_PRIVILEGE,
     PrivilegeExpectation,
     Targets,
@@ -46,6 +47,28 @@ from production_catalog_verification import (  # noqa: E402
 from production_migration_guard import GuardError, strip_sql  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
+
+
+class ThroughputSequenceContractTests(unittest.TestCase):
+    def test_sequence_contract_compares_next_value_with_live_table_maximum(self):
+        sql = CATALOG_CONTRACTS["dflow_sequence_ceilings_v1"]
+        self.assertIn("is_called then last_value + 1", sql)
+        self.assertIn("coalesce(max(\"id\"),0)", sql)
+        self.assertIn("greatest(1000000", sql)
+
+    def test_style_tracker_contract_is_exact_about_columns_indexes_and_policies(self):
+        sql = CATALOG_CONTRACTS["style_tracker_tables_v1"]
+        self.assertIn("information_schema.columns", sql)
+        self.assertIn("column_name=expected.name", sql)
+        self.assertIn("c.data_type=expected.data_type", sql)
+        self.assertIn("c.is_nullable=expected.is_nullable", sql)
+        self.assertIn("coalesce(c.column_default,'')=expected.column_default", sql)
+        self.assertIn("i.indrelid=to_regclass('plm.style_tracker_item_bridge')", sql)
+        self.assertIn("pg_get_indexdef", sql)
+        self.assertIn("pg_get_constraintdef", sql)
+        self.assertIn("upper(p.cmd)='DELETE'", sql)
+        self.assertIn("p.roles=array['authenticated']::name[]", sql)
+        self.assertIn("p.with_check", sql)
 
 
 def targets_for(sql: str) -> Targets:
@@ -1507,7 +1530,10 @@ class BehavioralSidecarTests(unittest.TestCase):
         checks = load_behavior_sidecars(REPO, migrations, versions)
         full = derive_targets(migrations, versions)
         siblings = derive_targets(migrations, versions[1:])
-        self.assertEqual(len(checks), 1)
+        self.assertEqual(
+            {check["id"] for check in checks},
+            {"coco_property_is_parented_to_disney", "coco_owner_ruling_if_available"},
+        )
         self.assertEqual(full.as_dict(), siblings.as_dict())
         self.assertFalse(full.is_empty())
         self.assertIn("api.opa_property_reconciliation", full.views)

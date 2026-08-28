@@ -2,6 +2,22 @@
   "schema_version": 1,
   "migration_version": "20260825082910",
   "migration_sha256": "2d218f67617d07ff75ec67e452aa9d2da3d32d17757abdafd2d6e6c264f32137",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 2313,
+      "line_end": 2747,
+      "disposition": "checks",
+      "check_ids": [
+        "popdam_1427_relations_columns",
+        "popdam_1427_indexes",
+        "popdam_1427_functions_triggers",
+        "popdam_1427_security",
+        "popdam_1427_active_marker"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: popdam_1427_relations_columns, popdam_1427_indexes, popdam_1427_functions_triggers, popdam_1427_security, popdam_1427_active_marker."
+    }
+  ],
   "checks": [
     {
       "id": "popdam_1427_relations_columns",

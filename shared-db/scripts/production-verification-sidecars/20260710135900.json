@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260710135900",
+  "migration_sha256": "b56796bdf37e56687e20a2ada004866b7e4cebbcc59177e261fc192ef66f3b4d",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 11,
+      "line_end": 148,
+      "disposition": "checks",
+      "check_ids": [
+        "ai_tag_bakeoff_contract"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: ai_tag_bakeoff_contract."
+    }
+  ],
+  "checks": [
+    {
+      "id": "ai_tag_bakeoff_contract",
+      "kind": "catalog_contract",
+      "contract": "ai_tag_bakeoff_v1",
+      "expected_count": 1
+    }
+  ]
+}

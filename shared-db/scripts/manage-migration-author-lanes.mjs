@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -923,10 +923,12 @@ export const githubIo = {
   closeIssue(number) { gh(['issue','close',String(number),'--repo',REPO]) },
   closeClaim(number) { gh(['issue', 'close', String(number), '--repo', REPO, '--comment', 'Expired migration-author lease closed by guarded cleanup. Its migration version remains unavailable.']) },
   reversionFiles(worktree,oldVersion) {
-    let referenced=[]
-    try{referenced=execFileSync('git',['-C',worktree,'grep','-l',oldVersion,'--','supabase/migrations','supabase/tests','docs'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)}
+    let referenced=[];const riskGatePath=['scripts','production_business_risk_gate.py'].join('/')
+    try{referenced=execFileSync('git',['-C',worktree,'grep','-l',oldVersion,'--','supabase/migrations','supabase/tests',riskGatePath,'docs'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)}
     catch(error){if(error.status!==1)throw error}
     const migrations=execFileSync('git',['-C',worktree,'ls-files','--cached','--others','--exclude-standard','--',`supabase/migrations/${oldVersion}_*.sql`],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)
+    const sidecar=`scripts/production-verification-sidecars/${oldVersion}.json`
+    if(existsSync(path.resolve(worktree,sidecar)))referenced.push(sidecar)
     return [...new Set([...referenced,...migrations].map((file)=>path.normalize(file)))].map((file)=>path.resolve(worktree,file))
   },
   rewriteVersion(worktree,oldVersion,newVersion) {
@@ -934,15 +936,20 @@ export const githubIo = {
     if(migration.length!==1)throw new LaneError('local worktree must contain exactly one old-version migration file')
     const exactVersion=new RegExp(`(?<!\\d)${oldVersion}(?!\\d)`,'g')
     const renamed=path.join(path.dirname(migration[0]),path.basename(migration[0]).replace(new RegExp(`^${oldVersion}_`),`${newVersion}_`))
+    const sidecar=files.find((file)=>path.basename(file)===`${oldVersion}.json`&&path.basename(path.dirname(file))==='production-verification-sidecars')
+    const renamedSidecar=sidecar?path.join(path.dirname(sidecar),`${newVersion}.json`):null
     if(existsSync(renamed))throw new LaneError('refusing migration version rewrite because the target filename already exists')
+    if(renamedSidecar&&existsSync(renamedSidecar))throw new LaneError('refusing sidecar version rewrite because the target filename already exists')
     const originals=new Map(files.map((file)=>[file,readFileSync(file,'utf8')]))
-    let renamedApplied=false
+    let renamedApplied=false,sidecarRenamed=false
     try{
       for(const [file,contents] of originals)writeFileSync(file,contents.replace(exactVersion,newVersion))
       ;(this.renameVersionFile??renameSync)(migration[0],renamed);renamedApplied=true
-      return {files,migration:migration[0],renamed}
+      if(sidecar){const item=JSON.parse(readFileSync(sidecar,'utf8'));item.migration_version=newVersion;item.migration_sha256=createHash('sha256').update(readFileSync(renamed).toString().replace(/\r\n/g,'\n')).digest('hex');writeFileSync(sidecar,`${JSON.stringify(item,null,2)}\n`);(this.renameSidecarVersion??renameSync)(sidecar,renamedSidecar);sidecarRenamed=true}
+      return {files,migration:migration[0],renamed,sidecar,renamedSidecar}
     }catch(error){
       const failures=[]
+      if(sidecarRenamed||sidecar&&(!existsSync(sidecar)&&existsSync(renamedSidecar)))try{renameSync(renamedSidecar,sidecar)}catch(rollbackError){failures.push(rollbackError.message)}
       if(renamedApplied||(!existsSync(migration[0])&&existsSync(renamed)))try{renameSync(renamed,migration[0])}catch(rollbackError){failures.push(rollbackError.message)}
       for(const [file,contents] of originals)try{writeFileSync(file,contents)}catch(rollbackError){failures.push(rollbackError.message)}
       if(failures.length)throw new LaneError(`${error.message}; LOCAL ROLLBACK INCOMPLETE: ${failures.join('; ')}`)
@@ -950,7 +957,8 @@ export const githubIo = {
     }
   },
   commitAndPushReversion(worktree,oldVersion,newVersion) {
-    execFileSync('git',['-C',worktree,'add','--all','--','supabase/migrations','supabase/tests','docs'])
+    const riskGatePath=['scripts','production_business_risk_gate.py'].join('/')
+    execFileSync('git',['-C',worktree,'add','--all','--','supabase/migrations','supabase/tests','scripts/production-verification-sidecars',riskGatePath,'docs'])
     execFileSync('git',['-C',worktree,'commit','-m',`migration: re-reserve ${oldVersion} as ${newVersion}`],{stdio:'pipe'})
     execFileSync('git',['-C',worktree,'push','origin','HEAD'],{stdio:'pipe'})
     return execFileSync('git',['-C',worktree,'rev-parse','HEAD'],{encoding:'utf8'}).trim()

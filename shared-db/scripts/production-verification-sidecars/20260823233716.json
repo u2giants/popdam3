@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260823233716",
+  "migration_sha256": "914160484143e073c4cbe8232295e6b7922e2ad2ff6a73c037641da0fcdd1655",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 67,
+      "line_end": 139,
+      "disposition": "checks",
+      "check_ids": [
+        "dflow_sequence_ceilings_contract"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: dflow_sequence_ceilings_contract."
+    }
+  ],
+  "checks": [
+    {
+      "id": "dflow_sequence_ceilings_contract",
+      "kind": "catalog_contract",
+      "contract": "dflow_sequence_ceilings_v1",
+      "expected_count": 1
+    }
+  ]
+}

@@ -683,6 +683,16 @@ rules below are the operative summary.
    - Reviewer rotation, the business-risk gate, and the transport-failure rule (**a wrapper that
      cannot authenticate is a transport failure, not a review — replace it, never pause the
      queue; a real `REVISE` is never a transport failure**) are in the full text.
+   - **Guard diagnosis must be reproducible.** Run `node scripts/triage-gate.mjs <guard>` first.
+     Do not call a root cause proved without a rerunnable command or verification artifact; after
+     ten minutes without proof, label it a `working hypothesis`. Do not announce a proved guard
+     incident or close it while triage prints `LEDGER_MISSING`; create the minimal blocker stub
+     first. Scripts/docs/CI-only work needs one independent reviewer. Migrations, data movement,
+     production applies, and security/RLS work still need two.
+   - Probe reviewer process/session updates and a non-empty output stream before waiting. Replace
+     only when there is no verdict and no progress, or a concrete transport, coverage, or
+     truncated-output failure. Never replace `REVISE` or reduce coverage: exhaust active providers
+     not failed on the exact head, use Codex overflow once, then fail closed with the exact blocker.
 
    The `Cross-PR object collision` CI check is only the backstop. By the time it fires, somebody's
    session is already wasted — on 2026-07-31, three of four were.

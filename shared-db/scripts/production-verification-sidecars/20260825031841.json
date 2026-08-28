@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260825031841",
+  "migration_sha256": "739c1f999a3cc188f122bd3ce5ba341272197344a1088957a4d8da11d02f4012",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 20,
+      "line_end": 20,
+      "disposition": "checks",
+      "check_ids": [
+        "popdam_forward_recovery_contract"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: popdam_forward_recovery_contract."
+    }
+  ],
+  "checks": [
+    {
+      "id": "popdam_forward_recovery_contract",
+      "kind": "catalog_contract",
+      "contract": "popdam_forward_recovery_v1",
+      "expected_count": 1
+    }
+  ]
+}

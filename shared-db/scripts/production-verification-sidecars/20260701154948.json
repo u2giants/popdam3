@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260701154948",
+  "migration_sha256": "4393513a94dd4c21e932e470d320fa9692c193c604ecc457e518d86f6fb89dba",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 66,
+      "line_end": 103,
+      "disposition": "checks",
+      "check_ids": [
+        "core_person_role_lookups_contract"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: core_person_role_lookups_contract."
+    }
+  ],
+  "checks": [
+    {
+      "id": "core_person_role_lookups_contract",
+      "kind": "catalog_contract",
+      "contract": "core_person_role_lookups_v1",
+      "expected_count": 1
+    }
+  ]
+}

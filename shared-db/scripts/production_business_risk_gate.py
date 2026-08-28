@@ -444,6 +444,22 @@ def prove_preview_migration_contents(
 PREVIEW_PRODUCER_PATHS = (
     PREVIEW_WORKFLOW,
     "scripts/production_migration_guard.py",
+    # Hash-bound verification declarations are read by the catalog verifier in
+    # preview. Contents API directory responses are arrays, so pin each reviewed
+    # file explicitly rather than pretending a directory has a blob SHA.
+    "scripts/production-verification-sidecars/20260621151155.json",
+    "scripts/production-verification-sidecars/20260701154948.json",
+    "scripts/production-verification-sidecars/20260710135600.json",
+    "scripts/production-verification-sidecars/20260710135700.json",
+    "scripts/production-verification-sidecars/20260710135900.json",
+    "scripts/production-verification-sidecars/20260710135950.json",
+    "scripts/production-verification-sidecars/20260727154500.json",
+    "scripts/production-verification-sidecars/20260807030000.json",
+    "scripts/production-verification-sidecars/20260823233716.json",
+    "scripts/production-verification-sidecars/20260825031841.json",
+    "scripts/production-verification-sidecars/20260825050407.json",
+    "scripts/production-verification-sidecars/20260825082910.json",
+    "scripts/production-verification-sidecars/20260828021051.json",
     # Local import of the guard, and the only thing that reads a migration's
     # `-- derived-from:` declaration (issue #1608). An unpinned copy could
     # declare every base satisfied and the guard would believe it, which is the
@@ -506,6 +522,12 @@ PREVIEW_PRODUCER_PATHS = (
 PREVIEW_RUNTIME_DATA_DIRS = ("supabase", "config")
 
 PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
+    "config/blocker-ledger": (
+        "Never read by the preview job. Read only by the offline throughput "
+        "diagnosis and reporting tools. The "
+        "preview job and every migration apply helper have no import or file-read "
+        "path to this incident evidence, so it cannot shape preview execution."
+    ),
     "supabase/migrations": (
         "The PAYLOAD, not a producer. It cannot be pinned to exact main and must "
         "not be: in the pre-merge claim lane the pull-request head legitimately "
