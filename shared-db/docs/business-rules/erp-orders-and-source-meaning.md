@@ -219,43 +219,50 @@ rather than rewriting history. That is why:
   to production orders began around 2022–2023; before that the customer purchase order was typed in
   by hand. **Settled.**
 
-### The catalogue itself was renumbered, and the ERP kept both schemes
+### The divisions: four exist, three are ours
 
-ColdLion renumbered its merchandise-group positions per division. On rows created before the change:
+ColdLion publishes an authoritative list of divisions through a `/divisions` endpoint it built for
+us on 2026-08-28, at our request, rather than sending a static list. **Nothing downstream may
+hard-code a division code** — read the endpoint. It returns four, each with its own general-ledger
+code, and all four are flagged active in the ERP.
 
-- **A blank merchandise group is not missing data** — the value is still sitting in the old slot
-  position. Never backfill it from the master item without checking there first. **Settled.**
-- Items created through ColdLion's **API** around that time were never re-mapped. **Correcting them
-  is POP's work, not ColdLion's**, and it happens by owner decision, never by an automated mapping.
-  See [`merchandise-and-product-taxonomy.md`](merchandise-and-product-taxonomy.md).
-- A merchandise-group code is **not unique on its own**. Its meaning is scoped by the category its
-  top-level code belongs to, so the same code means different things in different families. Any
-  read of a merchandise group that ignores the category is wrong. **Settled**, verified live.
-- Merchandise groups carry a working active/inactive flag. **Settled.**
+**Owner ruling (Albert, 2026-08-28): only three of them are in scope — POP Creations (Licensed
+Products), Edge Home, and Spruce (Licensed Products). Edgeucational Publishing is out, permanently.**
+It will never be part of this system. Filter it out at the point of ingestion rather than letting it
+travel downstream and get filtered repeatedly; and do not treat its absence from our merchandise-group
+renumbering dates as a gap to close. **Settled.**
 
-### The company has four divisions, and ColdLion will now tell you which
+### The merchandise-group hierarchy, and what the renumbering left behind
 
-Asked for an authoritative list on 2026-08-27, ColdLion built a `/divisions` endpoint rather than
-sending a list. It returns four, all active: **POP Creations (Licensed Products)**, **Edge Home**,
-**Edgeucational Publishing** and **Spruce (Licensed Products)** — each with its own general-ledger
-code. **Settled**, verified live 2026-08-28. Nothing downstream should hard-code a division code.
+ColdLion carries **fourteen merchandise-group slots per item, of which six are the live hierarchy**:
+type, sub-type, material or embellishment, size, licensor, property. Slots seven to fourteen are
+legacy positions, kept because ColdLion renumbered the positions per division and never rewrote the
+older rows. **Settled** (documented by ColdLion 2026-08-28). Three consequences follow, and each has
+already caught somebody:
 
-One caution that is ours, not theirs: our merchandise-group renumbering dates cover only three of
-the four divisions. Edgeucational Publishing is active and uncovered.
+- **A blank merchandise group on a pre-renumbering row is not missing data.** The value is still
+  sitting in the old slot. Never backfill from the master item without looking there first.
+  **Settled.**
+- **A merchandise-group code means nothing on its own.** Its meaning is scoped by the category its
+  top-level code belongs to, so the same code names different things in different product families.
+  Any read that ignores the category is simply wrong, and ColdLion's own documentation does not say
+  so. **Settled**, verified live.
+- **Items created through ColdLion's API around the renumbering were never re-mapped.** Fixing them
+  is **POP's work, not ColdLion's**, and it happens by owner decision — never by an automated
+  mapping. See [`merchandise-and-product-taxonomy.md`](merchandise-and-product-taxonomy.md).
 
-### Product size does not come from the ERP's size field
+A merchandise group also carries a lifecycle flag, and it is a plain yes/no — two values, no third
+state. **Settled.**
 
-ColdLion's item size field carries a single value on every item, because POP does not sell apparel
-and never used it. **The real product-size axis is merchandise group 04**, which is populated.
-Confusing the two is an easy and expensive mistake: one field is dead, the other is the answer.
-**Settled** (JamieLynn 2026-08-28), verified on all 19,362 items.
+### Product size comes from the hierarchy, not from the ERP's size field
 
-### There are fourteen merchandise-group slots and six of them are live
+ColdLion's item-level size field is dead. POP does not sell apparel and never used it, so it carries
+the same single value on effectively every item — verified across the entire catalogue of 19,362
+items, with only sixteen blanks and no other value anywhere. **The real product-size axis is
+merchandise group 04**, which is populated and meaningful.
 
-Slots one to six are the working hierarchy — type, sub-type, material or embellishment, size,
-licensor, property. Slots seven to fourteen are legacy positions retained for rows created before
-the renumbering. The lifecycle flag on a merchandise group is a plain yes/no. **Settled**
-(documented by ColdLion 2026-08-28).
+The two are easy to confuse and expensive to confuse: one is noise, the other is the answer. Ignore
+the item-level field entirely. **Settled** (JamieLynn 2026-08-28, verified live).
 
 ### What the ERP is not
 

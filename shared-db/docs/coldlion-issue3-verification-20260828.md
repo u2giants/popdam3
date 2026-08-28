@@ -36,9 +36,10 @@ a sample.
 2. **`labelCode`, `warehouseCode`, `colorCode` and `dimCode` are not on `/items` at all.** They are
    fields of the order-history and production-history responses. A lookup API hung off the item
    endpoint would sit beside data that endpoint never returns.
-3. **`EP001` is active and is not covered by our merchandise-group renumbering dates.** We hold
-   change dates for three divisions. The fourth is a gap nobody had noticed, and it surfaced only
-   because ColdLion published the authoritative list.
+3. **`EP001` is active in the ERP but out of scope for us.** Publishing the authoritative list
+   surfaced a fourth division we had no renumbering date for. **Owner ruling, Albert 2026-08-28:
+   Edgeucational Publishing will never be part of this system.** Filter it at ingestion; it is not
+   a gap to close.
 
 ## What is owed, and by whom
 
