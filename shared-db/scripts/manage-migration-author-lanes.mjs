@@ -739,16 +739,26 @@ export const githubIo = {
     return rest&&graph?{remaining:Number(rest.remaining),limit:Number(rest.limit),reset:Number(rest.reset),graphRemaining:Number(graph.remaining),graphLimit:Number(graph.limit),graphReset:Math.floor(new Date(graph.resetAt).getTime()/1000)}:null
   },
   readActiveReviewLeases(){
-    const query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){defaultBranchRef{target{oid ... on Commit{tree{oid}}}} refs(refPrefix:"refs/db-review-active/",first:10){nodes{name target{oid ... on Commit{message}}}}}}'
+    const names=[...ACTIVE_REVIEWERS,...OVERFLOW_REVIEWERS].map((row)=>row.name)
+    const allowed=new Set(names)
+    const fields=names.map((name,index)=>`r${index}:object(expression:${JSON.stringify(`${REVIEW_ACTIVE_REF_PREFIX}/${name}`)}){oid ... on Commit{message}}`).join(' ')
+    const query=`query($owner:String!,$name:String!){repository(owner:$owner,name:$name){defaultBranchRef{target{oid ... on Commit{tree{oid}}}} ${fields}}}`
     const data=ghJson(['api','graphql','-f',`query=${query}`,'-F','owner=u2giants','-F','name=shared-db'])
     if(data?.errors?.length)throw new LaneError('active reviewer lease snapshot returned GraphQL errors')
-    const nodes=data?.data?.repository?.refs?.nodes
-    const allowed=new Set([...ACTIVE_REVIEWERS,...OVERFLOW_REVIEWERS].map((row)=>row.name))
-    if(!Array.isArray(nodes)||nodes.length>allowed.size||nodes.some((node)=>!node?.name||!allowed.has(node.name)||!node?.target?.oid||!node?.target?.message))throw new LaneError('active reviewer lease snapshot is unreadable')
-    const base=data?.data?.repository?.defaultBranchRef?.target
+    const repo=data?.data?.repository
+    if(!repo)throw new LaneError('active reviewer lease snapshot is unreadable')
+    const base=repo?.defaultBranchRef?.target
     if(!base?.oid||!base?.tree?.oid)throw new LaneError('review commit base is unreadable')
     reviewCommitBase={head:base.oid,tree:base.tree.oid}
-    return new Map(nodes.map((node)=>[`${REVIEW_ACTIVE_REF_PREFIX}/${node.name}`,{sha:node.target?.oid,commit:{message:node.target?.message}}]))
+    const entries=[]
+    names.forEach((name,index)=>{
+      const target=repo[`r${index}`]
+      if(target===undefined)throw new LaneError('active reviewer lease snapshot is unreadable')
+      if(target===null)return
+      if(!allowed.has(name)||!target?.oid||!target?.message)throw new LaneError('active reviewer lease snapshot is unreadable')
+      entries.push([`${REVIEW_ACTIVE_REF_PREFIX}/${name}`,{sha:target.oid,commit:{message:target.message}}])
+    })
+    return new Map(entries)
   },
   readReviewStates(leases){
     const unique=[...new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,lease])).values()]
