@@ -200,9 +200,22 @@ incomplete. **Settled**, verified live.
   only the computed result. Nothing downstream may re-derive an invoiced or shipped quantity.
 - Once a line is invoiced, open and unshipped drop to zero unless the shipment was short or partial,
   so **a zero on an invoiced line is a true zero**. **Settled.**
-- **We cannot yet apply that test.** Invoice number, invoiced quantity, shipped quantity, shipped
-  amount and invoice date come back empty on historical rows, so whether a given historical zero is
-  a true zero is **Unknown row by row**.
+- **We can apply that test, and we have.** Verified 2026-08-28 across 10,397 order-history rows
+  spanning 2019 to 2026: open and unshipped are zero on effectively every row from 2019 through
+  2025, and those same years carry an invoice number on 72% to 99% of rows. The only year with live
+  open and unshipped values is the current one — the orders still in flight. **The historical zeros
+  are true zeros; load them as real. Settled.**
+- An earlier note here said those invoice and shipping fields were empty on history. **That was a
+  measurement fault on our side, corrected 2026-08-28** — the probe expected a paged envelope that
+  the order-history endpoint does not return. Which leads to the next point.
+
+### Not every endpoint answers in the same shape
+
+Most ColdLion endpoints return a wrapper carrying the rows plus a total count, a page count and an
+end-of-data flag. **The order-history endpoint does not** — it returns a bare list, with no count
+and no working paging. Anything reading it must handle a plain list, and cannot ask how big a window
+is without pulling the whole window. This has already produced one false finding that nearly went
+back to ColdLion as a defect report. **Settled**, verified live 2026-08-28.
 
 ### Manual intervention is normal, and it is visible in the data
 

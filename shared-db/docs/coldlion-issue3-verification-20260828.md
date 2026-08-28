@@ -55,3 +55,41 @@ a sample.
 - Ignore `sizeRangeCode`. **Product size is merchandise group 04**, which is populated.
 - `mgTypeCode` runs 01–14; slots 01–06 are the live hierarchy, 07–14 are legacy positions.
 - The merchandise-group `active` flag is `Y`/`N` — a two-value flag.
+
+## Follow-up measurement, same day — order-history field population
+
+Re-measured because a draft reply nearly re-raised a withdrawn issue.
+
+**10,397 `orderHistory` rows, four one-week windows per year, 2019–2026.**
+
+| Field | 2019 | 2021 | 2023 | 2025 | 2026 |
+|---|---|---|---|---|---|
+| `invoiceNoString` / `invoiceDateString` | 88.3% | 71.9% | 93.7% | 84.9% | 41.9% |
+| `lineInvoiceQty` / `shipQty` | ~49.5% | 70.4% | 93.4% | 84.9% | 41.9% |
+| `shipAmount` | 100% | 100% | 100% | 100% | 100% |
+| `lineOpenQty` | 0% | 0% | 0% | 0% | 34.0% |
+| `unshippedQty` | 0% | 0% | 1.7% | 0% | 55.5% |
+| `warehouseCode` | 91.1% | 100% | 100% | 100% | 100% |
+| `labelCode` | 5.5% | 34.5% | 50.5% | 89.5% | 100% |
+| `colorCode` | 100% | 100% | 100% | 100% | 100% |
+| `dimCode` | 1.6% | 0% | 0% | 0.1% | 0% |
+
+Three conclusions:
+
+1. **ColdLion's issue-2 rule is confirmed and applicable.** Open and unshipped are zero throughout
+   2019–2025 while invoice numbers are present on most rows; only the current year carries live
+   values. Historical zeros are true zeros.
+2. **The invoice and shipping fields are NOT empty on history.** Issue 1 was correctly withdrawn on
+   2026-08-27 and must stay withdrawn.
+3. **`dimCode` is dead and `labelCode` grew into use over time.** Descriptions are worth having for
+   `labelCode` and `warehouseCode` only.
+
+## A measurement fault worth remembering
+
+The false "all empty" reading came from a probe that expected a `content` / `totalElements` envelope.
+**`orderHistory` returns a bare JSON array; `/items`, `/divisions` and `/merchGroupHeaders` return
+the envelope.** The probe silently read nothing and reported 0%. Raised to ColdLion as issue 8.
+
+Also observed: `orderHistory` already returns `merchGroup01Desc` through `merchGroup06Desc` inline
+alongside the codes, populated on 99.6% of rows — which is precisely the pattern we are asking them
+to extend to `labelCode` and `warehouseCode`.
