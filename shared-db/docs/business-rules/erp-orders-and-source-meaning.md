@@ -239,6 +239,11 @@ ColdLion renumbered its merchandise-group positions per division. On rows create
   accounts back to 2006, and accounts too small for CRM. See the section above.
 - **ColdLion is not a revenue report.** Its order feed can be counted only by someone who knows it
   contains the same line more than once.
+- **ColdLion is not self-documenting.** Its API specification carries no allowed-value list on any
+  field but one, and no description on any response field at all. ColdLion improved the one field we
+  named (JamieLynn, 2026-08-26: *"Changed the doc."*) but the general gap remains open. **The
+  meaning of an ERP value therefore comes from asking or from measuring, never from reading the
+  specification.**
 - **An ERP field name does not establish its meaning.** Several fields here mean something other
   than their name suggests, and two of the most obvious-looking ones are empty.
 
