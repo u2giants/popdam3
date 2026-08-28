@@ -66,6 +66,10 @@ Date filters, plus the free-text search box, which searches
 The summary counts (total, linked, ambiguous, not linked) are read as count
 queries over the whole dataset, not derived from loaded rows.
 
+The default view is sorted by newest **Order Date** first and shows 250 rows per
+page. Users can change the sort or page size, and saved views can restore their
+own sort.
+
 **The block's rows and its exact total are two separate requests** (fixed
 2026-08-26). Asking PostgREST for both in one call put the request that renders
 the screen within reach of the 8-second `authenticated` statement timeout, and
@@ -233,4 +237,3 @@ rows where `plm.item.item_number` disagrees with the line's `sku_normalized`.
 
 The import-snapshot fallback therefore no longer fires in normal use. It stays
 in the code because new orders can arrive before their item does.
-

@@ -49,16 +49,21 @@ The import script is `scripts/import-style-tracker-xlsx.py`.
 
 The Google Sheet contains formula/default-only tail rows. Those are not real records. A populated row must contain at least one business field such as style/SKU, group, description, customer, designer, commissioned, UPC, licensor, status, vendor, or notes. Formula-only values such as `0`/`false` in trailing status columns must not cause import.
 
-Verified populated counts from the 2026-08-06 go-live replacement:
+Verified populated counts from the 2026-08-28 production refresh:
 
-- `License.Style`: 12,439 rows
-- `Generic.Style`: 3,174 rows
-- Total: 15,613 rows
+- `License.Style`: 12,527 rows
+- `Generic.Style`: 3,207 rows
+- Total: 15,734 rows
 
 The replacement clears prior imported rows, audit history, and manual value
 resolutions for these tabs in one transaction, inserts both tabs, and rebuilds
 `plm.style_tracker_item_bridge`. Saved user views are preferences and are not
 part of the imported workbook data, so they are preserved.
+
+The 2026-08-28 refresh used workbook SHA-256
+`14f771331f2de0ffea7b2ac8e23ff3f9cb1332c7d2bc93ff51352e8a66708874`.
+The atomic post-load checks confirmed 15,734 bridge rows, including 14,732
+canonical item links. A pre-refresh database backup was taken before replacement.
 
 ## UI Behavior
 

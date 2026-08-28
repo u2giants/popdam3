@@ -19,12 +19,12 @@ import type {
  * blocks and pushes sorting, filtering and search into the database. That keeps
  * search and filter results complete instead of limited to loaded rows.
  */
-export const ORDER_LIST_FETCH_BATCH_SIZE = 200;
+export const ORDER_LIST_FETCH_BATCH_SIZE = 500;
 
-export const ORDER_LIST_DEFAULT_PAGE_SIZE = 100;
+export const ORDER_LIST_DEFAULT_PAGE_SIZE = 250;
 // Every option must divide ORDER_LIST_FETCH_BATCH_SIZE: AG Grid requires the
 // block size to be a whole number of pages.
-export const ORDER_LIST_PAGE_SIZE_OPTIONS = [50, 100, 200];
+export const ORDER_LIST_PAGE_SIZE_OPTIONS = [50, 100, 250, 500];
 
 export function shouldFetchNextOrderListBatch(receivedRowCount: number) {
   return receivedRowCount === ORDER_LIST_FETCH_BATCH_SIZE;
@@ -134,7 +134,7 @@ export function buildOrderListSort(sortModel: Array<{ colId: string; sort: strin
   const sorts = (sortModel ?? [])
     .filter((entry) => entry.colId && entry.sort)
     .map((entry) => ({ column: entry.colId, ascending: entry.sort === "asc" }));
-  if (sorts.length === 0) sorts.push({ column: "production_order_number", ascending: false });
+  if (sorts.length === 0) sorts.push({ column: "order_date", ascending: false });
   sorts.push({ column: "order_line_id", ascending: true });
   return sorts;
 }

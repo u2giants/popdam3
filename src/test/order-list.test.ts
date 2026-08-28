@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ORDER_LIST_COLUMNS,
+  ORDER_LIST_DEFAULT_PAGE_SIZE,
   ORDER_LIST_PAGE_SIZE_OPTIONS,
   buildOrderListFilters,
   buildOrderListSearchClause,
@@ -236,9 +237,9 @@ describe("OrderList summary and loading", () => {
   });
 
   it("reads bounded blocks rather than the whole 24k-row list", () => {
-    expect(ORDER_LIST_FETCH_BATCH_SIZE).toBe(200);
-    expect(shouldFetchNextOrderListBatch(200)).toBe(true);
-    expect(shouldFetchNextOrderListBatch(199)).toBe(false);
+    expect(ORDER_LIST_FETCH_BATCH_SIZE).toBe(500);
+    expect(shouldFetchNextOrderListBatch(500)).toBe(true);
+    expect(shouldFetchNextOrderListBatch(499)).toBe(false);
   });
 });
 
@@ -318,12 +319,13 @@ describe("OrderList database query building", () => {
       { column: "order_line_id", ascending: true },
     ]);
     expect(buildOrderListSort([])).toEqual([
-      { column: "production_order_number", ascending: false },
+      { column: "order_date", ascending: false },
       { column: "order_line_id", ascending: true },
     ]);
   });
 
   it("keeps every page size a whole division of the fetched block", () => {
+    expect(ORDER_LIST_DEFAULT_PAGE_SIZE).toBe(250);
     for (const size of ORDER_LIST_PAGE_SIZE_OPTIONS) {
       expect(ORDER_LIST_FETCH_BATCH_SIZE % size).toBe(0);
     }
