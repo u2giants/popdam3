@@ -848,6 +848,29 @@ as `[BASE-ABSENT]`, not as ordinary pending work.
 Do **not** add the line to an already-merged migration — that changes its bytes.
 Merged files that need a declaration get one in `LEGACY_DECLARATIONS`.
 
+### 5.0-E Declare a pure-data migration before it merges — `-- catalog-verification: no-op`
+
+Post-apply catalog verification derives its targets by lexing the migration
+text. If it cannot derive any catalog object, enforcing mode fails deliberately:
+a green result must not imply that the job verified something it never checked.
+
+A migration containing only data statements may declare this in its header:
+
+```sql
+-- catalog-verification: no-op <specific reason of at least 20 characters>
+```
+
+The declaration is verified, not trusted. Every statement must begin with one
+of `insert`, `update`, `delete`, `merge`, `with`, `select`, `values`, `set`,
+`reset`, or `analyze`. Any DDL, grant, or `do $$ ... $$` block disqualifies the
+whole file. Do not mention the literal declaration token in explanatory prose
+inside a migration: the verifier scans comments as well as SQL.
+
+Decide this **before merge**. Pure-data backfills and sequence-state changes are
+the usual cases. Once the migration applies, its bytes are immutable, so a
+missing declaration leaves a permanently red production run rather than a file
+that may be edited after the fact.
+
 ### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` on the full repo set, ALWAYS inside the pruned temp checkout (learned 2026-07-23; recipe corrected 2026-07-27; wording made self-consistent 2026-08-09)
 
 > **Moved 2026-08-20** to [`docs/production-promotion-procedure.md`](docs/production-promotion-procedure.md) (issue #1331). Text unchanged; the section number is unchanged, so `AGENTS.md §5.1` still resolves.
