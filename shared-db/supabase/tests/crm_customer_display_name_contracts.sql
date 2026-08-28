@@ -1,5 +1,5 @@
--- Contract tests for issues #1544 and #1615 / migrations 20260826001704 and
--- 20260827095753.
+-- Contract tests for issues #1544, #1615, and #1646 / migrations
+-- 20260826001704, 20260827095753, and 20260828030532.
 -- All fixture changes are transaction-bound and rolled back.
 
 begin;
@@ -13,6 +13,7 @@ declare
   v_customer_id uuid;
   v_original_name text;
   v_original_display_name text;
+  v_admin_role_id uuid;
   v_row core.customer;
   v_definer boolean;
   v_config text[];
@@ -71,6 +72,8 @@ begin
 
   delete from app.app_access
   where profile_id in (v_allowed_profile, v_denied_profile) and app = 'crm';
+  delete from app.user_role
+  where profile_id in (v_allowed_profile, v_denied_profile);
   insert into app.app_access (profile_id, app) values (v_allowed_profile, 'crm');
 
   select c.id, c.name, c.display_name
@@ -89,6 +92,14 @@ begin
       p_customer_id => v_customer_id,
       p_display_name => 'Issue 1544 denied label');
     raise exception 'caller without CRM access unexpectedly updated display_name';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
+    perform api.crm_update_customer(
+      p_customer_id => v_customer_id,
+      p_clear_domain => true);
+    raise exception 'caller without CRM access unexpectedly reached domain clearing';
   exception when insufficient_privilege then null;
   end;
 
@@ -126,7 +137,7 @@ begin
   from api.crm_update_customer(
     p_customer_id => v_customer_id,
     p_domain => 'issue-1615.example.invalid');
-  if v_row.domain <> 'issue-1615.example.invalid' then
+  if v_row.domain is distinct from 'issue-1615.example.invalid' then
     raise exception 'non-null domain update was not preserved';
   end if;
 
@@ -134,9 +145,42 @@ begin
   from api.crm_update_customer(
     p_customer_id => v_customer_id,
     p_domain => null);
-  if v_row.domain <> 'issue-1615.example.invalid' then
+  if v_row.domain is distinct from 'issue-1615.example.invalid' then
     raise exception 'null domain did not preserve the current domain';
   end if;
+
+  select * into v_row
+  from api.crm_update_customer(
+    p_customer_id => v_customer_id,
+    p_domain => null,
+    p_clear_domain => false);
+  if v_row.domain is distinct from 'issue-1615.example.invalid' then
+    raise exception 'p_clear_domain=false did not preserve the current domain';
+  end if;
+
+  begin
+    perform api.crm_update_customer(
+      p_customer_id => v_customer_id,
+      p_clear_domain => true);
+    raise exception 'CRM-authorized non-admin unexpectedly cleared the domain';
+  exception when insufficient_privilege then null;
+  end;
+
+  execute 'reset role';
+  select c.* into v_row from core.customer c where c.id = v_customer_id;
+  if v_row.domain is distinct from 'issue-1615.example.invalid' then
+    raise exception 'rejected non-admin clear changed the domain';
+  end if;
+
+  select r.id into v_admin_role_id
+  from app.role r
+  where r.slug = 'administrator';
+  if v_admin_role_id is null then
+    raise exception 'fixture requires the established Administrator role';
+  end if;
+  insert into app.user_role (profile_id, role_id)
+  values (v_allowed_profile, v_admin_role_id);
+  perform set_config('role', 'authenticated', true);
 
   select * into v_row
   from api.crm_update_customer(
