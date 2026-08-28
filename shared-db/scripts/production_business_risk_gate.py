@@ -534,6 +534,15 @@ PREVIEW_PRODUCER_PATHS = (
 PREVIEW_RUNTIME_DATA_DIRS = ("supabase", "config")
 
 PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
+    "supabase/.temp": (
+        "Created locally by the Supabase CLI and excluded by the repository's "
+        "gitignore rules. These machine-specific link and tool-version files "
+        "cannot be reviewed or pinned to a repository commit, and the governed "
+        "workflow establishes and proves its project link independently before "
+        "any preview write. Treating a developer's local CLI state as repository "
+        "source would make the production-risk test depend on which commands had "
+        "previously run on that machine without protecting committed evidence."
+    ),
     "config/blocker-ledger": (
         "Never read by the preview job. Read only by the offline throughput "
         "diagnosis and reporting tools. The "

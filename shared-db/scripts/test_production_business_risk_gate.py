@@ -1109,11 +1109,22 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         # An exemption must describe something that exists, and must not also be
         # pinned -- a path that is both is a contradiction a reader cannot resolve.
         for key, reason in PREVIEW_RUNTIME_DATA_EXEMPTIONS.items():
-            self.assertTrue(
-                (repo_root / key).exists(),
-                f"stale runtime-read exemption: {key} no longer exists. Delete the "
-                f"entry rather than leaving a reason nobody can check.",
-            )
+            exempt_path = repo_root / key
+            if not exempt_path.exists():
+                # Tool-owned runtime directories are intentionally absent in a
+                # clean checkout. Their exemption stays checkable only while the
+                # repository still ignores a representative child path.
+                ignored = subprocess.run(
+                    ["git", "check-ignore", "-q", f"{key}/project-ref"],
+                    cwd=repo_root,
+                    check=False,
+                ).returncode == 0
+                self.assertTrue(
+                    ignored,
+                    f"stale runtime-read exemption: {key} neither exists nor has "
+                    "a repository ignore rule. Delete the entry rather than "
+                    "leaving a reason nobody can check.",
+                )
             self.assertNotIn(
                 key, pinned,
                 f"{key} is both pinned and exempted; one of the two is wrong",
@@ -1149,6 +1160,11 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             "preview job can read it, pin it. If it cannot, say why, in words a "
             "reader can check.",
         )
+
+    def test_supabase_cli_machine_state_is_explicitly_exempted(self):
+        reason = PREVIEW_RUNTIME_DATA_EXEMPTIONS.get("supabase/.temp", "")
+        self.assertIn("machine-specific", reason)
+        self.assertGreaterEqual(len(reason), 120)
 
     @staticmethod
     def repository_paths_named_in(text, repo_root):
@@ -1351,6 +1367,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     NAMED_TEST_VERIFIED_EXEMPTIONS = {
         "docs": "test_the_docs_exemption_is_verified_against_every_producer_that_names_it",
         "supabase/migrations": "test_the_payload_exemption_is_byte_bound_on_every_lane",
+        "supabase/.temp": "test_supabase_cli_machine_state_is_explicitly_exempted",
     }
 
     def test_every_runtime_data_exemption_is_verified_somewhere(self):
