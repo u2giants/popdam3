@@ -85,8 +85,15 @@ holding ~24 MB of live data. That scan happens because the bridge has no index
 on `plm_item_id`, the column this view joins it on, and the join cannot be
 pruned: the bridge genuinely fans out (24,010 order lines to 24,486 view rows).
 The remedy is two indexes in `u2giants/shared-db` (issue #1657), which drop the
-cold read to roughly 2,000 buffers. **When measuring this again, look at
-`buffers`, not at RLS.**
+cold read substantially. **When measuring this again, look at `buffers`, not at
+RLS.**
+
+Those two indexes shipped and were verified on production on 2026-08-27: the
+warm count went to **77-86 ms** and cold reads to **4,707 buffers (37 MB)**. The
+remaining cost is 3,910 random heap fetches into the still-bloated bridge table;
+shared-db #1722 asks for a covering index to make that lookup index-only. Until
+that lands, the exact total is roughly 1.5 s on a genuinely cold cache — well
+clear of the 8 s ceiling, but not yet cheap.
 
 ## Master Data rules
 
