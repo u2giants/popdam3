@@ -238,6 +238,24 @@ function makeAddedFileDiff(file, lines) {
   return diff
 }
 
+/** A deleted file's raw diff text: `+++ /dev/null`, matching real `git diff` output. */
+function deletedFileDiffText(file, lines) {
+  return `diff --git a/${file} b/${file}\ndeleted file mode 100644\n--- a/${file}\n+++ /dev/null\n@@ -1,${lines.length} +0,0 @@\n${lines.map((line) => `-${line}`).join('\n')}\n`
+}
+
+/** An added file's raw diff text, for composing multi-file diffs in order. */
+function addedFileDiffText(file, lines) {
+  return `diff --git a/${file} b/${file}\n--- /dev/null\n+++ b/${file}\n@@ -0,0 +1,${lines.length} @@\n${lines.map((line) => `+${line}`).join('\n')}\n`
+}
+
+/** Concatenate raw diff texts in order into one diff file, as `git diff` would for multiple files. */
+function makeMultiFileDiff(chunks) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'check-sql-diff-'))
+  const diff = path.join(dir, 'change.diff')
+  writeFileSync(diff, chunks.join(''))
+  return diff
+}
+
 test('issue 1684 EOL guard rejects a new combined-table dependency', () => {
   withFixture(['20260801120000_fixture.sql'], (dir) => {
     const result = runGuards(dir, {
@@ -314,6 +332,72 @@ test('issue 1684 EOL guard allows only its exact staging migration', () => {
       env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(makeDiff('supabase/migrations/20260827222039_eol_core_properties_and_characters.sql', 'comment on table core.properties_and_characters is \'EOL\';')) },
     })
     assert.equal(result.status, 0, result.stderr)
+  })
+})
+
+// Regression coverage for a bug an independent review of PR #1712 found:
+// the allowlist for the final #1684 separation migration named an OLD,
+// superseded filename, and a separate parser bug (see below) was masking
+// the guard failure that mismatch should have produced.
+test('issue 1684 EOL guard allows the current final separation migration by its exact reserved filename', () => {
+  withFixture(['20260801120000_fixture.sql'], (dir) => {
+    const result = runGuards(dir, {
+      mainNewest: '20260801100000',
+      env: {
+        CHECK_SQL_EOL_DIFF_FILE: toBashPath(
+          makeDiff('supabase/migrations/20260828111507_separate_property_and_character.sql', 'drop table core.properties_and_characters restrict;'),
+        ),
+      },
+    })
+    assert.equal(result.status, 0, result.stderr)
+  })
+})
+
+test('issue 1684 EOL guard rejects the OLD superseded filename for the final separation migration', () => {
+  withFixture(['20260801120000_fixture.sql'], (dir) => {
+    const result = runGuards(dir, {
+      mainNewest: '20260801100000',
+      env: {
+        CHECK_SQL_EOL_DIFF_FILE: toBashPath(
+          makeDiff('supabase/migrations/20260827224649_separate_property_and_character.sql', 'drop table core.properties_and_characters restrict;'),
+        ),
+      },
+    })
+    assert.notEqual(result.status, 0, 'a stale/renamed filename must not ride on the allowlist')
+    assert.match(result.stderr, /net-new runtime or migration references/)
+  })
+})
+
+// Regression coverage for the parser bug that masked the filename mismatch
+// above on PR #1712: a deleted file's removed lines were attributed to
+// whichever file the parser last saw `+++ b/...` for, because a deleted
+// file's own hunk header is `+++ /dev/null` and never matches that regex.
+// On PR #1712 the deleted test file
+// supabase/tests/core_properties_and_characters_eol.sql sorted immediately
+// after the final migration file in the diff, so its 65 removed references
+// were subtracted from the migration's own net-new count -- turning a real
+// violation into an apparent pass.
+test('issue 1684 EOL guard does not let a deleted file after it mask a migration violation', () => {
+  withFixture(['20260801120000_fixture.sql'], (dir) => {
+    const diff = makeMultiFileDiff([
+      // Not on the allowlist -- this must fail on its own net-new references.
+      addedFileDiffText('supabase/migrations/20260829000000_unrelated_migration.sql', [
+        'drop table core.properties_and_characters restrict;',
+        'drop table core.properties_and_characters restrict;',
+        'drop table core.properties_and_characters restrict;',
+        'drop table core.properties_and_characters restrict;',
+      ]),
+      deletedFileDiffText('supabase/tests/core_properties_and_characters_eol.sql', [
+        'select * from core.properties_and_characters;',
+        'select * from core.properties_and_characters;',
+        'select * from core.properties_and_characters;',
+        'select * from core.properties_and_characters;',
+      ]),
+    ])
+    const result = runGuards(dir, { mainNewest: '20260801100000', env: { CHECK_SQL_EOL_DIFF_FILE: toBashPath(diff) } })
+    assert.notEqual(result.status, 0, 'the deleted test file must never absorb another file\'s net-new references')
+    assert.match(result.stderr, /net-new runtime or migration references/)
+    assert.match(result.stderr, /20260829000000_unrelated_migration\.sql: reference count increased by 4/)
   })
 })
 

@@ -10,8 +10,16 @@ migration_dir="${CHECK_SQL_MIGRATION_DIR:-$root_dir/supabase/migrations}"
 
 # Issue #1684 Phase 1: reject every new runtime or migration dependency on the
 # EOL mixed table. The diff makes existing historical references the exact
-# grandfathered set. The one staging migration is the only new migration
-# allowlisted; the final drop must receive its own reviewed exception later.
+# grandfathered set. Only the two reviewed #1684 transition migrations are
+# allowlisted: reversible EOL staging and the final explicit separation/drop.
+# The final migration's filename MUST be kept in sync with the reserved
+# version for issue #1684 -- an independent review of PR #1712 found this
+# allowlist referencing the migration's OLD, superseded filename
+# (20260827224649_separate_property_and_character.sql) instead of its current
+# reserved version (20260828111507_separate_property_and_character.sql), and
+# a separate parser bug (see the `header` regex below) was masking the
+# resulting guard failure by misattributing a deleted test file's removed
+# references to the wrong migration file.
 check_eol_combined_table_references() {
   local diff_file="${CHECK_SQL_EOL_DIFF_FILE:-}"
   local remove_diff=0
@@ -31,7 +39,10 @@ check_eol_combined_table_references() {
   node - "$diff_file" <<'NODE'
 const fs = require('node:fs')
 const diff = fs.readFileSync(process.argv[2], 'utf8')
-const allowed = 'supabase/migrations/20260827222039_eol_core_properties_and_characters.sql'
+const allowed = new Set([
+  'supabase/migrations/20260827222039_eol_core_properties_and_characters.sql',
+  'supabase/migrations/20260828111507_separate_property_and_character.sql',
+])
 const deltas = new Map()
 const maintenanceAllowed = new Set([
   'api.db_data_admin_licensor_property_tree',
@@ -45,13 +56,24 @@ function referenceCount(text) {
   return (withoutOtherSchemas.match(/(?<![A-Za-z0-9_])"?properties_and_characters"?(?![A-Za-z0-9_])/gi) || []).length
 }
 for (const line of diff.split(/\r?\n/)) {
-  const header = line.match(/^\+\+\+ b\/(.+)$/)
+  // Match the `diff --git a/<path> b/<path>` header, not `+++ b/<path>`. A
+  // deleted file's hunk header is `+++ /dev/null`, which never matches
+  // `+++ b/...` -- `current` was left pointing at whatever file came before
+  // it in the diff, so every removed line from the deleted file was
+  // misattributed to that unrelated file. On PR #1712 the deleted test file
+  // supabase/tests/core_properties_and_characters_eol.sql (65 removed
+  // reference lines) sorted directly after the final migration file, so its
+  // removals were counted AGAINST the migration's own net-new references,
+  // masking the exact allowlist-mismatch failure this guard exists to catch.
+  // `diff --git` is present for every file (added, deleted, or modified) and
+  // always carries the real path, so it cannot be fooled by /dev/null.
+  const header = line.match(/^diff --git a\/.+ b\/(.+)$/)
   if (header) {
     current = header[1]
     maintenance.set(current, { declared: new Set(), completed: new Set(), active: null, tag: null })
     continue
   }
-  if (current === allowed || current === 'scripts/check-sql.sh') continue
+  if (allowed.has(current) || current === 'scripts/check-sql.sh') continue
   if (current.endsWith('.md')) continue
   if (current.startsWith('supabase/tests/') || /\.test\.[cm]?js$/.test(current)) continue
   if (line.startsWith('+') && !line.startsWith('+++')) {
@@ -94,7 +116,7 @@ if (failures.length || validationFailures.length) {
   console.error('ERROR: net-new runtime or migration references to core.properties_and_characters are forbidden by issue #1684:')
   for (const [file, delta] of failures) console.error(`  ${file}: reference count increased by ${delta}`)
   for (const failure of validationFailures) console.error(`  ${failure}`)
-  console.error(`Only the exact EOL staging migration is allowlisted: ${allowed}`)
+  console.error(`Only the exact issue #1684 transition migrations are allowlisted: ${[...allowed].join(', ')}`)
   console.error(`Replacement bodies may maintain only these existing dependencies with an exact -- maintains-eol-dependency declaration: ${[...maintenanceAllowed].join(', ')}`)
   process.exit(1)
 }

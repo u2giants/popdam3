@@ -325,22 +325,22 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-sql.sh:354",
+      "site": "scripts/check-sql.sh:376",
       "disposition": "excluded",
       "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-sql.sh:414",
+      "site": "scripts/check-sql.sh:436",
       "disposition": "excluded",
       "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-sql.sh:415",
+      "site": "scripts/check-sql.sh:437",
       "disposition": "excluded",
       "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-sql.sh:70",
+      "site": "scripts/check-sql.sh:92",
       "disposition": "excluded",
       "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -1086,6 +1086,6 @@
     }
   ],
   "call_site_count": 214,
-  "call_site_sha256": "aa16bf3b02feb3a4785592bcff2e975cfac637a9f35304cf868d5849b9ca87e5",
+  "call_site_sha256": "eaa719e0c2be4e9b35b2df6286f043a148046a7dcce3a3ea9883fe0c926febb7",
   "disposition": "Every discovered site has an explicit reviewed disposition; any source-line drift requires regeneration and review."
 }
