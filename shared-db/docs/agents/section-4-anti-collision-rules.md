@@ -1,6 +1,8 @@
 # AGENTS.md §4 — the five anti-collision rules, full text
 
 > **Active hardening plan:** [`../../plan_multi_agent_database_coordination_hardening.md`](../../plan_multi_agent_database_coordination_hardening.md), issue #1366. Read its STATUS table first. It preserves the rules below while adding read/write dependencies, proven prerequisites, provider-neutral work contracts, lifecycle traces, recoverable fenced stage leases, and an opt-in Supabase branch pilot. Its implementation is repository maintenance outside the structure/schema orchestrator.
+>
+> **Active reviewer API-budget plan:** [`../../plan_reviewer_assignment_api_budget.md`](../../plan_reviewer_assignment_api_budget.md), issue #1767. Read its STATUS table before changing reviewer assignment. It replaces historical availability scans with at-most-five active reviewer leases, strict pre-lock quota/request checks, cached PR/verdict reads, and exhaustive mutex-cleanup tests. This is repository maintenance outside the structure/schema orchestrator.
 
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212) so the router stays under its
 80 KB ceiling. **Text unchanged, section number unchanged.** `AGENTS.md` §4 carries the operative
