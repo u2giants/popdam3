@@ -1279,6 +1279,75 @@ export function supersedeActiveClaimVersion(options,now=new Date(),io=githubIo){
 
 export const reversionActiveClaim=supersedeActiveClaimVersion
 
+function parseMergedClaimReissue(commit){
+  const message=commit?.message??commit?.commit?.message??''
+  const match=/^db-coordination merged-claim-reissued issue=(\d+) claim=(\d+) source-pr=(\d+) old=(\d{14}) new=(\d{14}) old-ref=([0-9a-f]{7,40}) new-ref=([0-9a-f]{7,40}) merge=([0-9a-f]{40})$/i.exec(message)
+  if(!match)throw new LaneError('merged claim reissue ref is unreadable')
+  return {issue:Number(match[1]),claim:Number(match[2]),sourcePr:Number(match[3]),oldVersion:match[4],newVersion:match[5],oldReservation:match[6],newReservation:match[7],mergeSha:match[8]}
+}
+
+export function reissueMergedStrandedClaim(options,now=new Date(),io=githubIo){
+  const request={issue:Number(options.issue),claim:Number(options.claim),sourcePr:Number(options.sourcePr),owner:String(options.owner??''),targetBranch:String(options.targetBranch??''),targetWorktree:String(options.targetWorktree??''),oldVersion:String(options.oldVersion??''),leaseHours:Number(options.leaseHours)}
+  if(!Number.isInteger(request.issue)||!Number.isInteger(request.claim)||!Number.isInteger(request.sourcePr)||!request.owner||!request.targetBranch||!request.targetWorktree||!/^[0-9]{14}$/.test(request.oldVersion)||!Number.isFinite(request.leaseHours)||request.leaseHours<=0||request.leaseHours>24)throw new LaneError('merged claim reissue requires exact issue, claim, source PR, owner, target branch, target worktree, old version, and a lease of no more than 24 hours')
+  const evidenceRef=`refs/db-claim-retirements/${request.claim}-${request.oldVersion}`
+  const priorSha=io.readRef(evidenceRef)
+  let prior=null
+  if(priorSha){
+    prior=parseMergedClaimReissue(io.getCommit(priorSha));const claim=io.getIssue(request.claim),lease=parseAuthorLease(claim?.body??'',now)
+    if(prior.issue!==request.issue||prior.claim!==request.claim||prior.sourcePr!==request.sourcePr||prior.oldVersion!==request.oldVersion||lease.owner!==request.owner||io.readRef(`refs/db-claims/${request.oldVersion}`)!==prior.oldReservation||io.readRef(`refs/db-claims/${prior.newVersion}`)!==prior.newReservation)throw new LaneError('durable merged claim reissue does not match current state')
+    if(lease.version===prior.newVersion&&lease.branch===request.targetBranch&&lease.worktree===request.targetWorktree)return {...prior,retirementSha:priorSha,idempotent:true}
+    if(lease.version!==request.oldVersion)throw new LaneError('durable merged claim reissue exists but the claim is neither original nor exactly reissued')
+  }
+  const ownerSha=io.makeOwnerCommit(`db-coordination merged-claim-reissue-lock issue=${request.issue} claim=${request.claim} source-pr=${request.sourcePr}`)
+  acquireMutex(ownerSha,io)
+  let before,newVersion,newReservation,retirementSha,bodyChanged=false,evidenceCreated=false
+  try{
+    before=io.getIssue(request.claim)
+    if(before?.state!=='open'||Number(before.number)!==request.claim)throw new LaneError(`claim #${request.claim} is not open`)
+    const lease=parseAuthorLease(before.body,now)
+    if(lease.owner!==request.owner||lease.version!==request.oldVersion||!new RegExp(`#${request.issue}(?:\\D|$)`).test(before.title??''))throw new LaneError('claim issue, owner, or stranded version changed')
+    if(lease.branch===request.targetBranch||lease.worktree===request.targetWorktree)throw new LaneError('merged claim reissue requires a fresh target branch and worktree')
+    const oldReservation=io.readRef(`refs/db-claims/${request.oldVersion}`)
+    if(!oldReservation)throw new LaneError('old permanent reservation is missing')
+    const pr=io.getPr(request.sourcePr),mergeSha=String(pr?.merge_commit_sha??pr?.mergeCommit?.oid??'')
+    if(!(pr?.merged===true||pr?.merged_at||String(pr?.state).toLowerCase()==='merged')||!/^[0-9a-f]{40}$/i.test(mergeSha))throw new LaneError('source pull request is not merged with an exact merge commit')
+    const versions=migrationVersions(io.getPrFiles(request.sourcePr))
+    if(versions.length!==1||versions[0]!==request.oldVersion)throw new LaneError('source pull request must contain exactly the stranded migration version')
+    const mainSha=io.mainSha?.()??io.readRef('refs/heads/main')
+    assertMergeCommitInMainHistory(mergeSha,mainSha,io)
+    if(prior&&(prior.mergeSha!==mergeSha||prior.oldReservation!==oldReservation||prior.newVersion<=request.oldVersion))throw new LaneError('durable merged claim reissue does not match source merge or reservations')
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
+    if(prior){newVersion=prior.newVersion;newReservation=prior.newReservation;retirementSha=priorSha}
+    else{
+      const reservation=io.reserveVersion();newVersion=String(reservation.version);newReservation=io.readRef(`refs/db-claims/${newVersion}`)
+      if(!/^[0-9]{14}$/.test(newVersion)||newVersion<=request.oldVersion||!newReservation)throw new LaneError('new permanent reservation is not later than the stranded version or failed readback')
+    }
+    const expiresAt=new Date(now.valueOf()+request.leaseHours*3600000)
+    let newBody=replaceClaimVersion(before.body,request.oldVersion,newVersion)
+    newBody=replaceLeaseLocation(newBody,request.targetBranch,request.targetWorktree)
+    newBody=replaceLeaseExpiry(newBody,expiresAt)
+    if(!prior){
+      retirementSha=io.makeOwnerCommit(`db-coordination merged-claim-reissued issue=${request.issue} claim=${request.claim} source-pr=${request.sourcePr} old=${request.oldVersion} new=${newVersion} old-ref=${oldReservation} new-ref=${newReservation} merge=${mergeSha}`)
+      requireOwnedRef(MUTEX_REF,ownerSha,io)
+      if(!io.createRef(evidenceRef,retirementSha)||readRefAfterWrite(evidenceRef,retirementSha,io)!==retirementSha)throw new LaneError('immutable retirement and supersession evidence could not be created and read back')
+      evidenceCreated=true
+    }
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
+    bodyChanged=true;io.updateIssue(request.claim,{body:newBody})
+    const after=io.getIssue(request.claim),afterLease=parseAuthorLease(after?.body??'',now)
+    if(after?.state!=='open'||after.body!==newBody||afterLease.version!==newVersion||afterLease.owner!==lease.owner||afterLease.branch!==request.targetBranch||afterLease.worktree!==request.targetWorktree||afterLease.objects.join('|')!==lease.objects.join('|'))throw new LaneError('reissued claim readback changed its object lock or identity')
+    if(io.readRef(`refs/db-claims/${request.oldVersion}`)!==oldReservation||io.readRef(`refs/db-claims/${newVersion}`)!==newReservation||io.readRef(evidenceRef)!==retirementSha)throw new LaneError('reissue reservations or retirement evidence changed during readback')
+    return {issue:request.issue,claim:request.claim,sourcePr:request.sourcePr,oldVersion:request.oldVersion,newVersion,oldReservation,newReservation,mergeSha,retirementSha,expiresAt:expiresAt.toISOString(),idempotent:false}
+  }catch(error){
+    if(io.readRef(MUTEX_REF)!==ownerSha)throw new LaneError(`${error.message}; ROLLBACK NOT ATTEMPTED because mutex ownership was lost`)
+    const failures=[]
+    if(bodyChanged)try{io.updateIssue(request.claim,{body:before.body});if(io.getIssue(request.claim)?.body!==before.body)throw new LaneError('claim rollback readback mismatch')}catch(e){failures.push(e.message)}
+    if(evidenceCreated)try{if(io.readRef(evidenceRef)===retirementSha)releaseOwnedRef(evidenceRef,retirementSha,io)}catch(e){failures.push(e.message)}
+    if(failures.length)throw new LaneError(`${error.message}; ROLLBACK INCOMPLETE: ${failures.join('; ')}`)
+    throw error
+  }finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
+}
+
 function parseReviewReplacement(commit) {
   const message=commit?.message ?? commit?.commit?.message ?? ''
   const match=/^db-coordination reviewer-replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) failed-sequence=(\d+) prior-sequence=(\d+) failure-ref=([0-9a-f]{7,40})$/i.exec(message)
@@ -2097,6 +2166,7 @@ function parseArgs(argv) {
     else if (a === '--expand-active-claim-from-pr') out.expandClaim = true
     else if (a === '--expand-active-claim-from-issue') out.expandClaimFromIssue = true
     else if (a === '--renew-claim') out.renewClaim = true
+    else if (a === '--reissue-merged-stranded-claim') out.reissueMergedClaim = true
     else if (a === '--reversion-active-claim' || a === '--supersede-active-claim-version') out.reversionClaim = true
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
@@ -2122,6 +2192,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.expandClaim){console.log(JSON.stringify(expandActiveClaimFromPr({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.expandClaimFromIssue){console.log(JSON.stringify(expandActiveClaimFromIssue({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.renewClaim){console.log(JSON.stringify(renewExpiredClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
+    if(o.reissueMergedClaim){console.log(JSON.stringify(reissueMergedStrandedClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.reversionClaim){console.log(JSON.stringify(reversionActiveClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.replaceFailedReviewer){console.log(JSON.stringify(replaceFailedReviewer(o,io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}

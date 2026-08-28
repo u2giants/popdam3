@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -1523,6 +1523,66 @@ test('general version supersession allows unrelated removals but refuses removed
   ]})
   assert.throws(()=>supersedeActiveClaimVersion(reversionArgs,NOW,refused),/removes a migration file/)
   assert.equal(refused.issue.body,reversionIo().issue.body)
+})
+
+function mergedReissueIo(overrides={}){
+  const io=memoryIo(),old='20260827183011',fresh='20260828120000',merge='c'.repeat(40),main='d'.repeat(40),objects=['table public.asset_effective_tags','function public.filter_effective_assets']
+  const issue={number:1656,state:'open',title:'CLAIM: #1645 PopDAM effective filters and facet parity',body:claimBody({version:old,objects,owner:'codex-agent issue-1645-1649',branch:'codex/issue-1645-effective-filters-1649',worktree:'C:\\old',expiresAt:new Date('2026-08-28T01:08:18.594Z')})}
+  const commits=new Map();let sequence=0
+  io.makeOwnerCommit=(message)=>{const sha=(++sequence).toString(16).padStart(40,'0');commits.set(sha,{message});return sha};io.getCommit=(sha)=>commits.get(sha)
+  io.refs.set(`refs/db-claims/${old}`,'1'.repeat(40));io.refs.set(`refs/db-claims/${fresh}`,'2'.repeat(40));io.refs.set('refs/heads/main',main)
+  io.getIssue=()=>structuredClone(issue);io.updateIssue=(_,fields)=>{Object.assign(issue,fields);return structuredClone(issue)}
+  io.getPr=()=>({state:'closed',merged_at:'2026-08-27T19:00:00Z',merge_commit_sha:merge})
+  io.getPrFiles=()=>[{status:'added',filename:`supabase/migrations/${old}_popdam_effective_asset_filters.sql`},{status:'added',filename:'supabase/tests/popdam_effective_asset_filter_contracts.sql'}]
+  io.mainSha=()=>main;io.compareCommits=()=>({status:'ahead',behind_by:0});io.reserveVersion=()=>({version:fresh})
+  return Object.assign(io,{issue,old,fresh,merge,main,objects},overrides)
+}
+const mergedReissueArgs={issue:1645,claim:1656,sourcePr:1664,owner:'codex-agent issue-1645-1649',targetBranch:'codex/issue-1645-effective-filters-reissue',targetWorktree:'C:\\new',oldVersion:'20260827183011',leaseHours:12}
+
+test('merged stranded claim reissue preserves the exact object lock and both permanent reservations',()=>{
+  const io=mergedReissueIo(),result=reissueMergedStrandedClaim(mergedReissueArgs,NOW,io),lease=parseAuthorLease(io.issue.body,NOW)
+  assert.equal(result.newVersion,io.fresh);assert.equal(lease.version,io.fresh);assert.deepEqual([...lease.objects].sort(),[...io.objects].sort())
+  assert.equal(lease.owner,mergedReissueArgs.owner);assert.equal(lease.branch,mergedReissueArgs.targetBranch);assert.equal(lease.worktree,mergedReissueArgs.targetWorktree)
+  assert.equal(io.refs.get(`refs/db-claims/${io.old}`),'1'.repeat(40));assert.equal(io.refs.get(`refs/db-claims/${io.fresh}`),'2'.repeat(40))
+  assert.ok(io.refs.get(`refs/db-claim-retirements/1656-${io.old}`))
+})
+
+test('merged stranded claim reissue is idempotent only from matching immutable evidence',()=>{
+  const io=mergedReissueIo(),first=reissueMergedStrandedClaim(mergedReissueArgs,NOW,io),second=reissueMergedStrandedClaim(mergedReissueArgs,NOW,io)
+  assert.equal(second.idempotent,true);assert.equal(second.retirementSha,first.retirementSha);assert.equal(second.newVersion,first.newVersion)
+  io.issue.body=io.issue.body.replace(mergedReissueArgs.targetBranch,'foreign')
+  assert.throws(()=>reissueMergedStrandedClaim(mergedReissueArgs,NOW,io),/neither original nor exactly reissued/)
+})
+
+test('merged stranded claim reissue refuses unmerged, non-main, wrong-version, reused-location, and reservation failures',()=>{
+  assert.throws(()=>reissueMergedStrandedClaim(mergedReissueArgs,NOW,mergedReissueIo({getPr:()=>({state:'open'})})),/not merged/)
+  assert.throws(()=>reissueMergedStrandedClaim(mergedReissueArgs,NOW,mergedReissueIo({compareCommits:()=>({status:'diverged',behind_by:1})})),/not contained/)
+  assert.throws(()=>reissueMergedStrandedClaim(mergedReissueArgs,NOW,mergedReissueIo({getPrFiles:()=>[{status:'added',filename:'supabase/migrations/20260827180000_wrong.sql'}]})),/stranded migration/)
+  assert.throws(()=>reissueMergedStrandedClaim({...mergedReissueArgs,targetBranch:'codex/issue-1645-effective-filters-1649'},NOW,mergedReissueIo()),/fresh target/)
+  assert.throws(()=>reissueMergedStrandedClaim(mergedReissueArgs,NOW,mergedReissueIo({reserveVersion:()=>({version:'20260827170000'})})),/not later/)
+})
+
+test('merged stranded claim reissue rolls back claim and evidence after partial failure and fails closed after mutex loss',()=>{
+  let io=mergedReissueIo(),before=io.issue.body,baseUpdate=io.updateIssue,first=true
+  io.updateIssue=(number,fields)=>{const result=baseUpdate(number,fields);if(first){first=false;throw new Error('response lost')}return result}
+  assert.throws(()=>reissueMergedStrandedClaim(mergedReissueArgs,NOW,io),/response lost/);assert.equal(io.issue.body,before);assert.equal(io.readRef(`refs/db-claim-retirements/1656-${io.old}`),null)
+  io=mergedReissueIo();io.updateIssue=(number,fields)=>{Object.assign(io.issue,fields);io.refs.set(MUTEX_REF,'successor');throw new Error('lost mutex')}
+  assert.throws(()=>reissueMergedStrandedClaim(mergedReissueArgs,NOW,io),/ROLLBACK NOT ATTEMPTED/)
+})
+
+test('merged stranded claim reissue resumes exact evidence stranded before the claim update',()=>{
+  const io=mergedReissueIo(),create=io.createRef
+  io.createRef=(ref,sha)=>{const result=create(ref,sha);if(ref.startsWith('refs/db-claim-retirements/'))io.refs.set(MUTEX_REF,'successor');return result}
+  assert.throws(()=>reissueMergedStrandedClaim(mergedReissueArgs,NOW,io),/ROLLBACK NOT ATTEMPTED/)
+  assert.equal(parseAuthorLease(io.issue.body,NOW).version,io.old)
+  io.createRef=create;io.refs.delete(MUTEX_REF)
+  const resumed=reissueMergedStrandedClaim(mergedReissueArgs,NOW,io)
+  assert.equal(resumed.idempotent,false);assert.equal(parseAuthorLease(io.issue.body,NOW).version,io.fresh)
+})
+
+test('REAL main command wires the merged stranded claim reissue identities',()=>{
+  const io=mergedReissueIo(),args=['--reissue-merged-stranded-claim','--issue','1645','--claim-number','1656','--source-pr','1664','--owner',mergedReissueArgs.owner,'--target-branch',mergedReissueArgs.targetBranch,'--target-worktree',mergedReissueArgs.targetWorktree,'--old-version',mergedReissueArgs.oldVersion,'--lease-hours','12']
+  assert.equal(main(args,NOW,io),0);assert.equal(parseAuthorLease(io.issue.body,NOW).version,io.fresh)
 })
 
 // Issue #1165. A stale PR readback after a landed push is eventual consistency,
