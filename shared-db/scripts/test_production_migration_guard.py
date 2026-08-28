@@ -257,12 +257,17 @@ class GuardTests(unittest.TestCase):
                 "20260814223552",
                 "20260825094455",
                 "20260827183011",
+                "20260828052706",
             },
         )
 
     def test_stranded_popdam_original_is_permanently_blocked(self) -> None:
         with self.assertRaisesRegex(GuardError, "20260827183011"):
             parse_allowlist("20260827183011")
+
+    def test_issue_1750_code_truth_restoration_cannot_be_replayed(self) -> None:
+        with self.assertRaisesRegex(GuardError, "20260828052706"):
+            parse_allowlist("20260828052706")
 
     def test_stranded_warner_original_is_blocked_but_reissue_is_allowed(self) -> None:
         with self.assertRaisesRegex(GuardError, "20260814170749"):

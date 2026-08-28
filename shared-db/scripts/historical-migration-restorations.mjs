@@ -5,6 +5,19 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const HISTORICAL_RESTORATIONS = Object.freeze({
+  '20260828052706': Object.freeze({
+    filename: 'supabase/migrations/20260828052706_sync_dflow_columns_onto_plm_designflow_copies.sql',
+    name: 'sync_dflow_columns_onto_plm_designflow_copies',
+    productionProject: 'qsllyeztdwjgirsysgai',
+    sourceVersion: '20260817150944',
+    verificationRun: '33169143850',
+    codeTruthOnly: true,
+    statementCount: 1,
+    statementBytes: 3213,
+    statementSha256: '03f40fec5d4d72443b31ac5c7bdb028d4972eedf057479c596214efb1b189779',
+    fileSha256: 'c8ab692586a94fef5dfdf18b32105ccb9f9469bb8336c40fab793c1c4404dace',
+    objects: Object.freeze(['table plm.rfqitem','table plm.gridviewstate','table plm.itemdetail']),
+  }),
   '20260824150630': Object.freeze({
     filename: 'supabase/migrations/20260824150630_sample_tracking_piece_split_and_transit_return.sql',
     name: 'sample_tracking_piece_split_and_transit_return',

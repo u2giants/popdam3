@@ -19,6 +19,12 @@ export function declarationCoversActual(declared, actual) {
 export function validateMigrationLease({ claims, branch, files, now = new Date(), reservationExists }) {
   const migrations=files.filter(f=>f.filename?.startsWith('supabase/migrations/')&&f.filename.endsWith('.sql')&&f.status!=='removed')
   if (!migrations.length) return { relevant:false }
+  if(migrations.length===1){
+    try{
+      const restoration=validateHistoricalRestorationFile(migrations[0].filename,migrations[0].sql)
+      if(restoration.codeTruthOnly===true)return {relevant:false,historicalCodeTruth:true,version:path.basename(migrations[0].filename).slice(0,14)}
+    }catch{}
+  }
   const matching=[]
   for(const claim of claims){
     let lease
@@ -77,5 +83,5 @@ export function gatherPrInput(env=process.env){
   return {claims:issues.filter(x=>!x.pull_request).map(x=>({number:x.number,body:x.body})),branch:pr.head.ref,files,reservationExists:(version)=>{try{return Boolean(json(['api',`repos/${REPO}/git/ref/db-claims/${version}`])?.object?.sha)}catch{return false}}}
 }
 
-export function main(env=process.env){try{const result=validateMigrationLease(gatherPrInput(env));console.log(result.relevant?`Migration claim verified: #${result.claim}, version ${result.version}.`:'No migration files changed; claim check is not applicable.');return 0}catch(e){console.error(`REFUSED: ${e.message}`);return 2}}
+export function main(env=process.env){try{const result=validateMigrationLease(gatherPrInput(env));console.log(result.relevant?`Migration claim verified: #${result.claim}, version ${result.version}.`:result.historicalCodeTruth?'Migration code-truth restoration verified; claim check is not applicable.':'No migration files changed; claim check is not applicable.');return 0}catch(e){console.error(`REFUSED: ${e.message}`);return 2}}
 if(import.meta.url===pathToFileURL(process.argv[1]??'').href)process.exitCode=main()

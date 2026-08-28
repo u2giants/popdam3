@@ -11,6 +11,14 @@ test('pins the one authenticated preview historical restoration',()=>{
   assert.deepEqual(row.objects,['table plm.rfqitem','table plm.gridviewstate','table plm.itemdetail'])
 })
 
+test('pins the production code-truth restoration without authorizing replay',()=>{
+  const row=HISTORICAL_RESTORATIONS['20260828052706']
+  assert.equal(row.sourceVersion,'20260817150944')
+  assert.equal(row.verificationRun,'33169143850')
+  assert.equal(row.productionProject,'qsllyeztdwjgirsysgai')
+  assert.equal(validateHistoricalRestorationFile(row.filename,readFileSync(row.filename,'utf8')),row)
+})
+
 test('pins the Sample Tracking preview ledger restoration byte for byte',()=>{
   const row=HISTORICAL_RESTORATIONS['20260824150630']
   assert.equal(row.name,'sample_tracking_piece_split_and_transit_return')

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { declarationCoversActual, flattenPages, validateMigrationLease } from './check-migration-pr-lease.mjs'
 import { claimBody } from './manage-migration-author-lanes.mjs'
@@ -8,6 +9,14 @@ const file=(sql='create table core.x(id bigint);')=>({filename:'supabase/migrati
 const run=(x={})=>validateMigrationLease({claims:[claim()],branch:'codex/x',files:[file()],now,reservationExists:()=>true,...x})
 test('valid migration is bound to branch, exact version, object claim and reservation',()=>assert.equal(run().claim,12))
 test('migration PR without a claim fails',()=>assert.throws(()=>run({claims:[]}),/exactly one/))
+test('exact issue 1750 code-truth restoration needs no structural claim but altered bytes do',()=>{
+  const filename='supabase/migrations/20260828052706_sync_dflow_columns_onto_plm_designflow_copies.sql'
+  const sql=readFileSync(filename,'utf8')
+  const result=run({claims:[],files:[{filename,status:'added',sql}]})
+  assert.equal(result.relevant,false)
+  assert.equal(result.historicalCodeTruth,true)
+  assert.throws(()=>run({claims:[],files:[{filename,status:'added',sql:sql+'-- changed\n'}]}),/exactly one/)
+})
 test('legacy-only claim fails',()=>assert.throws(()=>run({claims:[{number:1,body:'```db-claim\nversion: none\nobjects:\n - table core.x\n```'}]}),/exactly one/))
 test('wrong branch fails',()=>assert.throws(()=>run({branch:'codex/other'}),/exactly one/))
 test('expired lease fails',()=>assert.throws(()=>run({claims:[claim({expiresAt:new Date('2026-08-14T19:00:00Z')})]}),/expired/))
