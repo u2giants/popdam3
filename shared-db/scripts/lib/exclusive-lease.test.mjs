@@ -21,7 +21,7 @@ const finished = (over = {}) => ({ status: 'completed', conclusion: 'failure', c
 test('the first line keeps the exact prefix recoverStaleAuthorMutex recognises', () => {
   const message = formatLeaseMessage('merge', meta())
   assert.match(message.split('\n')[0], new RegExp(`^${RECOGNIZED_PREFIX} merge `))
-  const recoveryRegex = /^db-coordination (?:author-acquisition|preview|merge|production|claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-lease-renewal|reviewer-assignment-lock|reviewer-replacement-lock)\b/
+  const recoveryRegex = /^db-coordination (?:author-acquisition|author-capacity-relinquish|author-capacity-resume|preview|merge|production|claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-lease-renewal|reviewer-assignment-lock|reviewer-replacement-lock)\b/
   for (const kind of ['preview', 'merge', 'production']) {
     assert.match(formatLeaseMessage(kind, meta()), recoveryRegex, `${kind} must stay recoverable by recover-author-mutex.yml`)
   }

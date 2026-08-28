@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "identity_fields": ["policy_version", "migrations", "focused_files", "verification_files", "claims", "global_invalidators", "migration_order_digest"],
+  "metadata_fields": ["issue", "pr", "claim", "base_main_sha", "integration_sha", "review", "ci"]
+}

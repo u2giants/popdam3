@@ -34,6 +34,7 @@ export function validateMigrationLease({ claims, branch, files, now = new Date()
   if(matching.length!==1) throw new LeaseCheckError(`migration PR branch ${branch} must have exactly one active ref-backed claim; found ${matching.length}`)
   const holder=matching[0]
   if(!holder.lease.active) throw new LeaseCheckError(`claim #${holder.number} is expired`)
+  if(holder.lease.capacityState !== 'active') throw new LeaseCheckError(`claim #${holder.number} author capacity is ${holder.lease.capacityState}`)
   // WRITES ONLY. A migration's statically extracted objects are things it CHANGES,
   // so only the claim's writes can cover them. A read declaration must never
   // satisfy a write: that is the whole point of separating the two lists.

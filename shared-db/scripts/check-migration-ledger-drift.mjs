@@ -67,6 +67,8 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { APPLIED_VERSIONS_SQL, fetchAppliedVersions, PROJECT_REFS, Unknown } from './orchestrator-flow/read-preview-ledger.mjs'
+export { APPLIED_VERSIONS_SQL, fetchAppliedVersions, PROJECT_REFS, Unknown }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -82,13 +84,6 @@ export const MIGRATIONS_DIR = 'supabase/migrations'
  * silently measures drift against a project nobody uses. It fails closed (Unknown, exit
  * 2) against a project that no longer exists, which is how the stale value was caught.
  */
-export const PROJECT_REFS = {
-  production: 'qsllyeztdwjgirsysgai',
-  preview: 'mvpkijzfmfcxhnzqogzs',
-}
-
-/** Thrown when an input cannot be gathered. Never swallowed into a green result. */
-export class Unknown extends Error {}
 
 export const PENDING_KINDS = new Set(['genuinely-pending', 'guarded-batch', 'deliberately-held', 'retired', 'base-absent'])
 export const INTENTIONALLY_EXCLUDED_KINDS = new Set(['deliberately-held', 'retired'])
@@ -425,54 +420,6 @@ export function mainMigrationFiles(baseRef = 'origin/main') {
  * THE STATEMENT IS A CONSTANT. There is no interpolation and no way for a caller
  * to supply SQL, so this cannot be turned into a write path by an argument.
  */
-export const APPLIED_VERSIONS_SQL =
-  'select version from supabase_migrations.schema_migrations order by version'
-
-export async function fetchAppliedVersions(projectRef, token = process.env.SUPABASE_ACCESS_TOKEN) {
-  if (!token) {
-    throw new Unknown(
-      'SUPABASE_ACCESS_TOKEN is not set, so the migration ledger could not be read. ' +
-        'This is NOT "no drift" — nothing was compared. Export a Supabase personal access ' +
-        'token (read is enough) and run again.',
-    )
-  }
-
-  let response
-  try {
-    response = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: APPLIED_VERSIONS_SQL }),
-    })
-  } catch (error) {
-    throw new Unknown(`could not reach the Supabase Management API: ${error.message}`)
-  }
-
-  const body = await response.text()
-  if (!response.ok) {
-    throw new Unknown(
-      `Supabase Management API returned ${response.status} for project ${projectRef}: ${body.slice(0, 500)}`,
-    )
-  }
-
-  let rows
-  try {
-    rows = JSON.parse(body)
-  } catch {
-    throw new Unknown(`Supabase Management API did not return JSON for project ${projectRef}`)
-  }
-  if (!Array.isArray(rows)) {
-    throw new Unknown(`Supabase Management API returned ${typeof rows}, not a row array`)
-  }
-
-  return rows.map((row) => {
-    if (!row || typeof row.version === 'undefined' || row.version === null) {
-      throw new Unknown('a ledger row came back without a `version` column')
-    }
-    return String(row.version)
-  })
-}
-
 // ---------------------------------------------------------------------------
 // Orchestration — injectable, so every branch including the unreachable ledger
 // is unit-testable without a network.

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "files": [
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/production-apply-review-evidence.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "AGENTS.md",
+    "config/atomic-migration-allowlist.json",
+    "config/production-risk-policy-activation.json",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/check-dispatch-collision.mjs",
+    "scripts/check-pr-object-collisions.mjs",
+    "scripts/db-coordination-events.mjs",
+    "scripts/lib/exclusive-lease.mjs",
+    "scripts/lib/work-dependencies.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/classify-invalidation.mjs",
+    "scripts/orchestrator-flow/evidence-bundle.mjs",
+    "scripts/orchestrator-flow/preview-graph.mjs",
+    "scripts/orchestrator-flow/qualify-change.mjs",
+    "scripts/orchestrator-flow/read-preview-ledger.mjs",
+    "scripts/orchestrator-flow/reconcile.mjs",
+    "scripts/orchestrator-flow/reviewer-allocation.mjs",
+    "scripts/orchestrator-flow/select-preview-route.mjs",
+    "scripts/orchestrator-flow/throughput-report.mjs",
+    "scripts/throughput-guard/ledger-lib.mjs",
+    "scripts/production_apply_review_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/production_catalog_verification.py"
+  ]
+}

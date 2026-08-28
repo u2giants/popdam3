@@ -15,16 +15,16 @@ This is Phase 2 of the throughput repair. Phase 1 is [`plan_orchestrator_through
 | Step | Deliverable | State | Evidence |
 |---|---|---|---|
 | 0 | Plan, evidence, handoff and tracking issue registered | ✅ done 2026-08-28 | this file; linked handoff; issue #1738 |
-| 1 | Freeze a machine-readable transcript baseline and throughput model | ⬜ open | — |
-| 2 | Separate protected object claims from active author capacity | ⬜ open | — |
-| 3 | Add immutable, content-addressed evidence bundles | ⬜ open | — |
-| 4 | Revalidate by proven invalidation class instead of unrelated `main` movement | ⬜ open | — |
-| 5 | Add an explicit shared-preview dependency graph and durable ready instruction | ⬜ open | — |
-| 6 | Make reviewer allocation concurrent with short per-reviewer reservations | ⬜ open | — |
-| 7 | Preflight route and verifier compatibility before expensive work | ⬜ open | — |
-| 8 | Automate blocker transitions, capacity refill and resume | ⬜ open | — |
-| 9 | Integrate Phase 1 measurement and prove throughput without weakening safety | ⬜ open | — |
-| 10 | Full verification, staged rollout, landing and post-merge proof | ⬜ open | — |
+| 1 | Freeze a machine-readable transcript baseline and throughput model | ✅ done 2026-08-28 | scrubbed baseline JSON; hermetic schema tests; required CI guarded glob |
+| 2 | Separate protected object claims from active author capacity | ✅ done 2026-08-28 | versioned capacity fence; guarded relinquish/resume; collision and audit tests |
+| 3 | Add immutable, content-addressed evidence bundles | ✅ done 2026-08-28 | canonical bundle schema/CLI; invalidator discovery; dirty/missing fail-closed tests |
+| 4 | Revalidate by proven invalidation class instead of unrelated `main` movement | ✅ done 2026-08-28 | five-class conservative classifier; #1713 integration-only fixture |
+| 5 | Add an explicit shared-preview dependency graph and durable ready instruction | ✅ done 2026-08-28 | live repository-variable/ledger reader; deterministic route/ready identity; historical dry-run refusal |
+| 6 | Make reviewer allocation concurrent with short per-reviewer reservations | ✅ activated 2026-08-28 | canonical execution-key reservations; ordered durable wait/claim tests; six-reviewer roster approved |
+| 7 | Preflight route and verifier compatibility before expensive work | ✅ done 2026-08-28 | thin Node qualification over Python risk/catalog diagnostics; #1684/#1720/#1646 fixtures |
+| 8 | Automate blocker transitions, capacity refill and resume | ✅ done 2026-08-28 | marker-bound live adapter; guarded transitions; successor-first ready refs; explicit UNVERIFIABLE exit 2 |
+| 9 | Integrate Phase 1 measurement and prove throughput without weakening safety | ✅ schema/report done 2026-08-28 | one ledger schema; separated waits; observed-only n=20 and zero-tolerance safety tests |
+| 10 | Full verification, staged rollout, landing and post-merge proof | 🚧 landing | Albert approved Codex GPT-5.6 Sol and DeepSeek; six-reviewer rotation and cap eight activated; merge/post-merge proof pending |
 
 **Fresh implementation starts at Step 1.** Use a fresh session at each phase boundary: Phase A = Steps 1–2, Phase B = Steps 3–4, Phase C = Steps 5–6, Phase D = Steps 7–9, Phase E = Step 10. Re-read the remaining plan and current `origin/main` before each phase.
 
@@ -550,7 +550,7 @@ Roll out in reversible stages:
 
 1. **Shadow:** commands compute new state/bundles/route/invalidation but existing enforcement remains authoritative. Record mismatches; any unsafe disagreement blocks enablement.
 2. **Capacity:** enable claim/author-lease separation while collision enforcement remains dual-checked against old claims.
-3. **Reviewer/cap:** qualify two distinct provider/wrapper identities (retired `glm-5.2` cannot count separately from active `glm-5.3`), present the exact recommendation to Albert, obtain his approval, prove at least six active rotation providers, enable per-reviewer reservations plus `review-wait`, then raise active capacity from five to eight under his 2026-08-27 instruction; retain recovery compatibility for old assignment refs. Without the approval and proof, remain at five.
+3. **Reviewer/cap:** completed 2026-08-28. Albert approved Codex GPT-5.6 Sol (`ai-codex-review`) and DeepSeek (`ai-deepseek-agent`) after both wrappers qualified. The active rotation now has six providers, per-reviewer reservations plus `review-wait` remain enabled, and active-author capacity is eight. Historical assignment refs remain readable.
 4. **Preview scheduler:** convert known dependency failures to durable waits and emit exact ready work for manual dispatch; keep one preview lock.
 5. **Evidence reuse:** enable `INTEGRATION_REFRESH_ONLY` review preservation last, after shadow corpus proves no false reuse.
 
@@ -573,7 +573,7 @@ Run focused tests after each step and the repository-required suites on a frozen
 - `scripts/orchestrator-flow/read-preview-ledger.test.mjs`: injected repository-variable and Management API adapters, exact ref validation/cross-check, no literal query fallback, compatibility exports and every exit-2 capability/transport/malformed case.
 - `scripts/test_production_migration_guard.py` preserves `.github/workflows/shared-supabase-migrations.yml` concurrency, permissions, required contexts, dispatch inputs, literal production needs and deliberately-first safety steps; it pins the procedure's historical-dry-run no-evidence warning; Step 5 introduces no mutation to the shared migrations workflow.
 - Reviewer concurrency tests: parallel assignment by canonical execution key, aliases sharing a provider/wrapper serialize, no global stall, exact recovery, prohibited-provider preflight, and context doctor outside `MUTEX_REF`.
-- Reviewer supply tests: all active plus overflow busy creates a durable ordered `review-wait`, never a duplicate; release and independent reconciliation each wake exactly one compatible waiter through the allocator; a dead releaser strands nothing; cap 8 does not imply eight simultaneous reviewers.
+- Reviewer supply tests: all six active reviewers busy creates a durable ordered `review-wait`, never a duplicate; release and independent reconciliation each wake exactly one compatible waiter through the allocator; a dead releaser strands nothing; cap 8 does not imply eight simultaneous reviewers.
 - `scripts/orchestrator-flow/qualify-change.test.mjs`: #1684/#1720/#1646 late-failure fixtures and supported controls.
 - `scripts/orchestrator-flow/reconcile.test.mjs` plus manager/event/recovery tests: idempotence, exact CLI validation/delegation, overlapping reconciliation under the owned mutex, blocked-claim capacity, priority/collision refill, exact resume, event-first ready emission/retry, marker-bound preparation, report-only ordinary drift, successor-first failure injection, zero-match second-tip recovery, stale-duplicate convergence/malformed refusal, wrong-digest repair/live-digest owner routing, terminal outcome contention and mode-specific `dispatched`, v1/v2 event compatibility and non-exclusive behavioral audit, lock-kind recovery, terminal reservation release, and interrupted reviewer-generation rollover.
 - Phase 1 ledger/report tests extended for new timing classes and minimum sample rules.
@@ -664,7 +664,7 @@ Run focused tests after each step and the repository-required suites on a frozen
 
 ### Open questions
 
-Implementation may begin without an owner decision, but Step 10 cap activation cannot. Albert already instructed the five-to-eight raise on 2026-08-27 and required at least six active rotation reviewers; the live roster has four. After real wrapper qualification, the implementer must bring Albert one exact recommendation naming two distinct provider/wrapper identities; `glm-5.2` cannot count separately from active `glm-5.3`. Until he approves and the roster/safe-wait tests pass, the cap remains five. The implementer may choose module boundaries and the versioned capacity-record representation under §8. The first shadow report may reveal a class that cannot safely be proven disjoint; classify it `UNVERIFIABLE` and retain full exact-head replay rather than asking for a safety exception. Any proposal to parallelize database writes or reduce reviewer coverage is outside this plan and requires a separate owner decision.
+The owner gate is resolved. On 2026-08-28 Albert approved Codex GPT-5.6 Sol and DeepSeek as the two additional active rotation providers after wrapper qualification; the roster is six and the cap is eight. `glm-5.2` remains retired historical evidence and does not count separately from active `glm-5.3`. The first shadow report may reveal a class that cannot safely be proven disjoint; classify it `UNVERIFIABLE` and retain full exact-head replay rather than asking for a safety exception. Any proposal to parallelize database writes or reduce reviewer coverage is outside this plan and requires a separate owner decision.
 
 ## Self-audit
 

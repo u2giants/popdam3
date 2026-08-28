@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {buildThroughputReport} from './throughput-report.mjs'
+const rows=Array.from({length:20},(_,i)=>({estimate:false,completed:true,material_loops:i%2,reviewer_allocation_wait_minutes:1,claim_protected_minutes:10,active_author_minutes:5,external_blocked_minutes:5,review_execution_wait_minutes:3,preview_dependency_wait_minutes:0}))
+test('success requires twenty observed comparable issues and prints n',()=>{assert.deepEqual(buildThroughputReport(rows).status,'SUCCESS');assert.equal(buildThroughputReport(rows).n,20);assert.equal(buildThroughputReport(rows.slice(0,19)).status,'INSUFFICIENT_SAMPLE')})
+test('estimated and unknown data are excluded',()=>{const result=buildThroughputReport([...rows.slice(0,19),{...rows[0],estimate:true}]);assert.equal(result.n,19);assert.equal(result.wait_samples.claim_protected_minutes,19)})
+test('one safety regression refuses a success verdict',()=>{const result=buildThroughputReport(rows.map((r,i)=>i? r:{...r,weakened_gate:true}));assert.equal(result.status,'REGRESSION');assert.equal(result.success,false)})

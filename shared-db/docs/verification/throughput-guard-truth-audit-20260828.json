@@ -115,6 +115,11 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
+      "site": ".github/workflows/migration-author-lease.yml:38",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
       "site": ".github/workflows/migration-ledger-drift.yml:155",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
@@ -280,7 +285,7 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-migration-ledger-drift.mjs:191",
+      "site": "scripts/check-migration-ledger-drift.mjs:186",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -290,17 +295,17 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-migration-ledger-drift.mjs:336",
+      "site": "scripts/check-migration-ledger-drift.mjs:331",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-migration-pr-lease.mjs:56",
+      "site": "scripts/check-migration-pr-lease.mjs:57",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-migration-pr-lease.mjs:60",
+      "site": "scripts/check-migration-pr-lease.mjs:61",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -405,97 +410,97 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1297",
+      "site": "scripts/manage-migration-author-lanes.mjs:1389",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1393",
+      "site": "scripts/manage-migration-author-lanes.mjs:1484",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1542",
+      "site": "scripts/manage-migration-author-lanes.mjs:1630",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1570",
+      "site": "scripts/manage-migration-author-lanes.mjs:1658",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1632",
+      "site": "scripts/manage-migration-author-lanes.mjs:1720",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1682",
+      "site": "scripts/manage-migration-author-lanes.mjs:1770",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1825",
+      "site": "scripts/manage-migration-author-lanes.mjs:1913",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2031",
+      "site": "scripts/manage-migration-author-lanes.mjs:2230",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2080",
+      "site": "scripts/manage-migration-author-lanes.mjs:2279",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2235",
+      "site": "scripts/manage-migration-author-lanes.mjs:2435",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2236",
+      "site": "scripts/manage-migration-author-lanes.mjs:2436",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2472",
+      "site": "scripts/manage-migration-author-lanes.mjs:2672",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2519",
+      "site": "scripts/manage-migration-author-lanes.mjs:2719",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2520",
+      "site": "scripts/manage-migration-author-lanes.mjs:2720",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:347",
+      "site": "scripts/manage-migration-author-lanes.mjs:350",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:540",
+      "site": "scripts/manage-migration-author-lanes.mjs:552",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:556",
+      "site": "scripts/manage-migration-author-lanes.mjs:568",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:64",
+      "site": "scripts/manage-migration-author-lanes.mjs:69",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:769",
+      "site": "scripts/manage-migration-author-lanes.mjs:795",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -538,6 +543,41 @@
       "site": "scripts/migration_derivation.py:351",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/orchestrator-flow/baseline-schema.mjs:28",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/baseline-schema.mjs:8",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/evidence-bundle.mjs:27",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/evidence-bundle.mjs:37",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/evidence-bundle.mjs:47",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/evidence-bundle.mjs:80",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/qualify-change.mjs:19",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
     },
     {
       "site": "scripts/post_batch_app_verification.py:112",
@@ -620,37 +660,37 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1128",
+      "site": "scripts/production_business_risk_gate.py:1140",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1364",
+      "site": "scripts/production_business_risk_gate.py:1376",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1372",
+      "site": "scripts/production_business_risk_gate.py:1384",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1373",
+      "site": "scripts/production_business_risk_gate.py:1385",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1374",
+      "site": "scripts/production_business_risk_gate.py:1386",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1469",
+      "site": "scripts/production_business_risk_gate.py:1487",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1537",
+      "site": "scripts/production_business_risk_gate.py:1555",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -670,12 +710,12 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:605",
+      "site": "scripts/production_business_risk_gate.py:617",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:637",
+      "site": "scripts/production_business_risk_gate.py:649",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -700,127 +740,132 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2020",
+      "site": "scripts/production_catalog_verification.py:1918",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:2029",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2114",
+      "site": "scripts/production_catalog_verification.py:2123",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2148",
+      "site": "scripts/production_catalog_verification.py:2157",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2149",
+      "site": "scripts/production_catalog_verification.py:2158",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2350",
+      "site": "scripts/production_catalog_verification.py:2359",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2380",
+      "site": "scripts/production_catalog_verification.py:2389",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2381",
+      "site": "scripts/production_catalog_verification.py:2390",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2385",
+      "site": "scripts/production_catalog_verification.py:2394",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2411",
+      "site": "scripts/production_catalog_verification.py:2420",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2451",
+      "site": "scripts/production_catalog_verification.py:2460",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2458",
+      "site": "scripts/production_catalog_verification.py:2467",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2545",
+      "site": "scripts/production_catalog_verification.py:2554",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2546",
+      "site": "scripts/production_catalog_verification.py:2555",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2550",
+      "site": "scripts/production_catalog_verification.py:2559",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2581",
+      "site": "scripts/production_catalog_verification.py:2590",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2626",
+      "site": "scripts/production_catalog_verification.py:2635",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2644",
+      "site": "scripts/production_catalog_verification.py:2653",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2646",
+      "site": "scripts/production_catalog_verification.py:2655",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2675",
+      "site": "scripts/production_catalog_verification.py:2684",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2806",
+      "site": "scripts/production_catalog_verification.py:2815",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2808",
+      "site": "scripts/production_catalog_verification.py:2817",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2839",
+      "site": "scripts/production_catalog_verification.py:2848",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2924",
+      "site": "scripts/production_catalog_verification.py:2933",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2945",
+      "site": "scripts/production_catalog_verification.py:2954",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3147",
+      "site": "scripts/production_catalog_verification.py:3156",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -1085,7 +1130,7 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     }
   ],
-  "call_site_count": 214,
-  "call_site_sha256": "eaa719e0c2be4e9b35b2df6286f043a148046a7dcce3a3ea9883fe0c926febb7",
+  "call_site_count": 223,
+  "call_site_sha256": "71e9a9bea419ff0180bf7216e6f9865d0368ba3131ed4140cfa082d971c0dff4",
   "disposition": "Every discovered site has an explicit reviewed disposition; any source-line drift requires regeneration and review."
 }

@@ -3,7 +3,7 @@
  * Guard: at most ONE open orchestrator marker, and an unreadable answer is
  * UNKNOWN -- never "none open".
  *
- * Plan item B1/B1a/B1b of `plan_orchestrator-workflow-gaps.md`, issue #619.
+ * Plan item B1/B1a/B1b of plan_orchestrator-workflow-gaps.md, issue #619.
  *
  * WHY THIS EXISTS
  * ---------------

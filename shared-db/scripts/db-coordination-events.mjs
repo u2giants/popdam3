@@ -25,7 +25,8 @@
 import { createHash } from 'node:crypto'
 
 export const EVENT_FENCE = 'db-coordination-event'
-export const EVENT_SCHEMA_VERSION = 1
+export const EVENT_SCHEMA_VERSION = 2
+export const READABLE_EVENT_SCHEMA_VERSIONS = Object.freeze([1, 2])
 
 export class EventError extends Error {}
 
@@ -33,7 +34,12 @@ export const EVENT_TYPES = Object.freeze([
   'contract_published', 'contract_superseded',
   'dispatched',
   'claim_acquired', 'claim_renewed', 'claim_expanded', 'claim_released',
+  'author_capacity_relinquished', 'author_capacity_resumed',
+  'issue_blocked', 'issue_unblocked',
+  'ci_started', 'ci_completed',
+  'review_wait',
   'review_started', 'review_completed',
+  'preview_wait', 'preview_ready',
   'preview_acquired', 'preview_released',
   'merge_acquired', 'merge_released',
   'production_acquired', 'production_released',
@@ -61,7 +67,7 @@ const TERMINAL_EVENTS = Object.freeze(['work_completed', 'work_cancelled', 'work
  */
 export function validateEvent(event) {
   if (event === null || typeof event !== 'object' || Array.isArray(event)) throw new EventError('event must be a JSON object')
-  if (event.schema_version !== EVENT_SCHEMA_VERSION) throw new EventError(`event schema_version must be ${EVENT_SCHEMA_VERSION}`)
+  if (!READABLE_EVENT_SCHEMA_VERSIONS.includes(event.schema_version)) throw new EventError(`event schema_version must be one of ${READABLE_EVENT_SCHEMA_VERSIONS.join(', ')}`)
   if (typeof event.event_id !== 'string' || !event.event_id.trim()) throw new EventError('event must carry an event_id')
   if (!EVENT_TYPES.includes(event.event_type)) throw new EventError(`event_type must be one of ${EVENT_TYPES.join(', ')}`)
   if (typeof event.timestamp !== 'string' || Number.isNaN(Date.parse(event.timestamp))) throw new EventError('event timestamp must be an ISO instant')
@@ -69,7 +75,9 @@ export function validateEvent(event) {
   if (typeof event.actor !== 'string' || !event.actor.trim()) throw new EventError('event must record an actor')
   if (!EVENT_RESULTS.includes(event.result)) throw new EventError(`event result must be one of ${EVENT_RESULTS.join(', ')}`)
 
-  const known = new Set(['schema_version', 'event_id', 'event_type', 'timestamp', 'work_issue', 'claim_issue', 'pr', 'head_sha', 'actor', 'provider', 'holder_id', 'generation', 'db_reads', 'db_writes', 'result', 'evidence_urls', 'detail'])
+  const v1 = ['schema_version', 'event_id', 'event_type', 'timestamp', 'work_issue', 'claim_issue', 'pr', 'head_sha', 'actor', 'provider', 'holder_id', 'generation', 'db_reads', 'db_writes', 'result', 'evidence_urls', 'detail']
+  const v2 = ['ready_id', 'bundle_id', 'route', 'route_context', 'manifest_digest', 'invalidation_class', 'review_bundle_id', 'integration_sha']
+  const known = new Set(event.schema_version === 1 ? v1 : [...v1, ...v2])
   for (const key of Object.keys(event)) {
     if (!known.has(key)) throw new EventError(`event has unknown field ${key}`)
   }
@@ -94,6 +102,26 @@ export function eventId(event) {
   const material = [event.event_type, event.work_issue, event.timestamp, event.actor, event.holder_id ?? '', event.generation ?? '', event.pr ?? ''].join('|')
   return createHash('sha256').update(material).digest('hex').slice(0, 16)
 }
+
+export function coordinationEvent({ eventType, workIssue, claimIssue, actor, timestamp, detail, ...optional }) {
+  const event = {
+    schema_version: EVENT_SCHEMA_VERSION,
+    event_id: '',
+    event_type: eventType,
+    timestamp,
+    work_issue: Number(workIssue),
+    actor,
+    result: 'succeeded',
+    ...(claimIssue === undefined ? {} : { claim_issue: Number(claimIssue) }),
+    ...(detail ? { detail } : {}),
+    ...optional,
+  }
+  event.event_id = eventId(event)
+  return validateEvent(event)
+}
+
+export const previewWaitEvent = (input) => coordinationEvent({ ...input, eventType:'preview_wait' })
+export const previewReadyEvent = (input) => coordinationEvent({ ...input, eventType:'preview_ready' })
 
 export function parseEventComment(body) {
   if (typeof body !== 'string') return []

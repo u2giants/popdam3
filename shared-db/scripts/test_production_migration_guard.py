@@ -1920,6 +1920,33 @@ def _job(name: str) -> str:
 
 
 class ApplyLaneTests(unittest.TestCase):
+    def test_phase_2_preserves_shared_workflow_dispatch_and_serialization_contract(self) -> None:
+        header = WORKFLOW_TEXT.split("\njobs:", 1)[0]
+        self.assertIn("pull_request:", header)
+        self.assertIn("workflow_dispatch:", header)
+        for required_input in ("target", "mode", "production_allowlist", "preview_allowlist", "claim_pr", "claim_head_sha", "commit_sha", "confirmation"):
+            self.assertRegex(header, rf"(?m)^      {re.escape(required_input)}:$")
+        self.assertIn("permissions:\n  contents: read", header)
+        self.assertIn("github.event_name == 'pull_request'", header)
+        self.assertIn("|| 'shared-supabase-migrations'", header)
+        self.assertIn("cancel-in-progress: false", header)
+
+    def test_phase_2_preserves_required_job_graph_and_deliberately_first_checks(self) -> None:
+        self.assertIn("needs: validate", _job("preview"))
+        self.assertIn("needs: validate", _job("production-dry-run"))
+        self.assertIn("needs: validate", _job("production-apply-review"))
+        self.assertIn("needs: [validate, production-apply-review]", _job("production-apply"))
+        self.assertIn("Assert the target project ref is PREVIEW", _steps(_job("preview"))[0])
+        self.assertIn("Check exact confirmation", _steps(_job("production-apply-review"))[0])
+
+    def test_phase_2_preserves_manual_promotion_evidence_obligations(self) -> None:
+        procedure = (REPO / "docs" / "production-promotion-procedure.md").read_text(encoding="utf-8")
+        for required in ("successful review-evidence workflow run ID", "artifact digest", "rehearse from MERGED main"):
+            self.assertIn(required, procedure)
+        for required in ("Historical recovery is apply-only", "historical-input `mode=dry-run` applies nothing", "--prepare-preview-dispatch <issue>", "fresh repository-variable and preview-ledger read"):
+            self.assertIn(required, procedure)
+        self.assertIn("workflow_dispatch", WORKFLOW_TEXT)
+
     def test_issue_646_dry_run_is_off_the_production_environment(self) -> None:
         job = _job("production-dry-run")
         self.assertNotIn("environment: production", job)

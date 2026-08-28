@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "source_task_id": "01a0461f-d1bf-7e02-8c84-ee8783f965b0",
+  "observation_window": {
+    "start": "2026-08-28T02:08:00Z",
+    "end": "2026-08-28T03:56:00Z",
+    "later_audit": "2026-08-28T09:47:00Z"
+  },
+  "measurement_kind": "observed-wall-time",
+  "state_model": {
+    "claim": ["protected", "released"],
+    "author_lease": ["active", "relinquished", "expired-unconfirmed"],
+    "issue_flow": ["ready", "authoring", "ci", "review-wait", "review", "preview-wait", "preview", "merge", "production", "external-blocked", "owner-decision", "complete"],
+    "evidence": ["missing", "current", "stale-by-content", "integration-refresh-required", "unavailable"]
+  },
+  "issues": [
+    {"issue": 1713, "pr": 1715, "observed_start": "2026-08-28T02:10:00Z", "observed_end": "2026-08-28T03:15:00Z", "observed_wall_minutes": 65, "active_effort_minutes": "unknown", "outcome": "merged-preview-rebound-production-verified", "material_loops": 3, "blockers": ["reviewer-mutex-interruption", "main-moved-after-preview", "review-replay"], "worker_events": 1},
+    {"issue": 1720, "observed_start": "2026-08-28T02:10:00Z", "observed_end": "2026-08-28T03:40:00Z", "observed_wall_minutes": 90, "active_effort_minutes": "unknown", "outcome": "production-applied-verification-blocked", "material_loops": 5, "blockers": ["reviewer-replacement", "preview-dependency", "main-refresh", "route-recovery", "catalog-verifier-gap"], "worker_events": 1},
+    {"issue": 1646, "observed_start": "2026-08-28T03:05:00Z", "observed_end": "2026-08-28T03:56:00Z", "observed_wall_minutes": 51, "active_effort_minutes": "unknown", "outcome": "merged-preview-verified-production-blocked", "material_loops": 6, "blockers": ["baseline-noise", "test-role-visibility", "preview-ahead", "dependency-batch", "evidence-identity", "supersession-divergence"], "worker_events": 1},
+    {"issue": 1684, "observed_start": "2026-08-28T02:10:00Z", "observed_end": "2026-08-28T02:51:00Z", "observed_wall_minutes": 41, "active_effort_minutes": "unknown", "outcome": "protected-external-block", "material_loops": 3, "blockers": ["false-collision", "reviewer-mutex-wait", "supersession-shape"], "worker_events": 0},
+    {"issue": 1658, "observed_start": "2026-08-28T02:08:00Z", "observed_end": "2026-08-28T03:56:00Z", "observed_wall_minutes": 108, "active_effort_minutes": "unknown", "outcome": "protected-external-block", "material_loops": 0, "blockers": ["repository-maintenance-prerequisite"], "worker_events": 0},
+    {"issue": 1645, "observed_start": "2026-08-28T02:08:00Z", "observed_end": "2026-08-28T03:56:00Z", "observed_wall_minutes": 108, "active_effort_minutes": "unknown", "outcome": "protected-external-block", "material_loops": 0, "blockers": ["repository-maintenance-prerequisite"], "worker_events": 0}
+  ],
+  "timeline": [
+    {"timestamp": "2026-08-28T02:10:00Z", "issue": 1720, "event": "fifth protected claim acquired", "measurement_kind": "private-source-observation"},
+    {"timestamp": "2026-08-28T02:12:00Z", "issue": 1658, "event": "five protected claims but only three worker events", "measurement_kind": "private-source-observation"},
+    {"timestamp": "2026-08-28T02:16:00Z", "issue": 1713, "event": "review allocation serialized", "measurement_kind": "private-source-observation"},
+    {"timestamp": "2026-08-28T02:35:00Z", "issue": 1713, "event": "preview applied then unrelated main movement", "measurement_kind": "private-source-observation"},
+    {"timestamp": "2026-08-28T02:49:00Z", "issue": 1684, "event": "supersession rejected removed test shape", "measurement_kind": "private-source-observation"},
+    {"timestamp": "2026-08-28T03:00:00Z", "issue": 1720, "event": "preview dependency surfaced as failed run", "measurement_kind": "private-source-observation"},
+    {"timestamp": "2026-08-28T03:28:00Z", "issue": 1646, "event": "preview-ahead refusal", "measurement_kind": "private-source-observation"},
+    {"timestamp": "2026-08-28T03:39:00Z", "issue": 1720, "event": "catalog verifier incompatibility after apply", "measurement_kind": "private-source-observation"},
+    {"timestamp": "2026-08-28T03:55:00Z", "issue": 1646, "event": "supersession evidence divergence blocked production", "measurement_kind": "private-source-observation"}
+  ],
+  "durable_proof_commands": [
+    "gh issue view 1713 --repo u2giants/shared-db --json state,closedAt,comments",
+    "gh issue view 1720 --repo u2giants/shared-db --json state,closedAt,comments",
+    "gh issue view 1646 --repo u2giants/shared-db --json state,closedAt,comments",
+    "gh issue view 1684 --repo u2giants/shared-db --json state,closedAt,comments",
+    "gh pr view 1715 --repo u2giants/shared-db --json state,mergedAt,mergeCommit,statusCheckRollup"
+  ]
+}

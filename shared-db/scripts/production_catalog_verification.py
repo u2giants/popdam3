@@ -1909,6 +1909,15 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     )
 
 
+def diagnose_catalog_coverage(repo_root: Path, allowlist: list[str]) -> dict[str, Any]:
+    """Read-only Phase 2 qualification entrypoint; verify() remains authoritative."""
+    targets = derive_targets(local_migrations(repo_root), allowlist)
+    payload = targets.as_dict()
+    target_count = sum(len(value) for value in payload.values() if isinstance(value, list))
+    covered = target_count > 0 or bool(targets.noop_declaration)
+    return {"status": "covered" if covered else "missing", "target_count": target_count, "noop_declaration": targets.noop_declaration}
+
+
 def _sql_array(values: list[str]) -> str:
     for value in values:
         # Everything reaching here came out of the regexes above, which accept

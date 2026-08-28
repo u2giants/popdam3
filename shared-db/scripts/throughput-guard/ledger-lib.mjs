@@ -25,6 +25,10 @@ export function validateEntry(entry) {
   if (ordered.some((v, i) => i && v < ordered[i - 1])) throw new Error(`${entry.file}: impossible timestamp order`);
   if (entry.fixed_by !== null && !/^[0-9a-f]{7,40}$/.test(entry.fixed_by)) throw new Error(`${entry.file}: invalid fixed_by SHA`);
   if ('recurrence_of' in entry && entry.recurrence_of !== null && !/^blk_[0-9a-f]{32}$/.test(entry.recurrence_of)) throw new Error(`${entry.file}: invalid recurrence_of`);
+  const phase2Durations=['claim_protected_minutes','active_author_minutes','external_blocked_minutes','reviewer_allocation_wait_minutes','review_execution_wait_minutes','preview_dependency_wait_minutes'];
+  for(const key of phase2Durations)if(key in entry&&entry[key]!==null&&(!Number.isFinite(entry[key])||entry[key]<0))throw new Error(`${entry.file}: ${key} must be a non-negative number or null`);
+  if('invalidation_class' in entry&&entry.invalidation_class!==null&&!['CONTENT_INVALIDATED','GLOBAL_INVALIDATOR','OBJECT_INTERACTION','INTEGRATION_REFRESH_ONLY','UNVERIFIABLE'].includes(entry.invalidation_class))throw new Error(`${entry.file}: invalid invalidation_class`);
+  if('evidence_bundle_ids' in entry&&(!Array.isArray(entry.evidence_bundle_ids)||entry.evidence_bundle_ids.some((id)=>!/^[0-9a-f]{64}$/.test(id))))throw new Error(`${entry.file}: invalid evidence_bundle_ids`);
 }
 export function fixtureIndex(root) {
   const file = path.join(root, 'scripts/fixtures/guard-false-alarms/index.json');

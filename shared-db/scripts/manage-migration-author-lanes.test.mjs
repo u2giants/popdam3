@@ -289,7 +289,7 @@ test('legacy claims count toward the author-lane cap and always protect objects'
   // Asserted against the constant, not a literal, so the cap can move without
   // this test quietly checking the wrong number -- but the constant itself is
   // pinned, so a change to it is a deliberate edit here.
-  assert.equal(MAX_AUTHOR_LANES, 5)
+  assert.equal(MAX_AUTHOR_LANES, 8)
   const full = Array.from({length:MAX_AUTHOR_LANES},(_,i)=>legacy(i+1,`table core.t${i}`))
   assert.doesNotThrow(() => assertLaneAvailable(full.slice(0,MAX_AUTHOR_LANES-1), ['table core.d'], NOW))
   assert.throws(() => assertLaneAvailable(full, ['table core.d'], NOW), new RegExp(`all ${MAX_AUTHOR_LANES}`))
@@ -342,8 +342,8 @@ function reviewIo(){
 
 test('reviewer cursor advances atomically through the durable round robin',()=>{
   const io=reviewIo(), names=[]
-  for(let n=1;n<=5;n++)names.push(assignNextReviewer({issue:n,pr:100+n,headSha:`abcdef${n}`},io).reviewer)
-  assert.deepEqual(names,['grok-4.6','glm-5.3','kimi-k3','muse-spark-1.2-contributor','grok-4.6'])
+  for(let n=1;n<=ACTIVE_REVIEWERS.length+1;n++)names.push(assignNextReviewer({issue:n,pr:100+n,headSha:`abcdef${n}`},io).reviewer)
+  assert.deepEqual(names,[...ACTIVE_REVIEWERS.map((row)=>row.name),ACTIVE_REVIEWERS[0].name])
   assert.ok(io.refs.has(REVIEW_CURSOR_REF))
 })
 
@@ -397,7 +397,7 @@ test('complete assignment stays inside the real wire-attempt budget',()=>{
   const io=reviewIo();let attempts=0,baseLoaded=false
   const rawGetCommit=io.getCommit
   const active=new Map(),states=new Map()
-  ACTIVE_REVIEWERS.forEach((reviewer,index)=>{
+  ACTIVE_REVIEWERS.slice(0,-1).forEach((reviewer,index)=>{
     const issue=2000+index,pr=2100+index,headSha=`c${index}`.padEnd(40,'0')
     const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${reviewer.name} issue=${issue} pr=${pr} head=${headSha}`)
     io.refs.set(reviewActiveRef(reviewer.name),sha);active.set(reviewActiveRef(reviewer.name),{sha,commit:io.getCommit(sha)})
@@ -452,9 +452,8 @@ test('atomic replacement succeeds when the failed assignment has no active lease
   assert.ok(result.reviewer);assert.equal(io.refs.has(failedRef),false);assert.equal(io.refs.has(reviewActiveRef(result.reviewer)),true)
 })
 
-// OVERFLOW ROUTING (owner instruction, 2026-08-25). Codex is the reviewer of last
-// resort. Every one of these cases costs real money if it is wrong in the
-// permissive direction, so the busy probe is asserted from both sides.
+// ACTIVE ROTATION (owner instruction, 2026-08-28). Codex GPT-5.6 Sol and
+// DeepSeek are ordinary approved reviewers. All-busy must fail closed.
 function busyIo(){
   // Each of the four active reviewers holds one live assignment: an open PR, still
   // at the head it was given, with no verdict recorded.
@@ -469,16 +468,13 @@ function busyIo(){
   return {io,heads}
 }
 
-test('every active reviewer busy routes the next assignment to the overflow provider',()=>{
+test('every active reviewer busy refuses a new assignment',()=>{
   const {io}=busyIo()
   assert.deepEqual([...findBusyReviewers(io)].sort(),ACTIVE_REVIEWERS.map((r)=>r.name).sort())
-  assert.equal(pickReviewer(1,io).name,'codex-gpt-5.6-sol')
-  // The rotation position is derived from the sequence, so spending one on the
-  // overflow provider does not move anyone's turn.
-  assert.equal(assignNextReviewer({issue:9,pr:109,headSha:'abcdef9'},io).reviewer,'codex-gpt-5.6-sol')
+  assert.throws(()=>assignNextReviewer({issue:9,pr:109,headSha:'abcdef9'},io),/no reviewer is available/)
 })
 
-test('a busy rotation slot advances to the next free active reviewer and never reaches codex',()=>{
+test('a busy rotation slot advances to the next free active reviewer',()=>{
   const {io,heads}=busyIo()
   // Muse's PR is merged, so muse is free again -- and free means rotation, even
   // though the sequence would otherwise land elsewhere.
@@ -501,7 +497,7 @@ test('a recorded verdict and a moved head both free the reviewer that held them'
   assert.ok(!findBusyReviewers(movedIo).has('grok-4.6'))
 })
 
-test('an unreadable busy probe keeps the rotation instead of diverting to paid overflow',()=>{
+test('an unreadable busy probe keeps the rotation',()=>{
   // FAIL OPEN. A probe that cannot read GitHub must never silently send every
   // review to the provider that costs money per run.
   const {io}=busyIo()
@@ -529,15 +525,13 @@ test('retired reviewer names stay resolvable so historical review evidence never
 test('the active rotation is exactly the current models, in a stable order',()=>{
   // Order and length are the round robin. A change here silently reassigns every
   // in-flight sequence to a different reviewer, so it must be asserted, not assumed.
-  assert.deepEqual(ACTIVE_REVIEWERS.map((r)=>r.name),['grok-4.6','glm-5.3','kimi-k3','muse-spark-1.2-contributor'])
-  // The overflow provider is NOT in the rotation. If it ever appears here it has
-  // silently become a fifth round-robin slot, which is not what it is for.
-  assert.deepEqual(OVERFLOW_REVIEWERS.map((r)=>r.name),['codex-gpt-5.6-sol'])
-  assert.ok(!ACTIVE_REVIEWERS.some((r)=>r.name==='codex-gpt-5.6-sol'))
+  assert.deepEqual(ACTIVE_REVIEWERS.map((r)=>r.name),['grok-4.6','glm-5.3','kimi-k3','muse-spark-1.2-contributor','codex-gpt-5.6-sol','deepseek-chat'])
+  assert.deepEqual(OVERFLOW_REVIEWERS,[])
   assert.equal(REVIEWERS.find((r)=>r.name==='kimi-k3').wrapper,'ai-kimi')
   assert.equal(REVIEWERS.find((r)=>r.name==='codex-gpt-5.6-sol').wrapper,'ai-codex-review')
   assert.equal(REVIEWERS.find((r)=>r.name==='glm-5.3').wrapper,'ai-glm')
   assert.equal(REVIEWERS.find((r)=>r.name==='muse-spark-1.2-contributor').wrapper,'ai-muse')
+  assert.equal(REVIEWERS.find((r)=>r.name==='deepseek-chat').wrapper,'ai-deepseek-agent')
 })
 
 test('reviewer assignment retry returns the same assignment without advancing',()=>{
@@ -1023,7 +1017,7 @@ test('reviewer replacement rejects a mismatched original assignment',()=>{
 // is a false invariant, and it is deliberately not asserted here. Both halves are
 // pinned below, with the exact successor named in each case.
 test('one intervening assignment gives a failed reviewer a named replacement',()=>{
-  assert.equal(ACTIVE_REVIEWERS.length,4,'this test describes the four-reviewer rotation')
+  assert.equal(ACTIVE_REVIEWERS.length,6,'this test describes the approved six-reviewer rotation')
   const io=failedReviewIo()
   assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io)
   const replacement=replaceFailedReviewer(replacementRequest,io)
@@ -1031,7 +1025,7 @@ test('one intervening assignment gives a failed reviewer a named replacement',()
 })
 
 test('N-1 intervening assignments skip the failed provider instead of stranding the replacement',()=>{
-  assert.equal(ACTIVE_REVIEWERS.length,4,'this test describes the four-reviewer rotation')
+  assert.equal(ACTIVE_REVIEWERS.length,6,'this test describes the approved six-reviewer rotation')
   const io=failedReviewIo()
   for(let n=0;n<ACTIVE_REVIEWERS.length-1;n+=1){
     assignNextReviewer({issue:20+n,pr:120+n,headSha:`abcde${n}f`},io)
@@ -1058,7 +1052,10 @@ test('a chained replacement skips TWO already-failed providers to reach the last
   // selection must skip BOTH failed names (offset 2) to land on the next live one.
   const first=replaceFailedReviewer(replacementRequest,io)
   assert.equal(first.reviewer,'glm-5.3')
-  for(let n=0;n<2;n+=1)assignNextReviewer({issue:40+n,pr:140+n,headSha:`abcdf${n}9`},io)
+  let n=0
+  while(parseReviewCursor(io.getCommit(io.refs.get(REVIEW_CURSOR_REF))).sequence%ACTIVE_REVIEWERS.length!==0){
+    assignNextReviewer({issue:40+n,pr:140+n,headSha:`abcdf${n}9`},io);n+=1
+  }
   const cursorBefore=parseReviewCursor(io.getCommit(io.refs.get(REVIEW_CURSOR_REF)))
   assert.equal(cursorBefore.sequence%ACTIVE_REVIEWERS.length,0,'the cursor must sit on a roster boundary for this to be a two-name skip')
   const second=replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io)
@@ -1067,20 +1064,16 @@ test('a chained replacement skips TWO already-failed providers to reach the last
   assert.deepEqual(replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io),second)
 })
 
-test('replacement exhausts the rotation, then the overflow provider, then refuses',()=>{
-  // The chain must walk every active name exactly once, reach codex only after all
-  // four are spent, and refuse only when the overflow provider has failed too. A
-  // regression that reached codex early would spend real money on every retry.
+test('replacement exhausts the active rotation, then refuses',()=>{
   const io=failedReviewIo()
   const seen=['grok-4.6']
   let failedSequence=replacementRequest.failedSequence
-  for(let n=0;n<ACTIVE_REVIEWERS.length;n+=1){
+  for(let n=0;n<ACTIVE_REVIEWERS.length-1;n+=1){
     const step=replaceFailedReviewer({...replacementRequest,failedSequence},io)
     assert.ok(!seen.includes(step.reviewer),`${step.reviewer} was already spent on this head`)
     seen.push(step.reviewer);failedSequence=step.sequence
   }
-  assert.deepEqual(seen.slice(0,ACTIVE_REVIEWERS.length),ACTIVE_REVIEWERS.map((r)=>r.name))
-  assert.equal(seen[seen.length-1],'codex-gpt-5.6-sol','the overflow provider is the last resort, not part of the rotation')
+  assert.deepEqual(seen,ACTIVE_REVIEWERS.map((r)=>r.name))
   assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence},io),/no other reviewer is available/)
 })
 
@@ -1440,7 +1433,12 @@ function raceWorkers(objects){
   const runs=objects.map((object,index)=>new Promise((resolve,reject)=>{
     const child=spawn(process.execPath,[worker,store,String(index+1),object],{windowsHide:true})
     let out='',err='';child.stdout.on('data',x=>out+=x);child.stderr.on('data',x=>err+=x)
-    child.on('error',reject);child.on('close',code=>resolve({code,json:JSON.parse(out),err}))
+    child.on('error',reject);child.on('close',code=>{
+      let json
+      try{json=JSON.parse(out)}catch(error){return reject(new Error(`race worker ${index+1} returned invalid JSON (${error.message}); stderr=${err.trim()||'<empty>'}; stdout=${out.trim()||'<empty>'}`))}
+      if(![0,2].includes(code))return reject(new Error(`race worker ${index+1} exited ${code}; stderr=${err.trim()||'<empty>'}; stdout=${out.trim()||'<empty>'}`))
+      resolve({code,json,err})
+    })
   }))
   return Promise.all(runs).finally(()=>rmSync(store,{recursive:true,force:true}))
 }

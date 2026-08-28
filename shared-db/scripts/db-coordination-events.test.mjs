@@ -26,7 +26,7 @@ test('a complete event validates', () => {
 
 test('the envelope is checked', () => {
   assert.throws(() => validateEvent(null), /must be a JSON object/)
-  assert.throws(() => validateEvent(event({ schema_version: 2 })), /schema_version must be 1/)
+  assert.throws(() => validateEvent(event({ schema_version: 3 })), /schema_version must be one of 1, 2/)
   assert.throws(() => validateEvent({ ...event(), event_id: '' }), /must carry an event_id/)
   assert.throws(() => validateEvent(event({ event_type: 'invented' })), /event_type must be one of/)
   assert.throws(() => validateEvent(event({ timestamp: 'yesterday' })), /must be an ISO instant/)
@@ -34,6 +34,12 @@ test('the envelope is checked', () => {
   assert.throws(() => validateEvent(event({ actor: '' })), /must record an actor/)
   assert.throws(() => validateEvent(event({ result: 'maybe' })), /result must be one of/)
   assert.throws(() => validateEvent({ ...event(), surprise: 1 }), /unknown field surprise/)
+})
+
+test('v1 stays readable while v2 carries complete preview-ready identity',()=>{
+  assert.doesNotThrow(()=>validateEvent({...event(),schema_version:1}))
+  assert.doesNotThrow(()=>validateEvent(event({event_type:'preview_ready',ready_id:'r',bundle_id:'b'.repeat(64),route:'ordinary_preview_apply',route_context:'',manifest_digest:'c'.repeat(64)})))
+  assert.throws(()=>validateEvent({...event(),schema_version:1,ready_id:'r'}),/unknown field ready_id/)
 })
 
 // AN UNEXPLAINED REFUSAL IN A TIMELINE IS NOISE.
