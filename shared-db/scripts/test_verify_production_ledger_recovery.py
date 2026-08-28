@@ -8,6 +8,11 @@ import verify_production_ledger_recovery as M
 
 
 class RecoveryProofTests(unittest.TestCase):
+    def test_historical_source_is_one_governed_statement(self):
+        statements = M.expected_statements(Path(__file__).resolve().parents[1])
+        self.assertEqual(len(statements), 1)
+        self.assertEqual(len(statements[0].encode()), 3213)
+
     def test_query_is_read_only_and_exact(self):
         sql = M.build_query(["select 1", "select 2"])
         lowered = sql.lower()

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,6 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from atomic_migration_apply import split_sql  # noqa: E402
 from production_catalog_verification import run_query  # noqa: E402
 
 PROJECT_REF = "qsllyeztdwjgirsysgai"
@@ -32,7 +32,10 @@ ITEM_COLUMNS = ("coldlion_synced_at", "compan_code_fk", "div_code_fk", "item_num
 
 
 def expected_statements(repo: Path) -> list[str]:
-    return split_sql((repo / SOURCE).read_text(encoding="utf-8"))
+    raw = (repo / SOURCE).read_text(encoding="utf-8").replace("\r\n", "\n")
+    if not raw.endswith("\n") or hashlib.sha256(raw.encode()).hexdigest() != "c8ab692586a94fef5dfdf18b32105ccb9f9469bb8336c40fab793c1c4404dace":
+        raise RuntimeError("historical source migration does not match its governed byte identity")
+    return [raw[:-1]]
 
 
 def build_query(statements: list[str]) -> str:
