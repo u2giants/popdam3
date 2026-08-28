@@ -77,6 +77,34 @@ class Tests(unittest.TestCase):
         with self.assertRaises(M.Refusal):
             M.validate_pinned_evidence(case,args)
 
+    def test_issue_1658_recovery_tuple_and_evidence_are_narrowly_supported(self):
+        case=M.SUPPORTED_CASES[(1658,1659,1660)]
+        self.assertEqual(case,{
+            'mode':'replacement_pending',
+            'orphan_version':'20260827134155',
+            'replacement_version':'20260827214517',
+            'orphan_run_head':'b49a5665060fcc9a100f12a096460ea44a30451c',
+            'orphan_commit_sha':'d15a69a825cbf0d365b1ffac825a2db4c22db63b',
+            'preview_run_id':33095556822,
+            'preview_artifact_id':9656250972,
+            'preview_artifact_digest':'sha256:ec03dc67ce845c6db231a56555803d1daddd6869fc61019ccd89f3f27f6878ce',
+        })
+        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
+        self.assertIn('1658:1659:1660:20260827134155:20260827214517) ;;',workflow)
+        self.assertNotIn('1658:1659:1660:20260827134155:20260827171526) ;;',workflow)
+
+    def test_issue_1658_evidence_pins_refuse_substitution(self):
+        case=M.SUPPORTED_CASES[(1658,1659,1660)]
+        args=type('A',(),{
+            'preview_run_id':33095556822,
+            'preview_artifact_id':9656250972,
+            'preview_artifact_digest':'sha256:ec03dc67ce845c6db231a56555803d1daddd6869fc61019ccd89f3f27f6878ce',
+        })()
+        M.validate_pinned_evidence(case,args)
+        args.preview_artifact_digest='sha256:0'
+        with self.assertRaises(M.Refusal):
+            M.validate_pinned_evidence(case,args)
+
     def test_issue_1467_rehearsal_reset_tuple_and_evidence_are_narrowly_supported(self):
         case=M.SUPPORTED_CASES[(1467,1580,1585,'20260827183106','20260827183106')]
         self.assertEqual(case,{

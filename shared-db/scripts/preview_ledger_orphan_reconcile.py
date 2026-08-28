@@ -72,7 +72,7 @@ SUPPORTED_CASES = {
     (1658, 1659, 1660): {
         "mode": "replacement_pending",
         "orphan_version": "20260827134155",
-        "replacement_version": "20260827171526",
+        "replacement_version": "20260827214517",
         "orphan_run_head": "b49a5665060fcc9a100f12a096460ea44a30451c",
         # The apply was dispatched from main against the PR commit, so the run head is
         # the workflow definition commit and the applied source is this commit. Older
