@@ -8,7 +8,7 @@ Reviewer availability is the bounded `refs/db-review-active/<reviewer>` index. P
 
 An exact-head verdict, terminal failure/replacement, moved head, merged PR, or closed PR makes a lease stale. Stale leases are deleted only while the global mutex is owned and the fixed ref still matches its expected SHA. If release cannot be proved, preserve the named ref/SHA and use the guarded `recover-author-mutex.yml` procedure.
 
-Phase 2 rules: protected object claims and active-author capacity are separate; relinquishment never releases a claim. Preview dependencies produce `PREVIEW_WAIT`, never a successful workflow. Immediately before manual preview dispatch, resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and dispatch only its matching stored instruction. Historical recovery is `mode=apply` only; historical dry-run proves nothing. Use `--repair-preview-ready <ready-id> --issue <n>` only for a v2-bound stale wrong digest; a corrupt live digest requires an owner decision and no mutation. Reviewer reservations serialize six approved provider/wrapper execution keys and create an ordered durable `review-wait` when all keys are busy.
+Phase 2 rules: protected object claims and active-author capacity are separate; relinquishment never releases a claim. Preview dependencies produce `PREVIEW_WAIT`, never a successful workflow. Immediately before manual preview dispatch, resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and dispatch only its matching stored instruction. Historical recovery is `mode=apply` only; historical dry-run proves nothing. Use `--repair-preview-ready <ready-id> --issue <n>` only for a v2-bound stale wrong digest; a corrupt live digest requires an owner decision and no mutation. Reviewer reservations serialize approved provider/wrapper execution keys and create an ordered durable `review-wait` when all eligible keys are busy. The live orchestrator engine is excluded from review; Qwen and Gemini are inactive while ai-devops reliability is repaired.
 
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212) so the router stays under its
 80 KB ceiling. **Text unchanged, section number unchanged.** `AGENTS.md` §4 carries the operative
@@ -238,12 +238,14 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    For new assignments, the machine-independent cursor rotates Grok 4.6 → GLM
    5.3 → Kimi K3 → Muse Spark 1.2 Contributor → Codex GPT-5.6 Sol → DeepSeek →
-   repeat. Albert approved Codex and DeepSeek on 2026-08-28 after both wrappers
-   qualified. Qwen 3.8 Max and the retired `glm-5.2` label
+   repeat, skipping any reviewer whose engine matches the live orchestrator.
+   Codex cannot review when Codex orchestrates; Claude cannot review when Claude
+   orchestrates. Albert approved Codex and DeepSeek on 2026-08-28 after both wrappers
+   qualified. Qwen 3.8 Max, Gemini, and the retired `glm-5.2` label
    are paused until an explicit owner instruction restores them.
 
    Codex uses wrapper `ai-codex-review`; DeepSeek uses `ai-deepseek-agent`.
-   Neither is overflow. If all six are busy, the allocator records an ordered
+   Neither is overflow. If every eligible reviewer is busy, the allocator records an ordered
    `review-wait`; it does not duplicate an assignment or invent availability.
 
    **Grok's in-flight lock is PER REPOSITORY, not global.** `ai-grok-review`
