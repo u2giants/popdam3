@@ -436,7 +436,7 @@ test('complete replacement stays inside the real wire-attempt budget',()=>{
   io.readReviewRefs=(refs)=>{wire(1,'readReviewRefs');return new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))}
   io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
   io.atomicReviewMutexRelease=(ownerSha)=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
-  io.readReviewRecords=(refs,prefix)=>{wire(1,'readReviewRecords');const result=new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}));Object.defineProperty(result,'matching',{value:[...io.refs.entries()].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha,commit:rawGetCommit(sha)}))});return result}
+  io.readReviewRecords=(refs,prefix)=>{wire(2,'readReviewRecords');const result=new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}));Object.defineProperty(result,'matching',{value:[...io.refs.entries()].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha}))});return result}
   for(const name of ['readRef','listRefs','getCommit','getPr','getIssue','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){const fn=io[name];io[name]=(...args)=>{wire(1,`${name}:${String(args[0])}`);return fn(...args)}}
   const make=io.makeOwnerCommit;io.makeOwnerCommit=(message)=>{wire(1,'commit');baseLoaded=true;return make(message)}
   let result;try{result=replaceFailedReviewer(replacementRequest,io)}catch(error){throw new Error(`${error.message}; calls=${labels.join(',')}`)}

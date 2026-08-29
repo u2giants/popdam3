@@ -410,72 +410,72 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1416",
+      "site": "scripts/manage-migration-author-lanes.mjs:1442",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1511",
+      "site": "scripts/manage-migration-author-lanes.mjs:1537",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1708",
+      "site": "scripts/manage-migration-author-lanes.mjs:1734",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1736",
+      "site": "scripts/manage-migration-author-lanes.mjs:1762",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1798",
+      "site": "scripts/manage-migration-author-lanes.mjs:1824",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1848",
+      "site": "scripts/manage-migration-author-lanes.mjs:1874",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1993",
+      "site": "scripts/manage-migration-author-lanes.mjs:2019",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2310",
+      "site": "scripts/manage-migration-author-lanes.mjs:2336",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2359",
+      "site": "scripts/manage-migration-author-lanes.mjs:2385",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2515",
+      "site": "scripts/manage-migration-author-lanes.mjs:2541",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2516",
+      "site": "scripts/manage-migration-author-lanes.mjs:2542",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2752",
+      "site": "scripts/manage-migration-author-lanes.mjs:2778",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2799",
+      "site": "scripts/manage-migration-author-lanes.mjs:2825",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2800",
+      "site": "scripts/manage-migration-author-lanes.mjs:2826",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -500,7 +500,7 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:814",
+      "site": "scripts/manage-migration-author-lanes.mjs:840",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
@@ -1131,6 +1131,6 @@
     }
   ],
   "call_site_count": 223,
-  "call_site_sha256": "85630867ba1a56448a937faaf57789bb58a71e9940ac1a7831ac701c91560d5b",
+  "call_site_sha256": "dc9645ee5669473193094d2c193b48f561ebaf559dc61190d0489f69fe203dcc",
   "disposition": "Every discovered site has an explicit reviewed disposition; any source-line drift requires regeneration and review."
 }

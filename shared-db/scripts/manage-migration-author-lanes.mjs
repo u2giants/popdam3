@@ -774,20 +774,46 @@ export const githubIo = {
     })
     return result
   },
+  // GraphQL `ref(qualifiedName:...)` silently resolves to null for refs
+  // outside refs/heads/ and refs/tags/, even when the ref genuinely exists
+  // (confirmed empirically 2026-08-28 against a live refs/db-review-active/*
+  // ref while investigating issue #1810 -- REST proved the ref present while
+  // this query answered null). `object(expression:...)` is the form that
+  // actually resolves an arbitrary ref path, same as #1808 already found for
+  // readActiveReviewLeases.
   readReviewRefs(refs){
-    const fields=refs.map((ref,index)=>`r${index}:ref(qualifiedName:${JSON.stringify(ref)}){target{oid}}`).join(' ')
+    const fields=refs.map((ref,index)=>`r${index}:object(expression:${JSON.stringify(ref)}){oid}`).join(' ')
     const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){${fields}}}`])
     if(data?.errors?.length||!data?.data?.repository)throw new LaneError('review ref readback returned GraphQL errors')
-    return new Map(refs.map((ref,index)=>[ref,data.data.repository[`r${index}`]?.target?.oid??null]))
+    return new Map(refs.map((ref,index)=>[ref,data.data.repository[`r${index}`]?.oid??null]))
   },
+  // GitHub's GraphQL `refs(refPrefix:...)` connection only supports the
+  // refs/heads/ and refs/tags/ namespaces, and (confirmed 2026-08-28, issue
+  // #1810) rejects any prefix without a trailing slash outright with
+  // "refPrefix must end with a /". This ref family lives under the custom
+  // `refs/db-review-replacements/<issue>-<pr>-<headSha>` namespace and shares
+  // a dash-joined prefix across an open-ended number of failure-sequence
+  // suffixes, not a directory -- so refPrefix can never list it, whether by
+  // silently returning nothing (#1803) or by erroring outright (#1810).
+  // `listRefs` already lists this same family correctly via the REST
+  // `git/matching-refs` endpoint (plain string-prefix match, no trailing-slash
+  // requirement), and is already used elsewhere in this file as a fallback
+  // for exactly this ref family -- so it is used here instead of GraphQL's
+  // prefix listing. Commit messages for matched refs are intentionally
+  // omitted from this call: every caller already falls back to
+  // `io.getCommit(row.sha)` when `row.commit` is absent.
   readReviewRecords(refs,prefix){
-    const fields=refs.map((ref,index)=>`r${index}:ref(qualifiedName:${JSON.stringify(ref)}){target{oid ... on Commit{message}}}`).join(' ')
-    const matching=prefix?` matches:refs(refPrefix:${JSON.stringify(prefix)},first:100){pageInfo{hasNextPage} nodes{prefix name target{oid ... on Commit{message}}}}`:''
-    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){${fields}${matching}}}`])
+    // Same `object(expression:...)` fix as readReviewRefs above, applied here
+    // too: `ref(qualifiedName:...)` silently answered null for every one of
+    // these custom-namespace refs (replacementRef, assignmentRef,
+    // REVIEW_CURSOR_REF), which would have made every caller of this method
+    // treat a real record as absent.
+    const fields=refs.map((ref,index)=>`r${index}:object(expression:${JSON.stringify(ref)}){oid ... on Commit{message}}`).join(' ')
+    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){${fields}}}`])
     if(data?.errors?.length||!data?.data?.repository)throw new LaneError('review record preflight returned GraphQL errors')
-    if(prefix&&data.data.repository.matches?.pageInfo?.hasNextPage!==false)throw new LaneError('review replacement records are paginated')
-    const result=new Map(refs.map((ref,index)=>{const target=data.data.repository[`r${index}`]?.target;return [ref,target?.oid?{sha:target.oid,commit:{message:target.message}}:null]}))
-    Object.defineProperty(result,'matching',{value:(data.data.repository.matches?.nodes??[]).map((node)=>({ref:`${node.prefix}${node.name}`,sha:node.target?.oid,commit:{message:node.target?.message}})),enumerable:false})
+    const result=new Map(refs.map((ref,index)=>{const target=data.data.repository[`r${index}`];return [ref,target?.oid?{sha:target.oid,commit:{message:target.message}}:null]}))
+    const matches=prefix?this.listRefs(prefix):[]
+    Object.defineProperty(result,'matching',{value:matches.map((row)=>({ref:row.ref,sha:row.sha})),enumerable:false})
     return result
   },
   atomicReviewRefs(changes){
