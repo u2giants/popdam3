@@ -2485,3 +2485,95 @@ test('completeWork publishes a fully proven merged report and reads it back', ()
   assert.equal(published.outcome, 'merged')
   assert.equal(io.posted.length, 1)
 })
+
+// ---------------------------------------------------------------------------
+// Second-reviewer slots (--review-slot). Default slot 1 must be byte-for-byte
+// today's behaviour; slot 2 must land a genuinely different, non-busy
+// provider and stay idempotent on retry, same as slot 1 always has.
+// ---------------------------------------------------------------------------
+
+test('slot 1 is the unchanged default: omitting --review-slot behaves exactly as before',()=>{
+  const io=reviewIo(),request={issue:200,pr:300,headSha:'a'.repeat(40)}
+  const implicit=assignNextReviewer(request,io)
+  assert.equal(implicit.slot,1)
+  assert.equal(implicit.reviewer,'grok-4.6')
+  const explicit=assignNextReviewer({...request,slot:1},io)
+  assert.deepEqual(explicit,implicit)
+})
+
+test('slot 2 requires slot 1 to already be assigned for this exact head',()=>{
+  const io=reviewIo()
+  assert.throws(()=>assignNextReviewer({issue:201,pr:301,headSha:'b'.repeat(40),slot:2},io),/slot 2 requires slot 1/)
+})
+
+test('slot 2 lands a different provider than slot 1, and is idempotent on retry',()=>{
+  const io=reviewIo(),request={issue:202,pr:302,headSha:'c'.repeat(40)}
+  const first=assignNextReviewer(request,io)
+  const second=assignNextReviewer({...request,slot:2},io)
+  assert.equal(second.slot,2)
+  assert.notEqual(second.reviewer,first.reviewer)
+  const retry=assignNextReviewer({...request,slot:2},io)
+  assert.deepEqual(retry,second)
+  // Retrying slot 1 for the same head must still be untouched and unchanged.
+  assert.deepEqual(assignNextReviewer(request,io),first)
+})
+
+test('slot 2 skips a provider that is busy on unrelated live review work',()=>{
+  const io=reviewIo(),request={issue:203,pr:303,headSha:'d'.repeat(40)}
+  const first=assignNextReviewer(request,io) // grok-4.6
+  // Occupy glm-5.3 (the round-robin's next name) with unrelated live work so
+  // it is neither slot 1's reviewer nor free for slot 2.
+  io.getPr=(number)=>Number(number)===999?{number:999,state:'open',head:{sha:'e'.repeat(40)}}:{number:Number(number),state:'open',head:{sha:request.headSha}}
+  assignNextReviewer({issue:998,pr:999,headSha:'e'.repeat(40)},io) // consumes glm-5.3
+  io.getPr=(number)=>({number:Number(number),state:'open',head:{sha:request.headSha}})
+  const second=assignNextReviewer({...request,slot:2},io)
+  assert.notEqual(second.reviewer,first.reviewer)
+  assert.notEqual(second.reviewer,'glm-5.3')
+})
+
+test('slot 2 never lands on a provider already assigned slot 1 for this exact head, across the whole roster',()=>{
+  const io=reviewIo()
+  for(let n=0;n<ACTIVE_REVIEWERS.length;n+=1){
+    const request={issue:900+n,pr:1900+n,headSha:`${n}`.repeat(40).slice(0,40).padEnd(40,'0')}
+    const first=assignNextReviewer(request,io)
+    const second=assignNextReviewer({...request,slot:2},io)
+    assert.notEqual(second.reviewer,first.reviewer,`sequence starting at reviewer ${first.reviewer} still picked itself for slot 2`)
+  }
+})
+
+test('slot 2 keeps its own ref namespace: it never disturbs or is confused with slot 1 records',()=>{
+  const io=reviewIo(),request={issue:204,pr:304,headSha:'f'.repeat(40)}
+  const first=assignNextReviewer(request,io)
+  const second=assignNextReviewer({...request,slot:2},io)
+  assert.ok(io.refs.has(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`))
+  assert.ok(io.refs.has(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-slot2`))
+  assert.deepEqual(assignNextReviewer(request,io),first)
+  assert.deepEqual(assignNextReviewer({...request,slot:2},io),second)
+})
+
+test('an invalid review slot is refused',()=>{
+  const io=reviewIo()
+  assert.throws(()=>assignNextReviewer({issue:205,pr:305,headSha:'a'.repeat(40),slot:0},io),/positive integer/)
+  assert.throws(()=>assignNextReviewer({issue:205,pr:305,headSha:'a'.repeat(40),slot:1.5},io),/positive integer/)
+})
+
+test('retrying a slot-2 assignment must still refuse a reviewer that is no longer independent from the live orchestrator',()=>{
+  // Occupy grok-4.6, glm-5.3 and kimi-k3 with unrelated live review work so the
+  // rotation's next two picks for our real request land on muse (slot 1) then
+  // codex-gpt-5.6-sol (slot 2), while the orchestrator engine is still 'claude'
+  // and codex is eligible.
+  const io=reviewIo()
+  for(let n=0;n<3;n++)assignNextReviewer({issue:600+n,pr:700+n,headSha:`${n}`.repeat(40)},io)
+  const request={issue:206,pr:306,headSha:'9'.repeat(40)}
+  const first=assignNextReviewer(request,io)
+  assert.equal(first.reviewer,'muse-spark-1.2-contributor')
+  const second=assignNextReviewer({...request,slot:2},io)
+  assert.equal(second.reviewer,'codex-gpt-5.6-sol')
+  // A live lease for codex now exists for this exact head/slot. A retry of the
+  // same slot-2 request must re-check eligibility every time, not just on a
+  // fresh assignment -- if the orchestrator engine has since become Codex,
+  // handing back the still-live Codex assignment on retry would let a Codex
+  // orchestrator review its own work.
+  io.resolveOrchestratorEngine=()=> 'codex'
+  assert.throws(()=>assignNextReviewer({...request,slot:2},io),/orchestrator-conflicting reviewer codex-gpt-5\.6-sol/)
+})
