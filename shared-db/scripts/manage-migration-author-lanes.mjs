@@ -3784,7 +3784,22 @@ export function validateOriginalPreviewApplyEvidence({issue,pr,versions,mergeCom
     if(Number(artifacts?.total_count)!==1||rows.length!==1||rows[0].expired!==false||rows[0].name!==`preview-migration-apply-${run.head_sha}`||String(rows[0].workflow_run?.id)!==String(runId)||rows[0].workflow_run?.head_sha!==run.head_sha)continue
     matches.push({type:'preview-apply',run_id:String(runId)})
   }catch{/* An unreadable candidate cannot become evidence. */}}
-  if(matches.length!==1)throw new LaneError(`already-applied versions require exactly one validated immutable preview-apply run; found ${matches.length}`)
+  for(const runId of runIds){try{
+    const {run,artifacts,logs}=io.previewApplyRun(runId)
+    if(expected.length!==1||String(run?.id)!==String(runId)||run?.path!=='.github/workflows/preview-ledger-orphan-reconciliation.yml'||run?.event!=='workflow_dispatch'||run?.status!=='completed'||run?.conclusion!=='success'||run?.run_attempt!==1||!/^[0-9a-f]{40}$/i.test(String(run?.head_sha??'')))continue
+    const applied=/PREVIEW LEDGER RECONCILIATION APPLY OK: removed=(\d{14}) replacement=(\d{14})/.exec(String(logs))
+    // Only a true rename preserves already-applied status. A same-version
+    // rehearsal reset deletes the ledger row so the migration can run again;
+    // it is therefore the opposite of immutable no-replay evidence.
+    if(!applied||applied[1]===applied[2]||applied[2]!==expected[0])continue
+    const exact=(name,value)=>new RegExp(`(?:^|\\s)${name}:\\s+${String(value)}(?:\\s|$)`,'m').test(String(logs))
+    if(!exact('ISSUE',issue)||!exact('SOURCE_PR',pr)||!exact('ORPHAN',applied[1])||!exact('REPLACEMENT',applied[2]))continue
+    if(mergeCommitSha){const relation=io.compareCommits?.(mergeCommitSha,run.head_sha);if(!relation||!['ahead','identical'].includes(relation.status))continue}
+    const rows=Array.isArray(artifacts?.artifacts)?artifacts.artifacts:[]
+    if(Number(artifacts?.total_count)!==1||rows.length!==1||rows[0].expired!==false||rows[0].name!==`preview-ledger-orphan-reconciliation-${applied[1]}`||String(rows[0].workflow_run?.id)!==String(runId)||rows[0].workflow_run?.head_sha!==run.head_sha)continue
+    matches.push({type:'preview-ledger-reconciliation',run_id:String(runId),orphan_version:applied[1],replacement_version:applied[2]})
+  }catch{/* An unreadable candidate cannot become evidence. */}}
+  if(matches.length!==1)throw new LaneError(`already-applied versions require exactly one validated immutable preview apply or ledger-reconciliation run; found ${matches.length}`)
   return matches[0]
 }
 

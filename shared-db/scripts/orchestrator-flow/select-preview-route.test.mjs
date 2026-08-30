@@ -12,6 +12,7 @@ test('merged missing versions select post-merge rehearsal',()=>assert.equal(sele
 test('already-applied bytes never reapply and require original apply evidence',()=>{
   assert.equal(selectPreviewRoute({...base,preview_versions:[...base.preview_versions,...base.versions]}).route,'UNVERIFIABLE')
   assert.equal(selectPreviewRoute({...base,preview_versions:[...base.preview_versions,...base.versions],original_apply_evidence:{type:'preview-apply',run_id:'123'}}).route,'HISTORICAL_RECOVERY')
+  assert.equal(selectPreviewRoute({...base,preview_versions:[...base.preview_versions,...base.versions],original_apply_evidence:{type:'preview-ledger-reconciliation',run_id:'456'}}).route,'HISTORICAL_RECOVERY')
 })
 test('#1646 two-version closure is refused until complete',()=>assert.equal(selectPreviewRoute({...base,versions:['20260828030000','20260828030001'],dependency_closure_complete:false}).route,'UNVERIFIABLE'))
 test('decision identity is deterministic and exact-head changes it',()=>{const first=selectPreviewRoute(base),second=selectPreviewRoute(base),moved=selectPreviewRoute({...base,head_sha:'c'.repeat(40)});assert.equal(first.decision_id,second.decision_id);assert.notEqual(first.decision_id,moved.decision_id)})

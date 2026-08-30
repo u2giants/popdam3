@@ -19,7 +19,7 @@ export function selectPreviewRoute(input){
     let route,reason
     if(blockers.length){route='WAITING';reason=`preview contains unmerged predecessor(s): ${[...new Set(blockers)].join(', ')}`}
     else if([...requested].every((version)=>preview.has(version))){
-      if(input.original_apply_evidence?.type!=='preview-apply'||!/^[0-9]+$/.test(String(input.original_apply_evidence.run_id??'')))throw new Error('already-applied versions require typed original preview-apply evidence')
+      if(!['preview-apply','preview-ledger-reconciliation'].includes(input.original_apply_evidence?.type)||!/^[0-9]+$/.test(String(input.original_apply_evidence.run_id??'')))throw new Error('already-applied versions require typed immutable preview evidence')
       route=input.merged?'PREVIEW_REBIND':'HISTORICAL_RECOVERY';reason='requested bytes already exist on preview; never reapply'
     }else if(input.merged){
       if(![...requested].every((version)=>main.has(version)))throw new Error('merged route versions are not all on current main')

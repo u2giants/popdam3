@@ -3302,12 +3302,36 @@ function immutablePreviewApplyIo({sourcePr=1809,artifactRunId='33308168016',merg
   }
 }
 
+function immutablePreviewReconciliationIo({sourcePr=1748,replacement='20260830013942',artifactRunId='33307904277',relation='ahead'}={}){
+  const runId='33307904277',headSha='75a6e35e46a79af7c059836a64a5b621ac79404a',orphan='20260828113920'
+  return {
+    issueComments:()=>[{body:`Governed ledger reconciliation: https://github.com/u2giants/shared-db/actions/runs/${runId}`}],
+    compareCommits:()=>({status:relation}),
+    previewApplyRun:()=>({
+      run:{id:Number(runId),path:'.github/workflows/preview-ledger-orphan-reconciliation.yml',event:'workflow_dispatch',status:'completed',conclusion:'success',run_attempt:1,head_sha:headSha},
+      artifacts:{total_count:1,artifacts:[{name:`preview-ledger-orphan-reconciliation-${orphan}`,expired:false,workflow_run:{id:Number(artifactRunId),head_sha:headSha}}]},
+      logs:[`ISSUE: 1722`,`SOURCE_PR: ${sourcePr}`,`ORPHAN: ${orphan}`,`REPLACEMENT: ${replacement}`,`PREVIEW LEDGER RECONCILIATION APPLY OK: removed=${orphan} replacement=${replacement}`].join('\n'),
+    }),
+  }
+}
+
 test('immutable original preview-apply evidence validates only the exact run',()=>{
   const input={issue:1769,pr:1809,versions:['20260828232207'],mergeCommitSha:'b'.repeat(40)}
   assert.deepEqual(validateOriginalPreviewApplyEvidence(input,immutablePreviewApplyIo()),{type:'preview-apply',run_id:'33308168016'})
   assert.throws(()=>validateOriginalPreviewApplyEvidence(input,{...immutablePreviewApplyIo(),issueComments:()=>[]}),/found 0/)
   assert.throws(()=>validateOriginalPreviewApplyEvidence(input,immutablePreviewApplyIo({artifactRunId:'33308168017'})),/found 0/)
   assert.throws(()=>validateOriginalPreviewApplyEvidence(input,immutablePreviewApplyIo({mergeCommitSha:'c'.repeat(40)})),/found 0/)
+})
+
+test('immutable preview-ledger reconciliation evidence validates the renamed current version without replay',()=>{
+  const input={issue:1722,pr:1748,versions:['20260830013942'],mergeCommitSha:'5'.repeat(40)}
+  assert.deepEqual(validateOriginalPreviewApplyEvidence(input,immutablePreviewReconciliationIo()),{type:'preview-ledger-reconciliation',run_id:'33307904277',orphan_version:'20260828113920',replacement_version:'20260830013942'})
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,immutablePreviewReconciliationIo({sourcePr:9999})),/found 0/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,immutablePreviewReconciliationIo({replacement:'20260830013943'})),/found 0/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,immutablePreviewReconciliationIo({artifactRunId:'33307904278'})),/found 0/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,immutablePreviewReconciliationIo({relation:'diverged'})),/found 0/)
+  const reset=immutablePreviewReconciliationIo({replacement:'20260828113920'})
+  assert.throws(()=>validateOriginalPreviewApplyEvidence({...input,versions:['20260828113920']},reset),/found 0/)
 })
 
 test('an already-applied merged claim receives validated evidence before route selection',()=>{
