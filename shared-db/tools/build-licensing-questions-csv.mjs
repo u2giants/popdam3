@@ -1,5 +1,64 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { isQualifierComponent } from './resolve-character-identity.mjs';
+
+/**
+ * Thrown when the generator is asked to produce a question a human cannot
+ * answer. This is the B7 negative path: the generator REFUSES rather than
+ * shipping a malformed question. Seven such questions reached Laura in round 2
+ * ("Unknown names: gen", "Unknown names: back to school", "wasp logo ms ant man
+ * wasp quantumania") and all seven came back blank.
+ */
+export class UnanswerableQuestionError extends Error {
+  constructor(ref, detail) {
+    super(`refusing to ask ${ref}: ${detail}`);
+    this.name = 'UnanswerableQuestionError';
+    this.ref = ref;
+  }
+}
+
+/**
+ * The unknown names a combination question may legitimately put to a human.
+ * Qualifier fragments are dropped here as well as upstream, so a stale
+ * `identity-decisions-for-owner.csv` cannot reintroduce the round-2 defect.
+ */
+export function answerableComponents(componentsField) {
+  return String(componentsField ?? '')
+    .split('|')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((s) => !isQualifierComponent(s));
+}
+
+/** Build one B-block question, or refuse. */
+export function buildCombinationQuestion(row, { ref, licensor }) {
+  const parts = answerableComponents(row.components);
+  if (parts.length === 0) {
+    throw new UnanswerableQuestionError(
+      ref,
+      `"${row.character_name}" yields no character name to ask about `
+      + `(components: ${String(row.components ?? '').trim() || '(none)'})`,
+    );
+  }
+  return {
+    ref,
+    issue: 'One row names several characters',
+    licensor,
+    style_guide: row.style_guide,
+    character: row.character_name,
+    places_used: '1',
+    what_we_have: row.character_name,
+    what_that_code_actually_is: '',
+    the_problem:
+      `This is one row listing more than one character. These names appear nowhere else, so we cannot confirm they are real characters: ${parts.join(', ')}.`,
+    what_we_need_from_you:
+      'Write DROP if this row is just a grouping label and not real characters. Otherwise list the correct full character names, separated by semicolons.',
+    options: 'DROP  /  list the real character names',
+    YOUR_ANSWER: '',
+    YOUR_NOTES: '',
+  };
+}
 
 const EV = 'C:/repos/shared-db/docs/verification/character-identity-rules-20260728';
 const OUT = 'C:/repos/shared-db/docs/verification/character-identity-rules-20260728/licensing-questions-for-laura-20260729.csv';
@@ -14,12 +73,14 @@ const OWNER_OF_CODE = {
   MV: 'Marvel', NB: 'NBC', ZZ: 'DTR - NO LICENSE (i.e. not licensed)',
 };
 
-// style guide name -> legacy licensor id (500 rows, read from preview)
-const SG_LICENSOR = Object.fromEntries(
+// style guide name -> legacy licensor id (500 rows, read from preview).
+// Loaded lazily so this module can be imported by tests without the fixture.
+let SG_LICENSOR = null;
+const sgLicensor = () => (SG_LICENSOR ??= Object.fromEntries(
   JSON.parse(fs.readFileSync('sgmap.json', 'utf8')).map((r) => [r.sg.toLowerCase(), r.licensor_id])
-);
+));
 const licOfStyleGuide = (sg) => {
-  const id = SG_LICENSOR[String(sg || '').trim().toLowerCase()];
+  const id = sgLicensor()[String(sg || '').trim().toLowerCase()];
   return id ? (LICENSOR[id] || `licensor id ${id}`) : '';
 };
 
@@ -47,6 +108,7 @@ function parseCsv(text) {
 
 const read = (f) => parseCsv(fs.readFileSync(path.join(EV, f), 'utf8'));
 
+export function main() {
 const out = [];
 let n = 0;
 const ref = (p) => `${p}${String(++n).padStart(3, '0')}`;
@@ -80,24 +142,7 @@ for (const r of read('cross-licensor-validation-failures.csv')) {
 // ============ B. rows naming several characters ============
 n = 0;
 for (const r of read('identity-decisions-for-owner.csv')) {
-  const parts = r.components.split('|').map((s) => s.trim()).filter(Boolean);
-  out.push({
-    ref: ref('B'),
-    issue: 'One row names several characters',
-    licensor: licOfStyleGuide(r.style_guide),
-    style_guide: r.style_guide,
-    character: r.character_name,
-    places_used: '1',
-    what_we_have: r.character_name,
-    what_that_code_actually_is: '',
-    the_problem:
-      `This is one row listing more than one character. These names appear nowhere else, so we cannot confirm they are real characters: ${parts.join(', ')}.`,
-    what_we_need_from_you:
-      'Write DROP if this row is just a grouping label and not real characters. Otherwise list the correct full character names, separated by semicolons.',
-    options: 'DROP  /  list the real character names',
-    YOUR_ANSWER: '',
-    YOUR_NOTES: '',
-  });
+  out.push(buildCombinationQuestion(r, { ref: ref('B'), licensor: licOfStyleGuide(r.style_guide) }));
 }
 
 // ============ C. character sits under two or more MG06 codes ============
@@ -145,3 +190,6 @@ for (const r of out) by[r.issue] = (by[r.issue] || 0) + 1;
 console.log('wrote', OUT);
 console.log('rows:', out.length);
 console.table(Object.entries(by).map(([issue, rows]) => ({ issue, rows })));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

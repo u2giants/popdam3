@@ -539,7 +539,13 @@ export function resolveIdentities(appearances) {
       return !known.has(full) && !known.has(primary);
     });
     row.components = components.join(' | ');
-    if (components.length >= 2 && missing.length === 0) {
+    if (components.length === 0) {
+      // Every component was a royalty/logo/general qualifier. There is no
+      // character name here to ask anybody about — asking is the defect.
+      row.status = 'QUALIFIER_ONLY_LABEL';
+      row.rules = `${row.rules}+QUALIFIER_ONLY_LABEL`;
+      row.reason = 'Row carries only royalty/logo/general qualifiers, no character name to adjudicate';
+    } else if (components.length >= 2 && missing.length === 0) {
       row.status = 'COMBINATION_COVERED';
       row.rules = `${row.rules}+COMBINATION_COVERED`;
       row.reason = 'Royalty combination row; every named character already resolved under this licensor';
@@ -566,16 +572,83 @@ export function resolveIdentities(appearances) {
   return { rows, identities: [...identities.values()], counts, ruleCounts };
 }
 
-/** Split a combination label into its component character names. */
+const SEPARATOR_RE = /\s*(?:&|,|\band\b)\s*/i;
+
+/**
+ * Royalty/rendition qualifiers that are NOT character names. They arrive as
+ * components of a combination label — "General(No Name,Likeness,Voice Royalty)"
+ * splits into `likeness` and `voice royalty`, neither of which anybody can
+ * adjudicate as a character.
+ */
+export const QUALIFIER_COMPONENTS = new Set([
+  'gen', 'general', 'core', 'assorted', 'misc', 'miscellaneous',
+  'likeness', 'with likeness', 'no likeness', 'non likeness', 'talent likeness',
+  'non talent likeness', 'voice', 'voice royalty', 'no voice', 'name', 'no name',
+  'royalty', 'logo', 'logos', 'dnu', 'do not use', 'style guide', 'group', 'grp',
+]);
+
+/**
+ * True when a split component describes the artwork, the royalty basis or the
+ * guide rather than naming a character. Reuses the existing logo/general/DNU
+ * marker vocabulary so there is one definition of "not a character", not two.
+ */
+export function isQualifierComponent(component) {
+  const n = norm(component);
+  if (!n) return true;
+  if (QUALIFIER_COMPONENTS.has(n)) return true;
+  if (carriesAnyMarker(component, LOGO_MARKERS)) return true;
+  if (carriesAnyMarker(component, GENERAL_MARKERS)) return true;
+  if (carriesAnyMarker(component, DO_NOT_USE_MARKERS)) return true;
+  // A "logo" token anywhere makes the fragment artwork, not a character. The
+  // edge-only LOGO_MARKERS rule misses mid-string fragments such as
+  // "wasp logo ms ant man wasp quantumania".
+  if (/\blogos?\b/.test(n)) return true;
+  // Royalty-basis words. Deliberately NOT plain "general", which would swallow
+  // real names such as "General Zod".
+  if (/\broyalty\b/.test(n)) return true;
+  if (/\bno name\b/.test(n)) return true;
+  if (/\blikeness\b/.test(n)) return true;
+  return false;
+}
+
+/**
+ * Split a combination label into its component character names.
+ *
+ * Three corrections over the original naive split, each tied to a row that
+ * reached Laura as an unanswerable question in round 2:
+ *
+ * 1. A trailing `( style guide )` scope suffix is removed before splitting.
+ *    Without this, `Ant-Man & Wasp Logo ( MS` Ant-Man Wasp Quantumania )` split
+ *    straight through the suffix and produced the fragment
+ *    "wasp logo ms ant man wasp quantumania".
+ * 2. The leading franchise prefix is dropped ONLY when the text after the dash
+ *    actually looks like a list. `Camp Rock - Jason, Nate & Shane` keeps that
+ *    behaviour; `Mickey & Pluto - Back To School` and
+ *    `Moon Girl & Devil Dinosaur - Gen` do not — in those the names are in the
+ *    PREFIX and the tail is a title/qualifier, so the old rule threw the
+ *    characters away and asked about "back to school" and "gen".
+ * 3. Qualifier components are dropped, never offered as unknown names.
+ */
 export function splitCombination(value) {
   let text = String(value ?? '');
-  // Drop a leading franchise prefix: "Camp Rock 2 - Jason, Nate & Shane".
+
+  // 1. Drop a trailing parenthetical scope suffix.
+  text = text.replace(/\s*\([^()]*\)\s*$/, ' ').trim();
+
+  // 2. Conditional franchise-prefix drop.
   const dash = text.split(/\s+-\s+/);
-  if (dash.length > 1) text = dash.slice(1).join(' - ');
+  if (dash.length > 1) {
+    const tail = dash.slice(1).join(' - ');
+    if (SEPARATOR_RE.test(tail)) text = tail;
+    else text = dash[0];
+  }
+
+  // 3. Split, normalise, and drop qualifiers.
   return text
-    .split(/\s*(?:&|,|\band\b)\s*/i)
+    .split(SEPARATOR_RE)
     .map((part) => norm(part))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((part) => !isQualifierComponent(part));
 }
 
 // ---------------------------------------------------------------------------
