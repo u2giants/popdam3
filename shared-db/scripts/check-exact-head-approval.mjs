@@ -24,9 +24,9 @@
 // WHAT THIS GATE DOES NOT CHECK -- stated here so nobody reads more into a pass
 // than it carries. It enforces `an assignment exists at this head` AND `an approval
 // exists at this head`, not `the assigned reviewer approved`. Assignment refs record
-// {issue, pr, headSha} and no reviewer identity, and the evidence rows are read from
-// issue and PR comments with no author, association or permission field consulted at
-// all. So anyone who can comment can supply the approval half. The word
+// {issue, pr, headSha} and no reviewer identity. Free-text evidence is accepted only
+// from OWNER, MEMBER or COLLABORATOR associations, closing the public-comment
+// forgery, but that still does not bind the assigned provider to the commenter. The word
 // "independent" here describes the assignment PROCESS -- the rotation in
 // `manage-migration-author-lanes.mjs`, which picks the reviewer and refuses the
 // live orchestrator's own engine -- and is not a property this file verifies.
@@ -45,18 +45,19 @@
 // mistake once already.
 // Against the status quo this replaces -- nothing at all, which merged unapproved
 // bytes on PR #1809 -- it is a process-integrity gate and a large improvement. It is
-// not an authenticity gate, and it should never be cited as one.
+// not proof of reviewer identity, and it should never be cited as one.
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { REPO, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX } from './manage-migration-author-lanes.mjs'
+import { approvalLine, evidenceTiedToHead, refusalLine, trustedVerdictEvidence, unambiguouslyTiedToHead } from './lib/review-verdict.mjs'
 
 export class ApprovalCheckError extends Error {}
 
 // A decision is "tied" to a head when GitHub records it against that commit or the
 // author wrote the SHA into the body. Same rule the preview gate uses, so the two
 // gates cannot drift into disagreeing about what a reviewer approved.
-const tiedToHead = (row, headSha) => row.commit_id === headSha || String(row.body ?? '').includes(headSha)
+const tiedToHead = evidenceTiedToHead
 // APPROVALS need a STRICTER tie than refusals, and the difference is the whole
 // #1809 hole reappearing inside the tool built to close it. Under the permissive
 // tie, a comment approving head A that merely MENTIONS head B ("VERDICT: APPROVE
@@ -76,13 +77,8 @@ const tiedToHead = (row, headSha) => row.commit_id === headSha || String(row.bod
 // over-counting a refusal locks a head that maybe did not need locking, which
 // costs a re-review; over-counting an approval merges unreviewed bytes. When a
 // tie is uncertain, both errors must fall on the side of not merging.
-const OTHER_SHA = /\b[0-9a-f]{40}\b/gi
-const unambiguouslyTiedToHead = (row, headSha) => {
-  if (row.commit_id === headSha) return true
-  const body = String(row.body ?? '')
-  if (!body.includes(headSha)) return false
-  return (body.match(OTHER_SHA) ?? []).every((sha) => sha.toLowerCase() === headSha.toLowerCase())
-}
+// The shared predicate implements this rule for every merge, preview, assignment,
+// replacement and reviewer-lease consumer. Do not recreate it in this file.
 // A VERDICT is a line that OPENS with the verdict word -- not prose that happens to
 // mention it. A lane wrote a progress note on its own PR naming the head SHA and the
 // word REVISE, and permanently locked its own head: the note read as a recorded
@@ -108,9 +104,6 @@ const unambiguouslyTiedToHead = (row, headSha) => {
 // because it presents as reviewers not returning verdicts rather than as a gate bug.
 // Only whitespace and emphasis marks are stripped, never letters: `VERDICT: DO NOT
 // APPROVE` still does not open with APPROVE.
-const stripVerdictLabel = (line) => line.replace(/^[\s>*_#-]+/, '').replace(/^VERDICT\s*:\s*/i, '').replace(/^[\s*_]+/, '')
-const bodyLines = (body) => String(body ?? '').split(/\r?\n/)
-const verdictLine = (body, pattern) => bodyLines(body).some((line) => pattern.test(stripVerdictLabel(line)))
 // `APPROVE WITH CONDITIONS` is a refusal-with-remedy, not an approval: the
 // conditions ARE the reviewer's finding, so merging on it merges the state the
 // reviewer declined to authorize -- while producing an audit trail saying they
@@ -129,20 +122,13 @@ const verdictLine = (body, pattern) => bodyLines(body).some((line) => pattern.te
 // unconditional approvals. So the test is the phrase "with condition(s)" appearing
 // anywhere on the verdict line -- and on the line after it, because reviewers wrap
 // and `VERDICT: APPROVE` / `WITH CONDITIONS: ...` is the same claim split in two.
-const CONDITIONAL = /\bWITH\s+CONDITIONS?\b/i
 // The boundary is "no more letters or digits", not `\b`. Underscore is a word
 // character, so `\b` did not fire on the markdown emphasis form `__APPROVE__`.
-const APPROVE = /^APPROVE(?:D)?(?![A-Za-z0-9])/i
 // REJECT is a real verdict word in this repo's reviewer wrappers alongside REVISE
 // and GitHub's own CHANGES_REQUESTED. Omitting any of them would let a refusal at
 // the merged head be silently outvoted by an approval that came before it. The
 // space-separated `REQUEST CHANGES` counts too: it is how a reviewer writing prose
 // spells the same refusal, and only the underscore form was recognised before.
-const REFUSAL = /^(?:REJECT(?:ED)?|REVISE|REQUEST[_\s]CHANGES)(?![A-Za-z0-9])/i
-const approvalLine = (body) => bodyLines(body).some((line, index, all) => {
-  const stripped = stripVerdictLabel(line)
-  return APPROVE.test(stripped) && !CONDITIONAL.test(`${stripped} ${all[index + 1] ?? ''}`)
-})
 
 export function evaluateExactHeadApproval({ pr, headSha, evidence = [], assignments = [] }) {
   if (!/^[0-9a-f]{40}$/i.test(String(headSha ?? ''))) throw new ApprovalCheckError('an exact 40-character head SHA is required')
@@ -151,12 +137,13 @@ export function evaluateExactHeadApproval({ pr, headSha, evidence = [], assignme
   const pinned = assignments.filter((row) => String(row.headSha ?? '').toLowerCase() === String(headSha).toLowerCase())
   if (!pinned.length) throw new ApprovalCheckError(`no reviewer was ever assigned head ${headSha}; an assignment pinned to an earlier head does not carry forward to new commits`)
 
-  const atHead = evidence.filter((row) => tiedToHead(row, headSha))
+  const authenticated = evidence.filter(trustedVerdictEvidence)
+  const atHead = authenticated.filter((row) => tiedToHead(row, headSha))
   const state = (row) => String(row.state ?? '').toUpperCase()
-  const refusals = atHead.filter((row) => verdictLine(row.body, REFUSAL) || state(row) === 'CHANGES_REQUESTED')
+  const refusals = atHead.filter((row) => refusalLine(row.body) || state(row) === 'CHANGES_REQUESTED')
   if (refusals.length) throw new ApprovalCheckError(`head ${headSha} carries an unanswered reviewer refusal; answer it with a new commit and a fresh exact-head review`)
 
-  const approvals = evidence
+  const approvals = authenticated
     .filter((row) => unambiguouslyTiedToHead(row, headSha))
     .filter((row) => approvalLine(row.body) || state(row) === 'APPROVED')
   if (!approvals.length) throw new ApprovalCheckError(`head ${headSha} has no APPROVE tied to it; an approval of an earlier head never approves these bytes`)

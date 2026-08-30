@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { evaluateExactHeadApproval, gatherApprovalInput, parseAssignmentRef, ApprovalCheckError } from './check-exact-head-approval.mjs'
+import { evaluateExactHeadApproval as evaluateRaw, gatherApprovalInput, parseAssignmentRef, ApprovalCheckError } from './check-exact-head-approval.mjs'
 
 const OLD = 'b494401028464ef8b2e67fe0b5b1836839b2be36'
 const NEW = '8d3c31accd5b21ea669e65f5ae53f5f95cc57337'
+const evaluateExactHeadApproval = (input) => evaluateRaw({...input,evidence:(input.evidence??[]).map((row)=>row&&({author_association:'OWNER',...row}))})
+
+test('comment verdicts are unauthorized by default', () => {
+  const input={pr:1809,headSha:NEW,assignments:[{issue:1769,pr:1809,headSha:NEW}],evidence:[{body:`VERDICT: APPROVE ${NEW}`}]}
+  assert.throws(()=>evaluateRaw(input),/has no APPROVE tied to it/)
+  assert.equal(evaluateRaw({...input,evidence:[{...input.evidence[0],author_association:'OWNER'}]}).approved,true)
+})
 
 test('an approval tied to the exact head, with an assignment pinned to it, authorizes the merge', () => {
   const result = evaluateExactHeadApproval({

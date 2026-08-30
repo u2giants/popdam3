@@ -13,6 +13,7 @@
     "scripts/check-pr-object-collisions.mjs",
     "scripts/db-coordination-events.mjs",
     "scripts/lib/exclusive-lease.mjs",
+    "scripts/lib/review-verdict.mjs",
     "scripts/lib/work-dependencies.mjs",
     "scripts/manage-migration-author-lanes.mjs",
     "scripts/orchestrator-flow/classify-invalidation.mjs",

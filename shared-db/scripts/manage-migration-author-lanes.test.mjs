@@ -589,7 +589,7 @@ test('a recorded verdict and a moved head both free the reviewer that held them'
   const {io,heads}=busyIo()
   const grokPr=600
   // A verdict tied to the exact head ends that review.
-  const verdictIo={...io,getPrReviews:(number)=>Number(number)===grokPr?[{body:`APPROVE ${heads.get(grokPr)}`}]:[]}
+  const verdictIo={...io,getPrReviews:(number)=>Number(number)===grokPr?[{body:`APPROVE ${heads.get(grokPr)}`,author_association:'OWNER'}]:[]}
   assert.ok(!findBusyReviewers(verdictIo).has('grok-4.6'))
   // So does a push that moves the PR past the head the reviewer was given.
   const openPr=io.getPr
@@ -666,7 +666,7 @@ test('assignment fails closed when the bounded reviewer index was never activate
 
 test('assignment retry releases its lease after an exact-head verdict',()=>{
   const io=reviewIo(),request={issue:9,pr:109,headSha:'abcdef9'},first=assignNextReviewer(request,io),ref=reviewActiveRef(first.reviewer)
-  io.getIssueComments=()=>[{body:`APPROVE ${request.headSha}`}]
+  io.getIssueComments=()=>[{body:`APPROVE ${request.headSha}`,author_association:'OWNER'}]
   assert.deepEqual(assignNextReviewer(request,io),first)
   assert.equal(io.refs.has(ref),false)
 })
@@ -817,7 +817,7 @@ test('a merged pull request can also receive a reviewer REPLACEMENT for its merg
 test('an existing verdict at the merged head still refuses a new assignment',()=>{
   // A refusal tied to a head blocks that head permanently; the merged route inherits
   // that guard unchanged and must never become a way to void one.
-  const io=mergedPrIo({evidence:[{state:'CHANGES_REQUESTED',commit_id:MERGED_HEAD,body:'REVISE'}]})
+  const io=mergedPrIo({evidence:[{state:'CHANGES_REQUESTED',commit_id:MERGED_HEAD,body:'REVISE',author_association:'OWNER'}]})
   assert.throws(()=>assignNextReviewer(mergedRequest,io),/changed after mutex acquisition/)
 })
 
@@ -834,7 +834,7 @@ test('terminal provider failure advances exactly once and retry is idempotent',(
 
 test('replacement retry releases its lease after an exact-head verdict',()=>{
   const io=failedReviewIo(),first=replaceFailedReviewer(replacementRequest,io),ref=reviewActiveRef(first.reviewer)
-  io.getIssueComments=()=>[{body:`APPROVE ${failedReview.headSha}`}]
+  io.getIssueComments=()=>[{body:`APPROVE ${failedReview.headSha}`,author_association:'OWNER'}]
   assert.deepEqual(replaceFailedReviewer(replacementRequest,io),first)
   assert.equal(io.refs.has(ref),false)
   assert.equal(assignNextReviewer(failedReview,io).reviewer,first.reviewer)
@@ -1199,7 +1199,7 @@ test('chained replacement rejects mismatch, exact-head drift, and a verdict at e
   io.getPr=()=>({state:'open',head:{sha:'ffffffffffffffffffffffffffffffffffffffff'}})
   assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence,failureCode:'provider_unavailable'},io),/exact open PR head/)
   io.getPr=()=>({state:'open',head:{sha:failedReview.headSha}})
-  io.getPrReviews=()=>[{body:`APPROVE ${failedReview.headSha}`}]
+  io.getPrReviews=()=>[{body:`APPROVE ${failedReview.headSha}`,author_association:'OWNER'}]
   assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence,failureCode:'provider_unavailable'},io),/existing verdict/)
 })
 
@@ -1291,9 +1291,9 @@ test('replacement exhausts the active rotation, then refuses',()=>{
 })
 
 test('reviewer replacement rejects a substantive exact-head verdict',()=>{
-  const io=failedReviewIo();io.getPrReviews=()=>[{body:`REVISE ${failedReview.headSha}`}]
+  const io=failedReviewIo();io.getPrReviews=()=>[{body:`REVISE ${failedReview.headSha}`,author_association:'OWNER'}]
   assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/existing verdict/)
-  const stateIo=failedReviewIo();stateIo.getPrReviews=()=>[{body:'',commit_id:failedReview.headSha,state:'APPROVED'}]
+  const stateIo=failedReviewIo();stateIo.getPrReviews=()=>[{body:'',commit_id:failedReview.headSha,state:'APPROVED',author_association:'OWNER'}]
   assert.throws(()=>replaceFailedReviewer(replacementRequest,stateIo),/existing verdict/)
 })
 
@@ -2811,7 +2811,7 @@ test('cutover activation skips a pre-cutover assignment that already has a verdi
   const io=freshCutoverIo(),headSha='b'.repeat(40)
   io.openPulls=()=>[{number:110,head:{sha:headSha}}]
   seedAssignment(io,{issue:10,pr:110,headSha,reviewer:'grok-4.6'})
-  io.getIssueComments=()=>[{body:`APPROVE ${headSha}`,commit_id:headSha}]
+  io.getIssueComments=()=>[{body:`APPROVE ${headSha}`,commit_id:headSha,author_association:'OWNER'}]
   const result=activateReviewCutover(io)
   assert.deepEqual(result.backfilled,[])
   assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
@@ -2853,7 +2853,7 @@ test('cutover activation on the BATCHED path still skips an assignment with a re
   io.openPulls=()=>[{number:113,head:{sha:headSha}}]
   seedAssignment(io,{issue:13,pr:113,headSha,reviewer:'grok-4.6'})
   batchedStatesIo(io,{issue:13,pr:113,headSha,evidence:[
-    {body:`VERDICT: APPROVE\n\nReviewed at ${headSha}.`,commit_id:null,state:null},
+    {body:`VERDICT: APPROVE\n\nReviewed at ${headSha}.`,commit_id:null,state:null,author_association:'OWNER'},
   ]})
   const result=activateReviewCutover(io)
   assert.deepEqual(result.backfilled,[])

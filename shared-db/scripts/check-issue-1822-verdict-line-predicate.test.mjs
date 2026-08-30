@@ -41,7 +41,8 @@ const REAL_REVISE_PROSE = [
   'Three further doctrine entries are ready and are being **deliberately withheld**, because `docs/agents/section-4-anti-collision-rules.md` is one of the six files under review. Pushing them would move the head and void the review — the fourth head in two hours, for prose that can wait an hour. Good additions do not justify moving a head under review; that is exactly the exemption this PR exists to refuse. They land as a follow-up documentation PR after merge, or ride along with any REVISE findings.',
 ].join('\n')
 
-const comment = (body) => ({ body, state: undefined, commit_id: undefined })
+const comment = (body) => ({ body, state: undefined, commit_id: undefined, author_association: 'OWNER' })
+const trusted = (row) => ({ author_association: 'OWNER', ...row })
 
 test('both real #1818 progress notes are tied to the head', () => {
   // The tie is what made them dangerous; the fix must not work by accidentally
@@ -103,9 +104,9 @@ test('a genuine refusal opening its line still registers', () => {
 })
 
 test('structured GitHub review states are still trusted as data, not prose', () => {
-  assert.equal(isApprovalFor({ body: '', state: 'APPROVED', commit_id: HEAD }, HEAD), true)
-  assert.equal(isVerdictFor({ body: '', state: 'CHANGES_REQUESTED', commit_id: HEAD }, HEAD), true)
-  assert.equal(isApprovalFor({ body: '', state: 'CHANGES_REQUESTED', commit_id: HEAD }, HEAD), false)
+  assert.equal(isApprovalFor(trusted({ body: '', state: 'APPROVED', commit_id: HEAD }), HEAD), true)
+  assert.equal(isVerdictFor(trusted({ body: '', state: 'CHANGES_REQUESTED', commit_id: HEAD }), HEAD), true)
+  assert.equal(isApprovalFor(trusted({ body: '', state: 'CHANGES_REQUESTED', commit_id: HEAD }), HEAD), false)
 })
 
 // ---------------------------------------------------------------------------
@@ -240,7 +241,7 @@ test('KNOWN BOUNDARY: a structured APPROVED state outranks conditional prose', (
   // reviewer can express a conditional approval that the gate reads as
   // unconditional. Flagged to the coordinator rather than fixed unilaterally.
   const row = { body: 'APPROVE WITH CONDITIONS', state: 'APPROVED', commit_id: HEAD }
-  assert.equal(isApprovalFor(row, HEAD), true)
+  assert.equal(isApprovalFor(trusted(row), HEAD), true)
 })
 
 test('a verdict word for a DIFFERENT head never counts for this head', () => {
@@ -336,7 +337,7 @@ test('gate: exact-head refusals never authorize even when they name the bundle',
   const refusals = [
     comment(`REVISE\n\nHead ${HEAD}, bundle ${BUNDLE}.`),
     comment(`VERDICT: REJECT\n\nHead ${HEAD}, bundle ${BUNDLE}.`),
-    { body: `Bundle ${BUNDLE}.`, state: 'CHANGES_REQUESTED', commit_id: HEAD },
+    trusted({ body: `Bundle ${BUNDLE}.`, state: 'CHANGES_REQUESTED', commit_id: HEAD }),
   ]
   for (const row of refusals) {
     assert.equal(isVerdictFor(row, HEAD), true, 'fixture must be a real refusal verdict')

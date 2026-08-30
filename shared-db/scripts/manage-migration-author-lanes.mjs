@@ -12,7 +12,7 @@ import { coordinationEvent, formatEventComment, parseEventComment, auditTimeline
 import { reconcileFlow, persistInitialReady, preparePreviewDispatch, repairPreviewReady } from './orchestrator-flow/reconcile.mjs'
 import { buildEvidenceBundle, canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
 import { selectPreviewRoute } from './orchestrator-flow/select-preview-route.mjs'
-import { PROJECT_REFS } from './orchestrator-flow/read-preview-ledger.mjs'
+import { PROJECT_REFS } from './orchestrator-flow/read-preview-ledger.mjs'; import { verdictOpensLine as sharedVerdictOpensLine, evidenceTiedToHead as sharedEvidenceTiedToHead, isApprovalFor as sharedIsApprovalFor, isVerdictFor as sharedIsVerdictFor, anyVerdictFor as sharedAnyVerdictFor } from './lib/review-verdict.mjs'
 
 export const REPO = 'u2giants/shared-db'
 // AUTHOR LANE CAP. Raised from three to five on 2026-08-25 (owner instruction).
@@ -1568,7 +1568,6 @@ export function findPrReviewAssignments(issue,pr,io){
 // widened to skip arbitrary leading words: a strip that swallowed them would
 // read `VERDICT: DO NOT APPROVE` as an approval, turning the plainest possible
 // refusal into the strongest possible authorization. Pinned by test.
-const stripLineLead=(line)=>String(line).replace(/^[\s>*_#-]+/,'').replace(/^VERDICT\s*[:-]\s*/i,'')
 // REJECT is a real verdict word in this repository's reviewer wrappers alongside
 // REVISE, and REQUEST_CHANGES is GitHub's own.
 //
@@ -1584,29 +1583,30 @@ const stripLineLead=(line)=>String(line).replace(/^[\s>*_#-]+/,'').replace(/^VER
 // refusal -- it withholds the decision rather than recording one. Both halves are
 // asserted in the same test, because "does not approve" and "does not lock" are
 // two separate claims and only the first is obvious.
-const VERDICT_APPROVE=/^APPROVE(?:D)?\b(?!\s*(?:WITH|,\s*WITH)\s+CONDITIONS?\b)/i
-const VERDICT_REFUSAL=/^(?:REJECT(?:ED)?|REVISE|REQUEST_CHANGES)\b/i
 export function verdictOpensLine(body,pattern){
-  return String(body??'').split(/\r?\n/).some((line)=>pattern.test(stripLineLead(line)))
+  return sharedVerdictOpensLine(body,pattern)
 }
 // Structured GitHub review states are data, not prose, so they are trusted as
 // they always were -- the opening-line rule governs free text only.
 const reviewState=(row)=>String(row?.state??'').toUpperCase()
 export function evidenceTiedToHead(row,headSha){
-  return row?.commit_id===headSha||String(row?.body??'').includes(headSha)
+  return sharedEvidenceTiedToHead(row,headSha)
 }
 // An APPROVE for this head. Used by the fail-OPEN preview gate.
 export function isApprovalFor(row,headSha){
-  return evidenceTiedToHead(row,headSha)&&(verdictOpensLine(row?.body,VERDICT_APPROVE)||reviewState(row)==='APPROVED')
+  return sharedIsApprovalFor(row,headSha)
 }
 // Any decision for this head -- approval or refusal. Used by the fail-CLOSED
 // assignment, replacement and lease guards.
 export function isVerdictFor(row,headSha){
-  if(!evidenceTiedToHead(row,headSha))return false
-  if(['APPROVED','CHANGES_REQUESTED'].includes(reviewState(row)))return true
-  return verdictOpensLine(row?.body,VERDICT_APPROVE)||verdictOpensLine(row?.body,VERDICT_REFUSAL)
+  return sharedIsVerdictFor(row,headSha)
 }
-export const anyVerdictFor=(evidence,headSha)=>(evidence??[]).some((row)=>isVerdictFor(row,headSha))
+export const anyVerdictFor=sharedAnyVerdictFor
+// The executable predicate lives in lib/review-verdict.mjs and is shared with
+// the exact-head merge gate. These compatibility exports keep existing callers
+// stable while preventing another local regex implementation from drifting.
+// Free-text evidence is unauthorized by default; only repository-authorized
+// GitHub associations retain the reviewer-verdict capability.
 
 // The fail-OPEN preview gate's authorization decision, extracted so it can be
 // executed by a test. `previewGateProof` itself shells out to `gh` on its first
