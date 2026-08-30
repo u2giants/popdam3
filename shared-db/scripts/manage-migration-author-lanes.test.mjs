@@ -3420,6 +3420,28 @@ test('closed-claim recovery refuses ambiguity, an open PR, and a merge outside m
   assert.throws(()=>deriveLivePreviewCandidate(1769,io),/is not in main history/)
 })
 
+test('historical recovery ignores malformed unrelated open claim titles but strictly binds the selected closed claim',()=>{
+  const {io}=mergedRehearsalIo(),claim=io.openClaims()[0]
+  const unrelated={...claim,number:99,title:'CLAIM without a work issue',body:claim.body.replace('20260828232207','20260828232208').replace('issue-1769-wwe-tables','unrelated-branch')}
+  io.openClaims=()=>[unrelated]
+  io.closedClaimsForWork=()=>[{...claim,state:'closed'}]
+  assert.equal(deriveLivePreviewCandidate(1769,io,{claimNumber:claim.number}).route,'merged_rehearsal')
+
+  io.closedClaimsForWork=()=>[{...claim,title:'CLAIM without a work issue',state:'closed'}]
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io,{claimNumber:claim.number}),/exactly one work issue/)
+  io.closedClaimsForWork=()=>[{...claim,title:'CLAIM: #1769 and #1770',state:'closed'}]
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io,{claimNumber:claim.number}),/exactly one work issue/)
+  io.closedClaimsForWork=()=>[{...claim,title:'CLAIM: #1770 wrong work item',state:'closed'}]
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io,{claimNumber:claim.number}),/does not identify work issue #1769/)
+
+  io.openClaims=()=>[{...unrelated,title:'CLAIM: #1769 and #1770'}]
+  io.closedClaimsForWork=()=>[{...claim,state:'closed'}]
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io,{claimNumber:claim.number}),/ambiguously identifies work issue #1769/)
+
+  io.openClaims=()=>[{...unrelated,body:claim.body}]
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io,{claimNumber:claim.number}),/invalid title protects recovery version 20260828232207/)
+})
+
 test('a merged claim whose merge commit is not in main history is refused',()=>{
   const {io}=mergedRehearsalIo()
   io.mergeCommitInMain=()=>false

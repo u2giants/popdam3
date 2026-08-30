@@ -1159,7 +1159,7 @@ function livePreviewLedger(){
   try{return JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env:process.env}))}catch(error){throw new LaneError(`fresh preview ledger is unavailable (${String(error.stderr??error.message).trim()})`)}
 }
 export function deriveLivePreviewCandidate(issue,io,{claimNumber=null}={}){
-  const claims=io.openClaims().map((claim)=>({claim,lease:parseAuthorLease(claim.body)})),owned=claims.filter((row)=>claimWorkIssue(row.claim)===issue),allClosed=owned.length===0?(io.closedClaimsForWork?.(issue)??[]).map((claim)=>({claim,lease:parseAuthorLease(claim.body)})):[],closed=claimNumber===null?allClosed:allClosed.filter((row)=>Number(row.claim.number)===Number(claimNumber));if(owned.length>1)throw new LaneError(`work issue #${issue} must have exactly one live protected claim`);if(claimNumber!==null&&owned.length===0&&closed.length!==1)throw new LaneError(`closed claim #${claimNumber} is not a unique historical claim for work issue #${issue}`);for(const row of closed)if(io.openPulls().some((pr)=>pr.head?.ref===row.lease.branch))throw new LaneError(`closed claim #${row.claim.number} cannot recover while its pull request is still open`)
+  const claims=io.openClaims().map((claim)=>({claim,lease:parseAuthorLease(claim.body)}));for(const row of claims){const titleIssues=claimTitleIssues(row.claim);if(titleIssues.includes(issue)&&titleIssues.length!==1)throw new LaneError(`open claim #${row.claim.number} ambiguously identifies work issue #${issue}`)}const owned=claims.filter((row)=>claimTitleWorkIssue(row.claim)===issue),allClosed=owned.length===0?(io.closedClaimsForWork?.(issue)??[]).map((claim)=>({claim,lease:parseAuthorLease(claim.body)})):[],closed=claimNumber===null?allClosed:allClosed.filter((row)=>Number(row.claim.number)===Number(claimNumber));if(owned.length>1)throw new LaneError(`work issue #${issue} must have exactly one live protected claim`);if(claimNumber!==null&&owned.length===0&&closed.length!==1)throw new LaneError(`closed claim #${claimNumber} is not a unique historical claim for work issue #${issue}`);for(const row of closed)if(claimWorkIssue(row.claim)!==issue)throw new LaneError(`closed claim #${row.claim.number} title does not identify work issue #${issue}`);for(const row of closed)if(io.openPulls().some((pr)=>pr.head?.ref===row.lease.branch))throw new LaneError(`closed claim #${row.claim.number} cannot recover while its pull request is still open`)
   const recoverable=closed.filter((row)=>{const merged=(io.branchPulls?.(row.lease.branch)??[]).filter((pr)=>pr.head?.ref===row.lease.branch&&pr.merged_at&&pr.merge_commit_sha);if(merged.length>1)throw new LaneError(`closed claim #${row.claim.number} has multiple merged pull requests`);if(merged.length===1&&!io.mergeCommitInMain(merged[0].merge_commit_sha))throw new LaneError(`merged claim #${row.claim.number} merge commit ${merged[0].merge_commit_sha} is not in main history`);return merged.length===1});if(owned.length===0&&recoverable.length!==1)throw new LaneError(`work issue #${issue} has ${recoverable.length} recoverable closed claims; historical recovery requires exactly one${recoverable.length>1?' or an explicit --claim-number <claim> selector':''}`);const recoveredClosed=owned.length===0,{claim,lease}=recoveredClosed?recoverable[0]:owned[0],pulls=io.openPulls().filter((pr)=>pr.head?.ref===lease.branch)
   // Merge-first (AGENTS.md section 4 rule 2): once the claim PR merges there is no open
   // pull request left, and the rehearsal still owes proof. Fall back to the merged pull
@@ -1179,12 +1179,13 @@ export function deriveLivePreviewCandidate(issue,io,{claimNumber=null}={}){
   const head=pr.head.sha,changed=io.getPrFiles(pr.number).filter((file)=>file.status!=='removed').map((file)=>file.filename)
   const migrations=changed.filter((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(file)),versions=migrations.map((file)=>path.basename(file).slice(0,14))
   if(!migrations.length)throw new LaneError('pull request has no added migration to prepare')
+  for(const row of claims)if(claimTitleWorkIssue(row.claim)===null&&versions.includes(row.lease.version))throw new LaneError(`open claim #${row.claim.number} with an invalid title protects recovery version ${row.lease.version}`)
   const inventory=JSON.parse(io.getFileAt('config/orchestrator-global-invalidators-v1.json',head)),allFiles=new Set([...migrations,...changed.filter((file)=>/^(?:supabase\/tests\/|scripts\/production-verification-sidecars\/)/.test(file)),...inventory.files,'config/orchestrator-global-invalidators-v1.json'])
   const contents=new Map([...allFiles].map((file)=>[file,io.getFileAt(file,head)])),headTree=io.treeFiles(head),order=headTree.filter((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(file)).sort()
   const bundle=buildEvidenceBundle({migrations,focusedFiles:changed.filter((file)=>file.startsWith('supabase/tests/')),verificationFiles:changed.filter((file)=>file.startsWith('scripts/production-verification-sidecars/')),writes:lease.writes,reads:lease.reads,migrationOrderDigest:sha256(canonicalJson(order)),issue,pr:pr.number,claim:claim.number,baseMainSha:pr.base.sha,integrationSha:head},{isClean:()=>true,fileExists:(file)=>contents.has(file),readFile:(file)=>contents.get(file)})
   const work=io.getIssue(issue),scope=parseQueueScope(work?.body??''),gate=io.previewGateProof(issue,pr.number,head,bundle.bundle_id,scope.dependencies)
   const main=io.mainSha(),mainVersions=io.treeFiles(main).filter((file)=>/^supabase\/migrations\/\d{14}_/.test(file)).map((file)=>path.basename(file).slice(0,14)),preview=io.previewLedger?.()??livePreviewLedger(),originalApplyEvidence=versions.every((version)=>preview.versions.includes(version))?validateOriginalPreviewApplyEvidence({issue,pr:pr.number,versions,mergeCommitSha:merged?pr.merge_commit_sha:null},io):null
-  const claimRows=claims.map((row)=>{const linked=io.openPulls().find((p)=>p.head?.ref===row.lease.branch);return{issue:claimWorkIssue(row.claim),pr:linked?.number??0,versions:[row.lease.version],merged:false}}).filter((row)=>row.pr)
+  const claimRows=claims.map((row)=>{const linked=io.openPulls().find((p)=>p.head?.ref===row.lease.branch);return{issue:claimTitleWorkIssue(row.claim),pr:linked?.number??0,versions:[row.lease.version],merged:false}}).filter((row)=>row.pr&&row.issue!==null)
   const route=selectPreviewRoute({issue,pr:pr.number,head_sha:head,bundle_id:bundle.bundle_id,versions,dependency_closure_complete:gate.dependency_closure_complete,claims:claimRows,main_versions:mainVersions,preview_versions:preview.versions,original_apply_evidence:originalApplyEvidence,merged})
   if(route.status!=='READY')throw new LaneError(`preview route is ${route.status}: ${route.reason}`)
   const routeName=route.route==='NORMAL_PREVIEW'?'ordinary_preview_apply':route.route==='POST_MERGE_REHEARSAL'?'merged_rehearsal':'historical_rebind'
@@ -2838,10 +2839,19 @@ function replaceCapacityState(body, capacityState, blockedOn = null) {
   return body.slice(0,fences[0].index)+fences[0][0].replace(fences[0][1],()=>block)+body.slice(fences[0].index+fences[0][0].length)
 }
 
+function claimTitleIssues(claim) {
+  return [...String(claim.title??'').matchAll(/#(\d+)\b/g)].map((match)=>Number(match[1]))
+}
+
+function claimTitleWorkIssue(claim) {
+  const matches=claimTitleIssues(claim)
+  return matches.length===1?matches[0]:null
+}
+
 function claimWorkIssue(claim) {
-  const matches=[...String(claim.title??'').matchAll(/#(\d+)\b/g)].map((match)=>Number(match[1]))
-  if(matches.length!==1)throw new LaneError('claim title must identify exactly one work issue for capacity transition events')
-  return matches[0]
+  const issue=claimTitleWorkIssue(claim)
+  if(issue===null)throw new LaneError('claim title must identify exactly one work issue for capacity transition events')
+  return issue
 }
 
 function validateCapacityBlocker(blockedOn, io) {
