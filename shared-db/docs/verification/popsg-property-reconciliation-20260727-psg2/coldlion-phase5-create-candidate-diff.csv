@@ -1,7 +1,0 @@
-coldlion_code,coldlion_name,coldlion_divisions,phase5_decision_status,phase5_action,psg2_overlap_rows,psg2_active_file_occurrences,psg2_observation_keys,routing
-55,SHREK 5,CW001|SP001,pending_human,create_phase5_if_approved,0,0,,no_psg2_overlap
-75,PEANUTS 75TH ANNIVERSARY,CW001|SP001,pending_human,create_phase5_if_approved,0,0,,no_psg2_overlap
-CHR,CHEERS,CW001|SP001,pending_human,create_phase5_if_approved,1,200,5f951f5e-aaee-4add-bb51-fea888951405|cheers,existing_coldlion_phase5_reentry_only
-EX,THE EXORCIST,CW001|SP001,pending_human,create_phase5_if_approved,1,93,154bf54b-6f7d-4999-b0fb-c2828b12b56a|the exorcist,existing_coldlion_phase5_reentry_only
-LB,THE LOST BOYS,CW001|SP001,pending_human,create_phase5_if_approved,0,0,,no_psg2_overlap
-SGT,SUPERGIRL THEATRICAL 2026,CW001|SP001,pending_human,create_phase5_if_approved,0,0,,no_psg2_overlap

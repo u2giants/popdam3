@@ -135,6 +135,15 @@ const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
  * is approved; it only changes WHERE, and only behind the four-part production
  * authorization. Without that authorization the preview-only rule is unchanged.
  */
+export function assertApprovedMappingTarget(target, { allowProduction = false } = {}) {
+  if (target === PRODUCTION_PROJECT_REF && !allowProduction) {
+    throw new Error(`approved mapping target is production ${PRODUCTION_PROJECT_REF}; production requires explicit authorization`);
+  }
+  if (target !== PREVIEW_PROJECT_REF && target !== PRODUCTION_PROJECT_REF) {
+    throw new Error(`approved mapping target must be preview ${PREVIEW_PROJECT_REF} or production ${PRODUCTION_PROJECT_REF}, got ${JSON.stringify(target)}`);
+  }
+}
+
 export function validateApprovedMapping(doc, { allowProduction = false } = {}) {
   if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
     throw new Error("approved mapping file must be a JSON object");
@@ -142,12 +151,7 @@ export function validateApprovedMapping(doc, { allowProduction = false } = {}) {
   if (doc.schema !== APPROVED_SCHEMA) {
     throw new Error(`approved mapping schema must be ${APPROVED_SCHEMA}, got ${JSON.stringify(doc.schema)}`);
   }
-  if (doc.target === PRODUCTION_PROJECT_REF && !allowProduction) {
-    throw new Error(`approved mapping target is production ${PRODUCTION_PROJECT_REF}; production requires explicit authorization`);
-  }
-  if (doc.target !== PREVIEW_PROJECT_REF && doc.target !== PRODUCTION_PROJECT_REF) {
-    throw new Error(`approved mapping target must be preview ${PREVIEW_PROJECT_REF} or production ${PRODUCTION_PROJECT_REF}, got ${JSON.stringify(doc.target)}`);
-  }
+  assertApprovedMappingTarget(doc.target, { allowProduction });
   if (doc.approved_by !== APPROVED_BY) {
     throw new Error(`approved_by must be ${JSON.stringify(APPROVED_BY)} (the recorded Phase 4 approver), got ${JSON.stringify(doc.approved_by)}`);
   }

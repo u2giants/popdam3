@@ -17,7 +17,7 @@ import {
   resolveProductionAuthorization,
 } from "./coldlion-production-authorization.mjs";
 
-import { validateApprovedMapping, loadApprovedMapping } from "./run-coldlion-licensor-property-phase4.mjs";
+import { assertApprovedMappingTarget } from "./run-coldlion-licensor-property-phase4.mjs";
 
 const FULL = [
   "--apply", "--linked", "--production", "--production-authorized",
@@ -126,35 +126,12 @@ test("a dry run is never blocked by target rules", () => {
 });
 
 test("the frozen approved artifact is accepted for production ONLY when allowed", () => {
-  // This is the exact defect Codex found: the shipped artifact is stamped preview,
-  // so the production run aborted before writing anything.
-  const doc = JSON.parse(JSON.stringify(loadApprovedMapping().input));
-  const full = {
-    schema: "coldlion_phase4_approved_mapping_input/v1",
-    target: PREVIEW_PROJECT_REF,
-    approved_by: "Albert Hazan",
-    approved_at_utc: "2026-07-25",
-    approved_mapping_hash: "1230f5a12d0f2a3029f1d3df17fc5b5f",
-    mapping_count: 542,
-    distinct_canonical: 271,
-    mappings: doc.mappings,
-  };
-
-  // Preview-stamped artifact is fine in both modes: the approved SET is the same.
-  assert.doesNotThrow(() => validateApprovedMapping(full));
-  assert.doesNotThrow(() => validateApprovedMapping(full, { allowProduction: true }));
-
-  // A production-stamped artifact needs the authorization.
-  const prodStamped = { ...full, target: PRODUCTION_PROJECT_REF };
-  assert.throws(() => validateApprovedMapping(prodStamped), /requires explicit authorization/);
-  assert.doesNotThrow(() => validateApprovedMapping(prodStamped, { allowProduction: true }));
-
-  // Any other target is still refused outright, in both modes.
-  const wrong = { ...full, target: "some-other-project" };
-  assert.throws(() => validateApprovedMapping(wrong), /must be preview/);
-  assert.throws(() => validateApprovedMapping(wrong, { allowProduction: true }), /must be preview/);
-
-  // Authorization does NOT relax the content pin: a tampered set still fails.
-  const tampered = { ...full, mappings: full.mappings.slice(0, 541) };
-  assert.throws(() => validateApprovedMapping(tampered, { allowProduction: true }), /count/);
+  // Target authorization is independent of the private approved dataset. The
+  // runner still validates the dataset's exact content pin when it is supplied.
+  assert.doesNotThrow(() => assertApprovedMappingTarget(PREVIEW_PROJECT_REF));
+  assert.doesNotThrow(() => assertApprovedMappingTarget(PREVIEW_PROJECT_REF, { allowProduction: true }));
+  assert.throws(() => assertApprovedMappingTarget(PRODUCTION_PROJECT_REF), /requires explicit authorization/);
+  assert.doesNotThrow(() => assertApprovedMappingTarget(PRODUCTION_PROJECT_REF, { allowProduction: true }));
+  assert.throws(() => assertApprovedMappingTarget("some-other-project"), /must be preview/);
+  assert.throws(() => assertApprovedMappingTarget("some-other-project", { allowProduction: true }), /must be preview/);
 });
