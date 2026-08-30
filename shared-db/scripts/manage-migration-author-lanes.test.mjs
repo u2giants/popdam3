@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, projectReviewPr } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -627,6 +627,99 @@ test('concurrent orchestrator cannot advance reviewer cursor without the mutex',
   const io=reviewIo();io.refs.set(MUTEX_REF,'other-orchestrator')
   assert.throws(()=>assignNextReviewer({issue:9,pr:109,headSha:'abcdef9'},io),/occupied/)
   assert.equal(io.refs.get(REVIEW_CURSOR_REF),undefined)
+})
+
+// AGENTS.md section 4 rule 2 is merge-first, so a migration that has reached main and
+// only THEN owes an exact-head approval is an expected state (#1817). These four cases
+// pin the merged-PR eligibility rule and, just as importantly, its limits. They drive
+// the atomic path because that is the one production `githubIo` takes.
+const MERGED_HEAD='8d3c31accd5b21ea669e65f5ae53f5f95cc57337'
+function mergedPrIo({merged=true,mergeSha='b'.repeat(40),inMain=true,evidence=[]}={}){
+  const io=reviewIo()
+  const pr={number:1809,state:'closed',merged,merged_at:merged?'2026-08-28T00:00:00Z':null,merge_commit_sha:mergeSha,head:{sha:MERGED_HEAD,ref:'codex/x'}}
+  io.getPr=()=>pr
+  io.ancestryCalls=[]
+  io.mergeCommitInMain=(sha)=>{io.ancestryCalls.push(sha);return inMain&&sha===mergeSha}
+  // Deliberately NOT the REST-shaped `pr` above. readReviewStates is GraphQL-backed and
+  // projects its own narrower object; feeding the REST shape here masked a production
+  // defect where that projection carried no merge SHA at all, so every merged PR was
+  // rejected after the mutex. This fixture mirrors the real projection exactly.
+  const projected={state:merged?'merged':'closed',merged,merge_commit_sha:mergeSha,head:{sha:MERGED_HEAD}}
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:projected,evidence}]))
+  io.readReviewRefs=(refs)=>new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewMutexRelease=(ownerSha)=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
+  return io
+}
+const mergedRequest={issue:1769,pr:1809,headSha:MERGED_HEAD}
+
+test('the GraphQL review-state projection carries the merge SHA the eligibility rule needs',()=>{
+  // This is the assertion the fixture above CANNOT make. readReviewStates projects its
+  // own narrow object from GraphQL, and it originally dropped both the merged flag and
+  // the merge commit -- so every merged PR was rejected at the post-mutex gate in
+  // production while hand-written fixtures passed. Testing the projection directly is
+  // the only thing that pins it.
+  const projected=projectReviewPr({state:'MERGED',merged:true,mergeCommit:{oid:'b'.repeat(40)},headRefOid:MERGED_HEAD})
+  assert.equal(projected.merged,true)
+  assert.equal(projected.merge_commit_sha,'b'.repeat(40))
+  assert.equal(projected.state,'merged')
+  assert.equal(projected.head.sha,MERGED_HEAD)
+  // An unmerged PR must project as ineligible, not merely as missing data.
+  const open_=projectReviewPr({state:'OPEN',merged:false,mergeCommit:null,headRefOid:MERGED_HEAD})
+  assert.equal(open_.merged,false)
+  assert.equal(open_.merge_commit_sha,'')
+})
+
+test('a merged pull request can receive a review assignment pinned to its merged head',()=>{
+  const io=mergedPrIo()
+  const result=assignNextReviewer(mergedRequest,io)
+  assert.ok(result.reviewer)
+  // The assignment ref shape is unchanged by the merged route, so the merge-lock gate
+  // parser reads a merged-PR assignment exactly as it reads an open-PR one.
+  const written=[...io.refs.keys()].filter((ref)=>ref.startsWith(REVIEW_ASSIGNMENT_REF_PREFIX))
+  assert.deepEqual(written,[`${REVIEW_ASSIGNMENT_REF_PREFIX}/1769-1809-${MERGED_HEAD}`])
+})
+
+test('a closed but unmerged pull request is still refused a reviewer',()=>{
+  assert.throws(()=>assignNextReviewer(mergedRequest,mergedPrIo({merged:false,mergeSha:''})),/changed after mutex acquisition/)
+})
+
+test('a merged pull request whose merge commit is absent from main is refused',()=>{
+  // Discriminating on ANCESTRY specifically, not merely on "not open": this io differs
+  // from the passing merged case above by exactly one bit, the ancestry answer. The
+  // assertion that mergeCommitInMain was actually consulted with the merge SHA is what
+  // stops the check from being silently dropped while the test still passes.
+  const io=mergedPrIo({inMain:false})
+  assert.throws(()=>assignNextReviewer(mergedRequest,io),/changed after mutex acquisition/)
+  assert.deepEqual([...new Set(io.ancestryCalls)],['b'.repeat(40)])
+})
+
+test('the merged-PR ancestry answer is memoised, so it costs two requests once',()=>{
+  // The predicate is reached from several alternative return paths in one operation.
+  // Without the memo the wire cost would scale with call sites, which is the claim the
+  // reserved budget depends on.
+  const io=mergedPrIo()
+  assignNextReviewer(mergedRequest,io)
+  assert.equal(new Set(io.ancestryCalls).size,1)
+  assert.equal(io.ancestryCalls.length,1)
+})
+
+test('a merged pull request can also receive a reviewer REPLACEMENT for its merged head',()=>{
+  // The pre-mutex gate on the replacement path is a separate site from the post-mutex
+  // recheck. An open-only test there throws before the merged-eligible gate is reached,
+  // so replacement stayed impossible for a merged head even once assignment worked.
+  const io=mergedPrIo()
+  const first=assignNextReviewer(mergedRequest,io)
+  const replaced=replaceFailedReviewer({...mergedRequest,failedSequence:first.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io)
+  assert.ok(replaced.reviewer)
+  assert.notEqual(replaced.reviewer,first.reviewer)
+})
+
+test('an existing verdict at the merged head still refuses a new assignment',()=>{
+  // A refusal tied to a head blocks that head permanently; the merged route inherits
+  // that guard unchanged and must never become a way to void one.
+  const io=mergedPrIo({evidence:[{state:'CHANGES_REQUESTED',commit_id:MERGED_HEAD,body:'REVISE'}]})
+  assert.throws(()=>assignNextReviewer(mergedRequest,io),/changed after mutex acquisition/)
 })
 
 const failedReview={issue:9,pr:109,headSha:'abcdef9000000000000000000000000000000000'}

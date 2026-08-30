@@ -763,14 +763,14 @@ export const githubIo = {
   readReviewStates(leases){
     const unique=[...new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,lease])).values()]
     if(!unique.length)return new Map()
-    const fields=unique.map((lease,index)=>`p${index}:pullRequest(number:${lease.pr}){state merged headRefOid comments(first:100){pageInfo{hasNextPage} nodes{body}} reviews(first:100){pageInfo{hasNextPage} nodes{body state commit{oid}}}} i${index}:issue(number:${lease.issue}){state comments(first:100){pageInfo{hasNextPage} nodes{body}}}`).join(' ')
+    const fields=unique.map((lease,index)=>`p${index}:pullRequest(number:${lease.pr}){state merged mergeCommit{oid} headRefOid comments(first:100){pageInfo{hasNextPage} nodes{body}} reviews(first:100){pageInfo{hasNextPage} nodes{body state commit{oid}}}} i${index}:issue(number:${lease.issue}){state comments(first:100){pageInfo{hasNextPage} nodes{body}}}`).join(' ')
     const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){${fields}}}`])
     if(data?.errors?.length||!data?.data?.repository)throw new LaneError('batched reviewer PR/verdict evidence returned GraphQL errors')
     const result=new Map()
     unique.forEach((lease,index)=>{
       const pr=data.data.repository[`p${index}`],issue=data.data.repository[`i${index}`]
       if(!pr||!issue||!Array.isArray(pr.comments?.nodes)||!Array.isArray(pr.reviews?.nodes)||!Array.isArray(issue.comments?.nodes)||pr.comments?.pageInfo?.hasNextPage!==false||pr.reviews?.pageInfo?.hasNextPage!==false||issue.comments?.pageInfo?.hasNextPage!==false)throw new LaneError('batched reviewer PR/verdict evidence is incomplete or paginated')
-      result.set(`${lease.issue}:${lease.pr}`,{issue:{state:String(issue.state).toLowerCase()},pr:{state:String(pr.state).toLowerCase(),head:{sha:pr.headRefOid}},evidence:[...issue.comments.nodes,...pr.comments.nodes,...pr.reviews.nodes.map((row)=>({...row,commit_id:row.commit?.oid}))]})
+      result.set(`${lease.issue}:${lease.pr}`,{issue:{state:String(issue.state).toLowerCase()},pr:projectReviewPr(pr),evidence:[...issue.comments.nodes,...pr.comments.nodes,...pr.reviews.nodes.map((row)=>({...row,commit_id:row.commit?.oid}))]})
     })
     return result
   },
@@ -1427,7 +1427,7 @@ function finalizeReviewMutex(ownerSha,io){
   }catch(error){throw new LaneError(`${error.message}; RECOVERY REQUIRED: ${MUTEX_REF} expected SHA ${ownerSha}. Use the guarded recover-author-mutex.yml procedure and do not retry blindly`)}
   finally{if(reviewWireBudget)reviewWireBudget.cleanup=previous}
 }
-function requireReviewWireCapacity(required){if(reviewWireBudget&&reviewWireBudget.count+required>REVIEW_OPERATION_REQUEST_LIMIT)throw new LaneError(`reviewer operation cannot fit ${required} remaining requests inside the ${REVIEW_OPERATION_REQUEST_LIMIT}-request budget; refused before mutex acquisition`)}
+function requireReviewWireCapacity(required,when='refused before mutex acquisition'){if(reviewWireBudget&&reviewWireBudget.count+required>REVIEW_OPERATION_REQUEST_LIMIT)throw new LaneError(`reviewer operation cannot fit ${required} remaining requests inside the ${REVIEW_OPERATION_REQUEST_LIMIT}-request budget; ${when}`)}
 function acquireReviewMutex(ownerSha,io){
   if(reviewWireBudget){reviewWireBudget.cleanupReserve=io.atomicReviewMutexRelease?2:8;reviewWireBudget.locked=true}
   let acquired
@@ -1594,6 +1594,55 @@ function resolveSlotOneReviewer(issue,pr,headSha,io){
   return parseReviewCursor(io.getCommit(sha)).reviewer
 }
 
+// AGENTS.md section 4 rule 2 is merge-first, so a migration reaching main and only
+// THEN owing an exact-head approval is an expected state, not an anomaly (#1817:
+// plm.wwe_* merged at 8d3c31a with no approval at that head, and assignment refused
+// outright because the pull request was closed). A MERGED pull request whose merge
+// commit is really in main is therefore an eligible assignment target.
+//
+// A closed-but-UNMERGED pull request stays refused: an abandoned branch has no claim
+// on a reviewer's time, and nothing downstream will ever consume the verdict. Every
+// other guard is unchanged -- the issue must still be open, the exact head SHA must
+// still match, and an existing verdict for that head still refuses.
+// The GraphQL projection readReviewStates hands to every post-mutex gate. Exported and
+// kept separate from the query so it can be tested directly: it previously carried no
+// merge SHA at all, which silently rejected every merged pull request after the mutex,
+// and a hand-written fixture in the tests could not catch that.
+export function projectReviewPr(pr){
+  return {state:String(pr?.state??'').toLowerCase(),merged:pr?.merged===true,merge_commit_sha:pr?.mergeCommit?.oid??'',head:{sha:pr?.headRefOid}}
+}
+
+const MERGE_ANCESTRY_MEMO=new WeakMap()
+
+function reviewTargetEligible(pr,io){
+  if(!pr)return false
+  if(pr.state==='open')return true
+  const merged=pr.merged===true||Boolean(pr.merged_at),mergeSha=pr.merge_commit_sha??pr.mergeCommit?.oid??''
+  if(!merged||!/^[0-9a-f]{40}$/i.test(String(mergeSha)))return false
+  // Ancestry, not the merged flag alone: a merge commit absent from main means the
+  // bytes under review are not what main actually carries.
+  //
+  // WIRE BUDGET: `mergeCommitInMain` costs two requests (readRef + compareCommits),
+  // and this predicate is reached from several alternative return paths in one
+  // operation. Memoised per (io, sha) so a merged target costs those two requests
+  // ONCE, never once per call site. The open-PR path short-circuits above and is
+  // unchanged at zero added requests -- see REVIEW_OPERATION_REQUEST_LIMIT.
+  let cache=MERGE_ANCESTRY_MEMO.get(io)
+  if(!cache){cache=new Map();MERGE_ANCESTRY_MEMO.set(io,cache)}
+  const key=String(mergeSha).toLowerCase()
+  // The 2 requests are checked HERE rather than folded into the operations' pre-mutex
+  // reservations, because raising those by 2 unconditionally would shrink the ordinary
+  // open-PR path -- which spends nothing extra -- and can push a legitimate assignment
+  // over the limit. Charging the merged path for its own cost keeps the open path at
+  // exactly its previous headroom, and turns an opaque mid-flight exhaustion into a
+  // refusal that names the reason.
+  if(!cache.has(key)){
+    requireReviewWireCapacity(2,'the merged-pull-request ancestry check needs two more requests than remain')
+    cache.set(key,io.mergeCommitInMain?.(mergeSha)===true)
+  }
+  return cache.get(key)
+}
+
 function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
   const headPattern=io?.requiresExactReviewHeadSha?/^[0-9a-f]{40}$/i:/^[0-9a-f]{7,40}$/i
   if(!Number.isInteger(Number(issue))||!Number.isInteger(Number(pr))||!headPattern.test(String(headSha??'')))throw new LaneError('review assignment requires issue, PR, and exact 40-character head SHA')
@@ -1668,7 +1717,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
         else if(io.readRef(leaseRef)===priorSha)releaseOwnedRef(leaseRef,priorSha,io)
       }
       const live=io.getPr(prior.pr)
-      if(live?.state==='open'&&live?.head?.sha===prior.headSha&&!hasVerdictForHead(prior.issue,prior.pr,prior.headSha,io)){
+      if(reviewTargetEligible(live,io)&&live?.head?.sha===prior.headSha&&!hasVerdictForHead(prior.issue,prior.pr,prior.headSha,io)){
         requireOwnedRef(MUTEX_REF,ownerSha,io)
         if(!io.createRef(leaseRef,priorSha)&&readRefAfterWrite(leaseRef,priorSha,io)!==priorSha)throw new LaneError(`reviewer ${prior.reviewer} has a conflicting active lease`)
       }
@@ -1679,7 +1728,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
       if(ACTIVE_REVIEWERS.some((row)=>row.name===current.reviewer)&&!eligibleNames.has(current.reviewer))throw new LaneError(`current reviewer ${current.reviewer} conflicts with the live orchestrator engine; assign an independent reviewer`)
       if(!io.createRef(assignmentRef,cursorSha)&&readRefAfterWrite(assignmentRef,cursorSha,io)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
       const live=io.getPr(current.pr)
-      if(live?.state==='open'&&live?.head?.sha===current.headSha&&!hasVerdictForHead(current.issue,current.pr,current.headSha,io)){
+      if(reviewTargetEligible(live,io)&&live?.head?.sha===current.headSha&&!hasVerdictForHead(current.issue,current.pr,current.headSha,io)){
         if(eligibleNames.has(current.reviewer)){
           const leaseRef=reviewActiveRef(current.reviewer),existing=io.readRef(leaseRef)
           if(existing!==cursorSha&&(!io.createRef(leaseRef,cursorSha)||readRefAfterWrite(leaseRef,cursorSha,io)!==cursorSha))throw new LaneError(`reviewer ${current.reviewer} has a conflicting active lease`)
@@ -1712,7 +1761,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
         const freshStates=io.readReviewStates([{issue:request.issue,pr:request.pr,headSha:request.headSha},...(selectedStale?[selectedStale.assignment]:[])])
         const fresh=freshStates?.get(`${request.issue}:${request.pr}`)
         const freshVerdict=fresh?.evidence?.some((row)=>{const body=String(row.body??''),tied=row.commit_id===request.headSha||body.includes(request.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))})
-        if(fresh?.issue?.state!=='open'||fresh?.pr?.state!=='open'||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError('review assignment issue, PR head, or verdict changed after mutex acquisition')
+        if(fresh?.issue?.state!=='open'||!reviewTargetEligible(fresh?.pr,io)||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError('review assignment issue, PR head, or verdict changed after mutex acquisition')
         if(selectedStale){
           const revived=freshStates?.get(`${selectedStale.assignment.issue}:${selectedStale.assignment.pr}`), evidence=revived?.evidence??[]
           const verdict=evidence.some((row)=>{const body=String(row.body??''),tied=row.commit_id===selectedStale.assignment.headSha||body.includes(selectedStale.assignment.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))})
@@ -2039,7 +2088,11 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     const preflightState=preflightBusy.states?.get(`${request.issue}:${request.pr}`)
     const issueRow=preflightState?.issue??io.getIssue(request.issue), prRow=preflightState?.pr??io.getPr(request.pr)
     if(issueRow?.state!=='open')throw new LaneError('review replacement requires the exact issue to remain open')
-    if(prRow?.state!=='open')throw new LaneError('review replacement requires the exact open PR head')
+    // Same eligibility rule as assignment, and it must be applied HERE, pre-mutex, not
+    // only at the post-mutex recheck below: an open-only test at this point throws
+    // before the merged-eligible gate is ever reached, which would leave replacement
+    // impossible for a merged head even though assignment works.
+    if(!reviewTargetEligible(prRow,io))throw new LaneError('review replacement requires the exact open PR head')
     // The mirror of the lookup above: here the assignment WAS found under the
     // head that was named, but the pull request has since moved past it. Same
     // truth, said plainly, instead of a technicality.
@@ -2091,7 +2144,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
         const freshStates=io.readReviewStates([original,...(replacementStale?[replacementStale.assignment]:[])])
         const fresh=freshStates?.get(`${request.issue}:${request.pr}`)
         const freshVerdict=fresh?.evidence?.some((row)=>{const body=String(row.body??''),tied=row.commit_id===request.headSha||body.includes(request.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))})
-        if(fresh?.issue?.state!=='open'||fresh?.pr?.state!=='open'||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError('review replacement issue, PR head, or verdict changed after mutex acquisition')
+        if(fresh?.issue?.state!=='open'||!reviewTargetEligible(fresh?.pr,io)||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError('review replacement issue, PR head, or verdict changed after mutex acquisition')
         assertReviewLeaseStillStale(replacementStale,freshStates)
         const changes=[
           {ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},
