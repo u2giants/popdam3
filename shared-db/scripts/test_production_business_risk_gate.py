@@ -8,12 +8,13 @@ import tempfile
 import unittest
 import warnings
 import zipfile
+from unittest import mock
 from argparse import Namespace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_historical_original_apply_runs, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION
+from production_business_risk_gate import api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_historical_original_apply_runs, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
 
 
 def tree_ref(endpoint):
@@ -43,6 +44,50 @@ DEAD_PREVIEW_PROJECT_REF = "rjyboqwcdzcocqgmsyel"
 
 
 class ProductionBusinessRiskGateTests(unittest.TestCase):
+    def governed_original_reconciliation_fixture(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION
+        migration = next(Path.cwd().glob(f"supabase/migrations/{case['version']}_*.sql"))
+        row = {"name": "orderlist_bridge_covering_index", "statements": ["same governed SQL"]}
+        fixed = {"schema": "shared-db-preview-ledger-orphan-reconciliation/v1", "issue": case["issue"], "claim": case["claim"], "source_pr": case["source_pr"], "orphan_version": case["original_version"], "replacement_version": case["version"], "preview_run_id": case["preview_run_id"], "preview_artifact_id": case["preview_artifact_id"], "preview_artifact_digest": case["preview_artifact_digest"], "project_ref": case["project_ref"], "main_sha": case["run_head"]}
+        governance = {"case_mode": "byte_identical_rename", "orphan_sha256": canonical_sha256(migration), "replacement_sha256": canonical_sha256(migration)}
+        check = {**fixed, "mode": "check", "before": [{**row, "version": case["original_version"]}], "after": [{**row, "version": case["original_version"]}], "governance": governance}
+        applied = {**fixed, "mode": "apply", "before": [{**row, "version": case["original_version"]}], "after": [{**row, "version": case["version"]}], "governance": governance}
+        temp = tempfile.TemporaryDirectory()
+        archive_path = Path(temp.name, "evidence.zip")
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("reconciliation-check.json", json.dumps(check, sort_keys=True))
+            archive.writestr("reconciliation-apply.json", json.dumps(applied, sort_keys=True))
+        digest = "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest()
+        run = {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": ".github/workflows/preview-ledger-orphan-reconciliation.yml", "head_sha": case["run_head"], "run_attempt": 1}
+        artifact = {"id": case["artifact_id"], "digest": digest, "expired": False, "name": f"preview-ledger-orphan-reconciliation-{case['original_version']}", "workflow_run": {"id": case["run_id"], "head_sha": case["run_head"]}}
+        original_run = {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": PREVIEW_WORKFLOW, "head_sha": case["preview_run_head"], "run_attempt": 1}
+        original_artifact = {"id": case["preview_artifact_id"], "digest": case["preview_artifact_digest"], "expired": False, "name": f"preview-migration-apply-{case['preview_run_head']}", "workflow_run": {"id": case["preview_run_id"], "head_sha": case["preview_run_head"]}}
+        def api(endpoint):
+            if "/compare/" in endpoint: return {"status": "ahead", "behind_by": 0}
+            if endpoint.endswith(f"runs/{case['run_id']}/artifacts?per_page=100"): return {"artifacts": [artifact]}
+            if endpoint.endswith(f"runs/{case['preview_run_id']}"): return original_run
+            if endpoint.endswith(f"runs/{case['preview_run_id']}/artifacts?per_page=100"): return {"artifacts": [original_artifact]}
+            raise AssertionError(endpoint)
+        def downloader(_artifact_id, target): target.write_bytes(archive_path.read_bytes())
+        return temp, run, artifact, api, downloader, digest
+
+    def test_exact_1722_governed_reconciliation_is_an_original_apply_equivalent(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION
+        temp, run, _artifact, api, downloader, digest = self.governed_original_reconciliation_fixture()
+        with temp, mock.patch.dict(GOVERNED_ORIGINAL_RECONCILIATION, {"artifact_digest": digest}):
+            self.assertTrue(prove_governed_original_reconciliation(version=case["version"], source_pr=case["source_pr"], run_id=case["run_id"], run=run, repo_root=Path.cwd(), main_sha="f" * 40, api=api, downloader=downloader))
+
+    def test_governed_reconciliation_refuses_wrong_identity_retry_and_artifact(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION
+        for mutation in ("version", "path", "run_attempt", "expired"):
+            temp, run, artifact, api, downloader, digest = self.governed_original_reconciliation_fixture()
+            if mutation == "path": run["path"] = PREVIEW_WORKFLOW
+            elif mutation == "run_attempt": run["run_attempt"] = 2
+            elif mutation == "expired": artifact["expired"] = True
+            kwargs = {"version": "20260830013943" if mutation == "version" else case["version"], "source_pr": case["source_pr"], "run_id": case["run_id"], "run": run, "repo_root": Path.cwd(), "main_sha": "f" * 40, "api": api, "downloader": downloader}
+            with temp, mock.patch.dict(GOVERNED_ORIGINAL_RECONCILIATION, {"artifact_digest": digest}), self.subTest(mutation), self.assertRaises(RiskGateError if mutation != "version" else AssertionError):
+                accepted = prove_governed_original_reconciliation(**kwargs)
+                if not accepted: raise AssertionError("wrong tuple must not enter the governed path")
     def test_risk_gate_sources_have_no_invalid_escape_sequences(self):
         """Compile both risk-gate sources with Python's own warning detector."""
         scripts_dir = Path(__file__).parent

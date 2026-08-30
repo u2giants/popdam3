@@ -63,6 +63,17 @@ GOVERNED_HISTORICAL_SUPERSESSION = {
     "reconciliation_artifact_digest": "sha256:cdaef42d0994892f55a0b65aa288c3c0d10896a5e449010fc9920d8b1d5d28df",
     "reconciliation_pr": 1644,
 }
+GOVERNED_ORIGINAL_RECONCILIATION = {
+    "version": "20260830013942", "original_version": "20260828113920",
+    "issue": 1722, "claim": 1747, "source_pr": 1748,
+    "run_id": 33307904277, "run_head": "75a6e35e46a79af7c059836a64a5b621ac79404a",
+    "artifact_id": 9731064265,
+    "artifact_digest": "sha256:ebbca330da54c8de7e448c74f67b0ce3a4d230ff0528dd077c85285128a81e87",
+    "preview_run_id": 33189683651, "preview_run_head": "4f1e2adb4d964f8f431efdaa0055fcdd96e71638",
+    "preview_artifact_id": 9693229856,
+    "preview_artifact_digest": "sha256:2a466d1a0163a276a937e28f9af5eff710096e62ec9e7ddf7dda38fac41ef49a",
+    "project_ref": "mvpkijzfmfcxhnzqogzs",
+}
 RISK_TEXT = {
     "permanent_data_rewrite_or_loss": "existing production data may be lost or permanently altered",
     "expected_downtime": "users may be interrupted",
@@ -856,6 +867,58 @@ def artifact_texts(artifact: dict, downloader: Callable[[int, Path], None]) -> d
             }
 
 
+def prove_governed_original_reconciliation(
+    *, version: str, source_pr: int, run_id: int, run: dict[str, Any],
+    repo_root: Path, main_sha: str, api: Callable[[str], Any], downloader: Callable[[int, Path], None],
+) -> bool:
+    """Accept only the exact #1722 statement-identical governed ledger rename."""
+    case = GOVERNED_ORIGINAL_RECONCILIATION
+    if (version, source_pr, run_id) != (case["version"], case["source_pr"], case["run_id"]):
+        return False
+    expected_run = {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": ".github/workflows/preview-ledger-orphan-reconciliation.yml", "head_sha": case["run_head"], "run_attempt": 1}
+    if any(run.get(key) != value for key, value in expected_run.items()):
+        raise RiskGateError("governed original reconciliation run identity changed")
+    prove_applied_commit_is_main_line(case["run_head"], main_sha, api)
+    artifacts = api_object(api, f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100").get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != 1 or not isinstance(artifacts[0], dict):
+        raise RiskGateError("governed original reconciliation artifact is ambiguous")
+    artifact = artifacts[0]
+    if (artifact.get("id") != case["artifact_id"] or artifact.get("digest") != case["artifact_digest"] or artifact.get("expired") is not False or artifact.get("name") != f"preview-ledger-orphan-reconciliation-{case['original_version']}" or artifact.get("workflow_run", {}).get("id") != run_id or artifact.get("workflow_run", {}).get("head_sha") != case["run_head"]):
+        raise RiskGateError("governed original reconciliation artifact identity changed")
+    with tempfile.TemporaryDirectory(prefix="production-risk-original-reconciliation-") as temp:
+        archive_path = Path(temp, "reconciliation.zip")
+        downloader(artifact["id"], archive_path)
+        if "sha256:" + hashlib.sha256(archive_path.read_bytes()).hexdigest() != case["artifact_digest"]:
+            raise RiskGateError("governed original reconciliation download digest changed")
+        try:
+            with zipfile.ZipFile(archive_path) as archive:
+                names = {Path(name).name: name for name in archive.namelist() if not name.endswith("/")}
+                if set(names) != {"reconciliation-check.json", "reconciliation-apply.json"}:
+                    raise RiskGateError("governed original reconciliation evidence set changed")
+                check = json.loads(archive.read(names["reconciliation-check.json"]))
+                applied = json.loads(archive.read(names["reconciliation-apply.json"]))
+        except (zipfile.BadZipFile, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise RiskGateError("governed original reconciliation evidence is unreadable") from exc
+    fixed = {"schema": "shared-db-preview-ledger-orphan-reconciliation/v1", "issue": case["issue"], "claim": case["claim"], "source_pr": source_pr, "orphan_version": case["original_version"], "replacement_version": version, "preview_run_id": case["preview_run_id"], "preview_artifact_id": case["preview_artifact_id"], "preview_artifact_digest": case["preview_artifact_digest"], "project_ref": case["project_ref"], "main_sha": case["run_head"]}
+    for record, mode in ((check, "check"), (applied, "apply")):
+        if not isinstance(record, dict) or record.get("mode") != mode or any(record.get(k) != v for k, v in fixed.items()):
+            raise RiskGateError("governed original reconciliation tuple changed")
+    before, after, governance = applied.get("before"), applied.get("after"), applied.get("governance")
+    current = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
+    if (not isinstance(before, list) or not isinstance(after, list) or len(before) != 1 or len(after) != 1 or before[0].get("version") != case["original_version"] or after[0].get("version") != version or before[0].get("name") != after[0].get("name") or before[0].get("statements") != after[0].get("statements") or check.get("before") != check.get("after") or not isinstance(governance, dict) or governance.get("case_mode") != "byte_identical_rename" or governance.get("orphan_sha256") != governance.get("replacement_sha256") or len(current) != 1 or canonical_sha256(current[0]) != governance.get("replacement_sha256")):
+        raise RiskGateError("governed original reconciliation did not prove the exact statement-identical rename")
+    original_run = api_object(api, f"repos/{REPOSITORY}/actions/runs/{case['preview_run_id']}")
+    if any(original_run.get(k) != v for k, v in {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": PREVIEW_WORKFLOW, "head_sha": case["preview_run_head"], "run_attempt": 1}.items()):
+        raise RiskGateError("governed reconciliation source preview run identity changed")
+    source_artifacts = api_object(api, f"repos/{REPOSITORY}/actions/runs/{case['preview_run_id']}/artifacts?per_page=100").get("artifacts")
+    if not isinstance(source_artifacts, list) or len(source_artifacts) != 1:
+        raise RiskGateError("governed reconciliation source preview artifact is ambiguous")
+    source_artifact = source_artifacts[0]
+    if (source_artifact.get("id") != case["preview_artifact_id"] or source_artifact.get("digest") != case["preview_artifact_digest"] or source_artifact.get("expired") is not False or source_artifact.get("name") != f"preview-migration-apply-{case['preview_run_head']}" or source_artifact.get("workflow_run", {}).get("id") != case["preview_run_id"] or source_artifact.get("workflow_run", {}).get("head_sha") != case["preview_run_head"]):
+        raise RiskGateError("governed reconciliation source preview artifact identity changed")
+    return True
+
+
 def prove_governed_historical_supersession(
     *, version: str, source_pr: int, run_id: int, original_commit: str,
     original_artifact: dict[str, Any], repo_root: Path, main_sha: str,
@@ -1117,6 +1180,11 @@ def prove_historical_original_apply_runs(
             run = api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
         except Exception as exc:  # noqa: BLE001 - unreadable original run must fail closed
             raise RiskGateError(f"original apply run {run_id} is unreadable") from exc
+        if isinstance(run, dict) and prove_governed_original_reconciliation(
+            version=version, source_pr=source_pr, run_id=run_id, run=run,
+            repo_root=repo_root, main_sha=main_sha, api=api, downloader=downloader,
+        ):
+            continue
         expected = {
             "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
             "path": PREVIEW_WORKFLOW,
