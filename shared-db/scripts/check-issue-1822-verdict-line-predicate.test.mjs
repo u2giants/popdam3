@@ -331,3 +331,32 @@ test('gate: empty and malformed evidence fails closed', () => {
   assert.equal(gateAuthorizes([], HEAD, BUNDLE, never), false)
   assert.equal(gateAuthorizes([{}, null], HEAD, BUNDLE, never), false)
 })
+
+test('gate: exact-head refusals never authorize even when they name the bundle', () => {
+  const refusals = [
+    comment(`REVISE\n\nHead ${HEAD}, bundle ${BUNDLE}.`),
+    comment(`VERDICT: REJECT\n\nHead ${HEAD}, bundle ${BUNDLE}.`),
+    { body: `Bundle ${BUNDLE}.`, state: 'CHANGES_REQUESTED', commit_id: HEAD },
+  ]
+  for (const row of refusals) {
+    assert.equal(isVerdictFor(row, HEAD), true, 'fixture must be a real refusal verdict')
+    assert.equal(gateAuthorizes([row], HEAD, BUNDLE, never), false)
+  }
+})
+
+test('gate: absent and malformed assignment results remain inert', () => {
+  const approval = comment(`APPROVE\n\nHead ${HEAD}.`)
+  assert.equal(gateAuthorizes([approval], HEAD, BUNDLE), false)
+  assert.equal(gateAuthorizes([approval], HEAD, BUNDLE, () => null), false)
+  assert.equal(gateAuthorizes([approval], HEAD, BUNDLE, () => [null, {}, { headSha: null }]), false)
+})
+
+test('mutation: swapping isApprovalFor for isVerdictFor makes a refusal authorize', () => {
+  const swappedPredicateMutation = (evidence, headSha, bundleId, readAssignments) =>
+    (evidence ?? []).some((row) => isVerdictFor(row, headSha) && (
+      String(row?.body ?? '').includes(bundleId) ||
+      (readAssignments?.() ?? []).some((assignment) => assignment?.headSha === headSha)))
+  const refusal = comment(`REVISE\n\nHead ${HEAD}, bundle ${BUNDLE}.`)
+  assert.equal(swappedPredicateMutation([refusal], HEAD, BUNDLE, never), true)
+  assert.equal(gateAuthorizes([refusal], HEAD, BUNDLE, never), false)
+})
