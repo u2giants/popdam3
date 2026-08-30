@@ -3316,8 +3316,8 @@ function immutablePreviewApplyIo({sourcePr=1809,artifactRunId='33308168016',merg
     issueComments:()=>[{body:`Original apply: https://github.com/u2giants/shared-db/actions/runs/${runId}`}],
     previewApplyRun:()=>({
       run:{id:Number(runId),path:'.github/workflows/shared-supabase-migrations.yml',event:'workflow_dispatch',status:'completed',conclusion:'success',run_attempt:1,head_sha:headSha},
-      artifacts:{total_count:1,artifacts:[{name:`preview-migration-apply-${headSha}`,expired:false,workflow_run:{id:Number(artifactRunId),head_sha:headSha}}]},
-      logs:`Bounded apply ${JSON.stringify({allowlist:[version],appliedCommit:headSha,mergeCommitSha,previewProjectRef:'mvpkijzfmfcxhnzqogzs',rehearsalMode:'merged-main-rehearsal',runId:Number(runId),schema:'shared-db-preview-instance-binding/v1',sourcePr})}`,
+      artifacts:{total_count:1,artifacts:[{name:`preview-migration-apply-${headSha}`,digest:`sha256:${'d'.repeat(64)}`,expired:false,workflow_run:{id:Number(artifactRunId),head_sha:headSha}}]},
+      logs:[`Bounded apply ${JSON.stringify({allowlist:[version],appliedCommit:headSha,mergeCommitSha,previewProjectRef:'mvpkijzfmfcxhnzqogzs',rehearsalMode:'merged-main-rehearsal',runId:Number(runId),schema:'shared-db-preview-instance-binding/v1',sourcePr})}`,`preview\tReport the preview ledger delta\t2026-08-30T00:00:00Z ### Preview ledger delta`,`preview\tReport the preview ledger delta\t2026-08-30T00:00:00Z - added: ${version}`,'preview\tReport the preview ledger delta\t2026-08-30T00:00:00Z - removed: (none)'].join('\n'),
     }),
   }
 }
@@ -3341,6 +3341,20 @@ test('immutable original preview-apply evidence validates only the exact run',()
   assert.throws(()=>validateOriginalPreviewApplyEvidence(input,{...immutablePreviewApplyIo(),issueComments:()=>[]}),/found 0/)
   assert.throws(()=>validateOriginalPreviewApplyEvidence(input,immutablePreviewApplyIo({artifactRunId:'33308168017'})),/found 0/)
   assert.throws(()=>validateOriginalPreviewApplyEvidence(input,immutablePreviewApplyIo({mergeCommitSha:'c'.repeat(40)})),/found 0/)
+  const labelled=immutablePreviewApplyIo()
+  labelled.issueComments=()=>[{body:'- apply `33308168016` — success'}]
+  assert.deepEqual(validateOriginalPreviewApplyEvidence(input,labelled),{type:'preview-apply',run_id:'33308168016'})
+  labelled.issueComments=()=>[{body:'unrelated run `33308168016` succeeded'}]
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,labelled),/found 0/)
+  const noDelta=immutablePreviewApplyIo()
+  noDelta.previewApplyRun=()=>({...immutablePreviewApplyIo().previewApplyRun(),logs:immutablePreviewApplyIo().previewApplyRun().logs.replace(`- added: 20260828232207`,'- added: (none)')})
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,noDelta),/found 0/)
+  const spoofedDelta=immutablePreviewApplyIo()
+  spoofedDelta.previewApplyRun=()=>{const evidence=immutablePreviewApplyIo().previewApplyRun();evidence.logs=evidence.logs.replace('preview\tReport the preview ledger delta\t2026-08-30T00:00:00Z - added: 20260828232207','preview\tEarlier unrelated step\t2026-08-30T00:00:00Z - added: 20260828232207\npreview\tReport the preview ledger delta\t2026-08-30T00:00:00Z - added: 20260828232208');return evidence}
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,spoofedDelta),/found 0/)
+  const noDigest=immutablePreviewApplyIo()
+  noDigest.previewApplyRun=()=>{const evidence=immutablePreviewApplyIo().previewApplyRun();delete evidence.artifacts.artifacts[0].digest;return evidence}
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,noDigest),/found 0/)
 })
 
 test('immutable preview-ledger reconciliation evidence validates the renamed current version without replay',()=>{

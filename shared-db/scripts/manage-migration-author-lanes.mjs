@@ -3782,7 +3782,16 @@ export function main(argv, now = new Date(), io = githubIo) {
 }
 
 export function validateOriginalPreviewApplyEvidence({issue,pr,versions,mergeCommitSha=null},io){
-  const runIds=[...new Set((io.issueComments(issue)??[]).flatMap((comment)=>[...String(comment.body??comment).matchAll(/actions\/runs\/(\d+)/g)].map((match)=>match[1])))]
+  const runIds=[...new Set((io.issueComments(issue)??[]).flatMap((comment)=>{
+    const body=String(comment.body??comment)
+    const linked=[...body.matchAll(/actions\/runs\/(\d+)/g)].map((match)=>match[1])
+    // Historical operator notes sometimes recorded the successful preview apply
+    // as a labelled run id rather than a URL.  Admit only that exact notation;
+    // every discovered candidate still has to pass the immutable run, binding,
+    // artifact and ledger-delta checks below.
+    const labelled=[...body.matchAll(/^\s*-\s*apply\s+`(\d+)`\s+(?:—|-)\s+success\s*$/gim)].map((match)=>match[1])
+    return [...linked,...labelled]
+  }))]
   const expected=[...versions].map(String).sort(),matches=[]
   for(const runId of runIds){try{
     const {run,artifacts,logs}=io.previewApplyRun(runId)
@@ -3793,7 +3802,18 @@ export function validateOriginalPreviewApplyEvidence({issue,pr,versions,mergeCom
     if(String(binding.runId)!==String(runId)||binding.previewProjectRef!==PROJECT_REFS.preview||binding.appliedCommit!==run.head_sha||JSON.stringify(allowlist)!==JSON.stringify(expected))continue
     if(mergeCommitSha&&(binding.rehearsalMode!=='merged-main-rehearsal'||Number(binding.sourcePr)!==Number(pr)||String(binding.mergeCommitSha).toLowerCase()!==String(mergeCommitSha).toLowerCase()))continue
     const rows=Array.isArray(artifacts?.artifacts)?artifacts.artifacts:[]
-    if(Number(artifacts?.total_count)!==1||rows.length!==1||rows[0].expired!==false||rows[0].name!==`preview-migration-apply-${run.head_sha}`||String(rows[0].workflow_run?.id)!==String(runId)||rows[0].workflow_run?.head_sha!==run.head_sha)continue
+    if(Number(artifacts?.total_count)!==1||rows.length!==1||rows[0].expired!==false||!/^sha256:[0-9a-f]{64}$/i.test(String(rows[0].digest??''))||rows[0].name!==`preview-migration-apply-${run.head_sha}`||String(rows[0].workflow_run?.id)!==String(runId)||rows[0].workflow_run?.head_sha!==run.head_sha)continue
+    const ledgerLines=String(logs).split(/\r?\n/).flatMap((line)=>{
+      const fields=line.replace(/^\ufeff/,'').split('\t')
+      if(fields.length<3||fields[1]!=='Report the preview ledger delta')return[]
+      return [fields.slice(2).join('\t').replace(/^\d{4}-\d{2}-\d{2}T\S+Z\s*/, '')]
+    })
+    if(ledgerLines.filter((line)=>line==='### Preview ledger delta').length!==1)continue
+    const ledgerAdded=ledgerLines.flatMap((line)=>{
+      const match=/- added:\s+((?:\d{14})(?:,\s*\d{14})*)\s*$/.exec(line)
+      return match?[match[1].split(',').map((value)=>value.trim()).sort()]:[]
+    })
+    if(ledgerAdded.length!==1||JSON.stringify(ledgerAdded[0])!==JSON.stringify(expected)||ledgerLines.filter((line)=>/- removed:\s+\(none\)\s*$/.test(line)).length!==1)continue
     matches.push({type:'preview-apply',run_id:String(runId)})
   }catch{/* An unreadable candidate cannot become evidence. */}}
   for(const runId of runIds){try{
