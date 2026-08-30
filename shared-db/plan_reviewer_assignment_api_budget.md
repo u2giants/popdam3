@@ -15,13 +15,22 @@
 | Step | Outcome | State | Evidence |
 |---|---|---|---|
 | 0 | Start only after GitHub REST quota has reset and create a fresh isolated repository-maintenance worktree | ✅ done | Live core quota was 5000/5000; isolated branch `codex/1767-reviewer-api-budget` started from current `origin/main`. |
-| 1 | Add a counted, quota-aware GitHub operation context | ✅ done | Header preflight, New York reset display, command cache, and request-20 refusal are covered by tests. |
+| 1 | Add a counted, quota-aware GitHub operation context | ✅ done (ceiling amended 2026-08-29) | Header preflight, New York reset display, command cache, and past-the-ceiling refusal are covered by tests. Ceiling raised 19 → 22 for `--review-slot 2` (issue #1812, PR #1813). |
 | 2 | Add one active lease ref per reviewer and preserve immutable history | ✅ done | Fixed active refs and strict lease parsing preserve permanent evidence formats. |
 | 3 | Replace the historical availability scan with bounded live reconciliation | ✅ done | The 10,000-history fixture proves identical fixed cost and zero historical availability reads. |
 | 4 | Make assignment and replacement transactional, including lease release and mutex cleanup | ✅ done | Exact release/replacement uses the existing mutex and SHA readback/rollback guards. |
 | 5 | Update operator documentation and add durable verification evidence | 🟨 landing | Code/docs/tests complete and independently reviewed; push, CI, merge, and final live proof remain. |
 
 **Implementation is complete through Step 4.** Step 5 landing evidence is updated by the implementing session.
+
+> **Amendment 2026-08-29 — the ceiling is 22, not 19 (issue #1812, PR #1813).**
+> This plan was written for a single reviewer slot. The mandatory second
+> independent reviewer (`--review-slot 2`, added in #1793) costs 3 more
+> pre-mutex requests than slot 1, so the original 19 refused every slot-2
+> assignment outright. `REVIEW_OPERATION_REQUEST_LIMIT` is now **22**, with the
+> per-call arithmetic recorded in §8 and the raise authorized as an
+> orchestrator decision under the 2026-08-18 owner ruling (see "Open questions").
+> Read every "19"/"request 20" below as historical unless it is marked current.
 
 ## 1. Ultimate goal
 
@@ -116,6 +125,25 @@ As of this plan, no implementation code is committed, pushed, deployed, or activ
 - **2026-08-28:** The active-ref commit message carries reviewer, issue, PR, exact head, sequence, and generation; parsing is strict and unknown formats fail closed.
 - **2026-08-28:** Availability reads only the active prefix. No availability code may call `listRefs(REVIEW_ASSIGNMENT_REF_PREFIX)` or enumerate historical assignment/replacement/failure refs.
 - **2026-08-28:** The complete `--assign-reviewer` command, including quota preflight, live reconciliation, locking, writes, readbacks, and mutex release, must use fewer than 20 counted GitHub requests in the worst tested five-lease case. Set an explicit constant no greater than 19 and make the counter throw before request 20.
+- **SUPERSEDED 2026-08-29 (issue #1812, PR #1813):** the ceiling is now **22**, not 19,
+  and `REVIEW_OPERATION_REQUEST_LIMIT = 22`. The 19 above was correct only for a
+  single reviewer slot. `--review-slot 2` (the mandatory second independent
+  reviewer, added in #1793) calls `resolveSlotOneReviewer`, which costs **3 extra
+  pre-mutex requests** (`listRefs` + `readRef` + `getCommit`) to find which
+  provider already holds slot 1. Worst-case accounting, verified empirically by
+  instrumenting the live counter:
+  - `getRateLimit` = 2 (REST `rate_limit` + GraphQL `rateLimit`)
+  - `resolveSlotOneReviewer` = 3 (slot >= 2 only)
+  - `findBusyReviewers` = 3 (cutover `readRef` + batched `readActiveReviewLeases` + batched `readReviewStates`)
+  - `makeOwnerCommit` = 1
+  - pre-mutex total: **6 for slot 1, 9 for slot 2**; then `requireReviewWireCapacity(13)`
+    reserves the mutex-acquisition body, so slot 1 needs 19 (exactly the old
+    ceiling, zero headroom) and slot 2 needs **22**.
+  Slot 2 was therefore refused 100% of the time with `REFUSED: reviewer operation
+  cannot fit 13 remaining requests inside the 19-request budget`, blocking every
+  migration PR that requires two independent reviewers. Even perfect batching
+  cannot fit slot 2 under 19 (8 + 13 = 21), so raising the ceiling was the only
+  correct fix, not a workaround.
 - **2026-08-28:** Quota sufficiency is checked before owner-commit creation and before mutex acquisition. Required remaining quota is the command budget plus a named safety reserve; start with a 20-request reserve unless current repository policy defines a larger one. The reserve is configurable by a constant/environment input for tests, never silently disabled.
 - **2026-08-28:** One command-scoped cache supplies PR, issue-comment, PR-comment, review, ref, and commit reads. Mutations invalidate or replace the corresponding cache entry.
 - **2026-08-28:** Terminal failure/replacement releases the failed reviewer's lease; the replacement receives its own lease. Verdict, moved head, merged PR, and closed PR are reconciled as releases.
@@ -143,7 +171,9 @@ Use one `gh api rate_limit` read to record current core `remaining`, `limit`, an
 In `scripts/manage-migration-author-lanes.mjs` or a new dependency-free `scripts/lib/github-request-budget.mjs`, add a command-scoped object that:
 
 - counts every real GitHub request at the lowest call boundary, including pagination pages, retries, writes, and readbacks;
-- has an immutable maximum of at most 19 for reviewer assignment;
+- has an immutable maximum of at most 22 for reviewer assignment (19 when this
+  plan was written; raised to 22 on 2026-08-29 for `--review-slot 2` — see the
+  SUPERSEDED entry in the decisions list above);
 - refuses the next request before the counter would exceed the maximum;
 - performs and records a remaining-quota preflight before `makeOwnerCommit()` and `acquireMutex()`;
 - requires `remaining >= requestBudget + safetyReserve` and produces a plain error naming remaining, required, reset time, and that no mutex was acquired;
@@ -152,7 +182,7 @@ In `scripts/manage-migration-author-lanes.mjs` or a new dependency-free `scripts
 
 Thread this operation context through the reviewer commands and their `io` calls. Do not silently impose the reviewer budget on unrelated manager commands until separately measured.
 
-**Verification gate — you'll know it worked when:** unit tests prove request 20 is never issued, pagination/retry calls are counted, duplicate reads hit cache, low/unreadable quota fails with zero mutex create attempts, and ordinary non-reviewer tests remain green.
+**Verification gate — you'll know it worked when:** unit tests prove the request past the ceiling is never issued (request 20 under the original 19-request ceiling; request 23 under the current 22 — the tests read `REVIEW_OPERATION_REQUEST_LIMIT` rather than hardcoding either), pagination/retry calls are counted, duplicate reads hit cache, low/unreadable quota fails with zero mutex create attempts, and ordinary non-reviewer tests remain green.
 
 ### Step 2 — add the bounded active-review lease index
 
@@ -221,7 +251,13 @@ Add focused tests to `scripts/manage-migration-author-lanes.test.mjs`; create a 
 
 - `low quota refuses before owner commit and mutex acquisition` — zero create/update/delete ref calls.
 - `unreadable quota refuses before mutex acquisition`.
-- `request budget throws before request 20` — observed count never exceeds 19.
+- `wire-level request budget counts every retry and refuses the request past the limit` —
+  observed count never exceeds `REVIEW_OPERATION_REQUEST_LIMIT` (22 since 2026-08-29;
+  the test reads the constant instead of hardcoding a number, so the ceiling can move
+  without silently invalidating the assertion).
+- `complete slot-2 assignment stays inside the real wire-attempt budget (issue #1812)` —
+  a full `--review-slot 2` assignment with the roster's leases held, driven through the
+  real wire-counting path. This is the regression test for the slot-2 refusal.
 - `pagination pages and retry attempts each consume budget`.
 - `duplicate PR and verdict reads are cached per operation`.
 - `cache invalidates an active ref after create/update/delete`.
@@ -310,7 +346,7 @@ Then run the repository's current required test command from `package.json`/CI o
 
 - **Cutover misses a review already in flight.** Mitigation: bounded one-time audit of currently open coordination work and creation of active refs before activation; record exact evidence.
 - **GraphQL partial data is mistaken for absence.** Mitigation: validate every requested node/ref and fail closed on errors or missing fields.
-- **Budget is too tight for safe readbacks.** Mitigation: optimize batching/caching, not safety checks. If the operation cannot fit below 20, stop and report the design conflict rather than raise the budget.
+- **Budget is too tight for safe readbacks.** Mitigation: optimize batching/caching, not safety checks. If the operation cannot fit under the current ceiling, stop and report the design conflict rather than raise the budget *as a convenience*. Raising it is legitimate only when the added cost is real, irreducible, and documented with a per-call worst-case breakdown — as was done on 2026-08-29 for `--review-slot 2` (19 → 22, issue #1812), where the 3 extra pre-mutex calls cannot be batched away and no ceiling below 22 admits a second independent reviewer at all. Never raise it to paper over an unbounded or accidentally-quadratic path; that is the failure this risk names.
 - **Rollback creates contradictory cursor/history/lease state.** Mitigation: model write ordering, use create-only permanent evidence, read back each mutation, and exhaustively inject failures.
 - **Stale lease release races another assignment.** Mitigation: revalidate and mutate only while holding the existing mutex, with holder/generation checks.
 - **Quota resets during the operation.** Mitigation: local budget remains authoritative even if GitHub's remaining value changes.
@@ -321,7 +357,22 @@ If defects appear after merge, disable only the new live-index activation path t
 
 ### Open questions
 
-No owner decision is currently required. The implementation may choose GraphQL versus bounded REST and the module extraction boundary using the criteria in §8. Any need to exceed 19 requests, change reviewer policy, delete history, weaken exact-head checks, or bypass mutex cleanup is not an implementation judgment; stop and return it to Albert.
+No owner decision is currently required. The implementation may choose GraphQL versus bounded REST and the module extraction boundary using the criteria in §8. Changing reviewer policy, deleting history, weakening exact-head checks, or bypassing mutex cleanup is not an implementation judgment; stop and return it to Albert.
+
+**Correction, 2026-08-29 (issue #1812).** This paragraph previously also listed
+"any need to exceed 19 requests" as a return-to-Albert item. That was wrong and
+is withdrawn. The request ceiling is an internal GitHub API call budget with no
+business, cost, or data-risk dimension — it is exactly the kind of technical
+judgment the owner has ruled he does not make. Per the standing owner ruling of
+**2026-08-18** ("Albert does not sign off on technical risk. He is not a
+programmer and cannot evaluate the SQL a risk flag refers to. Never gate on a
+human judgement the human cannot make") and `AGENTS.md` §1 ("The owner reviews
+behavior, not code"), routing a call-budget constant to Albert would be a
+rubber-stamp gate — worse than no gate, because it manufactures false
+authorization. The ceiling is an **orchestrator** decision, taken with an
+independent model review as the technical gate. The 19 → 22 raise was authorized
+that way on 2026-08-29. Genuine business rulings and material production risk
+still go to Albert; this is neither.
 
 ## Mandatory self-audit
 

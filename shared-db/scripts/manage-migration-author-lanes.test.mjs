@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, projectReviewPr } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, projectReviewPr, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -366,15 +366,16 @@ test('low or unreadable quota refuses before owner commit and mutex acquisition'
   }
 })
 
-test('wire-level request budget counts every retry and refuses request 20',()=>{
+test('wire-level request budget counts every retry and refuses the request past the limit',()=>{
+  const overLimit=REVIEW_OPERATION_REQUEST_LIMIT+1
   let attempts=0
   assert.throws(()=>withReviewRequestBudget(()=>{
-    for(let n=0;n<20;n++)runGitHubCommand(['api','rate_limit'],{executor:()=>{attempts++;return '{}'}})
-  }),/before request 20/)
-  assert.equal(attempts,19)
+    for(let n=0;n<overLimit;n++)runGitHubCommand(['api','rate_limit'],{executor:()=>{attempts++;return '{}'}})
+  }),new RegExp(`before request ${overLimit}`))
+  assert.equal(attempts,REVIEW_OPERATION_REQUEST_LIMIT)
   attempts=0
-  assert.throws(()=>withReviewRequestBudget(()=>runGitHubCommand(['api','endpoint'],{attempts:20,wait:()=>{},executor:()=>{attempts++;const e=new Error('HTTP 502');e.stderr='HTTP 502';throw e},reportStderr:()=>{}})),/before request 20/)
-  assert.equal(attempts,19)
+  assert.throws(()=>withReviewRequestBudget(()=>runGitHubCommand(['api','endpoint'],{attempts:overLimit,wait:()=>{},executor:()=>{attempts++;const e=new Error('HTTP 502');e.stderr='HTTP 502';throw e},reportStderr:()=>{}})),new RegExp(`before request ${overLimit}`))
+  assert.equal(attempts,REVIEW_OPERATION_REQUEST_LIMIT)
 })
 
 test('10,000 historical assignments do not change bounded availability cost',()=>{
@@ -422,6 +423,75 @@ test('complete assignment stays inside the real wire-attempt budget',()=>{
   attempts=0
   assert.deepEqual(assignNextReviewer({issue:1767,pr:1800,headSha:'a'.repeat(40)},io),result)
   assert.ok(attempts<=19,`retry used ${attempts} wire attempts`)
+})
+
+test('complete slot-2 assignment stays inside the real wire-attempt budget (issue #1812)',()=>{
+  // Regression for issue #1812: --review-slot 2 adds resolveSlotOneReviewer's
+  // three extra wire calls (listRefs + readRef + getCommit) on top of slot 1's
+  // own pre-mutex cost, so the budget must be sized for slot>=2's real total,
+  // not just slot 1's. Before the fix this threw REFUSED at 9 pre-mutex calls
+  // + the 13-call mutex-acquisition reserve = 22 > the old 19-request limit.
+  const io=reviewIo();let attempts=0
+  const rawGetCommit=io.getCommit
+  const active=new Map(),states=new Map()
+  ACTIVE_REVIEWERS.slice(0,-2).forEach((reviewer,index)=>{
+    const issue=2200+index,pr=2300+index,headSha=`d${index}`.padEnd(40,'0')
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${reviewer.name} issue=${issue} pr=${pr} head=${headSha}`)
+    io.refs.set(reviewActiveRef(reviewer.name),sha);active.set(reviewActiveRef(reviewer.name),{sha,commit:io.getCommit(sha)})
+    states.set(`${issue}:${pr}`,{pr:{state:'open',head:{sha:headSha}},evidence:[]})
+  })
+  states.set('1722:1748',{issue:{state:'open'},pr:{state:'open',head:{sha:'a'.repeat(40)}},evidence:[]})
+  const wire=(n=1)=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})}
+  io.getRateLimit=()=>{wire(2);return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readActiveReviewLeases=()=>{wire();const snapshot=new Map(active);for(const [ref,sha] of io.refs)if(ref.startsWith(REVIEW_ACTIVE_REF_PREFIX))snapshot.set(ref,{sha,commit:rawGetCommit(sha)});return snapshot}
+  io.readReviewStates=()=>{wire();return states}
+  io.readReviewRefs=(refs)=>{wire();return new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewMutexRelease=(ownerSha)=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){
+    const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}
+  }
+  const make=io.makeOwnerCommit
+  io.makeOwnerCommit=(message)=>{wire(1);return make(message)}
+  const first=assignNextReviewer({issue:1722,pr:1748,headSha:'a'.repeat(40)},io)
+  attempts=0
+  const second=assignNextReviewer({issue:1722,pr:1748,headSha:'a'.repeat(40),slot:2},io)
+  assert.notEqual(second.reviewer,first.reviewer);assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`slot 2 used ${attempts} wire attempts`)
+  // Round-6 review finding (issue #1812): `attempts <= LIMIT` on its own lets
+  // several one-line regressions through green -- a dropped listRefs on the
+  // counted path (9 pre-mutex becomes 8), or a silently raised ceiling. Pin the
+  // operands themselves, not just the inequality they satisfy.
+  //
+  // Round-7 correction: an earlier version of this comment claimed the reserve
+  // is what lets the operation release a mutex it has taken. That is false.
+  // Release is guaranteed by `cleanupReserve`, which is set when the mutex is
+  // acquired and enforced in `consumeReviewWireRequest`. The reserve here is an
+  // ENTRY gate: it refuses to take the mutex unless the whole mutex-held
+  // section still fits. Both reviewers derived that mechanism correctly, and
+  // the wrong name was nearly merged anyway -- so the gate is now asserted by
+  // behaviour below, not only by its numeral.
+  assert.equal(attempts,20,`slot 2 used ${attempts} wire attempts; this fixture costs exactly 20 of the ${REVIEW_OPERATION_REQUEST_LIMIT}-request budget. If this changed, re-derive the ceiling rather than widening it`)
+  assert.equal(REVIEW_MUTEX_SECTION_RESERVE,13,'the mutex-section entry-gate reserve changed without this budget being re-derived')
+  assert.equal(REVIEW_OPERATION_REQUEST_LIMIT,22,'the ceiling changed; re-derive it against the real cost rather than raising it again')
+  // The three pins above are near-tautologies: they restate constants. None of
+  // them fails if the CALL SITE stops using the constant, because the gate asks
+  // `count + required > LIMIT` and the remaining budget after pre-mutex is
+  // LIMIT - count either way. So assert what the gate DOES: with one extra
+  // counted pre-mutex call, the operation must refuse BEFORE the mutex exists.
+  // A reserve one smaller would clear this gate, take the mutex, and only then
+  // discover it cannot finish -- which is the failure the gate exists to stop.
+  const slot2Ref=`${REVIEW_ASSIGNMENT_REF_PREFIX}/1722-1748-${'a'.repeat(40)}-slot2`
+  assert.ok(io.refs.has(slot2Ref),'the slot-2 assignment ref should exist before it is cleared to re-run the pre-mutex path (the post-mutex portion re-runs via the cursor branch; pre-mutex cost is identical either way, which is all this gate assertion depends on)')
+  io.refs.delete(slot2Ref)
+  const rate=io.getRateLimit
+  io.getRateLimit=()=>{wire(1);return rate()}
+  attempts=0
+  assert.throws(()=>assignNextReviewer({issue:1722,pr:1748,headSha:'a'.repeat(40),slot:2},io),/budget/i,'one extra pre-mutex call must be refused by the entry gate')
+  assert.equal(io.refs.get(MUTEX_REF)??null,null,'the entry gate must refuse before the mutex is acquired; acquiring it and failing inside is what strands it for every other lane')
+  io.getRateLimit=rate
+  attempts=0
+  assert.deepEqual(assignNextReviewer({issue:1722,pr:1748,headSha:'a'.repeat(40),slot:2},io),second)
+  assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`slot 2 retry used ${attempts} wire attempts`)
 })
 
 test('complete replacement stays inside the real wire-attempt budget',()=>{
@@ -766,14 +836,17 @@ test('lost mutex-create response releases an exact owned ref before returning th
 
 test('wire budget always preserves enough requests to release an acquired mutex',()=>{
   const io=reviewIo();let attempts=0,proofReads=0
-  const wire=()=>runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})
-  io.getRateLimit=()=>{wire();return {remaining:5000,graphRemaining:5000,reset:1787943986,graphReset:1787943986}}
+  const wire=(n=1)=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})}
+  // Consume the same slack the real slot-1 pre-mutex path would (6 calls
+  // reserved out of REVIEW_OPERATION_REQUEST_LIMIT), so this stays a tight,
+  // zero-spare fit regardless of what the limit is currently set to.
+  io.getRateLimit=()=>{wire(2+(REVIEW_OPERATION_REQUEST_LIMIT-19));return {remaining:5000,graphRemaining:5000,reset:1787943986,graphReset:1787943986}}
   io.readActiveReviewLeases=()=>{wire();return new Map()}
   io.readReviewStates=(leases)=>{wire();return new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:lease.headSha}},evidence:[]}]))}
   for(const name of ['createRef','readRef','deleteRef']){const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}}
   io.readReviewRefs=(refs)=>{wire();proofReads++;return new Map(refs.map((ref)=>[ref,ref===MUTEX_REF&&proofReads===1?null:io.refs.get(ref)??null]))}
   assert.throws(()=>assignNextReviewer({issue:97,pr:197,headSha:'4'.repeat(40)},io),/budget exhausted/)
-  assert.equal(io.refs.has(MUTEX_REF),false);assert.ok(attempts<=19,`used ${attempts} wire attempts`)
+  assert.equal(io.refs.has(MUTEX_REF),false);assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts`)
 })
 
 test('a stale selected reviewer that becomes live after locking is not overwritten',()=>{

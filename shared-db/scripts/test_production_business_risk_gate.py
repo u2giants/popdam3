@@ -1423,6 +1423,19 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     #                      error or a printed line. Nothing is opened.
     DOCS_NAMING_SITES = {
         ("scripts/manage-migration-author-lanes.mjs", "git-pathspec"): 2,
+        # Added for issue #1812. The budget constants on line 46 of
+        # manage-migration-author-lanes.mjs carry a trailing comment citing
+        # docs/verification/reviewer-assignment-api-budget-2026-08-28.md, where
+        # the 9 + 13 = 22 derivation is written out. Classified deliberately, as
+        # this test asks: it is a CITATION in a comment and opens nothing. The
+        # file is never read, joined into a path, required, or passed to git.
+        # `uncommented()` strips whole-line comments but not a trailing `//`,
+        # which is why a comment reaches this inventory at all -- that is the
+        # tooth working, not a gap: a reader cannot tell a cited path from an
+        # opened one without looking, so every new mention is made to argue for
+        # itself. If this citation ever becomes a read, this entry must go and
+        # docs must be pinned in PREVIEW_PRODUCER_PATHS instead.
+        ("scripts/manage-migration-author-lanes.mjs", "message-citation"): 1,
         ("scripts/production_migration_guard.py", "message-citation"): 1,
     }
 

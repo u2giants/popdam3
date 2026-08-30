@@ -36,6 +36,7 @@
 | [6.15](#615-historical-owner-ruling-two-source-lists--entity-destination-superseded-by-1684) | HISTORICAL OWNER RULING — two source lists; entity destination superseded by #1684 |
 | [6.17](#617-owner-ruling-designflows-numeric-division-ids-are-wrong-and-do-not-come-to-this-database-the-coldlion-division-code-is-the-only-division-there-is-albert-hazan-2026-08-19) | OWNER RULING — DesignFlow's numeric division ids are WRONG and do NOT come to this database; the ColdLion division CODE is the only division there is (Albert Hazan, 2026-08-19) |
 | [6.16](#616-owner-ruling-licence-contracts-are-not-a-source-for-this-database-and-licence-term-and-territory-do-not-belong-in-it-at-all-albert-hazan-2026-08-19) | OWNER RULING — licence CONTRACTS are NOT a source for this database, and licence TERM and TERRITORY do not belong in it at all (Albert Hazan, 2026-08-19) |
+| [6.18](#618-owner-ruling-albert-does-not-sign-off-on-technical-risk-never-gate-on-a-judgement-he-cannot-make-albert-hazan-2026-08-18) | OWNER RULING — Albert does not sign off on technical risk; never gate on a judgement he cannot make (Albert Hazan, 2026-08-18) |
 
 ---
 
@@ -1550,6 +1551,40 @@ longer matches either canonical source.
 Confidentiality obligations are unaffected. Licensed rows and licensor titles still never leave
 their approved private repo, and §6.14 still governs what may be written into this public one.
 Not using a contract as a data source is not permission to be careless with licensed data.
+
+---
+
+### 6.18 OWNER RULING — Albert does not sign off on technical risk; never gate on a judgement he cannot make (Albert Hazan, 2026-08-18)
+
+> Recorded here on 2026-08-29 (issue #1812 / PR #1813). The ruling was made on 2026-08-18 and
+> until now lived only in a `HANDOFF.d` closeout file, which §2.1-H deletes when its workstream
+> closes. Indexing it here makes it durable, per AGENTS.md §10.
+
+**The ruling, verbatim** (from
+`HANDOFF.d/2026-08-27T2035Z-edge-dev-claude-orchestrator-1668-closeout.md`, recorded under
+"Already settled — do NOT re-ask"):
+
+> **2026-08-18:** Albert does not sign off on technical risk. He is not a programmer and cannot
+> evaluate the SQL a risk flag refers to. Never gate on a human judgement the human cannot make.
+
+**What it means in practice.** A question is not made safe by being asked. Routing a purely
+technical decision to Albert produces a rubber stamp, not a decision, and a rubber stamp is
+worse than no gate at all because it launders the risk. AGENTS.md §1 says the same thing from
+the other side: the owner reviews behaviour, not code.
+
+**Escalate to Albert:** anything with a business, cost, data-loss, or externally visible
+consequence — what the data means, what it is for, who may see it, what it costs, what
+production changes.
+
+**Do NOT escalate to Albert:** internal implementation constants, call budgets, retry limits,
+test structure, refactors, or any number derived mechanically from measurement. Decide those
+with evidence and independent review, and record the derivation.
+
+**A plan or doc sentence that says "return this to Albert" for a technical value is superseded
+by this ruling.** Withdraw the clause in place, cite this section, and say who decided instead.
+The first application was issue #1812: a plan sentence reserving the reviewer wire-request
+ceiling for Albert was withdrawn, because keeping the old ceiling did not preserve an owner
+decision — it broke one, refusing 100% of the two-independent-reviewer assignments §4 requires.
 
 ---
 
