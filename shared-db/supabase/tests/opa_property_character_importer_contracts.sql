@@ -347,8 +347,9 @@ begin
   -- 6. THE HAPPY PATH. Counts must be honest.
   -- ==================================================================================
   if to_regclass('core.property_character') is not null
-     or to_regclass('core.character') is not null then
-    raise exception 'retired Universe A character tables unexpectedly exist before importer execution';
+     or to_regclass('core.character') is null
+     or (select count(*) from core.character) <> 0 then
+    raise exception 'canonical Character boundary changed before importer execution';
   end if;
 
   select * into v_r from plm.sync_opa_property_character(v_snapshot);
@@ -487,11 +488,12 @@ begin
   end if;
 
   -- ==================================================================================
-  -- 10. THE IMPORTER CANNOT RECREATE RETIRED UNIVERSE A
+  -- 10. THE IMPORTER CANNOT PROMOTE CANONICAL CHARACTERS
   -- ==================================================================================
   if to_regclass('core.property_character') is not null
-     or to_regclass('core.character') is not null then
-    raise exception 'the importer recreated a retired Universe A character table; it may write only plm.opa_* landing tables';
+     or to_regclass('core.character') is null
+     or (select count(*) from core.character) <> 0 then
+    raise exception 'the importer crossed the canonical Character boundary; it may write only plm.opa_* landing tables';
   end if;
 
   raise notice 'OPA importer contracts passed.';

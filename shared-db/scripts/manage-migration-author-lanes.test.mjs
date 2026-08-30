@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -2576,4 +2576,64 @@ test('retrying a slot-2 assignment must still refuse a reviewer that is no longe
   // orchestrator review its own work.
   io.resolveOrchestratorEngine=()=> 'codex'
   assert.throws(()=>assignNextReviewer({...request,slot:2},io),/orchestrator-conflicting reviewer codex-gpt-5\.6-sol/)
+})
+
+// AGENTS.md section 4 rule 2 is merge-first: merge, rehearse on preview from the
+// merged commit, then promote. Before this test the lane only ever looked at
+// `state=open` pulls and hardcoded merged:false, so the POST_MERGE_REHEARSAL route
+// was unreachable and every merged claim was stranded without rehearsal proof.
+function mergedRehearsalIo(){
+  const version='20260828232207'
+  const migration=`supabase/migrations/${version}_wwe.sql`
+  const claim={number:1805,title:'CLAIM: #1769 wwe tables',body:[
+    '```db-claim','version: '+version,'objects:','  - table plm.wwe_property','```','',
+    '```db-author-lease','owner: agent/issue-1769','branch: issue-1769-wwe-tables',
+    'worktree: C:/repos/x','expires_at: 2099-01-01T00:00:00Z','```'].join('\n')}
+  const head='a'.repeat(40), mergeSha='b'.repeat(40), mainSha='d'.repeat(40)
+  const files={[migration]:'create table plm.wwe_property();','config/orchestrator-global-invalidators-v1.json':'{"schema_version":1,"files":[]}'}
+  return {head,mergeSha,mainSha,version,io:{
+    openClaims:()=>[claim],
+    openPulls:()=>[],
+    branchPulls:(branch)=>branch==='issue-1769-wwe-tables'?[{number:1809,head:{ref:branch,sha:head},base:{sha:'c'.repeat(40)},merged_at:'2026-08-29T00:32:19Z',merge_commit_sha:mergeSha}]:[],
+    mergeCommitInMain:(sha)=>sha===mergeSha,
+    getPrFiles:()=>[{filename:migration,status:'added'}],
+    getFileAt:(file)=>{if(!(file in files))throw new LaneError(`missing ${file}`);return files[file]},
+    treeFiles:()=>[migration],
+    getIssue:()=>({body:['```db-work-scope','status: ready','work_type: structural','route: shared-db-orchestrator','priority: 1','writes:','  - table plm.wwe_property','```'].join(String.fromCharCode(10))}),
+    previewGateProof:()=>({full_ci_success:true,review_approved:true,dependency_closure_complete:true}),
+    mainSha:()=>mainSha,
+    previewLedger:()=>({versions:[]}),
+  }}
+}
+
+test('a merged claim still reaches the post-merge rehearsal route instead of being stranded',()=>{
+  const {io,mainSha,head,version}=mergedRehearsalIo()
+  const candidate=deriveLivePreviewCandidate(1769,io)
+  assert.equal(candidate.route,'merged_rehearsal')
+  assert.equal(candidate.pr,1809)
+  assert.equal(candidate.head_sha,head)
+  // commit_sha is the CURRENT MAIN TIP -- shared-supabase-migrations asserts
+  // `git rev-parse origin/main` equals it. The fixture deliberately keeps the main
+  // tip different from the merge commit so anchoring at the wrong one fails here.
+  assert.equal(candidate.route_context,mainSha)
+  assert.equal(candidate.manifest.commit_sha,mainSha)
+  assert.equal(candidate.manifest.merged_preview_source_pr,'1809')
+  assert.equal(candidate.manifest.preview_allowlist,version)
+  // "merged_preview_source_pr replaces claim_pr ... do not name both" -- naming
+  // either claim field alongside it makes the workflow refuse the dispatch outright.
+  assert.equal('claim_pr' in candidate.manifest,false)
+  assert.equal('claim_head_sha' in candidate.manifest,false)
+})
+
+test('a merged claim whose merge commit is not in main history is refused',()=>{
+  const {io}=mergedRehearsalIo()
+  io.mergeCommitInMain=()=>false
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/is not in main history/)
+})
+
+test('two merged pull requests on one claim branch are still refused as ambiguous',()=>{
+  const {io}=mergedRehearsalIo()
+  const one=io.branchPulls('issue-1769-wwe-tables')[0]
+  io.branchPulls=()=>[one,{...one,number:1810}]
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/exactly one live pull request/)
 })

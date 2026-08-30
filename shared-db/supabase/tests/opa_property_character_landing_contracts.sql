@@ -83,9 +83,10 @@ begin
     end if;
   end loop;
 
-  if to_regclass('core.character') is not null
+  if to_regclass('core.character') is null
+     or (select count(*) from core.character) <> 0
      or to_regclass('core.property_character') is not null then
-    raise exception 'retired Universe A character tables unexpectedly exist';
+    raise exception 'canonical Character boundary changed or source landing promoted rows';
   end if;
 
   -- Constraints, by exact name.
@@ -257,9 +258,10 @@ begin
       v_confdeltype;
   end if;
 
-  if to_regclass('core.character') is not null
+  if to_regclass('core.character') is null
+     or (select count(*) from core.character) <> 0
      or to_regclass('core.property_character') is not null then
-    raise exception 'retired Universe A tables exist during delete-action contracts';
+    raise exception 'canonical Character boundary changed during delete-action contracts';
   end if;
 
   -- Behavioural: a resolved OPA row must BLOCK deletion of the core.property it names.
@@ -295,12 +297,13 @@ begin
   end;
 
   -- ==================================================================================
-  -- 4. RETIRED UNIVERSE A STAYS ABSENT. The landing mirror is source evidence and
-  --    must never recreate a canonical character table or bridge.
+  -- 4. SOURCE LANDING DOES NOT PROMOTE CANONICAL CHARACTERS. The canonical
+  --    table exists after #1684 but starts empty and is separately governed.
   -- ==================================================================================
-  if to_regclass('core.character') is not null
+  if to_regclass('core.character') is null
+     or (select count(*) from core.character) <> 0
      or to_regclass('core.property_character') is not null then
-    raise exception 'OPA landing recreated a retired Universe A character table';
+    raise exception 'OPA landing crossed the canonical Character boundary';
   end if;
 
   if not exists (

@@ -31,8 +31,8 @@ begin
   values (v_licensor, 'Synthetic OPA Core Property', 'ZZOPA953P')
   returning id into v_core_property;
 
-  if to_regclass('core.character') is not null then
-    raise exception 'retired core.character unexpectedly exists';
+  if to_regclass('core.character') is null or (select count(*) from core.character) <> 0 then
+    raise exception 'OPA normalized sync crossed the empty canonical Character boundary';
   end if;
   if not exists (
     select 1 from pg_attribute

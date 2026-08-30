@@ -883,6 +883,10 @@ export const githubIo = {
   },
   prSources() { return gatherOpenPrObjects(REPO) },
   openPulls() { return ghPaginated(`repos/${REPO}/pulls?state=open&per_page=100`) },
+  // AGENTS.md section 4 rule 2 is merge-first: the rehearsal happens AFTER the PR
+  // merges, so the lane must still be able to find that PR once it is closed.
+  // `openPulls()` cannot see it; this looks the branch up across every state.
+  branchPulls(branch) { return ghPaginated(`repos/${REPO}/pulls?state=all&head=${REPO.split('/')[0]}:${encodeURIComponent(branch)}&per_page=100`) },
   getPr(number) { return ghJson(['api', `repos/${REPO}/pulls/${number}`]) },
   getPrFiles(number) { return ghPaginated(`repos/${REPO}/pulls/${number}/files?per_page=100`) },
   getFileAt(file,ref){const value=ghJson(['api',`repos/${REPO}/contents/${file}?ref=${ref}`]);if(value?.encoding!=='base64'||!value.content)throw new LaneError(`could not read ${file} at ${ref}`);return Buffer.from(value.content.replace(/\s/g,''),'base64').toString('utf8')},
@@ -1091,24 +1095,46 @@ function livePreviewLedger(){
   const code=`import {readPreviewLedger} from './scripts/orchestrator-flow/read-preview-ledger.mjs';try{console.log(JSON.stringify(await readPreviewLedger()))}catch(e){console.error(e.message);process.exit(2)}`
   try{return JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env:process.env}))}catch(error){throw new LaneError(`fresh preview ledger is unavailable (${String(error.stderr??error.message).trim()})`)}
 }
-function deriveLivePreviewCandidate(issue,io){
+export function deriveLivePreviewCandidate(issue,io){
   const claims=io.openClaims().map((claim)=>({claim,lease:parseAuthorLease(claim.body)})),owned=claims.filter((row)=>claimWorkIssue(row.claim)===issue)
   if(owned.length!==1)throw new LaneError(`work issue #${issue} must have exactly one live protected claim`)
   const {claim,lease}=owned[0],pulls=io.openPulls().filter((pr)=>pr.head?.ref===lease.branch)
-  if(pulls.length!==1)throw new LaneError(`claim #${claim.number} must have exactly one live pull request`)
-  const pr=pulls[0],head=pr.head.sha,changed=io.getPrFiles(pr.number).filter((file)=>file.status!=='removed').map((file)=>file.filename)
+  // Merge-first (AGENTS.md section 4 rule 2): once the claim PR merges there is no open
+  // pull request left, and the rehearsal still owes proof. Fall back to the merged pull
+  // request on the same branch and drive the POST_MERGE_REHEARSAL route from it.
+  let merged=false,mergeCommit=null,pr
+  if(pulls.length===1){pr=pulls[0]}
+  else if(pulls.length===0){
+    const closed=(io.branchPulls?.(lease.branch)??[]).filter((row)=>row.head?.ref===lease.branch&&row.merged_at&&row.merge_commit_sha)
+    if(closed.length!==1)throw new LaneError(`claim #${claim.number} must have exactly one live pull request`)
+    pr=closed[0];merged=true;mergeCommit=pr.merge_commit_sha
+    // The recovery lane pins producer files to the AUTHORING merge commit, so the
+    // rehearsal must be anchored there and that commit must really be in main.
+    if(!io.mergeCommitInMain(mergeCommit))throw new LaneError(`merged claim #${claim.number} merge commit ${mergeCommit} is not in main history`)
+  }
+  else throw new LaneError(`claim #${claim.number} must have exactly one live pull request`)
+  const head=pr.head.sha,changed=io.getPrFiles(pr.number).filter((file)=>file.status!=='removed').map((file)=>file.filename)
   const migrations=changed.filter((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(file)),versions=migrations.map((file)=>path.basename(file).slice(0,14))
   if(!migrations.length)throw new LaneError('pull request has no added migration to prepare')
   const inventory=JSON.parse(io.getFileAt('config/orchestrator-global-invalidators-v1.json',head)),allFiles=new Set([...migrations,...changed.filter((file)=>/^(?:supabase\/tests\/|scripts\/production-verification-sidecars\/)/.test(file)),...inventory.files,'config/orchestrator-global-invalidators-v1.json'])
   const contents=new Map([...allFiles].map((file)=>[file,io.getFileAt(file,head)])),headTree=io.treeFiles(head),order=headTree.filter((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(file)).sort()
   const bundle=buildEvidenceBundle({migrations,focusedFiles:changed.filter((file)=>file.startsWith('supabase/tests/')),verificationFiles:changed.filter((file)=>file.startsWith('scripts/production-verification-sidecars/')),writes:lease.writes,reads:lease.reads,migrationOrderDigest:sha256(canonicalJson(order)),issue,pr:pr.number,claim:claim.number,baseMainSha:pr.base.sha,integrationSha:head},{isClean:()=>true,fileExists:(file)=>contents.has(file),readFile:(file)=>contents.get(file)})
   const work=io.getIssue(issue),scope=parseQueueScope(work?.body??''),gate=io.previewGateProof(issue,pr.number,head,bundle.bundle_id,scope.dependencies)
-  const main=io.mainSha(),mainVersions=io.treeFiles(main).filter((file)=>/^supabase\/migrations\/\d{14}_/.test(file)).map((file)=>path.basename(file).slice(0,14)),preview=livePreviewLedger()
+  const main=io.mainSha(),mainVersions=io.treeFiles(main).filter((file)=>/^supabase\/migrations\/\d{14}_/.test(file)).map((file)=>path.basename(file).slice(0,14)),preview=io.previewLedger?.()??livePreviewLedger()
   const claimRows=claims.map((row)=>{const linked=io.openPulls().find((p)=>p.head?.ref===row.lease.branch);return{issue:claimWorkIssue(row.claim),pr:linked?.number??0,versions:[row.lease.version],merged:false}}).filter((row)=>row.pr)
-  const route=selectPreviewRoute({issue,pr:pr.number,head_sha:head,bundle_id:bundle.bundle_id,versions,dependency_closure_complete:gate.dependency_closure_complete,claims:claimRows,main_versions:mainVersions,preview_versions:preview.versions,merged:false})
+  const route=selectPreviewRoute({issue,pr:pr.number,head_sha:head,bundle_id:bundle.bundle_id,versions,dependency_closure_complete:gate.dependency_closure_complete,claims:claimRows,main_versions:mainVersions,preview_versions:preview.versions,merged})
   if(route.status!=='READY')throw new LaneError(`preview route is ${route.status}: ${route.reason}`)
-  const routeName=route.route==='NORMAL_PREVIEW'?'ordinary_preview_apply':route.route==='POST_MERGE_REHEARSAL'?'merged_rehearsal':'historical_rebind',routeContext=routeName==='ordinary_preview_apply'?'':main
-  const manifest={target:'preview',preview_allowlist:versions.join(','),claim_pr:String(pr.number),claim_head_sha:head,...(routeName==='merged_rehearsal'?{commit_sha:main,merged_preview_source_pr:String(pr.number)}:{}),...(routeName==='historical_rebind'?{commit_sha:main,historical_preview_source_pr:String(pr.number)}:{})}
+  const routeName=route.route==='NORMAL_PREVIEW'?'ordinary_preview_apply':route.route==='POST_MERGE_REHEARSAL'?'merged_rehearsal':'historical_rebind'
+  const routeContext=routeName==='ordinary_preview_apply'?'':main
+  // commit_sha is the CURRENT MAIN TIP the rehearsal runs at -- shared-supabase-migrations
+  // asserts `git rev-parse origin/main` equals it. That is a different thing from the
+  // historical-recovery lane's producer-file pin at the authoring merge commit; conflating
+  // the two emits a manifest the workflow refuses.
+  //
+  // A merged rehearsal must NOT name claim_pr: "merged_preview_source_pr replaces claim_pr.
+  // A merged pull request has no live author claim; do not name both."
+  const claimFields=routeName==='merged_rehearsal'?{}:{claim_pr:String(pr.number),claim_head_sha:head}
+  const manifest={target:'preview',preview_allowlist:versions.join(','),...claimFields,...(routeName==='merged_rehearsal'?{commit_sha:main,merged_preview_source_pr:String(pr.number)}:{}),...(routeName==='historical_rebind'?{commit_sha:main,historical_preview_source_pr:String(pr.number)}:{})}
   return {issue,pr:pr.number,head_sha:head,bundle_id:bundle.bundle_id,route:routeName,route_context:routeContext,manifest}
 }
 

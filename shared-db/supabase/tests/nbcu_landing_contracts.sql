@@ -601,8 +601,8 @@ begin
   raise notice '=== G. FINALIZATION ===';
   select count(*) into v_core_prop_before from core.property;
 
-  if to_regclass('core.character') is not null then
-    raise exception 'retired core.character unexpectedly exists';
+  if to_regclass('core.character') is null or (select count(*) from core.character) <> 0 then
+    raise exception 'NBCU landing crossed the empty canonical Character boundary';
   end if;
   if not exists (
     select 1 from pg_attribute
@@ -766,8 +766,8 @@ begin
   if v_n <> v_core_prop_before then v_fail := v_fail+1;
     raise warning 'FAIL core.property row count CHANGED (% -> %)', v_core_prop_before, v_n;
   else v_pass := v_pass+1; end if;
-  if to_regclass('core.character') is not null then v_fail := v_fail+1;
-    raise warning 'FAIL retired core.character was recreated';
+  if to_regclass('core.character') is null or (select count(*) from core.character) <> 0 then v_fail := v_fail+1;
+    raise warning 'FAIL canonical Character boundary changed';
   else v_pass := v_pass+1; end if;
 
   -- Clean up every synthetic row. on delete restrict means children go first.

@@ -16,7 +16,7 @@ migration_dir="${CHECK_SQL_MIGRATION_DIR:-$root_dir/supabase/migrations}"
 # version for issue #1684 -- an independent review of PR #1712 found this
 # allowlist referencing the migration's OLD, superseded filename
 # (20260827224649_separate_property_and_character.sql) instead of its current
-# reserved version (20260828111507_separate_property_and_character.sql), and
+# reserved version (20260829004145_separate_property_and_character.sql), and
 # a separate parser bug (see the `header` regex below) was masking the
 # resulting guard failure by misattributing a deleted test file's removed
 # references to the wrong migration file.
@@ -41,7 +41,7 @@ const fs = require('node:fs')
 const diff = fs.readFileSync(process.argv[2], 'utf8')
 const allowed = new Set([
   'supabase/migrations/20260827222039_eol_core_properties_and_characters.sql',
-  'supabase/migrations/20260828111507_separate_property_and_character.sql',
+  'supabase/migrations/20260829004145_separate_property_and_character.sql',
 ])
 const deltas = new Map()
 const maintenanceAllowed = new Set([

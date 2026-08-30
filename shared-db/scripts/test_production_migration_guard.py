@@ -36,6 +36,8 @@ from production_migration_guard import (  # noqa: E402
     assert_content_manifest,
     assert_no_archaic_function_body,
     hard_references,
+    retired_object_restorations,
+    validate_retired_object_restorations,
     parse_allowlist,
     parse_remote_versions,
     strip_sql,
@@ -1039,6 +1041,54 @@ class PreflightNegativeTests(unittest.TestCase):
         message = str(caught.exception)
         self.assertIn("public.sync_clickup_tasks", message)
         self.assertIn("grant/revoke target", message)
+
+    def test_reference_after_same_file_drop_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_migrations(
+                Path(directory),
+                {
+                    "20260101000000_create.sql": "create table core.old_table(id integer);\n",
+                    "20260102000000_bad.sql": (
+                        "drop table core.old_table restrict;\n"
+                        "alter table core.old_table add column impossible integer;\n"
+                    ),
+                },
+            )
+            migrations = local_migrations(root)
+            with self.assertRaises(GuardError) as caught:
+                preflight_batch(migrations, ["20260102000000"], {"20260101000000"})
+        self.assertIn("references missing core.old_table (alter table)", str(caught.exception))
+
+    def test_drop_trigger_before_restrict_drop_uses_statement_order(self) -> None:
+        """Regression for #1684: preserve the EOL teardown and final RESTRICT."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_migrations(
+                Path(directory),
+                {
+                    "20260101000000_create.sql": "create table core.old_table(id integer);\n",
+                    "20260102000000_retire.sql": (
+                        "drop trigger old_table_eol_guard on core.old_table;\n"
+                        "drop table core.old_table restrict;\n"
+                    ),
+                },
+            )
+            migrations = local_migrations(root)
+            preflight_batch(migrations, ["20260102000000"], {"20260101000000"})
+
+    def test_issue_1684_lock_and_destructive_separation_are_one_transaction(self) -> None:
+        """The live runner executes LOCK TABLE only inside explicit framing."""
+        migration = (
+            REPO
+            / "supabase"
+            / "migrations"
+            / "20260829004145_separate_property_and_character.sql"
+        ).read_text(encoding="utf-8").lower()
+
+        self.assertEqual(len(re.findall(r"(?m)^begin;$", migration)), 1)
+        self.assertEqual(len(re.findall(r"(?m)^commit;$", migration)), 1)
+        self.assertLess(migration.index("begin;"), migration.index("lock table"))
+        self.assertRegex(migration, r"drop table [^;]+ restrict;\s*commit;\s*\Z")
+        self.assertNotRegex(migration, r"drop\s+[^;]+\s+cascade\s*;")
 
     def test_real_18_file_batch_passes(self) -> None:
         migrations = local_migrations(REPO)
@@ -2563,6 +2613,43 @@ class LexerFalseAcceptDefects(unittest.TestCase):
                 {"20260101000000"},
             )
 
+    def test_f5_exact_retired_object_restoration_is_accepted(self) -> None:
+        raw = (
+            "-- restores-retired-object: core.character dropped-by: 20260102000000\n"
+            "create table core.character (id uuid);\n"
+            "alter table core.character enable row level security;\n"
+        )
+        self.assertEqual(
+            retired_object_restorations(raw),
+            {"core.character": "20260102000000"},
+        )
+        self.assertEqual(
+            validate_retired_object_restorations(
+                "20260103000000", raw, {"core.character": "20260102000000"}
+            ),
+            {"core.character"},
+        )
+
+    def test_f5_restoration_declaration_requires_the_exact_prior_drop(self) -> None:
+        raw = (
+            "-- restores-retired-object: core.character dropped-by: 20260101000000\n"
+            "create table core.character (id uuid);\n"
+        )
+        with self.assertRaisesRegex(GuardError, "history shows 20260102000000"):
+            validate_retired_object_restorations(
+                "20260103000000", raw, {"core.character": "20260102000000"}
+            )
+
+    def test_f5_restoration_declaration_requires_a_real_create(self) -> None:
+        raw = (
+            "-- restores-retired-object: core.character dropped-by: 20260102000000\n"
+            "alter table core.character enable row level security;\n"
+        )
+        with self.assertRaisesRegex(GuardError, "does not create it"):
+            validate_retired_object_restorations(
+                "20260103000000", raw, {"core.character": "20260102000000"}
+            )
+
     def test_f5_no_existing_migration_becomes_a_new_rejection(self) -> None:
         """MEASURED EXPOSURE, re-measured on every run rather than quoted.
 
@@ -2579,8 +2666,9 @@ class LexerFalseAcceptDefects(unittest.TestCase):
         offenders: list[str] = []
         for version in sorted(migrations):
             raw = migrations[version].read_text(encoding="utf-8")
+            restorations = validate_retired_object_restorations(version, raw, removed)
             for obj, reason in hard_references(raw):
-                if obj in removed:
+                if obj in removed and obj not in restorations:
                     offenders.append(f"{version} -> {obj} ({reason}), dropped by {removed[obj]}")
             created, dropped = created_objects(raw), dropped_objects(raw)
             available |= created
