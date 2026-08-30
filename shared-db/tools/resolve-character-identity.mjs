@@ -615,7 +615,7 @@ export function isQualifierComponent(component) {
  * Split a combination label into its component character names.
  *
  * Three corrections over the original naive split, each tied to a row that
- * reached Laura as an unanswerable question in round 2:
+ * reached the licensing company reviewer as an unanswerable question in round 2:
  *
  * 1. A trailing `( style guide )` scope suffix is removed before splitting.
  *    Without this, `Ant-Man & Wasp Logo ( MS` Ant-Man Wasp Quantumania )` split

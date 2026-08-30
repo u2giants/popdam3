@@ -81,6 +81,43 @@ test('NO SILENT COMPLETION: the other 145 answered block-B rows are absent on pu
   assert.match(fs.readFileSync(MD, 'utf8'), /Do not "complete" the CSV/);
 });
 
+test('the reviewer is not named -- this repository is PUBLIC (ruling 6.14)', () => {
+  // Parity with tools/round3-licensing-answers.test.mjs. Round 3 had this guard;
+  // round 2 did not, and the round-2 change re-introduced the reviewer's first
+  // name into two source comments that the round-3 guard does not cover.
+  // Guard the evidence record AND the tools that describe round 2, so a future
+  // edit cannot put an incidental personal identifier back into a public file.
+  const TOOLS = path.join(import.meta.dirname);
+  const guarded = [
+    CSV,
+    MD,
+    path.join(TOOLS, 'build-licensing-questions-csv.mjs'),
+    path.join(TOOLS, 'resolve-character-identity.mjs'),
+    path.join(TOOLS, 'round2-licensing-answers.test.mjs'),
+  ];
+  // Two committed artifact FILENAMES carry the reviewer's first name. Both were
+  // added before ruling 6.14 (2026-07-29 and 2026-07-31 vs 2026-08-09), so they
+  // are accepted historical exposure and renaming them needs a fresh owner
+  // ruling -- 6.14 forbids starting a cleanup pass without one. Referring to
+  // them by their real path is therefore allowed; naming the person is not.
+  // The name is assembled, never written literally, so that this guard file is
+  // itself covered by the guard instead of tripping over its own pattern.
+  const NAME = ['Lau', 'ra'].join('');
+  const HISTORICAL_FILENAMES =
+    new RegExp(`licensing-questions-for-${NAME}(?:-round2)?-\\d{8}\\.(?:csv|xlsx)`, 'gi');
+  const NAMED = new RegExp(`\\b${NAME}\\b`, 'i');
+  for (const file of guarded) {
+    const prose = fs.readFileSync(file, 'utf8').replace(HISTORICAL_FILENAMES, '<historical-file>');
+    assert.doesNotMatch(
+      prose,
+      NAMED,
+      `${path.basename(file)} must not name the reviewer; say "the licensing company reviewer"`,
+    );
+  }
+  // The attribution that IS allowed stays generic: a role, never a person.
+  assert.match(fs.readFileSync(MD, 'utf8'), /\bthe reviewer\b/i);
+});
+
 test('the record states that the licensing question stream is closed', () => {
   assert.match(fs.readFileSync(MD, 'utf8'), /THE LICENSING QUESTION STREAM IS CLOSED/);
   assert.match(fs.readFileSync(MD, 'utf8'), /There is no round 4/);

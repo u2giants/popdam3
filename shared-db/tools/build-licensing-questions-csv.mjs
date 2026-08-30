@@ -6,7 +6,8 @@ import { isQualifierComponent } from './resolve-character-identity.mjs';
 /**
  * Thrown when the generator is asked to produce a question a human cannot
  * answer. This is the B7 negative path: the generator REFUSES rather than
- * shipping a malformed question. Seven such questions reached Laura in round 2
+ * shipping a malformed question. Seven such questions reached the licensing
+ * company reviewer in round 2
  * ("Unknown names: gen", "Unknown names: back to school", "wasp logo ms ant man
  * wasp quantumania") and all seven came back blank.
  */
