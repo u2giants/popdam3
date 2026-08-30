@@ -405,7 +405,7 @@ export function conflicts(a, b) {
 // lost the read/write distinction must not be handed a weaker answer.
 function overlaps(a, b) { return conflicts({ writes: a, reads: [] }, { writes: b, reads: [] }) }
 
-export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null) {
+export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null, claimPullStates = new Map()) {
   const openNumbers = new Set(allOpenIssueNumbers.map(Number))
   const skipped = [], unclassified = [], malformed = [], unlabelled = [], candidates = [], notOrchestratorWork = []
   const dependencyEdges = {}
@@ -468,13 +468,13 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
   }
   const protectedClaims = claims.map((claim)=>{
     const lease = parseAuthorLease(claim.body,now)
-    return { claim:claim.number, issue:null, priority:Number.MAX_SAFE_INTEGER, writes:lease.writes, reads:lease.reads ?? [], objects:lease.writes, capacityActive:lease.capacityActive }
+    return { claim:claim.number, issue:null, priority:Number.MAX_SAFE_INTEGER, writes:lease.writes, reads:lease.reads ?? [], objects:lease.writes, capacityActive:lease.capacityActive, leaseState:lease.capacityState, expiresAt:lease.expiresAt?.toISOString?.() ?? null, prState:claimPullStates.get(claim.number) ?? 'unknown' }
   })
   const components = [...protectedClaims, ...candidates].map((item)=>[item])
   for (let i=0;i<components.length;i++) for (let j=i+1;j<components.length;) {
     if (components[i].some((a)=>components[j].some((b)=>conflicts(a,b)))) components[i].push(...components.splice(j,1)[0]); else j++
   }
-  const queues = Array.from({length:MAX_AUTHOR_LANES},(_,index)=>({ lane:index+1, active:null, protected:[], queued:[], objects:[], reads:[] }))
+  const queues = Array.from({length:MAX_AUTHOR_LANES},(_,index)=>({ lane:index+1, active:null, activeLeaseState:null, activeExpiresAt:null, activePrState:null, protected:[], queued:[], objects:[], reads:[] }))
   const ordered = components.sort((a,b)=>Number(Boolean(b.some(x=>x.claim)))-Number(Boolean(a.some(x=>x.claim))) || Math.max(...b.map(x=>x.priority))-Math.max(...a.map(x=>x.priority)))
   for (const component of ordered) {
     const protectedItems = component.filter((x)=>x.claim)
@@ -487,6 +487,9 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     if (activeItem) {
       if (!free.length) throw new LaneError(`active author capacity exceeds ${MAX_AUTHOR_LANES}`)
       lane.active = activeItem.claim
+      lane.activeLeaseState = activeItem.leaseState
+      lane.activeExpiresAt = activeItem.expiresAt
+      lane.activePrState = activeItem.prState
     }
     lane.protected.push(...protectedItems.map((item)=>item.claim))
     lane.queued.push(...component.filter((x)=>x.issue).sort((a,b)=>b.priority-a.priority || a.issue-b.issue).map((x)=>x.issue))
@@ -496,10 +499,11 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
   const authorQueues = queues.filter((q)=>q.lane !== null)
   const emptyLanes = authorQueues.filter((q)=>!q.active).length
   const dispatchable = authorQueues.filter((q)=>!q.active && !q.protected.length && q.queued.length).map((q)=>q.queued[0])
+  const expiredClaims = authorQueues.filter((q)=>q.active && q.activeLeaseState === 'expired-unconfirmed').map((q)=>({ claim:q.active, lane:q.lane, expires_at:q.activeExpiresAt, pr_state:q.activePrState, queued:[...q.queued] }))
   // A CYCLE IS NEVER STARTABLE and is invisible to an open/closed test, so it is
   // reported as its own finding rather than as N tasks that merely look blocked.
   const dependencyCycles = findDependencyCycles(dependencyEdges)
-  return { queues, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dependencyCycles, grandfatheredDependencies, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length&&!dependencyCycles.length }
+  return { queues, expiredClaims, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dependencyCycles, grandfatheredDependencies, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length&&!dependencyCycles.length }
 }
 
 // RETURN PATH (AGENTS.md 0.0-C). A rejected task is forwarded to the repository
@@ -3573,7 +3577,16 @@ export function main(argv, now = new Date(), io = githubIo) {
           if (record?.outcome === 'merged') state.mergeInMain = io.mergeCommitInMain(record.merge_sha)
         }
       }
-      const result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates)
+      const openPulls = io.openPulls?.() ?? []
+      const claimPullStates = new Map()
+      for (const claim of claims) {
+        const lease = parseAuthorLease(claim.body, now)
+        if (lease.legacy || lease.active || !lease.capacityActive) continue
+        if (openPulls.some((pull)=>pull.head?.ref === lease.branch)) { claimPullStates.set(claim.number, 'open'); continue }
+        const historical = io.branchPulls?.(lease.branch) ?? []
+        claimPullStates.set(claim.number, historical.some((pull)=>pull.merged_at) ? 'merged' : historical.length ? 'closed-unmerged' : 'none')
+      }
+      const result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates, claimPullStates)
       console.log(JSON.stringify(result,null,2))
       // Printed BEFORE the refill early-return: a queue with any dispatchable
       // work would otherwise hide this list entirely, which is exactly how these
@@ -3624,10 +3637,14 @@ export function main(argv, now = new Date(), io = githubIo) {
         console.error('DEPENDENCIES NOT PROVEN: closure alone is not success (Step 3, issue #1366).')
         for (const row of dependencyBlocked) console.error(`  #${row.issue} — ${row.detail}`)
       }
+      if (result.expiredClaims.length) {
+        console.error('EXPIRED AUTHOR LEASES: occupancy is locked but no live author lease exists. Inspect and explicitly renew, resume, or close out each claim; expiry never releases object protection.')
+        for (const row of result.expiredClaims) console.error(`  claim #${row.claim}, lane ${row.lane}, expired ${row.expires_at}, PR ${row.pr_state}, queued ${row.queued.length ? row.queued.map((number)=>`#${number}`).join(', ') : 'none'}`)
+      }
       if (result.dispatchable.length) { console.error(`REFILL REQUIRED NOW: dispatch issue(s) ${result.dispatchable.map((n)=>`#${n}`).join(', ')}`); return 2 }
       if (result.unlabelled.length) console.error(`UNLABELLED ISSUES: add the \`${WORK_LABEL}\` label to ${result.unlabelled.map((n)=>`#${n}`).join(', ')} — an unlabelled issue is invisible to every label-filtered query`)
       if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify and label every open issue before claiming no eligible work exists'); return 2 }
-      return result.malformed.length || result.unlabelled.length || result.dependencyCycles.length || result.notOrchestratorWork.some((item)=>item.needsReturnAddress) ? 2 : 0
+      return result.malformed.length || result.unlabelled.length || result.dependencyCycles.length || result.expiredClaims.some((row)=>row.queued.length) || result.notOrchestratorWork.some((item)=>item.needsReturnAddress) ? 2 : 0
     }
     if (o.assertExclusive) {
       const lease = assertExclusive(o.assertExclusive, {

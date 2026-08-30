@@ -108,6 +108,23 @@ test('dynamic queues fill inactive lanes before queueing behind active claims',(
   assert.deepEqual(new Set(two.dispatchable),new Set([40,41]))
 })
 
+test('queue audit names expired active claims, queued work, and pull-request state',()=>{
+  const expired=body(['table core.a'],'31','2026-08-13T08:00:00.000Z')
+  const result=buildDynamicQueues(
+    [{number:40,title:'waiting',body:scope('ready','structural','shared-db-orchestrator',9,['table core.a'])}],
+    [{number:31,body:expired}],
+    NOW,
+    [40],
+    null,
+    new Map([[31,'merged']]),
+  )
+  const lane=result.queues.find((row)=>row.active===31)
+  assert.equal(lane.activeLeaseState,'expired-unconfirmed')
+  assert.equal(lane.activePrState,'merged')
+  assert.deepEqual(result.expiredClaims,[{claim:31,lane:lane.lane,expires_at:'2026-08-13T08:00:00.000Z',pr_state:'merged',queued:[40]}])
+  assert.deepEqual(result.dispatchable,[],'expiry must remain visible without releasing object protection')
+})
+
 test('status and non-structural routes never consume a migration-author lane',()=>{
   const issues=[
     {number:10,title:'open dependency',body:scope('blocked','structural','shared-db-orchestrator',9,['table core.blocked'])},
