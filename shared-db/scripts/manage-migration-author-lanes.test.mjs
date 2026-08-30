@@ -498,19 +498,48 @@ test('complete replacement stays inside the real wire-attempt budget',()=>{
   const io=failedReviewIo();let attempts=0,baseLoaded=false;const labels=[]
   const rawGetCommit=io.getCommit
   const assigned=parseReviewCursor(io.getCommit(io.refs.get(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${failedReview.issue}-${failedReview.pr}-${failedReview.headSha}`)))
-  const active=new Map([[reviewActiveRef(assigned.reviewer),{sha:io.refs.get(reviewActiveRef(assigned.reviewer)),commit:io.getCommit(io.refs.get(reviewActiveRef(assigned.reviewer)))}]])
   const states=new Map([[`${failedReview.issue}:${failedReview.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:failedReview.headSha}},evidence:[]}]])
   const wire=(n=1,label='wire')=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;labels.push(label);return '{}'}})}
   io.getRateLimit=()=>{wire(1,'quota');return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
-  io.readActiveReviewLeases=()=>{wire(1,'active');return active};io.readReviewStates=()=>{wire(1,'states');return states}
+  const ordinaryQuota=io.getRateLimit
+  io.readActiveReviewLeases=()=>{wire(1,'active');return new Map([...io.refs.entries()].filter(([ref])=>ref.startsWith(REVIEW_ACTIVE_REF_PREFIX)).map(([ref,sha])=>[ref,{sha,commit:rawGetCommit(sha)}]))};io.readReviewStates=()=>{wire(1,'states');return states}
   io.readReviewRefs=(refs)=>{wire(1,'readReviewRefs');return new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))}
-  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewRefs=(changes)=>{wire(1,'atomicReviewRefs');for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
   io.atomicReviewMutexRelease=(ownerSha)=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
   io.readReviewRecords=(refs,prefix)=>{wire(2,'readReviewRecords');const result=new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}));Object.defineProperty(result,'matching',{value:[...io.refs.entries()].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha}))});return result}
   for(const name of ['readRef','listRefs','getCommit','getPr','getIssue','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){const fn=io[name];io[name]=(...args)=>{wire(1,`${name}:${String(args[0])}`);return fn(...args)}}
   const make=io.makeOwnerCommit;io.makeOwnerCommit=(message)=>{wire(1,'commit');baseLoaded=true;return make(message)}
+  // Baseline preflight is 7 requests. Five additional fixed-record reads (the
+  // one-request-per-record worst case) make 12; reserve 11 must
+  // refuse because 12 + 11 exceeds the 22-request ceiling. Reserve 10 would
+  // acquire the mutex with no room for the measured success path plus cleanup.
+  io.getRateLimit=()=>{wire(5,'replacement-record-read');return ordinaryQuota()}
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/budget/i)
+  assert.equal(labels.includes(`createRef:${MUTEX_REF}`),false,'new replacement budget refusal must precede mutex acquisition')
+  io.getRateLimit=ordinaryQuota;attempts=0;labels.length=0
   let result;try{result=replaceFailedReviewer(replacementRequest,io)}catch(error){throw new Error(`${error.message}; calls=${labels.join(',')}`)}
   assert.ok(result.reviewer);assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts`)
+  const mutexAt=labels.indexOf(`createRef:${MUTEX_REF}`)
+  assert.notEqual(mutexAt,-1,`mutex acquisition was not observed: ${labels.join(',')}`)
+  assert.equal(mutexAt,7,'the first replacement path spends 7 requests before its mutex gate')
+  assert.equal(labels.length-mutexAt,9,`new replacement success path costs exactly 9 requests after mutex acquisition: ${labels.slice(mutexAt).join(',')}`)
+  attempts=0;labels.length=0
+  assert.deepEqual(replaceFailedReviewer(replacementRequest,io),result)
+  const retryMutexAt=labels.indexOf(`createRef:${MUTEX_REF}`)
+  assert.notEqual(retryMutexAt,-1,`retry mutex acquisition was not observed: ${labels.join(',')}`)
+  assert.equal(retryMutexAt,8,'the idempotent path spends 8 requests before its mutex gate')
+  assert.equal(labels.length-retryMutexAt,9,`idempotent replacement success path costs exactly 9 requests after mutex acquisition: ${labels.slice(retryMutexAt).join(',')}`)
+  const source=readFileSync(new URL('./manage-migration-author-lanes.mjs',import.meta.url),'utf8')
+  assert.match(source,/requireReviewWireCapacity\(10\);acquireReviewMutex\(ownerSha,io\);mutexAcquired=true/,'the idempotent reserve changed without re-derivation')
+  assert.match(source,/requireReviewWireCapacity\(11\);acquireReviewMutex\(ownerSha,io\);mutexAcquired=true/,'the new-replacement reserve changed without re-derivation')
+  // Baseline preflight is 8 requests. Five additional fixed-record reads make
+  // 13; reserve 10 must
+  // refuse because 13 + 10 exceeds the ceiling. Reserve 9 would acquire the
+  // mutex at exactly 22 and leave no room for the measured success path.
+  io.getRateLimit=()=>{wire(5,'replacement-record-read');return ordinaryQuota()}
+  attempts=0;labels.length=0
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/budget/i)
+  assert.equal(labels.includes(`createRef:${MUTEX_REF}`),false,'budget refusal must happen before mutex acquisition')
 })
 
 test('atomic replacement succeeds when the failed assignment has no active lease',()=>{
