@@ -142,11 +142,63 @@ async function fetchAssetFullTextIds(search: string) {
   }
 }
 
+/**
+ * Filters that describe a fact the Style Group owns, not the file.
+ *
+ * A shared product tag lives on `style_group_tags` and is deliberately never
+ * copied onto members, so `assets.tags @>` cannot see it. Since legacy tag
+ * propagation was removed (#96 Step 6), nothing null-fills a sibling's
+ * `licensor_id` / `property_id` either, so those columns miss grouped assets.
+ *
+ * When any of these is active the list must come from the governed contract
+ * `public.filter_effective_assets`, which resolves both scopes server-side.
+ */
+/**
+ * ⛔ OFF because the contract does not currently meet its performance gate.
+ *
+ * Measured against production as a real `authenticated` user on 2026-08-30,
+ * `filter_effective_assets` returns HTTP 500 / `57014 statement timeout` at
+ * ~8.1s for every payload tried — including an EMPTY one, so it is not a
+ * selectivity problem. Turning this on would convert every tag, licensor, and
+ * property filter into an error for users.
+ *
+ * Tracked as u2giants/shared-db#1945. Turn this to `true` only after that issue
+ * is fixed AND the timings are re-measured cold as `authenticated` against
+ * production, not against `postgres` and not against preview.
+ */
+const EFFECTIVE_SCOPE_CONTRACT_READY = false;
+
+export function needsEffectiveScope(filters: AssetFilters): boolean {
+  if (!EFFECTIVE_SCOPE_CONTRACT_READY) return false;
+  return Boolean(filters.tagFilter || filters.licensorId || filters.propertyId);
+}
+
+/** The routing rule itself, independent of whether the contract is enabled yet. */
+export function wouldNeedEffectiveScope(filters: AssetFilters): boolean {
+  return Boolean(filters.tagFilter || filters.licensorId || filters.propertyId);
+}
+
+/** The subset of the filter payload the effective contract owns. */
+export function buildEffectiveFilterPayload(filters: AssetFilters): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (filters.tagFilter) payload.tagFilter = filters.tagFilter;
+  if (filters.licensorId) payload.licensorId = filters.licensorId;
+  if (filters.propertyId) payload.propertyId = filters.propertyId;
+  return payload;
+}
+
 function applyFilters(
   query: any,
   filters: AssetFilters,
   fullTextAssetIds?: string[] | null,
   fallbackFilter?: string | null,
+  /**
+   * True when the base rows already came from `filter_effective_assets`. The
+   * three effective filters must NOT be re-applied against the asset's own
+   * columns — doing so would re-impose exactly the wrong semantics and drop
+   * every grouped match the contract just resolved.
+   */
+  effectiveScopeApplied = false,
 ) {
   query = query.eq("is_deleted", false);
 
@@ -187,10 +239,10 @@ function applyFilters(
   if (filters.isLicensed !== null) {
     query = query.eq("is_licensed", filters.isLicensed);
   }
-  if (filters.licensorId) {
+  if (!effectiveScopeApplied && filters.licensorId) {
     query = query.eq("licensor_id", filters.licensorId);
   }
-  if (filters.propertyId) {
+  if (!effectiveScopeApplied && filters.propertyId) {
     query = query.eq("property_id", filters.propertyId);
   }
   if (filters.assetType.length > 0) {
@@ -203,7 +255,7 @@ function applyFilters(
     const categoryFilter = buildProductCategoryOrFilter(filters.productCategory, "relative_path");
     if (categoryFilter) query = query.or(categoryFilter);
   }
-  if (filters.tagFilter) {
+  if (!effectiveScopeApplied && filters.tagFilter) {
     query = query.contains("tags", [filters.tagFilter]);
   }
 
@@ -258,11 +310,18 @@ export function useAssets(
       const minDate = visibilityDate ?? "2020-01-01";
       const { ids: fullTextAssetIds, fallback: fallbackSearchFilter } = await resolveAssetSearch(filters.search);
 
-      let query = supabase
-        .from("assets")
-        .select("*", { count: "exact" });
+      // Group-owned facts cannot be filtered from the asset's own columns, so
+      // those queries start from the governed contract instead of the table.
+      const effectiveScope = needsEffectiveScope(filters);
+      let query: any = effectiveScope
+        ? supabase.rpc(
+            "filter_effective_assets",
+            { p_filters: buildEffectiveFilterPayload(filters) as unknown as Json },
+            { count: "exact" },
+          )
+        : supabase.from("assets").select("*", { count: "exact" });
 
-      query = applyFilters(query, filters, fullTextAssetIds, fallbackSearchFilter);
+      query = applyFilters(query, filters, fullTextAssetIds, fallbackSearchFilter, effectiveScope);
       query = applyVisibility(query, minDate);
       const useRelevance = Boolean(filters.search?.trim() && fullTextAssetIds);
       if (!useRelevance) {
@@ -298,11 +357,16 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
       const minDate = visibilityDate ?? "2020-01-01";
       const { ids: fullTextAssetIds, fallback: fallbackSearchFilter } = await resolveAssetSearch(filters.search);
 
-      let query = supabase
-        .from("assets")
-        .select("*", { count: "exact", head: true });
+      const effectiveScope = needsEffectiveScope(filters);
+      let query: any = effectiveScope
+        ? supabase.rpc(
+            "filter_effective_assets",
+            { p_filters: buildEffectiveFilterPayload(filters) as unknown as Json },
+            { count: "exact", head: true },
+          )
+        : supabase.from("assets").select("*", { count: "exact", head: true });
 
-      query = applyFilters(query, filters, fullTextAssetIds, fallbackSearchFilter);
+      query = applyFilters(query, filters, fullTextAssetIds, fallbackSearchFilter, effectiveScope);
       query = applyVisibility(query, minDate);
       const { count, error } = await query;
       if (error) throw error;
@@ -311,6 +375,13 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
   });
 }
 
+/**
+ * Facet counts. No effective-scope branch is needed here: the governed
+ * `get_filter_counts` delegates to `get_effective_filter_counts` server-side
+ * whenever an effective tag/licensor/property filter is present, and keeps its
+ * covering-index fast path otherwise. Counts therefore stay in parity with the
+ * list query by construction.
+ */
 export function useFilterCounts(filters: AssetFilters) {
   return useQuery({
     queryKey: ["filter-counts", filters],
