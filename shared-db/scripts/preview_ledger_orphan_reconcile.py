@@ -82,6 +82,18 @@ SUPPORTED_CASES = {
         "preview_artifact_id": 9656250972,
         "preview_artifact_digest": "sha256:ec03dc67ce845c6db231a56555803d1daddd6869fc61019ccd89f3f27f6878ce",
     },
+    (1722, 1747, 1748): {
+        "mode": "byte_identical_rename",
+        "orphan_version": "20260828113920",
+        "replacement_version": "20260830013942",
+        "orphan_run_head": "4f1e2adb4d964f8f431efdaa0055fcdd96e71638",
+        "preview_run_id": 33189683651,
+        "preview_artifact_id": 9693229856,
+        "preview_artifact_digest": "sha256:2a466d1a0163a276a937e28f9af5eff710096e62ec9e7ddf7dda38fac41ef49a",
+        "merged_source": True,
+        "issue_state": "closed",
+        "claim_state": "closed",
+    },
 }
 
 
