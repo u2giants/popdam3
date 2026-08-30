@@ -1973,7 +1973,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         original_commit_in_pr=True, original_commit_in_history=True,
         run_shape=None, original_run_shape=None, original_manifest_json=None,
         migration_files="one", corrupt_download=False, record_extra=None,
-        record_json=None, recovery_applied_commit=None,
+        record_json=None, recovery_applied_commit=None, original_binding_overrides=None,
+        merge_is_ancestor_of_original_head=True,
     ):
         """End to end through prove_preview, downloads and all.
 
@@ -2067,6 +2068,19 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 if record_runs == "default" else record_runs,
             }
             record.update(record_extra or {})
+            if original_instance == "valid-merged-main-binding":
+                binding = {
+                    "schema": "shared-db-preview-instance-binding/v1",
+                    "rehearsalMode": "merged-main-rehearsal",
+                    "appliedCommit": "a" * 40,
+                    "previewProjectRef": PREVIEW_PROJECT_REF,
+                    "runId": original_run,
+                    "allowlist": [version],
+                    "sourcePr": 984,
+                    "mergeCommitSha": merge_sha,
+                }
+                binding.update(original_binding_overrides or {})
+                original_instance = json.dumps(binding)
             zips = tempfile.TemporaryDirectory()
             with zips:
                 recovery_path = Path(zips.name, "recovery.zip")
@@ -2167,7 +2181,13 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                     if "/pulls/" in endpoint:
                         return {"merged": True, "merge_commit_sha": merge_sha}
                     if "/compare/" in endpoint:
-                        base = endpoint.split("/compare/", 1)[1].split("...")[0]
+                        comparison = endpoint.split("/compare/", 1)[1]
+                        base, head = comparison.split("...", 1)
+                        if (
+                            base == merge_sha and head == original_head
+                            and not merge_is_ancestor_of_original_head
+                        ):
+                            return {"status": "diverged", "behind_by": 3}
                         if base == original_commit and not original_commit_in_history:
                             return {"status": "diverged", "behind_by": 3}
                         if base == original_head and not original_head_in_history:
@@ -2545,6 +2565,80 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             self.run_historical_prove_preview(
                 original_head_sha="b" * 40,
                 original_head_blobs={PREVIEW_WORKFLOW: "doctored-workflow"},
+            )
+
+    def test_1769_post_merge_original_run_survives_unrelated_producer_drift(self):
+        """Regression for #1769 / version 20260828232207 / run 33308168016.
+
+        The source PR merged at 2b68e7e2, then the mandated post-merge rehearsal
+        ran from later main 75a6e35e after an unrelated change altered
+        production_migration_guard.py. The fresh governed recovery was valid,
+        but the final gate still compared every original producer to the earlier
+        source merge and made the capability impossible. A fully bound,
+        first-attempt merged-main rehearsal on a descendant main commit is the
+        narrow accepted shape; all unbound/doctored cases above remain refusals.
+        """
+        self.run_historical_prove_preview(
+            original_run=33308168016,
+            original_run_shape={"run_attempt": 1},
+            original_instance="valid-merged-main-binding",
+            original_run_blobs={
+                "scripts/production_migration_guard.py": "later-main-producer",
+            },
+        )
+
+    def test_post_merge_producer_drift_without_every_binding_still_refuses(self):
+        for key, value in (
+            ("run_attempt", 2),
+            ("run_attempt", True),
+            ("previewProjectRef", PRODUCTION_PROJECT_REF),
+            ("sourcePr", 985),
+            ("runId", 556),
+            ("allowlist", ["20260828232207"]),
+            ("mergeCommitSha", "f" * 40),
+            ("schema", "shared-db-preview-instance-binding/v2"),
+            ("rehearsalMode", "claim-preview"),
+            ("appliedCommit", "b" * 40),
+        ):
+            with self.subTest(key=key), self.assertRaisesRegex(
+                RiskGateError, "different scripts/production_migration_guard.py"
+            ):
+                self.run_historical_prove_preview(
+                    original_run_shape={"run_attempt": value if key == "run_attempt" else 1},
+                    original_instance="valid-merged-main-binding",
+                    original_binding_overrides={} if key == "run_attempt" else {key: value},
+                    original_run_blobs={
+                        "scripts/production_migration_guard.py": "later-main-producer",
+                    },
+                )
+
+    def test_post_merge_producer_drift_requires_both_mainline_ancestries(self):
+        cases = (
+            {"original_head_in_history": False},
+            {"merge_is_ancestor_of_original_head": False},
+        )
+        for kwargs in cases:
+            with self.subTest(**kwargs), self.assertRaises(RiskGateError):
+                self.run_historical_prove_preview(
+                    original_run_shape={"run_attempt": 1},
+                    original_instance="valid-merged-main-binding",
+                    original_run_blobs={
+                        "scripts/production_migration_guard.py": "later-main-producer",
+                    },
+                    **kwargs,
+                )
+
+    def test_post_merge_producer_drift_requires_one_execution_commit(self):
+        with self.assertRaisesRegex(
+            RiskGateError, "different scripts/production_migration_guard.py"
+        ):
+            self.run_historical_prove_preview(
+                original_head_sha="b" * 40,
+                original_run_shape={"run_attempt": 1},
+                original_instance="valid-merged-main-binding",
+                original_run_blobs={
+                    "scripts/production_migration_guard.py": "later-main-producer",
+                },
             )
 
     def test_original_run_without_a_readable_head_sha_is_refused(self):

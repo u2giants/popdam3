@@ -75,6 +75,10 @@ class RiskGateError(ValueError):
     """Governed evidence is missing, inconsistent, forged, or stale."""
 
 
+class PreviewProducerMismatch(RiskGateError):
+    """Two readable, proved commits carry different preview-producer bytes."""
+
+
 def gh_json(endpoint: str, *, runner=subprocess.run, sleep=time.sleep, attempts=4) -> Any:
     # Only the live owner-comment read receives transport retries. All other
     # governed evidence reads preserve their existing single-attempt behavior.
@@ -781,13 +785,13 @@ def prove_preview_producer_matches_main(
         if not at_ref and not at_target:
             continue
         if at_ref != at_target:
-            raise RiskGateError(
+            raise PreviewProducerMismatch(
                 f"{what} produced evidence with {path} "
                 f"{'present' if at_ref else 'absent'} where {against} has it "
                 f"{'present' if at_target else 'absent'}"
             )
         if blob_sha(path, ref, api) != blob_sha(path, target.sha, api):
-            raise RiskGateError(
+            raise PreviewProducerMismatch(
                 f"{what} produced evidence with a different {path} than {against}"
             )
         compared += 1
@@ -943,6 +947,54 @@ def prove_governed_historical_supersession(
     ):
         raise RiskGateError("governed supersession bytes do not match exact main")
     return case["original_version"]
+
+
+def prove_bound_mainline_post_merge_original(
+    *, texts: dict[str, str], run: dict, run_id: int, run_head: str,
+    original_commit: str, run_versions: list[str], source_pr: int,
+    merge_sha: str, main_sha: str, api: Callable[[str], Any], producer_error: Exception,
+) -> None:
+    """Permit producer drift only for a fully bound post-merge run on main.
+
+    A post-merge rehearsal can legitimately run after unrelated commits changed
+    preview-producer files. Pinning it to the authoring PR's earlier squash commit
+    makes that governed order impossible. The narrow fallback below keeps the
+    producer mismatch as the default refusal and accepts it only when the run's
+    immutable instance binding names the exact source PR, merge commit, run,
+    applied commit and complete per-run allowlist, both execution commits are the
+    same main-line commit, and the source merge is its ancestor.
+    """
+    raw = texts.get("preview-instance.json")
+    try:
+        binding = json.loads(raw) if raw else None
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise producer_error from exc
+    expected = {
+        "schema": "shared-db-preview-instance-binding/v1",
+        "rehearsalMode": "merged-main-rehearsal",
+        "appliedCommit": original_commit,
+        "runId": run_id,
+        "allowlist": sorted(run_versions),
+        "sourcePr": source_pr,
+        "mergeCommitSha": merge_sha,
+    }
+    if (
+        not isinstance(binding, dict)
+        or any(binding.get(key) != value for key, value in expected.items())
+        or not re.fullmatch(r"[a-z]{20}", str(binding.get("previewProjectRef") or ""))
+        or binding.get("previewProjectRef") == PRODUCTION_PROJECT_REF
+        or type(run.get("run_attempt")) is not int
+        or run.get("run_attempt") != 1
+        or run_head != original_commit
+    ):
+        raise producer_error
+    # Source-PR membership is not main-line membership: a branch can merge main
+    # into itself and thereby descend from the source merge without ever being
+    # merged back. Re-derive containment unconditionally for this exception.
+    prove_applied_commit_is_main_line(run_head, main_sha, api)
+    ancestry = api_object(api, f"repos/{REPOSITORY}/compare/{merge_sha}...{run_head}")
+    if ancestry.get("status") not in {"ahead", "identical"} or ancestry.get("behind_by") != 0:
+        raise producer_error
 
 
 def prove_historical_original_apply_runs(
@@ -1111,13 +1163,24 @@ def prove_historical_original_apply_runs(
         # because squash/merge carries those producer files onto the merge
         # commit, and a doctored intermediate commit does not match the workflow
         # that actually landed. (#1213 review, round 6, finding 1.)
+        texts = None
         for commit, role in ((run_head, "dispatched at"), (original_commit, "checked out at")):
-            prove_preview_producer_matches_main(
-                commit, authored_merge(merge_sha), main_sha, api,
-                what=f"original apply run {run_id} {role} {commit}",
-                against=f"the merge commit {merge_sha} of the pull request that authored {version}",
-            )
-        texts = artifact_texts(artifact, downloader)
+            try:
+                prove_preview_producer_matches_main(
+                    commit, authored_merge(merge_sha), main_sha, api,
+                    what=f"original apply run {run_id} {role} {commit}",
+                    against=f"the merge commit {merge_sha} of the pull request that authored {version}",
+                )
+            except PreviewProducerMismatch as producer_error:
+                texts = texts or artifact_texts(artifact, downloader)
+                prove_bound_mainline_post_merge_original(
+                    texts=texts, run=run, run_id=run_id, run_head=run_head,
+                    original_commit=original_commit,
+                    run_versions=sorted(v for v in allowlist if runs.get(v) == run_id),
+                    source_pr=source_pr, merge_sha=merge_sha, main_sha=main_sha, api=api,
+                    producer_error=producer_error,
+                )
+        texts = texts or artifact_texts(artifact, downloader)
         if texts.get("historical-preview-source.json"):
             raise RiskGateError(
                 f"original apply run {run_id} for {version} is itself a historical recovery; "
