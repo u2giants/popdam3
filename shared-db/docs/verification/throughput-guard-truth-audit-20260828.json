@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "discovery_roots": [
     "scripts",
     ".github/workflows"
@@ -17,1140 +17,1594 @@
     {
       "site": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:110",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:528f064e8edc78c38ed8e8272f2a55bd9a2a13614c80841153c409b245417380:1",
+      "line_sha256": "528f064e8edc78c38ed8e8272f2a55bd9a2a13614c80841153c409b245417380"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:111",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:567bee4be9bf7c5d6c638a8d889e89691419841bf08a8717c24543d7cccebe88:1",
+      "line_sha256": "567bee4be9bf7c5d6c638a8d889e89691419841bf08a8717c24543d7cccebe88"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:178",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:023090bbf64bdd58f16cf71a04a671241ab8dbcb4173cda19f59da180e68eda7:1",
+      "line_sha256": "023090bbf64bdd58f16cf71a04a671241ab8dbcb4173cda19f59da180e68eda7"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:182",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:dbef81770fdad8a775d3a0d35e0ee5ad8dd004fd0fe9eed1f06fd766e7647f77:1",
+      "line_sha256": "dbef81770fdad8a775d3a0d35e0ee5ad8dd004fd0fe9eed1f06fd766e7647f77"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:206",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:72967da3d143aa346024f14f74a69456d77f37005f4844fe7b98b4beace0a24a:1",
+      "line_sha256": "72967da3d143aa346024f14f74a69456d77f37005f4844fe7b98b4beace0a24a"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:222",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:7fdcedcfa410a8186a55d216fb113dd25dddface71466bab2860c3e93742e93a:1",
+      "line_sha256": "7fdcedcfa410a8186a55d216fb113dd25dddface71466bab2860c3e93742e93a"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:258",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35:1",
+      "line_sha256": "d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:259",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb:1",
+      "line_sha256": "9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:260",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:b85c118283997183cd212ae4e24218e046a7bf084b2f785df70b3e2bba593760:1",
+      "line_sha256": "b85c118283997183cd212ae4e24218e046a7bf084b2f785df70b3e2bba593760"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:261",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68:1",
+      "line_sha256": "3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:262",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560:1",
+      "line_sha256": "ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:263",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d81c245bb411c79b68b03a34e62237edbfa84308fdbfc634efc418a010185c72:1",
+      "line_sha256": "d81c245bb411c79b68b03a34e62237edbfa84308fdbfc634efc418a010185c72"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:541",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35:2",
+      "line_sha256": "d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:542",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb:2",
+      "line_sha256": "9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:543",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68:2",
+      "line_sha256": "3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:546",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560:2",
+      "line_sha256": "ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:547",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:5fe7e0fb0a449f94515a5d852e4a7e465d9fed12db77dec6732176b16b77665e:1",
+      "line_sha256": "5fe7e0fb0a449f94515a5d852e4a7e465d9fed12db77dec6732176b16b77665e"
     },
     {
       "site": ".github/workflows/database-contract-tests.yml:322",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b:1",
+      "line_sha256": "bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b"
     },
     {
       "site": ".github/workflows/database-contract-tests.yml:359",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f:1",
+      "line_sha256": "86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f"
     },
     {
       "site": ".github/workflows/database-contract-tests.yml:467",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7:1",
+      "line_sha256": "055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7"
     },
     {
       "site": ".github/workflows/migration-author-lease.yml:38",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": ".github/workflows/migration-author-lease.yml:5d027dd51abeaa7641677b41ece3751aef1e82b8b35fe8fbdc0d5ddd811fec55:1",
+      "line_sha256": "5d027dd51abeaa7641677b41ece3751aef1e82b8b35fe8fbdc0d5ddd811fec55"
     },
     {
       "site": ".github/workflows/migration-ledger-drift.yml:155",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/migration-ledger-drift.yml:d08e3c90a9b0faf4812afbd9987fc93665e131ffe4ecdf6cb6372bb067f20361:1",
+      "line_sha256": "d08e3c90a9b0faf4812afbd9987fc93665e131ffe4ecdf6cb6372bb067f20361"
     },
     {
       "site": ".github/workflows/migration-ledger-drift.yml:33",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/migration-ledger-drift.yml:aeecd7b3981bb1b74603e7d21a81ecf47e0d6bfc822960459334e7786deed31a:1",
+      "line_sha256": "aeecd7b3981bb1b74603e7d21a81ecf47e0d6bfc822960459334e7786deed31a"
     },
     {
       "site": ".github/workflows/production-catalog-verification-recovery.yml:80",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/production-catalog-verification-recovery.yml:ea3ae23e1cd72b5848624f5711271a52c1b27c84e178729777a4ea24ef79d7c7:1",
+      "line_sha256": "ea3ae23e1cd72b5848624f5711271a52c1b27c84e178729777a4ea24ef79d7c7"
     },
     {
       "site": ".github/workflows/shared-supabase-migrations.yml:1480",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45:1",
+      "line_sha256": "a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45"
     },
     {
       "site": ".github/workflows/shared-supabase-migrations.yml:188",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2:1",
+      "line_sha256": "d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2"
     },
     {
       "site": ".github/workflows/shared-supabase-migrations.yml:200",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca:1",
+      "line_sha256": "12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca"
     },
     {
       "site": ".github/workflows/shared-supabase-migrations.yml:309",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9:1",
+      "line_sha256": "5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9"
     },
     {
       "site": ".github/workflows/shared-supabase-migrations.yml:456",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7:1",
+      "line_sha256": "e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7"
     },
     {
       "site": ".github/workflows/shared-supabase-migrations.yml:768",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637:1",
+      "line_sha256": "e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637"
     },
     {
       "site": ".github/workflows/shared-supabase-migrations.yml:769",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1:1",
+      "line_sha256": "c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1"
     },
     {
       "site": ".github/workflows/shared-supabase-migrations.yml:770",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c:1",
+      "line_sha256": "ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c"
     },
     {
       "site": ".github/workflows/tools-offline-tests.yml:103",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/tools-offline-tests.yml:3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f:1",
+      "line_sha256": "3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f"
     },
     {
       "site": ".github/workflows/tools-offline-tests.yml:133",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/tools-offline-tests.yml:bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5:1",
+      "line_sha256": "bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5"
     },
     {
       "site": ".github/workflows/tools-offline-tests.yml:67",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": ".github/workflows/tools-offline-tests.yml:05038aba7e82d577a56809ced412204f8b321ee4bbc74a08577e0c061e0fecfe:1",
+      "line_sha256": "05038aba7e82d577a56809ced412204f8b321ee4bbc74a08577e0c061e0fecfe"
     },
     {
       "site": "scripts/agent-work-contract.mjs:173",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/agent-work-contract.mjs:fe9430e2905ab8e283fc7f4b08e4116f8b6c792be4ba6d2924dfbd184148b1c8:1",
+      "line_sha256": "fe9430e2905ab8e283fc7f4b08e4116f8b6c792be4ba6d2924dfbd184148b1c8"
     },
     {
       "site": "scripts/agent-work-contract.mjs:82",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/agent-work-contract.mjs:8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe:1",
+      "line_sha256": "8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe"
     },
     {
       "site": "scripts/atomic_migration_apply.py:181",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/atomic_migration_apply.py:34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493:1",
+      "line_sha256": "34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493"
     },
     {
       "site": "scripts/atomic_migration_apply.py:184",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/atomic_migration_apply.py:3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0:1",
+      "line_sha256": "3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0"
     },
     {
       "site": "scripts/atomic_migration_apply.py:248",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/atomic_migration_apply.py:4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458:1",
+      "line_sha256": "4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458"
     },
     {
       "site": "scripts/atomic_migration_apply.py:286",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:1",
+      "line_sha256": "c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead"
     },
     {
       "site": "scripts/atomic_migration_apply.py:297",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/atomic_migration_apply.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:1",
+      "line_sha256": "5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d"
     },
     {
       "site": "scripts/atomic_migration_apply.py:298",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/atomic_migration_apply.py:2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a:1",
+      "line_sha256": "2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a"
     },
     {
       "site": "scripts/atomic_migration_apply.py:58",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/atomic_migration_apply.py:3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350:1",
+      "line_sha256": "3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350"
     },
     {
       "site": "scripts/catalog-truth.mjs:14",
       "disposition": "enriched",
-      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit.",
+      "semantic_key": "scripts/catalog-truth.mjs:dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa:1",
+      "line_sha256": "dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa"
     },
     {
       "site": "scripts/check-business-rule-library.mjs:44",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-business-rule-library.mjs:0832def5bd571339fd83b3ddac83b66125ef29045101ca67c58ce6e11cda55a6:1",
+      "line_sha256": "0832def5bd571339fd83b3ddac83b66125ef29045101ca67c58ce6e11cda55a6"
     },
     {
       "site": "scripts/check-business-rule-library.mjs:60",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-business-rule-library.mjs:ad3382829a1922889c2a9a5f3262bcc8cfdf34dbb775fb4b58f74654fc5ff808:1",
+      "line_sha256": "ad3382829a1922889c2a9a5f3262bcc8cfdf34dbb775fb4b58f74654fc5ff808"
     },
     {
       "site": "scripts/check-data-admin-launch-readiness.mjs:126",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-data-admin-launch-readiness.mjs:048d574a26020b4a441b6dcd0e871f2b6cc84d782594c1cce1229cbf6cda4379:1",
+      "line_sha256": "048d574a26020b4a441b6dcd0e871f2b6cc84d782594c1cce1229cbf6cda4379"
     },
     {
       "site": "scripts/check-data-admin-launch-readiness.mjs:127",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-data-admin-launch-readiness.mjs:d29e78c035a6ddef1223223bf45ed9f98c999e7c796542eed0b9e165a2253174:1",
+      "line_sha256": "d29e78c035a6ddef1223223bf45ed9f98c999e7c796542eed0b9e165a2253174"
     },
     {
       "site": "scripts/check-handoff-contract.mjs:172",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-handoff-contract.mjs:60977caa9f39cfb886e3f4d2de2a4ce7527c0f10753601d1a16f27b94991f37e:1",
+      "line_sha256": "60977caa9f39cfb886e3f4d2de2a4ce7527c0f10753601d1a16f27b94991f37e"
     },
     {
       "site": "scripts/check-handoff-contract.mjs:300",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-handoff-contract.mjs:1e0cb5682394075f96baa50ff758aab4f7dbd9fa8e7dc084cfdef0033e0e780a:1",
+      "line_sha256": "1e0cb5682394075f96baa50ff758aab4f7dbd9fa8e7dc084cfdef0033e0e780a"
     },
     {
       "site": "scripts/check-handoff-contract.mjs:50",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-handoff-contract.mjs:b8d7e94a468fc8e053e08123de2f07d7715a8bd322b8a0257b13aa5c5c27e8d4:1",
+      "line_sha256": "b8d7e94a468fc8e053e08123de2f07d7715a8bd322b8a0257b13aa5c5c27e8d4"
     },
     {
       "site": "scripts/check-intake-pointer.mjs:27",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-intake-pointer.mjs:e0430a2af2d2a805642a31eeeb01a5fd220012465aee90f7e1bf0596431bbae4:1",
+      "line_sha256": "e0430a2af2d2a805642a31eeeb01a5fd220012465aee90f7e1bf0596431bbae4"
     },
     {
       "site": "scripts/check-intake-pointer.mjs:82",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-intake-pointer.mjs:eeb8dded1d42c210577e0f9d9bf7948a7691878c83cf7213f3c370007a4ddca8:1",
+      "line_sha256": "eeb8dded1d42c210577e0f9d9bf7948a7691878c83cf7213f3c370007a4ddca8"
     },
     {
       "site": "scripts/check-migration-ledger-drift.mjs:186",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-migration-ledger-drift.mjs:7a23e8c369dcbc2e6278da9e1b1ae0855fc20d5cb7ec41a753aab5449317a932:1",
+      "line_sha256": "7a23e8c369dcbc2e6278da9e1b1ae0855fc20d5cb7ec41a753aab5449317a932"
     },
     {
       "site": "scripts/check-migration-ledger-drift.mjs:26",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-migration-ledger-drift.mjs:8f8882f7ffbab0e536ca9cab5ff090dbec60ffede1b7498e92f1a1e721bafceb:1",
+      "line_sha256": "8f8882f7ffbab0e536ca9cab5ff090dbec60ffede1b7498e92f1a1e721bafceb"
     },
     {
       "site": "scripts/check-migration-ledger-drift.mjs:331",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-migration-ledger-drift.mjs:10cdacb1f5aa4bb7115edf89810b0ff86865a4ef1850efa37a4b3160aaac3c04:1",
+      "line_sha256": "10cdacb1f5aa4bb7115edf89810b0ff86865a4ef1850efa37a4b3160aaac3c04"
     },
     {
       "site": "scripts/check-migration-pr-lease.mjs:57",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-migration-pr-lease.mjs:73d7c325096b7eb2b1e3485fa8463e0d5394ed36d6fd15412b1f2adbb9801f6c:1",
+      "line_sha256": "73d7c325096b7eb2b1e3485fa8463e0d5394ed36d6fd15412b1f2adbb9801f6c"
     },
     {
       "site": "scripts/check-migration-pr-lease.mjs:61",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-migration-pr-lease.mjs:f3fb62b3fc4b23ff0b6e6ab6d6692b9d6e04118df8f780c4b41503c79d7d41ac:1",
+      "line_sha256": "f3fb62b3fc4b23ff0b6e6ab6d6692b9d6e04118df8f780c4b41503c79d7d41ac"
     },
     {
       "site": "scripts/check-orchestrator-marker.mjs:70",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-orchestrator-marker.mjs:91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0:1",
+      "line_sha256": "91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0"
     },
     {
       "site": "scripts/check-paused-worktrees.mjs:60",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-paused-worktrees.mjs:11930dbb1a360e6625e8f1cc10495ecb0fed79719a581576d6353506a655594a:1",
+      "line_sha256": "11930dbb1a360e6625e8f1cc10495ecb0fed79719a581576d6353506a655594a"
     },
     {
       "site": "scripts/check-skill-drift.mjs:172",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-skill-drift.mjs:ac8f5b57123f148e64245ef362d33feb6bdabf3e824b83c4715e9f90689375da:1",
+      "line_sha256": "ac8f5b57123f148e64245ef362d33feb6bdabf3e824b83c4715e9f90689375da"
     },
     {
       "site": "scripts/check-skill-drift.mjs:188",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-skill-drift.mjs:f121eb3ac56ec6c232e199395d606f7f588b1af0d7a6f2a2f16c574de9499759:1",
+      "line_sha256": "f121eb3ac56ec6c232e199395d606f7f588b1af0d7a6f2a2f16c574de9499759"
     },
     {
       "site": "scripts/check-sql.sh:376",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-sql.sh:96ea7f5365173267d1d944413fdabdd4f02fb1970bd2728f23ec3c6a2e065923:1",
+      "line_sha256": "96ea7f5365173267d1d944413fdabdd4f02fb1970bd2728f23ec3c6a2e065923"
     },
     {
       "site": "scripts/check-sql.sh:436",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-sql.sh:e6d2f1426b07a7fd66c574b060ce06cc95b439cfa6b3f3824ef011aa23f8477d:1",
+      "line_sha256": "e6d2f1426b07a7fd66c574b060ce06cc95b439cfa6b3f3824ef011aa23f8477d"
     },
     {
       "site": "scripts/check-sql.sh:437",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-sql.sh:9c7ef0c6cd127aec5b71494c4e652c21ca13b1051fca9edf52b9c254231839b9:1",
+      "line_sha256": "9c7ef0c6cd127aec5b71494c4e652c21ca13b1051fca9edf52b9c254231839b9"
     },
     {
       "site": "scripts/check-sql.sh:92",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-sql.sh:8c1934ea03670d80cfb615f77d78354d3eba6393c1819e6cd1723091b6a14973:1",
+      "line_sha256": "8c1934ea03670d80cfb615f77d78354d3eba6393c1819e6cd1723091b6a14973"
     },
     {
-      "site": "scripts/check-throughput-truth-audit.mjs:3",
+      "site": "scripts/check-throughput-truth-audit.mjs:9",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/check-throughput-truth-audit.mjs:18d9cfec88695095d91b29464232d1a2a90d9d39f17d7826be420a41bd13309c:1",
+      "line_sha256": "18d9cfec88695095d91b29464232d1a2a90d9d39f17d7826be420a41bd13309c"
     },
     {
       "site": "scripts/check_production_verification_sidecars.py:34",
       "disposition": "enriched",
-      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit.",
+      "semantic_key": "scripts/check_production_verification_sidecars.py:e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97:1",
+      "line_sha256": "e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97"
     },
     {
       "site": "scripts/check_production_verification_sidecars.py:41",
       "disposition": "enriched",
-      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit.",
+      "semantic_key": "scripts/check_production_verification_sidecars.py:6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876:1",
+      "line_sha256": "6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876"
     },
     {
       "site": "scripts/experiment_611_db_push_atomicity.sh:140",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/experiment_611_db_push_atomicity.sh:03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d:1",
+      "line_sha256": "03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d"
     },
     {
       "site": "scripts/historical_preview_recovery.py:118",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/historical_preview_recovery.py:059ddfaa9bc2681385b08bedcb8d7c3bfe65d383d595dd4bf8dfea21a4b52a85:1",
+      "line_sha256": "059ddfaa9bc2681385b08bedcb8d7c3bfe65d383d595dd4bf8dfea21a4b52a85"
     },
     {
       "site": "scripts/historical_preview_recovery.py:31",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/historical_preview_recovery.py:cc5fe0d1f54bb8415b7b1592e5806f9f343c1ee0adb24fb5da8ce0a61579b227:1",
+      "line_sha256": "cc5fe0d1f54bb8415b7b1592e5806f9f343c1ee0adb24fb5da8ce0a61579b227"
     },
     {
       "site": "scripts/historical_preview_recovery.py:98",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/historical_preview_recovery.py:7d0f0f7443e657f961669221c2e509194c130623d3b565bd3ca45e55e180a3b3:1",
+      "line_sha256": "7d0f0f7443e657f961669221c2e509194c130623d3b565bd3ca45e55e180a3b3"
     },
     {
       "site": "scripts/import-order-list-xlsx.py:2006",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/import-order-list-xlsx.py:5560c9ab100c1352c8ac0a4f359309c8c16136587314ad30427cdb21db279012:1",
+      "line_sha256": "5560c9ab100c1352c8ac0a4f359309c8c16136587314ad30427cdb21db279012"
     },
     {
       "site": "scripts/import-order-list-xlsx.py:2448",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/import-order-list-xlsx.py:6793e0744b3bc7e963d234159762aed335583a0e27f9184e440908d1e719e23f:1",
+      "line_sha256": "6793e0744b3bc7e963d234159762aed335583a0e27f9184e440908d1e719e23f"
     },
     {
       "site": "scripts/lib/exclusive-lease.mjs:112",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/lib/exclusive-lease.mjs:c9e8f3f57271b36efcefc1a1bbce9b5f3e9b87590e592db04def218c8668e352:1",
+      "line_sha256": "c9e8f3f57271b36efcefc1a1bbce9b5f3e9b87590e592db04def218c8668e352"
     },
     {
       "site": "scripts/lib/exclusive-lease.mjs:67",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/lib/exclusive-lease.mjs:69e45ccdf5566ec57dc68c464ca98ed9d71e34063e6d1b17372f420a4a73b7a9:1",
+      "line_sha256": "69e45ccdf5566ec57dc68c464ca98ed9d71e34063e6d1b17372f420a4a73b7a9"
     },
     {
       "site": "scripts/lib/orchestrator-routing.mjs:185",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/lib/orchestrator-routing.mjs:7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434:1",
+      "line_sha256": "7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:1516",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6:1",
+      "line_sha256": "b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:1707",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835:1",
+      "line_sha256": "ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:1747",
       "disposition": "excluded",
-      "reason": "Builds the LaneError thrown when slot 1 was never assigned; the word missing is prose in the operator message, not a throughput or DDL-derivability signal."
+      "reason": "Builds the LaneError thrown when slot 1 was never assigned; the word missing is prose in the operator message, not a throughput or DDL-derivability signal.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446:1",
+      "line_sha256": "9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:1773",
       "disposition": "excluded",
-      "reason": "Throws the slot-1-not-assigned refusal on the batched read path; a control-flow refusal, carrying no throughput guard meaning."
+      "reason": "Throws the slot-1-not-assigned refusal on the batched read path; a control-flow refusal, carrying no throughput guard meaning.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a:1",
+      "line_sha256": "d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:1782",
       "disposition": "excluded",
-      "reason": "Throws the same slot-1-not-assigned refusal on the three-call fallback path; a control-flow refusal, not a throughput signal."
+      "reason": "Throws the same slot-1-not-assigned refusal on the three-call fallback path; a control-flow refusal, not a throughput signal.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d:1",
+      "line_sha256": "725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2006",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284:1",
+      "line_sha256": "503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2034",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415:1",
+      "line_sha256": "8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2096",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d:1",
+      "line_sha256": "f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2146",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:8bf25e3e7c4909ef02b52a8b948f3fe1bfe07527f6d575bb62a297f00a27d88f:1",
+      "line_sha256": "8bf25e3e7c4909ef02b52a8b948f3fe1bfe07527f6d575bb62a297f00a27d88f"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2307",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299:1",
+      "line_sha256": "24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2580",
       "disposition": "excluded",
-      "reason": "Comment explaining that a cutover record with no commit message must refuse rather than be skipped; documentation of fail-closed behaviour, not a guard call site."
+      "reason": "Comment explaining that a cutover record with no commit message must refuse rather than be skipped; documentation of fail-closed behaviour, not a guard call site.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:1",
+      "line_sha256": "1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2940",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816:1",
+      "line_sha256": "1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2989",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420:1",
+      "line_sha256": "c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:3146",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c:1",
+      "line_sha256": "5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:3145",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba:1",
+      "line_sha256": "ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:3382",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92:1",
+      "line_sha256": "edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:3430",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759:1",
+      "line_sha256": "353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:3429",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b:1",
+      "line_sha256": "a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:372",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de:1",
+      "line_sha256": "0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:574",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:6276ee13ad22403bec37597da04e4e6b9b2b3c4fb62b00bbb08b4ebaee525bf2:1",
+      "line_sha256": "6276ee13ad22403bec37597da04e4e6b9b2b3c4fb62b00bbb08b4ebaee525bf2"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:590",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2:1",
+      "line_sha256": "40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:82",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73:1",
+      "line_sha256": "5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:853",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019:1",
+      "line_sha256": "7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019"
     },
     {
       "site": "scripts/migration_derivation.py:114",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/migration_derivation.py:b78696969399f6eafee5c119a8969ec38eccc971411af3ef7b8050158c0f6458:1",
+      "line_sha256": "b78696969399f6eafee5c119a8969ec38eccc971411af3ef7b8050158c0f6458"
     },
     {
       "site": "scripts/migration_derivation.py:135",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/migration_derivation.py:38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5:1",
+      "line_sha256": "38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5"
     },
     {
       "site": "scripts/migration_derivation.py:240",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/migration_derivation.py:e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b:1",
+      "line_sha256": "e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b"
     },
     {
       "site": "scripts/migration_derivation.py:245",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/migration_derivation.py:26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1:1",
+      "line_sha256": "26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1"
     },
     {
       "site": "scripts/migration_derivation.py:249",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/migration_derivation.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
+      "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996"
     },
     {
       "site": "scripts/migration_derivation.py:253",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/migration_derivation.py:b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68:1",
+      "line_sha256": "b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68"
     },
     {
       "site": "scripts/migration_derivation.py:347",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/migration_derivation.py:718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4:1",
+      "line_sha256": "718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4"
     },
     {
       "site": "scripts/migration_derivation.py:351",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/migration_derivation.py:e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5:1",
+      "line_sha256": "e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5"
     },
     {
       "site": "scripts/orchestrator-flow/baseline-schema.mjs:28",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc:1",
+      "line_sha256": "ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc"
     },
     {
       "site": "scripts/orchestrator-flow/baseline-schema.mjs:8",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02:1",
+      "line_sha256": "53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02"
     },
     {
       "site": "scripts/orchestrator-flow/evidence-bundle.mjs:27",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba:1",
+      "line_sha256": "3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba"
     },
     {
       "site": "scripts/orchestrator-flow/evidence-bundle.mjs:37",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323:1",
+      "line_sha256": "4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323"
     },
     {
       "site": "scripts/orchestrator-flow/evidence-bundle.mjs:47",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a:1",
+      "line_sha256": "a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a"
     },
     {
       "site": "scripts/orchestrator-flow/evidence-bundle.mjs:80",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56:1",
+      "line_sha256": "5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56"
     },
     {
       "site": "scripts/orchestrator-flow/qualify-change.mjs:19",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": "scripts/orchestrator-flow/qualify-change.mjs:f28bd8c617280b35e660256c176e6d197b069b05b5702017650364eab2352f2d:1",
+      "line_sha256": "f28bd8c617280b35e660256c176e6d197b069b05b5702017650364eab2352f2d"
     },
     {
       "site": "scripts/post_batch_app_verification.py:112",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:ee5747ed45bf7f786d41c84684172bc12dbfb353bd974aa0f130ae2c1b76debd:1",
+      "line_sha256": "ee5747ed45bf7f786d41c84684172bc12dbfb353bd974aa0f130ae2c1b76debd"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1324",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:c7bc3890e8f0528868bd51343b400cfac8e8ab4c74f37eeeac3a62fabdba7621:1",
+      "line_sha256": "c7bc3890e8f0528868bd51343b400cfac8e8ab4c74f37eeeac3a62fabdba7621"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1362",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:d7eae46ac98bba460ce6134f0465d056674427529926a3c7eaf6390ff52f69e9:1",
+      "line_sha256": "d7eae46ac98bba460ce6134f0465d056674427529926a3c7eaf6390ff52f69e9"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1436",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:1ab8db25fe85db74903845ddeff006200000afd57c04b01ab0a3b3bff6a79e1e:1",
+      "line_sha256": "1ab8db25fe85db74903845ddeff006200000afd57c04b01ab0a3b3bff6a79e1e"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1643",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:c127ec1926f12937a95d277d2f521c4943286fe8482a0cca0c834055866e390f:1",
+      "line_sha256": "c127ec1926f12937a95d277d2f521c4943286fe8482a0cca0c834055866e390f"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1644",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:5fce3fe4c1b9ada55d1b24b0707844bf97205da3b80ff1b0d0f72b68e9410ffe:1",
+      "line_sha256": "5fce3fe4c1b9ada55d1b24b0707844bf97205da3b80ff1b0d0f72b68e9410ffe"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1859",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:9b10e9d0f9f4b5fc3eb1609d66167e4548c86f4b0847a3febb5e68a6d64c4602:1",
+      "line_sha256": "9b10e9d0f9f4b5fc3eb1609d66167e4548c86f4b0847a3febb5e68a6d64c4602"
     },
     {
       "site": "scripts/post_batch_app_verification.py:2180",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:16503991eaee3fa208e9acc27cba9ef24525cb7b93183cf8e9b5ce8bf0a0b6de:1",
+      "line_sha256": "16503991eaee3fa208e9acc27cba9ef24525cb7b93183cf8e9b5ce8bf0a0b6de"
     },
     {
       "site": "scripts/post_batch_app_verification.py:2195",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:50cffa14e3a84652dc7f928d5cd085387965cb36f6a2c8270c5101259298e595:1",
+      "line_sha256": "50cffa14e3a84652dc7f928d5cd085387965cb36f6a2c8270c5101259298e595"
     },
     {
       "site": "scripts/post_batch_app_verification.py:2241",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:8616e4324800aaf3f3055a85667ade6413880f0653c954648954795a1d5b8fcd:1",
+      "line_sha256": "8616e4324800aaf3f3055a85667ade6413880f0653c954648954795a1d5b8fcd"
     },
     {
       "site": "scripts/post_batch_app_verification.py:244",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:fe11d1d30471eb0d3f910b02442532d9732e300eb4d9c09b6441da6fcdbcf614:1",
+      "line_sha256": "fe11d1d30471eb0d3f910b02442532d9732e300eb4d9c09b6441da6fcdbcf614"
     },
     {
       "site": "scripts/post_batch_app_verification.py:80",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/post_batch_app_verification.py:e54f753634e8cf629592dbff255a9d6cf59418ec425c5584b7c8b5e5597a9c18:1",
+      "line_sha256": "e54f753634e8cf629592dbff255a9d6cf59418ec425c5584b7c8b5e5597a9c18"
     },
     {
       "site": "scripts/preview_instance_binding.py:23",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/preview_instance_binding.py:ec85288c9ced65a47b730606c9d3e0fdc3e6aeaebe529aa0950c7b180567d684:1",
+      "line_sha256": "ec85288c9ced65a47b730606c9d3e0fdc3e6aeaebe529aa0950c7b180567d684"
     },
     {
       "site": "scripts/production_apply_review_evidence.py:162",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_apply_review_evidence.py:c94f5c0e416d51e275ded86dee311874353bbc6d9a66f5cab507082e02618b62:1",
+      "line_sha256": "c94f5c0e416d51e275ded86dee311874353bbc6d9a66f5cab507082e02618b62"
     },
     {
       "site": "scripts/production_apply_review_evidence.py:164",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_apply_review_evidence.py:dc18fdc66092ec95c9458b6b3a30237ceb9c604aa4d8b5572e7c154b5efec9fc:1",
+      "line_sha256": "dc18fdc66092ec95c9458b6b3a30237ceb9c604aa4d8b5572e7c154b5efec9fc"
     },
     {
       "site": "scripts/production_business_risk_gate.py:103",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:fdd68f53cf3fe51491a4cb46c9365de4a244a37ad8d7786de5abdffa253374df:1",
+      "line_sha256": "fdd68f53cf3fe51491a4cb46c9365de4a244a37ad8d7786de5abdffa253374df"
     },
     {
       "site": "scripts/production_business_risk_gate.py:1149",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:34bf1f8d9d1c16dba74fcffb37f4cf7481d431db6996a99cd1eb10dc5fa2664a:1",
+      "line_sha256": "34bf1f8d9d1c16dba74fcffb37f4cf7481d431db6996a99cd1eb10dc5fa2664a"
     },
     {
       "site": "scripts/production_business_risk_gate.py:1385",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:28b95d22fe7cde0a3c9398625c92c820fa45356e75d284f5f4eae073104cc76a:1",
+      "line_sha256": "28b95d22fe7cde0a3c9398625c92c820fa45356e75d284f5f4eae073104cc76a"
     },
     {
       "site": "scripts/production_business_risk_gate.py:1393",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b:1",
+      "line_sha256": "5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b"
     },
     {
       "site": "scripts/production_business_risk_gate.py:1394",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
+      "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996"
     },
     {
       "site": "scripts/production_business_risk_gate.py:1395",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:fabdb1c33b277da40125b14521d3411518d67a5a462ad2386fab74207c009017:1",
+      "line_sha256": "fabdb1c33b277da40125b14521d3411518d67a5a462ad2386fab74207c009017"
     },
     {
       "site": "scripts/production_business_risk_gate.py:1496",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:88cc7fb6fc03430c4fdd2485a7faef97f446d5732613153940ea5afd75c105c1:1",
+      "line_sha256": "88cc7fb6fc03430c4fdd2485a7faef97f446d5732613153940ea5afd75c105c1"
     },
     {
       "site": "scripts/production_business_risk_gate.py:1564",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:b99d695b1fca431f95ebb9600eb241916948a8538042af2e84faf9903fce5f98:1",
+      "line_sha256": "b99d695b1fca431f95ebb9600eb241916948a8538042af2e84faf9903fce5f98"
     },
     {
       "site": "scripts/production_business_risk_gate.py:299",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:9928b4d03294947634962bce055e2072938c0082131f5cf02484ccaaa844effc:1",
+      "line_sha256": "9928b4d03294947634962bce055e2072938c0082131f5cf02484ccaaa844effc"
     },
     {
       "site": "scripts/production_business_risk_gate.py:350",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:3a3f1979a97e47696c391a59243a32b62fc434d412677d74e188cb99c088f162:1",
+      "line_sha256": "3a3f1979a97e47696c391a59243a32b62fc434d412677d74e188cb99c088f162"
     },
     {
       "site": "scripts/production_business_risk_gate.py:396",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:1ce605ffcacbd03b81a3f96e7e3bdc81d5814073cb125c6bb3f22cefd4222417:1",
+      "line_sha256": "1ce605ffcacbd03b81a3f96e7e3bdc81d5814073cb125c6bb3f22cefd4222417"
     },
     {
       "site": "scripts/production_business_risk_gate.py:626",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:670a44eb0afd4c0a0ff47b583c426b71a88ddfce627c5d571935a2f4e3bc018d:1",
+      "line_sha256": "670a44eb0afd4c0a0ff47b583c426b71a88ddfce627c5d571935a2f4e3bc018d"
     },
     {
       "site": "scripts/production_business_risk_gate.py:658",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:11d6d11f4529aff953ddf36d9d3b561e0449482be7dc41627c9684f46fd9ea66:1",
+      "line_sha256": "11d6d11f4529aff953ddf36d9d3b561e0449482be7dc41627c9684f46fd9ea66"
     },
     {
       "site": "scripts/production_business_risk_gate.py:75",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_business_risk_gate.py:b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1:1",
+      "line_sha256": "b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1"
     },
     {
       "site": "scripts/production_catalog_verification.py:1037",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:ddd4154e072aa71661ba0ed4dd00d6c9a08d58b1f49353a1aa0860e6150aa699:1",
+      "line_sha256": "ddd4154e072aa71661ba0ed4dd00d6c9a08d58b1f49353a1aa0860e6150aa699"
     },
     {
       "site": "scripts/production_catalog_verification.py:1038",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:d827572c3a9ffb59ecb6667436ff294813951f974e0fbb25f8a9da5d715c4dc9:1",
+      "line_sha256": "d827572c3a9ffb59ecb6667436ff294813951f974e0fbb25f8a9da5d715c4dc9"
     },
     {
       "site": "scripts/production_catalog_verification.py:1040",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:e3716573c76754db558c86af0cbf3a41285956cffd1d8fa0ecfaa6738841bd5a:1",
+      "line_sha256": "e3716573c76754db558c86af0cbf3a41285956cffd1d8fa0ecfaa6738841bd5a"
     },
     {
       "site": "scripts/production_catalog_verification.py:105",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:1a63f73f1be312dbf24e0f6193c2842efbbc2ad1367566fc15b55f5ac4db2dcd:1",
+      "line_sha256": "1a63f73f1be312dbf24e0f6193c2842efbbc2ad1367566fc15b55f5ac4db2dcd"
     },
     {
       "site": "scripts/production_catalog_verification.py:1175",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:7b17708e75492fed94b2988bdb1ace9f702e9163146080d48303fca0e40c126d:1",
+      "line_sha256": "7b17708e75492fed94b2988bdb1ace9f702e9163146080d48303fca0e40c126d"
     },
     {
       "site": "scripts/production_catalog_verification.py:189",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:2aa50f895ee18369d7f630258d69cbb62cdf081defbf7f6dc4ed203b84d12315:1",
+      "line_sha256": "2aa50f895ee18369d7f630258d69cbb62cdf081defbf7f6dc4ed203b84d12315"
     },
     {
       "site": "scripts/production_catalog_verification.py:1973",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "semantic_key": "scripts/production_catalog_verification.py:456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620:1",
+      "line_sha256": "456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620"
     },
     {
       "site": "scripts/production_catalog_verification.py:2084",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:3384653b96436848500cb8b94cbc06baecca551e008cc212fde9cf2c91b3f40a:1",
+      "line_sha256": "3384653b96436848500cb8b94cbc06baecca551e008cc212fde9cf2c91b3f40a"
     },
     {
       "site": "scripts/production_catalog_verification.py:2178",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:c3f1650695742d004c940db2fb05fff03914dceba5ed15835b697078a00cff0d:1",
+      "line_sha256": "c3f1650695742d004c940db2fb05fff03914dceba5ed15835b697078a00cff0d"
     },
     {
       "site": "scripts/production_catalog_verification.py:2212",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:deaa69a8035dc79a5b0fef5a50e1757d0446fc1c7dd7f8b8944dafabaa3c4203:1",
+      "line_sha256": "deaa69a8035dc79a5b0fef5a50e1757d0446fc1c7dd7f8b8944dafabaa3c4203"
     },
     {
       "site": "scripts/production_catalog_verification.py:2213",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:abfc3737e6f888aaf8fca35a209e680fc5f574901d42b90b19b0fee004dc7273:1",
+      "line_sha256": "abfc3737e6f888aaf8fca35a209e680fc5f574901d42b90b19b0fee004dc7273"
     },
     {
       "site": "scripts/production_catalog_verification.py:2414",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:2773d1a7d7dcd0e9419f932321e020840ecd4af9f52e6816b7f992dd7516714d:1",
+      "line_sha256": "2773d1a7d7dcd0e9419f932321e020840ecd4af9f52e6816b7f992dd7516714d"
     },
     {
       "site": "scripts/production_catalog_verification.py:2444",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:251e29372aa89719998ef9d26a5322e11351aefe2834c5d43c92f1ded805e2ac:1",
+      "line_sha256": "251e29372aa89719998ef9d26a5322e11351aefe2834c5d43c92f1ded805e2ac"
     },
     {
       "site": "scripts/production_catalog_verification.py:2445",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:0affce0deacc19865075d37b82173f3f3c8928c8dd9b15bba438f61f86309652:1",
+      "line_sha256": "0affce0deacc19865075d37b82173f3f3c8928c8dd9b15bba438f61f86309652"
     },
     {
       "site": "scripts/production_catalog_verification.py:2449",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:e2231de89ad5cc2215030db57177c6893d09bb895eb19859b5f3e45045b6208b:1",
+      "line_sha256": "e2231de89ad5cc2215030db57177c6893d09bb895eb19859b5f3e45045b6208b"
     },
     {
       "site": "scripts/production_catalog_verification.py:2475",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:b5525d61a12e30af96d49030c2f843643fdd4cd51d176c39a9d64cddee170525:1",
+      "line_sha256": "b5525d61a12e30af96d49030c2f843643fdd4cd51d176c39a9d64cddee170525"
     },
     {
       "site": "scripts/production_catalog_verification.py:2515",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:165775d3699b5c3d4afdc2b0d5bb9e67323404dd2a89667b395614ddd1de1863:1",
+      "line_sha256": "165775d3699b5c3d4afdc2b0d5bb9e67323404dd2a89667b395614ddd1de1863"
     },
     {
       "site": "scripts/production_catalog_verification.py:2522",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:628554b3fce1a187086011cdbf451b00824d31f5b560a88934b95b4c81a891b1:1",
+      "line_sha256": "628554b3fce1a187086011cdbf451b00824d31f5b560a88934b95b4c81a891b1"
     },
     {
       "site": "scripts/production_catalog_verification.py:2609",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:45ec36a52ccff8b6ade08c25a93e0e9eabd22cda793e580f875de700a5e960a3:1",
+      "line_sha256": "45ec36a52ccff8b6ade08c25a93e0e9eabd22cda793e580f875de700a5e960a3"
     },
     {
       "site": "scripts/production_catalog_verification.py:2610",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:2b26af6aa7e5ad7428075b5646b69ce450d4eca387fb6fb07e7f747512074a4a:1",
+      "line_sha256": "2b26af6aa7e5ad7428075b5646b69ce450d4eca387fb6fb07e7f747512074a4a"
     },
     {
       "site": "scripts/production_catalog_verification.py:2614",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:03c896706f76fbdca2ed9993bc4bccfc796ea786ceb58ee6cabf1f46155f8e61:1",
+      "line_sha256": "03c896706f76fbdca2ed9993bc4bccfc796ea786ceb58ee6cabf1f46155f8e61"
     },
     {
       "site": "scripts/production_catalog_verification.py:2645",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:d7851ffb4b4b07d1b444e88db24e91bf0ebae3df15c1cc2d63409d3114bffab3:1",
+      "line_sha256": "d7851ffb4b4b07d1b444e88db24e91bf0ebae3df15c1cc2d63409d3114bffab3"
     },
     {
       "site": "scripts/production_catalog_verification.py:2690",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:840f5776f2158170692844f2f4cd494a63252be8f517609ec5e92588476ef05f:1",
+      "line_sha256": "840f5776f2158170692844f2f4cd494a63252be8f517609ec5e92588476ef05f"
     },
     {
       "site": "scripts/production_catalog_verification.py:2708",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:6c692515220a0f59388ac7e4df694866256f2a8fa8b0328759e368e7f97e1b50:1",
+      "line_sha256": "6c692515220a0f59388ac7e4df694866256f2a8fa8b0328759e368e7f97e1b50"
     },
     {
       "site": "scripts/production_catalog_verification.py:2710",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:460c7118f13850498cad4c513bfe74c6fe8f18010f0ed653dd13f5f3d7e32ad8:1",
+      "line_sha256": "460c7118f13850498cad4c513bfe74c6fe8f18010f0ed653dd13f5f3d7e32ad8"
     },
     {
       "site": "scripts/production_catalog_verification.py:2739",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:333e334755e707c5b15b82609147fa49117fe53b6a8a915d63caa07bbf0353bd:1",
+      "line_sha256": "333e334755e707c5b15b82609147fa49117fe53b6a8a915d63caa07bbf0353bd"
     },
     {
       "site": "scripts/production_catalog_verification.py:2870",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:8bbb485b39d8759fa011737fbdce1dd19424532f9301a21cfa3d391ef84d2e94:1",
+      "line_sha256": "8bbb485b39d8759fa011737fbdce1dd19424532f9301a21cfa3d391ef84d2e94"
     },
     {
       "site": "scripts/production_catalog_verification.py:2872",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:e449b410c134afc9df71ee9419acd80700588a0a2670dd5828ddd792351c0443:1",
+      "line_sha256": "e449b410c134afc9df71ee9419acd80700588a0a2670dd5828ddd792351c0443"
     },
     {
       "site": "scripts/production_catalog_verification.py:2903",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:331b788a16bf20ab5c9a46313b6f22a37dd9f74b93375787071bca228116a7df:1",
+      "line_sha256": "331b788a16bf20ab5c9a46313b6f22a37dd9f74b93375787071bca228116a7df"
     },
     {
       "site": "scripts/production_catalog_verification.py:2988",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:8b448bcea84f5ea005ad45006696eda66a8c2048e9fea70752e796faab5da8f7:1",
+      "line_sha256": "8b448bcea84f5ea005ad45006696eda66a8c2048e9fea70752e796faab5da8f7"
     },
     {
       "site": "scripts/production_catalog_verification.py:3009",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:cb41aacde1a3f1cf0a76a50d228f0ea45cab4c641398601b272d1059a051911d:1",
+      "line_sha256": "cb41aacde1a3f1cf0a76a50d228f0ea45cab4c641398601b272d1059a051911d"
     },
     {
       "site": "scripts/production_catalog_verification.py:3211",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:9529176a75aa1c6a518a1d009fe4b4a4065a87fe38489e8ed32782980662cf50:1",
+      "line_sha256": "9529176a75aa1c6a518a1d009fe4b4a4065a87fe38489e8ed32782980662cf50"
     },
     {
       "site": "scripts/production_catalog_verification.py:54",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:e748322a7132254d79ac48f1c8dcd2858097e841631b7ac5a2c37149d9700a27:1",
+      "line_sha256": "e748322a7132254d79ac48f1c8dcd2858097e841631b7ac5a2c37149d9700a27"
     },
     {
       "site": "scripts/production_catalog_verification.py:72",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_catalog_verification.py:8325a3f7cf5f41c7da778e49ea84ba8a0171b9c13f8920ed28a1e9cc626db48e:1",
+      "line_sha256": "8325a3f7cf5f41c7da778e49ea84ba8a0171b9c13f8920ed28a1e9cc626db48e"
     },
     {
       "site": "scripts/production_migration_guard.py:1022",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:794db6a7d37010ad3f3d10017573cc34938d0182ec215031c3b3fce6e7e5838a:1",
+      "line_sha256": "794db6a7d37010ad3f3d10017573cc34938d0182ec215031c3b3fce6e7e5838a"
     },
     {
       "site": "scripts/production_migration_guard.py:1023",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:2",
+      "line_sha256": "5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d"
     },
     {
       "site": "scripts/production_migration_guard.py:1033",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:6d645a745b69976760de25eb8c7b8b7fa953986b233e6ef9249afde173bb0538:1",
+      "line_sha256": "6d645a745b69976760de25eb8c7b8b7fa953986b233e6ef9249afde173bb0538"
     },
     {
       "site": "scripts/production_migration_guard.py:1036",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:6ab0022235fa9fae1543fb58bb74c3e554db731c05c14191c672f00736624906:1",
+      "line_sha256": "6ab0022235fa9fae1543fb58bb74c3e554db731c05c14191c672f00736624906"
     },
     {
       "site": "scripts/production_migration_guard.py:1043",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:0cc14432855314918517887c6f60b5378a55d7cfc83ebf845b78828531dfe152:1",
+      "line_sha256": "0cc14432855314918517887c6f60b5378a55d7cfc83ebf845b78828531dfe152"
     },
     {
       "site": "scripts/production_migration_guard.py:1170",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:69ee6f5639d506a71ea32387f100195b2cc85496e87eee16f02146a2ccda8520:1",
+      "line_sha256": "69ee6f5639d506a71ea32387f100195b2cc85496e87eee16f02146a2ccda8520"
     },
     {
       "site": "scripts/production_migration_guard.py:1179",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:f215e81452775dde8be07b97a775dcd16679e5782667c7792ea4651301f207b8:1",
+      "line_sha256": "f215e81452775dde8be07b97a775dcd16679e5782667c7792ea4651301f207b8"
     },
     {
       "site": "scripts/production_migration_guard.py:1180",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:208bb5e160a71a7f837d6268cc7f3f3df095eb9efe6b549fba3fa1375ffdca8a:1",
+      "line_sha256": "208bb5e160a71a7f837d6268cc7f3f3df095eb9efe6b549fba3fa1375ffdca8a"
     },
     {
       "site": "scripts/production_migration_guard.py:1195",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:bd0c604d169b8c010370fedbaafcbdf8163c4532b1b503075873f8827b51021e:1",
+      "line_sha256": "bd0c604d169b8c010370fedbaafcbdf8163c4532b1b503075873f8827b51021e"
     },
     {
       "site": "scripts/production_migration_guard.py:1203",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
+      "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996"
     },
     {
       "site": "scripts/production_migration_guard.py:1204",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:71f4011a3be1b6b1f423c1733e4669b67c03c6e6f74872353280ea22076976a5:1",
+      "line_sha256": "71f4011a3be1b6b1f423c1733e4669b67c03c6e6f74872353280ea22076976a5"
     },
     {
       "site": "scripts/production_migration_guard.py:139",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:07e281dcbfa7b0a003faa8fea69a37bdd202e13e6edce968b18f3a7bbe77ff9e:1",
+      "line_sha256": "07e281dcbfa7b0a003faa8fea69a37bdd202e13e6edce968b18f3a7bbe77ff9e"
     },
     {
       "site": "scripts/production_migration_guard.py:1651",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:53055ed217811b2cc1cb297c0e4d58f51dba471f55f5a4de156e715e0b1d95b6:1",
+      "line_sha256": "53055ed217811b2cc1cb297c0e4d58f51dba471f55f5a4de156e715e0b1d95b6"
     },
     {
       "site": "scripts/production_migration_guard.py:1904",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:dbf5e1c0c6b9a54f6de3b835a4e05f3c55ad8e8c778eb2bbb83da3abd4782a73:1",
+      "line_sha256": "dbf5e1c0c6b9a54f6de3b835a4e05f3c55ad8e8c778eb2bbb83da3abd4782a73"
     },
     {
       "site": "scripts/production_migration_guard.py:1967",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:bb24cd6e40dbeb747ad3d9a3d93fd9d6390d92d92d013a92bf2fc958e8434427:1",
+      "line_sha256": "bb24cd6e40dbeb747ad3d9a3d93fd9d6390d92d92d013a92bf2fc958e8434427"
     },
     {
       "site": "scripts/production_migration_guard.py:2005",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:d2b790f2e61d2f63d8b22ee0825f53f72b1cc5fce34a04388794523c08bc8f3b:1",
+      "line_sha256": "d2b790f2e61d2f63d8b22ee0825f53f72b1cc5fce34a04388794523c08bc8f3b"
     },
     {
       "site": "scripts/production_migration_guard.py:2040",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:c9255a52069df271c4a9150610549a0602d8c5c903d41183ffe6921d9750968f:1",
+      "line_sha256": "c9255a52069df271c4a9150610549a0602d8c5c903d41183ffe6921d9750968f"
     },
     {
       "site": "scripts/production_migration_guard.py:2043",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:3f5f26d1ca85b389fabb99a6e7516282f6ab514da5992543e6d8a258e8b910bc:1",
+      "line_sha256": "3f5f26d1ca85b389fabb99a6e7516282f6ab514da5992543e6d8a258e8b910bc"
     },
     {
       "site": "scripts/production_migration_guard.py:2044",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:f09718bfc1d3b79048224ca1b09e38feaea64a60a5667ba66d5d3a6a2da4007e:1",
+      "line_sha256": "f09718bfc1d3b79048224ca1b09e38feaea64a60a5667ba66d5d3a6a2da4007e"
     },
     {
       "site": "scripts/production_migration_guard.py:2067",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef:1",
+      "line_sha256": "fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef"
     },
     {
       "site": "scripts/production_migration_guard.py:367",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:ff9f946083e5618681ad625cf3cd23e10d43babf3e83f3fc868b5e12bafc1b26:1",
+      "line_sha256": "ff9f946083e5618681ad625cf3cd23e10d43babf3e83f3fc868b5e12bafc1b26"
     },
     {
       "site": "scripts/production_migration_guard.py:784",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:00bc14076dfdfc42a7de7a785cd9cb0a12e0bce3e6dc22ec029dc3451b241dbd:1",
+      "line_sha256": "00bc14076dfdfc42a7de7a785cd9cb0a12e0bce3e6dc22ec029dc3451b241dbd"
     },
     {
       "site": "scripts/production_migration_guard.py:851",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:c1d0d18d71548adb88c6e2add9b2c13af540a3c6e1535621c7940976169a1a29:1",
+      "line_sha256": "c1d0d18d71548adb88c6e2add9b2c13af540a3c6e1535621c7940976169a1a29"
     },
     {
       "site": "scripts/production_migration_guard.py:852",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:33689528d32e651ca4290cb63ee93283af0fe9ea7b9f1c43d7a1daa750352d11:1",
+      "line_sha256": "33689528d32e651ca4290cb63ee93283af0fe9ea7b9f1c43d7a1daa750352d11"
     },
     {
       "site": "scripts/production_migration_guard.py:871",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:131b4fe52d2d567c2878da77c07397ed629d83ada5e1504839186955d7659bc1:1",
+      "line_sha256": "131b4fe52d2d567c2878da77c07397ed629d83ada5e1504839186955d7659bc1"
     },
     {
       "site": "scripts/production_migration_guard.py:872",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:3411b04832d915b23b098ae6e4e832aefb1202c69c9cb62bada4601ef1c45704:1",
+      "line_sha256": "3411b04832d915b23b098ae6e4e832aefb1202c69c9cb62bada4601ef1c45704"
     },
     {
       "site": "scripts/production_migration_guard.py:914",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:943b24e00604ab3b7f7ac4ba5a0fed29877ab9a0de45132a8ebf9588d82753a5:1",
+      "line_sha256": "943b24e00604ab3b7f7ac4ba5a0fed29877ab9a0de45132a8ebf9588d82753a5"
     },
     {
       "site": "scripts/production_migration_guard.py:918",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:5682430e5490a616c689b5804ad7e1bd9a26bcbf143bed24dafaa604c6f52bd7:1",
+      "line_sha256": "5682430e5490a616c689b5804ad7e1bd9a26bcbf143bed24dafaa604c6f52bd7"
     },
     {
       "site": "scripts/production_migration_guard.py:938",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:6492225a96b7205f629dff80768e4ea60f9505250700a11166c4f8b0800f22f1:1",
+      "line_sha256": "6492225a96b7205f629dff80768e4ea60f9505250700a11166c4f8b0800f22f1"
     },
     {
       "site": "scripts/production_migration_guard.py:953",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:1",
+      "line_sha256": "5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d"
     },
     {
       "site": "scripts/production_migration_guard.py:957",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:9a73ca665a61edc799ce19b30afeb41022e32e554a753374f231af31f7af0ed7:1",
+      "line_sha256": "9a73ca665a61edc799ce19b30afeb41022e32e554a753374f231af31f7af0ed7"
     },
     {
       "site": "scripts/production_migration_guard.py:958",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:edeb1a131417dd91d6df0bc409b0a1e77a4b449fc72fa4ffa4c46f00273263dc:1",
+      "line_sha256": "edeb1a131417dd91d6df0bc409b0a1e77a4b449fc72fa4ffa4c46f00273263dc"
     },
     {
       "site": "scripts/production_migration_guard.py:979",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:e12a02db00f32fca4fb105f66380533bb93587ee3a62ebae614e3161f26cfd5e:1",
+      "line_sha256": "e12a02db00f32fca4fb105f66380533bb93587ee3a62ebae614e3161f26cfd5e"
     },
     {
       "site": "scripts/production_migration_guard.py:986",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:91204eb6362c497fcee4cbb6cf75f250ee36d3d2f830d9455b8f500c839c495b:1",
+      "line_sha256": "91204eb6362c497fcee4cbb6cf75f250ee36d3d2f830d9455b8f500c839c495b"
     },
     {
       "site": "scripts/production_migration_guard.py:988",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_migration_guard.py:478afaabeb0355c3067e2c237a34d268be8d5f10edde207c1103942dbc6b7092:1",
+      "line_sha256": "478afaabeb0355c3067e2c237a34d268be8d5f10edde207c1103942dbc6b7092"
     },
     {
       "site": "scripts/production_owner_decision_evidence.py:14",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_owner_decision_evidence.py:cd09a918aadf805a95865bd87fd2d56566459696788dc0823fe32e8cfed4e0ba:1",
+      "line_sha256": "cd09a918aadf805a95865bd87fd2d56566459696788dc0823fe32e8cfed4e0ba"
     },
     {
       "site": "scripts/production_owner_decision_evidence.py:56",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_owner_decision_evidence.py:370be1ed748d7e6f99edb34f15d9635863b334cdc0d6470f474e0f56aa40e6f1:1",
+      "line_sha256": "370be1ed748d7e6f99edb34f15d9635863b334cdc0d6470f474e0f56aa40e6f1"
     },
     {
       "site": "scripts/production_owner_decision_evidence.py:78",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/production_owner_decision_evidence.py:f010232fb7b0901307eb75632d90e05e6047a63a5567211a50c796562175da05:1",
+      "line_sha256": "f010232fb7b0901307eb75632d90e05e6047a63a5567211a50c796562175da05"
     },
     {
       "site": "scripts/record-blocker-stub.mjs:3",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/record-blocker-stub.mjs:a486b0255e74e3773eed0ee950e3936633162d291ba4073586e23d15021fe9d7:1",
+      "line_sha256": "a486b0255e74e3773eed0ee950e3936633162d291ba4073586e23d15021fe9d7"
     },
     {
       "site": "scripts/scan_apply_time_ddl.py:107",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/scan_apply_time_ddl.py:e21af329f52876332f4c8e4d45f269e64cd222871049fbd9e5f5270509eec255:1",
+      "line_sha256": "e21af329f52876332f4c8e4d45f269e64cd222871049fbd9e5f5270509eec255"
     },
     {
       "site": "scripts/throughput-guard/ledger-lib.mjs:13",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/throughput-guard/ledger-lib.mjs:6955ea33b304374eb35c78c2dba231778dcd139d78c0c46d6f44b416356b42ad:1",
+      "line_sha256": "6955ea33b304374eb35c78c2dba231778dcd139d78c0c46d6f44b416356b42ad"
     },
     {
       "site": "scripts/update-required-checks.mjs:129",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/update-required-checks.mjs:07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721:1",
+      "line_sha256": "07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721"
     },
     {
       "site": "scripts/update-required-checks.mjs:135",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/update-required-checks.mjs:b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0:1",
+      "line_sha256": "b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0"
     },
     {
       "site": "scripts/update-required-checks.mjs:222",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/update-required-checks.mjs:78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6:1",
+      "line_sha256": "78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6"
     },
     {
       "site": "scripts/update-required-checks.mjs:227",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/update-required-checks.mjs:4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1:1",
+      "line_sha256": "4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1"
     },
     {
       "site": "scripts/update-required-checks.mjs:228",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/update-required-checks.mjs:12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec:1",
+      "line_sha256": "12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec"
     },
     {
       "site": "scripts/verify/migration_body_md5.py:19",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "semantic_key": "scripts/verify/migration_body_md5.py:c306e35745386b717b583be41a182e378d17ce899e352842a4d0cfbae51ccc3c:1",
+      "line_sha256": "c306e35745386b717b583be41a182e378d17ce899e352842a4d0cfbae51ccc3c"
     }
   ],
   "call_site_count": 227,
-  "call_site_sha256": "bef178ed04024d6c34be13ef80d739a7dff696ee823b8a09c07f6358fcd95190",
-  "disposition": "Every discovered site has an explicit reviewed disposition; any source-line drift requires regeneration and review."
+  "call_site_sha256": "de3c4dc83713aa225b387173c570a5b5ee1326207d21994029354d5541677c55",
+  "disposition": "Every discovered site has an explicit reviewed disposition bound to its source-line content; line movement alone does not require regeneration, while a content change requires review."
 }
