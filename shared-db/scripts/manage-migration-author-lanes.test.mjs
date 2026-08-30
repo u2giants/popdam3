@@ -3192,6 +3192,35 @@ test('a merged claim still reaches the post-merge rehearsal route instead of bei
   assert.equal('claim_head_sha' in candidate.manifest,false)
 })
 
+test('a single closed claim recovers only the merged-rehearsal route (issue #1852)',()=>{
+  const {io,mainSha,version}=mergedRehearsalIo()
+  const claim=io.openClaims()[0]
+  io.openClaims=()=>[]
+  io.closedClaimsForWork=(issue)=>issue===1769?[{...claim,state:'closed'}]:[]
+  const candidate=deriveLivePreviewCandidate(1769,io)
+  assert.equal(candidate.route,'merged_rehearsal')
+  assert.equal(candidate.route_context,mainSha)
+  assert.equal(candidate.manifest.preview_allowlist,version)
+  assert.equal('claim_pr' in candidate.manifest,false)
+  assert.equal('claim_head_sha' in candidate.manifest,false)
+})
+
+test('closed-claim recovery refuses ambiguity, an open PR, and a merge outside main',()=>{
+  const {io}=mergedRehearsalIo()
+  const claim=io.openClaims()[0]
+  io.openClaims=()=>[]
+  io.closedClaimsForWork=()=>[{...claim,state:'closed'},{...claim,number:1806,state:'closed'}]
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/exactly one closed protected claim/)
+
+  io.closedClaimsForWork=()=>[{...claim,state:'closed'}]
+  io.openPulls=()=>[{number:1809,head:{ref:'issue-1769-wwe-tables',sha:'a'.repeat(40)}}]
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/still open/)
+
+  io.openPulls=()=>[]
+  io.mergeCommitInMain=()=>false
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/is not in main history/)
+})
+
 test('a merged claim whose merge commit is not in main history is refused',()=>{
   const {io}=mergedRehearsalIo()
   io.mergeCommitInMain=()=>false

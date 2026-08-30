@@ -844,7 +844,7 @@ export const githubIo = {
   openClaims() {
     const rows = ghPaginated(`repos/${REPO}/issues?state=open&labels=db-claim&per_page=100`)
     return rows.filter((x) => !x.pull_request).map((x) => ({ number: x.number, title: x.title, body: x.body, url: x.html_url }))
-  },
+  },closedClaimsForWork(issue){return ghPaginated(`repos/${REPO}/issues?state=closed&labels=db-claim&per_page=100`).filter((x)=>!x.pull_request).map((x)=>({number:x.number,title:x.title,body:x.body,url:x.html_url,state:x.state})).filter((claim)=>claimWorkIssue(claim)===Number(issue))},
   // EVERY open issue is audited, not just the ones somebody remembered to
   // label. Filtering on `labels=db-work` here is what let issues #1188, #1238,
   // #1242, #1266 and #1268 sit unlabelled and therefore invisible to the queue
@@ -1143,9 +1143,8 @@ function livePreviewLedger(){
   try{return JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env:process.env}))}catch(error){throw new LaneError(`fresh preview ledger is unavailable (${String(error.stderr??error.message).trim()})`)}
 }
 export function deriveLivePreviewCandidate(issue,io){
-  const claims=io.openClaims().map((claim)=>({claim,lease:parseAuthorLease(claim.body)})),owned=claims.filter((row)=>claimWorkIssue(row.claim)===issue)
-  if(owned.length!==1)throw new LaneError(`work issue #${issue} must have exactly one live protected claim`)
-  const {claim,lease}=owned[0],pulls=io.openPulls().filter((pr)=>pr.head?.ref===lease.branch)
+  const claims=io.openClaims().map((claim)=>({claim,lease:parseAuthorLease(claim.body)})),owned=claims.filter((row)=>claimWorkIssue(row.claim)===issue),closed=owned.length===0?(io.closedClaimsForWork?.(issue)??[]):[];if(owned.length>1)throw new LaneError(`work issue #${issue} must have exactly one live protected claim`);if(owned.length===0&&closed.length!==1)throw new LaneError(`work issue #${issue} has no live claim and must have exactly one closed protected claim for merged rehearsal recovery`)
+  const recoveredClosed=owned.length===0,{claim,lease}=recoveredClosed?{claim:closed[0],lease:parseAuthorLease(closed[0].body)}:owned[0],pulls=io.openPulls().filter((pr)=>pr.head?.ref===lease.branch);if(recoveredClosed&&pulls.length!==0)throw new LaneError(`closed claim #${claim.number} cannot recover while its pull request is still open`)
   // Merge-first (AGENTS.md section 4 rule 2): once the claim PR merges there is no open
   // pull request left, and the rehearsal still owes proof. Fall back to the merged pull
   // request on the same branch and drive the POST_MERGE_REHEARSAL route from it.
