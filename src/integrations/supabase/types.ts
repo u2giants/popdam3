@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -572,6 +572,32 @@ export type Database = {
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "helper_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_effective_tags: {
+        Row: {
+          asset_id: string
+          scope: string
+          tag: string
+        }
+        Insert: {
+          asset_id: string
+          scope: string
+          tag: string
+        }
+        Update: {
+          asset_id?: string
+          scope?: string
+          tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_effective_tags_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
             referencedColumns: ["id"]
           },
         ]
@@ -3246,6 +3272,7 @@ export type Database = {
         }
         Returns: string
       }
+      assets_thumbnail_min_date: { Args: never; Returns: string }
       backfill_pdf_files_used: { Args: never; Returns: number }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
@@ -3387,6 +3414,85 @@ export type Database = {
           query_text: string
         }[]
       }
+      filter_effective_assets: {
+        Args: { p_filters?: Json }
+        Returns: {
+          ai_description: string | null
+          ai_model: string | null
+          ai_tagged_at: string | null
+          art_source: Database["public"]["Enums"]["art_source"] | null
+          artboards: number | null
+          asset_type: Database["public"]["Enums"]["asset_type"] | null
+          big_theme: string | null
+          content_type: string | null
+          cover_description: string | null
+          created_at: string
+          customer: string | null
+          customer_id: string | null
+          design_ref: string | null
+          design_style: string | null
+          designer_name: string | null
+          division_code: string | null
+          division_name: string | null
+          file_created_at: string | null
+          file_size: number | null
+          file_type: Database["public"]["Enums"]["file_type"]
+          filename: string
+          freelancer_name: string | null
+          height: number | null
+          id: string
+          ingested_at: string | null
+          is_deleted: boolean | null
+          is_licensed: boolean | null
+          last_scanned_at: string | null
+          last_seen_at: string
+          licensor_code: string | null
+          licensor_id: string | null
+          licensor_name: string | null
+          little_theme: string | null
+          mg01_code: string | null
+          mg01_name: string | null
+          mg02_code: string | null
+          mg02_name: string | null
+          mg03_code: string | null
+          mg03_name: string | null
+          modified_at: string
+          pdf_page2_url: string | null
+          primary_sort_tier: number
+          product_category: string | null
+          product_dimensions: string | null
+          product_material: string[] | null
+          product_subtype_id: string | null
+          program: string | null
+          property_code: string | null
+          property_id: string | null
+          property_name: string | null
+          quick_hash: string
+          quick_hash_version: number
+          relative_path: string
+          scene_description: string | null
+          size_code: string | null
+          size_name: string | null
+          sku: string | null
+          sku_sequence: string | null
+          stage: string | null
+          status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_id: string | null
+          tags: string[]
+          technical_designer_name: string | null
+          thumbnail_error: string | null
+          thumbnail_url: string | null
+          updated_at: string | null
+          width: number | null
+          workflow_status: Database["public"]["Enums"]["workflow_status"] | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "assets"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       find_ai_pdf_duplicates: {
         Args: never
         Returns: {
@@ -3453,6 +3559,7 @@ export type Database = {
           tag: string
         }[]
       }
+      get_effective_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       get_path_facets: { Args: { p_customer_id?: string }; Returns: Json }
       get_pdf_rich_extraction_hashes: {
