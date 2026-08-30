@@ -578,6 +578,26 @@ test('atomic replacement succeeds when the failed assignment has no active lease
   assert.ok(result.reviewer);assert.equal(io.refs.has(failedRef),false);assert.equal(io.refs.has(reviewActiveRef(result.reviewer)),true)
 })
 
+test('merged-head replacement reuses the bounded target snapshot instead of rereading issue and verdict evidence (#1911)',()=>{
+  const io=failedReviewIo(),mergeSha='c'.repeat(40)
+  io.getIssue=()=>{throw new Error('separate issue read is forbidden')}
+  io.getPr=()=>{throw new Error('separate PR read is forbidden')}
+  io.getIssueComments=()=>{throw new Error('separate verdict read is forbidden')}
+  io.getPrReviews=()=>{throw new Error('separate review read is forbidden')}
+  io.mergeCommitInMain=(sha)=>sha===mergeSha
+  io.readActiveReviewLeases=()=>new Map()
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{
+    issue:{state:'closed'},
+    pr:{state:'closed',merged:true,merge_commit_sha:mergeSha,head:{sha:lease.headSha}},
+    evidence:[],
+  }]))
+  io.readReviewRefs=(refs)=>new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  const result=replaceFailedReviewer(replacementRequest,io)
+  assert.ok(result.reviewer)
+  assert.notEqual(result.reviewer,'codex-gpt-5.6-sol')
+})
+
 // ACTIVE ROTATION (owner instruction, 2026-08-28). Codex GPT-5.6 Sol and
 // DeepSeek are ordinary approved reviewers. All-busy must fail closed.
 function busyIo(){

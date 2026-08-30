@@ -835,8 +835,10 @@ export const githubIo = {
     // REVIEW_CURSOR_REF), which would have made every caller of this method
     // treat a real record as absent.
     const fields=refs.map((ref,index)=>`r${index}:object(expression:${JSON.stringify(ref)}){oid ... on Commit{message}}`).join(' ')
-    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){${fields}}}`])
+    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){base:defaultBranchRef{target{... on Commit{oid tree{oid}}}} ${fields}}}`])
     if(data?.errors?.length||!data?.data?.repository)throw new LaneError('review record preflight returned GraphQL errors')
+    const base=data.data.repository.base?.target
+    if(reviewWireBudget&&base?.oid&&base?.tree?.oid)reviewCommitBase={head:base.oid,tree:base.tree.oid}
     const result=new Map(refs.map((ref,index)=>{const target=data.data.repository[`r${index}`];return [ref,target?.oid?{sha:target.oid,commit:{message:target.message}}:null]}))
     const matches=prefix?this.listRefs(prefix):[]
     Object.defineProperty(result,'matching',{value:matches.map((row)=>({ref:row.ref,sha:row.sha})),enumerable:false})
@@ -1676,7 +1678,7 @@ function isReviewAssignmentLive(assignment,states,io){
 // FAIL OPEN, DELIBERATELY. If the refs cannot be listed, this returns null and
 // the caller keeps the ordinary rotation. A busy probe that cannot read GitHub
 // must never invent availability.
-export function findBusyReviewers(io){
+export function findBusyReviewers(io,requested=[]){
   if(typeof io.readRef!=='function')return null
   let cutover
   try{cutover=io.readRef(REVIEW_ACTIVE_CUTOVER_REF)}catch{return null}
@@ -1697,7 +1699,7 @@ export function findBusyReviewers(io){
     records.push({reviewer,ref,sha,assignment})
   }
   let states=null
-  try{states=typeof io.readReviewStates==='function'?io.readReviewStates(records.map((row)=>row.assignment)):null}catch{return null}
+    try{states=typeof io.readReviewStates==='function'?io.readReviewStates([...records.map((row)=>row.assignment),...requested]):null}catch{return null}
   for(const {reviewer,ref,sha,assignment} of records){
     let prRow,evidence
     try{
@@ -2230,7 +2232,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     if(!confirmLocalDependencyUnfixable)throw new LaneError(`this is a LOCAL dependency fault ("${String(failingCheck).trim()}"), not a provider fault. Fix it on this machine and retry the SAME reviewer -- a replacement spends a rotation slot and records permanent evidence against a provider that is working. If it genuinely cannot be fixed here, re-run with --confirm-local-dependency-unfixable.`)
   }else if(String(failingCheck??'').trim())throw new LaneError('--failing-check applies only to local_dependency_unavailable')
   if(!confirmNoVerdict||!confirmNoArtifact)throw new LaneError('reviewer replacement requires explicit confirmation that the failed session produced no verdict and no artifact')
-  const preflightBusy=findBusyReviewers(io)
+  const preflightBusy=findBusyReviewers(io,[request])
   if(!preflightBusy)throw new LaneError('active reviewer leases are unreadable; reviewer replacement refused before mutex acquisition')
   // Slot-aware, in the SAME namespaces assignment writes: a replacement request
   // for slot N resolves the failed sequence against slot N's own records and

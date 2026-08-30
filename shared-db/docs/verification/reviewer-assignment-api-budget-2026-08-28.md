@@ -40,6 +40,8 @@ Result: 395 passed, 0 failed.
 
 The focused suite covers low and unreadable quota before owner-commit/mutex acquisition, wire-level request-20 refusal including retries, strict lease parsing, verdict/head/closed-PR stale release, exact failure/replacement release, idempotency, conflicting leases, historical-reader compatibility, assignment/replacement rollback, mutex ownership loss, successor preservation, and bounded release readback.
 
+Issue #1911 preserves the 22-request ceiling while making merged-head replacement fit it. The target issue, pull request, comments, and reviews now ride in the same bounded state snapshot already used for active leases, and the exact-record GraphQL read also carries the current main commit/tree used to create the immutable replacement commit. The live #1684/#1712 probe reached the mutex entry gate with mutation disabled; before this change the identical command exhausted all 22 requests before that gate. Separate target/evidence reads remain forbidden by regression coverage, and merge ancestry is still checked independently.
+
 ## Cutover and live proof
 
 Cutover audit complete before activation: one bounded GraphQL read found five open PRs (#1660, #1670, #1712, #1748, #1749), no GitHub review verdicts, and zero active reviewer refs. Five exact current-head assignment-ref reads, using each PR's linked issue, were all absent. No historical prefix was enumerated and no pre-cutover active lease needed creation.
