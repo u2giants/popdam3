@@ -910,7 +910,17 @@ export const githubIo = {
     const failed=protectedContexts.filter((name)=>byName.get(name)!=='SUCCESS')
     if(failed.length)throw new LaneError(`required full CI is not successful on the current head: ${failed.join(', ')}`)
     const evidence=[...(this.getIssueComments(issue)??[]),...(this.getIssueComments(pr)??[]),...(this.getPrReviews(pr)??[])]
-    const approved=evidence.some((row)=>{const body=String(row.body??''),tied=row.commit_id===head||body.includes(head),verdict=/\bAPPROVE\b/i.test(body)||String(row.state??'').toUpperCase()==='APPROVED';return tied&&verdict&&(body.includes(bundleId)||findPrReviewAssignments(issue,pr,this).some((assignment)=>assignment.headSha===head))})
+    // FAILS OPEN -- see the verdict-predicate block near `hasVerdictForHead`.
+    // `isApprovalFor` requires the APPROVE to OPEN its line, so prose that
+    // merely discusses approval (including prose stating approval is absent)
+    // can no longer authorize a migration (issue #1822).
+    // The decision itself lives in `gateAuthorizes` so it is REACHABLE BY TESTS.
+    // The two lines above shell out through module-scope `ghJson`/`gh`, so this
+    // whole method is unreachable without a network, and every existing test
+    // replaces it with a stub that returns success. That meant the one site in
+    // this file that can AUTHORIZE A MIGRATION had no coverage at all: deleting
+    // its approval check entirely left the suite green.
+    const approved=gateAuthorizes(evidence,head,bundleId,()=>findPrReviewAssignments(issue,pr,this))
     if(!approved)throw new LaneError('an independent APPROVE tied to the exact head and bundle-compatible assignment is required')
     const states=dependencies.length?this.dependencyStates(dependencies):{},closure=classifyDependencies(issue,dependencies,states)
     if(!closure.satisfied)throw new LaneError(`migration dependency closure is incomplete: ${closure.blocked.map((row)=>`#${row.number}`).join(', ')}`)
@@ -1516,28 +1526,124 @@ export function findPrReviewAssignments(issue,pr,io){
     .sort((a,b)=>b.sequence-a.sequence)
 }
 
+// WHAT COUNTS AS A RECORDED VERDICT (issue #1822).
+//
+// This predicate was never a function. "Tied to the head AND contains a verdict
+// word anywhere in the body" was written out longhand at EIGHT separate sites in
+// this file, so there was no single place where it could be wrong and no single
+// place where it could be fixed.
+//
+// A NINTH site, `previewGateProof`, is a VARIANT of the same defect rather than
+// a ninth copy: it tests `\bAPPROVE\b` only, and adds a bundle/assignment
+// clause. It is called out explicitly because a mechanical find-and-replace
+// across "nine identical sites" would silently mangle it -- and it is the one
+// that fails open.
+//
+// The old reading matched a verdict word ANYWHERE in the body. Ordinary prose
+// that discusses reviewing, in a comment that also quotes the head, therefore
+// read as a recorded verdict. That is not hypothetical: PR #1818 -- the change
+// that enforces exact-head approval at the merge gate -- locked itself out of
+// its own governed reviewer assignment with two of its own progress notes, one
+// containing "approve something else entirely" and one containing "ride along
+// with any REVISE findings". Its own patch for this behaviour lived in a file
+// the assignment gate does not read. Those two bodies are in the test suite
+// verbatim, because a test on a synthetic string would be a test of a different
+// program.
+//
+// THE RULE: a verdict word must OPEN its line, after leading markdown emphasis
+// and blockquote markers are stripped, optionally behind the `VERDICT:` label
+// the reviewer wrappers actually emit. That is how a wrapper states a verdict
+// and is not how anyone writes a status update.
+//
+// IT IS SYMMETRIC, AND THE SYMMETRY IS THE POINT. Eight of the nine sites fail
+// CLOSED -- a phantom verdict blocks an assignment, which is safe and merely
+// baffling. The ninth, `previewGateProof`, fails OPEN: it treats a matching body
+// as an independent APPROVE and lets a migration through. Under the old reading
+// a comment that quoted the head and merely mentioned approval satisfied it --
+// including a sentence stating that an approval was ABSENT. Fixing only the
+// refusal direction would leave the repository strict about blocking and loose
+// about authorizing, which is the worst available asymmetry and would look like
+// an improvement.
+// The label strip removes ONLY the `VERDICT:` label itself. It must never be
+// widened to skip arbitrary leading words: a strip that swallowed them would
+// read `VERDICT: DO NOT APPROVE` as an approval, turning the plainest possible
+// refusal into the strongest possible authorization. Pinned by test.
+const stripLineLead=(line)=>String(line).replace(/^[\s>*_#-]+/,'').replace(/^VERDICT\s*[:-]\s*/i,'')
+// REJECT is a real verdict word in this repository's reviewer wrappers alongside
+// REVISE, and REQUEST_CHANGES is GitHub's own.
+//
+// `APPROVE WITH CONDITIONS` is a REFUSAL WITH A REMEDY, not an approval. Accepting
+// it would merge before the conditions are met AND leave a durable record saying
+// the reviewer approved -- the damage and the evidence of no damage in one act.
+//
+// The lookahead sits on the APPROVAL pattern ONLY, deliberately. Adding it to the
+// refusal pattern too would make the conditional verdict count as a recorded
+// refusal, which LOCKS the head: the reviewer could then never clear their own
+// conditions, because a later unconditional APPROVE at that same head would be
+// refused as "a verdict already exists". So it must be neither an approval nor a
+// refusal -- it withholds the decision rather than recording one. Both halves are
+// asserted in the same test, because "does not approve" and "does not lock" are
+// two separate claims and only the first is obvious.
+const VERDICT_APPROVE=/^APPROVE(?:D)?\b(?!\s*(?:WITH|,\s*WITH)\s+CONDITIONS?\b)/i
+const VERDICT_REFUSAL=/^(?:REJECT(?:ED)?|REVISE|REQUEST_CHANGES)\b/i
+export function verdictOpensLine(body,pattern){
+  return String(body??'').split(/\r?\n/).some((line)=>pattern.test(stripLineLead(line)))
+}
+// Structured GitHub review states are data, not prose, so they are trusted as
+// they always were -- the opening-line rule governs free text only.
+const reviewState=(row)=>String(row?.state??'').toUpperCase()
+export function evidenceTiedToHead(row,headSha){
+  return row?.commit_id===headSha||String(row?.body??'').includes(headSha)
+}
+// An APPROVE for this head. Used by the fail-OPEN preview gate.
+export function isApprovalFor(row,headSha){
+  return evidenceTiedToHead(row,headSha)&&(verdictOpensLine(row?.body,VERDICT_APPROVE)||reviewState(row)==='APPROVED')
+}
+// Any decision for this head -- approval or refusal. Used by the fail-CLOSED
+// assignment, replacement and lease guards.
+export function isVerdictFor(row,headSha){
+  if(!evidenceTiedToHead(row,headSha))return false
+  if(['APPROVED','CHANGES_REQUESTED'].includes(reviewState(row)))return true
+  return verdictOpensLine(row?.body,VERDICT_APPROVE)||verdictOpensLine(row?.body,VERDICT_REFUSAL)
+}
+export const anyVerdictFor=(evidence,headSha)=>(evidence??[]).some((row)=>isVerdictFor(row,headSha))
+
+// The fail-OPEN preview gate's authorization decision, extracted so it can be
+// executed by a test. `previewGateProof` itself shells out to `gh` on its first
+// two lines, so every test in this repo replaces the whole method with a stub
+// that returns success -- which left the one decision here that can AUTHORIZE A
+// MIGRATION completely uncovered.
+//
+// `readAssignments` is a THUNK on purpose. At the call site it performs network
+// reads, and it sits inside the `some()` short-circuit so it only runs for
+// evidence that already carries an approval and lacks the bundle id. Hoisting it
+// to a plain argument would call it on every gate evaluation and raise the wire
+// budget this repo treats as significant.
+export function gateAuthorizes(evidence,headSha,bundleId,readAssignments){
+  return (evidence??[]).some((row)=>isApprovalFor(row,headSha)&&(
+    String(row?.body??'').includes(bundleId)||
+    (readAssignments?.()??[]).some((assignment)=>assignment?.headSha===headSha)))
+}
+
 // A verdict exists for an exact head when an issue comment, a PR comment, or a
 // PR review is tied to that head AND carries a decision. Extracted so the
 // replacement guard and the busy-reviewer probe cannot drift apart: "this review
 // is finished" has to mean the same thing in both places.
 export function hasVerdictForHead(issue,pr,headSha,io){
   const evidence=[...(io.getIssueComments?.(Number(issue))??[]),...(io.getIssueComments?.(Number(pr))??[]),...(io.getPrReviews?.(Number(pr))??[])]
-  return evidence.some((row)=>{
-    const body=String(row.body??''), tied=row.commit_id===headSha||body.includes(headSha)
-    return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))
-  })
+  return anyVerdictFor(evidence,headSha)
 }
 
 function assertReviewLeaseStillStale(row,states){
   if(!row)return
   const state=states?.get(`${row.assignment.issue}:${row.assignment.pr}`),evidence=state?.evidence??[]
-  const verdict=evidence.some((entry)=>{const body=String(entry.body??''),tied=entry.commit_id===row.assignment.headSha||body.includes(row.assignment.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(entry.state??'').toUpperCase()))})
+  const verdict=anyVerdictFor(evidence,row.assignment.headSha)
   if(state?.pr?.state==='open'&&state?.pr?.head?.sha===row.assignment.headSha&&!verdict)throw new LaneError(`reviewer ${row.assignment.reviewer} lease became live after mutex acquisition`)
 }
 
 function isReviewAssignmentLive(assignment,states,io){
   const state=states?.get(`${assignment.issue}:${assignment.pr}`),pr=state?.pr??io.getPr(assignment.pr),evidence=state?.evidence
-  const verdict=evidence?evidence.some((entry)=>{const body=String(entry.body??''),tied=entry.commit_id===assignment.headSha||body.includes(assignment.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(entry.state??'').toUpperCase()))}):hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io)
+  const verdict=evidence?anyVerdictFor(evidence,assignment.headSha):hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io)
   return pr?.state==='open'&&pr?.head?.sha===assignment.headSha&&!verdict
 }
 
@@ -1587,7 +1693,7 @@ export function findBusyReviewers(io){
     }catch{return null}
     if(prRow?.state!=='open'||prRow?.head?.sha!==assignment.headSha){stale.push({ref,sha,assignment});continue}
     let verdict
-    try{verdict=evidence?evidence.some((row)=>{const body=String(row.body??''),tied=row.commit_id===assignment.headSha||body.includes(assignment.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))}):hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io)}catch{return null}
+    try{verdict=evidence?anyVerdictFor(evidence,assignment.headSha):hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io)}catch{return null}
     if(verdict){stale.push({ref,sha,assignment});continue}
     busy.add(assignment.reviewer)
   }
@@ -1850,11 +1956,11 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
         requireOwnedRef(MUTEX_REF,ownerSha,io)
         const freshStates=io.readReviewStates([{issue:request.issue,pr:request.pr,headSha:request.headSha},...(selectedStale?[selectedStale.assignment]:[])])
         const fresh=freshStates?.get(`${request.issue}:${request.pr}`)
-        const freshVerdict=fresh?.evidence?.some((row)=>{const body=String(row.body??''),tied=row.commit_id===request.headSha||body.includes(request.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))})
+        const freshVerdict=anyVerdictFor(fresh?.evidence,request.headSha)
         if(fresh?.issue?.state!=='open'||!reviewTargetEligible(fresh?.pr,io)||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError('review assignment issue, PR head, or verdict changed after mutex acquisition')
         if(selectedStale){
           const revived=freshStates?.get(`${selectedStale.assignment.issue}:${selectedStale.assignment.pr}`), evidence=revived?.evidence??[]
-          const verdict=evidence.some((row)=>{const body=String(row.body??''),tied=row.commit_id===selectedStale.assignment.headSha||body.includes(selectedStale.assignment.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))})
+          const verdict=anyVerdictFor(evidence,selectedStale.assignment.headSha)
           if(revived?.pr?.state==='open'&&revived?.pr?.head?.sha===selectedStale.assignment.headSha&&!verdict)throw new LaneError('selected reviewer lease became live after mutex acquisition')
         }
         io.atomicReviewRefs([
@@ -2199,7 +2305,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     // head that was named, but the pull request has since moved past it. Same
     // truth, said plainly, instead of a technicality.
     if(prRow?.head?.sha!==request.headSha)throw new LaneError(`review replacement requires the exact open PR head: sequence=${initial.sequence} reviewer=${initial.reviewer} IS recorded for issue #${request.issue} PR #${request.pr} under head ${request.headSha}, but the pull request has since moved to head ${String(prRow?.head?.sha??'unknown')}. Nothing is missing. A push replaced the code under review, so a replacement reviewer would be bound to a commit the failed reviewer never saw. Assign a reviewer to the new code instead: --assign-reviewer --issue ${request.issue} --pr ${request.pr} --head-sha ${String(prRow?.head?.sha??'<current head>')}`)
-    const hasVerdict=preflightState?.evidence?preflightState.evidence.some((row)=>{const body=String(row.body??''),tied=row.commit_id===request.headSha||body.includes(request.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))}):hasVerdictForHead(request.issue,request.pr,request.headSha,io)
+    const hasVerdict=preflightState?.evidence?anyVerdictFor(preflightState.evidence,request.headSha):hasVerdictForHead(request.issue,request.pr,request.headSha,io)
     if(hasVerdict)throw new LaneError('an existing verdict for the exact head forbids reviewer replacement')
     const failedLeaseRef=reviewActiveRef(original.reviewer),cachedFailed=preflightBusy.leases?.get(original.reviewer),failedLeaseSha=cachedFailed?.sha??io.readRef(failedLeaseRef)
     const failedLease=failedLeaseSha?(cachedFailed?.sha===failedLeaseSha?cachedFailed.lease:parseReviewLease(io.getCommit(failedLeaseSha))):null
@@ -2245,7 +2351,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
         requireOwnedRef(MUTEX_REF,ownerSha,io)
         const freshStates=io.readReviewStates([original,...(replacementStale?[replacementStale.assignment]:[])])
         const fresh=freshStates?.get(`${request.issue}:${request.pr}`)
-        const freshVerdict=fresh?.evidence?.some((row)=>{const body=String(row.body??''),tied=row.commit_id===request.headSha||body.includes(request.headSha);return tied&&(/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body)||['APPROVED','CHANGES_REQUESTED'].includes(String(row.state??'').toUpperCase()))})
+        const freshVerdict=anyVerdictFor(fresh?.evidence,request.headSha)
         if(fresh?.issue?.state!=='open'||!reviewTargetEligible(fresh?.pr,io)||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError('review replacement issue, PR head, or verdict changed after mutex acquisition')
         assertReviewLeaseStillStale(replacementStale,freshStates)
         const changes=[
@@ -2544,11 +2650,18 @@ function activateReviewCutoverOperation(io) {
     for (const candidate of candidates) {
       const { row, lease, number, headSha } = candidate
       const state = states?.get(`${lease.issue}:${lease.pr}`)
+      // Batched path uses the SAME shared predicate as every other consumer
+      // (issue #1822, glm-5.3 seq 524 High). This used to carry its own
+      // anywhere-in-body verdict test -- the exact defect #1822 exists to
+      // delete -- on the path production actually takes, while
+      // hasVerdictForHead below (the fallback) already used the shared rule.
+      // A false verdict here `continue`s past lease creation, so the reviewer
+      // that is genuinely reviewing never gets its protective lease, the busy
+      // probe goes blind, and a second reviewer can be handed the same
+      // provider: the double-assignment hazard this activation exists to
+      // prevent, failing silently.
       const verdict = state
-        ? state.evidence.some((entry) => {
-            const body = String(entry.body ?? ''), tied = entry.commit_id === lease.headSha || body.includes(lease.headSha)
-            return tied && (/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body) || ['APPROVED', 'CHANGES_REQUESTED'].includes(String(entry.state ?? '').toUpperCase()))
-          })
+        ? anyVerdictFor(state.evidence, lease.headSha)
         : hasVerdictForHead(lease.issue, lease.pr, lease.headSha, io)
       if (verdict) continue
       const leaseRef = reviewActiveRef(lease.reviewer)

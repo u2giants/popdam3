@@ -2788,6 +2788,63 @@ test('cutover activation skips a pre-cutover assignment that already has a verdi
   assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
 })
 
+// REGRESSION (issue #1822, glm-5.3 sequence 524 High). The BATCHED verdict
+// check -- the path production takes whenever readReviewStates is available --
+// carried its own anywhere-in-body verdict test long after every other consumer
+// moved to the shared opening-line predicate. A head-quoting progress note that
+// merely CONTAINS the word "approve" scored as a finished verdict, so activation
+// skipped creating that reviewer's protective lease and the busy probe went
+// blind: the double-assignment hazard this activation exists to prevent, failing
+// silently. Nothing covered the batched path's verdict logic at all.
+function batchedStatesIo(io,{issue,pr,headSha,evidence}){
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:lease.headSha}},evidence}]))
+  return {issue,pr,headSha}
+}
+
+test('cutover activation on the BATCHED path does not read head-quoting progress prose as a verdict',()=>{
+  const io=freshCutoverIo(),headSha='e'.repeat(40)
+  io.openPulls=()=>[{number:112,head:{sha:headSha}}]
+  seedAssignment(io,{issue:12,pr:112,headSha,reviewer:'grok-4.6'})
+  // A real progress note in the shape this repository has already produced
+  // twice: the head SHA, and the verdict word mid-sentence rather than opening
+  // a line. There is no verdict here, so the lease MUST be created.
+  batchedStatesIo(io,{issue:12,pr:112,headSha,evidence:[
+    {body:`Still reviewing ${headSha}; I expect to approve once the fixture lands.`,commit_id:null,state:null},
+  ]})
+  const result=activateReviewCutover(io)
+  assert.equal(result.activated,true)
+  assert.deepEqual(result.backfilled,[{reviewer:'grok-4.6',issue:12,pr:112,headSha,ref:reviewActiveRef('grok-4.6')}])
+  assert.ok(io.refs.has(reviewActiveRef('grok-4.6')))
+})
+
+// The other half: the batched path must still SEE a real verdict. Without this,
+// the test above could be satisfied by a predicate that never returns true.
+test('cutover activation on the BATCHED path still skips an assignment with a real opening-line verdict',()=>{
+  const io=freshCutoverIo(),headSha='f'.repeat(40)
+  io.openPulls=()=>[{number:113,head:{sha:headSha}}]
+  seedAssignment(io,{issue:13,pr:113,headSha,reviewer:'grok-4.6'})
+  batchedStatesIo(io,{issue:13,pr:113,headSha,evidence:[
+    {body:`VERDICT: APPROVE\n\nReviewed at ${headSha}.`,commit_id:null,state:null},
+  ]})
+  const result=activateReviewCutover(io)
+  assert.deepEqual(result.backfilled,[])
+  assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
+})
+
+// And the conditional-approval rule reaches the batched path too: "APPROVE WITH
+// CONDITIONS" withholds, so the reviewer is still live and still needs its lease.
+test('cutover activation on the BATCHED path treats APPROVE WITH CONDITIONS as no verdict',()=>{
+  const io=freshCutoverIo(),headSha='1'.repeat(40)
+  io.openPulls=()=>[{number:114,head:{sha:headSha}}]
+  seedAssignment(io,{issue:14,pr:114,headSha,reviewer:'grok-4.6'})
+  batchedStatesIo(io,{issue:14,pr:114,headSha,evidence:[
+    {body:`APPROVE WITH CONDITIONS\n\nReviewed at ${headSha}.`,commit_id:null,state:null},
+  ]})
+  const result=activateReviewCutover(io)
+  assert.equal(result.backfilled.length,1)
+  assert.ok(io.refs.has(reviewActiveRef('grok-4.6')))
+})
+
 test('cutover activation retried after success is idempotent and repeats no backfill',()=>{
   const io=freshCutoverIo(),headSha='c'.repeat(40)
   io.openPulls=()=>[{number:111,head:{sha:headSha}}]
