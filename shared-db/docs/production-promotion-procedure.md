@@ -51,7 +51,7 @@ Apply **only your own** migration with a bounded temp checkout:
 3. `supabase link --project-ref qsllyeztdwjgirsysgai --password "$PROD_DB_PASSWORD"`
 4. `supabase db push --dry-run` → **confirm it lists only your migrations**.
 
-Historical recovery is apply-only. A historical-input `mode=dry-run` applies nothing, writes no recovery proof, and its green ledger-only artifact is not evidence. Immediately before every required preview run, resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector with a fresh repository-variable and preview-ledger read, then manually dispatch only the stored matching instruction.
+Historical recovery is apply-only. A historical-input `mode=dry-run` applies nothing, writes no recovery proof, and its green ledger-only artifact is not evidence. Immediately before every required preview run, resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>` (adding `--claim-number <claim>` when more than one merged historical claim exists), rerun the read-only selector with a fresh repository-variable and preview-ledger read, then manually dispatch only the stored matching instruction.
    If your file sorts *before* the remote max, the dry run says "Found local migration files to
    be inserted before the last migration on remote database" and asks for `--include-all`.
    **In this bounded temp checkout that flag is the correct and safe way to finish** — the

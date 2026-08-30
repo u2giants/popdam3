@@ -770,7 +770,7 @@ function mergedPrIo({merged=true,mergeSha='b'.repeat(40),inMain=true,evidence=[]
   // defect where that projection carried no merge SHA at all, so every merged PR was
   // rejected after the mutex. This fixture mirrors the real projection exactly.
   const projected={state:merged?'merged':'closed',merged,merge_commit_sha:mergeSha,head:{sha:MERGED_HEAD}}
-  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:projected,evidence}]))
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'closed'},pr:projected,evidence}]))
   io.readReviewRefs=(refs)=>new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))
   io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
   io.atomicReviewMutexRelease=(ownerSha)=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
@@ -809,6 +809,28 @@ test('a closed but unmerged pull request is still refused a reviewer',()=>{
   assert.throws(()=>assignNextReviewer(mergedRequest,mergedPrIo({merged:false,mergeSha:''})),/changed after mutex acquisition/)
 })
 
+test('a closed issue with an open pull request is still refused a reviewer',()=>{
+  const io=mergedPrIo(),openPr={state:'open',merged:false,merge_commit_sha:'',head:{sha:MERGED_HEAD}}
+  io.getPr=()=>openPr
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'closed'},pr:openPr,evidence:[]}]))
+  assert.throws(()=>assignNextReviewer(mergedRequest,io),/changed after mutex acquisition/)
+})
+
+test('an existing assignment is not returned after its closed issue target becomes an open PR',()=>{
+  const io=mergedPrIo(),assigned=assignNextReviewer(mergedRequest,io),openPr={state:'open',merged:false,merge_commit_sha:'',head:{sha:MERGED_HEAD}}
+  assert.ok(assigned.reviewer);io.getPr=()=>openPr
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'closed'},pr:openPr,evidence:[]}]))
+  assert.throws(()=>assignNextReviewer(mergedRequest,io),/merge eligibility changed/)
+})
+
+test('an existing assignment is not returned after an open issue target closes unmerged or moves head',()=>{
+  for(const pr of [{state:'closed',merged:false,merge_commit_sha:'',head:{sha:MERGED_HEAD}},{state:'open',merged:false,merge_commit_sha:'',head:{sha:'c'.repeat(40)}}]){
+    const io=mergedPrIo();assignNextReviewer(mergedRequest,io);io.getPr=()=>pr
+    io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr,evidence:[]}]))
+    assert.throws(()=>assignNextReviewer(mergedRequest,io),/merge eligibility changed/)
+  }
+})
+
 test('a merged pull request whose merge commit is absent from main is refused',()=>{
   // Discriminating on ANCESTRY specifically, not merely on "not open": this io differs
   // from the passing merged case above by exactly one bit, the ancestry answer. The
@@ -838,6 +860,22 @@ test('a merged pull request can also receive a reviewer REPLACEMENT for its merg
   const replaced=replaceFailedReviewer({...mergedRequest,failedSequence:first.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io)
   assert.ok(replaced.reviewer)
   assert.notEqual(replaced.reviewer,first.reviewer)
+})
+
+test('an existing replacement is not returned after its closed issue target becomes an open PR',()=>{
+  const io=mergedPrIo(),first=assignNextReviewer(mergedRequest,io),request={...mergedRequest,failedSequence:first.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true}
+  replaceFailedReviewer(request,io)
+  const openPr={state:'open',merged:false,merge_commit_sha:'',head:{sha:MERGED_HEAD}};io.getPr=()=>openPr
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'closed'},pr:openPr,evidence:[]}]))
+  assert.throws(()=>replaceFailedReviewer(request,io),/merge eligibility changed/)
+})
+
+test('an existing replacement is not returned after its open issue target moves head',()=>{
+  const io=mergedPrIo(),first=assignNextReviewer(mergedRequest,io),request={...mergedRequest,failedSequence:first.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true}
+  replaceFailedReviewer(request,io)
+  const moved={state:'open',merged:false,merge_commit_sha:'',head:{sha:'d'.repeat(40)}};io.getPr=()=>moved
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:moved,evidence:[]}]))
+  assert.throws(()=>replaceFailedReviewer(request,io),/merge eligibility changed/)
 })
 
 test('an existing verdict at the merged head still refuses a new assignment',()=>{
@@ -3323,7 +3361,11 @@ test('closed-claim recovery refuses ambiguity, an open PR, and a merge outside m
   const claim=io.openClaims()[0]
   io.openClaims=()=>[]
   io.closedClaimsForWork=()=>[{...claim,state:'closed'},{...claim,number:1806,state:'closed'}]
-  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/exactly one closed claim with one merged pull request/)
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/explicit --claim-number/)
+
+  const selected=deriveLivePreviewCandidate(1769,io,{claimNumber:claim.number})
+  assert.equal(selected.route,'merged_rehearsal')
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io,{claimNumber:9999}),/not a unique historical claim/)
 
   io.closedClaimsForWork=()=>[{...claim,state:'closed'}]
   io.openPulls=()=>[{number:1809,head:{ref:'issue-1769-wwe-tables',sha:'a'.repeat(40)}}]
