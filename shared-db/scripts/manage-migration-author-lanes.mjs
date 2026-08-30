@@ -45,6 +45,18 @@ export const REVIEW_ACTIVE_REF_PREFIX = 'refs/db-review-active'
 export const REVIEW_ACTIVE_CUTOVER_REF = 'refs/db-coordination/reviewer-index-cutover'
 export const REVIEW_OPERATION_REQUEST_LIMIT = 22, REVIEW_MUTEX_SECTION_RESERVE = 13 // slot 2 = 9 pre-mutex + this reserve; slot 1 = 6 + reserve. An ENTRY gate, not a release guarantee: it refuses to ACQUIRE the mutex unless the whole mutex-held section (body 11 + merged-PR ancestry add-on 2) still fits. Release is guaranteed separately by cleanupReserve (set at the acquire site, enforced in consumeReviewWireRequest). Derivation and the replacement-ref caveat: docs/verification/reviewer-assignment-api-budget-2026-08-28.md (#1812)
 export const REVIEW_QUOTA_RESERVE = 100
+// Page ceiling for listReviewRefsPaged. It is a REFUSAL, not a truncation: past
+// this the reviewer audit stops rather than reporting a partial view of the
+// durable review history (issue #1798).
+//
+// DO NOT read 6 pages as 600 refs of headroom per namespace. The page limit is
+// not the real ceiling -- the wire-request budget is, and the two namespaces
+// SHARE it, one counted request per page each. Against today's budget the
+// cutover has room for roughly 500 assignment refs and 200 replacement refs
+// combined, not 600 apiece, and today's repository already holds 370 and 106.
+// The headroom this constant appears to grant is illusory; the operation will
+// hit the request budget first (issue #1798 round 3, glm-5.3 Medium).
+export const REVIEW_REF_PAGE_LIMIT = 6
 export const REVIEWERS = Object.freeze([
   { name:'grok-4.6', wrapper:'ai-grok-review' }, { name:'glm-5.3', wrapper:'ai-glm' },
   { name:'kimi-k3', wrapper:'ai-kimi' }, { name:'qwen-3.8-max', wrapper:'ai-qwen' },
@@ -948,6 +960,31 @@ export const githubIo = {
     const short=prefix.replace(/^refs\//,'')
     return ghPaginated(`repos/${REPO}/git/matching-refs/${short}?per_page=100`).map((row)=>({ref:row.ref,sha:row.object?.sha})).filter((row)=>row.sha)
   },
+  // Paginated sibling of listRefs for the DURABLE review ref namespaces
+  // (issue #1798). `listRefs` routes through ghPaginated, which -- inside a
+  // reviewer wire budget -- refuses outright at 100 rows rather than risk a
+  // silently truncated page. That is the right default for a namespace that
+  // is supposed to be small, but the assignment and replacement namespaces
+  // are append-only across the repository's whole review history (370
+  // assignment refs as of 2026-08-29), so the cutover audit could never list
+  // them at all: it died on the 100-row refusal before reading anything.
+  //
+  // This walks explicit pages instead, so every page is a counted request the
+  // wire budget can see, and stops at REVIEW_REF_PAGE_LIMIT with a LOUD
+  // refusal rather than returning a partial list. A truncated audit is the
+  // one outcome that must never happen quietly here: it would look like
+  // "no live review to protect" and flip the cutover on blind.
+  listReviewRefsPaged(prefix) {
+    const short=prefix.replace(/^refs\//,'')
+    const rows=[]
+    for(let page=1;page<=REVIEW_REF_PAGE_LIMIT;page++){
+      const chunk=ghJson(['api',`repos/${REPO}/git/matching-refs/${short}?per_page=100&page=${page}`])
+      if(!Array.isArray(chunk))throw new LaneError(`GitHub page ${page} for ${prefix} was incomplete or malformed`)
+      rows.push(...chunk.map((row)=>({ref:row.ref,sha:row.object?.sha})).filter((row)=>row.sha))
+      if(chunk.length<100)return rows
+    }
+    throw new LaneError(`${prefix} exceeded ${REVIEW_REF_PAGE_LIMIT} pages of 100 refs; refusing a possibly truncated reviewer audit`)
+  },
   // A DELETE is never replayed after a transport failure. The first request may
   // have succeeded and a new owner may acquire the fixed coordination ref
   // during backoff; replaying the DELETE could then remove that new owner.
@@ -1331,7 +1368,7 @@ export function recoverStaleAuthorMutex({ expectedSha, confirmStale, serializedR
     const message=commit?.message ?? commit?.commit?.message ?? ''
     const dateText=commit?.committer?.date ?? commit?.commit?.committer?.date
     const acquiredAt=new Date(dateText)
-    if(!/^db-coordination (?:author-acquisition|author-capacity-relinquish|author-capacity-resume|preview|merge|production|claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-lease-renewal|reviewer-assignment-lock|reviewer-replacement-lock|reviewer-failure(?:-replacement)?)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
+    if(!/^db-coordination (?:author-acquisition|author-capacity-relinquish|author-capacity-resume|preview|merge|production|claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-lease-renewal|reviewer-assignment-lock|reviewer-replacement-lock|reviewer-failure(?:-replacement)?|reviewer-index-cutover-activation-audit)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
     if(Number.isNaN(acquiredAt.valueOf()))throw new LaneError('refusing recovery: mutex owner time is unreadable')
     const age=now-acquiredAt
     if(age<minAgeMs)throw new LaneError(`refusing recovery: mutex is only ${Math.max(0,Math.floor(age/1000))} seconds old`)
@@ -1601,13 +1638,42 @@ export function inReviewReplacementNamespace(ref,base){
 function resolveSlotOneReviewer(issue,pr,headSha,io){
   const slotOneBase=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-${headSha}`
   const slotOneReplacementBase=`${REVIEW_REPLACEMENT_REF_PREFIX}/${issue}-${pr}-${headSha}`
+  const missing=()=>new LaneError(`slot 2 requires slot 1 to already be assigned for issue #${issue} PR #${pr} head ${headSha}. Run --assign-reviewer --issue ${issue} --pr ${pr} --head-sha ${headSha} (default --review-slot 1) first, then request --review-slot 2.`)
+  // BATCHED (issue #1798 fix). This used to be up to three separate wire
+  // requests (listRefs, readRef, getCommit) run BEFORE the mutex is even
+  // acquired, on every slot-2 assignment -- which is exactly the preflight
+  // cost that pushed slot-2 over its own 19-request budget on real GitHub
+  // every time. `readReviewRecords` reads the explicit slot-1 assignment ref
+  // AND every slot-1 replacement ref, commit messages included, in one
+  // GraphQL round trip. Only test doubles without readReviewRecords fall
+  // back to the old three-call path.
+  //
+  // The `.matching` rows carry NO commit message in production -- that read is
+  // a separate REST listing and its own comment says every caller falls back to
+  // `io.getCommit(row.sha)`. Omitting that fallback made a real slot-2 request
+  // after `--replace-failed-reviewer` throw outright (issue #1798 round 2).
+  if(typeof io.readReviewRecords==='function'){
+    const records=io.readReviewRecords([slotOneBase],slotOneReplacementBase)
+    // `.matching` is a PREFIX listing, and slot 1's replacement base is a prefix
+    // of every higher slot's base, so slot 2's records would otherwise leak into
+    // slot 1's answer with the highest sequence winning (#1838). Narrow it to the
+    // exact namespace, the same way the listRefs fallback below does.
+    const replacementRows=(records.matching??[]).filter((row)=>inReviewReplacementNamespace(row.ref,slotOneReplacementBase))
+    if(replacementRows.length){
+      const replacements=replacementRows.map((row)=>parseReviewReplacement(row.commit??io.getCommit(row.sha)))
+      return replacements.sort((a,b)=>b.sequence-a.sequence)[0].reviewer
+    }
+    const record=records.get(slotOneBase)
+    if(!record)throw missing()
+    return parseReviewCursor(record.commit??io.getCommit(record.sha)).reviewer
+  }
   const replacementRows=(io.listRefs?.(slotOneReplacementBase)??[]).filter((row)=>inReviewReplacementNamespace(row.ref,slotOneReplacementBase))
   if(replacementRows.length){
     const replacements=replacementRows.map((row)=>parseReviewReplacement(row.commit??io.getCommit(row.sha)))
     return replacements.sort((a,b)=>b.sequence-a.sequence)[0].reviewer
   }
   const sha=io.readRef(slotOneBase)
-  if(!sha)throw new LaneError(`slot 2 requires slot 1 to already be assigned for issue #${issue} PR #${pr} head ${headSha}. Run --assign-reviewer --issue ${issue} --pr ${pr} --head-sha ${headSha} (default --review-slot 1) first, then request --review-slot 2.`)
+  if(!sha)throw missing()
   return parseReviewCursor(io.getCommit(sha)).reviewer
 }
 
@@ -1671,6 +1737,13 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
   const eligibleNames=new Set(eligible.map((row)=>row.name))
   // Slot >=2 needs a name to exclude BEFORE the mutex is taken: cheap, and it
   // lets an ungoverned "assign slot 2 with no slot 1" request fail fast.
+  //
+  // This branch reached the same slot-2 defect from the other side and moved
+  // this resolve INSIDE the lock. #1813 fixed it by raising the ceiling instead,
+  // and its REVIEW_MUTEX_SECTION_RESERVE is derived assuming the resolve is paid
+  // here, pre-mutex. Two fixes for one defect is worse than either, so this
+  // branch defers to the merged one: the resolve stays here, and the reserve is
+  // #1813's (issue #1798 round 3 / issue #1812).
   const excludedProvider=request.slot===1?null:resolveSlotOneReviewer(request.issue,request.pr,request.headSha,io)
   const preflightBusy=findBusyReviewers(io)
   if(!preflightBusy)throw new LaneError('active reviewer leases are unreadable; reviewer assignment refused before mutex acquisition')
@@ -2225,6 +2298,315 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
 }
 
 export function replaceFailedReviewer(request,io=githubIo){return withReviewRequestBudget(()=>replaceFailedReviewerOperation(request,reviewOperationIo(io)))}
+
+// REVIEWER-INDEX CUTOVER ACTIVATION (issue #1777 handover). `findBusyReviewers`
+// REFUSES outright when `REVIEW_ACTIVE_CUTOVER_REF` is absent (see its
+// FAIL-CLOSED comment above), so that ref must never be created bare. Any
+// review already live on an open PR's CURRENT head, assigned before this
+// activation ran, needs its `REVIEW_ACTIVE_REF_PREFIX` lease backfilled FIRST
+// -- otherwise the busy probe would silently lose visibility into it the
+// instant cutover flips on, and a second reviewer could be handed a provider
+// that is already working.
+//
+// BOUNDED. The live audit walks every currently OPEN pull request exactly
+// once (`io.openPulls()`), which is bounded by this repository's open-PR
+// count -- never all history and never every closed assignment ref ever
+// written.
+//
+// FAIL-CLOSED ON AN UNPROVEN AUDIT. Any PR whose number or exact head SHA
+// cannot be read, any matching assignment ref that cannot be parsed, any
+// reviewer name the audit does not recognize, or any lease creation that
+// cannot be proved by readback refuses the ENTIRE activation with no cutover
+// ref written. A partially-audited cutover is worse than none: it would look
+// active while actually blind to some in-flight review.
+//
+// IDEMPOTENT ON RETRY. If the cutover ref already exists this returns its
+// recorded SHA immediately and performs no writes and no audit, so retrying
+// after a network flake or an interrupted run never re-runs the audit and
+// never risks a duplicate-ref race. The same race is handled mid-flight too:
+// if another activation wins the create between this run's audit and its own
+// `createRef`, the loser reads back the winner's SHA instead of erroring.
+// A slot-2 assignment ref carries a `-slot{N}` suffix after the
+// issue-pr-head tuple (see assignNextReviewerOperation's `slotSuffix`). The
+// audit must recognize both shapes, or a live slot-2 review is invisible to
+// it and its durable lease is never backfilled (issue #1798, medium finding).
+function matchesAssignmentTuple(ref, number, headSha) {
+  return new RegExp(`-${number}-${headSha}(?:-slot\\d+)?$`).test(ref)
+}
+
+// Replacement refs for the same tuple are written as
+// `<issue>-<pr>-<head>[-slotN]` (the original single unsuffixed link) and
+// `<issue>-<pr>-<head>[-slotN]-<failedSequence>` for every link after it, so
+// both shapes have to match here (see replaceFailedReviewerOperation).
+
+// SLOT-SCOPED, not merely tuple-scoped (issue #1798 round 6, grok-4.6 blocking
+// finding). Matching the tuple alone pools slot 1's and slot 2's replacements
+// into ONE list, and the highest sequence in that pool then overwrites BOTH
+// assignments. A slot-1 replacement would win the slot-2 assignment, leaving the
+// live slot-2 reviewer with no lease and invisible to the busy probe -- the
+// double-assignment hazard this activation exists to prevent. PR #1838 made the
+// replacement WRITER slot-aware; this is the reader, and legacy unsuffixed
+// slot-1 refs are still honoured, so the bad state was reachable on today's refs.
+// A replacement belongs to an assignment only when the text after the tuple is
+// that assignment's own slot suffix, optionally followed by the
+// `-<failedSequence>` link number and nothing else.
+function matchesReplacementForSlot(ref, number, headSha, slotSuffix) {
+  return new RegExp(`-${number}-${headSha}${slotSuffix}(?:-\\d+)?$`).test(ref)
+}
+
+// The suffix an assignment ref carries after its tuple: '' for slot 1, `-slotN`
+// above it. Read back off the ref itself, so the reader cannot disagree with
+// what the writer produced.
+function assignmentSlotSuffix(ref, number, headSha) {
+  return new RegExp(`-${number}-${headSha}(-slot\\d+)?$`).exec(ref)?.[1] ?? ''
+}
+
+function matchesReplacementTuple(ref, number, headSha) {
+  return new RegExp(`-${number}-${headSha}(?:-slot\\d+)?(?:-\\d+)?$`).test(ref)
+}
+
+function activateReviewCutoverOperation(io) {
+  const already = io.readRef(REVIEW_ACTIVE_CUTOVER_REF)
+  if (already) return { activated: false, alreadyActive: true, cutoverSha: already, backfilled: [] }
+  if (typeof io.openPulls !== 'function' || typeof io.listRefs !== 'function') {
+    throw new LaneError('review cutover activation requires openPulls and listRefs; refusing an unproven audit')
+  }
+  // ENTRY GATE, re-derived (issue #1798 round 6, grok-4.6). This used to reserve
+  // a bare 15 -- the in-lock reserve from a slot-2 design that was DELETED when
+  // this branch deferred to #1813. It survived the merge as a number attached to
+  // nothing, and it sat here rather than at the mutex acquire, so it guaranteed
+  // release of nothing. Measured on this head: 3 requests are already spent when
+  // control reaches this line, 7 more are spent before the mutex (openPulls, 4
+  // assignment ref pages, the active-lease read, the owner commit), and the
+  // mutex-held section reserves 11 at its own acquire site below. 7 + 11 is what
+  // an operation still has to be able to afford here, so 18 is what it asks for.
+  requireReviewWireCapacity(18)
+  const openPulls = io.openPulls()
+  if (!Array.isArray(openPulls)) throw new LaneError('open PR audit did not return a readable list; cutover activation refused')
+  // REF DISCOVERY (issue #1798, round 2). Two production I/O facts drive this
+  // shape, both confirmed against githubIo rather than a test double:
+  //
+  //   1. `readReviewRecords(refs, prefix)` returns commit messages ONLY for the
+  //      EXPLICIT `refs` it is given. Its `.matching` rows come from a separate
+  //      REST listing and deliberately carry no commit message (see its own
+  //      comment). Passing `[]` as `refs` also builds an EMPTY GraphQL
+  //      selection set, which is a syntax error GitHub rejects outright. So the
+  //      prefix listing cannot be the thing that supplies lease messages.
+  //   2. `listRefs` refuses at 100 rows inside a wire budget, and these
+  //      namespaces hold the repository's whole review history (370 assignment
+  //      refs today), so it can never list them at all.
+  //
+  // Hence: page the listing explicitly (cheap {ref,sha} rows, counted), narrow
+  // to the open-PR tuples LOCALLY for free, then spend ONE GraphQL call to read
+  // messages for just that narrowed set. Cost stays flat in the number of live
+  // reviews found. 19 is what this walk SPENDS on today's real page counts; the
+  // budget is REVIEW_OPERATION_REQUEST_LIMIT, which is 22. Spend and ceiling are
+  // different numbers and this comment used to conflate them (issue #1798 round 6).
+  const pagedRefs = (prefix) => (typeof io.listReviewRefsPaged === 'function'
+    ? io.listReviewRefsPaged(prefix)
+    : (io.listRefs(prefix) ?? []))
+  const assignmentRows = pagedRefs(REVIEW_ASSIGNMENT_REF_PREFIX)
+  // Replacement refs matter for correctness, not just completeness:
+  // `--replace-failed-reviewer` does NOT rewrite the assignment ref, so a
+  // review that was replaced while live still names its FAILED reviewer there.
+  // Backfilling that name would hand the cutover a lease for someone who is not
+  // reviewing, and leave the reviewer who actually is invisible to the busy
+  // probe -- the same blindness this activation exists to prevent.
+  // Deferred: only paged when an open PR actually has a matching assignment,
+  // which is the only case where a replacement could supersede its reviewer.
+  // On a repository with no pre-cutover live review this listing is never made.
+  let replacementRowsCache = null
+  const replacementRefs = () => (replacementRowsCache ??= pagedRefs(REVIEW_REPLACEMENT_REF_PREFIX))
+  const backfilled = []
+  // One call, three jobs (issue #1798 round 2, to buy real headroom under the
+  // budget rather than sitting exactly on it): it snapshots every existing
+  // active lease, AND its GraphQL query carries defaultBranchRef, which warms
+  // `reviewCommitBase` -- so the makeOwnerCommit below costs 1 request instead
+  // of 3, and the existing-lease check below costs 0 instead of 1.
+  const activeLeases = typeof io.readActiveReviewLeases === 'function' ? io.readActiveReviewLeases() : null
+  const ownerSha = io.makeOwnerCommit('db-coordination reviewer-index-cutover-activation-audit')
+  // RESERVE THE MUTEX-HELD SECTION, at the acquire site, the way the two sibling
+  // acquire sites above do. The replacement ref listing runs INSIDE this lock, so
+  // extra replacement pages and per-ref getCommit fallbacks are in-lock spend, and
+  // hitting the hard budget wall mid-section is exactly what a reserve prevents.
+  // Measured in-lock spend on the real 4+2 page path is 9; 11 leaves two above it,
+  // because a reserve must be at least the spend and erring the other way is what
+  // strands a held mutex.
+  requireReviewWireCapacity(11)
+  acquireReviewMutex(ownerSha, io)
+  try {
+    // Narrow to the open-PR tuples first -- pure local filtering, no requests.
+    const narrowed = []
+    for (const pr of openPulls) {
+      const headSha = pr?.head?.sha
+      const number = pr?.number
+      if (!Number.isInteger(number) || !/^[0-9a-f]{40}$/i.test(String(headSha ?? ''))) {
+        throw new LaneError(`open PR audit could not read an exact number and 40-character head SHA for ${JSON.stringify(pr?.number ?? pr)}; cutover activation refused`)
+      }
+      const assignments = assignmentRows.filter((row) => matchesAssignmentTuple(row.ref, number, headSha))
+      narrowed.push({
+        number,
+        headSha,
+        assignments,
+        replacements: assignments.length ? replacementRefs().filter((row) => matchesReplacementTuple(row.ref, number, headSha)) : [],
+      })
+    }
+    // ONE GraphQL call for every narrowed ref's commit message. Explicit refs
+    // are the form readReviewRecords actually attaches messages to, and the
+    // list is never empty here (the empty-selection-set query is invalid).
+    const wantedRefs = [...new Set(narrowed.flatMap((row) => [...row.assignments, ...row.replacements].map((entry) => entry.ref)))]
+    const messages = new Map()
+    if (wantedRefs.length) {
+      if (typeof io.readReviewRecords === 'function') {
+        const records = io.readReviewRecords(wantedRefs, null)
+        for (const ref of wantedRefs) {
+          const record = records.get(ref)
+          // `record.commit` is `{message: target.message}` and is TRUTHY even
+          // when GraphQL returned no message at all (a non-Commit object, or an
+          // empty message). Testing the record alone would let an empty message
+          // through as if it had been read; the per-ref fallback below is what
+          // must handle it, so the message itself is what is tested (issue
+          // #1798 round 3, glm-5.3 High 1).
+          if (record?.commit?.message) messages.set(ref, record.commit)
+        }
+      }
+      // Any ref the batched read could not answer for is fetched individually
+      // rather than skipped. A missing message must never look like "no live
+      // review here" -- that is the fail-open this activation exists to avoid.
+      for (const ref of wantedRefs) {
+        if (messages.has(ref)) continue
+        const row = narrowed.flatMap((entry) => [...entry.assignments, ...entry.replacements]).find((entry) => entry.ref === ref)
+        const commit = io.getCommit(row.sha)
+        if (!(commit?.message ?? commit?.commit?.message)) throw new LaneError(`review ref ${ref} has no readable commit message; cutover activation refused`)
+        messages.set(ref, commit)
+      }
+    }
+    const candidates = []
+    for (const { number, headSha, assignments, replacements } of narrowed) {
+      for (const row of assignments) {
+        let lease
+        try { lease = parseReviewCursor(messages.get(row.ref)) }
+        catch (error) { throw new LaneError(`assignment ref ${row.ref} is unreadable: ${error.message}; cutover activation refused`) }
+        if (!lease) throw new LaneError(`assignment ref ${row.ref} does not hold a readable reviewer cursor; cutover activation refused`)
+        if (lease.pr !== number || lease.headSha !== headSha) continue
+        // A replacement supersedes the assignment's reviewer for this exact
+        // tuple, highest failure sequence winning -- the same precedence
+        // resolveSlotOneReviewer and assignNextReviewerOperation already use.
+        let reviewer = lease.reviewer
+        let leaseSha = row.sha
+        // REFUSE, never discard (issue #1798 round 3, glm-5.3 High 1). This half
+        // of the loop used to catch a parse failure and drop the row, while the
+        // assignment half three lines up refuses on exactly the same failure.
+        // The two halves of a symmetric loop had diverged, and the consequence
+        // was the original fail-open in a new place: a replacement record that
+        // cannot be read makes the FAILED reviewer named on the assignment ref
+        // look live, and leaves the reviewer who is actually reviewing invisible
+        // to the busy probe -- the double-assignment hazard this whole
+        // activation exists to prevent.
+        const parsedReplacements = replacements
+          .filter((entry) => matchesReplacementForSlot(entry.ref, number, headSha, assignmentSlotSuffix(row.ref, number, headSha)))
+          .map((entry) => {
+            let parsed
+            try { parsed = parseReviewReplacement(messages.get(entry.ref)) }
+            catch (error) { throw new LaneError(`replacement ref ${entry.ref} is unreadable: ${error.message}; cutover activation refused`) }
+            if (!parsed) throw new LaneError(`replacement ref ${entry.ref} does not hold a readable replacement record; cutover activation refused`)
+            return { parsed, sha: entry.sha }
+          })
+          .filter((entry) => entry.parsed.pr === number && entry.parsed.headSha === headSha)
+        if (parsedReplacements.length) {
+          const winner = parsedReplacements.sort((a, b) => b.parsed.sequence - a.parsed.sequence)[0]
+          reviewer = winner.parsed.reviewer
+          leaseSha = winner.sha
+        }
+        if (!REVIEWERS.some((r) => r.name === reviewer)) throw new LaneError(`review ref ${row.ref} names an unrecognized reviewer ${reviewer}; cutover activation refused`)
+        candidates.push({ row: { ref: row.ref, sha: leaseSha }, lease: { ...lease, reviewer }, number, headSha })
+      }
+    }
+    // BATCHED VERDICT + EXISTING-LEASE CHECK (issue #1798 fix). The old code
+    // spent one `getCommit`, three verdict-evidence REST/GraphQL calls, and
+    // two ref reads PER MATCHING ASSIGNMENT -- so activation was
+    // uncompletable within its own 19-request budget the moment there was an
+    // actual live review to protect (the exact case this feature exists
+    // for), even though it sailed through on the no-op cases the tests
+    // exercised. `readReviewStates` and `readReviewRefs` each answer for
+    // every candidate in ONE network call, so the audit's request count no
+    // longer grows with the number of live reviews found.
+    const states = candidates.length && typeof io.readReviewStates === 'function'
+      ? io.readReviewStates(candidates.map((c) => c.lease))
+      : null
+    const leaseRefs = [...new Set(candidates.map((c) => reviewActiveRef(c.lease.reviewer)))]
+    // Prefer the snapshot already taken above -- it covers every reviewer's
+    // active-lease ref, so it answers this without another request.
+    const existingLeases = activeLeases
+      ? new Map(leaseRefs.map((ref) => [ref, activeLeases.get(ref)?.sha ?? null]))
+      : (leaseRefs.length && typeof io.readReviewRefs === 'function' ? io.readReviewRefs(leaseRefs) : null)
+    const toCreate = []
+    for (const candidate of candidates) {
+      const { row, lease, number, headSha } = candidate
+      const state = states?.get(`${lease.issue}:${lease.pr}`)
+      const verdict = state
+        ? state.evidence.some((entry) => {
+            const body = String(entry.body ?? ''), tied = entry.commit_id === lease.headSha || body.includes(lease.headSha)
+            return tied && (/\b(?:APPROVE|REVISE|REQUEST_CHANGES)\b/i.test(body) || ['APPROVED', 'CHANGES_REQUESTED'].includes(String(entry.state ?? '').toUpperCase()))
+          })
+        : hasVerdictForHead(lease.issue, lease.pr, lease.headSha, io)
+      if (verdict) continue
+      const leaseRef = reviewActiveRef(lease.reviewer)
+      const existingLease = existingLeases ? (existingLeases.get(leaseRef) ?? null) : io.readRef(leaseRef)
+      if (existingLease === row.sha) continue
+      if (existingLease) throw new LaneError(`reviewer ${lease.reviewer} already holds a different active lease; cutover activation refused pending manual audit`)
+      toCreate.push({ reviewer: lease.reviewer, issue: lease.issue, pr: number, headSha, ref: leaseRef, sha: row.sha })
+    }
+    // No read-then-check of the mutex before the ATOMIC path: the push below
+    // carries `--force-with-lease=MUTEX_REF:ownerSha`, which GitHub evaluates
+    // server-side as part of the same transaction. That is strictly stronger
+    // than a separate read (which is TOCTOU by construction) and one request
+    // cheaper. The non-atomic fallback below still checks explicitly, because
+    // its writes are not transactional.
+    if (io.atomicReviewRefs && io.readReviewRefs) {
+      const changes = [
+        { ref: MUTEX_REF, expected: ownerSha, sha: ownerSha },
+        ...toCreate.map((c) => ({ ref: c.ref, expected: null, sha: c.sha })),
+        { ref: REVIEW_ACTIVE_CUTOVER_REF, expected: null, sha: ownerSha },
+      ]
+      try { io.atomicReviewRefs(changes) }
+      catch (error) {
+        // A raced activation is the ONE expected failure here: another
+        // activation won the create between our audit and this push. Read
+        // back its winning SHA instead of erroring, same as the
+        // non-batched path below.
+        const raced = io.readRef(REVIEW_ACTIVE_CUTOVER_REF)
+        if (raced && raced !== ownerSha) return { activated: false, alreadyActive: true, cutoverSha: raced, backfilled: [] }
+        throw error
+      }
+      const verify = io.readReviewRefs([MUTEX_REF, REVIEW_ACTIVE_CUTOVER_REF, ...toCreate.map((c) => c.ref)])
+      if (verify.get(MUTEX_REF) !== ownerSha || verify.get(REVIEW_ACTIVE_CUTOVER_REF) !== ownerSha || toCreate.some((c) => verify.get(c.ref) !== c.sha)) {
+        throw new LaneError('batched review cutover activation readback mismatch')
+      }
+      backfilled.push(...toCreate.map(({ sha, ...rest }) => rest))
+      return { activated: true, alreadyActive: false, cutoverSha: ownerSha, backfilled }
+    }
+    for (const c of toCreate) {
+      requireOwnedRef(MUTEX_REF, ownerSha, io)
+      if (!io.createRef(c.ref, c.sha) && readRefAfterWrite(c.ref, c.sha, io) !== c.sha) {
+        throw new LaneError(`could not create or prove the active lease for reviewer ${c.reviewer} on PR #${c.pr}; cutover activation refused`)
+      }
+      backfilled.push({ reviewer: c.reviewer, issue: c.issue, pr: c.pr, headSha: c.headSha, ref: c.ref })
+    }
+    requireOwnedRef(MUTEX_REF, ownerSha, io)
+    if (!io.createRef(REVIEW_ACTIVE_CUTOVER_REF, ownerSha)) {
+      const raced = readRefAfterWrite(REVIEW_ACTIVE_CUTOVER_REF, ownerSha, io)
+      if (!raced) throw new LaneError('review cutover ref could not be created or proven after the audit; activation refused')
+      return { activated: false, alreadyActive: true, cutoverSha: raced, backfilled }
+    }
+    if (readRefAfterWrite(REVIEW_ACTIVE_CUTOVER_REF, ownerSha, io) !== ownerSha) {
+      throw new LaneError('review cutover ref creation could not be proved by readback; activation refused')
+    }
+    return { activated: true, alreadyActive: false, cutoverSha: ownerSha, backfilled }
+  } finally { finalizeReviewMutex(ownerSha, io) }
+}
+
+export function activateReviewCutover(io=githubIo){return withReviewRequestBudget(()=>activateReviewCutoverOperation(reviewOperationIo(io)))}
 
 export function acquireAuthorLane(options, now = new Date(), io = githubIo) {
   options = { ...options, objects: validateClaimObjects(options.objects) }
@@ -2982,6 +3364,7 @@ function parseArgs(argv) {
     else if (a === '--report-file') out.reportFile = argv[++i]
     else if (a === '--return-issue') out.returnIssue = Number(argv[++i])
     else if (a === '--assign-reviewer') out.assignReviewer = true
+    else if (a === '--activate-review-cutover') out.activateReviewCutover = true
     else if (a === '--replace-failed-reviewer') out.replaceFailedReviewer = true
     else if (a === '--reviewer-preflight') out.reviewerPreflight = true
     else if (a === '--cleanup-stale') out.cleanup = true
@@ -3052,6 +3435,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.replaceFailedReviewer){console.log(JSON.stringify(replaceFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}
     if(o.assignReviewer){console.log(JSON.stringify(assignNextReviewer({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
+    if(o.activateReviewCutover){console.log(JSON.stringify(activateReviewCutover(io),null,2));return 0}
     if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions, versionPrMap:o.versionPrMap }, io), null, 2)); return 0 }
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }
     const claims = io.openClaims()
@@ -3191,7 +3575,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       for(const problem of malformed)console.error(`MALFORMED ${problem}`)
       return malformed.length || occupied>MAX_AUTHOR_LANES ? 2 : 0
     }
-    if (!o.claim) throw new LaneError('choose --claim, --audit, --queue-audit, --return-issue, --cleanup-stale, or an exclusive-lane command')
+    if (!o.claim) throw new LaneError('choose --claim, --audit, --queue-audit, --return-issue, --cleanup-stale, --activate-review-cutover, or an exclusive-lane command')
     for (const k of ['task','owner','branch','worktree']) if (!o[k]) throw new LaneError(`--${k} is required`)
     if (!o.objects.length) throw new LaneError('--objects must name every database object exactly')
     o.leaseHours ??= DEFAULT_LEASE_HOURS

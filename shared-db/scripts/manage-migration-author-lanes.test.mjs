@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, projectReviewPr, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, projectReviewPr, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_PAGE_LIMIT } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -419,10 +419,10 @@ test('complete assignment stays inside the real wire-attempt budget',()=>{
   const make=io.makeOwnerCommit
   io.makeOwnerCommit=(message)=>{wire(1);baseLoaded=true;return make(message)}
   const result=assignNextReviewer({issue:1767,pr:1800,headSha:'a'.repeat(40)},io)
-  assert.ok(result.reviewer);assert.ok(attempts<=19,`used ${attempts} wire attempts`)
+  assert.ok(result.reviewer);assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts`)
   attempts=0
   assert.deepEqual(assignNextReviewer({issue:1767,pr:1800,headSha:'a'.repeat(40)},io),result)
-  assert.ok(attempts<=19,`retry used ${attempts} wire attempts`)
+  assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`retry used ${attempts} wire attempts`)
 })
 
 test('complete slot-2 assignment stays inside the real wire-attempt budget (issue #1812)',()=>{
@@ -510,7 +510,7 @@ test('complete replacement stays inside the real wire-attempt budget',()=>{
   for(const name of ['readRef','listRefs','getCommit','getPr','getIssue','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){const fn=io[name];io[name]=(...args)=>{wire(1,`${name}:${String(args[0])}`);return fn(...args)}}
   const make=io.makeOwnerCommit;io.makeOwnerCommit=(message)=>{wire(1,'commit');baseLoaded=true;return make(message)}
   let result;try{result=replaceFailedReviewer(replacementRequest,io)}catch(error){throw new Error(`${error.message}; calls=${labels.join(',')}`)}
-  assert.ok(result.reviewer);assert.ok(attempts<=19,`used ${attempts} wire attempts`)
+  assert.ok(result.reviewer);assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts`)
 })
 
 test('atomic replacement succeeds when the failed assignment has no active lease',()=>{
@@ -2652,6 +2652,234 @@ test('completeWork publishes a fully proven merged report and reads it back', ()
   assert.equal(io.posted.length, 1)
 })
 
+// --activate-review-cutover (issue #1777 handover)
+
+function freshCutoverIo(){const io=reviewIo();io.refs.delete(REVIEW_ACTIVE_CUTOVER_REF);return io}
+
+function seedAssignment(io,{issue,pr,headSha,reviewer,sequence=1}){
+  const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer} issue=${issue} pr=${pr} head=${headSha}`)
+  io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-${headSha}`,sha)
+  return sha
+}
+
+// REGRESSION (issue #1798 round 2, grok-4.6 High #5). `--replace-failed-reviewer`
+// does NOT rewrite the assignment ref, so a review that was replaced while live
+// still names its FAILED reviewer there. A cutover that read only assignment refs
+// would backfill a lease for someone who is not reviewing and leave the reviewer
+// who actually is invisible to the busy probe -- the exact blindness activation
+// exists to prevent.
+test('cutover activation backfills the REPLACEMENT reviewer, not the failed reviewer named on the assignment ref',()=>{
+  const io=freshCutoverIo(),headSha='c'.repeat(40)
+  io.openPulls=()=>[{number:410,head:{sha:headSha}}]
+  seedAssignment(io,{issue:41,pr:410,headSha,reviewer:'grok-4.6'})
+  const replacementSha=io.makeOwnerCommit(`db-coordination reviewer-replacement sequence=2 reviewer=glm-5.3 issue=41 pr=410 head=${headSha} failed-sequence=1 prior-sequence=1 failure-ref=${'d'.repeat(40)}`)
+  io.refs.set(`${REVIEW_REPLACEMENT_REF_PREFIX}/41-410-${headSha}`,replacementSha)
+  const result=activateReviewCutover(io)
+  assert.equal(result.activated,true)
+  assert.deepEqual(result.backfilled,[{reviewer:'glm-5.3',issue:41,pr:410,headSha,ref:reviewActiveRef('glm-5.3')}])
+  assert.equal(io.refs.get(reviewActiveRef('glm-5.3')),replacementSha)
+  assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
+})
+
+// M2 (issue #1798 round 3): the test above seeds only the LEGACY unsuffixed
+// replacement ref. The shape replaceFailedReviewerOperation actually writes for
+// every link after the first is `<issue>-<pr>-<head>-<failedSequence>`, and that
+// shape had never been exercised through the cutover at all.
+test('cutover activation resolves the replacement written in the real -<failedSequence> ref shape',()=>{
+  const io=freshCutoverIo(),headSha='9'.repeat(40)
+  io.openPulls=()=>[{number:430,head:{sha:headSha}}]
+  seedAssignment(io,{issue:43,pr:430,headSha,reviewer:'grok-4.6'})
+  const first=io.makeOwnerCommit(`db-coordination reviewer-replacement sequence=2 reviewer=glm-5.3 issue=43 pr=430 head=${headSha} failed-sequence=1 prior-sequence=1 failure-ref=${'d'.repeat(40)}`)
+  io.refs.set(`${REVIEW_REPLACEMENT_REF_PREFIX}/43-430-${headSha}`,first)
+  // Replaced a SECOND time: highest failure sequence must win, and the winner is
+  // the one written under the suffixed ref name.
+  const second=io.makeOwnerCommit(`db-coordination reviewer-replacement sequence=5 reviewer=kimi-k3 issue=43 pr=430 head=${headSha} failed-sequence=2 prior-sequence=2 failure-ref=${'d'.repeat(40)}`)
+  io.refs.set(`${REVIEW_REPLACEMENT_REF_PREFIX}/43-430-${headSha}-2`,second)
+  const result=activateReviewCutover(io)
+  assert.equal(result.activated,true)
+  assert.deepEqual(result.backfilled,[{reviewer:'kimi-k3',issue:43,pr:430,headSha,ref:reviewActiveRef('kimi-k3')}])
+  assert.equal(io.refs.get(reviewActiveRef('kimi-k3')),second)
+  assert.equal(io.refs.has(reviewActiveRef('glm-5.3')),false)
+  assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
+})
+
+// REGRESSION (issue #1798 round 3, glm-5.3 High 1). The assignment half of the
+// candidate loop refuses an unreadable record; the replacement half used to catch
+// the same failure and DISCARD the row. That divergence reintroduced the original
+// fail-open: the failed reviewer is backfilled as live and the reviewer who is
+// actually reviewing stays invisible to the busy probe.
+test('cutover activation REFUSES an unreadable replacement record instead of silently dropping it',()=>{
+  const io=freshCutoverIo(),headSha='8'.repeat(40)
+  io.openPulls=()=>[{number:440,head:{sha:headSha}}]
+  seedAssignment(io,{issue:44,pr:440,headSha,reviewer:'grok-4.6'})
+  const junk=io.makeOwnerCommit('db-coordination reviewer-replacement written-by-a-grammar-this-parser-does-not-know')
+  io.refs.set(`${REVIEW_REPLACEMENT_REF_PREFIX}/44-440-${headSha}`,junk)
+  assert.throws(()=>activateReviewCutover(io),/replacement ref .* is unreadable: .*cutover activation refused/)
+  // Nothing may be backfilled or activated on the way out, and the mutex is released.
+  assert.equal(io.refs.has(REVIEW_ACTIVE_CUTOVER_REF),false)
+  assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+// Same fail-open, reached the other way: production readReviewRecords returns
+// `{sha, commit:{message}}` whose `commit` key is TRUTHY even when GraphQL gave
+// back no message. Testing `record.commit` rather than the message let an empty
+// message through as if it had been read.
+test('cutover activation does not accept a review record whose commit carries no message',()=>{
+  const io=freshCutoverIo(),headSha='7'.repeat(40)
+  io.openPulls=()=>[{number:450,head:{sha:headSha}}]
+  const assignmentSha=seedAssignment(io,{issue:45,pr:450,headSha,reviewer:'grok-4.6'})
+  let fellBack=false
+  io.readReviewRecords=(refs)=>new Map(refs.map((ref)=>[ref,{sha:io.refs.get(ref),commit:{message:null}}]))
+  const rawGetCommit=io.getCommit
+  io.getCommit=(sha)=>{if(sha===assignmentSha)fellBack=true;return rawGetCommit(sha)}
+  const result=activateReviewCutover(io)
+  assert.equal(fellBack,true,'a message-less record must fall back to the per-ref commit read, not be treated as read')
+  assert.deepEqual(result.backfilled,[{reviewer:'grok-4.6',issue:45,pr:450,headSha,ref:reviewActiveRef('grok-4.6')}])
+})
+
+// REGRESSION (issue #1798 round 2). The paged listing must REFUSE past its page
+// ceiling rather than silently return a truncated view of the review history --
+// a short read here reads as "no live review", which is the fail-open this
+// activation exists to avoid.
+test('cutover activation fails closed when the ref listing refuses as possibly truncated',()=>{
+  const io=freshCutoverIo(),headSha='f'.repeat(40)
+  io.openPulls=()=>[{number:420,head:{sha:headSha}}]
+  seedAssignment(io,{issue:42,pr:420,headSha,reviewer:'grok-4.6'})
+  io.listReviewRefsPaged=()=>{throw new LaneError(`refs/db-review-assignments exceeded ${REVIEW_REF_PAGE_LIMIT} pages of 100 refs; refusing a possibly truncated reviewer audit`)}
+  assert.throws(()=>activateReviewCutover(io),/refusing a possibly truncated reviewer audit/)
+  assert.equal(io.refs.has(REVIEW_ACTIVE_CUTOVER_REF),false)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('cutover activation is idempotent and performs no writes once already active',()=>{
+  const io=reviewIo(),before=[...io.refs.entries()]
+  const result=activateReviewCutover(io)
+  assert.deepEqual(result,{activated:false,alreadyActive:true,cutoverSha:'cutover-complete',backfilled:[]})
+  assert.deepEqual([...io.refs.entries()],before)
+})
+
+test('cutover activation with no open PRs creates the cutover ref with no backfill',()=>{
+  const io=freshCutoverIo()
+  const result=activateReviewCutover(io)
+  assert.equal(result.activated,true)
+  assert.deepEqual(result.backfilled,[])
+  assert.equal(io.refs.get(REVIEW_ACTIVE_CUTOVER_REF),result.cutoverSha)
+})
+
+test('cutover activation backfills the active lease for a pre-cutover live review before creating the cutover ref',()=>{
+  const io=freshCutoverIo(),headSha='a'.repeat(40)
+  io.openPulls=()=>[{number:109,head:{sha:headSha}}]
+  seedAssignment(io,{issue:9,pr:109,headSha,reviewer:'grok-4.6'})
+  const result=activateReviewCutover(io)
+  assert.equal(result.activated,true)
+  assert.deepEqual(result.backfilled,[{reviewer:'grok-4.6',issue:9,pr:109,headSha,ref:reviewActiveRef('grok-4.6')}])
+  assert.ok(io.refs.has(reviewActiveRef('grok-4.6')))
+  assert.ok(io.refs.has(REVIEW_ACTIVE_CUTOVER_REF))
+})
+
+test('cutover activation skips a pre-cutover assignment that already has a verdict',()=>{
+  const io=freshCutoverIo(),headSha='b'.repeat(40)
+  io.openPulls=()=>[{number:110,head:{sha:headSha}}]
+  seedAssignment(io,{issue:10,pr:110,headSha,reviewer:'grok-4.6'})
+  io.getIssueComments=()=>[{body:`APPROVE ${headSha}`,commit_id:headSha}]
+  const result=activateReviewCutover(io)
+  assert.deepEqual(result.backfilled,[])
+  assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
+})
+
+test('cutover activation retried after success is idempotent and repeats no backfill',()=>{
+  const io=freshCutoverIo(),headSha='c'.repeat(40)
+  io.openPulls=()=>[{number:111,head:{sha:headSha}}]
+  seedAssignment(io,{issue:11,pr:111,headSha,reviewer:'glm-5.3'})
+  const first=activateReviewCutover(io)
+  const second=activateReviewCutover(io)
+  assert.equal(first.activated,true)
+  assert.deepEqual(second,{activated:false,alreadyActive:true,cutoverSha:first.cutoverSha,backfilled:[]})
+})
+
+test('cutover activation fails closed when an open PR head SHA cannot be proved exact',()=>{
+  const io=freshCutoverIo()
+  io.openPulls=()=>[{number:112,head:{sha:'not-a-sha'}}]
+  assert.throws(()=>activateReviewCutover(io),/40-character head SHA/)
+  assert.equal(io.refs.has(REVIEW_ACTIVE_CUTOVER_REF),false)
+})
+
+test('cutover activation fails closed on an assignment naming an unrecognized reviewer',()=>{
+  const io=freshCutoverIo(),headSha='d'.repeat(40)
+  io.openPulls=()=>[{number:113,head:{sha:headSha}}]
+  seedAssignment(io,{issue:12,pr:113,headSha,reviewer:'not-a-real-reviewer'})
+  assert.throws(()=>activateReviewCutover(io),/unrecognized reviewer/)
+  assert.equal(io.refs.has(REVIEW_ACTIVE_CUTOVER_REF),false)
+})
+
+test('cutover activation requires openPulls and listRefs to avoid an unproven audit',()=>{
+  const io=freshCutoverIo();delete io.openPulls
+  assert.throws(()=>activateReviewCutover(io),/requires openPulls and listRefs/)
+})
+
+// REGRESSION (issue #1798, glm-5.3 review at d91857e). Every test above uses
+// an in-memory fake whose io methods never touch the real wire-budget
+// accounting, so all of them passed while activation was UNCOMPLETABLE
+// against real GitHub the moment there was an actual live review to
+// backfill -- the exact case this feature exists for. This test routes every
+// GitHub-shaped call through the real `runGitHubCommand` budget counter, the
+// same way 'complete assignment stays inside the real wire-attempt budget'
+// and 'complete replacement stays inside the real wire-attempt budget' do
+// for the other two review operations, and exercises the one scenario those
+// two counterparts never covered for cutover activation: a live review
+// actually in progress, which is what needs to be found and backfilled.
+test('cutover activation with a live in-progress review stays inside the real wire-attempt budget',()=>{
+  const io=freshCutoverIo(),headSha='1'.repeat(40)
+  io.openPulls=()=>[{number:400,head:{sha:headSha}}]
+  seedAssignment(io,{issue:40,pr:400,headSha,reviewer:'grok-4.6'})
+  const rawGetCommit=io.getCommit
+  let attempts=0;const labels=[]
+  const wire=(n=1,label='wire')=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;labels.push(label);return '{}'}})}
+  // PRODUCTION-FAITHFUL COSTS (issue #1798 round 2, grok-4.6 at 53abae0). The
+  // first version of this test charged a friendlier price than githubIo really
+  // pays, which is why it passed while activation was still broken on the real
+  // wire. Each cost below is the real one:
+  //   getRateLimit        -> 2 (REST rate_limit + GraphQL rateLimit)
+  //   readReviewRecords   -> 2 (GraphQL for explicit refs + REST prefix list),
+  //                          and `.matching` rows carry NO commit message
+  //   listReviewRefsPaged -> 1 per 100-ref page
+  //   readActiveReviewLeases -> 1, and it warms reviewCommitBase, so
+  //   makeOwnerCommit     -> 1 after it (3 only when the base is still cold)
+  io.getRateLimit=()=>{wire(2,'quota');return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readActiveReviewLeases=()=>{wire(1,'activeLeases');return new Map([...io.refs.entries()].filter(([ref])=>ref.startsWith(REVIEW_ACTIVE_REF_PREFIX)).map(([ref,sha])=>[ref,{sha,commit:rawGetCommit(sha)}]))}
+  io.readReviewStates=(leases)=>{wire(1,'states');return new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:lease.headSha}},evidence:[]}]))}
+  io.readReviewRefs=(refs)=>{wire(1,'readReviewRefs');return new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewMutexRelease=(ownerSha)=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
+  // These namespaces are append-only across the repository's WHOLE review
+  // history, so a fixture holding two refs would charge one page while the real
+  // repository charges four and two (370 assignment refs / 106 replacement refs,
+  // measured 2026-08-29). Charging the fixture one page apiece is precisely the
+  // friendlier-than-production fiction that let the previous version of this
+  // test pass over a broken activation, so the real page counts are charged here.
+  const REAL_REF_PAGES={[REVIEW_ASSIGNMENT_REF_PREFIX]:4,[REVIEW_REPLACEMENT_REF_PREFIX]:2}
+  io.listReviewRefsPaged=(prefix)=>{wire(REAL_REF_PAGES[prefix]??1,`listReviewRefsPaged:${prefix}`);return [...io.refs.entries()].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha}))}
+  io.readReviewRecords=(refs,prefix)=>{
+    assert.ok(refs.length,'production readReviewRecords builds an EMPTY GraphQL selection set for an empty ref list, which GitHub rejects outright')
+    wire(prefix?2:1,'readReviewRecords')
+    const result=new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}))
+    // Production attaches NO commit message to prefix matches -- they come from
+    // a separate REST listing. Modelling that is the whole point of this test.
+    Object.defineProperty(result,'matching',{value:prefix?[...io.refs.entries()].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha})):[]})
+    return result
+  }
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssue','getIssueComments','getPrReviews','createRef','updateRef','deleteRef','openPulls']){
+    const fn=io[name];if(typeof fn==='function')io[name]=(...args)=>{wire(1,`${name}:${String(args[0]??'')}`);return fn(...args)}
+  }
+  const make=io.makeOwnerCommit;io.makeOwnerCommit=(message)=>{wire(1,'commit');return make(message)}
+  let result
+  try{result=activateReviewCutover(io)}catch(error){throw new Error(`${error.message}; used ${attempts} wire attempts; calls=${labels.join(',')}`)}
+  assert.equal(result.activated,true)
+  assert.deepEqual(result.backfilled,[{reviewer:'grok-4.6',issue:40,pr:400,headSha,ref:reviewActiveRef('grok-4.6')}])
+  assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts; calls=${labels.join(',')}`)
+})
+
 // ---------------------------------------------------------------------------
 // Second-reviewer slots (--review-slot). Default slot 1 must be byte-for-byte
 // today's behaviour; slot 2 must land a genuinely different, non-busy
@@ -2742,6 +2970,122 @@ test('retrying a slot-2 assignment must still refuse a reviewer that is no longe
   // orchestrator review its own work.
   io.resolveOrchestratorEngine=()=> 'codex'
   assert.throws(()=>assignNextReviewer({...request,slot:2},io),/orchestrator-conflicting reviewer codex-gpt-5\.6-sol/)
+})
+
+// REGRESSION (issue #1798, glm-5.3 review at d91857e). `resolveSlotOneReviewer`
+// used to spend up to three real wire requests (listRefs, readRef, getCommit)
+// BEFORE the mutex is even acquired, on every fresh slot-2 assignment -- and
+// that preflight cost is what blew slot 2's own 19-request budget on real
+// GitHub every time, independent of everything else in the operation. Same
+// counter-routing technique as 'complete assignment stays inside the real
+// wire-attempt budget' above; that test never covered slot 2 at all.
+test('complete slot-2 assignment stays inside the real wire-attempt budget',()=>{
+  const io=reviewIo(),request={issue:2200,pr:2300,headSha:'a'.repeat(40)}
+  const first=assignNextReviewer(request,io)
+  const rawGetCommit=io.getCommit
+  const active=new Map([[reviewActiveRef(first.reviewer),{sha:io.refs.get(reviewActiveRef(first.reviewer)),commit:rawGetCommit(io.refs.get(reviewActiveRef(first.reviewer)))}]])
+  const states=new Map([[`${request.issue}:${request.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:request.headSha}},evidence:[]}]])
+  let attempts=0
+  const wire=(n=1)=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})}
+  // PRODUCTION-FAITHFUL COSTS (issue #1798 round 3, glm-5.3 High 2). This fixture
+  // used to charge getRateLimit and readReviewRecords ONE request each. Production
+  // pays TWO for each -- getRateLimit is a REST rate_limit plus a GraphQL rateLimit,
+  // and readReviewRecords is a GraphQL read for the explicit refs plus a separate
+  // REST listing for the prefix. Undercharging them by one apiece is what made this
+  // test pass over a slot-2 path that could not actually clear its own capacity
+  // precheck on the real wire. It is the second time on this branch that a test
+  // charged less than the real system does, so the prices are spelled out here.
+  io.getRateLimit=()=>{wire(2);return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readActiveReviewLeases=()=>{wire();return active}
+  io.readReviewStates=()=>{wire();return states}
+  io.readReviewRefs=(refs)=>{wire();return new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewMutexRelease=(ownerSha)=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
+  io.readReviewRecords=(refs,prefix)=>{wire(prefix?2:1);const result=new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}));
+    // Production attaches NO commit message to prefix matches: they come from a
+    // separate REST listing whose own comment says every caller falls back to
+    // io.getCommit(row.sha). Handing them a message here is the friendlier shape.
+    Object.defineProperty(result,'matching',{value:[...io.refs.entries()].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha}))});return result}
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssue','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){
+    const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}
+  }
+  const make=io.makeOwnerCommit;io.makeOwnerCommit=(message)=>{wire();return make(message)}
+  // The ceiling this asserts against is #1813's, which this branch defers to.
+  // #1813 derived its pre-mutex figure as 9 because resolveSlotOneReviewer cost
+  // three calls there. On this branch that resolve is BATCHED into one
+  // readReviewRecords, which costs 2, so the honest pre-mutex figure is 8.
+  // Taking #1813's mutex placement and this branch's resolve while keeping
+  // #1813's arithmetic is half-applied accounting, and it went green.
+  // slot 2 pays 8 requests BEFORE the mutex (the slot-1 preflight plus the
+  // extra resolveSlotOneReviewer read), and then must still be able to reserve
+  // REVIEW_MUTEX_SECTION_RESERVE for the whole mutex-held section. The entry
+  // gate is what that sum has to clear, so that sum is the honest cost.
+  // Asserted in BOTH directions rather than picking whichever outcome the
+  // current constant makes convenient: under a ceiling that cannot hold the
+  // operation it must be refused CLEANLY, before the mutex is taken -- never by
+  // hitting the hard wall partway through.
+  const honestCost=8+REVIEW_MUTEX_SECTION_RESERVE
+  if(REVIEW_OPERATION_REQUEST_LIMIT<honestCost){
+    assert.throws(()=>assignNextReviewer({...request,slot:2},io),/cannot fit \d+ remaining requests inside the \d+-request budget; refused before mutex acquisition/)
+    assert.equal(io.refs.has(MUTEX_REF),false,'a refused slot-2 assignment must not have taken the mutex')
+    assert.ok(attempts<honestCost,`refusal must happen before the budget is spent, used ${attempts}`)
+    return
+  }
+  let result
+  try{result=assignNextReviewer({...request,slot:2},io)}catch(error){throw new Error(`${error.message}; used ${attempts} wire attempts so far`)}
+  assert.equal(result.slot,2)
+  assert.notEqual(result.reviewer,first.reviewer)
+  assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts`)
+  assert.ok(attempts<=honestCost,`used ${attempts} wire attempts, more than the ${honestCost} this operation is documented to cost`)
+})
+
+// REGRESSION (issue #1798, glm-5.3 review at d91857e, medium finding). A
+// slot-2 durable assignment ref carries a `-slot2` suffix after the exact
+// issue-pr-head tuple. The cutover audit used to match refs with a bare
+// `endsWith('-${number}-${headSha}')`, so a slot-2 assignment's ref never
+// matched and its live lease was silently never backfilled.
+// REGRESSION (issue #1798 round 6, grok-4.6 blocking finding). The two cases
+// above are each covered alone -- a replacement with no slot 2, and a slot 2
+// with no replacement -- and NOTHING combined them. Combined is where the
+// original fail-open survives: the cutover gathers replacements PER PULL
+// REQUEST, not per slot, so one shared list is applied to every assignment on
+// that PR. A slot-1 replacement then wins the slot-2 assignment too, the
+// slot-2 reviewer never gets a lease, and the busy probe goes blind to a
+// provider that is actually reviewing -- the double-assignment hazard this
+// whole activation exists to prevent.
+//
+// PR #1838 made the replacement WRITER slot-aware, which is a different half of
+// the same problem. The reader is still per-PR, and legacy unsuffixed slot-1
+// replacement refs are deliberately still honoured, so this state is reachable
+// on today's refs.
+test('a slot-1 replacement must not steal the slot-2 assignment during cutover',()=>{
+  const io=freshCutoverIo(),headSha='7'.repeat(40)
+  io.openPulls=()=>[{number:440,head:{sha:headSha}}]
+  // Slot 1: grok-4.6 assigned, then genuinely replaced by glm-5.3.
+  seedAssignment(io,{issue:44,pr:440,headSha,reviewer:'grok-4.6'})
+  const replacementSha=io.makeOwnerCommit(`db-coordination reviewer-replacement sequence=9 reviewer=glm-5.3 issue=44 pr=440 head=${headSha} failed-sequence=1 prior-sequence=1 failure-ref=${'d'.repeat(40)}`)
+  io.refs.set(`${REVIEW_REPLACEMENT_REF_PREFIX}/44-440-${headSha}`,replacementSha)
+  // Slot 2: kimi-k3, live, never replaced. Its own namespace, untouched.
+  const slotTwoSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=3 reviewer=kimi-k3 issue=44 pr=440 head=${headSha} slot=2`)
+  io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/44-440-${headSha}-slot2`,slotTwoSha)
+  const result=activateReviewCutover(io)
+  assert.equal(result.activated,true)
+  const leased=result.backfilled.map((row)=>row.reviewer).sort()
+  assert.deepEqual(leased,['glm-5.3','kimi-k3'],`both live reviewers must be leased; got ${leased.join(',')}`)
+  assert.equal(io.refs.get(reviewActiveRef('kimi-k3')),slotTwoSha,'slot 2 must be leased under its OWN assignment commit, not the slot-1 replacement')
+  assert.equal(io.refs.get(reviewActiveRef('glm-5.3')),replacementSha)
+  assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false,'the replaced slot-1 reviewer is not reviewing')
+})
+
+test('cutover activation backfills a slot-2 live review, not just slot 1',()=>{
+  const io=freshCutoverIo(),headSha='2'.repeat(40)
+  io.openPulls=()=>[{number:401,head:{sha:headSha}}]
+  const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=1 reviewer=glm-5.3 issue=41 pr=401 head=${headSha} slot=2`)
+  io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/41-401-${headSha}-slot2`,sha)
+  const result=activateReviewCutover(io)
+  assert.equal(result.activated,true)
+  assert.deepEqual(result.backfilled,[{reviewer:'glm-5.3',issue:41,pr:401,headSha,ref:reviewActiveRef('glm-5.3')}])
+  assert.ok(io.refs.has(reviewActiveRef('glm-5.3')))
 })
 
 // AGENTS.md section 4 rule 2 is merge-first: merge, rehearse on preview from the
@@ -2899,10 +3243,13 @@ test('a complete slot-2 replacement stays inside the real wire-attempt budget (i
   try{result=replaceFailedReviewer({...request,slot:2,failedSequence:slotTwo.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io)}
   catch(error){throw new Error(`${error.message}; calls=${labels.join(',')}`)}
   assert.ok(result.reviewer)
-  assert.equal(attempts,17,`slot-2 replacement used ${attempts} of ${REVIEW_OPERATION_REQUEST_LIMIT}: ${labels.join(',')}`)
-  // 10 pre-mutex (slot 1's 7 plus resolveSlotOneReviewer's listRefs+readRef+getCommit)
-  // then the mutex-section reserve of 11: 21 of 22, one spare. If this moves,
-  // re-derive the ceiling rather than widening it.
+  assert.equal(attempts,16,`slot-2 replacement used ${attempts} of ${REVIEW_OPERATION_REQUEST_LIMIT}: ${labels.join(',')}`)
+  // 9 pre-mutex (slot 1's 7 plus resolveSlotOneReviewer's BATCHED readReviewRecords,
+  // which costs 2 on this branch where it cost 3 -- listRefs+readRef+getCommit --
+  // when #1832 pinned 17), then the mutex-section reserve of 11: 20 of 22, two
+  // spare. Measured, not assumed: the call labels show two readReviewRecords and
+  // no listRefs/readRef/getCommit triple. If this moves, re-derive the ceiling
+  // rather than widening it.
   assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`slot-2 replacement exceeded the ${REVIEW_OPERATION_REQUEST_LIMIT}-request budget`)
 })
 

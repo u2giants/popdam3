@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260830013942",
+  "migration_sha256": "b4de904adbc645fd1b0875cf1015936534204078ce17cc6c14830f3b8487c108",
+  "checks": [
+    {
+      "id": "orderlist_bridge_covering_index",
+      "kind": "catalog_contract",
+      "contract": "orderlist_bridge_covering_index_v1",
+      "expected_count": 1
+    }
+  ]
+}

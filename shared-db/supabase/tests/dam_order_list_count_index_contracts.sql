@@ -15,14 +15,16 @@ declare
   v_method text;
   v_predicate text;
   v_keys text[];
+  v_key_count integer;
   v_plan text;
 begin
   select i.indisvalid,
          i.indisready,
          am.amname,
          pg_get_expr(i.indpred, i.indrelid),
-         array_agg(a.attname order by key_position.ordinality)
-    into v_valid, v_ready, v_method, v_predicate, v_keys
+         array_agg(a.attname order by key_position.ordinality),
+         i.indnkeyatts
+    into v_valid, v_ready, v_method, v_predicate, v_keys, v_key_count
   from pg_index i
   join pg_class index_relation on index_relation.oid = i.indexrelid
   join pg_am am on am.oid = index_relation.relam
@@ -30,16 +32,21 @@ begin
   join pg_attribute a
     on a.attrelid = i.indrelid
    and a.attnum = key_position.attnum
-  where i.indexrelid = 'plm.style_tracker_item_bridge_plm_item_idx'::regclass
-  group by i.indisvalid, i.indisready, am.amname, i.indpred, i.indrelid;
+  where i.indexrelid = 'plm.style_tracker_item_bridge_plm_item_cover_idx'::regclass
+  group by i.indisvalid, i.indisready, am.amname, i.indpred, i.indrelid, i.indnkeyatts;
 
   if v_valid is distinct from true
      or v_ready is distinct from true
      or v_method is distinct from 'btree'
      or v_predicate is not null
-     or v_keys is distinct from array['plm_item_id']::text[] then
-    raise exception 'style tracker bridge index contract is wrong: valid=%, ready=%, method=%, predicate=%, keys=%',
-      v_valid, v_ready, v_method, v_predicate, v_keys;
+     or v_key_count is distinct from 1
+     or v_keys is distinct from array['plm_item_id', 'id', 'style_tracker_row_id', 'tracker_type']::text[] then
+    raise exception 'style tracker bridge covering index contract is wrong: valid=%, ready=%, method=%, predicate=%, key_count=%, columns=%',
+      v_valid, v_ready, v_method, v_predicate, v_key_count, v_keys;
+  end if;
+
+  if to_regclass('plm.style_tracker_item_bridge_plm_item_idx') is not null then
+    raise exception 'redundant narrow style tracker bridge index still exists';
   end if;
 
   select i.indisvalid,
@@ -71,7 +78,7 @@ begin
   select string_agg(plan_line, E'\n') into v_plan
   from pg_temp.explain_order_list_count() plan_line;
 
-  if position('style_tracker_item_bridge_plm_item_idx' in coalesce(v_plan, '')) = 0
+  if position('style_tracker_item_bridge_plm_item_cover_idx' in coalesce(v_plan, '')) = 0
      or position('production_order_line_count_cover_idx' in coalesce(v_plan, '')) = 0 then
     raise exception 'OrderList count did not plan through both required indexes: %', v_plan;
   end if;
@@ -79,6 +86,10 @@ begin
   if v_plan ~ 'Seq Scan on (plm\.)?style_tracker_item_bridge'
      or v_plan ~ 'Seq Scan on (plm\.)?production_order_line' then
     raise exception 'OrderList count retained a target sequential scan: %', v_plan;
+  end if;
+
+  if v_plan !~ 'Index Only Scan using style_tracker_item_bridge_plm_item_cover_idx' then
+    raise exception 'OrderList count bridge lookup is not index-only: %', v_plan;
   end if;
 end
 $contracts$;

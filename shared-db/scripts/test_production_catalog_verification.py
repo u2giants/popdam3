@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -28,6 +29,7 @@ from production_catalog_verification import (  # noqa: E402
     ALWAYS_PROBED_ROLES,
     BASE_PRIVILEGES,
     CATALOG_CONTRACTS,
+    INDEXDEF_NORMALIZE,
     MAINTAIN_PRIVILEGE,
     PrivilegeExpectation,
     Targets,
@@ -69,6 +71,66 @@ class ThroughputSequenceContractTests(unittest.TestCase):
         self.assertIn("upper(p.cmd)='DELETE'", sql)
         self.assertIn("p.roles=array['authenticated']::name[]", sql)
         self.assertIn("p.with_check", sql)
+
+    def test_orderlist_bridge_covering_index_contract_is_registered_and_normalized(self):
+        # Pins the contract key the sidecar for migration 20260830013942 names. If the
+        # key is renamed or dropped, the sidecar resolves to nothing and the production
+        # promotion gate loses this check silently -- so the key itself is an assertion.
+        sql = CATALOG_CONTRACTS["orderlist_bridge_covering_index_v1"]
+
+        # It must compare through the SHARED normalizer, not a byte-exact literal.
+        # pg_get_indexdef is reconstructed from the catalog, so matching the server's
+        # formatting by hand is a guess that fails at production promotion.
+        self.assertIn(INDEXDEF_NORMALIZE % "pg_get_indexdef(i.indexrelid)", sql)
+        self.assertNotIn("and pg_get_indexdef(i.indexrelid) =\n", sql)
+
+        # Normalizing is a LOOSENING. These structural predicates are what keep the
+        # contract able to return dirty, so each one is pinned individually and a
+        # single failure names which property broke.
+        for predicate in (
+            "i.indnkeyatts = 1",
+            "i.indnatts = 4",
+            "not i.indisunique",
+            "i.indisvalid",
+            "i.indisready",
+            "i.indpred is null",
+            "i.indexprs is null",
+            "am.amname = 'btree'",
+            "ns.nspname = 'plm'",
+            "idx.relname = 'style_tracker_item_bridge_plm_item_cover_idx'",
+            "to_regclass('plm.style_tracker_item_bridge_plm_item_idx') is null",
+        ):
+            with self.subTest(predicate=predicate):
+                self.assertIn(predicate, sql)
+
+    def test_indexdef_normalizer_is_one_shared_definition(self):
+        # Both indexdef comparisons must use the same normalizer. Two equivalent
+        # copies can drift apart; one constant cannot.
+        normalized_indexdef = INDEXDEF_NORMALIZE % "pg_get_indexdef(i.indexrelid)"
+        self.assertIn(normalized_indexdef, CATALOG_CONTRACTS["style_tracker_tables_v1"])
+        self.assertIn(normalized_indexdef, CATALOG_CONTRACTS["orderlist_bridge_covering_index_v1"])
+
+    def test_indexdef_normalizer_still_separates_a_genuinely_wrong_index(self):
+        # The normalizer strips whitespace and lowercases, which is a LOOSENING -- the
+        # fix traded "can never pass" for "might not be able to fail". This proves the
+        # second risk did not land: formatting-only differences must collapse together,
+        # but a changed key column, method, or INCLUDE payload must stay apart.
+        def norm(text):
+            return re.sub(r"\s+", "", text.replace('"', "")).lower()
+
+        right = (
+            "CREATE INDEX style_tracker_item_bridge_plm_item_cover_idx ON "
+            "plm.style_tracker_item_bridge USING btree (plm_item_id) "
+            "INCLUDE (id, style_tracker_row_id, tracker_type)"
+        )
+        self.assertEqual(norm(right), norm(right.replace(", ", ",").replace(" ON ", "\n  ON ")))
+        self.assertNotEqual(norm(right), norm(right.replace("INCLUDE (id, ", "INCLUDE (")))
+        self.assertNotEqual(norm(right), norm(right.replace("btree", "hash")))
+        self.assertNotEqual(norm(right), norm(right.replace("(plm_item_id)", "(id)")))
+        self.assertNotEqual(
+            norm(right),
+            norm(right.replace("(id, style_tracker_row_id", "(style_tracker_row_id, id")),
+        )
 
 
 def targets_for(sql: str) -> Targets:
