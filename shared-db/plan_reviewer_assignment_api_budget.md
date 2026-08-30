@@ -19,9 +19,9 @@
 | 2 | Add one active lease ref per reviewer and preserve immutable history | ✅ done | Fixed active refs and strict lease parsing preserve permanent evidence formats. |
 | 3 | Replace the historical availability scan with bounded live reconciliation | ✅ done | The 10,000-history fixture proves identical fixed cost and zero historical availability reads. |
 | 4 | Make assignment and replacement transactional, including lease release and mutex cleanup | ✅ done | Exact release/replacement uses the existing mutex and SHA readback/rollback guards. |
-| 5 | Update operator documentation and add durable verification evidence | 🟨 landing | Code/docs/tests complete and independently reviewed; push, CI, merge, and final live proof remain. |
+| 5 | Update operator documentation and add durable verification evidence | ✅ done | Final hardening merged in PR #1777 (`74a6e00a`); the slot-2 ceiling correction merged in PR #1813 (`2a0d357f`). All required checks passed, issue #1767 is closed, and [`docs/verification/reviewer-assignment-api-budget-2026-08-28.md`](docs/verification/reviewer-assignment-api-budget-2026-08-28.md) carries the rerunnable proof. |
 
-**Implementation is complete through Step 4.** Step 5 landing evidence is updated by the implementing session.
+**All steps are complete. Nothing remains for a fresh session.** The original handoff is retired. Do not redo this plan; use the verification document and current tests for any future regression investigation.
 
 > **Amendment 2026-08-29 — the ceiling is 22, not 19 (issue #1812, PR #1813).**
 > This plan was written for a single reviewer slot. The mandatory second
@@ -77,7 +77,9 @@ The incident is reproduced without touching GitHub by constructing an in-memory 
 
 ## 5. Current state of the code
 
-Re-anchor every named function on current `origin/main` before editing; line numbers move frequently.
+**Updated 2026-08-30:** the bounded allocator is merged and active on `main`. PR #1777 (`74a6e00a`) completed the allocator hardening after independent review found defects in the first implementation; PR #1813 (`2a0d357f`) raised the normal slot-2 ceiling from 19 to 22 after the mandatory second reviewer added three irreducible pre-mutex reads. The 10,000-history fixture still uses 18 lowest-boundary test operations and never scans historical assignment refs. Issue #1767 is closed, all recorded required checks passed, and the temporary handoff is deleted.
+
+The bullets below are the **historical pre-implementation state retained to explain the fix**. They are not current instructions and must not be reimplemented:
 
 - `REVIEW_ASSIGNMENT_REF_PREFIX` points to permanent refs under `refs/db-review-assignments`. These records are correct historical evidence and must remain.
 - `findPrReviewAssignments(issue, pr, io)` deliberately searches permanent records for one PR when diagnosing an assignment recorded under an older head. This targeted diagnostic is not the availability algorithm and may remain, but it must receive a request budget when called.
@@ -91,7 +93,7 @@ Re-anchor every named function on current `origin/main` before editing; line num
 - `scripts/manage-migration-author-lanes.test.mjs` already contains reviewer rotation, overflow, verdict, moved-head, idempotency, replacement, and stranded-mutex tests. Extend these; do not create a competing test harness.
 - `docs/agents/section-4-anti-collision-rules.md` is the operator-facing reviewer procedure. `AGENTS.md` routes active repository-maintenance plans.
 
-As of this plan, no implementation code is committed, pushed, deployed, or activated. Only the planning issue and documentation branch exist.
+That historical state was resolved by PRs #1774 and #1777, with the later slot-2 budget correction in PR #1813. Current evidence is in [`docs/verification/reviewer-assignment-api-budget-2026-08-28.md`](docs/verification/reviewer-assignment-api-budget-2026-08-28.md).
 
 ## 6. Key findings and root cause
 
@@ -329,18 +331,18 @@ Then run the repository's current required test command from `package.json`/CI o
 
 ### Definition of done
 
-- [ ] Availability reads only at-most-five active reviewer leases, never historical assignment refs.
-- [ ] Permanent assignment, replacement, failure, and cursor evidence remains readable and unchanged.
-- [ ] Verdict, terminal failure, moved head, merged PR, and closed PR release the correct lease.
-- [ ] Remaining quota and strict request budget are checked before mutex acquisition.
-- [ ] Complete assignment with 10,000 historical records uses fewer than 20 counted GitHub requests.
-- [ ] PR/verdict reads are batched or command-cached.
-- [ ] Every failure-injection row proves no leaked owned mutex or produces exact recovery-required evidence.
-- [ ] Existing reviewer rotation, overflow, exact-head, idempotency, replacement, and historical-reader tests remain green.
-- [ ] Documentation and rerunnable verification artifact are current.
-- [ ] Code is committed, pushed, reviewed by required CI, merged to `main`, and merge SHA verified on `origin/main`.
-- [ ] Issue #1767 has successful completion evidence and is closed.
-- [ ] The handoff is deleted in the closing PR; this plan's STATUS table names final artifacts.
+- [x] Availability reads only the bounded active-reviewer index, never historical assignment refs.
+- [x] Permanent assignment, replacement, failure, and cursor evidence remains readable and unchanged.
+- [x] Verdict, terminal failure, moved head, merged PR, and closed PR release the correct lease.
+- [x] Remaining quota and strict request budget are checked before mutex acquisition.
+- [x] The complete 10,000-history performance fixture uses 18 counted operations; slot 1's wire ceiling is 19 and slot 2's documented normal-path ceiling is 22.
+- [x] PR/verdict reads are batched or command-cached.
+- [x] Failure-injection coverage proves no leaked owned mutex or produces exact recovery-required evidence.
+- [x] Existing reviewer rotation, overflow, exact-head, idempotency, replacement, and historical-reader tests remain green.
+- [x] Documentation and rerunnable verification artifact are current.
+- [x] Code was committed, pushed, independently reviewed, passed required CI, and merged to `main`.
+- [x] Issue #1767 has successful completion evidence and is closed.
+- [x] The handoff is deleted and this STATUS table names the final artifacts.
 
 ### Risks and mitigations
 
