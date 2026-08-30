@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 import zipfile
 from argparse import Namespace
 from pathlib import Path
@@ -42,6 +43,17 @@ DEAD_PREVIEW_PROJECT_REF = "rjyboqwcdzcocqgmsyel"
 
 
 class ProductionBusinessRiskGateTests(unittest.TestCase):
+    def test_risk_gate_sources_have_no_invalid_escape_sequences(self):
+        """Compile both risk-gate sources with Python's own warning detector."""
+        scripts_dir = Path(__file__).parent
+        for name in ("production_business_risk_gate.py", Path(__file__).name):
+            source = (scripts_dir / name).read_text(encoding="utf-8")
+            with self.subTest(name=name), warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always", SyntaxWarning)
+                compile(source, name, "exec")
+                invalid_escapes = [item for item in caught if item.category is SyntaxWarning]
+                self.assertEqual(invalid_escapes, [], f"invalid escape sequences found in {name}: {invalid_escapes}")
+
     def test_live_owner_comment_read_retries_transient_failure(self):
         responses=iter([
             subprocess.CompletedProcess([],1,"","HTTP 503: unavailable"),
@@ -1484,9 +1496,9 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 self.assertIsNone(
                     read_shapes.search(line),
                     f"{rel}:{number} names `docs` next to a read: {line.strip()!r}. "
-                    f"The docs entry in PREVIE\w_RUNTIME_DATA_EXEMPTIONS claims no "
+                    f"The docs entry in PREVIEW_RUNTIME_DATA_EXEMPTIONS claims no "
                     f"docs file is ever read into the preview job's behaviour. Pin "
-                    f"docs in PREVIE\w_PRODUCER_PATHS or rewrite the reason -- do "
+                    f"docs in PREVIEW_PRODUCER_PATHS or rewrite the reason -- do "
                     f"not leave a reason the code contradicts.",
                 )
                 kind = "git-pathspec" if pathspec_shape.search(line) else "message-citation"
@@ -1499,7 +1511,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             f"  sites    {sites}\n"
             "Classify the new site deliberately. If it opens a docs file -- even "
             "through a path assembled across several lines -- the docs exemption "
-            "is false and docs must be pinned in PREVIE\w_PRODUCER_PATHS.",
+            "is false and docs must be pinned in PREVIEW_PRODUCER_PATHS.",
         )
 
     def test_the_payload_exemption_is_byte_bound_on_every_lane(self):
