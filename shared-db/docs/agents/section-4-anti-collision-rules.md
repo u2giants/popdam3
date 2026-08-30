@@ -303,6 +303,21 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    write its own state. A real `REVISE` verdict is not a transport failure and
    must never be replaced.
 
+   **`--replace-failed-reviewer` is slot-aware, and the slot must be named.** It
+   defaults to `--review-slot 1`. Pass `--review-slot 2` to replace a failed
+   second reviewer; the request is then resolved only against slot 2's own
+   assignment and replacement refs, and the replacement is chosen to stay
+   independent of whoever currently holds slot 1. Naming the wrong slot is
+   refused with `durable reviewer assignment or replacement does not match the
+   replacement request` — that refusal is a correct fail-closed, not a bug, and
+   is never to be worked around by loosening the match. Before issue #1832 the
+   flag was silently ignored, so a slot-2 failure had no working replacement
+   route at all and a slot-2 request could only ever be answered from slot 1's
+   records. A slot-2 replacement still requires the issue open, the PR still at
+   the exact head, and no verdict yet recorded for that head — including slot 1's
+   own verdict. If slot 1 has already reported at that head, slot 2 cannot be
+   replaced there; assign against the current head instead.
+
    Append objective reviewer evidence through an `ai-devops` PR to
    `models_comparison_grok_kim_glm.md`: issue/PR, requested and proven model,
    verdict, confirmed/disproved findings, defects, false positives, policy/tool

@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, projectReviewPr, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, MAX_AUTHOR_LANES, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, buildDynamicQueues, claimBody, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, replaceFailedReviewer, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, projectReviewPr, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -2823,4 +2823,150 @@ test('the reconciler refuses a merged rehearsal that names a live author claim',
   const {io}=mergedRehearsalIo()
   const candidate=deriveLivePreviewCandidate(1769,io)
   assert.throws(()=>readyRecord({...candidate,manifest:{...candidate.manifest,claim_pr:'1809'}}),(error)=>error instanceof ReconcileError&&/must not name a live author claim/.test(error.message))
+})
+
+// ---------------------------------------------------------------------------
+// Slot-2 reviewer replacement (issue #1832). Reproduced on PR #1823 at head
+// c8aeeb19: slot 2 drew deepseek-chat (sequence 516), the provider returned
+// HTTP 402 with no conversation, verdict or artifact, and the governed
+// replacement refused with "durable reviewer assignment or replacement does
+// not match the replacement request". The refusal was correct: the operation
+// resolved the failed sequence against slot 1's UNSUFFIXED ref namespace,
+// where sequence 516 does not appear, and failed closed rather than silently
+// replacing slot 1's reviewer. The missing piece is a slot-aware route.
+// ---------------------------------------------------------------------------
+
+test('a failed slot-2 reviewer can be replaced without touching slot 1 (issue #1832)',()=>{
+  const io=reviewIo(),request={issue:1832,pr:1823,headSha:'c'.repeat(40)}
+  io.getPr=()=>({state:'open',head:{sha:request.headSha}})
+  const slotOne=assignNextReviewer(request,io)
+  const slotTwo=assignNextReviewer({...request,slot:2},io)
+  assert.notEqual(slotTwo.reviewer,slotOne.reviewer)
+  const replaced=replaceFailedReviewer({...request,slot:2,failedSequence:slotTwo.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io)
+  assert.notEqual(replaced.reviewer,slotTwo.reviewer,'the replacement must not re-pick the failed slot-2 provider')
+  assert.notEqual(replaced.reviewer,slotOne.reviewer,'slot 2 must stay independent of slot 1 after replacement')
+  // Slot 1 is untouched: same reviewer, same record, same lease.
+  assert.deepEqual(assignNextReviewer(request,io),slotOne)
+  // And the slot-2 assignment route now hands back the replacement, not the
+  // failed original -- the replacement namespace must be the slot-2 one.
+  assert.equal(assignNextReviewer({...request,slot:2},io).reviewer,replaced.reviewer)
+  // The failed provider's lease is released by the same governed operation.
+  assert.equal(io.refs.get(reviewActiveRef(slotTwo.reviewer))??null,null,'the failed slot-2 reviewer lease must lapse through the replacement')
+  // Idempotent retry, same as slot 1 has always been.
+  assert.deepEqual(replaceFailedReviewer({...request,slot:2,failedSequence:slotTwo.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io),replaced)
+})
+
+test('a slot-2 replacement request must never be answered from slot 1 records (issue #1832)',()=>{
+  // The dirty case that could plausibly slip past a loose fix: slot 1 exists
+  // and is perfectly replaceable at its own sequence, so a slot-unaware or
+  // loosened matcher would happily replace slot 1 while the caller believes
+  // it is replacing slot 2. Naming slot 2 with slot 1's sequence must refuse.
+  const io=reviewIo(),request={issue:1833,pr:1824,headSha:'d'.repeat(40)}
+  io.getPr=()=>({state:'open',head:{sha:request.headSha}})
+  const slotOne=assignNextReviewer(request,io)
+  const slotTwo=assignNextReviewer({...request,slot:2},io)
+  assert.throws(()=>replaceFailedReviewer({...request,slot:2,failedSequence:slotOne.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io),/does not match the replacement request/)
+  // And the mirror: slot 1 must not be replaceable by naming slot 2's sequence.
+  assert.throws(()=>replaceFailedReviewer({...request,failedSequence:slotTwo.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io),/does not match the replacement request/)
+  // Nothing moved.
+  assert.deepEqual(assignNextReviewer(request,io),slotOne)
+  assert.deepEqual(assignNextReviewer({...request,slot:2},io),slotTwo)
+})
+
+test('a complete slot-2 replacement stays inside the real wire-attempt budget (issue #1832)',()=>{
+  // resolveSlotOneReviewer adds three pre-mutex wire calls to the replacement
+  // path exactly as it does to assignment (#1812). Measure the real total under
+  // the shipped REVIEW_OPERATION_REQUEST_LIMIT rather than assuming it fits.
+  const request={issue:1834,pr:1825,headSha:'e'.repeat(40)}
+  const io=reviewIo();io.getPr=()=>({state:'open',head:{sha:request.headSha}})
+  assignNextReviewer(request,io)
+  const slotTwo=assignNextReviewer({...request,slot:2},io)
+  let attempts=0;const labels=[]
+  const rawGetCommit=io.getCommit
+  const active=new Map([...io.refs.entries()].filter(([ref])=>ref.startsWith(REVIEW_ACTIVE_REF_PREFIX)).map(([ref,sha])=>[ref,{sha,commit:rawGetCommit(sha)}]))
+  const states=new Map([[`${request.issue}:${request.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:request.headSha}},evidence:[]}]])
+  const wire=(n=1,label='wire')=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;labels.push(label);return '{}'}})}
+  io.getRateLimit=()=>{wire(1,'quota');return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readActiveReviewLeases=()=>{wire(1,'active');return active}
+  io.readReviewStates=()=>{wire(1,'states');return states}
+  io.readReviewRefs=(refs)=>{wire(1,'readReviewRefs');return new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewMutexRelease=(ownerSha)=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
+  io.readReviewRecords=(refs,prefix)=>{wire(2,'readReviewRecords');const result=new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}));Object.defineProperty(result,'matching',{value:[...io.refs.entries()].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha}))});return result}
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssue','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){const fn=io[name];io[name]=(...args)=>{wire(1,`${name}:${String(args[0])}`);return fn(...args)}}
+  const make=io.makeOwnerCommit;io.makeOwnerCommit=(message)=>{wire(1,'commit');return make(message)}
+  let result
+  try{result=replaceFailedReviewer({...request,slot:2,failedSequence:slotTwo.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io)}
+  catch(error){throw new Error(`${error.message}; calls=${labels.join(',')}`)}
+  assert.ok(result.reviewer)
+  assert.equal(attempts,17,`slot-2 replacement used ${attempts} of ${REVIEW_OPERATION_REQUEST_LIMIT}: ${labels.join(',')}`)
+  // 10 pre-mutex (slot 1's 7 plus resolveSlotOneReviewer's listRefs+readRef+getCommit)
+  // then the mutex-section reserve of 11: 21 of 22, one spare. If this moves,
+  // re-derive the ceiling rather than widening it.
+  assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`slot-2 replacement exceeded the ${REVIEW_OPERATION_REQUEST_LIMIT}-request budget`)
+})
+
+test('a slot-2 replacement never falls back onto slot 1\'s own reviewer (issue #1832)',()=>{
+  // The dirty case: chain two slot-2 replacements until the rotation's only
+  // remaining name IS slot 1's reviewer. Correct behaviour is to refuse. Two
+  // separate ways to get this wrong both land on slot 1's provider -- dropping
+  // the slot-1 exclusion, or sourcing it from a prefix scan that mistakes a
+  // slot-2 replacement ref for a slot-1 one (slot 1's base is a prefix of
+  // slot 2's). Either would hand the same provider both verdicts on one head,
+  // which is not two independent reviews.
+  const request={issue:1835,pr:1826,headSha:'f'.repeat(40)}
+  const io=reviewIo(),heads=new Map()
+  io.getPr=(number)=>({number:Number(number),state:'open',head:{sha:heads.get(Number(number))??request.headSha}})
+  const slotOne=assignNextReviewer(request,io)
+  const slotTwo=assignNextReviewer({...request,slot:2},io)
+  const failure={failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true}
+  const firstReplacement=replaceFailedReviewer({...request,slot:2,failedSequence:slotTwo.sequence,...failure},io)
+  // Park every remaining active provider on unrelated live review work, so the
+  // rotation's only untaken, unfailed name left is slot 1's reviewer.
+  // Slot 1 holds no live lease at this point: its lease was reclaimed while its
+  // assignment record still stands. That is what makes this the dirty case --
+  // the ordinary busy check no longer hides slot 1's reviewer, so the slot-1
+  // exclusion is the only thing keeping it out of the pick.
+  io.refs.delete(reviewActiveRef(slotOne.reviewer))
+  const spent=new Set([slotOne.reviewer,slotTwo.reviewer,firstReplacement.reviewer])
+  ACTIVE_REVIEWERS.filter((row)=>!spent.has(row.name)).forEach((row,index)=>{
+    const issue=700+index,pr=800+index,headSha=`ba${index}`.padEnd(40,'0')
+    heads.set(pr,headSha)
+    io.refs.set(reviewActiveRef(row.name),io.makeOwnerCommit(`db-coordination reviewer-lease generation=${index+1} reviewer=${row.name} issue=${issue} pr=${pr} head=${headSha} sequence=${900+index}`))
+  })
+  assert.throws(()=>replaceFailedReviewer({...request,slot:2,failedSequence:firstReplacement.sequence,...failure},io),/no other independent reviewer is available for slot 2/)
+  // Slot 1 is untouched by the refusal.
+  assert.deepEqual(assignNextReviewer(request,io),slotOne)
+})
+
+test('an invalid slot on a replacement request is refused (issue #1832)',()=>{
+  const io=failedReviewIo()
+  for(const slot of [0,-1,1.5,'two'])assert.throws(()=>replaceFailedReviewer({...replacementRequest,slot},io),/positive integer/)
+})
+
+test('replacement ref namespaces are matched exactly, never by prefix (issue #1832)',()=>{
+  const base='refs/db-review-replacements/1832-1823-abc'
+  assert.ok(inReviewReplacementNamespace(`${base}-516`,base))
+  assert.equal(inReviewReplacementNamespace(`${base}-slot2-516`,base),false,'a slot-2 link must not be read as a slot-1 one')
+  assert.ok(inReviewReplacementNamespace(`${base}-slot2-516`,`${base}-slot2`))
+  assert.equal(inReviewReplacementNamespace(base,base),false,'the legacy unsuffixed ref is handled separately, not as a link')
+  assert.equal(inReviewReplacementNamespace('refs/db-review-replacements/1832-18230-1',base),false)
+})
+
+test('--replace-failed-reviewer honours --review-slot on the command line (issue #1832)',()=>{
+  // The CLI is the only route an orchestrator actually uses. Before #1832 it
+  // never forwarded --review-slot to the replacement, so a slot-2 request was
+  // silently answered from slot 1's records.
+  const request={issue:1836,pr:1827,headSha:'1'.repeat(40)}
+  const io=reviewIo();io.getPr=()=>({state:'open',head:{sha:request.headSha}})
+  const slotOne=assignNextReviewer(request,io)
+  const slotTwo=assignNextReviewer({...request,slot:2},io)
+  const argv=['--replace-failed-reviewer','--issue',String(request.issue),'--pr',String(request.pr),'--head-sha',request.headSha,'--review-slot','2','--failed-sequence',String(slotTwo.sequence),'--failure-code','insufficient_quota','--confirm-no-verdict','--confirm-no-artifact']
+  const printed=[];const log=console.log;console.log=(line)=>printed.push(line)
+  try{assert.equal(main(argv,NOW,io),0)}finally{console.log=log}
+  const result=JSON.parse(printed.join('\n'))
+  assert.equal(result.slot,2)
+  assert.notEqual(result.reviewer,slotTwo.reviewer)
+  assert.notEqual(result.reviewer,slotOne.reviewer)
+  assert.deepEqual(assignNextReviewer(request,io),slotOne,'slot 1 must be untouched by a slot-2 command-line replacement')
 })
