@@ -2637,3 +2637,24 @@ test('two merged pull requests on one claim branch are still refused as ambiguou
   io.branchPulls=()=>[one,{...one,number:1810}]
   assert.throws(()=>deriveLivePreviewCandidate(1769,io),/exactly one live pull request/)
 })
+
+// The shape assertions above cannot catch a CONSUMER that wants different fields.
+// They did not: the reconciler still required claim_pr, so the merged rehearsal
+// emitted a valid manifest and then failed one layer down at persistence, and both
+// independent verification passes missed it because neither drove the manifest into
+// the next stage. This test does, and it is the one that would have caught it.
+test('the merged-rehearsal candidate is accepted by the reconciler it is handed to',async()=>{
+  const {readyRecord}=await import('./orchestrator-flow/reconcile.mjs')
+  const {io,mainSha}=mergedRehearsalIo()
+  const record=readyRecord(deriveLivePreviewCandidate(1769,io))
+  assert.equal(record.route,'merged_rehearsal')
+  assert.equal(record.route_context,mainSha)
+  assert.match(record.ready_id,/^[0-9a-f]{64}$/)
+})
+
+test('the reconciler refuses a merged rehearsal that names a live author claim',async()=>{
+  const {readyRecord,ReconcileError}=await import('./orchestrator-flow/reconcile.mjs')
+  const {io}=mergedRehearsalIo()
+  const candidate=deriveLivePreviewCandidate(1769,io)
+  assert.throws(()=>readyRecord({...candidate,manifest:{...candidate.manifest,claim_pr:'1809'}}),(error)=>error instanceof ReconcileError&&/must not name a live author claim/.test(error.message))
+})

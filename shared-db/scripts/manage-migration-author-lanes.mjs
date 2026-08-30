@@ -1108,8 +1108,9 @@ export function deriveLivePreviewCandidate(issue,io){
     const closed=(io.branchPulls?.(lease.branch)??[]).filter((row)=>row.head?.ref===lease.branch&&row.merged_at&&row.merge_commit_sha)
     if(closed.length!==1)throw new LaneError(`claim #${claim.number} must have exactly one live pull request`)
     pr=closed[0];merged=true;mergeCommit=pr.merge_commit_sha
-    // The recovery lane pins producer files to the AUTHORING merge commit, so the
-    // rehearsal must be anchored there and that commit must really be in main.
+    // The merge commit is NOT where the rehearsal is anchored -- commit_sha below is the
+    // current main tip. It is checked here only as proof that this claim really merged
+    // into main, which is what makes the post-merge route legitimate at all.
     if(!io.mergeCommitInMain(mergeCommit))throw new LaneError(`merged claim #${claim.number} merge commit ${mergeCommit} is not in main history`)
   }
   else throw new LaneError(`claim #${claim.number} must have exactly one live pull request`)

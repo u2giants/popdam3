@@ -13,7 +13,15 @@ export function readyRecord(input){
   if(record.route!=='ordinary_preview_apply'&&!/^[0-9a-f]{40}$/i.test(record.route_context))throw new ReconcileError('recovery route context must be the current main SHA')
   const forbidden=['production_allowlist','confirmation','review_artifact_digest','owner_decision','source_pr','preview_run_id','preview_artifact_digest']
   for(const key of forbidden)if(key in record.manifest)throw new ReconcileError(`preview manifest contains forbidden field ${key}`)
-  if(record.manifest.target!=='preview'||!record.manifest.preview_allowlist||!record.manifest.claim_pr||!record.manifest.claim_head_sha)throw new ReconcileError('preview manifest is incomplete')
+  if(record.manifest.target!=='preview'||!record.manifest.preview_allowlist)throw new ReconcileError('preview manifest is incomplete')
+  // A merged rehearsal names no claim: the claim PR is already merged, and
+  // shared-supabase-migrations REFUSES a manifest that carries claim_pr alongside
+  // merged_preview_source_pr. Requiring claim_pr here made the merged_rehearsal route
+  // undispatchable one layer below the workflow -- the route existed, emitted a valid
+  // manifest, and then failed at persistence. Each route states its own identity fields.
+  const required=record.route==='merged_rehearsal'?['commit_sha','merged_preview_source_pr']:['claim_pr','claim_head_sha']
+  for(const key of required)if(!record.manifest[key])throw new ReconcileError('preview manifest is incomplete')
+  if(record.route==='merged_rehearsal'&&(record.manifest.claim_pr||record.manifest.claim_head_sha))throw new ReconcileError('a merged rehearsal manifest must not name a live author claim')
   record.manifest_digest=sha256(canonicalJson(record.manifest))
   const ready_id=sha256(canonicalJson(record))
   return {...record,ready_id}
