@@ -1592,6 +1592,7 @@ def main() -> int:
 
 PREVIEW_PRODUCER_PATHS += (
     "scripts/production-verification-sidecars/20260830013942.json",
+    "scripts/production-verification-sidecars/20260830130345.json",
 )
 
 

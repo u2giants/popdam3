@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260830130345",
+  "migration_sha256": "66e82dc87ed7d5833ef683b798a5a078a63d3e017c8ef1143f18d7ce27c21080",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 441,
+      "line_end": 441,
+      "disposition": "checks",
+      "reason": "This dynamic execute rewrites the BODY of api.db_data_admin_scraped_properties(text,text,integer), a routine that already exists before this migration, so an existence assertion alone could not witness it and would still pass on a no-op execute. The cited contract therefore reads pg_get_functiondef of that exact signature after apply and requires the installed OPA-authority body to be present and the superseded licensor-resolution join to be absent; check IDs: dcp_opa_property_authority_contract.",
+      "check_ids": [
+        "dcp_opa_property_authority_contract"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "dcp_opa_property_authority_contract",
+      "kind": "catalog_contract",
+      "contract": "dcp_opa_property_authority_v1",
+      "expected_count": 1
+    }
+  ]
+}

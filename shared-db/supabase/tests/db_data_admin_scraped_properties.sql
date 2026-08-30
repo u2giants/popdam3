@@ -65,7 +65,6 @@ begin
 
   if position('plm.wb_franchise' in v_definition) <> 0
      or position('plm.pmt_collection' in v_definition) <> 0
-     or position('plm.dcp_style_guide' in v_definition) <> 0
      or position('core.property' in v_definition) <> 0 then
     raise exception 'contract includes a non-source-Property vocabulary';
   end if;
@@ -218,7 +217,7 @@ begin
 
   if not exists (
     select 1 from jsonb_array_elements(v_rows) r
-    where r ->> 'presentation_licensor_name' = 'Disney - Creative (DCP Vault)'
+    where r ->> 'presentation_licensor_name' = 'DCP Creative - unresolved authority'
       and r ->> 'source_table' = 'plm.dcp_property'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
@@ -226,10 +225,10 @@ begin
       and r ->> 'source_table' = 'plm.marvel_dcp_property'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
-    where r ->> 'presentation_licensor_name' = 'Lucasfilm / Star Wars - Creative (DCP Vault)'
+    where r ->> 'presentation_licensor_name' = 'DCP Creative - unresolved authority'
       and r ->> 'source_system' = 'lucasfilm_dcpvault'
   ) then
-    raise exception 'Disney Creative, retained Marvel-tag evidence, and Star Wars Creative groups are not distinct';
+    raise exception 'unresolved DCP Creative evidence and retained Marvel-tag evidence are not separated';
   end if;
 
   if not exists (
@@ -255,7 +254,7 @@ begin
     where r ->> 'source_property_id' = v_search || '/galaxy_far_far_away'
       and r -> 'source_property_name' = 'null'::jsonb
       and r ->> 'display_label' = 'Galaxy Far Far Away'
-      and r ->> 'presentation_licensor_name' = 'Lucasfilm / Star Wars - Creative (DCP Vault)'
+      and r ->> 'presentation_licensor_name' = 'DCP Creative - unresolved authority'
       and r ->> 'source_system' = 'lucasfilm_dcpvault'
   ) then
     raise exception 'Lucasfilm DCP underscore slug or Star Wars provenance changed';

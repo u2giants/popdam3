@@ -61,12 +61,12 @@ No refresh hard-deletes licensing Master Data.
 
 ## Disney source-purpose authority
 
-**Status: Settled. Authority: Albert Hazan, 2026-08-26.**
+**Status: Settled. Authority: Albert Hazan, 2026-08-26 and 2026-08-27.**
 
 - OPA is the Submissions workflow for Disney, Marvel, Lucasfilm / Star Wars, and Pixar. Marvel submissions remain under the Disney OPA branch by business rule.
-- Direct OPA creation-branch membership is authoritative studio/licensor scope evidence. Property-name keywords and landing-table families are not authority. One Property may legitimately appear in more than one route, and absent or conflicting current approved scope evidence remains explicit for Licensing review.
-- DCP Vault is Creative authority only for Disney and Lucasfilm / Star Wars. Marvel Creative authority is ASGARD only. Marvel-tagged DCP rows are retained as mixed-guide raw evidence but excluded from Marvel Creative presentation.
-- DCP presentation decisions preserve exact source identity and immutable supersession history. Only the deterministic latest approved decision is current. `supported_owner_source_label` means an owner-approved source-title-family declaration; it is not exact OPA evidence.
+- Signed agreements and schedules govern POP entitlement and every explicit Property-to-Licensor relationship they state. Direct captured OPA creation-branch membership governs submissions-system Property scope and relationships. Neither authority may be inferred from normalized names, canonical Master Data ownership, source labels, or landing-table families. Contract and direct OPA disagreement fails closed with both concrete assertions retained for Licensing review.
+- DCP Vault is Creative style-guide and asset evidence only for Disney and Lucasfilm / Star Wars; it cannot assign Property ownership. DCP Creative presentation may acquire studio placement only through an explicit approved exact-source-identity crosswalk to one or more OPA `licensed_property_id` values and an authoritative signed-contract assertion, direct latest-approved OPA scope, or both in agreement. Missing authority, conflicting direct OPA scopes, and contract/OPA disagreement fail closed. Marvel Creative authority is ASGARD only; Marvel-tagged DCP rows remain mixed-guide raw evidence and are excluded from Marvel Creative presentation.
+- The historical DCP presentation-resolution ledger remains immutable evidence but is no longer current Property-to-Licensor/Studio authority. Its old contract, canonical, name, and source-title decisions must not drive current presentation.
 - The known OPA Property-to-Character extract does not prove that other portal hierarchy relationships are absent. Capture direct hierarchy selectors when available; never synthesize them from `brandPropertyID`, constant `optionSourceID`, names, or table families.
 
 ## Talent likeness and royalty

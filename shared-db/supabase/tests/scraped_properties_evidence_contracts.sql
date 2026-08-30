@@ -7,12 +7,15 @@ declare
   v_suffix text := substr(replace(gen_random_uuid()::text, '-', ''), 1, 10);
   v_search text := 'Issue1599-';
   v_property_id bigint := -159900000001;
+  v_conflict_property_id bigint := -159900000002;
   v_role_id uuid;
   v_profile uuid;
   v_auth uuid;
   v_page jsonb;
   v_row jsonb;
   v_first uuid;
+  v_current uuid;
+  v_conflict uuid;
 begin
   v_search := v_search || v_suffix;
 
@@ -97,12 +100,25 @@ begin
     repeat('c',64), now(), 2, v_first, 'approved', now(), 'contract',
     'owner-approved source title family'
   );
+  insert into plm.dcp_opa_property_resolution (
+    source_system, source_table, source_property_id, decision_version,
+    approval_status, evidence_reference, evidence_sha256, decision_reason,
+    contract_asserted_studio_code, contract_evidence_reference,
+    contract_evidence_sha256, approved_at, approved_by
+  ) values (
+    'disney_dcpvault', 'plm.dcp_property', v_search || '/dcp', 1,
+    'approved', 'private-exact-link', repeat('f',64), 'synthetic exact link',
+    'lucasfilm', 'private-contract-assertion', repeat('1',64), now(), 'contract'
+  ) returning resolution_id into v_current;
+  insert into plm.dcp_opa_property_resolution_member (
+    resolution_id, licensed_property_id, member_ordinal
+  ) values (v_current, v_property_id, 1);
 
   select api.db_data_admin_scraped_properties(v_search, null, 100) into v_page;
   select r into v_row from jsonb_array_elements(v_page -> 'rows') r
   where r ->> 'source_table' = 'plm.dcp_property';
   if v_row ->> 'presentation_licensor_name' <> 'Lucasfilm / Star Wars - Creative (DCP Vault)'
-     or v_row ->> 'source_purpose' <> 'Creative (DCP Vault)'
+     or v_row ->> 'source_status' <> 'direct_lucasfilm'
      or v_row ?| array['authority_reference','evidence_reference','source_hash','approved_by'] then
     raise exception 'latest approved DCP decision or private envelope contract changed';
   end if;
@@ -118,6 +134,18 @@ begin
 
   insert into plm.dcp_property (source_system, source_id, display_name)
   values ('disney_dcpvault', v_search || '/conflict', v_search || ' conflict');
+  insert into plm.opa_property (licensed_property_id, property_name)
+  values (v_conflict_property_id, v_search || ' conflict OPA');
+  insert into plm.opa_property_scope_membership (
+    licensed_property_id, region_code, branch_code, line_of_business_id,
+    product_type_code, template_id, workflow_id, capture_id,
+    source_captured_at, approval_status, evidence_reference, evidence_sha256,
+    approved_at, approved_by
+  ) values (
+    v_conflict_property_id, 'north-america', 'disney', 200, 'home-standard',
+    462, 50, v_search || '-conflict-capture', now(), 'approved',
+    'private-conflict-fixture', repeat('2',64), now(), 'contract'
+  );
   insert into plm.dcp_property_licensor_resolution (
     source_system, source_property_id, presentation_licensor_key,
     presentation_licensor_name, resolution_status, authority_kind,
@@ -129,15 +157,28 @@ begin
     'private-pointer', repeat('e',64), now(), 1, 'approved', now(),
     'contract', 'synthetic authority conflict'
   );
+  insert into plm.dcp_opa_property_resolution (
+    source_system, source_table, source_property_id, decision_version,
+    approval_status, evidence_reference, evidence_sha256, decision_reason,
+    contract_asserted_studio_code, contract_evidence_reference,
+    contract_evidence_sha256, approved_at, approved_by
+  ) values (
+    'disney_dcpvault', 'plm.dcp_property', v_search || '/conflict', 1,
+    'approved', 'private-conflict-link', repeat('3',64), 'synthetic conflict',
+    'lucasfilm', 'private-conflict-contract', repeat('4',64), now(), 'contract'
+  ) returning resolution_id into v_conflict;
+  insert into plm.dcp_opa_property_resolution_member (
+    resolution_id, licensed_property_id, member_ordinal
+  ) values (v_conflict, v_conflict_property_id, 1);
 
   select api.db_data_admin_scraped_properties(v_search || ' conflict', null, 100)
     into v_page;
   select r into v_row from jsonb_array_elements(v_page -> 'rows') r
   where r ->> 'source_property_id' = v_search || '/conflict';
-  if v_row ->> 'presentation_licensor_name' <> 'DCP Vault - authority conflict'
-     or v_row ->> 'review_reason' <> 'Conflicting approved authority evidence names more than one presentation scope; Licensing must resolve the exact source identity.'
-     or v_row ->> 'evidence_basis' <> 'approved exact-identity DCP authority decisions'
-     or v_row ->> 'review_guidance' <> 'Compare the direct authority records and approve one superseding exact-identity decision. Do not infer authority from a property name or landing table.' then
+  if v_row ->> 'presentation_licensor_name' <> 'DCP Creative - contract/OPA conflict'
+     or v_row ->> 'source_status' <> 'contract_opa_conflict'
+     or v_row ->> 'evidence_basis' <> 'authoritative signed-contract assertion compared independently with direct latest captured OPA scope through exact OPA Property IDs'
+     or position('Licensing' in coalesce(v_row ->> 'review_reason', '')) = 0 then
     raise exception 'authority-conflict RPC guidance contract changed: %', v_row;
   end if;
 
