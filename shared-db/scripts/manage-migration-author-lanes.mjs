@@ -268,8 +268,10 @@ export const NON_STRUCTURAL_EXITS = Object.freeze({
   // FORK, not REJECT, and DELIBERATELY UNCHANGED by issue #1366. Curated Master
   // Data is governed INSIDE this repo by 6.4: it binds the AI session doing the
   // typing and never leaves for an application repo. It exits by fork because it
-  // must not occupy a migration-author lane and must not be worked in the
-  // orchestrator's own context - not because it belongs to somebody else.
+  // must not be worked in the orchestrator's own context - not because it belongs
+  // to somebody else. A curated fork that ships supabase/migrations/* must still
+  // claim a lane before authoring: version reservation and object collision locks
+  // are safety controls. Curated work that ships no migration does not use a lane.
   //
   // The 2026-08-21 ruling was about repository-maintenance work. It did NOT
   // change how curated Master Data is routed. Do not move this to another exit

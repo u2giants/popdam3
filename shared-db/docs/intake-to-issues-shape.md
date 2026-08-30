@@ -42,8 +42,11 @@ route: shared-db-orchestrator
 
 Structural work must list exact database objects. Pure data and source-review work must
 not list objects. Outside-sourced writes into curated `core.*` Master Data retain the
-separate `curated-master-data-governance` route and never enter a migration-author lane.
-There is no default route.
+separate `curated-master-data-governance` route. They normally stay outside a
+migration-author lane, but a fork that ships `supabase/migrations/*` must claim one
+before authoring so atomic version reservation and exact-object collision locking remain
+enforced. Curated work that ships no migration does not use a lane. There is no default
+route.
 
 ### Counts this produces
 

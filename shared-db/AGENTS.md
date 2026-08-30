@@ -322,8 +322,12 @@ instead.** The machine-readable form of this table is `NON_STRUCTURAL_EXITS` in
 - **FORK** — genuinely this repo's work, dispatched by this orchestrator to a fresh session with an
   empty context window, but never worked in the orchestrator's own window. **This is now curated
   Master Data only** (`curated-master-data`), which §6.4 governs *inside* this repo and which never
-  leaves for an application repo. It forks because it must not occupy a migration-author lane, not
-  because somebody else owns it. The orchestrator does not read the code, does not debug it, and
+  leaves for an application repo. It forks to keep the work out of the orchestrator's context, not
+  because somebody else owns it. A fork that ships a file under `supabase/migrations/` **must claim
+  a migration-author lane before authoring it**; the lease's version reservation and object locks
+  are safety controls and override the normal throughput preference not to consume a lane. Curated
+  work that ships no migration does not use a lane. The orchestrator does not read the code, debug
+  it, or
   does not "just fix it quickly".
 - **REPO-SESSION** — `repo-maintenance` and `documentation`. **Not an orchestrator assignment at
   all, not even to dispatch.** A separately started repository-maintenance session owns this work
@@ -676,7 +680,9 @@ rules below are the operative summary.
    - Every open `db-work` issue carries one authoritative `db-work-scope` block. Only
      `ready + structural + shared-db-orchestrator` can enter an author lane, and it must name
      every exact object. Outside-sourced writes into curated `core.*` Master Data use
-     `curated-master-data` / `curated-master-data-governance` — §6.4 governance, never a lane.
+     `curated-master-data` / `curated-master-data-governance` — §6.4 governance. It normally stays
+     outside author lanes, but a fork that ships `supabase/migrations/*` must claim a lane before
+     authoring so version reservation and exact-object collision locking remain enforced.
    - **A verdict with no coverage statement is not review evidence** (issue #1220). An `APPROVE`
      with no findings and no statement of what was examined is a wrapper or provider failure, not
      a clean review — treat it as `verdict=none` and use `--replace-failed-reviewer`. **Silence is

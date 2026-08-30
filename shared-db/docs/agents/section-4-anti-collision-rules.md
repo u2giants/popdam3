@@ -157,9 +157,12 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    `blocked`, and `owner-decision`. Allowed work types are `structural`,
    `curated-master-data`, `application-data`, `source-data`, `repo-maintenance`,
    `documentation`, and `security-settings`. There is no default route. Only
-   `ready + structural + shared-db-orchestrator` can enter a migration-author
-   lane, and it must name every exact database object. Non-structural work must
-   not claim database objects.
+   `ready + structural + shared-db-orchestrator` normally enters a
+   migration-author lane, and it must name every exact database object. The
+   narrow exception is a `curated-master-data` fork that ships
+   `supabase/migrations/*`: it must claim a lane before authoring and name the
+   exact objects needed by the migration. Other non-structural work must not
+   claim database objects.
 
    **Each non-structural work type has a named exit** (AGENTS.md §0.0-C, and
    `NON_STRUCTURAL_EXITS` in `scripts/manage-migration-author-lanes.mjs`, which is
@@ -206,8 +209,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    Outside-sourced writes into curated `core.*` Master Data use
    `work_type: curated-master-data` and
-   `route: curated-master-data-governance`. This preserves §6.4 governance but
-   never grants a migration-author lane. Source-data review such as NBCU rights
+   `route: curated-master-data-governance`. This preserves §6.4 governance and
+   normally stays outside a migration-author lane. If the fork ships a file
+   under `supabase/migrations/`, however, it must claim a lane before authoring:
+   atomic version reservation and exact-object collision locking are safety
+   controls, not ownership of the work. Source-data review such as NBCU rights
    classification uses `work_type: source-data` and
    `route: source-data-session`, even while `status: owner-decision`. Changing
    only the status after Albert answers can never change its owner route.
