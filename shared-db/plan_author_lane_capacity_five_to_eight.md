@@ -1,7 +1,10 @@
 # Plan — raise the migration-author lane cap from five to eight
 
-**Status:** proposed, not applied. **Owner instruction:** 2026-08-27.
-**Enforced value today:** `MAX_AUTHOR_LANES = 5` in
+**Status: APPLIED.** The cap moved 5 → 8 in commit `c33e68b9` (PR #1791,
+2026-08-28), which also grew the active reviewer rotation to six. The remaining
+documentation alignment this plan calls for landed 2026-08-30 — see §7.
+**Owner instruction:** 2026-08-27.
+**Enforced value when this plan was written:** `MAX_AUTHOR_LANES = 5` in
 [`scripts/manage-migration-author-lanes.mjs`](scripts/manage-migration-author-lanes.mjs)
 (raised 3 → 5 on 2026-08-25 in commit `c9b9599`).
 
@@ -92,3 +95,23 @@ improvements independent of the cap.
 
 It does not weaken any guard, does not make preview/merge/production concurrent, and does
 not raise the cap without the reviewer growth in §2.1 landing in the same change.
+
+## 7. What actually landed (2026-08-28 and 2026-08-30)
+
+- **Cap.** `MAX_AUTHOR_LANES = 8`, with the comment block rewritten to record both
+  raises. Guards unchanged; preview, merge and production remain serial.
+- **Reviewers.** The rotation reached six by activating `codex-gpt-5.6-sol` and
+  DeepSeek as full rotation providers rather than by un-retiring Qwen. That is a
+  deliberate departure from §2.1: Qwen and Gemini stay outside the rotation while
+  ai-devops reviewer reliability is repaired (owner instruction, 2026-08-28).
+- **Overflow removed.** `OVERFLOW_REVIEWERS` is now empty. With six rotation
+  providers there is no reviewer of last resort: when all six execution keys are
+  occupied, assignment **fails closed** and the allocator records an ordered
+  durable wait. This is a real behaviour change from the five-lane design, where
+  Codex absorbed the overflow.
+- **Docs aligned 2026-08-30.** `docs/agents/section-4-anti-collision-rules.md`
+  (eight lanes, ninth author refused, and the stale "three author lanes" failure
+  text this plan flagged), `plan_multi_agent_database_coordination_hardening.md`
+  §4 and the §6 ref-write arithmetic (48/hr at eight lanes, caveat still
+  discharged), the cap comment header, and one stale test comment.
+- **Unchanged on purpose.** `scripts/check-skill-drift.mjs` stays cap-agnostic.

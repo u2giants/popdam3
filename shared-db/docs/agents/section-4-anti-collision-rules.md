@@ -16,19 +16,21 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
 ## 4. The five anti-collision rules (shared database)
 
-1. **Up to five unrelated migrations may hold active-author capacity at once. Preview, merges,
+1. **Up to eight unrelated migrations may hold active-author capacity at once. Preview, merges,
    and production promotion remain one at a time.** Albert's owner ruling of
-   2026-08-14 set this at three; he raised it to five on 2026-08-25. Concurrent
+   2026-08-14 set this at three; he raised it to five on 2026-08-25 and to eight
+   on 2026-08-28, with the active reviewer rotation grown to six in the same
+   change (`plan_author_lane_capacity_five_to_eight.md`). Concurrent
    authors must use isolated worktrees, exact object claims and centrally
    reserved versions. Protected blocked claims do not consume active-author
    capacity, but continue blocking every overlapping object and version. A
-   sixth active author is refused.
+   ninth active author is refused.
 
    The number is a throughput dial, not a safety dial. Isolation comes from the
    exact object claim, the global acquisition mutex, the permanent version
    reservation and the single-holder preview/merge/production refs — none of
-   which read the cap. Five authors never means five sessions touching a live
-   database; it means five drafts queueing for the same serial stages. The
+   which read the cap. Eight authors never means eight sessions touching a live
+   database; it means eight drafts queueing for the same serial stages. The
    enforced value is `MAX_AUTHOR_LANES` in
    `scripts/manage-migration-author-lanes.mjs`; this text and that constant must
    agree.
@@ -45,7 +47,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    Allocation is serialized across computers by a GitHub-backed lock. The command
    fails closed if claims are unreadable, objects overlap an open claim or pull
-   request, GitHub is unavailable, version reservation fails, or five active-author
+   request, GitHub is unavailable, version reservation fails, or eight active-author
    leases are occupied. Older claims protect objects until explicitly released;
    only a guarded capacity relinquishment removes their author-slot use.
    The created issue body is authoritative and machine-readable. Never hand-edit

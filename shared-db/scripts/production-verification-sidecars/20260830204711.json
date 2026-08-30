@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260830204711",
+  "migration_sha256": "41fff104cabfa5571586fc52e759dafb4932ebcb23438631e9dc74623284d8cc",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 223,
+      "line_end": 223,
+      "disposition": "checks",
+      "check_ids": [
+        "licensors_external_id_canonical_comment_v2"
+      ],
+      "reason": "Line 223 is the migration's only dynamic execution, and its sole durable effect is the column comment on public.licensors.external_id. The cited contract compares that comment byte-exact against the same text the migration declares once as c_comment, so the marker is verified by the thing it actually writes. The row-count checks in this sidecar deliberately do NOT cover this marker: they are produced by the two UPDATE statements and would pass with the comment never written."
+    }
+  ],
+  "checks": [
+    {
+      "id": "licensors_external_id_canonical_comment_v2",
+      "kind": "catalog_contract",
+      "contract": "licensors_external_id_canonical_comment_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "licensors_disney_external_id_dy_v2",
+      "kind": "exact_row_count",
+      "relation": "public.licensors",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "10a445bc-cdb8-4384-ad6f-a46fd029f2bc"
+        },
+        {
+          "column": "external_id",
+          "type": "text",
+          "equals": "DY"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "licensors_wwe_external_id_ww_v2",
+      "kind": "exact_row_count",
+      "relation": "public.licensors",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "1e3ebfce-7d9d-4424-a68c-73c4e57b6d83"
+        },
+        {
+          "column": "external_id",
+          "type": "text",
+          "equals": "WW"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}

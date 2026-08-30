@@ -64,6 +64,11 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #505 merged-stranded original. Its first preview apply refused and rolled
+    # back transactionally after live app drift invalidated an over-broad
+    # licensor_id-is-null assumption. 20260830204711 carries the preserved
+    # capability with the evidence-backed invariant. Never apply this original.
+    "20260830195655",
     # #1750 code-truth restoration. Production already holds this exact ledger
     # version and its one statement is byte-identical to the governed historical
     # 20260817150944 restoration. The file exists only so main agrees with the

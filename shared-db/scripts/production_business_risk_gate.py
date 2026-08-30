@@ -481,6 +481,7 @@ PREVIEW_PRODUCER_PATHS = (
     "scripts/production-verification-sidecars/20260825082910.json",
     "scripts/production-verification-sidecars/20260828021051.json",
     "scripts/production-verification-sidecars/20260830195655.json",
+    "scripts/production-verification-sidecars/20260830204711.json",
     # Local import of the guard, and the only thing that reads a migration's
     # `-- derived-from:` declaration (issue #1608). An unpinned copy could
     # declare every base satisfied and the guard would believe it, which is the

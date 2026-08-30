@@ -260,8 +260,13 @@ class GuardTests(unittest.TestCase):
                 "20260825094455",
                 "20260827183011",
                 "20260828052706",
+                "20260830195655",
             },
         )
+
+    def test_stranded_issue_505_original_is_permanently_blocked(self) -> None:
+        with self.assertRaisesRegex(GuardError, "20260830195655"):
+            parse_allowlist("20260830195655")
 
     def test_stranded_popdam_original_is_permanently_blocked(self) -> None:
         with self.assertRaisesRegex(GuardError, "20260827183011"):

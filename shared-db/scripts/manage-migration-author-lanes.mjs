@@ -15,7 +15,8 @@ import { selectPreviewRoute } from './orchestrator-flow/select-preview-route.mjs
 import { PROJECT_REFS } from './orchestrator-flow/read-preview-ledger.mjs'; import { verdictOpensLine as sharedVerdictOpensLine, evidenceTiedToHead as sharedEvidenceTiedToHead, isApprovalFor as sharedIsApprovalFor, isVerdictFor as sharedIsVerdictFor, anyVerdictFor as sharedAnyVerdictFor } from './lib/review-verdict.mjs'
 
 export const REPO = 'u2giants/shared-db'
-// AUTHOR LANE CAP. Raised from three to five on 2026-08-25 (owner instruction).
+// AUTHOR LANE CAP. Raised from three to five on 2026-08-25 and from five to
+// eight on 2026-08-28 (owner instructions).
 //
 // WHAT THE NUMBER DOES AND DOES NOT DO. It is a throughput dial, not a safety
 // dial. Collision safety comes from four mechanisms that do not read this

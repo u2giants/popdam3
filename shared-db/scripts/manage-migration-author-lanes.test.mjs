@@ -601,7 +601,7 @@ test('merged-head replacement reuses the bounded target snapshot instead of rere
 // ACTIVE ROTATION (owner instruction, 2026-08-28). Codex GPT-5.6 Sol and
 // DeepSeek are ordinary approved reviewers. All-busy must fail closed.
 function busyIo(){
-  // Each of the four active reviewers holds one live assignment: an open PR, still
+  // Each active rotation reviewer holds one live assignment: an open PR, still
   // at the head it was given, with no verdict recorded.
   const io=reviewIo(), heads=new Map()
   ACTIVE_REVIEWERS.forEach((row,index)=>{
