@@ -323,6 +323,117 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    verdict, confirmed/disproved findings, defects, false positives, policy/tool
    adherence, continuity, latency, turns, and only metrics the wrapper reports.
    Kimi headless metrics and returned model are unavailable; never invent them.
+   **The exact-head approval rule is ENFORCED at the merge gate, not merely documented (#1816, 2026-08-29).** Until then `guarded-migration-merge` proved head identity, base currency, object collisions and the author lease, but never asked whether the bytes being merged had been approved -- and under merge-first the preview gate that does ask only runs AFTER the merge. So `REJECT` at head A, a new commit B answering it, then merging B put unapproved bytes on `main`. That happened on PR #1809 (issue #1769): grok-4.6 REJECTed `b494401`, commit `8d3c31a` answered it, and `8d3c31a` merged as `2b68e7e` with zero approvals tied to it. `scripts/check-exact-head-approval.mjs` now runs twice in that workflow -- once up front and once re-proven under the merge lock -- and refuses unless a reviewer assignment AND an `APPROVE` are both pinned to the exact head being merged, with no unanswered refusal at that head. **An assignment is not an approval, and an approval of an earlier head is not an approval of these bytes.** A new commit answering a review always needs a fresh exact-head review before it can merge. A reviewer *replacement* does not change any of this: replacement exists for a reviewer that produced **silence** (the TERMINAL_FAILURE_CODES -- quota, provider unavailable, dependency unavailable, wrapper failure, turn-limit cancellation), not for one that produced a verdict. Replacing a reviewer who timed out mid-review is legitimate, but if that reviewer had already emitted a refusal, the refusal survives the replacement -- the distinction is verdict-vs-silence, not reviewer identity. Conversely, a replacement reviewer's assignment (and a slot 2 assignment, suffixed `-slot<N>`) counts as a genuine assignment at that head, so the gate reads both the assignment and the replacement ref namespaces. **What that gate does NOT check, stated plainly so a pass is never over-read (kimi-k3, 2026-08-30):** it enforces *an assignment exists at this head* AND *an approval exists at this head* — not *the assigned reviewer approved*. Assignment refs carry `{issue, pr, headSha}` and no reviewer identity, and the evidence rows come from PR reviews plus issue and PR comments with **no author, association or permission field consulted**. Anyone who can comment can supply the approval half; anyone with write access can supply both. "Independent" describes the assignment *process* — the rotation, which also excludes the live orchestrator's own engine — and is not a property the merge gate verifies. A fenced or indented verdict line counts. **The approval head tie is asymmetric, and the asymmetry closed a live fail-open (codex-gpt-5.6-sol, 2026-08-30).** An earlier draft tied approvals to a head by finding the SHA anywhere in the body, and recorded that as a deliberate limit. It was not a limit, it was #1809 rebuilt inside the tool meant to close it: a comment approving head A that merely *mentions* head B is tied to B and opens a line with `APPROVE`, so it authorized B — bytes nobody had looked at. Confirmed by probe before it was fixed. An **approval** now requires an unambiguous reference: either GitHub's own `commit_id` binding, which is structured data rather than prose, or a body that names this head and no other commit-length SHA at all. Two SHAs in one body means the reader cannot tell which the verdict is about, and an ambiguous authorization is refused. Requiring the SHA on the verdict line was rejected instead, because genuine wrapper reviews name the head in a header and some end with a bare `VERDICT: APPROVE`, so that rule would refuse real approvals. A **refusal** deliberately keeps the permissive tie: over-counting a refusal locks a head that may not have needed locking and costs a re-review, while over-counting an approval merges unreviewed bytes, so when a tie is uncertain both errors must fall on the side of not merging. This is a **process-integrity** gate and a large improvement on the nothing it replaces, which merged unapproved bytes on #1809. It is **not an authenticity gate** and must never be cited as one; closing that gap means authenticated verdict provenance, tracked separately. **Verdict recognition is on the claim, not the token (grok-4.6, 2026-08-30).** Markdown emphasis is stripped on both sides of the `VERDICT:` label, because `## VERDICT: **APPROVED**` is a genuine archived approval form (`.ai/reviews/phase6-glm-review.md`) that an earlier draft refused; a conditional approval is detected by the phrase "with condition(s)" anywhere on the verdict line or the line after it, rather than by `WITH` sitting next to `APPROVE`, which both missed `APPROVE ONLY WITH CONDITIONS` and wrongly refused `APPROVE WITH confidence`; and `REQUEST CHANGES` with a space refuses exactly as `REQUEST_CHANGES` does. Of the two failure directions, **refusing valid input is the more dangerous one**: it presents as reviewers not returning verdicts, so the wrappers get blamed and re-run while the gate is never suspected. **Measure the endpoint before calling a read broken.** The same review flagged the unpaginated assignment-ref listing as a defect that would make the gate impossible to pass, reasoning from the ~370-ref namespace and GitHub's usual 30/100 page sizes. Measured live on 2026-08-30, `git/matching-refs` is not a paged collection: unpaginated and `--paginate` both returned all 421 assignment refs and all 114 replacement refs. The listing stays unpaginated deliberately, and the extra requests would count against the per-process wire budget (#1767).
+
+   **What a verdict is worth depends on how it was obtained (#1816, #1824, 2026-08-30).**
+   Six failures in two days shared one shape: a claim that was true when made,
+   relayed onward, and acted on after it stopped being checkable. Four were
+   true-but-stale -- a real value, correctly read, since superseded. Two were
+   unrecorded-but-relayed: a review that genuinely ran, reported honestly, whose
+   outcome survived only in one session's scrollback or in local files on one
+   machine. Truthfulness is not the failure mode here; durability is, and a
+   report that a review happened is not evidence that a review happened. The
+   governed evidence channel -- PR reviews plus issue and PR comments matched to
+   the exact head, read by `previewGateProof` and by
+   `scripts/check-exact-head-approval.mjs` -- exists and works; both misses were
+   wrapper runs made outside it. **A review conducted outside the governed
+   channel did not happen, for merge purposes.** Post the verdict there or it is
+   not evidence. Two further rules follow. A reviewer holding a lease on another
+   issue is not independent even when its verdict is correctly pinned: check
+   lease state, not just head state, and count such findings as supplementary
+   diligence only. And a claim written into a governance record is a merge, not a
+   comment -- durable, citable, and owed the same standard of evidence as code.
+   #1824 tracks making the verdict an output of the review path rather than a
+   transcription by the session that ran it; until it lands, an artifact a
+   session can transcribe is prose with a schema.
+
+   **Verification doctrine: the remedy is never care, it is any procedure whose
+   outcome the author does not control.** A second reader is the most reliable
+   instance and the most available one, but it is an instance, not the principle
+   -- a session running alone at 03:00 cannot summon a peer and can still run
+   something whose answer it does not already know. Three instances, each of
+   which caught a real defect in this repository:
+   1. **Read the head at the moment of assignment or merge.** Never carry a SHA
+      across a message boundary. Every wrong value in the #1816 sequence was a
+      real value that had been true when it was read.
+   2. **Break the code on purpose. If the suite stays green, the suite is
+      furniture.** Reverting one constant and finding exactly one test fail is
+      what distinguishes a fix from a fix-shaped edit.
+   3. **Drive conversion layers with production-shaped payloads.** Twice in one
+      week a defect hid in an adapter whose test-time shape diverged from the
+      shape production emits, with the suite green throughout. *A test that
+      asserts on a value the production path never receives is not a weak test,
+      it is a test of a different program.* Coverage of an evaluation core says
+      nothing about the adapter that feeds it.
+
+   **A pin proves a value is current, never that it is the right value, and
+   never what was actually examined (2026-08-30).** Codex approved PR #1813 at
+   exactly `47f918e5` -- the correct head, the pin every gate in this section
+   checks -- having reviewed `scripts/orchestrator-flow/reconcile.mjs`, a file
+   with **zero lines in that PR's delta**. That delta is seven files and does
+   not include it. The head was a merge commit (two parents) and the wrapper
+   offers no base selection, so "the change" resolved to the merge's incoming
+   side: someone else's work. Right commit, wrong content, and the third
+   wrong-scope review of the session. Nobody was confused about anything and the
+   head pin did exactly what it promises. **Currency and subject are independent
+   properties and the check reads only the first: an approval can be perfectly
+   pinned and about nothing.** Remedy: hand reviewers a linear delta or state
+   the base explicitly -- a reviewer given a merge commit and no base is
+   reviewing an unspecified diff -- and read every identifier an action depends
+   on, not only the one that moves. The assignment ref already carries the
+   binding as `<issue>-<pr>-<headSha>`, so it can be read off the artifact
+   rather than held in memory.
+
+   **The same shape a third time, on the predicate rather than the subject.**
+   A session reported four failing checks on PR #1819. The four were `preview`,
+   `production-dry-run` and both production-apply gates, all **SKIPPED** -- the
+   correct outcome for a PR shipping no migration, and the PR was MERGEABLE with
+   nothing red. The filter treated "not SUCCESS" as "failure". Right check,
+   right head, right PR, false conclusion, because *not success* and *failed*
+   are different sets. **A status is a value, not a verdict; read what the value
+   means before reporting what it implies.**
+
+   This is the sharpest group in this section, and it is worth being precise
+   about why. Every other failure recorded here is a rule not followed. These
+   are rules followed perfectly, passing cleanly, on the wrong subject or with
+   the wrong predicate. The head check did not confirm a true fact about the
+   wrong thing by accident -- it confirmed the only fact it was ever capable of
+   confirming. It has no access to subject, so it cannot fail at subject, and
+   therefore cannot warn about it. **A rule not followed leaves a gap someone
+   may notice; a rule followed perfectly on the wrong object produces a clean
+   record that actively argues against looking further.** A passing check is
+   more convincing than no check at all. So a procedure whose outcome the author
+   does not control is necessary and not sufficient: it constrains only the
+   value it actually reads, and says nothing whatever about the values it
+   assumes or the meaning it is given.
+
+   **Two corrections belong with this entry, because the entry was wrong once
+   before it was right.** An earlier version said a lane had worked PR #1813 for
+   hours believing it was #1748. That is false and is retracted. The lane's
+   worktree, branch and HEAD were #1813 throughout; its assignment, head pin,
+   tests and revert check were all against #1813; its reports named #1813. The
+   real errors were a mislabelled dispatch name and one stale SHA in a passing
+   reference -- true, and far smaller than the account built on them. That
+   account was assembled from a real but minor fact because the larger story was
+   the more interesting one: the same overreach, from the same cause, as calling
+   an absent review record a fabricated one a day earlier (#1816). **The second
+   correction is how it reached this file.** It was recorded on a peer's report.
+   The SHAs in that report were independently verified and were correct -- but
+   what was verified were *artifacts*, and what was written down was a
+   *narrative about a session's belief*, which no artifact can evidence.
+   Verifying the checkable part of a claim and then recording the unfalsifiable
+   part is not verification. **Record what the artifacts show; attribute
+   anything past that to whoever reported it.**
+
+   **The counterpart, so this section is not only a list of things caught by
+   someone else.** A lane prepared a hazard report -- four files, roughly four
+   hundred deleted lines -- and retracted it before sending, having found on its
+   own that it had compared against main's tip instead of the branch point.
+   Unprompted, by the author, at the only moment it was free to catch. Most
+   procedures here exist to catch what someone else missed; the cheapest catch
+   remains the author re-deriving a result before reporting it, and a wrong
+   diff base is the first thing to suspect in any surprising delta.
+
    After review approval, green checks, preview proof, and guarded merge, the
    production workflow runs `scripts/production_business_risk_gate.py`. It
    derives the result from the exact merged PR and required checks, immutable

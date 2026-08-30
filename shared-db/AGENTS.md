@@ -710,6 +710,8 @@ rules below are the operative summary.
    `scripts/check-workflow-preview-ref.test.mjs` fails the guard job if any workflow pins a literal
    again.
 
+   ⚠️ **Merging requires an APPROVE pinned to the EXACT head being merged, and the merge gate now enforces it (#1816, 2026-08-29).** A reviewer assignment is not an approval, and an approval of an earlier head is not an approval of these bytes: answering a `REJECT` with a new commit requires a fresh exact-head review before that commit can merge. Enforced by `scripts/check-exact-head-approval.mjs`, run twice in `guarded-migration-merge` (up front, then re-proven under the merge lock). Before this it was convention only, and PR #1809 merged unapproved bytes onto `main`. **It is a process-integrity gate, not an authenticity gate:** it proves an assignment and an approval both exist at this exact head, and it does **not** prove the assigned reviewer is the one who approved — the evidence is read from PR reviews and issue/PR comments with no author or permission check. Do not cite a pass as proof of who reviewed. Full limits in `docs/agents/section-4-anti-collision-rules.md`.
+
    **Merge first, then rehearse on preview from merged `main`, then promote.** A rehearsal runs
    **once** — an applied version can never be applied again, so a re-dispatch and a GitHub
    "Re-run jobs" are both refused, and both refusals are correct. If a rehearsal must be recovered,
