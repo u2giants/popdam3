@@ -673,6 +673,25 @@ DCP_OPA_PROPERTY_AUTHORITY_CONTRACT += (
         )
     )
 )
+SCRAPED_PROPERTIES_SOURCE_PURPOSE_CONTRACT = _shape_contract(
+    routines=('api.db_data_admin_scraped_properties(text,text,integer)',),
+)
+_SCRAPED_PROPERTIES_DEF = "pg_get_functiondef(to_regprocedure('api.db_data_admin_scraped_properties(text,text,integer)'))"
+SCRAPED_PROPERTIES_SOURCE_PURPOSE_CONTRACT += (
+    " and position('plm.wildbrain_era' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('plm.wildbrain_capture' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('plm.sega_submission_property' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('plm.sega_submission_capture' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('Strawberry Shortcake - Creative' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('Sega - Submissions' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('Sega - Creative' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('Marvel - Creative (ASGARD)' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('DCP Vault - Creative (authoritative Marvel scope)' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('plm.sega_property_licensor' in %s)=0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('normalized_licensor_label' in %s)=0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('Marvel - Creative (DCP Vault)' in %s)=0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('Source Property vocabulary' in %s)=0" % _SCRAPED_PROPERTIES_DEF
+)
 POPDAM_FORWARD_RECOVERY_CONTRACT = _shape_contract(
     relations=('public.style_group_tags',),
     indexes=tuple('public.'+value for value in "asset_tags_active_asset_idx dam_search_embedding_claim_idx style_group_tags_active_group_idx".split()),
@@ -699,6 +718,7 @@ CATALOG_CONTRACTS = {
     "dflow_baseline_v1": DFLOW_BASELINE_CONTRACT,
     "db_data_admin_forward_v1": DB_DATA_ADMIN_FORWARD_CONTRACT,
     "dcp_opa_property_authority_v1": DCP_OPA_PROPERTY_AUTHORITY_CONTRACT,
+    "scraped_properties_source_purpose_v1": SCRAPED_PROPERTIES_SOURCE_PURPOSE_CONTRACT,
     "dflow_sequence_ceilings_v1": DFLOW_SEQUENCE_CEILINGS_CONTRACT,
     "popdam_forward_recovery_v1": POPDAM_FORWARD_RECOVERY_CONTRACT,
     "coco_owner_ruling_v1": """

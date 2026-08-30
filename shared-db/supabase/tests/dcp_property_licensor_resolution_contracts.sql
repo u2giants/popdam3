@@ -100,7 +100,7 @@ begin
   if (select count(*) from jsonb_array_elements(v_rows) r
       where r ->> 'presentation_licensor_name' = 'DCP Creative - unresolved authority') <> 5
      or (select count(*) from jsonb_array_elements(v_rows) r
-         where r ->> 'presentation_licensor_name' = 'DCP Vault - non-authoritative Marvel tag') <> 2
+         where r ->> 'presentation_licensor_name' = 'DCP Vault - Creative (non-authoritative Marvel tag)') <> 2
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'presentation_licensor_name' = 'Disney - Creative (DCP Vault)') <> 0
      or (select count(*) from jsonb_array_elements(v_rows) r

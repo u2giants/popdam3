@@ -2943,10 +2943,16 @@ export function resumeAuthorLease(options, now = new Date(), io = githubIo) {
   }finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
 }
 
-function renewalIssueScope(issue, lease) {
+function renewalIssueScope(issue, lease, claimIssues=[]) {
   const scope=issue?.state==='open'?parseQueueScope(issue.body):null
-  if(!scope||scope.status!=='ready'||scope.workType!=='structural'||scope.route!=='shared-db-orchestrator')throw new LaneError('renewal issue must be one open ready structural shared-db work item')
+  const structural=scope?.status==='ready'&&scope.workType==='structural'&&scope.route==='shared-db-orchestrator'
+  const curated=scope?.status==='ready'&&scope.workType==='curated-master-data'&&scope.route==='curated-master-data-governance'
+  if(!structural&&!curated)throw new LaneError('renewal issue must be one open ready structural or curated Master Data work item')
   const issueObjects=scope.objects.map(normalizeObject),claimObjects=lease.objects.map(normalizeObject)
+  if(curated&&issueObjects.length===0){
+    if(claimIssues.length!==1||claimIssues[0]!==Number(issue.number))throw new LaneError('blank curated renewal scope requires a claim title identifying exactly one work issue')
+    return claimObjects
+  }
   if(issueObjects.length!==claimObjects.length||issueObjects.some((object)=>!claimObjects.includes(object)))throw new LaneError('renewal issue objects do not exactly match the permanent claim objects')
   return claimObjects
 }
@@ -2962,7 +2968,7 @@ export function renewExpiredClaim(options, now = new Date(), io = githubIo) {
     const claims=io.openClaims(),matches=claims.filter((claim)=>String(claim.number)===String(options.claim))
     if(matches.length!==1)throw new LaneError(`claim #${options.claim} must be uniquely open`)
     before=io.getIssue(options.claim)
-    if(before?.state!=='open'||before.body!==matches[0].body)throw new LaneError('claim changed concurrently before renewal')
+    if(before?.state!=='open'||before.body!==matches[0].body||before.title!==matches[0].title)throw new LaneError('claim changed concurrently before renewal')
     const claimIssues=[...String(before.title??'').matchAll(/#(\d+)\b/g)].map((match)=>Number(match[1]))
     if(!claimIssues.includes(Number(options.issue)))throw new LaneError('renewal issue number is not identified by the claim title')
     const lease=parseAuthorLease(before.body,now)
@@ -2974,7 +2980,7 @@ export function renewExpiredClaim(options, now = new Date(), io = githubIo) {
       throw new LaneError('claim has an active lease; refusing unrelated renewal')
     }
     if(!io.readRef(`refs/db-claims/${lease.version}`))throw new LaneError('permanent version reservation is unreadable')
-    const workIssue=io.getIssue(options.issue),claimObjects=renewalIssueScope(workIssue,lease)
+    const workIssue=io.getIssue(options.issue),claimObjects=renewalIssueScope(workIssue,lease,claimIssues)
     const pr=io.getPr(options.pr)
     if(pr?.state!=='open'||pr.head?.ref!==options.branch||pr.head?.sha!==options.headSha)throw new LaneError('open pull request branch or exact head mismatch')
     const fileVersions=migrationVersions(io.getPrFiles(options.pr))
@@ -2990,12 +2996,15 @@ export function renewExpiredClaim(options, now = new Date(), io = githubIo) {
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     const freshWorkIssue=io.getIssue(options.issue)
     if(freshWorkIssue?.state!==workIssue.state||freshWorkIssue?.body!==workIssue.body)throw new LaneError('renewal issue changed concurrently')
-    renewalIssueScope(freshWorkIssue,lease)
+    const freshClaim=io.getIssue(options.claim)
+    if(freshClaim?.state!==before.state||freshClaim?.body!==before.body||freshClaim?.title!==before.title)throw new LaneError('claim changed concurrently during renewal')
+    const freshClaimIssues=[...String(freshClaim.title??'').matchAll(/#(\d+)\b/g)].map((match)=>Number(match[1]))
+    renewalIssueScope(freshWorkIssue,lease,freshClaimIssues)
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     possiblyChanged=true;io.updateIssue(options.claim,{body:expectedBody})
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     const after=io.getIssue(options.claim),afterLease=parseAuthorLease(after?.body??'',now)
-    if(after?.state!=='open'||after.body!==expectedBody||afterLease.version!==lease.version||afterLease.owner!==lease.owner||afterLease.branch!==lease.branch||afterLease.worktree!==lease.worktree||JSON.stringify(afterLease.objects)!==JSON.stringify(lease.objects))throw new LaneError('renewed claim exact readback failed')
+    if(after?.state!=='open'||after.title!==before.title||after.body!==expectedBody||afterLease.version!==lease.version||afterLease.owner!==lease.owner||afterLease.branch!==lease.branch||afterLease.worktree!==lease.worktree||JSON.stringify(afterLease.objects)!==JSON.stringify(lease.objects))throw new LaneError('renewed claim exact readback failed')
     if(!io.readRef(`refs/db-claims/${lease.version}`))throw new LaneError('permanent reservation disappeared during renewal')
     return {claim:Number(options.claim),version:lease.version,expiresAt:afterLease.expiresAt.toISOString(),idempotent:false}
   } catch(error) {

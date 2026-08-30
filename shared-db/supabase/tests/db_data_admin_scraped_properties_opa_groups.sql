@@ -148,10 +148,10 @@ begin
            and r ->> 'presentation_licensor_name' = 'Pixar - Submissions (OPA)') <> 64
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'source_table' = 'plm.opa_property'
-           and r ->> 'presentation_licensor_name' = 'OPA - scope conflict') <> 20
+           and r ->> 'presentation_licensor_name' = 'OPA - Submissions (scope conflict)') <> 20
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'source_table' = 'plm.opa_property'
-           and r ->> 'presentation_licensor_name' = 'OPA - unresolved') <> 910 then
+           and r ->> 'presentation_licensor_name' = 'OPA - Submissions (unresolved)') <> 910 then
     raise exception 'the six OPA presentation outcomes changed';
   end if;
 
@@ -170,7 +170,7 @@ begin
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
     where r ->> 'source_table' = 'plm.marvel_dcp_property'
-      and r ->> 'presentation_licensor_name' = 'DCP Vault - non-authoritative Marvel tag'
+      and r ->> 'presentation_licensor_name' = 'DCP Vault - Creative (non-authoritative Marvel tag)'
       and r ->> 'source_system' = 'marvel_dcpvault'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r

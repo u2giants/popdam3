@@ -14,6 +14,10 @@ declare
   v_pmt_ineligible uuid := gen_random_uuid();
   v_nbcu_complete uuid := gen_random_uuid();
   v_nbcu_ineligible uuid := gen_random_uuid();
+  v_wildbrain_old uuid;
+  v_wildbrain_new uuid;
+  v_sega_submission_old uuid;
+  v_sega_submission_new uuid;
   v_pmt_source_id text := '9999991533';
   v_role_id uuid;
   v_profile uuid;
@@ -59,7 +63,8 @@ begin
      or position('plm.nbcu_property' in v_definition) = 0
      or position('plm.nbcu_capture' in v_definition) = 0
      or position('plm.sega_property' in v_definition) = 0
-     or position('plm.sega_property_licensor' in v_definition) = 0 then
+     or position('plm.sega_submission_property' in v_definition) = 0
+     or position('plm.wildbrain_era' in v_definition) = 0 then
     raise exception 'source Property union is incomplete';
   end if;
 
@@ -206,13 +211,69 @@ begin
     (v_capture_new, v_search || '-Sega', 1, 'SEGA', 'sega', '{}'),
     (v_capture_new, v_search || '-Sega', 2, 'ATLUS', 'atlus', '{}');
 
+  v_wildbrain_old := plm.begin_wildbrain_capture(
+    p_capture_key => v_search || '-wildbrain-old',
+    p_source_repository => 'synthetic-test', p_source_commit_sha => repeat('b', 40),
+    p_source_manifest_sha256 => repeat('b', 64),
+    p_portal_base_url => 'https://invalid.example',
+    p_source_captured_at => '2026-08-24T00:00:00Z',
+    p_expected_counts => '{"eras":1,"creative_groups":0,"asset_categories":0,"asset_natures":0,"characters":0,"assets":0,"asset_characters":0,"guides":0,"guide_aliases":0,"asset_guides":0}',
+    p_raw_summary => '{"synthetic":true}', p_created_by => 'contract-test',
+    p_pagination_verified => true, p_reported_total => 0
+  );
+  insert into plm.wildbrain_era
+    (capture_id, era_source_id, parent_era_source_id, era_label, normalized_era_label, is_root, raw)
+  values (v_wildbrain_old, v_search || '-WildBrain', null,
+          v_search || ' WildBrain old', lower(v_search || ' WildBrain old'), true, '{}');
+  perform plm.finalize_wildbrain_capture(v_wildbrain_old, null, '[]');
+
+  v_wildbrain_new := plm.begin_wildbrain_capture(
+    p_capture_key => v_search || '-wildbrain-new',
+    p_source_repository => 'synthetic-test', p_source_commit_sha => repeat('c', 40),
+    p_source_manifest_sha256 => repeat('c', 64),
+    p_portal_base_url => 'https://invalid.example',
+    p_source_captured_at => '2026-08-25T00:00:00Z',
+    p_expected_counts => '{"eras":1,"creative_groups":0,"asset_categories":0,"asset_natures":0,"characters":0,"assets":0,"asset_characters":0,"guides":0,"guide_aliases":0,"asset_guides":0}',
+    p_raw_summary => '{"synthetic":true}', p_created_by => 'contract-test',
+    p_pagination_verified => true, p_reported_total => 0
+  );
+  insert into plm.wildbrain_era
+    (capture_id, era_source_id, parent_era_source_id, era_label, normalized_era_label, is_root, raw)
+  values (v_wildbrain_new, v_search || '-WildBrain', null,
+          v_search || ' WildBrain new', lower(v_search || ' WildBrain new'), true, '{}');
+  perform plm.finalize_wildbrain_capture(v_wildbrain_new, null, '[]');
+
+  v_sega_submission_old := plm.begin_sega_submission_capture(
+    v_search || '-submission-old', 'synthetic-test', repeat('d',40), repeat('d',64),
+    'https://invalid.example', '2026-08-24T00:00:00Z', 'synthetic-contract',
+    '{"submission_properties":1}', false, repeat('e',64), repeat('e',64), true,
+    '{"synthetic":true}', 'contract-test');
+  insert into plm.sega_submission_property
+    (submission_capture_id, property_source_id, property_label, source_url, source_hash, raw)
+  values (v_sega_submission_old, v_search || '-SegaSubmission',
+          v_search || ' Sega submission old', 'https://invalid.example', repeat('f',64), '{}');
+  perform plm.finalize_sega_submission_capture(
+    v_sega_submission_old, '{"submission_properties":1}', '[]');
+
+  v_sega_submission_new := plm.begin_sega_submission_capture(
+    v_search || '-submission-new', 'synthetic-test', repeat('1',40), repeat('1',64),
+    'https://invalid.example', '2026-08-25T00:00:00Z', 'synthetic-contract',
+    '{"submission_properties":1}', false, repeat('2',64), repeat('2',64), true,
+    '{"synthetic":true}', 'contract-test');
+  insert into plm.sega_submission_property
+    (submission_capture_id, property_source_id, property_label, source_url, source_hash, raw)
+  values (v_sega_submission_new, v_search || '-SegaSubmission',
+          v_search || ' Sega submission new', 'https://invalid.example', repeat('3',64), '{}');
+  perform plm.finalize_sega_submission_capture(
+    v_sega_submission_new, '{"submission_properties":1}', '[]');
+
   perform set_config('request.jwt.claim.sub', v_auth::text, true);
   select api.db_data_admin_scraped_properties(v_search, null, 100) into v_page;
   v_rows := v_page -> 'rows';
 
   select count(*) into v_count from jsonb_array_elements(v_rows);
-  if v_count <> 7 then
-    raise exception 'expected seven exact fixture rows, got %', v_count;
+  if v_count <> 8 then
+    raise exception 'expected eight exact fixture rows, got %', v_count;
   end if;
 
   if not exists (
@@ -221,7 +282,7 @@ begin
       and r ->> 'source_table' = 'plm.dcp_property'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
-    where r ->> 'presentation_licensor_name' = 'DCP Vault - non-authoritative Marvel tag'
+    where r ->> 'presentation_licensor_name' = 'DCP Vault - Creative (non-authoritative Marvel tag)'
       and r ->> 'source_table' = 'plm.marvel_dcp_property'
   ) or not exists (
     select 1 from jsonb_array_elements(v_rows) r
@@ -296,8 +357,8 @@ begin
   select count(*) into v_count
   from jsonb_array_elements(v_rows) r
   where r ->> 'source_property_id' = v_search || '-Sega';
-  if v_count <> 2 then
-    raise exception 'Sega capture repeats or multi-Licensor rows were collapsed incorrectly: %', v_count;
+  if v_count <> 1 then
+    raise exception 'Sega Creative did not collapse Property-level Licensor labels: %', v_count;
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_rows) r
@@ -305,6 +366,30 @@ begin
       and r ->> 'capture_marker' <> v_capture_new::text
   ) then
     raise exception 'Sega capture deduplication did not select one deterministic capture';
+  end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'presentation_licensor_name' = 'Strawberry Shortcake - Creative'
+      and r ->> 'source_system' = 'wildbrain_tenovos'
+      and r ->> 'source_table' = 'plm.wildbrain_era'
+      and r ->> 'source_property_id' = v_search || '-WildBrain'
+      and r ->> 'source_property_name' = v_search || ' WildBrain new'
+      and r ->> 'capture_marker' = v_wildbrain_new::text
+  ) then
+    raise exception 'WildBrain latest-complete Creative identity was not served';
+  end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'presentation_licensor_name' = 'Sega - Submissions'
+      and r ->> 'source_system' = 'sega_product_approval'
+      and r ->> 'source_table' = 'plm.sega_submission_property'
+      and r ->> 'source_property_id' = v_search || '-SegaSubmission'
+      and r ->> 'source_property_name' = v_search || ' Sega submission new'
+      and r ->> 'capture_marker' = v_sega_submission_new::text
+  ) then
+    raise exception 'Sega latest-complete Submissions identity was not served';
   end if;
 
   if not exists (
@@ -344,9 +429,9 @@ begin
   end loop;
 
   select count(*) into v_count from jsonb_array_elements(v_walk_rows);
-  if v_count <> 7 or (
+  if v_count <> 8 or (
     select count(distinct r ->> 'row_key') from jsonb_array_elements(v_walk_rows) r
-  ) <> 7 then
+  ) <> 8 then
     raise exception 'pagination walk omitted or repeated fixture rows';
   end if;
 

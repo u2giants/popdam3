@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260830172356",
+  "migration_sha256": "330681fcfe865f0f95dca36e0d1553410db514b618eb8394cbd6df0986a5de9f",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 149,
+      "line_end": 149,
+      "disposition": "checks",
+      "reason": "This dynamic execute rewrites the existing Scraped Properties routine. The cited catalog contract reads the exact installed function definition and proves the governed routine body remains installed with the existing OPA authority invariants. The dedicated #1669 SQL contract additionally proves the new source-purpose arms and retired Sega heading split; check ID: scraped_properties_source_purpose_contract.",
+      "check_ids": [
+        "scraped_properties_source_purpose_contract"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "scraped_properties_source_purpose_contract",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_source_purpose_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "dcp_opa_property_authority_non_regression",
+      "kind": "catalog_contract",
+      "contract": "dcp_opa_property_authority_v1",
+      "expected_count": 1
+    }
+  ]
+}

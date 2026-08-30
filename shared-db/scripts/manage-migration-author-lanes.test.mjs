@@ -2045,9 +2045,32 @@ test('claim renewal accepts parser-empty sequence PR only through exact issue sc
   assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,bad),/issue objects do not exactly match/)
 })
 
+test('curated Master Data renewal preserves an exact legacy claim when issue scope objects are blank',()=>{
+  const io=renewalIo()
+  io.workIssue.body=scope('ready','curated-master-data','curated-master-data-governance',900,[])
+  const result=renewExpiredClaim(renewalOptions,NOW,io)
+  assert.equal(result.idempotent,false)
+  assert.deepEqual(parseAuthorLease(io.issue.body,NOW).objects,io.objects)
+  assert.equal(io.issue.body.replace(/^expires_at:.*$/m,'expires_at: X'),claimBody({version:io.version,objects:io.objects,owner:renewalOptions.owner,branch:renewalOptions.branch,worktree:renewalOptions.worktree,expiresAt:new Date('2026-08-14T19:00:00Z')}).replace(/^expires_at:.*$/m,'expires_at: X'))
+})
+
+test('curated renewal still refuses a mismatched declared object and unrelated work types',()=>{
+  let io=renewalIo();io.workIssue.body=scope('ready','curated-master-data','curated-master-data-governance',900,['table public.licensors'])
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/must not claim database objects/)
+  for(const [workType,route] of [['repo-maintenance','repo-maintenance'],['application-data','application-session'],['source-data','source-data-session']]){
+    io=renewalIo();io.workIssue.body=scope('ready',workType,route,900,[])
+    assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/structural or curated Master Data/)
+  }
+})
+
+test('blank curated renewal scope refuses a claim title shared by multiple work issues',()=>{
+  const io=renewalIo();io.issue.title='CLAIM: #853/#868 shared curated work';io.workIssue.body=scope('ready','curated-master-data','curated-master-data-governance',900,[])
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/exactly one work issue/)
+})
+
 test('claim renewal rejects missing, closed, blocked, or wrong-route issue binding',()=>{
   for(const mutate of [io=>io.workIssue.state='closed',io=>io.workIssue.body=scope('blocked','structural','shared-db-orchestrator',900,io.objects),io=>io.workIssue.body=scope('ready','repo-maintenance','repo-maintenance',900)]){
-    const io=renewalIo();mutate(io);assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/open ready structural/)
+    const io=renewalIo();mutate(io);assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/open ready structural or curated Master Data/)
   }
   assert.throws(()=>renewExpiredClaim({...renewalOptions,issue:999},NOW,renewalIo()),/not identified by the claim title/)
 })
@@ -2064,6 +2087,23 @@ test('claim renewal refuses an issue scope mutation immediately before write',()
   assert.match(io.issue.body,/expires_at: 2026-08-14T19:00:00.000Z/)
 })
 
+test('curated renewal refuses a claim title mutation immediately before write',()=>{
+  const io=renewalIo(),baseGet=io.getIssue;io.workIssue.body=scope('ready','curated-master-data','curated-master-data-governance',900,[]);let claimReads=0
+  io.getIssue=(number)=>{const value=baseGet(number);if(Number(number)===1058&&++claimReads===2)value.title='CLAIM without a work issue';return value}
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/claim changed concurrently during renewal/)
+  assert.match(io.issue.body,/expires_at: 2026-08-14T19:00:00.000Z/)
+})
+
+test('curated renewal rolls back when the claim title changes during the write',()=>{
+  const io=renewalIo(),before=io.issue.body,baseGet=io.getIssue
+  io.workIssue.body=scope('ready','curated-master-data','curated-master-data-governance',900,[])
+  let claimReads=0
+  io.getIssue=(number)=>{if(Number(number)===1058&&++claimReads===3)io.issue.title='CLAIM without a work issue';return baseGet(number)}
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/exact readback failed/)
+  assert.equal(io.issue.body,before)
+  assert.equal(io.issue.title,'CLAIM without a work issue')
+})
+
 test('claim renewal is idempotent for the exact already-written expiry',()=>{
   const io=renewalIo();renewExpiredClaim(renewalOptions,NOW,io);const once=io.issue.body
   const result=renewExpiredClaim(renewalOptions,NOW,io);assert.equal(result.idempotent,true);assert.equal(io.issue.body,once)
@@ -2071,7 +2111,7 @@ test('claim renewal is idempotent for the exact already-written expiry',()=>{
 
 test('claim renewal rolls back readback failure while mutex-owned and refuses after ownership loss',()=>{
   let io=renewalIo(),before=io.issue.body,reads=0,baseGet=io.getIssue
-  io.getIssue=(number)=>{const value=baseGet(number);if(Number(number)===1058&&++reads===2)value.body+='\nbad';return value}
+  io.getIssue=(number)=>{const value=baseGet(number);if(Number(number)===1058&&++reads===3)value.body+='\nbad';return value}
   assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/readback/);assert.equal(io.issue.body,before)
   io=renewalIo();before=io.issue.body;const update=io.updateIssue;io.updateIssue=(n,fields)=>{const result=update(n,fields);io.refs.set(MUTEX_REF,'successor');return result}
   assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/ROLLBACK NOT ATTEMPTED/);assert.notEqual(io.issue.body,before)
