@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260830202243",
+  "migration_sha256": "cf48b16f2288a0216b855fa3db0639a66ea2df63b7ba3fe28fbe05960906b5e8",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 157,
+      "line_end": 157,
+      "disposition": "checks",
+      "reason": "This execute rewrites the existing Licensing Manager RPC. The verifier-owned contracts prove both the installed privacy-safe mapping and contract-status body and the complete #1669 source-purpose predecessor invariants.",
+      "check_ids": [
+        "creative_submission_contract_status",
+        "source_purpose_non_regression"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "creative_submission_contract_status",
+      "kind": "catalog_contract",
+      "contract": "creative_submission_contract_status_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "source_purpose_non_regression",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_source_purpose_v1",
+      "expected_count": 1
+    }
+  ]
+}

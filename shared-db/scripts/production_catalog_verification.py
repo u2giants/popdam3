@@ -692,6 +692,30 @@ SCRAPED_PROPERTIES_SOURCE_PURPOSE_CONTRACT += (
     " and position('Marvel - Creative (DCP Vault)' in %s)=0" % _SCRAPED_PROPERTIES_DEF +
     " and position('Source Property vocabulary' in %s)=0" % _SCRAPED_PROPERTIES_DEF
 )
+CREATIVE_SUBMISSION_CONTRACT_STATUS_CONTRACT = _shape_contract(
+    relations=('plm.creative_submission_contract_resolution',),
+    routines=(
+        'api.db_data_admin_scraped_properties(text,text,integer)',
+        'plm.enforce_creative_submission_contract_resolution()',
+    ),
+    triggers=(
+        ('plm.creative_submission_contract_resolution','creative_submission_contract_resolution_immutable'),
+        ('plm.creative_submission_contract_resolution','creative_submission_contract_resolution_no_truncate'),
+        ('plm.creative_submission_contract_resolution','creative_submission_contract_resolution_identity_check'),
+    ),
+)
+CREATIVE_SUBMISSION_CONTRACT_STATUS_CONTRACT += (
+    " and position('creative_submission_property_resolution' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('creative_submission_contract_resolution' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('submission_source.source_property_name' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('mapping_state' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('submissions' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('contract_status' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('document_sha256' in %s)=0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('page_schedule_locator' in %s)=0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('exact_property_text' in %s)=0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('evidence_identity' in %s)=0" % _SCRAPED_PROPERTIES_DEF
+)
 POPDAM_FORWARD_RECOVERY_CONTRACT = _shape_contract(
     relations=('public.style_group_tags',),
     indexes=tuple('public.'+value for value in "asset_tags_active_asset_idx dam_search_embedding_claim_idx style_group_tags_active_group_idx".split()),
@@ -719,6 +743,7 @@ CATALOG_CONTRACTS = {
     "db_data_admin_forward_v1": DB_DATA_ADMIN_FORWARD_CONTRACT,
     "dcp_opa_property_authority_v1": DCP_OPA_PROPERTY_AUTHORITY_CONTRACT,
     "scraped_properties_source_purpose_v1": SCRAPED_PROPERTIES_SOURCE_PURPOSE_CONTRACT,
+    "creative_submission_contract_status_v1": CREATIVE_SUBMISSION_CONTRACT_STATUS_CONTRACT,
     "dflow_sequence_ceilings_v1": DFLOW_SEQUENCE_CEILINGS_CONTRACT,
     "popdam_forward_recovery_v1": POPDAM_FORWARD_RECOVERY_CONTRACT,
     "coco_owner_ruling_v1": """
@@ -3282,6 +3307,43 @@ CATEGORY_ORDERLIST_BRIDGE_COVERING_INDEX = """
     ),
 )
 CATALOG_CONTRACTS["orderlist_bridge_covering_index_v1"] = CATEGORY_ORDERLIST_BRIDGE_COVERING_INDEX
+
+# Durable catalog outcome of the single dynamic-execution marker in migration
+# 20260830195655 (`execute format('comment on column ...')`, issue #505).
+#
+# WHY A COMMENT CONTRACT AND NOT A ROW COUNT. That marker's only effect is this
+# column comment. The migration also updates two `public.licensors` rows, and it
+# is tempting to cite those row counts as the marker's coverage -- but they are
+# produced by different statements. Citing them would be a rationale claiming
+# coverage it does not have: the row checks would pass with the comment never
+# written. The sidecar's row-count checks cover the UPDATEs; this contract covers
+# the marker. Each claim is answerable by the thing it names.
+#
+# The expected text is compared byte-exact against the literal the migration
+# declares once as `c_comment`. Editing the migration changes its SHA-256, which
+# invalidates the hash-bound sidecar before this contract is ever consulted, so
+# the two cannot drift into silent disagreement.
+LICENSORS_EXTERNAL_ID_COMMENT = (
+    'Canonical licensor code, aligned to core.licensor.code since 2026-08-07 '
+    '(owner ruling: change DS to DY at its source). Legacy values DS/WWE were '
+    'normalised to DY/WW by issue #505. public.dam_character_catalog still '
+    'carries a defensive DS/WWE remap; it is now a no-op and is deliberately '
+    'retained as a safety net.'
+)
+CATEGORY_LICENSORS_EXTERNAL_ID_CANONICAL_COMMENT = """
+  (select count(*) = 1
+     from pg_description d
+     join pg_class c on c.oid = d.objoid
+     join pg_namespace n on n.oid = c.relnamespace
+     join pg_attribute a on a.attrelid = c.oid and a.attnum = d.objsubid
+    where n.nspname = 'public'
+      and c.relname = 'licensors'
+      and a.attname = 'external_id'
+      and d.description = '""" + LICENSORS_EXTERNAL_ID_COMMENT.replace("'", "''") + """')
+"""
+CATALOG_CONTRACTS["licensors_external_id_canonical_comment_v1"] = (
+    CATEGORY_LICENSORS_EXTERNAL_ID_CANONICAL_COMMENT
+)
 
 
 if __name__ == "__main__":
