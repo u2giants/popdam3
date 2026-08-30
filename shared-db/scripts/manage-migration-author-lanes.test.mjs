@@ -96,6 +96,15 @@ test('dynamic queues serialize overlapping work and refill every empty lane',()=
   assert.ok(result.queues.some((q)=>q.queued.join(',')==='1,2'))
 })
 
+test('an open issue whose closed claim version is on main is never dispatched as fresh authoring',()=>{
+  const issue={number:1769,title:'WWE tables awaiting promotion',body:scope('ready','structural','shared-db-orchestrator',700,['schema plm'])}
+  const positiveControl=buildDynamicQueues([issue],[],NOW)
+  assert.deepEqual(positiveControl.dispatchable,[1769], 'without merged-claim evidence the known issue goes red')
+  const guarded=buildDynamicQueues([issue],[],NOW,[1769],null,new Map(),new Set([1769]))
+  assert.deepEqual(guarded.dispatchable,[])
+  assert.equal(guarded.skipped.find((row)=>row.issue===1769).reason,'authored-on-main')
+})
+
 test('dynamic queues fill inactive lanes before queueing behind active claims',()=>{
   const claims=[{number:31,body:body(['table core.a'],'31')},{number:32,body:body(['table core.b'],'32')}]
   const one=buildDynamicQueues([{number:40,title:'c',body:scope('ready','structural','shared-db-orchestrator',9,['table core.c'])}],claims,NOW)

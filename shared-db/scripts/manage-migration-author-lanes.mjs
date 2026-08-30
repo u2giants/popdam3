@@ -407,7 +407,7 @@ export function conflicts(a, b) {
 // lost the read/write distinction must not be handed a weaker answer.
 function overlaps(a, b) { return conflicts({ writes: a, reads: [] }, { writes: b, reads: [] }) }
 
-export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null, claimPullStates = new Map()) {
+export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null, claimPullStates = new Map(), authoredOnMain = new Set()) {
   const openNumbers = new Set(allOpenIssueNumbers.map(Number))
   const skipped = [], unclassified = [], malformed = [], unlabelled = [], candidates = [], notOrchestratorWork = []
   const dependencyEdges = {}
@@ -439,6 +439,13 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     if (scope.status !== 'ready') { skipped.push({ issue:issue.number, reason:`status:${scope.status}`, workType:scope.workType, route:scope.route }); continue }
     if (scope.workType !== 'structural' || scope.route !== 'shared-db-orchestrator') {
       skipped.push({ issue:issue.number, reason:'not-migration-author-work', workType:scope.workType, route:scope.route }); continue
+    }
+    // A closed author claim is the normal result of a merge. If its permanently
+    // reserved version is on main, the issue may remain open for promotion, but
+    // it must never be offered as fresh authoring again.
+    if (authoredOnMain.has(issue.number)) {
+      skipped.push({ issue:issue.number, reason:'authored-on-main', detail:'a closed claim has a merged migration version on current main' })
+      continue
     }
     // DEPENDENCY PROOF (Step 3, issue #1366). `dependencyStates` is gathered by the
     // caller so this function stays pure and exhaustively testable. When it is
@@ -3590,7 +3597,35 @@ export function main(argv, now = new Date(), io = githubIo) {
         const historical = io.branchPulls?.(lease.branch) ?? []
         claimPullStates.set(claim.number, historical.some((pull)=>pull.merged_at) ? 'merged' : historical.length ? 'closed-unmerged' : 'none')
       }
-      const result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates, claimPullStates)
+      // Resolve historical authoring only for the bounded set that would be
+      // dispatched. This catches merged work without scanning all historical
+      // claim refs or spending an unbounded GitHub API budget.
+      let result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates, claimPullStates)
+      const authoredOnMain = new Set()
+      if (result.dispatchable.length && io.closedClaimsForWork && io.branchPulls && io.treeFiles && io.mainSha && io.mergeCommitInMain) {
+        const main = io.mainSha()
+        const mainVersions = new Set(io.treeFiles(main).filter((file)=>/^supabase\/migrations\/\d{14}_/.test(file)).map((file)=>path.basename(file).slice(0,14)))
+        const checked = new Set()
+        // Removing one already-authored issue can expose the next item in its
+        // collision queue. Iterate to a fixed point and inspect each issue at
+        // most once so a deeper queue cannot hide another completed authoring.
+        while (true) {
+          const fresh = result.dispatchable.filter((issue)=>!checked.has(issue))
+          if (!fresh.length) break
+          for (const issue of fresh) {
+            checked.add(issue)
+            const completed = io.closedClaimsForWork(issue).some((claim)=>{
+              let lease
+              try { lease = parseAuthorLease(claim.body, now) } catch { return false }
+              if (!mainVersions.has(lease.version)) return false
+              return (io.branchPulls(lease.branch)??[]).some((pull)=>pull.merged_at&&pull.merge_commit_sha&&io.mergeCommitInMain(pull.merge_commit_sha))
+            })
+            if (completed) authoredOnMain.add(issue)
+          }
+          if (!fresh.some((issue)=>authoredOnMain.has(issue))) break
+          result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates, claimPullStates, authoredOnMain)
+        }
+      }
       console.log(JSON.stringify(result,null,2))
       // Printed BEFORE the refill early-return: a queue with any dispatchable
       // work would otherwise hide this list entirely, which is exactly how these
