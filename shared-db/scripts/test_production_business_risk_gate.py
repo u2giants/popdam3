@@ -287,6 +287,12 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             "digest": digest, "expired": False, "workflow_run": {"id": run_id},
         }
 
+    def historical_rebind_artifact(self, commit, digest="sha256:" + "d" * 64, artifact_id=9, run_id=7):
+        return {
+            "id": artifact_id, "name": f"preview-migration-dry-run-{commit}",
+            "digest": digest, "expired": False, "workflow_run": {"id": run_id},
+        }
+
     def prove_preview_args(self, **overrides):
         args = dict(
             run_id=7, digest="sha256:" + "c" * 64, pr_head="a" * 40, main_sha="d" * 40,
@@ -739,6 +745,16 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             with self.subTest(label), self.assertRaisesRegex(RiskGateError, "unreadable|exactly one preview-migration-apply"):
                 preview_applied_commit(payload, 7)
 
+    def test_historical_rebind_artifact_requires_the_explicit_narrow_selector(self):
+        artifact = self.historical_rebind_artifact("7" * 40)
+        with self.assertRaisesRegex(RiskGateError, "exactly one preview-migration-apply"):
+            preview_applied_commit({"artifacts": [artifact]}, 7)
+        selected, commit = preview_applied_commit(
+            {"artifacts": [artifact]}, 7, allow_historical_rebind=True,
+        )
+        self.assertEqual(selected["id"], 9)
+        self.assertEqual(commit, "7" * 40)
+
     def preview_evidence_zip(self, path, version, manifest_digest, instance):
         ledger_before = json.dumps([{"remote": "20260801000000"}])
         ledger_after = json.dumps([{"remote": "20260801000000"}, {"remote": version}])
@@ -759,6 +775,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     def run_full_prove_preview(
         self, *, instance, applied=None, main=None, preview_ref=PREVIEW_PROJECT_REF,
         run_head=None, source_pr=1, merge_commit_sha="b" * 40,
+        historical_rebind_artifact=False,
     ):
         """End to end through download, so the instance binding is really read."""
         applied = applied or "1" * 40
@@ -784,7 +801,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 }
                 api = self.preview_api(
                     run, [{"sha": "a" * 40}], blobs,
-                    [self.apply_artifact(applied, digest=artifact_digest)],
+                    [(self.historical_rebind_artifact if historical_rebind_artifact else self.apply_artifact)(applied, digest=artifact_digest)],
                     compare={"status": "ahead", "behind_by": 0},
                 )
                 prove_preview(
@@ -809,6 +826,12 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     def test_post_merge_main_line_rehearsal_is_accepted_end_to_end(self):
         """The whole point of #1208: a merged, main-line rehearsal promotes."""
         self.run_full_prove_preview(instance=self.honest_instance())
+
+    def test_ordinary_dry_run_artifact_remains_insufficient(self):
+        with self.assertRaisesRegex(RiskGateError, "ordinary preview dry-run artifact is insufficient"):
+            self.run_full_prove_preview(
+                instance=self.honest_instance(), historical_rebind_artifact=True,
+            )
 
     def test_forged_dispatch_ref_cannot_fabricate_a_main_line_rehearsal(self):
         """#1213 review, finding 1. The forge the artifact-name pin alone allowed.
@@ -2145,7 +2168,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                                 "event": "workflow_dispatch", "head_sha": main,
                                 "path": PREVIEW_WORKFLOW, **(run_shape or {})}
                     if endpoint.endswith("runs/7/artifacts?per_page=100"):
-                        return {"artifacts": [self.apply_artifact(
+                        return {"artifacts": [self.historical_rebind_artifact(
                             recovery_applied_commit or main, digest=artifact_digest)]}
                     if endpoint.endswith("commits?per_page=100"):
                         return pr_commits

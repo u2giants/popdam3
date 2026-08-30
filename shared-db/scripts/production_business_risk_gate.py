@@ -35,6 +35,7 @@ REPOSITORY = "u2giants/shared-db"
 # defaulted. See --preview-project-ref.
 PRODUCTION_PROJECT_REF = "qsllyeztdwjgirsysgai"
 PREVIEW_APPLY_ARTIFACT = re.compile(r"^preview-migration-apply-([0-9a-f]{40})$")
+PREVIEW_HISTORICAL_REBIND_ARTIFACT = re.compile(r"^preview-migration-dry-run-([0-9a-f]{40})$")
 PREVIEW_WORKFLOW = ".github/workflows/shared-supabase-migrations.yml"
 ACTIVATION_SCHEMA = "shared-db-production-risk-activation/v1"
 ACTIVE_SCHEMA = "shared-db-production-risk-activation/v2"
@@ -218,7 +219,9 @@ def prove_activation(
         raise RiskGateError("forward-test proof does not match the activated record")
 
 
-def preview_applied_commit(payload: Any, run_id: int) -> tuple[dict[str, Any], str]:
+def preview_applied_commit(
+    payload: Any, run_id: int, *, allow_historical_rebind: bool = False,
+) -> tuple[dict[str, Any], str]:
     """Read the commit the rehearsal ACTUALLY checked out, from the artifact name.
 
     The old code derived this from the run's ``head_sha``.  That is the ref the
@@ -235,14 +238,16 @@ def preview_applied_commit(payload: Any, run_id: int) -> tuple[dict[str, Any], s
     artifacts = payload.get("artifacts") if isinstance(payload, dict) else None
     if not isinstance(artifacts, list):
         raise RiskGateError("preview run artifacts are unreadable")
-    matches = [
-        (a, PREVIEW_APPLY_ARTIFACT.match(str(a.get("name", ""))))
-        for a in artifacts if isinstance(a, dict)
-    ]
+    patterns = (PREVIEW_APPLY_ARTIFACT, PREVIEW_HISTORICAL_REBIND_ARTIFACT) if allow_historical_rebind else (PREVIEW_APPLY_ARTIFACT,)
+    matches = [(a, next((match for pattern in patterns if (match := pattern.match(str(a.get("name", ""))))), None)) for a in artifacts if isinstance(a, dict)]
     matches = [(a, m) for a, m in matches if m]
     if len(matches) != 1:
+        expected_name = (
+            "governed preview apply or historical-rebind"
+            if allow_historical_rebind else "preview-migration-apply-<commit>"
+        )
         raise RiskGateError(
-            f"expected exactly one preview-migration-apply-<commit> artifact on run {run_id}, found {len(matches)}"
+            f"expected exactly one {expected_name} artifact on run {run_id}, found {len(matches)}"
         )
     artifact, match = matches[0]
     if artifact.get("expired") is not False or artifact.get("workflow_run", {}).get("id") != run_id:
@@ -1285,7 +1290,11 @@ def prove_preview(
     # artifact lookup -- which uses the checked-out commit -- would then fail
     # anyway. Both now use the same commit, read from the artifact name.
     artifact, applied_commit = preview_applied_commit(
-        api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id
+        api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id,
+        allow_historical_rebind=True,
+    )
+    historical_rebind_artifact = bool(
+        PREVIEW_HISTORICAL_REBIND_ARTIFACT.fullmatch(str(artifact.get("name", "")))
     )
     # PROVENANCE, not identity: the rehearsal must belong to THIS piece of work.
     # Any commit of the source pull request qualifies, plus exact main for the
@@ -1337,6 +1346,11 @@ def prove_preview(
     before = texts.get("preview-ledger-before.txt", "")
     after = texts.get("preview-ledger-after.txt", "")
     historical = texts.get("historical-preview-source.json")
+    if historical_rebind_artifact and not historical:
+        raise RiskGateError(
+            "ordinary preview dry-run artifact is insufficient; only a governed historical "
+            "preview rebind record can use the dry-run artifact namespace"
+        )
     if historical:
         record = json.loads(historical)
         # A v2 record names a source PR PER VERSION, for a batch assembled over
