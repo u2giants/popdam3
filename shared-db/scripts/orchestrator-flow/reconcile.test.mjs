@@ -12,3 +12,12 @@ test('no matching marker is report only',()=>{const io=fake();io.resolveMarker=(
 test('matching marker performs guarded transitions rather than only describing them',()=>{const io=fake(),called=[];io.relinquishCapacity=(row)=>called.push(['relinquish',row.issue]);io.resumeCapacity=(row)=>called.push(['resume',row.issue]);io.persistReady=(row)=>called.push(['ready',row.issue]);const result=reconcileFlow({issues:[{issue:1,capacity_state:'active',blocker:{durable:true}},{issue:2,capacity_state:'relinquished',blocker:{resolved:true}},{issue:3,preview_edge_satisfied:true}]},io);assert.equal(result.status,'RECONCILED');assert.deepEqual(called,[['relinquish',1],['resume',2],['ready',3]])})
 test('unreadable live preview evidence is explicit and fails closed',()=>{const io=fake(),result=reconcileFlow({issues:[{issue:7,preview_error:'required CI unreadable'}]},io);assert.equal(result.status,'UNVERIFIABLE');assert.equal(result.actions[0].reason,'required CI unreadable')})
 test('manager exposes a concrete runtime adapter and delegates preparation',()=>{assert.equal(typeof githubIo.orchestratorFlowAdapter,'function');const adapter=fake();adapter.state.ready=[{record:readyRecord(base)}];const io={orchestratorFlowAdapter:()=>adapter};assert.equal(managerMain(['--prepare-preview-dispatch','7'],new Date(),io),0)})
+test('every historical rebind manifest is complete and dispatchable',()=>{
+  const manifest={target:'preview',preview_allowlist:'20260828232207',claim_pr:'1809',claim_head_sha:h,commit_sha:h,historical_preview_source_pr:'1809',historical_preview_original_run_map:'20260828232207:33308168016'}
+  const input={...base,route:'historical_rebind',route_context:h,manifest}
+  const complete=readyRecord(input)
+  assert.equal(complete.manifest.historical_preview_original_run_map,'20260828232207:33308168016')
+  for(const key of ['commit_sha','historical_preview_source_pr','historical_preview_original_run_map'])assert.throws(()=>readyRecord({...input,manifest:{...manifest,[key]:''}}),ReconcileError)
+  assert.throws(()=>readyRecord({...input,manifest:{...manifest,historical_preview_original_run_map:'20260828232208:33308168016'}}),/not dispatchable/)
+  assert.notEqual(readyRecord({...input,manifest:{...manifest,historical_preview_original_run_map:'20260828232207:33308168017'}}).ready_id,complete.ready_id)
+})

@@ -19,9 +19,13 @@ export function readyRecord(input){
   // merged_preview_source_pr. Requiring claim_pr here made the merged_rehearsal route
   // undispatchable one layer below the workflow -- the route existed, emitted a valid
   // manifest, and then failed at persistence. Each route states its own identity fields.
-  const required=record.route==='merged_rehearsal'?['commit_sha','merged_preview_source_pr']:['claim_pr','claim_head_sha']
+  const required=record.route==='merged_rehearsal'?['commit_sha','merged_preview_source_pr']:record.route==='historical_rebind'?['claim_pr','claim_head_sha','commit_sha','historical_preview_source_pr','historical_preview_original_run_map']:['claim_pr','claim_head_sha']
   for(const key of required)if(!record.manifest[key])throw new ReconcileError('preview manifest is incomplete')
   if(record.route==='merged_rehearsal'&&(record.manifest.claim_pr||record.manifest.claim_head_sha))throw new ReconcileError('a merged rehearsal manifest must not name a live author claim')
+  if(record.route==='historical_rebind'){
+    const versions=String(record.manifest.preview_allowlist).split(',').filter(Boolean).sort(),pairs=String(record.manifest.historical_preview_original_run_map).split(',').map((pair)=>pair.split(':'))
+    if(!/^\d+$/.test(String(record.manifest.historical_preview_source_pr))||pairs.some(([version,runId,...extra])=>extra.length||!/^\d{14}$/.test(version)||!/^\d+$/.test(runId))||JSON.stringify(pairs.map(([version])=>version).sort())!==JSON.stringify(versions))throw new ReconcileError('historical recovery manifest is not dispatchable')
+  }
   record.manifest_digest=sha256(canonicalJson(record.manifest))
   const ready_id=sha256(canonicalJson(record))
   return {...record,ready_id}

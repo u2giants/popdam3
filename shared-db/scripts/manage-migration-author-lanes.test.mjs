@@ -3229,6 +3229,7 @@ test('an already-applied merged claim receives validated evidence before route s
   const candidate=deriveLivePreviewCandidate(1769,io)
   assert.equal(candidate.route,'historical_rebind')
   assert.equal(candidate.route_context,mainSha)
+  assert.equal(candidate.manifest.historical_preview_original_run_map,'20260828232207:33308168016')
 })
 
 test('a merged claim still reaches the post-merge rehearsal route instead of being stranded',()=>{
