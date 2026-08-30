@@ -2767,6 +2767,30 @@ test('cutover activation REFUSES an unreadable replacement record instead of sil
   assert.equal(io.refs.has(MUTEX_REF),false)
 })
 
+test('cutover activation refuses an assignment whose commit identity disagrees with its ref',()=>{
+  const io=freshCutoverIo(),headSha='6'.repeat(40)
+  io.openPulls=()=>[{number:460,head:{sha:headSha}}]
+  const wrong=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=1 reviewer=grok-4.6 issue=46 pr=461 head=${headSha}`)
+  io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/46-460-${headSha}`,wrong)
+  assert.throws(()=>activateReviewCutover(io),/assignment ref .* disagrees with its commit record .*cutover activation refused/)
+  assert.equal(io.refs.has(REVIEW_ACTIVE_CUTOVER_REF),false)
+  assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('cutover activation refuses a replacement whose commit identity disagrees with its ref',()=>{
+  const io=freshCutoverIo(),headSha='5'.repeat(40)
+  io.openPulls=()=>[{number:470,head:{sha:headSha}}]
+  seedAssignment(io,{issue:47,pr:470,headSha,reviewer:'grok-4.6'})
+  const wrong=io.makeOwnerCommit(`db-coordination reviewer-replacement sequence=2 reviewer=glm-5.3 issue=47 pr=471 head=${headSha} failed-sequence=1 prior-sequence=1 failure-ref=${'d'.repeat(40)}`)
+  io.refs.set(`${REVIEW_REPLACEMENT_REF_PREFIX}/47-470-${headSha}`,wrong)
+  assert.throws(()=>activateReviewCutover(io),/replacement ref .* disagrees with its commit record .*cutover activation refused/)
+  assert.equal(io.refs.has(REVIEW_ACTIVE_CUTOVER_REF),false)
+  assert.equal(io.refs.has(reviewActiveRef('grok-4.6')),false)
+  assert.equal(io.refs.has(reviewActiveRef('glm-5.3')),false)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
 // Same fail-open, reached the other way: production readReviewRecords returns
 // `{sha, commit:{message}}` whose `commit` key is TRUTHY even when GraphQL gave
 // back no message. Testing `record.commit` rather than the message let an empty

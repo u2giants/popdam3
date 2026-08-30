@@ -2598,7 +2598,7 @@ function activateReviewCutoverOperation(io) {
         try { lease = parseReviewCursor(messages.get(row.ref)) }
         catch (error) { throw new LaneError(`assignment ref ${row.ref} is unreadable: ${error.message}; cutover activation refused`) }
         if (!lease) throw new LaneError(`assignment ref ${row.ref} does not hold a readable reviewer cursor; cutover activation refused`)
-        if (lease.pr !== number || lease.headSha !== headSha) continue
+        if (lease.pr !== number || lease.headSha !== headSha) throw new LaneError(`assignment ref ${row.ref} disagrees with its commit record (PR #${lease.pr}, head ${lease.headSha}); cutover activation refused`)
         // A replacement supersedes the assignment's reviewer for this exact
         // tuple, highest failure sequence winning -- the same precedence
         // resolveSlotOneReviewer and assignNextReviewerOperation already use.
@@ -2622,7 +2622,9 @@ function activateReviewCutoverOperation(io) {
             if (!parsed) throw new LaneError(`replacement ref ${entry.ref} does not hold a readable replacement record; cutover activation refused`)
             return { parsed, sha: entry.sha }
           })
-          .filter((entry) => entry.parsed.pr === number && entry.parsed.headSha === headSha)
+        for (const entry of parsedReplacements) {
+          if (entry.parsed.pr !== number || entry.parsed.headSha !== headSha) throw new LaneError(`replacement ref for PR #${number} head ${headSha} disagrees with its commit record (PR #${entry.parsed.pr}, head ${entry.parsed.headSha}); cutover activation refused`)
+        }
         if (parsedReplacements.length) {
           const winner = parsedReplacements.sort((a, b) => b.parsed.sequence - a.parsed.sequence)[0]
           reviewer = winner.parsed.reviewer
