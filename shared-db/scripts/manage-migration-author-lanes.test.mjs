@@ -3195,8 +3195,12 @@ test('a merged claim still reaches the post-merge rehearsal route instead of bei
 test('a single closed claim recovers only the merged-rehearsal route (issue #1852)',()=>{
   const {io,mainSha,version}=mergedRehearsalIo()
   const claim=io.openClaims()[0]
+  const unrelated={...claim,number:77,title:'CLAIM: #99 supersedes #100 historical cleanup',state:'closed'}
+  const dormant={...claim,number:1839,title:'CLAIM: issue #1769 — replacement branch that produced no pull request',body:claim.body.replace('issue-1769-wwe-tables','claude/wwe-tables-1769'),state:'closed'}
+  const recovered=githubIo.closedClaimsForWork(1769,()=>[unrelated,dormant,{...claim,state:'closed'}])
+  assert.deepEqual(recovered.map((row)=>row.number),[1839,1805])
   io.openClaims=()=>[]
-  io.closedClaimsForWork=(issue)=>issue===1769?[{...claim,state:'closed'}]:[]
+  io.closedClaimsForWork=()=>recovered
   const candidate=deriveLivePreviewCandidate(1769,io)
   assert.equal(candidate.route,'merged_rehearsal')
   assert.equal(candidate.route_context,mainSha)
@@ -3210,7 +3214,7 @@ test('closed-claim recovery refuses ambiguity, an open PR, and a merge outside m
   const claim=io.openClaims()[0]
   io.openClaims=()=>[]
   io.closedClaimsForWork=()=>[{...claim,state:'closed'},{...claim,number:1806,state:'closed'}]
-  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/exactly one closed protected claim/)
+  assert.throws(()=>deriveLivePreviewCandidate(1769,io),/exactly one closed claim with one merged pull request/)
 
   io.closedClaimsForWork=()=>[{...claim,state:'closed'}]
   io.openPulls=()=>[{number:1809,head:{ref:'issue-1769-wwe-tables',sha:'a'.repeat(40)}}]
