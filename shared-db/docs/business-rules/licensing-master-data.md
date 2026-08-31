@@ -64,6 +64,16 @@ No refresh hard-deletes licensing Master Data.
 **Status: Settled. Authority: Albert Hazan, 2026-08-26 and 2026-08-27.**
 
 - OPA is the Submissions workflow for Disney, Marvel, Lucasfilm / Star Wars, and Pixar. Marvel submissions remain under the Disney OPA branch by business rule.
+
+### OPA cannot separate Marvel from Disney
+
+**Status: Settled. Authority: Albert Hazan, 2026-08-31.**
+
+- When Disney moved Marvel product submissions out of ASGARD into OPA, Marvel was merged into the Disney creation branch rather than given its own branch. Lucasfilm / Star Wars did keep its own branch.
+- This is confirmed in the captured OPA data, not assumed. Every captured OPA Property carries exactly one branch, and only two branch values exist: `disney` (1,445 Properties) and `lucasfilm` (74). Marvel Properties such as Avengers, Black Panther, and Deadpool Classic sit under `disney` and are identical to non-Marvel Disney Properties on every other captured axis (region, line of business, product type, template, workflow). No hidden backend separator exists behind the OPA front end.
+- Consequence: OPA branch membership can prove that a Property is *not* Lucasfilm / Star Wars, but it can never distinguish Marvel from Disney. Direct OPA scope is therefore insufficient authority for the Disney-versus-Marvel question.
+- Ruling: for the Disney and Marvel split only, the signed contract schedule is the controlling authority. Contract section membership decides Marvel versus Disney, and an OPA `disney` branch value must not be treated as a contradiction of a contract clause that places the Property under Marvel. Lucasfilm / Star Wars is unaffected and keeps the existing contract-and-OPA agreement rule.
+- Marvel Creative Asset authority is unchanged and remains ASGARD.
 - Signed agreements and schedules govern POP entitlement and every explicit Property-to-Licensor relationship they state. Direct captured OPA creation-branch membership governs submissions-system Property scope and relationships. Neither authority may be inferred from normalized names, canonical Master Data ownership, source labels, or landing-table families. Contract and direct OPA disagreement fails closed with both concrete assertions retained for Licensing review.
 - DCP Vault is Creative style-guide and asset evidence only for Disney and Lucasfilm / Star Wars; it cannot assign Property ownership. DCP Creative presentation may acquire studio placement only through an explicit approved exact-source-identity crosswalk to one or more OPA `licensed_property_id` values and an authoritative signed-contract assertion, direct latest-approved OPA scope, or both in agreement. Missing authority, conflicting direct OPA scopes, and contract/OPA disagreement fail closed. Marvel Creative authority is ASGARD only; Marvel-tagged DCP rows remain mixed-guide raw evidence and are excluded from Marvel Creative presentation.
 - The historical DCP presentation-resolution ledger remains immutable evidence but is no longer current Property-to-Licensor/Studio authority. Its old contract, canonical, name, and source-title decisions must not drive current presentation.

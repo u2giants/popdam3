@@ -847,7 +847,12 @@ CATALOG_CONTRACTS = {
       (select p.prorows = 32
         from pg_proc p
         where p.oid = to_regprocedure('public.expand_dam_search_queries(text)'))
-    """,
+""",
+    "popdam_query_expansion_rows_v2": """
+      (select p.proretset and p.prorows = 4
+        from pg_proc p
+        where p.oid = to_regprocedure('public.expand_dam_search_queries(text)'))
+""",
     "coco_owner_ruling_v1": """
       case when to_regclass('core.taxonomy_owner_ruling') is null then true else
         cardinality(xpath('/table/row', query_to_xml(

@@ -53,7 +53,7 @@ begin
   select prorows into v_rows
   from pg_proc
   where oid = 'public.expand_dam_search_queries(text)'::regprocedure;
-  if v_rows <> 32 then
+  if v_rows <> 4 then
     raise exception 'DAM synonym expansion must retain its bounded planner estimate, got %', v_rows;
   end if;
   select array_agg(query_text order by query_text) into v_expansions
