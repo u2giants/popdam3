@@ -20,6 +20,18 @@ declare
   v_delete_tag text := 'zz1645_delete_' || txid_current();
   v_counts jsonb;
 begin
+  if (
+    select p.proconfig is not null
+        or l.lanname <> 'sql'
+        or p.provolatile <> 's'
+        or p.prosecdef
+    from pg_proc p
+    join pg_language l on l.oid = p.prolang
+    where p.oid = 'public.filter_effective_assets(jsonb)'::regprocedure
+  ) then
+    raise exception 'effective list function is not an inlinable stable invoker SQL function';
+  end if;
+
   -- DAM identity foreign keys were cut over from the retired public mirrors to
   -- the canonical core taxonomy in 20260723113000. Keep this synthetic fixture
   -- on the same authority boundary that assets and style_groups enforce.

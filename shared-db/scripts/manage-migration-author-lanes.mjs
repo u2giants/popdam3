@@ -826,23 +826,26 @@ export const githubIo = {
   // `git/matching-refs` endpoint (plain string-prefix match, no trailing-slash
   // requirement), and is already used elsewhere in this file as a fallback
   // for exactly this ref family -- so it is used here instead of GraphQL's
-  // prefix listing. Commit messages for matched refs are intentionally
-  // omitted from this call: every caller already falls back to
-  // `io.getCommit(row.sha)` when `row.commit` is absent.
+  // prefix listing. List first, then include every matched immutable ref in
+  // the SAME GraphQL record read as the fixed refs. Falling back to one
+  // getCommit request per prior replacement makes pre-mutex spend grow with
+  // every terminal provider; after two replacements the third cannot reserve
+  // the fixed mutex section even though the 22-request ceiling is sufficient.
   readReviewRecords(refs,prefix){
     // Same `object(expression:...)` fix as readReviewRefs above, applied here
     // too: `ref(qualifiedName:...)` silently answered null for every one of
     // these custom-namespace refs (replacementRef, assignmentRef,
     // REVIEW_CURSOR_REF), which would have made every caller of this method
     // treat a real record as absent.
-    const fields=refs.map((ref,index)=>`r${index}:object(expression:${JSON.stringify(ref)}){oid ... on Commit{message}}`).join(' ')
+    const matches=prefix?this.listRefs(prefix):[]
+    const allRefs=[...new Set([...refs,...matches.map((row)=>row.ref)])]
+    const fields=allRefs.map((ref,index)=>`r${index}:object(expression:${JSON.stringify(ref)}){oid ... on Commit{message}}`).join(' ')
     const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){base:defaultBranchRef{target{... on Commit{oid tree{oid}}}} ${fields}}}`])
     if(data?.errors?.length||!data?.data?.repository)throw new LaneError('review record preflight returned GraphQL errors')
     const base=data.data.repository.base?.target
     if(reviewWireBudget&&base?.oid&&base?.tree?.oid)reviewCommitBase={head:base.oid,tree:base.tree.oid}
-    const result=new Map(refs.map((ref,index)=>{const target=data.data.repository[`r${index}`];return [ref,target?.oid?{sha:target.oid,commit:{message:target.message}}:null]}))
-    const matches=prefix?this.listRefs(prefix):[]
-    Object.defineProperty(result,'matching',{value:matches.map((row)=>({ref:row.ref,sha:row.sha})),enumerable:false})
+    const result=new Map(allRefs.map((ref,index)=>{const target=data.data.repository[`r${index}`];return [ref,target?.oid?{sha:target.oid,commit:{message:target.message}}:null]}))
+    Object.defineProperty(result,'matching',{value:matches.map((row)=>{const record=result.get(row.ref);return{ref:row.ref,sha:row.sha,commit:record?.sha===row.sha&&record?.commit?.message?record.commit:undefined}}),enumerable:false})
     return result
   },
   atomicReviewRefs(changes){
