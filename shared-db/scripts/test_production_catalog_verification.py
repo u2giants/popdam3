@@ -172,6 +172,25 @@ PUBLIC_GRANTEE_BLOCKS = 3
 
 
 class DeriveTargetsTests(unittest.TestCase):
+    def test_alter_schema_rename_and_comment_are_derived(self):
+        t = targets_for(
+            "alter schema designflow rename to designflow_frozen_20260710;\n"
+            "comment on schema designflow_frozen_20260710 is 'Frozen owner''s history';"
+        )
+        self.assertEqual(
+            t.schema_renames,
+            [("designflow", "designflow_frozen_20260710", "Frozen owner's history")],
+        )
+        self.assertFalse(t.is_empty())
+
+    def test_real_778_schema_rename_is_derived_with_exact_comment(self):
+        path = REPO / "supabase" / "migrations" / "20260831041658_freeze_orphan_designflow_schema.sql"
+        t = derive_targets({"20260831041658": path}, ["20260831041658"])
+        self.assertEqual(len(t.schema_renames), 1)
+        source, destination, comment = t.schema_renames[0]
+        self.assertEqual((source, destination), ("designflow", "designflow_frozen_20260710"))
+        self.assertIn("FROZEN 2026-08-27", comment)
+
     def test_create_table_is_found(self):
         t = targets_for("create table if not exists plm.widget (id bigint);")
         self.assertIn("plm.widget", t.tables)
@@ -402,6 +421,15 @@ class CanaryDerivationTests(unittest.TestCase):
 
 
 class SqlBuildTests(unittest.TestCase):
+    def test_schema_rename_catalog_query_reads_both_names_and_comments(self):
+        sql = build_catalog_sql(
+            targets_for("alter schema designflow rename to designflow_frozen_20260710;")
+        )
+        self.assertIn("designflow", sql)
+        self.assertIn("designflow_frozen_20260710", sql)
+        self.assertIn("pg_namespace", sql)
+        self.assertIn("obj_description(n.oid, 'pg_namespace')", sql)
+
     def test_maintain_is_probed_conditionally(self):
         sql = build_catalog_sql(targets_for("create table plm.widget (id int);"))
         self.assertIn(MAINTAIN_PRIVILEGE, sql)
@@ -600,6 +628,44 @@ class RenderReportTests(unittest.TestCase):
             {"relations": [{"name": "plm.widget", "to_regclass": "plm.widget"}]}
         )
         self.assertEqual(failures, [])
+
+    def test_schema_rename_requires_old_absent_new_present_and_exact_comment(self):
+        targets = targets_for(
+            "alter schema designflow rename to designflow_frozen_20260710;\n"
+            "comment on schema designflow_frozen_20260710 is 'frozen';"
+        )
+        catalog = {"schemas": [
+            {"name": "designflow", "exists": False, "comment": None},
+            {"name": "designflow_frozen_20260710", "exists": True, "comment": "frozen"},
+        ]}
+        report, failures = self.render(catalog, targets=targets)
+        self.assertEqual(failures, [])
+        self.assertIn("designflow_frozen_20260710", report)
+
+    def test_schema_rename_fails_closed_for_each_wrong_end_state(self):
+        targets = targets_for(
+            "alter schema designflow rename to designflow_frozen_20260710;\n"
+            "comment on schema designflow_frozen_20260710 is 'frozen';"
+        )
+        bad_catalogs = (
+            {"schemas": []},
+            {"schemas": [
+                {"name": "designflow", "exists": True, "comment": None},
+                {"name": "designflow_frozen_20260710", "exists": True, "comment": "frozen"},
+            ]},
+            {"schemas": [
+                {"name": "designflow", "exists": False, "comment": None},
+                {"name": "designflow_frozen_20260710", "exists": False, "comment": None},
+            ]},
+            {"schemas": [
+                {"name": "designflow", "exists": False, "comment": None},
+                {"name": "designflow_frozen_20260710", "exists": True, "comment": "wrong"},
+            ]},
+        )
+        for catalog in bad_catalogs:
+            with self.subTest(catalog=catalog):
+                _, failures = self.render(catalog, targets=targets)
+                self.assertTrue(failures)
 
     def test_index_definition_is_reported_and_enforced(self):
         targets = targets_for(

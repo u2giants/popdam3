@@ -192,6 +192,13 @@ ALTER_RELATION_RE = re.compile(
     r"^\s*alter\s+(table|view|materialized\s+view|foreign\s+table)\s+"
     rf"(if\s+exists\s+)?(?:only\s+)?{QUALIFIED}"
 )
+ALTER_SCHEMA_RENAME_RE = re.compile(
+    rf"^\s*alter\s+schema\s+({IDENT})\s+rename\s+to\s+({IDENT})\s*$"
+)
+COMMENT_SCHEMA_RE = re.compile(
+    rf"^\s*comment\s+on\s+schema\s+({IDENT})\s+is\s+'((?:''|[^'])*)'\s*;",
+    re.IGNORECASE | re.MULTILINE | re.DOTALL,
+)
 ROW_SECURITY_RE = re.compile(r"\brow\s+level\s+security\b")
 CREATE_POLICY_RE = re.compile(rf"^\s*create\s+policy\b[\s\S]*?\bon\s+{QUALIFIED}")
 INSERT_INTO_RE = re.compile(rf"^\s*insert\s+into\s+{QUALIFIED}")
@@ -1095,6 +1102,7 @@ class Targets:
         notes: list[str] | None = None,
         noop_declaration: dict | None = None,
         indexes: set[tuple[str, str]] | None = None,
+        schema_renames: set[tuple[str, str, str | None]] | None = None,
     ) -> None:
         # ORDER IS LOAD-BEARING and must be the order the statements appear in,
         # not sorted: a batch may `grant` a privilege and then `revoke` it, and
@@ -1116,6 +1124,7 @@ class Targets:
         self.roles = sorted(roles)
         self.seeded = sorted(seeded)
         self.indexes = sorted(indexes or set())
+        self.schema_renames = sorted(schema_renames or set())
         # Relations an `... if exists` statement named. Read if present, NEVER
         # required: the migration said in its own SQL that it tolerates absence.
         self.optional = sorted(set(optional or set()) - set(tables) - set(views))
@@ -1148,6 +1157,7 @@ class Targets:
             or self.rls_relations
             or self.privileges
             or self.indexes
+            or self.schema_renames
         )
 
     def as_dict(self) -> dict[str, list[str]]:
@@ -1160,6 +1170,10 @@ class Targets:
             "roles": self.roles,
             "seeded": self.seeded,
             "indexes": [f"{index}|{relation}" for index, relation in self.indexes],
+            "schema_renames": [
+                f"{source}|{destination}|{comment if comment is not None else ''}"
+                for source, destination, comment in self.schema_renames
+            ],
             "privilege_assertions": [e.describe() for e in self.privileges],
             "unassertable_statements": self.notes,
         }
@@ -1971,17 +1985,27 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     notes: list[str] = []
     noop: dict | None = None
     indexes: set[tuple[str, str]] = set()
+    schema_rename_pairs: set[tuple[str, str]] = set()
+    schema_comments: dict[str, str] = {}
 
     for version in allowlist:
         path = migrations.get(version)
         if path is None:
             raise GuardError(f"unknown migration version: {version}")
         raw = path.read_text(encoding="utf-8")
+        # strip_sql deliberately blanks string literals, so schema comments
+        # must be read from the comment-stripped raw text. This still avoids
+        # matching prose in SQL comments while preserving the exact literal.
+        for match in COMMENT_SCHEMA_RE.finditer(_strip_sql_comments(raw)):
+            schema_comments[match.group(1)] = match.group(2).replace("''", "'")
         declaration = read_noop_declaration(raw, version)
         if declaration is not None and (noop is None or not declaration["accepted"]):
             noop = declaration
         text = strip_sql(raw)
         for statement in split_statements(text):
+            if match := ALTER_SCHEMA_RENAME_RE.match(statement):
+                schema_rename_pairs.add((match.group(1), match.group(2)))
+                continue
             if ALTER_DEFAULT_PRIVILEGES_RE.match(statement):
                 found, adp_notes = parse_default_privileges(statement, version)
                 privileges.extend(found)
@@ -2084,6 +2108,10 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     # Every relation is worth an RLS reading -- RLS-on-with-zero-policies was the
     # single check the canary run could not confirm at all.
     rls |= tables
+    schema_renames = {
+        (source, destination, schema_comments.get(destination))
+        for source, destination in schema_rename_pairs
+    }
     return Targets(
         tables,
         views,
@@ -2096,6 +2124,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         notes=notes,
         noop_declaration=noop,
         indexes=indexes,
+        schema_renames=schema_renames,
     )
 
 
@@ -2152,6 +2181,9 @@ def build_catalog_sql(targets: Targets) -> str:
     functions = _sql_array(targets.functions)
     index_names = _sql_array([row[0] for row in targets.indexes])
     index_relations = _sql_array([row[1] for row in targets.indexes])
+    schema_names = _sql_array(
+        sorted({name for source, destination, _ in targets.schema_renames for name in (source, destination)})
+    )
     defacl = targets.default_acls
     defacl_schemas = _sql_array([row[0] for row in defacl])
     defacl_roles = _sql_array([row[1] for row in defacl])
@@ -2192,6 +2224,15 @@ select jsonb_build_object(
   -- the two need different verdicts.
   'probe_roles', coalesce((
     select jsonb_agg(probe_roles.role order by probe_roles.role) from probe_roles
+  ), '[]'::jsonb),
+  'schemas', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'name', s.name,
+      'exists', n.oid is not null,
+      'comment', obj_description(n.oid, 'pg_namespace')
+    ) order by s.name)
+    from unnest({schema_names}) as s(name)
+    left join pg_namespace n on n.nspname = s.name
   ), '[]'::jsonb),
   'indexes', coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -3015,6 +3056,48 @@ def render_report(
             f"`{row.get('objtype')}` | {row.get('row_exists')} | "
             f"`{row.get('acl_text') or 'NULL'}` |"
         )
+    add("")
+
+    add("## Schema rename assertions (`pg_namespace`)")
+    add("")
+    add("| source | destination | source absent | destination present | comment matches |")
+    add("| --- | --- | --- | --- | --- |")
+    schema_rows = {
+        str(row.get("name")): row for row in (data.get("schemas") or [])
+        if isinstance(row, dict)
+    }
+    for source, destination, expected_comment in targets.schema_renames:
+        source_row = schema_rows.get(source)
+        destination_row = schema_rows.get(destination)
+        source_absent = source_row is not None and source_row.get("exists") is False
+        destination_present = (
+            destination_row is not None and destination_row.get("exists") is True
+        )
+        comment_matches = (
+            expected_comment is None
+            or (
+                destination_row is not None
+                and destination_row.get("comment") == expected_comment
+            )
+        )
+        add(
+            f"| `{source}` | `{destination}` | {source_absent} | "
+            f"{destination_present} | {comment_matches} |"
+        )
+        if not source_absent:
+            failures.append(
+                f"schema rename {source} -> {destination}: source schema must be absent"
+            )
+        if not destination_present:
+            failures.append(
+                f"schema rename {source} -> {destination}: destination schema must be present"
+            )
+        if not comment_matches:
+            failures.append(
+                f"schema rename {source} -> {destination}: destination comment does not match the migration"
+            )
+    if not targets.schema_renames:
+        add("| _no ALTER SCHEMA RENAME target was derived_ | | | | |")
     add("")
 
     add("## Indexes (`pg_index` / `pg_get_indexdef`)")

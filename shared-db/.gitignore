@@ -107,3 +107,4 @@ PAUSED
 
 # The ai-devops checkout the skill-drift check uses in CI (#654).
 .ai-devops-checkout/
+backups/
