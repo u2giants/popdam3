@@ -25,13 +25,15 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const WORKFLOW = path.join(repoRoot, '.github/workflows/shared-supabase-migrations.yml')
+const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe'
+const bashCommand = process.platform === 'win32' && existsSync(gitBash) ? gitBash : 'bash'
 
 /** The exact shell the workflow runs, dedented, with nothing added or removed. */
 function mapParseBlock() {
@@ -57,7 +59,7 @@ function runParse(sourceMap) {
     'printf "COUNT:%s\\n" "$MAP_PR_COUNT"',
     'printf "LAST:%s\\n" "$MAP_LAST_PR"',
   ].join('\n')
-  const result = spawnSync('bash', ['-c', script], {
+  const result = spawnSync(bashCommand, ['-c', script], {
     encoding: 'utf8',
     env: { ...process.env, SOURCE_MAP: sourceMap },
   })
@@ -130,7 +132,7 @@ test('the count guard refuses rather than proving fewer PRs than the map names',
     "sed -e 's/.*://' -e 's/[[:space:]]//g' | grep -v '^$' | sort -u",
     "sed 's/.*://' | tr -d '[:space:]' | sort -u")
   assert.notEqual(broken, mapParseBlock(), 'the sabotage did not apply; the parse pipeline changed shape')
-  const result = spawnSync('bash', ['-c', `set -euo pipefail\n${broken}`], {
+  const result = spawnSync(bashCommand, ['-c', `set -euo pipefail\n${broken}`], {
     encoding: 'utf8',
     env: { ...process.env, SOURCE_MAP: FR_MAP },
   })
@@ -142,5 +144,14 @@ test('the parse block stays runnable: no gh, no network, no repository state', (
   const block = mapParseBlock()
   for (const forbidden of ['gh ', 'curl', 'git ']) {
     assert.ok(!block.includes(forbidden), `the map-parse block must not use ${forbidden.trim()}; move it below the END marker`)
+  }
+})
+
+test('Windows executes the workflow shell through supported Git Bash', () => {
+  if (process.platform === 'win32') {
+    assert.equal(bashCommand, gitBash)
+    assert.ok(existsSync(bashCommand), 'Git Bash is required to execute the workflow shell on Windows')
+  } else {
+    assert.equal(bashCommand, 'bash')
   }
 })

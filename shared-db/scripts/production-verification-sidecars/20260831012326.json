@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260831012326",
+  "migration_sha256": "f48aef3fc39ab1fdd8db5eb648b27bf68a80f29d8c7bc6ee13ab66dd05f89dd7",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 119,
+      "line_end": 119,
+      "disposition": "checks",
+      "reason": "This execute rewrites the existing Licensing Manager RPC. Verifier-owned contracts prove covering retained-observation indexes, bounded per-page DCP context, exact stable cursor ordering, targeted submission labels, and every privacy-safe predecessor capability.",
+      "check_ids": [
+        "covering_dcp_context_1936_forward_6",
+        "targeted_submission_labels_1936_forward_6",
+        "set_based_page_submission_1936_forward_6",
+        "set_based_authority_1936_forward_6",
+        "bounded_enrichment_1936_forward_6",
+        "creative_contract_1936_forward_6",
+        "source_purpose_1936_forward_6"
+      ]
+    }
+  ],
+  "checks": [
+    {"id":"covering_dcp_context_1936_forward_6","kind":"catalog_contract","contract":"scraped_properties_bounded_source_context_v1","expected_count":1},
+    {"id":"targeted_submission_labels_1936_forward_6","kind":"catalog_contract","contract":"scraped_properties_targeted_submission_label_v1","expected_count":1},
+    {"id":"set_based_page_submission_1936_forward_6","kind":"catalog_contract","contract":"scraped_properties_set_based_page_submission_v1","expected_count":1},
+    {"id":"set_based_authority_1936_forward_6","kind":"catalog_contract","contract":"scraped_properties_set_based_authority_v1","expected_count":1},
+    {"id":"bounded_enrichment_1936_forward_6","kind":"catalog_contract","contract":"scraped_properties_bounded_enrichment_v1","expected_count":1},
+    {"id":"creative_contract_1936_forward_6","kind":"catalog_contract","contract":"creative_submission_contract_status_v1","expected_count":1},
+    {"id":"source_purpose_1936_forward_6","kind":"catalog_contract","contract":"scraped_properties_source_purpose_v1","expected_count":1}
+  ]
+}

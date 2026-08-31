@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260831021656",
+  "migration_sha256": "0a24fdc6a92a43a9e061dd20286a1e30e7cb02a637e0319526f5724692cce917",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 157,
+      "line_end": 157,
+      "disposition": "checks",
+      "reason": "This execute rewrites the existing Licensing Manager RPC. Verifier-owned contracts prove set-based bounded DCP context, covering retained-observation indexes, exact stable cursor ordering, targeted submission labels, and every privacy-safe predecessor capability.",
+      "check_ids": [
+        "set_based_dcp_context_1936_forward_7",
+        "targeted_submission_labels_1936_forward_7",
+        "set_based_page_submission_1936_forward_7",
+        "set_based_authority_1936_forward_7",
+        "bounded_enrichment_1936_forward_7",
+        "creative_contract_1936_forward_7",
+        "source_purpose_1936_forward_7"
+      ]
+    }
+  ],
+  "checks": [
+    {"id":"set_based_dcp_context_1936_forward_7","kind":"catalog_contract","contract":"scraped_properties_set_based_retained_context_v1","expected_count":1},
+    {"id":"targeted_submission_labels_1936_forward_7","kind":"catalog_contract","contract":"scraped_properties_targeted_submission_label_v1","expected_count":1},
+    {"id":"set_based_page_submission_1936_forward_7","kind":"catalog_contract","contract":"scraped_properties_set_based_page_submission_v1","expected_count":1},
+    {"id":"set_based_authority_1936_forward_7","kind":"catalog_contract","contract":"scraped_properties_set_based_authority_v1","expected_count":1},
+    {"id":"bounded_enrichment_1936_forward_7","kind":"catalog_contract","contract":"scraped_properties_bounded_enrichment_v1","expected_count":1},
+    {"id":"creative_contract_1936_forward_7","kind":"catalog_contract","contract":"creative_submission_contract_status_v1","expected_count":1},
+    {"id":"source_purpose_1936_forward_7","kind":"catalog_contract","contract":"scraped_properties_source_purpose_v1","expected_count":1}
+  ]
+}

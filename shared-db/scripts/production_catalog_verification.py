@@ -758,6 +758,23 @@ SCRAPED_PROPERTIES_BOUNDED_SOURCE_CONTEXT_CONTRACT += (
     " and position('ordered as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
     " and position('enriched as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF
 )
+SCRAPED_PROPERTIES_SET_BASED_RETAINED_CONTEXT_CONTRACT = _shape_contract(
+    routines=('api.db_data_admin_scraped_properties(text,text,integer)',),
+    indexes=(
+        'plm.idx_dcp_asset_property_obs_property_asset',
+        'plm.idx_lucasfilm_dcp_asset_property_obs_property_asset',
+    ),
+)
+SCRAPED_PROPERTIES_SET_BASED_RETAINED_CONTEXT_CONTRACT += (
+    " and position('page_dcp_properties as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('page_lucasfilm_dcp_properties as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('page_dcp_retained_assets as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('page_lucasfilm_dcp_retained_assets as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('dcp_asset_context as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('lucasfilm_dcp_asset_context as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('l.row_key collate \"C\" > v_cursor_key collate \"C\"' in %s)>0" % _SCRAPED_PROPERTIES_DEF +
+    " and position('app.require_licensing_manager_access()' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+)
 SCRAPED_PROPERTIES_SET_BASED_PAGE_SUBMISSION_CONTRACT = _shape_contract(
     routines=('api.db_data_admin_scraped_properties(text,text,integer)',),
 )
@@ -814,6 +831,7 @@ CATALOG_CONTRACTS = {
     "scraped_properties_bounded_enrichment_v1": SCRAPED_PROPERTIES_BOUNDED_ENRICHMENT_CONTRACT,
     "scraped_properties_set_based_authority_v1": SCRAPED_PROPERTIES_SET_BASED_AUTHORITY_CONTRACT,
     "scraped_properties_bounded_source_context_v1": SCRAPED_PROPERTIES_BOUNDED_SOURCE_CONTEXT_CONTRACT,
+    "scraped_properties_set_based_retained_context_v1": SCRAPED_PROPERTIES_SET_BASED_RETAINED_CONTEXT_CONTRACT,
     "scraped_properties_set_based_page_submission_v1": SCRAPED_PROPERTIES_SET_BASED_PAGE_SUBMISSION_CONTRACT,
     "scraped_properties_targeted_submission_label_v1": SCRAPED_PROPERTIES_TARGETED_SUBMISSION_LABEL_CONTRACT,
     "dflow_sequence_ceilings_v1": DFLOW_SEQUENCE_CEILINGS_CONTRACT,
