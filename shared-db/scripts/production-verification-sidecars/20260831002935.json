@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260831002935",
+  "migration_sha256": "d5893ea4906f3d64660d0ff5d56df34260060ba4f044693438841b9dab78dd4a",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 197,
+      "line_end": 197,
+      "disposition": "checks",
+      "reason": "This execute rewrites the existing Licensing Manager RPC. Verifier-owned contracts prove identity-targeted submission labels without a second whole-source join, page-bounded set-based mapping, exact stable cursor ordering, and all privacy-safe predecessor capabilities.",
+      "check_ids": [
+        "targeted_submission_labels_1936_forward_5",
+        "set_based_page_submission_1936_forward_5",
+        "bounded_source_context_1936_forward_5",
+        "set_based_authority_1936_forward_5",
+        "bounded_enrichment_1936_forward_5",
+        "creative_contract_1936_forward_5",
+        "source_purpose_1936_forward_5"
+      ]
+    }
+  ],
+  "checks": [
+    {"id":"targeted_submission_labels_1936_forward_5","kind":"catalog_contract","contract":"scraped_properties_targeted_submission_label_v1","expected_count":1},
+    {"id":"set_based_page_submission_1936_forward_5","kind":"catalog_contract","contract":"scraped_properties_set_based_page_submission_v1","expected_count":1},
+    {"id":"bounded_source_context_1936_forward_5","kind":"catalog_contract","contract":"scraped_properties_bounded_source_context_v1","expected_count":1},
+    {"id":"set_based_authority_1936_forward_5","kind":"catalog_contract","contract":"scraped_properties_set_based_authority_v1","expected_count":1},
+    {"id":"bounded_enrichment_1936_forward_5","kind":"catalog_contract","contract":"scraped_properties_bounded_enrichment_v1","expected_count":1},
+    {"id":"creative_contract_1936_forward_5","kind":"catalog_contract","contract":"creative_submission_contract_status_v1","expected_count":1},
+    {"id":"source_purpose_1936_forward_5","kind":"catalog_contract","contract":"scraped_properties_source_purpose_v1","expected_count":1}
+  ]
+}

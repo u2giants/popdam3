@@ -69,6 +69,23 @@ No refresh hard-deletes licensing Master Data.
 - The historical DCP presentation-resolution ledger remains immutable evidence but is no longer current Property-to-Licensor/Studio authority. Its old contract, canonical, name, and source-title decisions must not drive current presentation.
 - The known OPA Property-to-Character extract does not prove that other portal hierarchy relationships are absent. Capture direct hierarchy selectors when available; never synthesize them from `brandPropertyID`, constant `optionSourceID`, names, or table families.
 
+## Source-purpose presentation
+
+DB Data Admin presents scraped Property vocabularies by Licensor and business
+purpose, not by landing-table family. Every section is either `Submissions` or
+`Creative`; a Licensor with both has two sections because their vocabularies
+may differ.
+
+Source-internal labels do not create Licensors. Sega is one Licensor with two
+source-purpose sections. Peanuts' source field named `property` means Art
+Program, not a POP licensing Property.
+
+Creative-to-Submissions equivalence requires authoritative direct evidence or
+an explicit reviewed decision. Similar names are not a mapping. Every
+unresolved Creative Property stays visible and is highlighted red in DB Data
+Admin. Contract evidence remains separate and reports incomplete document
+chains explicitly rather than inferring missing terms.
+
 ## Talent likeness and royalty
 
 Marvel charges two additional royalty percentage points when artwork contains talent likeness. Marvel is the only Licensor with this confirmed rule. The likeness flag belongs to the specific Style Guide Asset file, never to the Character or Property.

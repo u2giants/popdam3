@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260830212955",
+  "migration_sha256": "874a41a58d1ebc4b6d52d67fd8a47d84efce84ee7975bb5924e7bbf9637d1eb1",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 165,
+      "line_end": 165,
+      "disposition": "checks",
+      "reason": "This execute rewrites the existing Licensing Manager RPC. The verifier-owned contracts prove the page-before-enrichment execution boundary plus the complete privacy-safe mapping, contract-status, source-purpose, and source-vocabulary predecessors.",
+      "check_ids": [
+        "bounded_enrichment_boundary_1936",
+        "creative_submission_contract_status_non_regression_1936",
+        "source_purpose_non_regression_1936"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "bounded_enrichment_boundary_1936",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_bounded_enrichment_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "creative_submission_contract_status_non_regression_1936",
+      "kind": "catalog_contract",
+      "contract": "creative_submission_contract_status_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "source_purpose_non_regression_1936",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_source_purpose_v1",
+      "expected_count": 1
+    }
+  ]
+}

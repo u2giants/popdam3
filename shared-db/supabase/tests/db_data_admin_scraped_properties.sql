@@ -30,8 +30,23 @@ declare
   v_cursor text;
   v_walk_rows jsonb := '[]'::jsonb;
   v_walk_pages integer := 0;
+  v_populated_prefix text;
+  v_populated_first jsonb;
+  v_populated_second jsonb;
+  v_populated_rows jsonb;
+  v_dcp_crawl uuid := gen_random_uuid();
+  v_dcp_run uuid := gen_random_uuid();
+  v_dcp_guide uuid;
+  v_dcp_asset uuid;
+  v_dcp_property uuid;
+  v_lucas_crawl uuid := gen_random_uuid();
+  v_lucas_run uuid := gen_random_uuid();
+  v_lucas_guide uuid;
+  v_lucas_asset uuid;
+  v_lucas_property uuid;
 begin
   v_search := 'Issue1533-' || v_suffix;
+  v_populated_prefix := 'Issue1936Populated-' || v_suffix || '-';
 
   if to_regprocedure(v_sig) is null then
     raise exception 'missing scraped Properties function: %', v_sig;
@@ -118,6 +133,95 @@ begin
      'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('b',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision'),
     ('lucasfilm_dcpvault', v_search || '/galaxy_far_far_away', 'star-wars', 'Star Wars',
      'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('c',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision');
+
+  -- Populate both costly DCP graph arms so a broken page-level join cannot
+  -- silently pass by returning the same zero/empty values as an absent graph.
+  select id into v_dcp_property from plm.dcp_property
+  where source_system = 'disney_dcpvault'
+    and source_id = v_search || '/journey-to-the-moon''s-edge';
+  insert into plm.dcp_crawl (
+    crawl_id, captured_on, portal_base_url, crawler_version, account_scope,
+    line_of_business, started_at, captured_by, private_source_commit, status,
+    rows_received, distinct_assets_received, finished_at
+  ) values (
+    v_dcp_crawl, current_date, 'https://invalid.example', 'contract', 'contract',
+    'contract', now(), 'contract', repeat('d', 40), 'running', 1, 1, now()
+  );
+  insert into plm.dcp_style_guide (
+    source_path, folder_name, region, year_segment, first_seen_crawl_id
+  ) values (
+    '/contract/' || v_suffix || '/disney-guide', 'Disney Guide ' || v_suffix,
+    'contract', 'contract', v_dcp_crawl
+  ) returning id into v_dcp_guide;
+  insert into plm.dcp_asset (
+    source_path, style_guide_id, file_name, file_extension, first_seen_crawl_id
+  ) values (
+    '/contract/' || v_suffix || '/disney-asset.png', v_dcp_guide,
+    'disney-asset-' || v_suffix || '.png', 'png', v_dcp_crawl
+  ) returning id into v_dcp_asset;
+  insert into plm.dcp_asset_crawl (crawl_id, dcp_asset_id, observed_row_hash)
+  values (v_dcp_crawl, v_dcp_asset, repeat('d', 64));
+  update plm.dcp_crawl set status = 'complete' where crawl_id = v_dcp_crawl;
+  insert into plm.dcp_metadata_run (
+    metadata_run_id, source_crawl_id, status, captured_on, started_at,
+    endpoint_suffix, crawler_version, captured_by, private_source_commit, assets_expected
+  ) values (
+    v_dcp_run, v_dcp_crawl, 'running', current_date, now(), '/contract',
+    'contract', 'contract', repeat('d', 40), 1
+  );
+  insert into plm.dcp_metadata_asset (metadata_run_id, source_crawl_id, dcp_asset_id)
+  values (v_dcp_run, v_dcp_crawl, v_dcp_asset);
+  update plm.dcp_metadata_asset set
+    fetch_status = 'success', http_status = 200, raw_metadata = '{"contract":true}',
+    retrieved_at = now(), source_hash = repeat('d', 64), normalized_hash = repeat('e', 64)
+  where metadata_run_id = v_dcp_run and dcp_asset_id = v_dcp_asset;
+  insert into plm.dcp_asset_property_observation (metadata_run_id, dcp_asset_id, dcp_property_id)
+  values (v_dcp_run, v_dcp_asset, v_dcp_property);
+
+  select id into v_lucas_property from plm.lucasfilm_dcp_property
+  where source_system = 'lucasfilm_dcpvault'
+    and source_id = v_search || '/galaxy_far_far_away';
+  insert into plm.lucasfilm_dcp_crawl (
+    crawl_id, captured_on, portal_base_url, crawler_version, account_scope,
+    line_of_business, started_at, captured_by, private_source_commit, status,
+    rows_received, distinct_assets_received, finished_at
+  ) values (
+    v_lucas_crawl, current_date, 'https://invalid.example', 'contract', 'contract',
+    'contract', now(), 'contract', repeat('f', 40), 'running', 1, 1, now()
+  );
+  insert into plm.lucasfilm_dcp_style_guide (
+    source_path, folder_name, region, year_segment, first_seen_crawl_id
+  ) values (
+    '/contract/' || v_suffix || '/lucas-guide', 'Lucas Guide ' || v_suffix,
+    'contract', 'contract', v_lucas_crawl
+  ) returning id into v_lucas_guide;
+  insert into plm.lucasfilm_dcp_asset (
+    source_path, style_guide_id, file_name, file_extension, first_seen_crawl_id
+  ) values (
+    '/contract/' || v_suffix || '/lucas-asset.png', v_lucas_guide,
+    'lucas-asset-' || v_suffix || '.png', 'png', v_lucas_crawl
+  ) returning id into v_lucas_asset;
+  insert into plm.lucasfilm_dcp_asset_crawl (
+    crawl_id, lucasfilm_dcp_asset_id, observed_row_hash
+  ) values (v_lucas_crawl, v_lucas_asset, repeat('f', 64));
+  update plm.lucasfilm_dcp_crawl set status = 'complete' where crawl_id = v_lucas_crawl;
+  insert into plm.lucasfilm_dcp_metadata_run (
+    metadata_run_id, source_crawl_id, status, captured_on, started_at,
+    endpoint_suffix, crawler_version, captured_by, private_source_commit, assets_expected
+  ) values (
+    v_lucas_run, v_lucas_crawl, 'running', current_date, now(), '/contract',
+    'contract', 'contract', repeat('f', 40), 1
+  );
+  insert into plm.lucasfilm_dcp_metadata_asset (
+    metadata_run_id, source_crawl_id, lucasfilm_dcp_asset_id
+  ) values (v_lucas_run, v_lucas_crawl, v_lucas_asset);
+  update plm.lucasfilm_dcp_metadata_asset set
+    fetch_status = 'success', http_status = 200, raw_metadata = '{"contract":true}',
+    retrieved_at = now(), source_hash = repeat('f', 64), normalized_hash = repeat('a', 64)
+  where metadata_run_id = v_lucas_run and lucasfilm_dcp_asset_id = v_lucas_asset;
+  insert into plm.lucasfilm_dcp_asset_property_observation (
+    metadata_run_id, lucasfilm_dcp_asset_id, lucasfilm_dcp_property_id
+  ) values (v_lucas_run, v_lucas_asset, v_lucas_property);
 
   -- Fixed, non-licensed synthetic IDs exercise malformed terminal segments and
   -- prove that a DCP studio outside #1546's three-target allowlist keeps the
@@ -268,12 +372,69 @@ begin
     v_sega_submission_new, '{"submission_properties":1}', '[]');
 
   perform set_config('request.jwt.claim.sub', v_auth::text, true);
+
+  -- Issue #1936 regression: exercise a genuinely populated source arm at the
+  -- maximum public page size, then walk the following cursor page. The exact
+  -- row identities are synthetic and rollback with this contract test.
+  insert into plm.opa_property (
+    licensed_property_id, property_name, first_seen_at, last_seen_at
+  )
+  select
+    -1936000000 - g,
+    v_populated_prefix || lpad(g::text, 4, '0'),
+    clock_timestamp(),
+    clock_timestamp()
+  from generate_series(1, 1505) g;
+
+  select api.db_data_admin_scraped_properties(v_populated_prefix, null, 1000)
+    into v_populated_first;
+  if jsonb_array_length(v_populated_first -> 'rows') <> 1000
+     or nullif(v_populated_first ->> 'next_cursor', '') is null then
+    raise exception 'populated first page was not bounded at 1000 rows with a cursor';
+  end if;
+
+  select api.db_data_admin_scraped_properties(
+    v_populated_prefix, v_populated_first ->> 'next_cursor', 1000
+  ) into v_populated_second;
+  if jsonb_array_length(v_populated_second -> 'rows') <> 505
+     or v_populated_second ->> 'next_cursor' is not null then
+    raise exception 'populated second page did not return the complete 505-row tail';
+  end if;
+
+  v_populated_rows := (v_populated_first -> 'rows') || (v_populated_second -> 'rows');
+  if jsonb_array_length(v_populated_rows) <> 1505
+     or (select count(distinct r ->> 'row_key')
+         from jsonb_array_elements(v_populated_rows) r) <> 1505 then
+    raise exception 'populated pagination omitted or repeated source rows';
+  end if;
   select api.db_data_admin_scraped_properties(v_search, null, 100) into v_page;
   v_rows := v_page -> 'rows';
 
   select count(*) into v_count from jsonb_array_elements(v_rows);
   if v_count <> 8 then
     raise exception 'expected eight exact fixture rows, got %', v_count;
+  end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_table' = 'plm.dcp_property'
+      and r ->> 'source_property_id' = v_search || '/journey-to-the-moon''s-edge'
+      and (r ->> 'asset_count')::integer = 1
+      and (r ->> 'style_guide_count')::integer = 1
+      and r -> 'style_guide_names' = jsonb_build_array('Disney Guide ' || v_suffix)
+  ) then
+    raise exception 'page-bounded Disney DCP context did not preserve the populated graph';
+  end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_table' = 'plm.lucasfilm_dcp_property'
+      and r ->> 'source_property_id' = v_search || '/galaxy_far_far_away'
+      and (r ->> 'asset_count')::integer = 1
+      and (r ->> 'style_guide_count')::integer = 1
+      and r -> 'style_guide_names' = jsonb_build_array('Lucas Guide ' || v_suffix)
+  ) then
+    raise exception 'page-bounded Lucasfilm DCP context did not preserve the populated graph';
   end if;
 
   if not exists (

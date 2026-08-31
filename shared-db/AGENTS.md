@@ -464,6 +464,15 @@ copy-pasting it a third time.
 Do not "add set filters later" — they shipped. Older text in `DB_Data_Admin.md`
 that described set filters as future work refers to the pre-2026-07-23 design.
 
+## 0.3-A Scraped Properties source-purpose and mapping rules
+
+Before changing or interpreting the Scraped Properties page, read
+[`docs/db-data-admin-scraped-properties.md`](docs/db-data-admin-scraped-properties.md).
+Every section identifies one Licensor and exactly one source purpose,
+`Submissions` or `Creative`. Creative and Submissions identities remain
+separate; only authoritative mappings connect them. Unmapped Creative rows stay
+visible and are highlighted red.
+
 ## 0.4 Master Data (style tracker) editing is OPEN to every signed-in user — by design
 
 **`public.style_tracker_rows` INSERT/UPDATE are intentionally permissive

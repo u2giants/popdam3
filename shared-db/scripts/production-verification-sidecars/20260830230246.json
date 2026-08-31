@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260830230246",
+  "migration_sha256": "7d0698150d67f8820f8b735fe9cdd1ba4a6736d611b2cee5279b5e913f85ecbe",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 133,
+      "line_end": 133,
+      "disposition": "checks",
+      "reason": "This execute rewrites the existing Licensing Manager RPC. Verifier-owned contracts prove an inlineable source union, page-bounded DCP context, set-based authority, bounded mapping/contract enrichment, and every privacy-safe predecessor contract.",
+      "check_ids": [
+        "bounded_source_context_1936_forward_3",
+        "set_based_authority_1936_forward_3",
+        "bounded_enrichment_1936_forward_3",
+        "creative_contract_1936_forward_3",
+        "source_purpose_1936_forward_3"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "bounded_source_context_1936_forward_3",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_bounded_source_context_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "set_based_authority_1936_forward_3",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_set_based_authority_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "bounded_enrichment_1936_forward_3",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_bounded_enrichment_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "creative_contract_1936_forward_3",
+      "kind": "catalog_contract",
+      "contract": "creative_submission_contract_status_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "source_purpose_1936_forward_3",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_source_purpose_v1",
+      "expected_count": 1
+    }
+  ]
+}

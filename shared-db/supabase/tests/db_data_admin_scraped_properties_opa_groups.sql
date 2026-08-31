@@ -1,4 +1,4 @@
--- Rollback-safe contract for issue #1589. The 1,445 generated rows reproduce
+-- Rollback-safe contracts for issues #1589 and #1936. The 4,000 generated rows reproduce
 -- only the aggregate studio-resolution shape; no licensed OPA row is embedded.
 
 begin;
@@ -33,8 +33,10 @@ begin
   select pg_get_functiondef(v_sig::regprocedure) into v_definition;
   if position('app.require_licensing_manager_access()' in v_definition) = 0
      or position('plm.opa_property_studio_resolution' in v_definition) = 0
+     or position('page_submission_source_candidates as materialized' in v_definition) = 0
+     or position('left join source_rows s' in v_definition) <> 0
      or position('Disney OPA (unsplit)' in v_definition) <> 0 then
-    raise exception 'authorization, OPA resolution, or retired-group contract changed';
+    raise exception 'authorization, targeted labels, OPA resolution, or retired-group contract changed';
   end if;
 
   select p.id, p.auth_user_id into v_profile, v_auth
@@ -57,7 +59,7 @@ begin
 
   insert into plm.opa_property (licensed_property_id, property_name)
   select -800000000000 - g, v_search || '-OPA-' || lpad(g::text, 4, '0')
-  from generate_series(1, 1445) g;
+  from generate_series(1, 4000) g;
 
   insert into plm.opa_property_studio_resolution (
     licensed_property_id, studio_code, resolution_status, provenance_type,
@@ -85,7 +87,111 @@ begin
     case when g <= 535 then 'synthetic-contract' else null end,
     null,
     'issue-1589-contract'
-  from generate_series(1, 1445) g;
+  from generate_series(1, 4000) g;
+
+  -- Populate every valid direct-route branch across a large OPA subset. This
+  -- is the stage the production-sized source set previously rescanned per row.
+  insert into plm.opa_property_scope_membership (
+    licensed_property_id, region_code, branch_code, line_of_business_id,
+    product_type_code, template_id, workflow_id, capture_id,
+    source_captured_at, approval_status, evidence_reference, evidence_sha256,
+    approved_at, approved_by
+  )
+  select
+    -800000000000 - g, 'north-america',
+    case when g <= 244 then 'disney' else 'lucasfilm' end,
+    200, 'home-standard', 462, 50, v_search || '-scope-' || g,
+    clock_timestamp(), 'approved', 'synthetic-populated-scope', repeat('9',64),
+    clock_timestamp(), 'contract'
+  from generate_series(1, 4000) g
+  where g <= 244 or g between 450 and 451;
+
+  -- Populate DCP exact resolutions, members, and their OPA scopes at the same
+  -- scale. Temporary identities contain no licensed source values and roll back.
+  create temporary table issue1936_dcp_resolution_fixture (
+    ordinal integer primary key,
+    resolution_id uuid not null
+  ) on commit drop;
+  insert into issue1936_dcp_resolution_fixture
+  select g, gen_random_uuid() from generate_series(1, 4000) g;
+
+  insert into plm.dcp_property (source_system, source_id, display_name)
+  select 'disney_dcpvault', v_search || '/DCP-' || lpad(g::text, 4, '0'),
+    v_search || ' DCP ' || lpad(g::text, 4, '0')
+  from generate_series(1, 4000) g;
+
+  insert into plm.dcp_opa_property_resolution (
+    resolution_id, source_system, source_table, source_property_id,
+    decision_version, approval_status, evidence_reference, evidence_sha256,
+    decision_reason, contract_asserted_studio_code,
+    contract_evidence_reference, contract_evidence_sha256,
+    approved_at, approved_by
+  )
+  select f.resolution_id, 'disney_dcpvault', 'plm.dcp_property',
+    v_search || '/DCP-' || lpad(f.ordinal::text, 4, '0'), 1, 'approved',
+    'synthetic-exact-link', repeat('8',64), 'synthetic populated decision',
+    case when f.ordinal % 2 = 0 then 'disney' else 'lucasfilm' end,
+    'synthetic-contract', repeat('7',64), clock_timestamp(), 'contract'
+  from issue1936_dcp_resolution_fixture f;
+
+  insert into plm.dcp_opa_property_resolution_member (
+    resolution_id, licensed_property_id, member_ordinal
+  )
+  select f.resolution_id, -800000000000 - f.ordinal, 1
+  from issue1936_dcp_resolution_fixture f;
+
+  -- Forward-4 regression: every synthetic OPA row on the early pages carries
+  -- a real Creative-to-Submissions member whose display label must be resolved
+  -- from the DCP source arm. Before the repair, a cursor page could re-run the
+  -- complete source union once per mapped row through this exact lateral path.
+  create temporary table issue1936_creative_resolution_fixture (
+    ordinal integer primary key,
+    resolution_id uuid not null
+  ) on commit drop;
+  insert into issue1936_creative_resolution_fixture
+  select g, gen_random_uuid() from generate_series(1, 4000) g;
+
+  insert into plm.creative_submission_property_resolution (
+    resolution_id, creative_source_system, creative_source_table,
+    creative_source_id, decision_version, decision_state, reviewed_batch_id,
+    reviewed_batch_digest, approval_actor_id, approved_at
+  )
+  select f.resolution_id, 'disney_opa', 'plm.opa_property',
+    (-800000000000 - f.ordinal)::text, 1, 'mapped', gen_random_uuid(),
+    'sha256:' || repeat('6',64), gen_random_uuid(), clock_timestamp()
+  from issue1936_creative_resolution_fixture f;
+
+  insert into plm.creative_submission_property_resolution_member (
+    resolution_member_id, resolution_id, submission_source_system,
+    submission_source_table, submission_source_id
+  )
+  select gen_random_uuid(), f.resolution_id, 'disney_dcpvault',
+    'plm.dcp_property', v_search || '/DCP-' || lpad(f.ordinal::text, 4, '0')
+  from issue1936_creative_resolution_fixture f;
+
+  create temporary table issue1936_dcp_creative_resolution_fixture (
+    ordinal integer primary key,
+    resolution_id uuid not null
+  ) on commit drop;
+  insert into issue1936_dcp_creative_resolution_fixture
+  select g, gen_random_uuid() from generate_series(1, 4000) g;
+  insert into plm.creative_submission_property_resolution (
+    resolution_id, creative_source_system, creative_source_table,
+    creative_source_id, decision_version, decision_state, reviewed_batch_id,
+    reviewed_batch_digest, approval_actor_id, approved_at
+  )
+  select f.resolution_id, 'disney_dcpvault', 'plm.dcp_property',
+    v_search || '/DCP-' || lpad(f.ordinal::text, 4, '0'), 1, 'mapped',
+    gen_random_uuid(), 'sha256:' || repeat('5',64), gen_random_uuid(),
+    clock_timestamp()
+  from issue1936_dcp_creative_resolution_fixture f;
+  insert into plm.creative_submission_property_resolution_member (
+    resolution_member_id, resolution_id, submission_source_system,
+    submission_source_table, submission_source_id
+  )
+  select gen_random_uuid(), f.resolution_id, 'disney_opa',
+    'plm.opa_property', (-800000000000 - f.ordinal)::text
+  from issue1936_dcp_creative_resolution_fixture f;
 
   -- These source-preserving DCP groups must remain distinct from the new OPA groups.
   insert into plm.dcp_property (source_system, source_id, display_name)
@@ -108,29 +214,57 @@ begin
     ('lucasfilm_dcpvault', v_search || '/star-wars-dcp', 'star-wars', 'Star Wars',
      'supported_core_ownership', 'synthetic', 'synthetic', 'synthetic', repeat('c',64), now(), 1, 'approved', now(), 'contract', 'synthetic decision');
 
-  v_cursor := null;
+  -- The public gateway cancels at ten seconds. Keep more than 50% headroom on
+  -- every populated first-page and cursor-page call.
+  perform set_config('statement_timeout', '4000', true);
+  select api.db_data_admin_scraped_properties(v_search, null, 1000) into v_page;
+  if jsonb_array_length(v_page -> 'rows') <> 1000
+     or nullif(v_page ->> 'next_cursor','') is null then
+    raise exception 'populated first page did not return 1,000 rows and a real cursor';
+  end if;
+  v_rows := v_page -> 'rows';
+  v_cursor := v_page ->> 'next_cursor';
+  v_pages := 1;
+
+  -- This is an actual cursor returned by page 1, not a fabricated boundary.
+  select api.db_data_admin_scraped_properties(v_search, v_cursor, 1000) into v_page;
+  if jsonb_array_length(v_page -> 'rows') <> 1000
+     or nullif(v_page ->> 'next_cursor','') is null then
+    raise exception 'populated real cursor page 2 did not return 1,000 rows and a cursor';
+  end if;
+  if (select count(*) from jsonb_array_elements(v_page -> 'rows') r
+      where r ->> 'mapping_state' = 'mapped'
+        and jsonb_array_length(r -> 'submissions') = 1) < 995 then
+    raise exception 'real cursor page 2 did not exercise the populated submission-label path';
+  end if;
+  v_rows := v_rows || (v_page -> 'rows');
+  v_cursor := v_page ->> 'next_cursor';
+  v_pages := 2;
+
   loop
+    exit when v_cursor is null;
     select api.db_data_admin_scraped_properties(v_search, v_cursor, 1000) into v_page;
     v_rows := v_rows || (v_page -> 'rows');
     v_cursor := v_page ->> 'next_cursor';
     v_pages := v_pages + 1;
     exit when v_cursor is null;
-    if v_pages > 3 then
+    if v_pages > 9 then
       raise exception 'OPA pagination did not terminate';
     end if;
   end loop;
+  perform set_config('statement_timeout', '0', true);
 
   select count(*) into v_count
   from jsonb_array_elements(v_rows) r
   where r ->> 'source_table' = 'plm.opa_property';
-  if v_count <> 1445 then
-    raise exception 'expected exactly 1,445 OPA rows, got %', v_count;
+  if v_count <> 4000 then
+    raise exception 'expected exactly 4,000 OPA rows, got %', v_count;
   end if;
 
   select count(distinct r ->> 'source_property_id') into v_count
   from jsonb_array_elements(v_rows) r
   where r ->> 'source_table' = 'plm.opa_property';
-  if v_count <> 1445 then
+  if v_count <> 4000 then
     raise exception 'OPA source identities were omitted or repeated: % distinct', v_count;
   end if;
 
@@ -151,7 +285,7 @@ begin
            and r ->> 'presentation_licensor_name' = 'OPA - Submissions (scope conflict)') <> 20
      or (select count(*) from jsonb_array_elements(v_rows) r
          where r ->> 'source_table' = 'plm.opa_property'
-           and r ->> 'presentation_licensor_name' = 'OPA - Submissions (unresolved)') <> 910 then
+           and r ->> 'presentation_licensor_name' = 'OPA - Submissions (unresolved)') <> 3465 then
     raise exception 'the six OPA presentation outcomes changed';
   end if;
 

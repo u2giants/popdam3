@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260830235651",
+  "migration_sha256": "48ed86a52950afb869f1e4f3e67d531ed4c09ae41f48037a328e9dbfde03bd3d",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 95,
+      "line_end": 95,
+      "disposition": "checks",
+      "reason": "This execute rewrites the existing Licensing Manager RPC. Verifier-owned contracts prove page-bounded set-based submission label lookup, the exact stable cursor predicate, inlineable sources, bounded DCP context, set-based authority, bounded enrichment, and all privacy-safe predecessor contracts.",
+      "check_ids": [
+        "set_based_page_submission_1936_forward_4",
+        "bounded_source_context_1936_forward_4",
+        "set_based_authority_1936_forward_4",
+        "bounded_enrichment_1936_forward_4",
+        "creative_contract_1936_forward_4",
+        "source_purpose_1936_forward_4"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "set_based_page_submission_1936_forward_4",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_set_based_page_submission_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "bounded_source_context_1936_forward_4",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_bounded_source_context_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "set_based_authority_1936_forward_4",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_set_based_authority_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "bounded_enrichment_1936_forward_4",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_bounded_enrichment_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "creative_contract_1936_forward_4",
+      "kind": "catalog_contract",
+      "contract": "creative_submission_contract_status_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "source_purpose_1936_forward_4",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_source_purpose_v1",
+      "expected_count": 1
+    }
+  ]
+}
