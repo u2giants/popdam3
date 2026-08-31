@@ -5,6 +5,12 @@ P=pathlib.Path(__file__).with_name('preview_ledger_orphan_reconcile.py'); sys.pa
 S=importlib.util.spec_from_file_location('reconcile',P); M=importlib.util.module_from_spec(S); S.loader.exec_module(M)
 
 class Tests(unittest.TestCase):
+    def test_reviewed_manifest_is_the_only_case_authority(self):
+        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
+        self.assertIn('config/preview-ledger-orphan-reconciliations.json',workflow)
+        self.assertNotIn('case "$ISSUE:$CLAIM:$SOURCE_PR:$ORPHAN:$REPLACEMENT"',workflow)
+        self.assertEqual(len(M.SUPPORTED_CASES),9)
+
     def test_version_is_exact(self):
         self.assertEqual(M.version('20260817150944'),'20260817150944')
         for bad in ('', '123', '2026081715094x', '202608171509440'):
@@ -18,8 +24,6 @@ class Tests(unittest.TestCase):
             'replacement_version':'20260825110813',
             'orphan_run_head':'8db5074d814118311269d0d3ac04eb2f3ad40928',
         })
-        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
-        self.assertIn('1439:1488:1495:20260825102716:20260825110813) ;;',workflow)
 
     def test_issue_1422_recovery_tuple_and_evidence_are_narrowly_supported(self):
         case=M.SUPPORTED_CASES[(1422,1423,1424)]
@@ -33,8 +37,6 @@ class Tests(unittest.TestCase):
             'preview_artifact_digest':'sha256:a2b4cf00749dc7ee7d8db10290650612c63fd5d15ed5e9c3ae6f60d7b58c3be2',
             'merged_source':True,
         })
-        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
-        self.assertIn('1422:1423:1424:20260824150630:20260824172136) ;;',workflow)
 
     def test_issue_1422_evidence_pins_refuse_substitution(self):
         case=M.SUPPORTED_CASES[(1422,1423,1424)]
@@ -62,8 +64,6 @@ class Tests(unittest.TestCase):
             'issue_state':'open',
             'claim_state':'closed',
         })
-        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
-        self.assertIn('1615:1636:1637:20260827031236:20260827095753) ;;',workflow)
 
     def test_issue_1615_evidence_pins_refuse_substitution(self):
         case=M.SUPPORTED_CASES[(1615,1636,1637)]
@@ -89,9 +89,6 @@ class Tests(unittest.TestCase):
             'preview_artifact_id':9656250972,
             'preview_artifact_digest':'sha256:ec03dc67ce845c6db231a56555803d1daddd6869fc61019ccd89f3f27f6878ce',
         })
-        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
-        self.assertIn('1658:1659:1660:20260827134155:20260827214517) ;;',workflow)
-        self.assertNotIn('1658:1659:1660:20260827134155:20260827171526) ;;',workflow)
 
     def test_issue_1658_evidence_pins_refuse_substitution(self):
         case=M.SUPPORTED_CASES[(1658,1659,1660)]
@@ -119,8 +116,6 @@ class Tests(unittest.TestCase):
             'issue_state':'closed',
             'claim_state':'closed',
         })
-        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
-        self.assertIn('1722:1747:1748:20260828113920:20260830013942) ;;',workflow)
 
     def test_issue_1722_evidence_pins_refuse_substitution(self):
         case=M.SUPPORTED_CASES[(1722,1747,1748)]
@@ -145,11 +140,6 @@ class Tests(unittest.TestCase):
             'issue_state':'open',
             'claim_state':'open',
         })
-        workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
-        self.assertIn('1467:1580:1585:20260827183106:20260827183106) ;;',workflow)
-        # The same-version inner guard must name this version, or the YAML step refuses
-        # the reset before Python ever sees it.
-        self.assertIn('case "$ORPHAN" in 20260824004025|20260827183106) ;;',workflow)
 
     def test_issue_1467_evidence_pins_refuse_substitution(self):
         case=M.SUPPORTED_CASES[(1467,1580,1585,'20260827183106','20260827183106')]

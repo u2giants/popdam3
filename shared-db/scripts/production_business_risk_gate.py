@@ -520,6 +520,10 @@ PREVIEW_PRODUCER_PATHS = (
     # reused, so preview proof must bind their exact bytes.
     "config/orchestrator-evidence-schema-v1.json",
     "config/orchestrator-global-invalidators-v1.json",
+    # Governed preview-ledger reconciliation reads this reviewed manifest to
+    # select the exact issue/claim/source/orphan/replacement tuple. Bind those
+    # bytes to the same exact-main producer proof as the workflow and tool.
+    "config/preview-ledger-orphan-reconciliations.json",
     # READ, NOT EXECUTED -- and therefore invisible to the executed-closure
     # walk, which follows invocations and imports. The Supabase CLI reads this
     # file on every `link`, `migration list` and `db push` the preview job runs,

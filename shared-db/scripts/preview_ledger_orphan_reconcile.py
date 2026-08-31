@@ -18,83 +18,24 @@ class Refusal(RuntimeError):
     pass
 
 
-SUPPORTED_CASES = {
-    (1090, 1100, 1108): {
-        "mode": "replacement_already_applied",
-    },
-    (1211, 1371, 1372): {
-        "mode": "replacement_pending",
-        "orphan_version": "20260824002102",
-        "replacement_version": "20260824004025",
-        "orphan_run_head": "24a39f3f66ff26a8eee825b4acf54531a128f654",
-    },
-    (1211, 1371, 1372, "20260824004025", "20260824004025"): {
-        "mode": "rehearsal_reset",
-        "original_run_head": "88ebd0272a163d32aefe748d59c7096c8fe54d0e",
-    },
-    (1467, 1580, 1585, "20260827183106", "20260827183106"): {
-        "mode": "rehearsal_reset",
-        "original_run_head": "4355d0567de4bf9168f5701efc7107215ee386f3",
-        "preview_run_id": 33106059012,
-        "preview_artifact_id": 9660512462,
-        "preview_artifact_digest": "sha256:308962bcc35231b9c1d9187761822428ae34d89980c145baff9394d80dde7c7a",
-        "issue_state": "open",
-        "claim_state": "open",
-    },
-    (1422, 1423, 1424): {
-        "mode": "replacement_pending",
-        "orphan_version": "20260824150630",
-        "replacement_version": "20260824172136",
-        "orphan_run_head": "12f104735379881e6ff90a00b090a65ab9e8d370",
-        "preview_run_id": 32746510664,
-        "preview_artifact_id": 9527303479,
-        "preview_artifact_digest": "sha256:a2b4cf00749dc7ee7d8db10290650612c63fd5d15ed5e9c3ae6f60d7b58c3be2",
-        "merged_source": True,
-    },
-    (1439, 1488, 1495): {
-        "mode": "replacement_pending",
-        "orphan_version": "20260825102716",
-        "replacement_version": "20260825110813",
-        "orphan_run_head": "8db5074d814118311269d0d3ac04eb2f3ad40928",
-    },
-    (1615, 1636, 1637): {
-        "mode": "byte_identical_rename",
-        "orphan_version": "20260827031236",
-        "replacement_version": "20260827095753",
-        "orphan_run_head": "9f0753c89d3bf1e64b52877400098f3cd086a9ea",
-        "preview_run_id": 33059235415,
-        "preview_artifact_id": 9640989399,
-        "preview_artifact_digest": "sha256:d41f5cc6250eb783b4e17399e3927cd9ada32ac26a12adcc8124a1f5d3262d03",
-        "merged_source": True,
-        "issue_state": "open",
-        "claim_state": "closed",
-    },
-    (1658, 1659, 1660): {
-        "mode": "replacement_pending",
-        "orphan_version": "20260827134155",
-        "replacement_version": "20260827214517",
-        "orphan_run_head": "b49a5665060fcc9a100f12a096460ea44a30451c",
-        # The apply was dispatched from main against the PR commit, so the run head is
-        # the workflow definition commit and the applied source is this commit. Older
-        # cases dispatched from the branch itself, where the two are the same sha.
-        "orphan_commit_sha": "d15a69a825cbf0d365b1ffac825a2db4c22db63b",
-        "preview_run_id": 33095556822,
-        "preview_artifact_id": 9656250972,
-        "preview_artifact_digest": "sha256:ec03dc67ce845c6db231a56555803d1daddd6869fc61019ccd89f3f27f6878ce",
-    },
-    (1722, 1747, 1748): {
-        "mode": "byte_identical_rename",
-        "orphan_version": "20260828113920",
-        "replacement_version": "20260830013942",
-        "orphan_run_head": "4f1e2adb4d964f8f431efdaa0055fcdd96e71638",
-        "preview_run_id": 33189683651,
-        "preview_artifact_id": 9693229856,
-        "preview_artifact_digest": "sha256:2a466d1a0163a276a937e28f9af5eff710096e62ec9e7ddf7dda38fac41ef49a",
-        "merged_source": True,
-        "issue_state": "closed",
-        "claim_state": "closed",
-    },
-}
+def load_supported_cases() -> dict:
+    manifest = Path(__file__).resolve().parents[1] / "config" / "preview-ledger-orphan-reconciliations.json"
+    data = read_json(manifest)
+    if data.get("schema") != "shared-db-preview-ledger-orphan-reconciliations/v1" or not isinstance(data.get("cases"), list):
+        raise Refusal("preview ledger reconciliation manifest has an unsupported schema")
+    result = {}
+    for raw in data["cases"]:
+        case = dict(raw)
+        try:
+            key = (int(case.pop("issue")), int(case.pop("claim")), int(case.pop("source_pr")))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise Refusal("preview ledger reconciliation manifest has a malformed identity") from exc
+        if "orphan_version" in case and "replacement_version" in case and case.get("mode") == "rehearsal_reset":
+            key += (case.pop("orphan_version"), case.pop("replacement_version"))
+        if key in result:
+            raise Refusal("preview ledger reconciliation manifest contains a duplicate identity")
+        result[key] = case
+    return result
 
 
 def version(value: str) -> str:
@@ -108,6 +49,9 @@ def read_json(path: Path):
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise Refusal(f"unreadable JSON evidence: {path.name}") from exc
+
+
+SUPPORTED_CASES = load_supported_cases()
 
 
 def git(repo: Path, *args: str) -> str:
