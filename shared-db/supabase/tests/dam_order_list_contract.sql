@@ -4,7 +4,9 @@
 -- Covers migrations 20260810010000_popdam_order_list_contract.sql and
 --   20260810060000_popdam_order_list_source_pair_nulls_distinct.sql and
 --   20260810100000_link_dam_order_line_cross_item_ambiguity.sql and
---   20260818141220_popdam_bulk_order_line_relink.sql.
+--   20260818141220_popdam_bulk_order_line_relink.sql and
+--   20260831045020_popdam_orderlist_input_only_write_contract.sql (issue #1772), which
+--   narrowed the write whitelists and is why the payloads below use input fields only.
 --
 -- HOW TO RUN
 --   Against PREVIEW rjyboqwcdzcocqgmsyel ONLY, as the migration owner role:
@@ -467,25 +469,27 @@ begin
   -- ------------------------------------------------- 1. create, and what it refuses --
   select public.create_dam_order(
     jsonb_build_object(
+      -- status / sent_po_date / close_tracking are AUTOMATIC columns and stopped being
+      -- writable through this RPC in 20260831045020 (issue #1772). Passing one here now
+      -- raises 42501, which is the contract, not a regression.
       'production_order_number', 'TEST-PO-0001',
-      'status', 'Open',
       'company_id', v_cust,
-      'sent_po_date', '2026-01-15',
-      'close_tracking', false,
       'metadata', jsonb_build_object('ordering_company', 'POP')
     ),
     jsonb_build_array(
-      jsonb_build_object('line_number','1','sku',' NCV3SP1 ','quantity_ordered',10,
+      -- line_number is DERIVED from position since 20260831045020; these four lines
+      -- still land as '1'..'4' because they are given in that order.
+      jsonb_build_object('sku',' NCV3SP1 ','quantity_ordered',10,
                          'source_style_type','licensed','customer_po_number','CPO-1',
                          'metadata', jsonb_build_object('order_list_snapshot',
                             jsonb_build_object('sku','NCV3SP1','description','Snapshot description',
                                                'license_status','Approved','style_type','licensed',
                                                'source_row','65'))),
-      jsonb_build_object('line_number','2','sku','BFC02GABB','quantity_ordered',5,
+      jsonb_build_object('sku','BFC02GABB','quantity_ordered',5,
                          'source_style_type','generic'),
-      jsonb_build_object('line_number','3','sku','DUPSKU1','quantity_ordered',7,
+      jsonb_build_object('sku','DUPSKU1','quantity_ordered',7,
                          'source_style_type','licensed'),
-      jsonb_build_object('line_number','4','sku','NOSUCHSKU','quantity_ordered',1,
+      jsonb_build_object('sku','NOSUCHSKU','quantity_ordered',1,
                          'source_style_type','licensed')
     )
   ) into v_order;
@@ -642,7 +646,9 @@ begin
   end;
 
   begin
-    perform public.create_dam_order(jsonb_build_object('status','Open'));
+    -- company_id is writable, so the refusal below can only be the missing
+    -- production_order_number -- not a whitelist rejection of the other key.
+    perform public.create_dam_order(jsonb_build_object('company_id', v_cust));
     v_fail := v_fail + 1; raise notice 'FAIL create_dam_order accepted a missing production_order_number';
   exception when check_violation then
     v_pass := v_pass + 1;
@@ -792,11 +798,29 @@ begin
   if v_n = 12 then v_pass := v_pass + 1;
   else v_fail := v_fail + 1; raise notice 'FAIL voiding destroyed lines (% of 12 remain)', v_n; end if;
 
-  -- A partial patch must not blank fields it did not mention.
-  perform public.update_dam_order(v_order, jsonb_build_object('mbl','MBL-123'), '[]'::jsonb);
-  if exists (select 1 from plm.production_order where id = v_order and status = 'Open' and mbl = 'MBL-123')
+  -- A partial patch must not blank fields it did not mention. `mbl` was used here until
+  -- 20260831045020 made it non-writable; void_reason is the writable field now, and the
+  -- unmentioned fields it must not disturb are company_id and voided_at.
+  perform public.update_dam_order(v_order, jsonb_build_object('void_reason','contract test 2'), '[]'::jsonb);
+  if exists (select 1 from plm.production_order
+              where id = v_order and void_reason = 'contract test 2'
+                and company_id = v_cust and voided_at is not null)
   then v_pass := v_pass + 1;
   else v_fail := v_fail + 1; raise notice 'FAIL a partial patch blanked an unmentioned field'; end if;
+
+  -- And an automatic header field is refused outright (issue #1772).
+  begin
+    perform public.update_dam_order(v_order, jsonb_build_object('mbl','MBL-123'), '[]'::jsonb);
+    v_fail := v_fail + 1; raise notice 'FAIL update_dam_order accepted the automatic field mbl';
+  exception when insufficient_privilege then v_pass := v_pass + 1;
+  end;
+
+  -- The Import PO # is creation-only.
+  begin
+    perform public.update_dam_order(v_order, jsonb_build_object('production_order_number','TEST-PO-9999'), '[]'::jsonb);
+    v_fail := v_fail + 1; raise notice 'FAIL update_dam_order accepted production_order_number';
+  exception when insufficient_privilege then v_pass := v_pass + 1;
+  end;
 
   -- A line patch must belong to the order it names.
   begin

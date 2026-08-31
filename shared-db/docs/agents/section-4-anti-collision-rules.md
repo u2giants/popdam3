@@ -256,6 +256,18 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    Neither is overflow. If every eligible reviewer is busy, the allocator records an ordered
    `review-wait`; it does not duplicate an assignment or invent availability.
 
+   A reviewer that is truthfully unusable for one pull request is excluded with
+   `--exclude-reviewer --issue <issue> --pr <pr> --reviewer <name> --reason
+   <already-reviewed|independence-conflict|terminal-unavailable> --evidence-sha
+   <durable-assignment-or-replacement-sha>`. The exclusion is immutable,
+   PR-local, requires an existing assignment or replacement for the same
+   reviewer, and releases that exact active lease when present. It does not
+   create a failure record. New heads skip the reviewer; if exclusions and live
+   leases consume the roster, assignment refuses loudly and names each durable
+   reason. To continue the same head after excluding slot N, assign the next
+   unused `--review-slot`; the exact-head gate accepts that ordinary assignment
+   and no false failure is recorded. Never use this to shop for a preferred verdict.
+
    **Grok's in-flight lock is PER REPOSITORY, not global.** `ai-grok-review`
    allows one live Grok review at a time *in shared-db*; it does not cap Grok
    across repositories. Five repositories with work can run five Grok reviews
