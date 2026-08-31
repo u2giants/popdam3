@@ -52,6 +52,11 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 class ThroughputSequenceContractTests(unittest.TestCase):
+    def test_popdam_query_expansion_rows_contract_is_exact(self):
+        sql = CATALOG_CONTRACTS["popdam_query_expansion_rows_v1"]
+        self.assertIn("to_regprocedure('public.expand_dam_search_queries(text)')", sql)
+        self.assertIn("p.prorows = 32", sql)
+
     def test_sequence_contract_compares_next_value_with_live_table_maximum(self):
         sql = CATALOG_CONTRACTS["dflow_sequence_ceilings_v1"]
         self.assertIn("is_called then last_value + 1", sql)
@@ -1679,6 +1684,23 @@ class BehavioralSidecarTests(unittest.TestCase):
         self.assertFalse(any(name.startswith("pg_temp.") for name in targets.functions))
         self.assertTrue(targets.is_empty())
         self.assertIn("final #1427 contract active", sql)
+
+    def test_real_1703_rows_sidecar_is_hash_bound_and_catalog_only(self):
+        version = "20260831104325"
+        migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))
+        checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+        targets = derive_targets({version: migration}, [version])
+        sql = build_behavior_sql(checks)
+
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]["kind"], "catalog_contract")
+        self.assertEqual(
+            checks[0]["migration_sha256"],
+            "4da12c32355833d33d80902483d3ec75197fd803b030dcb06a1be1db6aa21aa4",
+        )
+        self.assertTrue(targets.is_empty())
+        self.assertIn("expand_dam_search_queries(text)", sql)
+        self.assertIn("p.prorows = 32", sql)
 
     def test_real_1732_sidecar_is_hash_bound_catalog_only_and_exact_shape(self):
         version = "20260828021051"

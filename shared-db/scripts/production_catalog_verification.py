@@ -843,6 +843,11 @@ CATALOG_CONTRACTS = {
     "scraped_properties_targeted_submission_label_v1": SCRAPED_PROPERTIES_TARGETED_SUBMISSION_LABEL_CONTRACT,
     "dflow_sequence_ceilings_v1": DFLOW_SEQUENCE_CEILINGS_CONTRACT,
     "popdam_forward_recovery_v1": POPDAM_FORWARD_RECOVERY_CONTRACT,
+    "popdam_query_expansion_rows_v1": """
+      (select p.prorows = 32
+        from pg_proc p
+        where p.oid = to_regprocedure('public.expand_dam_search_queries(text)'))
+    """,
     "coco_owner_ruling_v1": """
       case when to_regclass('core.taxonomy_owner_ruling') is null then true else
         cardinality(xpath('/table/row', query_to_xml(

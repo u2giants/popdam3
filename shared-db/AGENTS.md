@@ -23,6 +23,8 @@ and dissemination process is
 
 Before interpreting `full_item_master.csv`, changing item-description parsing, or reporting historical MG match counts, read [`docs/item-description-mg-classification-process.md`](docs/item-description-mg-classification-process.md) and the completed [`plan_mg_taxonomy_three_axis_repair.md`](plan_mg_taxonomy_three_axis_repair.md). The implemented method separates MG01 physical form, MG02's family-specific subtype or material, and MG03 explicit embellishment. It validates newer codes independently at each depth, builds three independent post-May-13 maps, and matches historical items from three axes to two to one. Missing embellishment is unreadable, not plain; invalid child evidence never erases a valid parent; and a failed full-key match is never an MG01 failure. The older `plan_item_description_mg_taxonomy_repair.md` is retained as superseded history.
 
+The guarded row-application work is planned in [`plan_historical_mg_reclassification_apply.md`](plan_historical_mg_reclassification_apply.md). Read its STATUS table first. It permits no preview or production write without a new explicit authorization, applies only complete live-qualified triplets in its first batch, keeps private artifacts out of this public repo, and leaves the May 14 cutoff in place until its exhaustive live-population gate passes.
+
 ## Active contracts and implementation plans
 
 - PopDAM OrderList linked to Master Data: [`plan_popdam_order_list.md`](plan_popdam_order_list.md). Read its STATUS table first. Do not re-derive or re-plan completed steps.

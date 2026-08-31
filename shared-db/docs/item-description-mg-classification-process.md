@@ -10,6 +10,8 @@ The process does not redefine, repair, renumber, or overwrite MG01, MG02, MG03, 
 
 The implementation is [`hierarchical_item_taxonomy.py`](verification/item-mg-reclassification-20260814/hierarchical_item_taxonomy.py). Its tests are [`test_hierarchical_item_taxonomy.py`](verification/item-mg-reclassification-20260814/test_hierarchical_item_taxonomy.py).
 
+Applying approved results is a separate, still-open project governed by [`../plan_historical_mg_reclassification_apply.md`](../plan_historical_mg_reclassification_apply.md). The analysis workbook is not a production update manifest: every writable candidate must be rejoined to one live `item_id_pk`, requalified against its active division hierarchy, rehearsed on preview, backed up, and explicitly authorized for production. The source spreadsheets, row outputs, and generated workbooks were relocated to the private `u2giants/licensor-source-data` repository; do not copy them back into this public repository.
+
 ## Date boundary and trusted evidence
 
 The categorization method changed after business closed on May 13, 2025.
@@ -121,18 +123,21 @@ Generated outputs contain licensed item descriptions and belong in the ignored p
 From the repository root on this Windows workstation:
 
 ```powershell
-$python = 'C:\Users\ahazan2\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+$python = 'C:\Users\ahazan\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
 $folder = 'docs\verification\item-mg-reclassification-20260814'
+$privateRoot = 'C:\repos\licensor-source-data\shared-db-relocated\2026-08-30'
+$privateSource = Join-Path $privateRoot 'docs\verification\item-mg-reclassification-20260814'
 & $python "$folder\hierarchical_item_taxonomy.py" `
-  "$folder\data\full_item_master.csv" `
-  --reference 'docs\verification\coldlion-licensor-property-phase3-20260725\designflow-fresh-edges.json' `
+  "$privateSource\data\full_item_master.csv" `
+  --reference (Join-Path $privateRoot 'docs\verification\coldlion-licensor-property-phase3-20260725\designflow-fresh-edges.json') `
+  --dictionary "$privateSource\product_type_dictionary.csv" `
   --output '.private\item-mg-hierarchical'
 Push-Location $folder
 & $python -m unittest test_hierarchical_item_taxonomy.py -v
 Pop-Location
 ```
 
-The interpretation reference is `docs/verification/item-mg-reclassification-20260814/data/MerchGroup_Rework.xlsx`.
+The interpretation reference is the private preserved path `shared-db-relocated/2026-08-30/docs/verification/item-mg-reclassification-20260814/data/MerchGroup_Rework.xlsx` inside `u2giants/licensor-source-data`.
 
 ## Review and maintenance gate
 
