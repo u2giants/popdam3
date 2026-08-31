@@ -1171,10 +1171,17 @@ Two things worth carrying forward. **Fewer buffers is not automatically faster**
 *slower* cold (1,481 ms), because a plain index scan turned a prefetched
 sequential scan into 3,910 random reads into a bloated heap. Only the covering
 index, which removed the heap visits entirely, converted the buffer saving into
-a time saving. And **`plm.style_tracker_item_bridge` is still ~5x bloated**
-(132 MB of heap for ~24 MB of live data, `n_dead_tup = 0`, so autovacuum cannot
-reclaim it — it needs a repack). The index-only plan means PopDAM no longer
-touches that heap, but any other query against the table still pays for it.
+a time saving.
+
+**Correction, 2026-08-30:** this entry briefly claimed
+`plm.style_tracker_item_bridge` was ~5x bloated and that autovacuum could not
+reclaim it. That was read off a single `n_dead_tup = 0` sample taken before
+autovacuum had run. It ran on 2026-08-29 and took the heap from 132 MB to
+**53 MB** against ~25 MB of live data — about 2.1x, which is ordinary. No
+repack is needed. The durable point is the one that survived: these tables do
+**0% HOT updates** (`fillfactor` is the default 100), so every update rewrites
+every index entry, which is what inflates them in the first place. Tracked in
+shared-db #1966, not urgent, and it no longer affects `/orders`.
 
 **Measure this class of problem with `explain (analyze, buffers)` and read the
 buffer counts; "it must be RLS" cost a
