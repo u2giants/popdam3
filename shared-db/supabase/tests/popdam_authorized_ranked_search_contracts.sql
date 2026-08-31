@@ -114,6 +114,14 @@ begin
      or position('r.asset_id = a.id or r.style_group_id = a.style_group_id' in v_definition) > 0 then
     raise exception 'ranked search restored the production-timeout OR join';
   end if;
+  if position('select f.id, f.style_group_id, f.file_type, f.status,' in v_definition) = 0
+     or position('f.workflow_status, f.stage, f.is_licensed' in v_definition) = 0 then
+    raise exception 'visible assets must retain the explicit seven-column projection';
+  end if;
+  if position('select f.*' in v_definition) > 0
+     or position('select distinct a.*' in v_definition) > 0 then
+    raise exception 'ranked search restored wide visibility or redundant wide deduplication';
+  end if;
   if not exists (
     select 1 from pg_proc
     where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'::regprocedure
@@ -123,10 +131,12 @@ begin
   end if;
   select pg_get_functiondef('public.get_filter_counts(jsonb)'::regprocedure)
     into v_definition;
-  if position('get_effective_filter_counts_unchecked_1703' in v_definition) = 0
-     or position('get_filter_counts_unchecked_1703' in v_definition) = 0
+  if (length(v_definition) - length(replace(v_definition,
+       'get_effective_filter_counts_unchecked_1703', '')))
+       / length('get_effective_filter_counts_unchecked_1703') <> 1
+     or position('get_filter_counts_unchecked_1703' in v_definition) > 0
      or position('require_dam_access' in v_definition) = 0 then
-    raise exception 'legacy counts must preserve the empty fast path and delegate filtered requests';
+    raise exception 'legacy counts must delegate exactly once to effective counts behind the DAM gate';
   end if;
 end;
 $$;
