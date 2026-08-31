@@ -16,6 +16,7 @@ import { OrderListViewsMenu } from "@/components/orders/OrderListViewsMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
+import { useDamCustomers } from "@/hooks/useDamCustomers";
 import {
   clearOrderListCountCache,
   fetchOrderListBlock,
@@ -45,6 +46,7 @@ export default function OrdersPage() {
   const savedViewsQuery = useOrderListSavedViews(user?.id);
   const candidatesQuery = useOrderListLinkCandidates(relinkRow);
   const statusCountsQuery = useOrderListStatusCounts(authReady);
+  const customersQuery = useDamCustomers();
 
   /** Reloads the rows the grid is showing, without re-reading the whole list. */
   const refreshRows = useCallback(() => {
@@ -279,6 +281,7 @@ export default function OrdersPage() {
           mode={editor.mode}
           row={editor.row}
           isSaving={createOrder.isPending || updateOrder.isPending}
+          customerOptions={customersQuery.data ?? []}
           onClose={() => setEditor(null)}
           onSetVoided={editor.mode === "edit" ? handleSetVoided : undefined}
           onSubmit={({ order, line }) => {

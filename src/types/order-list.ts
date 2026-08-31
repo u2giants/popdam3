@@ -110,22 +110,10 @@ export type OrderListRow = {
 
 /** Fields on the order header that `public.update_dam_order` accepts as a patch. */
 export type OrderHeaderPatch = Partial<{
+  /** Creation identity only; the update RPC refuses changes after creation. */
   production_order_number: string | null;
-  /** The RPC calls this `status`; the view exposes it as `order_status`. */
-  status: string | null;
-  order_date: string | null;
-  sent_po_date: string | null;
-  seal_container_date: string | null;
-  vendor_delivery_date: string | null;
-  requested_ship_date: string | null;
-  actual_ship_date: string | null;
-  booking_state: string | null;
-  etd: string | null;
-  eta: string | null;
-  warehouse_date: string | null;
-  container_booking_group: string | null;
-  mbl: string | null;
-  close_tracking: boolean | null;
+  /** Canonical Customer selection; never free-text customer data. */
+  company_id: string | null;
   /**
    * Corrections void instead of deleting: there is deliberately no delete RPC, so
    * business history survives. `true` stamps `voided_at`/`voided_by`, `false`
@@ -137,28 +125,17 @@ export type OrderHeaderPatch = Partial<{
 
 /** Fields on an order line that `public.update_dam_order` accepts as a patch. */
 export type OrderLinePatch = Partial<{
-  line_number: string | null;
-  /** The RPC calls this `status`; the view exposes it as `line_status`. */
-  status: string | null;
   order_person: string | null;
   order_type: string | null;
-  customer_suffix: string | null;
   customer_po_number: string | null;
   assortment_id: string | null;
   sku: string | null;
   quantity_ordered: number | null;
-  quantity_shipped: number | null;
-  unit_cost: number | null;
   order_depth_inches: number | null;
   case_pack: number | null;
-  cases_reported: number | null;
   ship_to: string | null;
   start_ship_date: string | null;
   cancel_date: string | null;
-  cargo_forecast_date: string | null;
-  test_report: string | null;
-  professional_photos: string | null;
-  contractual_sample_reorder: boolean | null;
   source_style_type: string | null;
 }>;
 

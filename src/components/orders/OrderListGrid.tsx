@@ -134,6 +134,8 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
         ),
       },
       ...ORDER_LIST_COLUMNS.map((column) => {
+        const source = column.source ?? (column.kind === "diagnostic" ? "helper" : "automatic");
+        const sourceLabel = source === "input" ? "User input" : source === "helper" ? "Derived helper" : "Automatic / linked";
         const base: ColDef<OrderListRow> = {
           colId: column.field,
           field: column.field as ColDef<OrderListRow>["field"],
@@ -147,6 +149,19 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           filter: filterFor(column),
           valueFormatter: valueFormatterFor(column),
           editable: Boolean(column.editable),
+          headerTooltip: `${sourceLabel}. ${column.editable ? "Double-click to edit." : "Read-only."}`,
+          headerClass:
+            source === "input"
+              ? "bg-blue-200 text-blue-950 dark:bg-blue-900/70 dark:text-blue-100"
+              : source === "helper"
+                ? "bg-slate-300 text-slate-900 dark:bg-slate-700 dark:text-slate-100"
+                : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+          cellClass:
+            source === "input"
+              ? "bg-blue-50 dark:bg-blue-950/30"
+              : source === "helper"
+                ? "bg-slate-200/70 dark:bg-slate-700/45"
+                : "bg-slate-50/70 dark:bg-slate-800/35",
         };
 
         if (column.kind === "link") {
@@ -164,8 +179,8 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           return {
             ...base,
             editable: false,
-            headerTooltip: "Read-only. Comes from PopDAM Master Data through the linked item.",
-            cellClass: "bg-muted/40 italic",
+            headerTooltip: "Automatic / linked. Read-only; comes from PopDAM Master Data through the linked item.",
+            cellClass: "bg-slate-50/70 italic dark:bg-slate-800/35",
             cellRenderer: masterDataRenderer(column.field),
           };
         }

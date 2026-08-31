@@ -15,24 +15,19 @@ import type { OrderHeaderPatch, OrderLinePatch, OrderListRow } from "@/types/ord
 
 // `field` is the view column, which is what a row carries. It is translated to
 // the RPC's patch key by `patchKeyFor` when the form is submitted.
-type HeaderFieldSpec = { field: string; label: string; type: "text" | "date" };
 type LineFieldSpec = { field: string; label: string; type: "text" | "date" | "number" };
 
-const HEADER_FIELDS: HeaderFieldSpec[] = [
-  { field: "production_order_number", label: "Import PO #", type: "text" },
-  { field: "order_status", label: "PO Status", type: "text" },
-  { field: "order_date", label: "Order Date", type: "date" },
-  { field: "requested_ship_date", label: "Requested Ship", type: "date" },
-  { field: "etd", label: "ETD", type: "date" },
-  { field: "eta", label: "ETA", type: "date" },
-];
-
 const LINE_FIELDS: LineFieldSpec[] = [
+  { field: "order_person", label: "Order Person", type: "text" },
+  { field: "order_type", label: "Order Type", type: "text" },
   { field: "sku", label: "Style #", type: "text" },
   { field: "source_style_type", label: "Licensed / Generic", type: "text" },
   { field: "customer_po_number", label: "Customer PO", type: "text" },
+  { field: "assortment_id", label: "Assortment ID", type: "text" },
+  { field: "order_depth_inches", label: "Order Depth (in)", type: "number" },
   { field: "quantity_ordered", label: "Quantity", type: "number" },
   { field: "case_pack", label: "Case Pack", type: "number" },
+  { field: "ship_to", label: "Ship To", type: "text" },
   { field: "start_ship_date", label: "Start Ship", type: "date" },
   { field: "cancel_date", label: "Cancel", type: "date" },
 ];
@@ -54,11 +49,13 @@ type Props = {
   onClose: () => void;
   onSubmit: (payload: { order: OrderHeaderPatch; line: OrderLinePatch }) => void;
   onSetVoided?: (request: OrderVoidRequest) => void;
+  customerOptions?: Array<{ id: string; label: string }>;
 };
 
 function initialValues(row: OrderListRow | null) {
   const values: Record<string, string> = {};
-  for (const spec of HEADER_FIELDS) values[spec.field] = row ? String((row as any)[spec.field] ?? "") : "";
+  values.production_order_number = row ? String(row.production_order_number ?? "") : "";
+  values.company_id = row ? String(row.company_id ?? "") : "";
   for (const spec of LINE_FIELDS) values[spec.field] = row ? String((row as any)[spec.field] ?? "") : "";
   return values;
 }
@@ -68,7 +65,7 @@ function initialValues(row: OrderListRow | null) {
  * bad value is refused here rather than turning into a database error -- or, worse,
  * into a silent `null` that erases the field it was meant to change.
  */
-export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit, onSetVoided }: Props) {
+export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit, onSetVoided, customerOptions = [] }: Props) {
   const [values, setValues] = useState<Record<string, string>>(() => initialValues(row));
   const [error, setError] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("");
@@ -93,9 +90,8 @@ export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit, onSe
     const order: OrderHeaderPatch = {};
     const line: OrderLinePatch = {};
     try {
-      for (const spec of HEADER_FIELDS) {
-        (order as any)[patchKeyFor(spec.field)] = coerceFieldValueStrict(spec.field, values[spec.field]);
-      }
+      if (mode === "create") order.production_order_number = coerceFieldValueStrict("production_order_number", values.production_order_number) as string | null;
+      order.company_id = coerceFieldValueStrict("company_id", values.company_id) as string | null;
       for (const spec of LINE_FIELDS) {
         (line as any)[patchKeyFor(spec.field)] = coerceFieldValueStrict(spec.field, values[spec.field]);
       }
@@ -140,18 +136,31 @@ export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit, onSe
         <div className="grid gap-6 md:grid-cols-2">
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Order</h3>
-            {HEADER_FIELDS.map((spec) => (
-              <label key={spec.field} className="block text-xs font-medium text-muted-foreground">
-                {spec.label}
+            {mode === "create" ? (
+              <label className="block text-xs font-medium text-muted-foreground">
+                Import PO #
                 <Input
-                  className="mt-1"
-                  type={spec.type === "date" ? "date" : "text"}
-                  value={values[spec.field] ?? ""}
-                  aria-label={spec.label}
-                  onChange={(event) => setValues((prev) => ({ ...prev, [spec.field]: event.target.value }))}
+                  className="mt-1 bg-amber-50 dark:bg-amber-950/30"
+                  value={values.production_order_number ?? ""}
+                  aria-label="Import PO #"
+                  onChange={(event) => setValues((prev) => ({ ...prev, production_order_number: event.target.value }))}
                 />
               </label>
-            ))}
+            ) : (
+              <p className="rounded-md bg-slate-100 px-3 py-2 text-sm dark:bg-slate-800">Import PO #: {row?.production_order_number}</p>
+            )}
+            <label className="block text-xs font-medium text-muted-foreground">
+              Customer
+              <select
+                className="mt-1 h-10 w-full rounded-md border border-input bg-blue-50 px-3 text-sm dark:bg-blue-950/30"
+                aria-label="Customer"
+                value={values.company_id ?? ""}
+                onChange={(event) => setValues((prev) => ({ ...prev, company_id: event.target.value }))}
+              >
+                <option value="">No customer</option>
+                {customerOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}
+              </select>
+            </label>
           </section>
 
           <section className="space-y-3">
@@ -160,7 +169,7 @@ export function OrderEditorDialog({ mode, row, isSaving, onClose, onSubmit, onSe
               <label key={spec.field} className="block text-xs font-medium text-muted-foreground">
                 {spec.label}
                 <Input
-                  className="mt-1"
+                  className={spec.field === "source_style_type" ? "mt-1 bg-amber-50 dark:bg-amber-950/30" : "mt-1 bg-blue-50 dark:bg-blue-950/30"}
                   type={spec.type === "date" ? "date" : spec.type === "number" ? "number" : "text"}
                   value={values[spec.field] ?? ""}
                   aria-label={spec.label}

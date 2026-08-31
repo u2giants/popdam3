@@ -54,11 +54,11 @@ describe("Order editor dialog", () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     const payload = onSubmit.mock.calls[0][0];
-    expect(payload.order.production_order_number).toBe("PO-1");
+    expect(payload.order.production_order_number).toBeUndefined();
+    expect(payload.order.company_id).toBeNull();
     expect(payload.line.quantity_ordered).toBe(48);
     expect(payload.line.sku).toBe("NCV3SP1");
-    // Blank optional dates clear rather than saving empty text.
-    expect(payload.order.eta).toBeNull();
+    expect(payload.order.eta).toBeUndefined();
   });
 
   it("shows the saving state instead of allowing a double submit", () => {
@@ -138,10 +138,10 @@ describe("Order editor dialog: void and restore", () => {
     // guard is exercised in `order-list-strict-values.test.ts` at the grid edge,
     // where free text really does reach the parser. Here we only prove the strict
     // wrapper did not break the ordinary save.
-    fireEvent.change(screen.getByLabelText("Order Date"), { target: { value: "2026-03-04" } });
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "24" } });
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(onSubmit.mock.calls[0][0].order.order_date).toBe("2026-03-04");
+    expect(onSubmit.mock.calls[0][0].line.quantity_ordered).toBe(24);
   });
 });

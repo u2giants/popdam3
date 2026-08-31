@@ -103,8 +103,9 @@ makes a slow count degrade honestly rather than kill the grid.
 
 - An order line points at a canonical `plm.item`. Master Data is reached through
   the style-to-item bridge. There is no second link to `style_tracker_rows`.
-- Master Data columns are **read-only** and visually marked. Order columns are
-  editable.
+- Column colors mirror the Google OrderList: blue is user input, light gray is
+  automatic/linked output, and dark gray is derived/helper output. Import PO #
+  is entered only when creating an order and is immutable afterward.
 - When a line has no link, the Master Data cells fall back to the immutable
   import snapshot and are labelled `at import`. A snapshot value is never shown
   as if it were current product truth.
@@ -119,6 +120,13 @@ makes a slow count degrade honestly rather than kill the grid.
   its status. That is deliberate: a human decision stays visible as one.
 
 ## Editing rules
+
+- Only the Google sheet's blue inputs are writable: Customer (canonical picker),
+  Order Person, Order Type, Customer PO, Assortment ID, Style #, Order Depth,
+  Quantity, Case Pack, Ship To, Start Ship, and Cancel. Automatic and helper
+  fields are blocked in both the grid and the database RPCs (shared-db #1772).
+- Licensed/Generic is a guarded matching override for resolving ambiguous Style
+  # links; it is not presented as a normal blue input.
 
 - **Editing an existing order** starts from the pencil in the pinned Edit column
   on each row. The editor dialog was previously reachable only through **New
@@ -167,8 +175,8 @@ Checked in the real app, signed in, against the preview database:
 - 24,010 lines listed, first rows visible immediately;
 - free-text search `NCV3SP1` returned 23 rows from the database;
 - column filter `Style # contains BFC02GABB` returned 1 row of 24,010;
-- a cell edit (PO Status) saved through `update_dam_order` and was confirmed in
-  the database, then reverted the same way;
+- a cell edit saved through `update_dam_order` and was confirmed in the database,
+  then reverted the same way (PO Status became read-only in shared-db #1772);
 - a manual relink of a licensed line saved through `link_dam_order_line` and the
   whole-dataset counts moved to `Linked to Master Data: 1`;
 - a saved view was created (60 columns of state) and deleted;

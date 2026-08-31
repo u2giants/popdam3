@@ -51,12 +51,12 @@ describe("OrderList strict value coercion", () => {
   });
 
   it("a grid edit with unreadable input throws instead of building an erasing patch", () => {
-    expect(() => buildOrderListEdit(row, "order_date", "not-a-date")).toThrow(/is not a date/i);
+    expect(() => buildOrderListEdit(row, "start_ship_date", "not-a-date")).toThrow(/is not a date/i);
     expect(() => buildOrderListEdit(row, "quantity_ordered", "ten")).toThrow(/is not a number/i);
   });
 
   it("a grid edit that clears a field still builds a null patch", () => {
-    expect(buildOrderListEdit(row, "order_date", "").orderPatch).toEqual({ order_date: null });
+    expect(buildOrderListEdit(row, "start_ship_date", "").linePatch).toEqual({ start_ship_date: null });
   });
 });
 

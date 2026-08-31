@@ -175,20 +175,10 @@ describe("OrderList value parsing", () => {
 });
 
 describe("OrderList edit diff", () => {
-  it("uses the RPC patch key, not the view column name, for status", () => {
-    const edit = buildOrderListEdit(row(), "order_status", "Shipped");
-    expect(edit.orderPatch).toEqual({ status: "Shipped" });
-    expect(buildOrderListEdit(row(), "line_status", "Cancelled").linePatch).toEqual({ status: "Cancelled" });
-  });
-
-  it("routes a header field to the order patch", () => {
-    const edit = buildOrderListEdit(row(), "etd", "2026-05-06");
-    expect(edit).toEqual({
-      orderId: "order-1",
-      orderLineId: "line-1",
-      orderPatch: { etd: "2026-05-06" },
-      linePatch: {},
-    });
+  it("refuses automatic header and line fields", () => {
+    expect(() => buildOrderListEdit(row(), "order_status", "Shipped")).toThrow(/not an editable/);
+    expect(() => buildOrderListEdit(row(), "etd", "2026-05-06")).toThrow(/not an editable/);
+    expect(() => buildOrderListEdit(row(), "line_status", "Cancelled")).toThrow(/not an editable/);
   });
 
   it("routes a line field to the line patch and coerces its type", () => {
@@ -262,6 +252,15 @@ describe("OrderList columns", () => {
   it("never makes a Master Data column editable", () => {
     const editableMasterData = ORDER_LIST_COLUMNS.filter((column) => column.kind === "masterData" && column.editable);
     expect(editableMasterData).toEqual([]);
+  });
+
+  it("makes only Google blue input columns editable", () => {
+    const editable = ORDER_LIST_COLUMNS.filter((column) => column.editable).map((column) => column.field).sort();
+    expect(editable).toEqual([
+      "assortment_id", "cancel_date", "case_pack", "customer_po_number", "order_depth_inches",
+      "order_person", "order_type", "quantity_ordered", "ship_to", "sku", "start_ship_date",
+    ].sort());
+    expect(ORDER_LIST_COLUMNS.filter((column) => column.editable && column.source !== "input")).toEqual([]);
   });
 
   it("declares no duplicate columns", () => {

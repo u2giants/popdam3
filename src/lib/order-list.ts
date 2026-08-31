@@ -250,55 +250,28 @@ export function parseOrderDate(value: unknown): string | null {
  * not a preference. `ordering_company` is deliberately absent: the RPC does not
  * accept it, so the column stays read-only.
  */
-export const ORDER_PATCH_KEYS: Record<string, string> = {
-  order_status: "status",
-  line_status: "status",
-};
+export const ORDER_PATCH_KEYS: Record<string, string> = {};
 
 export function patchKeyFor(field: string) {
   return ORDER_PATCH_KEYS[field] ?? field;
 }
 
-export const ORDER_HEADER_FIELDS = [
-  "production_order_number",
-  "order_status",
-  "order_date",
-  "sent_po_date",
-  "seal_container_date",
-  "vendor_delivery_date",
-  "requested_ship_date",
-  "actual_ship_date",
-  "booking_state",
-  "etd",
-  "eta",
-  "warehouse_date",
-  "container_booking_group",
-  "mbl",
-  "close_tracking",
-] as const;
+// Inline edits are intentionally limited to the Google sheet's blue inputs.
+// Customer uses a canonical picker in the dialog, and Import PO # is create-only.
+export const ORDER_HEADER_FIELDS = [] as const;
 
 export const ORDER_LINE_FIELDS = [
-  "line_number",
   "order_person",
   "order_type",
-  "customer_suffix",
   "customer_po_number",
   "assortment_id",
   "sku",
   "quantity_ordered",
-  "quantity_shipped",
-  "unit_cost",
   "order_depth_inches",
   "case_pack",
-  "cases_reported",
   "ship_to",
   "start_ship_date",
   "cancel_date",
-  "cargo_forecast_date",
-  "test_report",
-  "professional_photos",
-  "contractual_sample_reorder",
-  "line_status",
 ] as const;
 
 export type OrderHeaderField = (typeof ORDER_HEADER_FIELDS)[number];
@@ -472,6 +445,8 @@ export type OrderListColumn = {
   kind: "order" | "line" | "masterData" | "link" | "diagnostic";
   type?: "text" | "number" | "date" | "boolean";
   editable?: boolean;
+  /** Mirrors the Google sheet: blue is user input; gray is automatic/linked output. */
+  source?: "input" | "automatic" | "helper";
   hide?: boolean;
   pinned?: "left";
 };
@@ -483,56 +458,56 @@ export type OrderListColumn = {
  * Rarely used and PO-writing helper fields stay available through Columns.
  */
 export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
-  { field: "order_status", header: "PO Status", kind: "order", type: "text", editable: true, width: 130, pinned: "left" },
-  { field: "production_order_number", header: "Import PO #", kind: "order", type: "text", editable: true, width: 150, pinned: "left" },
+  { field: "order_status", header: "PO Status", kind: "order", source: "automatic", type: "text", width: 130, pinned: "left" },
+  { field: "production_order_number", header: "Import PO #", kind: "order", source: "helper", type: "text", width: 150, pinned: "left" },
   { field: "vendor_name", header: "Vendor", kind: "order", type: "text", width: 170 },
-  { field: "order_date", header: "Order Date", kind: "order", type: "date", editable: true, width: 130 },
-  { field: "sent_po_date", header: "Sent PO", kind: "order", type: "date", editable: true, width: 130 },
-  { field: "customer_name", header: "Customer", kind: "order", type: "text", width: 170 },
-  { field: "customer_po_number", header: "Customer PO", kind: "line", type: "text", editable: true, width: 150 },
-  { field: "sku", header: "Style #", kind: "line", type: "text", editable: true, width: 150 },
+  { field: "order_date", header: "Order Date", kind: "order", type: "date", width: 130 },
+  { field: "sent_po_date", header: "Sent PO", kind: "order", type: "date", width: 130 },
+  { field: "customer_name", header: "Customer", kind: "order", source: "input", type: "text", width: 170 },
+  { field: "customer_po_number", header: "Customer PO", kind: "line", source: "input", type: "text", editable: true, width: 150 },
+  { field: "sku", header: "Style #", kind: "line", source: "input", type: "text", editable: true, width: 150 },
   { field: "master_data_match_status", header: "Master Data Link", kind: "link", width: 210 },
   { field: "master_data_description", header: "Description (Master Data)", kind: "masterData", type: "text", width: 280 },
   { field: "master_data_license_status", header: "License Status (Master Data)", kind: "masterData", type: "text", width: 180 },
   { field: "master_data_licensor", header: "Licensor (Master Data)", kind: "masterData", type: "text", width: 170 },
   { field: "source_style_type", header: "Licensed / Generic", kind: "line", type: "text", width: 150 },
-  { field: "quantity_ordered", header: "Quantity", kind: "line", type: "number", editable: true, width: 120 },
-  { field: "case_pack", header: "Case Pack", kind: "line", type: "number", editable: true, width: 120 },
-  { field: "start_ship_date", header: "Start Ship", kind: "line", type: "date", editable: true, width: 130 },
-  { field: "cancel_date", header: "Cancel", kind: "line", type: "date", editable: true, width: 130 },
-  { field: "requested_ship_date", header: "Requested Ship", kind: "order", type: "date", editable: true, width: 150 },
-  { field: "actual_ship_date", header: "Actual Ship", kind: "order", type: "date", editable: true, width: 140 },
-  { field: "etd", header: "ETD", kind: "order", type: "date", editable: true, width: 120 },
-  { field: "eta", header: "ETA", kind: "order", type: "date", editable: true, width: 120 },
-  { field: "warehouse_date", header: "Warehouse", kind: "order", type: "date", editable: true, width: 135 },
-  { field: "container_booking_group", header: "Container / Booking", kind: "order", type: "text", editable: true, width: 175 },
-  { field: "mbl", header: "MBL", kind: "order", type: "text", editable: true, width: 140 },
-  { field: "close_tracking", header: "Close Tracking", kind: "order", type: "boolean", editable: true, width: 150 },
+  { field: "quantity_ordered", header: "Quantity", kind: "line", source: "input", type: "number", editable: true, width: 120 },
+  { field: "case_pack", header: "Case Pack", kind: "line", source: "input", type: "number", editable: true, width: 120 },
+  { field: "start_ship_date", header: "Start Ship", kind: "line", source: "input", type: "date", editable: true, width: 130 },
+  { field: "cancel_date", header: "Cancel", kind: "line", source: "input", type: "date", editable: true, width: 130 },
+  { field: "requested_ship_date", header: "Requested Ship", kind: "order", type: "date", width: 150 },
+  { field: "actual_ship_date", header: "Actual Ship", kind: "order", type: "date", width: 140 },
+  { field: "etd", header: "ETD", kind: "order", type: "date", width: 120 },
+  { field: "eta", header: "ETA", kind: "order", type: "date", width: 120 },
+  { field: "warehouse_date", header: "Warehouse", kind: "order", type: "date", width: 135 },
+  { field: "container_booking_group", header: "Container / Booking", kind: "order", type: "text", width: 175 },
+  { field: "mbl", header: "MBL", kind: "order", type: "text", width: 140 },
+  { field: "close_tracking", header: "Close Tracking", kind: "order", type: "boolean", width: 150 },
 
   // Available through the Columns panel, hidden by default.
-  { field: "line_number", header: "Line #", kind: "line", type: "text", editable: true, width: 110, hide: true },
-  { field: "order_person", header: "Order Person", kind: "line", type: "text", editable: true, width: 150, hide: true },
-  { field: "order_type", header: "Order Type", kind: "line", type: "text", editable: true, width: 140, hide: true },
-  { field: "customer_suffix", header: "Customer Suffix", kind: "line", type: "text", editable: true, width: 150, hide: true },
+  { field: "line_number", header: "Line #", kind: "line", type: "text", width: 110, hide: true },
+  { field: "order_person", header: "Order Person", kind: "line", source: "input", type: "text", editable: true, width: 150, hide: true },
+  { field: "order_type", header: "Order Type", kind: "line", source: "input", type: "text", editable: true, width: 140, hide: true },
+  { field: "customer_suffix", header: "Customer Suffix", kind: "line", type: "text", width: 150, hide: true },
   { field: "ordering_company", header: "Ordering Company", kind: "order", type: "text", width: 170, hide: true },
-  { field: "assortment_id", header: "Assortment ID", kind: "line", type: "text", editable: true, width: 150, hide: true },
+  { field: "assortment_id", header: "Assortment ID", kind: "line", source: "input", type: "text", editable: true, width: 150, hide: true },
   { field: "assortment_component_ordinal", header: "Assortment Component", kind: "line", type: "number", width: 180, hide: true },
-  { field: "quantity_shipped", header: "Quantity Shipped", kind: "line", type: "number", editable: true, width: 160, hide: true },
-  { field: "unit_cost", header: "Unit Cost", kind: "line", type: "number", editable: true, width: 130, hide: true },
-  { field: "order_depth_inches", header: "Order Depth (in)", kind: "line", type: "number", editable: true, width: 160, hide: true },
-  { field: "cases_reported", header: "Cases Reported", kind: "line", type: "number", editable: true, width: 155, hide: true },
-  { field: "ship_to", header: "Ship To", kind: "line", type: "text", editable: true, width: 150, hide: true },
-  { field: "cargo_forecast_date", header: "Cargo Forecast", kind: "line", type: "date", editable: true, width: 150, hide: true },
+  { field: "quantity_shipped", header: "Quantity Shipped", kind: "line", type: "number", width: 160, hide: true },
+  { field: "unit_cost", header: "Unit Cost", kind: "line", type: "number", width: 130, hide: true },
+  { field: "order_depth_inches", header: "Order Depth (in)", kind: "line", source: "input", type: "number", editable: true, width: 160, hide: true },
+  { field: "cases_reported", header: "Cases Reported", kind: "line", type: "number", width: 155, hide: true },
+  { field: "ship_to", header: "Ship To", kind: "line", source: "input", type: "text", editable: true, width: 150, hide: true },
+  { field: "cargo_forecast_date", header: "Cargo Forecast", kind: "line", type: "date", width: 150, hide: true },
   { field: "start_ship_raw", header: "Start Ship (raw)", kind: "diagnostic", type: "text", width: 150, hide: true },
   { field: "cancel_raw", header: "Cancel (raw)", kind: "diagnostic", type: "text", width: 150, hide: true },
   { field: "cargo_forecast_raw", header: "Cargo Forecast (raw)", kind: "diagnostic", type: "text", width: 170, hide: true },
-  { field: "seal_container_date", header: "Seal Container", kind: "order", type: "date", editable: true, width: 150, hide: true },
-  { field: "vendor_delivery_date", header: "Vendor Delivery", kind: "order", type: "date", editable: true, width: 155, hide: true },
-  { field: "booking_state", header: "Booking", kind: "order", type: "text", editable: true, width: 140, hide: true },
-  { field: "test_report", header: "Test Report", kind: "line", type: "text", editable: true, width: 150, hide: true },
-  { field: "professional_photos", header: "Professional Photos", kind: "line", type: "text", editable: true, width: 175, hide: true },
-  { field: "contractual_sample_reorder", header: "Contractual Sample Reorder", kind: "line", type: "boolean", editable: true, width: 210, hide: true },
-  { field: "line_status", header: "Line Status", kind: "line", type: "text", editable: true, width: 140, hide: true },
+  { field: "seal_container_date", header: "Seal Container", kind: "order", type: "date", width: 150, hide: true },
+  { field: "vendor_delivery_date", header: "Vendor Delivery", kind: "order", type: "date", width: 155, hide: true },
+  { field: "booking_state", header: "Booking", kind: "order", type: "text", width: 140, hide: true },
+  { field: "test_report", header: "Test Report", kind: "line", type: "text", width: 150, hide: true },
+  { field: "professional_photos", header: "Professional Photos", kind: "line", type: "text", width: 175, hide: true },
+  { field: "contractual_sample_reorder", header: "Contractual Sample Reorder", kind: "line", type: "boolean", width: 210, hide: true },
+  { field: "line_status", header: "Line Status", kind: "line", type: "text", width: 140, hide: true },
   { field: "master_data_default_vendor", header: "Default Vendor (Master Data)", kind: "masterData", type: "text", width: 195, hide: true },
   { field: "master_data_customer", header: "Customer (Master Data)", kind: "masterData", type: "text", width: 190, hide: true },
   { field: "item_number", header: "Item #", kind: "masterData", type: "text", width: 140, hide: true },
