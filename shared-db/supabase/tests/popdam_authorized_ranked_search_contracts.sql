@@ -9,14 +9,14 @@ begin
   if to_regprocedure(
        'public.search_dam_documents(text,integer,text[],extensions.vector)'
      ) is not null then
-    raise exception 'legacy unfiltered ranked-search overload must not exist';
+    raise exception 'legacy unfiltered ranked-search overload survived ordered replay';
   end if;
 
   select pg_get_functiondef(
     'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'::regprocedure
   ) into v_definition;
 
-  if position('filter_effective_assets' in v_definition) = 0
+  if position('candidate_asset_ids as materialized' in v_definition) = 0
      or position('visible_assets as materialized' in v_definition) = 0 then
     raise exception 'ranked search must establish the effective visible asset set first';
   end if;
@@ -80,8 +80,19 @@ begin
   select pg_get_functiondef('public.filter_effective_assets(jsonb)'::regprocedure)
     into v_definition;
   if position('require_dam_access' in v_definition) = 0
-     or position('from public.assets' in v_definition) = 0 then
-    raise exception 'effective filter must keep its inlinable body behind the DAM gate';
+     or (length(v_definition) - length(replace(v_definition, 'require_dam_access', '')))
+          / length('require_dam_access') <> 1
+     or position('authorized as materialized' in v_definition) = 0
+     or position('from authorized' in v_definition) = 0
+     or position('cross join public.assets a' in v_definition) = 0
+     or position('filter_effective_assets_unchecked_1703' in v_definition) > 0
+     or not exists (
+       select 1 from pg_proc
+       where oid = 'public.filter_effective_assets(jsonb)'::regprocedure
+         and not prosecdef
+         and proconfig is null
+     ) then
+    raise exception 'effective filter must authorize once in its inlinable invoker body';
   end if;
   if has_function_privilege('authenticated',
        'public.filter_effective_assets_unchecked_1703(jsonb)', 'EXECUTE')
@@ -105,21 +116,37 @@ begin
     'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'::regprocedure
   ) into v_definition;
   if position('candidate_asset_ids' in v_definition) = 0
-     or position('visible_style_groups' in v_definition) = 0
-     or position('join visible_assets a on a.id = c.asset_id' in v_definition) = 0
-     or position('join visible_style_groups g on g.style_group_id = c.style_group_id' in v_definition) = 0 then
+     or position('select distinct a.document_type, a.entity_id, a.asset_id' in v_definition) = 0 then
     raise exception 'ranked search must use keyed asset and Style Group visibility joins';
+  end if;
+  if position('d.search_tsv @@ any(array(select q.tsq from queries q))' in v_definition) = 0
+     or position('full_text_matches as materialized' in v_definition) = 0
+     or position('select max(ts_rank_cd(d.search_tsv, q.tsq))' in v_definition) = 0 then
+    raise exception 'ranked search must retain the measured indexable scan and maximum synonym rank';
+  end if;
+  if position('c.keyword_rank, c.semantic_rank, c.rank, c.asset_id id' in v_definition) = 0
+     or position('c.keyword_rank, c.semantic_rank, c.rank, a.id' in v_definition) = 0
+     or position('select distinct a.document_type, a.entity_id, a.asset_id' in v_definition) = 0
+     or position('from candidate_ranks c' in substring(v_definition from position('ranked_documents as materialized' in v_definition))) > 0 then
+    raise exception 'candidate rank keys must flow through visibility without a quadratic CTE join';
   end if;
   if position('c.asset_id = a.id or c.style_group_id = a.style_group_id' in v_definition) > 0
      or position('r.asset_id = a.id or r.style_group_id = a.style_group_id' in v_definition) > 0 then
     raise exception 'ranked search restored the production-timeout OR join';
   end if;
-  if position('select f.id, f.style_group_id, f.file_type, f.status,' in v_definition) = 0
-     or position('f.workflow_status, f.stage, f.is_licensed' in v_definition) = 0 then
+  if position('a.id, a.style_group_id asset_style_group_id, a.file_type, a.status,' in v_definition) = 0
+     or position('a.workflow_status, a.stage, a.is_licensed' in v_definition) = 0
+     or position('select a.*' in v_definition) > 0
+     or position('select distinct a.*' in v_definition) > 0 then
     raise exception 'visible assets must retain the explicit seven-column projection';
   end if;
   if position('select f.*' in v_definition) > 0
-     or position('select distinct a.*' in v_definition) > 0 then
+     or position('select distinct a.*' in v_definition) > 0
+     or position('cross join lateral' in substring(v_definition from position('visible_assets as materialized' in v_definition))) > 0
+     or position('from candidate_asset_ids c' in v_definition) = 0
+     or position('join public.assets a on a.id = c.id' in v_definition) = 0
+     or position('filter_effective_assets' in substring(v_definition from position('visible_assets as materialized' in v_definition))) > 0
+     or position('cross join lateral' in v_definition) > 0 then
     raise exception 'ranked search restored wide visibility or redundant wide deduplication';
   end if;
   if not exists (
@@ -138,6 +165,24 @@ begin
      or position('require_dam_access' in v_definition) = 0 then
     raise exception 'legacy counts must delegate exactly once to effective counts behind the DAM gate';
   end if;
+  select pg_get_functiondef('public.get_effective_filter_counts_unchecked_1703(jsonb)'::regprocedure)
+    into v_definition;
+  if position('select a.file_type, a.status, a.workflow_status, a.stage, a.is_licensed' in v_definition) = 0
+     or position('from public.assets a' in v_definition) = 0
+     or position('select a.*' in v_definition) > 0
+     or position('filter_effective_assets' in v_definition) > 0
+     or position('bounds as materialized' in v_definition) = 0 then
+    raise exception 'effective counts must use one narrow five-column direct asset scan';
+  end if;
+  select pg_get_functiondef('public.get_effective_filter_counts(jsonb)'::regprocedure)
+    into v_definition;
+  if (length(v_definition) - length(replace(v_definition,
+       'get_effective_filter_counts_unchecked_1703', '')))
+       / length('get_effective_filter_counts_unchecked_1703') <> 1
+     or (length(v_definition) - length(replace(v_definition, 'require_dam_access', '')))
+       / length('require_dam_access') <> 1 then
+    raise exception 'effective counts must share the narrow implementation behind one DAM gate';
+  end if;
 end;
 $$;
 
@@ -153,6 +198,18 @@ insert into app.profile (auth_user_id,email,display_name,status) values
 insert into app.app_access (profile_id,app)
 select id,'dam'::app.app_name from app.profile
 where auth_user_id = '17030000-0000-4000-8000-000000000001';
+
+-- An inlinable SQL SRF may defer its materialized authorization CTE when the
+-- underlying scan is empty. Keep one rollback-only eligible row so the runtime
+-- refusal probe necessarily evaluates the gate instead of proving only that an
+-- empty query returns no rows.
+insert into public.assets (
+  id, filename, relative_path, file_type, quick_hash, modified_at, is_deleted
+) values (
+  '17030000-0000-4000-8000-000000000003',
+  'zz1703-auth-gate.ai', 'zz1703-auth-gate.ai', 'ai',
+  'zz1703-auth-gate', now(), false
+);
 
 do $$
 declare v_n bigint;

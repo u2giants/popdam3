@@ -1744,6 +1744,90 @@ class BehavioralSidecarTests(unittest.TestCase):
         self.assertIn("get_effective_filter_counts_unchecked_1703", sql)
         self.assertIn("has_function_privilege('authenticated'", sql)
 
+    def test_real_1703_forward_6_sidecar_is_hash_bound_and_catalog_only(self):
+        version = "20260831184547"
+        migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))
+        checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+        targets = derive_targets({version: migration}, [version])
+        sql = build_behavior_sql(checks)
+        migration_sql = migration.read_text(encoding="utf-8").lower()
+
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]["kind"], "catalog_contract")
+        self.assertEqual(
+            checks[0]["migration_sha256"],
+            "a33c22920120dee3ed2fc7f8f54a37377eb5c801141522d5b8b965bb59b14eac",
+        )
+        self.assertIn("public.filter_effective_assets", targets.functions)
+        self.assertIn("public.search_dam_documents", targets.functions)
+        self.assertIn("from candidate_asset_ids c", sql)
+        self.assertIn("join public.assets a on a.id = c.id", sql)
+        self.assertIn("select a.file_type, a.status, a.workflow_status, a.stage, a.is_licensed", sql)
+        self.assertIn("position('select a.*'", sql)
+        self.assertIn("bounds as materialized", sql)
+        self.assertIn("authorized as materialized", sql)
+        self.assertIn("not p.prosecdef", sql)
+        self.assertIn("p.proconfig is null", sql)
+        self.assertIn(
+            "alter function public.filter_effective_assets(jsonb) security invoker;",
+            migration_sql,
+        )
+        self.assertIn(
+            "alter function public.filter_effective_assets(jsonb) reset all;",
+            migration_sql,
+        )
+        self.assertLess(
+            migration_sql.index("create or replace function public.filter_effective_assets"),
+            migration_sql.index("alter function public.filter_effective_assets(jsonb) reset all;"),
+        )
+        self.assertIn("has_function_privilege('authenticated'", sql)
+
+    def test_real_1703_forward_7_sidecar_is_hash_bound_and_asserts_single_heap_fetch(self):
+        version = "20260831212757"
+        migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))
+        checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+        targets = derive_targets({version: migration}, [version])
+        sql = build_behavior_sql(checks)
+        migration_sql = migration.read_text(encoding="utf-8").lower()
+
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]["kind"], "catalog_contract")
+        self.assertEqual(
+            checks[0]["migration_sha256"],
+            "8cae66fd16b67b12371103696d9c79ed37cacf828c6a105c79a02c101ec5f8b9",
+        )
+        self.assertEqual(targets.functions, ["public.search_dam_documents"])
+        self.assertIn("full_text_matches as materialized", sql)
+        self.assertIn("d.search_tsv @@ any(array(select q.tsq from queries q))", sql)
+        self.assertIn("select max(ts_rank_cd(d.search_tsv, q.tsq))", sql)
+        self.assertIn("has_function_privilege('authenticated'", sql)
+        self.assertIn("full_text_matches as materialized", migration_sql)
+        self.assertNotIn(
+            "join public.dam_search_documents d on d.search_tsv @@ q.tsq",
+            migration_sql,
+        )
+
+    def test_real_1703_forward_8_sidecar_is_hash_bound_and_asserts_rank_keys_through_visibility(self):
+        version = "20260831221607"
+        migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))
+        checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+        targets = derive_targets({version: migration}, [version])
+        sql = build_behavior_sql(checks)
+        migration_sql = migration.read_text(encoding="utf-8").lower()
+
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]["kind"], "catalog_contract")
+        self.assertEqual(
+            checks[0]["migration_sha256"],
+            "b0902414ec5eac846ae0e1469d79630aa7692ef1f3dcb0ae52ca97852d600b20",
+        )
+        self.assertIn("public.search_dam_documents", targets.functions)
+        self.assertIn("c.keyword_rank, c.semantic_rank, c.rank, c.asset_id id", sql)
+        self.assertIn("select distinct a.document_type, a.entity_id, a.asset_id", sql)
+        self.assertIn("join visible_assets a on a.id = c.asset_id", sql)
+        self.assertIn("derived-from: 20260831212757", migration_sql)
+        self.assertNotIn("join visible_assets a on a.id = c.asset_id", migration_sql)
+
     def test_real_1732_sidecar_is_hash_bound_catalog_only_and_exact_shape(self):
         version = "20260828021051"
         migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))

@@ -1,9 +1,9 @@
 {
   "detector_schema_version": 1,
-  "detector_source_sha256": "9bccd6c0c40b12a257b439498fdae44eb0c555b94ab3083e09005cce4941939c",
+  "detector_source_sha256": "e83b1fc7c706ee5bb061428ce83c222bb14f22bdf391cc31d835646fdd50b9d3",
   "command": "node scripts/check-production-verification-sidecars.mjs",
-  "total_migration_files": 558,
-  "matched_count": 75,
+  "total_migration_files": 591,
+  "matched_count": 88,
   "matched_paths": [
     {
       "version": "20260621150815",
@@ -378,6 +378,71 @@
     {
       "version": "20260827133720",
       "path": "supabase/migrations/20260827133720_harden_fr_authorization_metadata_contract.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830130345",
+      "path": "supabase/migrations/20260830130345_opa_authority_for_dcp_creative.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830172356",
+      "path": "supabase/migrations/20260830172356_scraped_properties_source_purpose.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830191719",
+      "path": "supabase/migrations/20260830191719_wb_durable_entity_lifecycle.sql",
+      "marker_count": 5
+    },
+    {
+      "version": "20260830195655",
+      "path": "supabase/migrations/20260830195655_licensors_external_id_canonical_codes.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830202243",
+      "path": "supabase/migrations/20260830202243_creative_submission_contract_status.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830204711",
+      "path": "supabase/migrations/20260830204711_licensors_external_id_canonical_codes.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830212955",
+      "path": "supabase/migrations/20260830212955_scraped_properties_page_before_enrichment.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830220646",
+      "path": "supabase/migrations/20260830220646_scraped_properties_set_based_authority.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830230246",
+      "path": "supabase/migrations/20260830230246_scraped_properties_non_materialized_source_and_page_context.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260830235651",
+      "path": "supabase/migrations/20260830235651_scraped_properties_set_based_page_submission_lookup.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260831002935",
+      "path": "supabase/migrations/20260831002935_scraped_properties_targeted_submission_labels.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260831012326",
+      "path": "supabase/migrations/20260831012326_scraped_properties_covering_asset_context.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260831021656",
+      "path": "supabase/migrations/20260831021656_scraped_properties_set_based_retained_context.sql",
       "marker_count": 1
     }
   ],

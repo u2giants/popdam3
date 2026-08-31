@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260831221607",
+  "migration_sha256": "b0902414ec5eac846ae0e1469d79630aa7692ef1f3dcb0ae52ca97852d600b20",
+  "checks": [
+    {
+      "id": "popdam_ranked_search_rank_keys_through_visibility_forward_8",
+      "kind": "catalog_contract",
+      "contract": "popdam_ranked_search_rank_keys_through_visibility_v4",
+      "expected_count": 1
+    }
+  ]
+}
