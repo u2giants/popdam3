@@ -97,6 +97,7 @@ __pycache__/
 !.ai/reviews/vendor-sync-plan-glm-2026-07-22.md
 .ai/runs/
 .ai/tmp/
+.ai/governed-review-evidence/
 
 # Local confidential business-data audits. Never commit licensed item descriptions.
 .private/
