@@ -67,6 +67,23 @@ the requested one — that check is now free and catches a mis-stamped loader im
 > **2.19 (issue 10)** was reduced from three asks to one for the same reason.
 >
 > A question being unanswered is not the same as a question being worth asking.
+>
+> ### ⚠️ Outbound numbering — ColdLion has only ever seen issues 1–8
+>
+> The 2026-08-28 draft was **not sent**. ColdLion answered issue 3 and issue 8 and has never received
+> issues 9–14, so **those numbers were never used outbound and were free to reassign.** The
+> 2026-08-31 reply assigns them fresh:
+>
+> | Outbound # | Subject | Internal entry | Was internally numbered |
+> |---|---|---|---|
+> | 6 | Document-type marker on order-history rows | 2.14 | 6 (unchanged) |
+> | 9 | Which item flag means "stop selling" | 2.21 | 12 |
+> | 10 | Renumbering cut-over dates per division | 2.20 | 11 |
+> | 11 | Are merch-group slots 07–10 maintained? | 2.19 | part of 10 |
+>
+> **Never mention a withdrawn or retracted question to ColdLion** — you cannot withdraw something
+> they never received. The dead internal numbers (9, 12, 13, 14 as drafted on 2026-08-28) are dead
+> internally only; outbound they simply never existed.
 
 | # | Question | For | Evidence | Sent / awaiting reply since |
 |---|---|---|---|---|
