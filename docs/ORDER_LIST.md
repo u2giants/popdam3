@@ -92,12 +92,12 @@ The remedy is two indexes in `u2giants/shared-db` (issue #1657), which drop the
 cold read substantially. **When measuring this again, look at `buffers`, not at
 RLS.**
 
-Those two indexes shipped and were verified on production on 2026-08-27: the
-warm count went to **77-86 ms** and cold reads to **4,707 buffers (37 MB)**. The
-remaining cost is 3,910 random heap fetches into the still-bloated bridge table;
-shared-db #1722 asks for a covering index to make that lookup index-only. Until
-that lands, the exact total is roughly 1.5 s on a genuinely cold cache — well
-clear of the 8 s ceiling, but not yet cheap.
+**Resolved, verified on production 2026-08-30** (shared-db #1657 and #1722).
+Both large tables are now Index Only Scans and the bridge does zero heap
+fetches: the exact total costs **107 ms cold / 52-76 ms warm**, reading **969
+buffers (~8 MB)** where it once read 24,835 (~194 MB). That is ~1.5% of the 8 s
+`authenticated` ceiling. The rows/count split stays regardless — it is what
+makes a slow count degrade honestly rather than kill the grid.
 
 ## Master Data rules
 

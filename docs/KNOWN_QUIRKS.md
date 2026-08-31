@@ -1154,14 +1154,27 @@ be pruned, since the bridge genuinely fans out. Fixed in `u2giants/shared-db`
 issue #1657 by adding that index plus a count-covering index on
 `plm.production_order_line`.
 
-**Verified in production 2026-08-27 after #1657 merged**: warm count 161 ms to
-**77-86 ms**, cold shared-buffer reads 24,835 to **4,707** (194 MB to 37 MB).
-Not finished, though — a cold run still measured 1,481 ms, because 3,910 of the
-4,707 remaining reads are now *random* heap fetches into the bridge, which is
-132 MB of heap for ~24 MB of live data. shared-db #1722 asks for a covering
-index that makes that lookup index-only (the table is 100% all-visible), which
-should take cold reads to ~800. **Fewer buffers is not automatically faster:
-random reads into a bloated heap lose the prefetch a sequential scan gets.**
+**Resolved. Verified in production 2026-08-30**, after shared-db #1657 and
+#1722 both merged:
+
+| | before | after |
+|---|---|---|
+| cold `count(*)` | 3,365 ms | **107 ms** |
+| warm `count(*)` | 161 ms | **52-76 ms** |
+| cold buffer reads | 24,835 (194 MB) | **969 (~8 MB)** |
+
+Both big tables are now Index Only Scans; the bridge reports `Heap Fetches: 0`.
+The exact total is ~1.5% of the 8 s ceiling instead of 42% of it.
+
+Two things worth carrying forward. **Fewer buffers is not automatically faster**
+— the intermediate state after #1657 alone read 5x fewer buffers yet measured
+*slower* cold (1,481 ms), because a plain index scan turned a prefetched
+sequential scan into 3,910 random reads into a bloated heap. Only the covering
+index, which removed the heap visits entirely, converted the buffer saving into
+a time saving. And **`plm.style_tracker_item_bridge` is still ~5x bloated**
+(132 MB of heap for ~24 MB of live data, `n_dead_tup = 0`, so autovacuum cannot
+reclaim it — it needs a repack). The index-only plan means PopDAM no longer
+touches that heap, but any other query against the table still pays for it.
 
 **Measure this class of problem with `explain (analyze, buffers)` and read the
 buffer counts; "it must be RLS" cost a
