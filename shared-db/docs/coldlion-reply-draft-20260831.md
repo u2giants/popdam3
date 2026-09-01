@@ -14,7 +14,7 @@ never received.
 |---|---|---|
 | 3 | Field descriptions inline | Closing. One yes/no remainder |
 | 6 | Which document did this order-history row come from? | **Open — the lead ask** |
-| 7 | `salesOrderLineNo` = 0 | Acknowledged, no chase |
+| 7 | `salesOrderLineNo` = 0 on invoiced orders | **RE-OPENED 2026-08-31 with a quantity-multiplication finding** |
 | 8 | Bare array instead of a paged envelope | Closing — fixed, verified live |
 | **9** | **NEW — which of the four item flags means "stop selling"** | The only new ask |
 
@@ -70,7 +70,7 @@ disagree with a direct lookup.
 
 We have gone back through our own list and cut it right down — several things we were going to ask
 turned out to be answerable from your data or not relevant to us, and it wasn't fair to put them on
-your plate. Two things left.
+your plate. Three things left, and one of them is a return to issue 7 with real examples.
 
 **Issue 6 — a document-type marker on every order-history row. This is the one that matters.**
 
@@ -95,9 +95,47 @@ We currently treat `Active` as the answer, which is a guess on our part, and it 
 products we show as live and sellable. **Which one is authoritative?** And is the blank `ItemStatus`
 on two-thirds of the catalogue meaningful, or simply a field that isn't filled in?
 
-**Issue 7 — no chase, just acknowledging.** You said cancelled orders explain most of the zero line
-numbers and the invoiced ones are with your technical team. That's fine — we've set those rows aside
-and can wait.
+**Issue 7 — re-opening the invoiced ones, with examples. The quantity looks multiplied.**
+
+When we raised this you said the cancelled orders explain most of the zero line numbers, and that the
+invoiced ones were strange and would go to your technical team. We've now looked at those invoiced
+ones properly, and we think we can show you what's happening — it isn't only a missing line number.
+
+We scanned 2,502 order-history rows from January to August 2026. 130 carry `SalesOrderLineNo` = 0,
+and **66 of those also carry an invoice number** — spread over just five orders, all invoiced on 30
+July 2026. So this is current, not a historical leftover.
+
+Every one of the five behaves the same way. Taking order **7127866**, invoice **6016766**, item
+**NHNQ601**: the order quantity is **239**. The feed returns **14 rows** for it, every one with
+`SalesOrderLineNo` = 0. Seven of those rows show an invoiced quantity of **1,673**, and the other
+seven show **0**. 1,673 is exactly 239 × 7 — and seven is the number of populated rows.
+
+The same relationship holds on all of them:
+
+| Order | Invoice | Item | Order qty | Invoiced qty shown | Rows | Populated rows |
+|---|---|---|---|---|---|---|
+| 7127866 | 6016766 | NHNQ601 | 239 | 1,673 (= 239 × 7) | 14 | 7 |
+| 7127867 | 6016767 | NHNQ601 | 203 | 1,421 (= 203 × 7) | 14 | 7 |
+| 7127870 | 6016768 | NHNQ601 | 134 | 938 (= 134 × 7) | 14 | 7 |
+| 7127943 | 6016762 | NBXS601 | 259 | 1,554 (= 259 × 6) | 12 | 6 |
+| 7127942 | 6016763 | NBXS601 | 149 | 894 (= 149 × 6) | 12 | 6 |
+
+**The invoiced quantity on each row appears to have been multiplied by the number of rows returned.**
+Add the rows up and order 7127866 reads as 11,711 units invoiced against an order of 239 — roughly
+forty-nine times the real figure. We are fairly confident the true invoiced quantity is simply the
+order quantity, but we would not want to assume that on your behalf.
+
+Three questions:
+
+1. **What is the correct invoiced quantity on these five orders** — is it 239, 203, 134, 259 and 149?
+2. **Is the multiplication a fault in how the report assembles the rows**, rather than anything wrong
+   with the underlying invoice?
+3. **Why does `SalesOrderLineNo` come back as 0 on every row of these orders** — not just some of
+   them? On a normal order we see real line numbers, so these five look different in kind.
+
+We have quarantined these rows rather than loading them, so nothing is at risk on our side. But it
+does mean we cannot trust an invoiced quantity from this feed until we know whether the multiplication
+is confined to these cases or can happen elsewhere without being as obvious.
 
 Thanks again. The turnaround on issues 3 and 8 was quick and both were exactly right. If you only
 pick up one thing from this note, please make it the document-type marker on order history.
