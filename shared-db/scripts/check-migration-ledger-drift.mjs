@@ -375,23 +375,25 @@ export function formatReport({ target, projectRef, baseRef, drift, fileByVersion
  * request. This script has the opposite risk profile: it blocks nothing, it only
  * reports, so an unresolvable base ref must be loud rather than silent.
  */
-export function mainMigrationFiles(baseRef = 'origin/main') {
-  let resolved = baseRef
+export function resolveFreshBaseRef(baseRef = 'origin/main', run = execFileSync) {
+  const resolved = baseRef === 'origin/main' ? 'refs/remotes/origin/main' : baseRef
   try {
-    execFileSync('git', ['-C', repoRoot, 'rev-parse', '--verify', '--quiet', baseRef], { stdio: 'ignore' })
-  } catch {
-    try {
-      execFileSync('git', ['-C', repoRoot, 'fetch', '--quiet', '--no-tags', 'origin', 'main'], { stdio: 'ignore' })
-      execFileSync('git', ['-C', repoRoot, 'rev-parse', '--verify', '--quiet', 'FETCH_HEAD'], { stdio: 'ignore' })
-      resolved = 'FETCH_HEAD'
-    } catch {
-      throw new Unknown(
-        `could not resolve the base ref \`${baseRef}\` (no git repository, no such ref, or no ` +
-          'network to fetch it). In CI give the checkout fetch-depth: 0. Refusing to compare ' +
-          'the ledger against a branch I cannot read.',
-      )
+    if (baseRef === 'origin/main') {
+      run('git', ['-C', repoRoot, 'fetch', '--quiet', '--no-tags', 'origin', '+refs/heads/main:refs/remotes/origin/main'], { stdio: 'ignore' })
     }
+    run('git', ['-C', repoRoot, 'rev-parse', '--verify', '--quiet', resolved], { stdio: 'ignore' })
+    return resolved
+  } catch {
+    throw new Unknown(
+      `could not refresh and resolve the base ref \`${baseRef}\` (no git repository, no such ref, or no ` +
+        'network to fetch it). In CI give the checkout fetch-depth: 0. Refusing to compare ' +
+        'the ledger against branch evidence that may be stale.',
+    )
   }
+}
+
+export function mainMigrationFiles(baseRef = 'origin/main') {
+  const resolved = resolveFreshBaseRef(baseRef)
 
   let out
   try {

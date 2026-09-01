@@ -17,6 +17,7 @@ import {
   formatReport,
   main,
   runDriftCheck,
+  resolveFreshBaseRef,
   versionsFromFilenames,
   APPLIED_VERSIONS_SQL,
   fetchAppliedVersions,
@@ -24,6 +25,28 @@ import {
   classifyPendingWithRules,
   validatePendingClassifications,
 } from './check-migration-ledger-drift.mjs'
+
+test('origin/main is refreshed before any migration-tree verification read', () => {
+  const calls = []
+  const run = (_command, args) => { calls.push(args) }
+  assert.equal(resolveFreshBaseRef('origin/main', run), 'refs/remotes/origin/main')
+  assert.deepEqual(calls[0], ['-C', calls[0][1], 'fetch', '--quiet', '--no-tags', 'origin', '+refs/heads/main:refs/remotes/origin/main'])
+  assert.deepEqual(calls[1].slice(2), ['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/main'])
+})
+
+test('origin/main verification refuses when the live refresh cannot complete', () => {
+  assert.throws(
+    () => resolveFreshBaseRef('origin/main', () => { throw new Error('offline') }),
+    /branch evidence that may be stale/,
+  )
+})
+
+test('an explicit immutable base ref is verified without rewriting it', () => {
+  const calls = []
+  assert.equal(resolveFreshBaseRef('abc123', (_command, args) => { calls.push(args) }), 'abc123')
+  assert.equal(calls.length, 1)
+  assert.deepEqual(calls[0].slice(2), ['rev-parse', '--verify', '--quiet', 'abc123'])
+})
 
 const MERGED = ['20260810180000', '20260810190000', '20260811030000']
 

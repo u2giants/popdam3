@@ -569,6 +569,13 @@ another live agent may be mid-task on it. Leave it, work in your own worktree, a
 handoff. Remove your own worktree when your branch has merged; never remove one that is dirty,
 locked, or held by a live agent.
 
+**Before treating working-tree files as current `main` evidence**, run
+`node scripts/check-worktree-freshness.mjs`. It fetches live `origin/main` and refuses unless the
+checked-out commit is that exact tip. A refusal means read the required files from a fresh isolated
+worktree or from `git show origin/main:<path>`; never update or switch the shared checkout to make
+the guard pass. Verification tools that read the migration tree must refresh `origin/main`
+themselves and fail closed if that refresh is unavailable.
+
 ### 2.1-W.1 Retiring a worktree — and the squash-merge trap that has defeated every attempt
 
 `scripts/reap-merged-worktrees.mjs` does this. Dry run by default; `--apply` to act.
