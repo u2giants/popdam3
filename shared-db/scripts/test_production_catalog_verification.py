@@ -608,7 +608,17 @@ class RecoveryWorkflowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn('MAIN_SHA: "${{ inputs.main_sha }}"', workflow)
         self.assertIn('APPLY_MAIN_SHA: ${{ inputs.apply_main_sha }}', workflow)
-        self.assertIn('git rev-parse origin/main)" = "$MAIN_SHA"', workflow)
+        # Narrowed 2026-09-01 (#2047): the tip is proven by
+        # check-main-tip-freshness.mjs, which accepts an origin/main that has
+        # advanced by DOCUMENTATION ONLY and refuses every other move. The bare
+        # equality this replaced voided a promotion for any commit at all,
+        # including a handover note. The binding itself is unchanged: this job
+        # still names the exact main SHA and still refuses a code-bearing move.
+        self.assertIn(
+            'MAIN_SHA="$MAIN_SHA" node scripts/check-main-tip-freshness.mjs',
+            workflow,
+        )
+        self.assertNotIn('git rev-parse origin/main)" = "$MAIN_SHA"', workflow)
         self.assertIn('jq -r .head_sha <<<"$run")" = "$APPLY_MAIN_SHA"', workflow)
         self.assertIn('production-migration-apply-$APPLY_MAIN_SHA', workflow)
         self.assertNotIn('production-migration-apply-$MAIN_SHA', workflow)

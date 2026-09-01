@@ -491,6 +491,11 @@ PREVIEW_PRODUCER_PATHS = (
     # Runs FIRST in the preview job, to acquire the lane, before any evidence
     # byte exists. Unpinned, it was a complete forgery path.
     "scripts/manage-migration-author-lanes.mjs",
+    # Decides whether the dispatched main tip is still current (#2047). It runs
+    # before any evidence byte is written, and its answer is what permits the
+    # rehearsal to proceed at all. Unpinned, a doctored copy could accept ANY
+    # tip -- which is the whole gate.
+    "scripts/check-main-tip-freshness.mjs",
     # Invoked by the manager before preview preparation to prove the live sole
     # orchestrator identity. Its result gates whether preparation may proceed.
     "scripts/check-orchestrator-marker.mjs",
