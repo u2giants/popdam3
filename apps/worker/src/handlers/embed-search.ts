@@ -3,7 +3,9 @@ import { logger } from "../logger.js";
 import { db } from "../supabase.js";
 import type { BatchResult, OpState } from "../types.js";
 
-const DEFAULT_BATCH_SIZE = 25;
+// A 25-document batch exceeded the hosted edge runtime after 14 embeddings in
+// production. Ten leaves enough headroom for status/error writes and retries.
+const DEFAULT_BATCH_SIZE = 10;
 const WORKER_ID = `railway-search-${process.pid}`;
 
 export interface SearchEmbeddingStatus {

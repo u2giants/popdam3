@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { AssetFilters, FacetCounts } from "@/types/assets";
 
 export type SearchMode = "keyword" | "hybrid";
 export type DamDocumentType = "asset" | "style_group";
@@ -17,6 +18,41 @@ export interface DamSearchPage {
   totalCount: number;
   hasMore: boolean;
   facets: Record<string, unknown>;
+}
+
+export function buildDamSearchFilters(filters: AssetFilters): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (filters.fileType.length) payload.fileType = filters.fileType;
+  if (filters.contentType.length) payload.contentType = filters.contentType;
+  if (filters.productMaterial.length) payload.productMaterial = filters.productMaterial;
+  if (filters.status.length) payload.status = filters.status;
+  if (filters.workflowStatus.length) payload.workflowStatus = filters.workflowStatus;
+  if (filters.isLicensed !== null) payload.isLicensed = filters.isLicensed;
+  if (filters.licensorId) payload.licensorId = filters.licensorId;
+  if (filters.propertyId) payload.propertyId = filters.propertyId;
+  if (filters.assetType.length) payload.assetType = filters.assetType;
+  if (filters.artSource.length) payload.artSource = filters.artSource;
+  if (filters.tagFilter) payload.tagFilter = filters.tagFilter;
+  if (filters.fileStatus.length) payload.fileStatus = filters.fileStatus;
+  if (filters.productCategory.length) payload.productCategory = filters.productCategory;
+  if (filters.stage.length) payload.stage = filters.stage;
+  if (filters.customer) payload.customerId = filters.customer;
+  if (filters.program) payload.program = filters.program;
+  return payload;
+}
+
+export function parseDamSearchFacets(value: Record<string, unknown>): FacetCounts {
+  const record = (key: string) => value[key] && typeof value[key] === "object"
+    ? value[key] as Record<string, number>
+    : {};
+  const licensed = record("isLicensed");
+  return {
+    fileType: record("fileType"),
+    status: record("status"),
+    workflowStatus: record("workflowStatus"),
+    stage: record("stage"),
+    isLicensed: { true: Number(licensed.true) || 0, false: Number(licensed.false) || 0 },
+  };
 }
 
 let searchModePromise: Promise<SearchMode> | null = null;

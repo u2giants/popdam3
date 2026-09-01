@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { expandFallbackTerms, fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
+import { buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
 import type { AssetFilters } from "@/types/assets";
@@ -237,6 +237,33 @@ export function useStyleGroups(
     queryFn: async () => {
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
+      const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
+      const searchMode = searchTerm ? await getSearchMode() : "keyword";
+      if (searchTerm && searchMode === "hybrid") {
+        try {
+          const ranked = await fetchHybridSearchPage({
+            query: searchTerm,
+            documentType: "style_group",
+            limit: effectivePageSize,
+            offset: from,
+            filters: buildDamSearchFilters(filters),
+          });
+          const { data, error } = await supabase
+            .from("style_groups")
+            .select(`*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error)`)
+            .in("id", ranked.ids.length ? ranked.ids : [NO_MATCH_UUID]);
+          if (error) throw error;
+          const groups = sortByRank((data ?? []).map((row: any) => ({
+            ...row,
+            asset_count: row.asset_count ?? 0,
+            workflow_status: row.workflow_status ?? "other",
+            thumbnail_url: row.primary_asset?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
+          })) as StyleGroup[], ranked.ids, (group) => group.id);
+          return { groups, totalCount: ranked.totalCount, pageSize: effectivePageSize, page };
+        } catch {
+          // Preserve the existing keyword path if semantic search is unavailable.
+        }
+      }
       const { ids: fullTextGroupIds, fallback: fallbackSearchFilter } = await resolveStyleGroupSearch(filters.search);
 
       let query = supabase
@@ -296,6 +323,20 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
   return useQuery({
     queryKey: ["style-group-count", filters, visibilityDate],
     queryFn: async () => {
+      const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
+      if (searchTerm && await getSearchMode() === "hybrid") {
+        try {
+          const ranked = await fetchHybridSearchPage({
+            query: searchTerm,
+            documentType: "style_group",
+            limit: 1,
+            filters: buildDamSearchFilters(filters),
+          });
+          return ranked.totalCount;
+        } catch {
+          // Continue through keyword fallback.
+        }
+      }
       let query = supabase
         .from("style_groups")
         .select("*", { count: "exact", head: true });

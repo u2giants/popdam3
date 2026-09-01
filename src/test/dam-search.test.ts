@@ -5,7 +5,8 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke }, from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }) },
 }));
 
-import { fetchHybridSearchIds, fetchHybridSearchPage, fetchSearchIds, getSearchMode, invalidateSearchMode, parseSearchMode, sortByRank } from "@/lib/dam-search";
+import { buildDamSearchFilters, fetchHybridSearchIds, fetchHybridSearchPage, fetchSearchIds, getSearchMode, invalidateSearchMode, parseSearchMode, sortByRank } from "@/lib/dam-search";
+import { defaultFilters } from "@/types/assets";
 
 describe("DAM hybrid search", () => {
   beforeEach(() => { invoke.mockReset(); maybeSingle.mockReset(); invalidateSearchMode(); });
@@ -75,6 +76,23 @@ describe("DAM hybrid search", () => {
     const rows = [{ id: "third" }, { id: "first" }, { id: "second" }];
     expect(sortByRank(rows, ["second", "third", "first"], (row) => row.id))
       .toEqual([{ id: "second" }, { id: "third" }, { id: "first" }]);
+  });
+
+  it("maps every active library filter to the ranked contract", () => {
+    expect(buildDamSearchFilters({
+      ...defaultFilters,
+      contentType: ["product_photo"],
+      productMaterial: ["wood"],
+      fileStatus: ["has_preview"],
+      productCategory: ["Wall"],
+      customer: "customer-id",
+    })).toMatchObject({
+      contentType: ["product_photo"],
+      productMaterial: ["wood"],
+      fileStatus: ["has_preview"],
+      productCategory: ["Wall"],
+      customerId: "customer-id",
+    });
   });
 
   it("keeps keyword mode as the default for absent or invalid config", () => {

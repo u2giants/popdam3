@@ -143,7 +143,7 @@ corsServe(async (req) => {
   if (action === "search") {
     const query = typeof body.query === "string" ? body.query.trim() : "";
     if (!query) return err("Missing query", 400);
-    const limit = Math.min(100, Math.max(1, Math.trunc(Number(body.limit) || 50)));
+    const limit = Math.min(200, Math.max(1, Math.trunc(Number(body.limit) || 50)));
     const offset = Math.min(10_000, Math.max(0, Math.trunc(Number(body.offset) || 0)));
     const minRank = Number.isFinite(Number(body.min_rank)) ? Math.min(1, Math.max(0, Number(body.min_rank))) : 0;
     const documentTypes = Array.isArray(body.document_types)

@@ -4,7 +4,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { expandFallbackTerms, fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
+import { buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 
 const PAGE_SIZE = 200;
 const FULL_TEXT_SEARCH_LIMIT = 500;
@@ -315,6 +315,32 @@ export function useAssets(
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
       const minDate = visibilityDate ?? "2020-01-01";
+      const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
+      const searchMode = searchTerm ? await getSearchMode() : "keyword";
+      if (searchTerm && searchMode === "hybrid") {
+        try {
+          const ranked = await fetchHybridSearchPage({
+            query: searchTerm,
+            documentType: "asset",
+            limit: effectivePageSize,
+            offset: from,
+            filters: buildDamSearchFilters(filters),
+          });
+          const { data, error } = await supabase.from("assets").select("*").in(
+            "id",
+            ranked.ids.length ? ranked.ids : [NO_MATCH_UUID],
+          );
+          if (error) throw error;
+          return {
+            assets: sortByRank((data ?? []) as Asset[], ranked.ids, (asset) => asset.id),
+            totalCount: ranked.totalCount,
+            pageSize: effectivePageSize,
+            page,
+          };
+        } catch {
+          // Preserve the existing keyword path if semantic search is unavailable.
+        }
+      }
       const { ids: fullTextAssetIds, fallback: fallbackSearchFilter } = await resolveAssetSearch(filters.search);
 
       // Group-owned facts cannot be filtered from the asset's own columns, so
@@ -361,6 +387,20 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
   return useQuery({
     queryKey: ["asset-count", filters, visibilityDate],
     queryFn: async () => {
+      const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
+      if (searchTerm && await getSearchMode() === "hybrid") {
+        try {
+          const ranked = await fetchHybridSearchPage({
+            query: searchTerm,
+            documentType: "asset",
+            limit: 1,
+            filters: buildDamSearchFilters(filters),
+          });
+          return ranked.totalCount;
+        } catch {
+          // Continue through keyword fallback.
+        }
+      }
       const minDate = visibilityDate ?? "2020-01-01";
       const { ids: fullTextAssetIds, fallback: fallbackSearchFilter } = await resolveAssetSearch(filters.search);
 
@@ -393,6 +433,20 @@ export function useFilterCounts(filters: AssetFilters) {
   return useQuery({
     queryKey: ["filter-counts", filters],
     queryFn: async () => {
+      const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
+      if (searchTerm && await getSearchMode() === "hybrid") {
+        try {
+          const ranked = await fetchHybridSearchPage({
+            query: searchTerm,
+            documentType: "asset",
+            limit: 1,
+            filters: buildDamSearchFilters(filters),
+          });
+          return parseDamSearchFacets(ranked.facets);
+        } catch {
+          // Continue through keyword fallback.
+        }
+      }
       const filterPayload: Record<string, unknown> = {};
       if (filters.search) filterPayload.search = filters.search;
       if (filters.fileType.length > 0) filterPayload.fileType = filters.fileType;
