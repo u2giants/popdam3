@@ -143,19 +143,58 @@ corsServe(async (req) => {
   if (action === "search") {
     const query = typeof body.query === "string" ? body.query.trim() : "";
     if (!query) return err("Missing query", 400);
-    const limit = Math.min(500, Math.max(1, Number(body.limit) || 100));
-    const documentTypes = Array.isArray(body.document_types) ? body.document_types.filter((v): v is string => typeof v === "string") : null;
+    const limit = Math.min(100, Math.max(1, Math.trunc(Number(body.limit) || 50)));
+    const offset = Math.min(10_000, Math.max(0, Math.trunc(Number(body.offset) || 0)));
+    const minRank = Number.isFinite(Number(body.min_rank))
+      ? Math.min(1, Math.max(0, Number(body.min_rank)))
+      : 0;
+    const documentTypes = Array.isArray(body.document_types)
+      ? body.document_types.filter((v): v is "asset" | "style_group" => v === "asset" || v === "style_group")
+      : null;
+    if (Array.isArray(body.document_types) && documentTypes?.length !== body.document_types.length) {
+      return err("Invalid document_types", 400);
+    }
+    const filters = body.filters === undefined || body.filters === null
+      ? {}
+      : body.filters;
+    if (typeof filters !== "object" || Array.isArray(filters)) {
+      return err("Invalid filters", 400);
+    }
     const embedding = await embedText(query);
 
-    const db = serviceClient();
-    const { data, error } = await db.rpc("search_dam_documents", {
+    // The caller-scoped client is required here: the RPC enforces DAM access
+    // from auth.uid(), which a service-role client would bypass.
+    const { data, error } = await auth.client.rpc("search_dam_documents", {
       p_query: query,
+      p_filters: filters,
       p_limit: limit,
+      p_offset: offset,
       p_document_types: documentTypes,
       p_query_embedding: embedding,
+      p_min_rank: minRank,
     });
     if (error) throw error;
-    return json({ ok: true, results: data ?? [] });
+    const results = Array.isArray(data)
+      ? data.map((row: Record<string, unknown>) => ({
+        document_type: row.document_type,
+        entity_id: row.entity_id,
+        asset_id: row.asset_id,
+        style_group_id: row.style_group_id,
+        keyword_rank: row.keyword_rank,
+        semantic_rank: row.semantic_rank,
+        rank: row.rank,
+      }))
+      : [];
+    const first = Array.isArray(data) && data.length > 0
+      ? data[0] as Record<string, unknown>
+      : null;
+    return json({
+      ok: true,
+      results,
+      total_count: typeof first?.total_count === "number" ? first.total_count : 0,
+      has_more: first?.has_more === true,
+      facets: first?.facets && typeof first.facets === "object" ? first.facets : {},
+    });
   }
 
   return err(`Unknown action: ${action}`, 404);

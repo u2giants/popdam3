@@ -5,7 +5,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke }, from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }) },
 }));
 
-import { fetchHybridSearchIds, fetchSearchIds, getSearchMode, invalidateSearchMode, parseSearchMode, sortByRank } from "@/lib/dam-search";
+import { fetchHybridSearchIds, fetchHybridSearchPage, fetchSearchIds, getSearchMode, invalidateSearchMode, parseSearchMode, sortByRank } from "@/lib/dam-search";
 
 describe("DAM hybrid search", () => {
   beforeEach(() => { invoke.mockReset(); maybeSingle.mockReset(); invalidateSearchMode(); });
@@ -22,7 +22,52 @@ describe("DAM hybrid search", () => {
 
     await expect(fetchHybridSearchIds("snowman", "asset", 500)).resolves.toEqual(["second", "first"]);
     expect(invoke).toHaveBeenCalledWith("dam-search-ai", {
-      body: { action: "search", query: "snowman", limit: 500, document_types: ["asset"] },
+      body: {
+        action: "search",
+        query: "snowman",
+        limit: 500,
+        offset: 0,
+        filters: {},
+        min_rank: 0,
+        document_types: ["asset"],
+      },
+    });
+  });
+
+  it("passes ranked pagination and returns count, continuation, and facets", async () => {
+    invoke.mockResolvedValue({
+      data: {
+        results: [{ document_type: "style_group", entity_id: "group-2" }],
+        total_count: 23,
+        has_more: true,
+        facets: { fileType: { psd: 12 } },
+      },
+      error: null,
+    });
+
+    await expect(fetchHybridSearchPage({
+      query: "snowman",
+      documentType: "style_group",
+      limit: 10,
+      offset: 10,
+      filters: { customerId: "customer-id" },
+      minRank: 0.1,
+    })).resolves.toEqual({
+      ids: ["group-2"],
+      totalCount: 23,
+      hasMore: true,
+      facets: { fileType: { psd: 12 } },
+    });
+    expect(invoke).toHaveBeenCalledWith("dam-search-ai", {
+      body: {
+        action: "search",
+        query: "snowman",
+        limit: 10,
+        offset: 10,
+        filters: { customerId: "customer-id" },
+        min_rank: 0.1,
+        document_types: ["style_group"],
+      },
     });
   });
 

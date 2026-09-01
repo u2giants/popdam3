@@ -3,6 +3,22 @@ import { supabase } from "@/integrations/supabase/client";
 export type SearchMode = "keyword" | "hybrid";
 export type DamDocumentType = "asset" | "style_group";
 
+export interface DamSearchRequest {
+  query: string;
+  documentType: DamDocumentType;
+  limit: number;
+  offset?: number;
+  filters?: Record<string, unknown>;
+  minRank?: number;
+}
+
+export interface DamSearchPage {
+  ids: string[];
+  totalCount: number;
+  hasMore: boolean;
+  facets: Record<string, unknown>;
+}
+
 let searchModePromise: Promise<SearchMode> | null = null;
 let searchModeExpiresAt = 0;
 const SEARCH_MODE_TTL_MS = 30_000;
@@ -32,28 +48,51 @@ export function invalidateSearchMode(): void {
   searchModeExpiresAt = 0;
 }
 
-export async function fetchHybridSearchIds(
-  query: string,
-  documentType: DamDocumentType,
-  limit: number,
-): Promise<string[]> {
+export async function fetchHybridSearchPage({
+  query,
+  documentType,
+  limit,
+  offset = 0,
+  filters = {},
+  minRank = 0,
+}: DamSearchRequest): Promise<DamSearchPage> {
   const { data, error } = await supabase.functions.invoke("dam-search-ai", {
     body: {
       action: "search",
       query,
       limit,
+      offset,
+      filters,
+      min_rank: minRank,
       document_types: [documentType],
     },
   });
   if (error) throw error;
   const results = Array.isArray(data?.results) ? data.results : [];
-  return results
+  const ids = results
     .filter((row: unknown): row is { document_type: string; entity_id: string } => {
       if (!row || typeof row !== "object") return false;
       const result = row as Record<string, unknown>;
       return result.document_type === documentType && typeof result.entity_id === "string";
     })
     .map((row) => row.entity_id);
+  return {
+    ids,
+    totalCount: typeof data?.total_count === "number" ? data.total_count : ids.length,
+    hasMore: data?.has_more === true,
+    facets: data?.facets && typeof data.facets === "object" && !Array.isArray(data.facets)
+      ? data.facets as Record<string, unknown>
+      : {},
+  };
+}
+
+export async function fetchHybridSearchIds(
+  query: string,
+  documentType: DamDocumentType,
+  limit: number,
+): Promise<string[]> {
+  const page = await fetchHybridSearchPage({ query, documentType, limit });
+  return page.ids;
 }
 
 export async function fetchSearchIds(
