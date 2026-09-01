@@ -145,18 +145,14 @@ corsServe(async (req) => {
     if (!query) return err("Missing query", 400);
     const limit = Math.min(100, Math.max(1, Math.trunc(Number(body.limit) || 50)));
     const offset = Math.min(10_000, Math.max(0, Math.trunc(Number(body.offset) || 0)));
-    const minRank = Number.isFinite(Number(body.min_rank))
-      ? Math.min(1, Math.max(0, Number(body.min_rank)))
-      : 0;
+    const minRank = Number.isFinite(Number(body.min_rank)) ? Math.min(1, Math.max(0, Number(body.min_rank))) : 0;
     const documentTypes = Array.isArray(body.document_types)
       ? body.document_types.filter((v): v is "asset" | "style_group" => v === "asset" || v === "style_group")
       : null;
     if (Array.isArray(body.document_types) && documentTypes?.length !== body.document_types.length) {
       return err("Invalid document_types", 400);
     }
-    const filters = body.filters === undefined || body.filters === null
-      ? {}
-      : body.filters;
+    const filters = body.filters === undefined || body.filters === null ? {} : body.filters;
     if (typeof filters !== "object" || Array.isArray(filters)) {
       return err("Invalid filters", 400);
     }
@@ -185,9 +181,7 @@ corsServe(async (req) => {
         rank: row.rank,
       }))
       : [];
-    const first = Array.isArray(data) && data.length > 0
-      ? data[0] as Record<string, unknown>
-      : null;
+    const first = Array.isArray(data) && data.length > 0 ? data[0] as Record<string, unknown> : null;
     return json({
       ok: true,
       results,
