@@ -1364,6 +1364,356 @@ export type Database = {
           },
         ]
       }
+      hts_rag_determinations: {
+        Row: {
+          classification_state: string
+          comparison_key: string
+          comparison_review_state: string
+          created_at: string
+          id: string
+          method: string
+          operative_eligible: boolean
+          precedent_id: string | null
+          product_example_id: string
+          proposed_hts: string | null
+          result_hash: string
+        }
+        Insert: {
+          classification_state: string
+          comparison_key: string
+          comparison_review_state?: string
+          created_at?: string
+          id?: string
+          method: string
+          operative_eligible?: boolean
+          precedent_id?: string | null
+          product_example_id: string
+          proposed_hts?: string | null
+          result_hash: string
+        }
+        Update: {
+          classification_state?: string
+          comparison_key?: string
+          comparison_review_state?: string
+          created_at?: string
+          id?: string
+          method?: string
+          operative_eligible?: boolean
+          precedent_id?: string | null
+          product_example_id?: string
+          proposed_hts?: string | null
+          result_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_determinations_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_determinations_product_example_id_fkey"
+            columns: ["product_example_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_product_examples"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_extraction_jobs: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          error_code: string | null
+          extraction_version: string
+          id: string
+          input_hash: string
+          model_version: string
+          product_example_id: string
+          prompt_version: string
+          result_hash: string | null
+          status: string
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          extraction_version: string
+          id?: string
+          input_hash: string
+          model_version: string
+          product_example_id: string
+          prompt_version: string
+          result_hash?: string | null
+          status?: string
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          extraction_version?: string
+          id?: string
+          input_hash?: string
+          model_version?: string
+          product_example_id?: string
+          prompt_version?: string
+          result_hash?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_extraction_jobs_product_example_id_fkey"
+            columns: ["product_example_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_product_examples"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_precedent_rulings: {
+        Row: {
+          created_at: string
+          final_relationship: string | null
+          id: string
+          precedent_id: string
+          provisional_claim: string | null
+          ruling_id: string
+          source_status: string
+          verifier_relevance: string
+          verifier_result_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          final_relationship?: string | null
+          id?: string
+          precedent_id: string
+          provisional_claim?: string | null
+          ruling_id: string
+          source_status?: string
+          verifier_relevance?: string
+          verifier_result_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          final_relationship?: string | null
+          id?: string
+          precedent_id?: string
+          provisional_claim?: string | null
+          ruling_id?: string
+          source_status?: string
+          verifier_relevance?: string
+          verifier_result_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_precedent_rulings_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_precedent_rulings_ruling_id_fkey"
+            columns: ["ruling_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_precedents: {
+        Row: {
+          classification_state: string
+          classifier_model: string
+          confidence_components: Json
+          conflicts: Json
+          created_at: string
+          decision_card_candidate: boolean
+          exclusions_checked: Json
+          extraction_version: string
+          fixture_hash: string
+          fixture_version: string
+          id: string
+          input_hash: string
+          missing_critical_facts: Json
+          negative_attributes: Json
+          normalized_facts: Json
+          operative_eligible: boolean
+          plausible_headings: Json
+          positive_attributes: Json
+          product_family: string
+          prompt_version: string
+          proposed_hts: string | null
+          raw_result_hash: string
+          reasoning_summary: string | null
+          review_state: string
+          verifier_model: string
+        }
+        Insert: {
+          classification_state: string
+          classifier_model: string
+          confidence_components?: Json
+          conflicts?: Json
+          created_at?: string
+          decision_card_candidate?: boolean
+          exclusions_checked?: Json
+          extraction_version: string
+          fixture_hash: string
+          fixture_version: string
+          id?: string
+          input_hash: string
+          missing_critical_facts?: Json
+          negative_attributes?: Json
+          normalized_facts?: Json
+          operative_eligible?: boolean
+          plausible_headings?: Json
+          positive_attributes?: Json
+          product_family: string
+          prompt_version: string
+          proposed_hts?: string | null
+          raw_result_hash: string
+          reasoning_summary?: string | null
+          review_state?: string
+          verifier_model: string
+        }
+        Update: {
+          classification_state?: string
+          classifier_model?: string
+          confidence_components?: Json
+          conflicts?: Json
+          created_at?: string
+          decision_card_candidate?: boolean
+          exclusions_checked?: Json
+          extraction_version?: string
+          fixture_hash?: string
+          fixture_version?: string
+          id?: string
+          input_hash?: string
+          missing_critical_facts?: Json
+          negative_attributes?: Json
+          normalized_facts?: Json
+          operative_eligible?: boolean
+          plausible_headings?: Json
+          positive_attributes?: Json
+          product_family?: string
+          prompt_version?: string
+          proposed_hts?: string | null
+          raw_result_hash?: string
+          reasoning_summary?: string | null
+          review_state?: string
+          verifier_model?: string
+        }
+        Relationships: []
+      }
+      hts_rag_product_examples: {
+        Row: {
+          created_at: string
+          facts: Json
+          fixture_hash: string
+          fixture_version: string
+          id: string
+          input_hash: string
+          product_family: string
+        }
+        Insert: {
+          created_at?: string
+          facts?: Json
+          fixture_hash: string
+          fixture_version: string
+          id?: string
+          input_hash: string
+          product_family: string
+        }
+        Update: {
+          created_at?: string
+          facts?: Json
+          fixture_hash?: string
+          fixture_version?: string
+          id?: string
+          input_hash?: string
+          product_family?: string
+        }
+        Relationships: []
+      }
+      hts_rag_product_family_allowlist: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          enabled_at: string | null
+          enabled_by: string | null
+          product_family: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          enabled_by?: string | null
+          product_family: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          enabled_by?: string | null
+          product_family?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hts_rag_review_events: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          new_state: string | null
+          notes: string | null
+          prior_state: string | null
+          reviewed_by: string | null
+          subject_id: string
+          subject_type: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          new_state?: string | null
+          notes?: string | null
+          prior_state?: string | null
+          reviewed_by?: string | null
+          subject_id: string
+          subject_type: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          new_state?: string | null
+          notes?: string | null
+          prior_state?: string | null
+          reviewed_by?: string | null
+          subject_id?: string
+          subject_type?: string
+        }
+        Relationships: []
+      }
       hts_rag_rulings: {
         Row: {
           collection: string | null
