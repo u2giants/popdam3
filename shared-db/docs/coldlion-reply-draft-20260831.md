@@ -5,28 +5,51 @@ the line as-is.
 
 ## Numbering — read before editing this draft
 
-**ColdLion has only ever seen issues 1–8.** They answered issue 3 and issue 8 on 2026-08-31.
-Issues 9 and above have **never been sent to them** — the 2026-08-28 internal draft was not sent, so
-those numbers were never used in the outbound thread and are free.
+**ColdLion has only ever seen issues 1–8.** They answered issue 3 and issue 8 on 2026-08-31. The
+2026-08-28 internal draft was never sent, so issues 9+ were never used outbound and were free to
+reassign. **Never mention a withdrawn question to ColdLion** — you cannot retract something they
+never received.
 
-This reply therefore assigns them fresh, and **there is nothing to withdraw** — you cannot withdraw a
-question the other side never received. Never mention a retracted or unsent question to ColdLion.
-
-| Outbound # | Subject | Status in this reply |
+| Outbound # | Subject | Status |
 |---|---|---|
-| 3 | Field descriptions inline vs. lookup | Closing. One yes/no remainder |
-| 6 | Order-history rows: which document did this row come from? | **Open — the lead ask** |
+| 3 | Field descriptions inline | Closing. One yes/no remainder |
+| 6 | Which document did this order-history row come from? | **Open — the lead ask** |
 | 7 | `salesOrderLineNo` = 0 | Acknowledged, no chase |
 | 8 | Bare array instead of a paged envelope | Closing — fixed, verified live |
-| **9** | **NEW — which of the four item flags means "stop selling"** | Was internally numbered 12 |
-| **10** | **NEW — merch-group renumbering cut-over dates, per division** | Was internally numbered 11 |
-| **11** | **NEW — are merch-group slots 07–10 deliberately maintained?** | Was part of internal 10 |
+| **9** | **NEW — which of the four item flags means "stop selling"** | The only new ask |
 
-**Internal numbers 9, 12, 13 and 14 from the 2026-08-28 draft are dead** and must not be reused
-outbound: the item-number rule (we don't generate item numbers), licensor→property and `royaltyCode`
-(owner ruling §6.6 — parentage is hand-curated and may never be derived from product data), and the
-five small confirmations (settled, already working, or fields we don't consume). See the gate at the
-top of §2 of [`coldlion-open-questions.md`](coldlion-open-questions.md).
+## What was dropped on 2026-08-31, and why — verified live, not inferred
+
+**The merch-group renumbering cut-over date (was going out as issue 10) is DROPPED. It does not
+affect us.** Two findings from a live pull of all 12,922 CW001, 3,883 EH001 and 2,108 SP001 items:
+
+1. **There is no April 2025 signal anywhere, and the "~2025-04-28 CW001" figure in our records has
+   no basis in the API.** No merch-group header carries an April 2025 timestamp (CW001 headers are
+   2019 for slots 01–06 and 2025-09 for slots 07–10), and `merchGroupDetails` returns **no
+   modification timestamps at all**. That date should never have been written down as ours. Albert's
+   recollection of mid-May 2025 is much closer to the data.
+2. **The only slot whose population actually breaks is slot 07** — and it breaks in **late May 2025**
+   for CW001, not April. Daily counts: fully populated through 2025-05-19 (26 of 26 items on 05-14,
+   5 of 5 on 05-19), mixed on 05-20 (6 of 12), and zero from 05-21 onward. SP001 breaks a week later
+   (full through 05-22, zero from 05-27). EH001 runs the other way — slot 07 is empty all spring and
+   only starts in October 2025.
+3. **The slots we actually use did not move.** Comparing item records created before vs. on/after
+   2025-05-20, slot 05 holds licensors in both periods (DISNEY, MARVEL, NBC, PEANUTS WORLDWIDE,
+   WARNER BROS) and slot 06 holds properties in both (MICKEY MOUSE, LILO AND STITCH, PEANUTS, SPIDER
+   MAN). **Same kind of value on both sides of the boundary — no re-slotting of licensor or
+   property.** So a cut-over date would not change how we read a single field we consume.
+
+**Slots 07–10 (was going out as issue 11) are DROPPED** — owner instruction 2026-08-31: we do not
+actively use them. Since slot 07 is also the only slot the renumbering touched, dropping it removes
+the last reason to ask about cut-over dates.
+
+**Also found and worth recording:** the item-level category field (`mGCategory`) is **empty on 100%
+of items in all three divisions, on every date including today.** Any rule that expects to read a
+category off an item record cannot work — the category has to come from the merch-group definitions,
+not the item.
+
+Internal numbers 9, 12, 13 and 14 from the 2026-08-28 draft remain dead (item-number rule;
+licensor→property and `royaltyCode`, settled by owner ruling §6.6; the five small confirmations).
 
 ---
 
@@ -42,10 +65,12 @@ production history, and you went further than we asked by adding `MerchGroup01De
 `MerchGroup14Desc` to `/items`. That removes a second lookup call for every one of those fields, and
 removes a local copy that could drift. The one remainder is a yes/no: where a merchandise-group
 code's meaning depends on the category it sits under, is the description you now return already
-resolved against that item's own category? We want to be certain the inline description can't
+resolved against that item's own category? We want to be certain the inline description cannot
 disagree with a direct lookup.
 
-We have kept the rest of this note deliberately short. Three things, in the order they matter to us.
+We have gone back through our own list and cut it right down — several things we were going to ask
+turned out to be answerable from your data or not relevant to us, and it wasn't fair to put them on
+your plate. Two things left.
 
 **Issue 6 — a document-type marker on every order-history row. This is the one that matters.**
 
@@ -57,8 +82,8 @@ value without risking double-counting — because, as you said, both prices are 
 
 **Could you add a document-type or source-stage field to every order-history row?** If the
 pick-ticket and invoice numbers can come alongside it, better still. Until this exists we cannot load
-order history into our system at all — we can only look at it. Everything else on this list could
-wait a month; this one can't.
+order history into our system at all — we can only look at it. Everything else could wait a month;
+this one can't.
 
 **Issue 9 — which of the four item flags means "stop selling this"?**
 
@@ -69,24 +94,6 @@ on the rest; `Active` is `N` on 459; `ItemDiscontinued` is `Y` on 546; `ItemAvai
 We currently treat `Active` as the answer, which is a guess on our part, and it decides which
 products we show as live and sellable. **Which one is authoritative?** And is the blank `ItemStatus`
 on two-thirds of the catalogue meaningful, or simply a field that isn't filled in?
-
-**Issue 10 — the merchandise-group renumbering cut-over date, for each division.**
-
-We know the renumbering happened because you told us. What we never had is when. We read approximate
-dates off when the group definitions were last modified — POP Creations around late April 2025, Edge
-Home and Spruce around September 2025 — but that is our inference, not your record. Those dates
-decide which historical rows we can trust as they stand, so if we have them wrong we will misread old
-data without ever noticing.
-
-**Could you give us the actual cut-over date per division?** If it was phased rather than a single
-date, that's just as useful — we would handle it differently.
-
-**Issue 11 — are merchandise-group slots 07 to 10 deliberately maintained?**
-
-Your headers name them Style Guide, Art Source, Artist and Demographic, and they carry real values on
-somewhere between 6% and 27% of items. Before we load them we would like to know whether they are
-maintained on purpose and safe to rely on, or partly-populated leftovers we should leave alone. A
-one-line answer is plenty.
 
 **Issue 7 — no chase, just acknowledging.** You said cancelled orders explain most of the zero line
 numbers and the invoiced ones are with your technical team. That's fine — we've set those rows aside

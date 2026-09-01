@@ -743,3 +743,28 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    version** — the CLI still finds a local file for every `schema_migrations`
    row, so it does not abort with `Remote migration versions not found in local
    migrations directory`.
+
+   **Working doctrine learned while building the exact-head approval gate.**
+
+   - **Check supersethood before taking a side in a merge conflict.** A side that
+     looks newer may still omit unique work from the other side. Compare the
+     complete competing content before choosing or rebuilding the result.
+   - **Regenerate on drift; verify otherwise.** Regenerate derived evidence when
+     its source moved. When the source did not move, verify the existing artifact
+     rather than replacing it merely to make it look current.
+   - **Two ways to absorb a repeated cost is the signal to find its cause.** If
+     the same workaround, retry, or manual correction is needed twice, stop
+     paying the symptom cost and investigate the shared cause.
+   - **The instrument rule.** A check that can only ever return "clean" must be
+     proven capable of returning "dirty" before its clean result means anything.
+     Every check asserts that its own precondition held, and verdict matching is
+     tested in the same regex engine production uses. Do not use `jq` for verdict
+     matching: a collapsed `\b` can become an Oniguruma backspace and silently
+     test for a control character instead of a word boundary.
+   - **The stacked-mutation rule.** A mutation check that cannot say which change
+     caused the failure is coincidence, not evidence. Restore, mutate one thing,
+     observe the expected failure, then restore before testing the next mutation.
+   - **The venue rule.** Before publishing an artifact, decide whether its content
+     may exist in this repository, separately from whether the change is correct.
+     Evidence capture does not authorize public storage of licensed, private, or
+     sensitive source material.
