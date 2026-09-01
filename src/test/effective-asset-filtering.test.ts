@@ -75,10 +75,10 @@ describe("which filters are group-owned", () => {
 
 describe("the contract is disabled until it meets its performance gate", () => {
   it("routes nothing through filter_effective_assets while the gate is off", () => {
-    // Measured 2026-08-30 against production as `authenticated`:
-    // filter_effective_assets returns 500 / 57014 statement timeout at ~8.1s for
-    // every payload including an empty one. Enabling this would turn every tag,
-    // licensor, and property filter into an error. See shared-db#1945.
+    // Re-measured 2026-08-31 after shared-db 20260831044913: fetching rows is
+    // fixed (200 rows @ 0.99s), but `count=exact` still never completes and the
+    // facet count fails ~half the time on a licensor filter. Enabling this would
+    // break pagination and error the sidebar. See shared-db#2054.
     expect(needsEffectiveScope(filters({ tagFilter: "drinkware" }))).toBe(false);
     expect(needsEffectiveScope(filters({ licensorId: "l1" }))).toBe(false);
     expect(needsEffectiveScope(filters({ propertyId: "p1" }))).toBe(false);
@@ -88,7 +88,7 @@ describe("the contract is disabled until it meets its performance gate", () => {
     const fs = await import("node:fs/promises");
     const source = await fs.readFile("src/hooks/useAssets.ts", "utf8");
     expect(source).toMatch(/EFFECTIVE_SCOPE_CONTRACT_READY = false/);
-    expect(source).toMatch(/shared-db#1945/);
+    expect(source).toMatch(/shared-db#2054/);
   });
 });
 

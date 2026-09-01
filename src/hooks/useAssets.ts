@@ -154,17 +154,24 @@ async function fetchAssetFullTextIds(search: string) {
  * `public.filter_effective_assets`, which resolves both scopes server-side.
  */
 /**
- * ⛔ OFF because the contract does not currently meet its performance gate.
+ * ⛔ OFF because the contract still cannot supply a list total.
  *
- * Measured against production as a real `authenticated` user on 2026-08-30,
- * `filter_effective_assets` returns HTTP 500 / `57014 statement timeout` at
- * ~8.1s for every payload tried — including an EMPTY one, so it is not a
- * selectivity problem. Turning this on would convert every tag, licensor, and
- * property filter into an error for users.
+ * Re-measured against production as a real `authenticated` user on 2026-08-31,
+ * after shared-db 20260831044913 fixed the original timeout:
  *
- * Tracked as u2giants/shared-db#1945. Turn this to `true` only after that issue
- * is fixed AND the timings are re-measured cold as `authenticated` against
- * production, not against `postgres` and not against preview.
+ *   filter_effective_assets, 200 rows, no count   -> 200 @ 0.99s  ✅ fixed
+ *   filter_effective_assets, any rows, count=exact -> 500 57014 @ 8.07s
+ *   get_filter_counts {licensorId}                -> 4 of 8 calls failed
+ *
+ * Fetching rows is fast now. Counting is not: `count=exact` never completes,
+ * and the facet count flaps on the 8s ceiling. Enabling this would break
+ * pagination outright and error the sidebar about half the time on a licensor
+ * filter.
+ *
+ * Tracked as u2giants/shared-db#2054 (follow-up to #1945). Turn this to `true`
+ * only after a list total can be obtained inside the ceiling AND the facet count
+ * passes repeatedly — measure several consecutive calls, not one: a single warm
+ * call passes today.
  */
 const EFFECTIVE_SCOPE_CONTRACT_READY = false;
 
