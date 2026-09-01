@@ -5,6 +5,33 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const HISTORICAL_RESTORATIONS = Object.freeze({
+  // #2035. Preview applied this version in run 33454217961 from PR #2009 commit
+  // bb77fdd49fe032c985dc93c907f5d4d93a2456a1, then the PR head moved twice to fix two
+  // High review findings and the corrected body merged as 30221c0b. Preview therefore
+  // holds the seven hts_rag_* tables from the SUPERSEDED body, and the production
+  // business-risk gate refuses a promotion whose rehearsal digest is not the file on
+  // exact main. Preview cannot re-run `create table`, so the file is restored to the
+  // bytes preview actually ran and the corrections are fixed forward in 20260901011306.
+  '20260831234750': Object.freeze({
+    filename: 'supabase/migrations/20260831234750_hts_rag_durable_precedent_contract.sql',
+    name: 'hts_rag_durable_precedent_contract',
+    previewProject: 'mvpkijzfmfcxhnzqogzs',
+    previewApplyRun: '33454217961',
+    previewAppliedCommit: 'bb77fdd49fe032c985dc93c907f5d4d93a2456a1',
+    forwardFixVersion: '20260901011306',
+    statementBytes: 12578,
+    statementSha256: '646bc6be0bef4e5bcc09cc944a46ff8910d9cab72a6b19ce66f3df60e2e15af4',
+    fileSha256: '2931391a44f512ec80fe468b00c3b92c277397418e5fda25fa98907dad6559cb',
+    objects: Object.freeze([
+      'table public.hts_rag_precedents',
+      'table public.hts_rag_precedent_rulings',
+      'table public.hts_rag_product_examples',
+      'table public.hts_rag_determinations',
+      'table public.hts_rag_extraction_jobs',
+      'table public.hts_rag_review_events',
+      'table public.hts_rag_product_family_allowlist',
+    ]),
+  }),
   '20260828052706': Object.freeze({
     filename: 'supabase/migrations/20260828052706_sync_dflow_columns_onto_plm_designflow_copies.sql',
     name: 'sync_dflow_columns_onto_plm_designflow_copies',

@@ -207,6 +207,18 @@ CREATE_INDEX_RE = re.compile(
     rf"^\s*create\s+(unique\s+)?index\s+(concurrently\s+)?"
     rf"(?:if\s+not\s+exists\s+)?({IDENT})\s+on\s+(?:only\s+)?{QUALIFIED}\b"
 )
+# A later migration in the SAME ordered batch may drop an index an earlier one
+# created (issue #2035: the review fix removed
+# `hts_rag_product_family_allowlist_enabled_idx`). Without this, the batch's
+# expected-object set still demands the index and enforcing verification fails on
+# a database that is exactly right. Only a SCHEMA-QUALIFIED drop is acted on; a
+# bare name is recorded as unassertable rather than guessed at, which is the same
+# refusal `CREATE_INDEX_HEAD_RE` makes.
+DROP_INDEX_HEAD_RE = re.compile(r"^\s*drop\s+index\b")
+DROP_INDEX_RE = re.compile(
+    rf"^\s*drop\s+index\s+(?:concurrently\s+)?"
+    rf"(?:if\s+exists\s+)?{QUALIFIED}\b"
+)
 GRANT_RE = re.compile(r"^\s*(grant|revoke)\b")
 # The object of a GRANT/REVOKE. `all tables in schema` is DELIBERATELY NOT
 # matched: it names a schema, not a relation, and guessing its membership is
@@ -2170,6 +2182,22 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                 relation_name = f"{match.group(4)}.{match.group(5)}"
                 indexes.add((index_name, relation_name))
                 tables.add(relation_name)
+                continue
+            if match := DROP_INDEX_RE.match(statement):
+                dropped = f"{match.group(1)}.{match.group(2)}"
+                before = len(indexes)
+                indexes = {pair for pair in indexes if pair[0] != dropped}
+                if len(indexes) != before:
+                    notes.append(
+                        f"{version}: dropped index `{dropped}` created earlier in this "
+                        f"batch; it is no longer an expected object"
+                    )
+                continue
+            if DROP_INDEX_HEAD_RE.match(statement):
+                notes.append(
+                    f"{version}: DROP INDEX was not safely parseable and was not "
+                    f"silently accepted: `{statement.strip()[:240]}`"
+                )
                 continue
             if CREATE_INDEX_HEAD_RE.match(statement):
                 notes.append(

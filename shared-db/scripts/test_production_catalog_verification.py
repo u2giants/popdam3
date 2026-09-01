@@ -196,6 +196,28 @@ class DeriveTargetsTests(unittest.TestCase):
         self.assertEqual((source, destination), ("designflow", "designflow_frozen_20260710"))
         self.assertIn("FROZEN 2026-08-27", comment)
 
+    def test_index_dropped_later_in_the_batch_is_not_expected(self):
+        # Issue #2035: the review-fix migration removes an index the contract
+        # migration created. The batch's expected-object set must follow the
+        # drop, or enforcing verification fails on a database that is exactly
+        # right. The positive control is the first assertion: without the drop
+        # the index MUST still be demanded.
+        created = "create index widget_name_idx on plm.widget (name);"
+        self.assertIn(
+            ("plm.widget_name_idx", "plm.widget"), targets_for(created).indexes
+        )
+        t = targets_for(created + "\ndrop index if exists plm.widget_name_idx;")
+        self.assertEqual(t.indexes, [])
+        self.assertTrue(any("dropped index" in note for note in t.notes))
+
+    def test_unqualified_drop_index_is_recorded_not_guessed_at(self):
+        created = "create index widget_name_idx on plm.widget (name);"
+        t = targets_for(created + "\ndrop index widget_name_idx;")
+        self.assertIn(("plm.widget_name_idx", "plm.widget"), t.indexes)
+        self.assertTrue(
+            any("DROP INDEX was not safely parseable" in note for note in t.notes)
+        )
+
     def test_create_table_is_found(self):
         t = targets_for("create table if not exists plm.widget (id bigint);")
         self.assertIn("plm.widget", t.tables)
