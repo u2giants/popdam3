@@ -4,8 +4,9 @@ import { db } from "../supabase.js";
 import type { BatchResult, OpState } from "../types.js";
 
 // Production samples exceeded the hosted edge runtime at 25 and 10 documents,
-// after safely completing 14 and 7 respectively. Five leaves runtime headroom.
-const DEFAULT_BATCH_SIZE = 5;
+// and a longer run proved that five can still exceed it after partial success.
+// Three keeps each invocation comfortably below the hosted runtime ceiling.
+const DEFAULT_BATCH_SIZE = 3;
 const WORKER_ID = `railway-search-${process.pid}`;
 
 export interface SearchEmbeddingStatus {
