@@ -176,12 +176,11 @@ begin
   end if;
   select pg_get_functiondef('public.get_effective_filter_counts(jsonb)'::regprocedure)
     into v_definition;
-  if (length(v_definition) - length(replace(v_definition,
-       'get_effective_filter_counts_unchecked_1703', '')))
-       / length('get_effective_filter_counts_unchecked_1703') <> 1
+  if position('filter_effective_assets' in v_definition) = 0
+     or position('get_effective_filter_counts_unchecked_1703' in v_definition) > 0
      or (length(v_definition) - length(replace(v_definition, 'require_dam_access', '')))
        / length('require_dam_access') <> 1 then
-    raise exception 'effective counts must share the narrow implementation behind one DAM gate';
+    raise exception 'effective counts must use the parity filter behind one DAM gate';
   end if;
 end;
 $$;
