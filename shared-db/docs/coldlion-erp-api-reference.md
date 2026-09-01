@@ -104,20 +104,35 @@ List endpoints are Spring-paged:
 Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,711**
 (items table is large too).
 
-> ### ⚠️ Exceptions — endpoints that are NOT paged
-> `/merchGroupDetails`, **`/prodHistory`** and **`/orderHistory`** return a **plain JSON array**,
-> not the envelope above. The two history endpoints **silently ignore `page` and `size`**
-> (verified 2026-08-14: `size=5` still returned 265 rows), so a paging loop written against
-> them will re-fetch the same rows forever. Chunk them by **date window** instead.
+> ### ⚠️ History endpoints — paged since 2026-08-31, but read this first
+> **`/orderHistory` and `/prodHistory` now return the standard envelope** (ColdLion change
+> 2026-08-31, verified live) and genuinely honour `page`/`size`. The old advice to read them as a
+> bare array is retired. `/merchGroupDetails` still returns a plain JSON array.
+>
+> **⛔ Undocumented page-size cap: 200.** A request with `size=5000` returns **200 rows and no
+> error**. A scan that trusted a large `size` under-counted 1,823 rows as 1,375. **Always loop until
+> `last` is true** — never infer completeness from a single large request.
 >
 > **Both history endpoints cap the window at 7 days inclusive** (ColdLion change 2026-08-17, set at
 > our request; verified: 8 days refused, 7 accepted, `from == to` accepted). The refusal is
 > **HTTP 400 on the wire with `"status": 500` in the body** — do not treat it as a transient fault.
 > `/prodHistory` also gained **`prodLineSeq`** (row identity) and a `prodOrderNo` filter that day.
 >
-> Read [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) before building
-> any loader — it carries the window arithmetic, the row-identity rule, and the fields that look
-> usable but are always zero.
+> ### Fields added to `/orderHistory` on 2026-08-31 / 2026-09-01
+> | Field | Meaning |
+> |---|---|
+> | `orderQty`, `invoiceQty`, `shipQty` | **per-SKU** quantities, precomputed — use these |
+> | `prepackQty`, `quantity` | prepack recipe denominator and multiplier |
+> | `subItemNo`, `subColorCode`, `subLabelCode`, `subDimCode`, `subSizeCode`, `subUpc` | the **real SKU** on a prepack row |
+> | `pickTicketNoString` | pick-ticket number(s) — **may be a comma-separated list** |
+> | `labelDesc`, `warehouseDesc` | inline descriptions, no lookup call needed |
+> | `merchGroup01Desc`–`merchGroup14Desc` | inline merch-group descriptions (also on `/items`) |
+>
+> ⚠️ `lineQty` and `lineInvoiceQty` are **parent-line totals**, not per-SKU. On a prepack order they
+> are identical on every exploded row and summing them multiplies the true figure by the number of
+> components. **Read [`coldlion-prepack-sku-mapping.md`](coldlion-prepack-sku-mapping.md) before
+> building any order-history loader**, alongside
+> [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md).
 
 > ## ✅ RESOLVED 2026-07-22 — Coldlion swapped `/vendors` to the correct (factory) table
 >
