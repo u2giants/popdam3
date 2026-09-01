@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildGroupProfileWrites,
+  callStyleGroupModel,
   handleStyleGroupProfiles,
   prepareGroupImages,
   profileOneStyleGroup,
@@ -17,6 +18,7 @@ import {
 import { isValidAutoResumeCursor } from "../operation-retry.js";
 import { readFileSync } from "node:fs";
 import type { OpState } from "../types.js";
+import { config } from "../config.js";
 
 const GROUP_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ASSET_A = "11111111-1111-4111-8111-111111111111";
@@ -78,6 +80,38 @@ function deps(overrides: Partial<StyleGroupProfileDependencies> = {}): StyleGrou
     ...overrides,
   };
 }
+
+test("Style Group profiling sends Muse directly to Meta without an OpenRouter provider", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalMetaKey = config.metaApiKey;
+  let requestUrl = "";
+  let requestBody: Record<string, unknown> = {};
+  (config as unknown as { metaApiKey: string }).metaApiKey = "test-meta-key";
+  globalThis.fetch = (async (input, init) => {
+    requestUrl = String(input);
+    requestBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({
+      id: "meta-test",
+      model: "muse-spark-1.2-contributor",
+      choices: [{ message: { content: JSON.stringify(PROFILE) } }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    const profile = await callStyleGroupModel(
+      GROUP,
+      MEMBERS,
+      [{ base64: "AAAA", mimeType: "image/jpeg" }],
+      "meta-direct/muse-spark-1.2-contributor",
+    );
+    assert.equal(profile.group_ai_description, PROFILE.group_ai_description);
+    assert.equal(requestUrl, "https://api.meta.ai/v1/chat/completions");
+    assert.equal(requestBody.model, "muse-spark-1.2-contributor");
+    assert.equal(requestBody.provider, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+    (config as unknown as { metaApiKey: string }).metaApiKey = originalMetaKey;
+  }
+});
 
 // ── Contract validation ──────────────────────────────────────────────────────
 

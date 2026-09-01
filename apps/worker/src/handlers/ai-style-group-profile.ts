@@ -31,6 +31,11 @@ import {
 } from "../openrouter.js";
 import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type StructuredOutputMethod } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
+import {
+  isMetaDirectModel,
+  isTerminalMetaModelApiError,
+  metaChatCompletion,
+} from "../meta-model-api.js";
 import type { BatchResult, OpenRouterBatchJobState, OpState } from "../types.js";
 import {
   AUTHORITATIVE_TAG_MODEL,
@@ -381,7 +386,7 @@ export function buildGroupProfileMessages(
   ];
 }
 
-async function defaultCallModel(
+export async function callStyleGroupModel(
   group: StyleGroupProfileRow,
   representatives: StyleGroupRepresentativeCandidate[],
   images: ImageData[],
@@ -389,8 +394,20 @@ async function defaultCallModel(
 ): Promise<StyleGroupProfileData> {
   const apiKey = await getAiTaggingApiKey(model);
   if (!apiKey) throw new Error("No AI API key configured for Style Group profiling");
-  const models = await getVisionModels();
-  const capabilities = await getRuntimeModelCapabilities(apiKey, model);
+  const directMeta = isMetaDirectModel(model);
+  const capabilities = directMeta ? {
+    modelId: model,
+    imageInput: true,
+    tools: true,
+    toolChoice: true,
+    toolChoiceModes: ["auto" as const],
+    structuredOutputs: true,
+    jsonObject: true,
+    prefer: ["json_schema" as const, "json_object" as const, "tool_auto" as const],
+    source: "override" as const,
+    fetchedAt: new Date().toISOString(),
+  } : await getRuntimeModelCapabilities(apiKey, model);
+  const models = directMeta ? null : await getVisionModels();
   const result = await executeStructuredOutput({
     apiKey,
     model,
@@ -400,7 +417,9 @@ async function defaultCallModel(
     capabilities,
     timeoutMs: AI_TIMEOUT_MS,
     maxTokens: 3000,
-    provider: buildProviderPin(models.providerPin),
+    provider: directMeta ? undefined : buildProviderPin(models?.providerPin ?? null),
+    completion: directMeta ? metaChatCompletion : undefined,
+    isTerminalError: directMeta ? isTerminalMetaModelApiError : undefined,
     validate: (value) => validateStyleGroupProfileData(value, "structured"),
   });
   return result.value;
@@ -422,7 +441,7 @@ export async function profileOneStyleGroup(
   const fetchImages = dependencies.fetchImages ??
     ((representatives: StyleGroupRepresentativeCandidate[]) =>
       prepareGroupImages(representatives, dependencies.maxImageBytes ?? MAX_GROUP_IMAGE_BYTES));
-  const callModel = dependencies.callModel ?? defaultCallModel;
+  const callModel = dependencies.callModel ?? callStyleGroupModel;
 
   const members = await fetchMembers(group.id);
   const memberIds = members.map((member) => member.id);
