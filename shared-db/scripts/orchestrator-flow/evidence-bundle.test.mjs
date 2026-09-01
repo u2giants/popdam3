@@ -38,6 +38,8 @@ test('real invalidator inventory names only existing files and covers manager im
   for(const file of inventory.files)assert.doesNotThrow(()=>readFileSync(file))
   const realAdapters={readFile:(file)=>readFileSync(file,'utf8'),fileExists:(file)=>{try{readFileSync(file);return true}catch{return false}}}
   const closure=discoverModuleImports(['scripts/manage-migration-author-lanes.mjs'],realAdapters)
+  assert.ok(closure.includes('scripts/lib/review-verdict-artifact.mjs'),'verdict artifact policy must stay inside manager import closure')
+  assert.ok(inventory.files.includes('scripts/lib/review-verdict-artifact.mjs'),'verdict artifact policy must invalidate reviewed evidence globally')
   const uncovered=closure.filter((file)=>!inventory.files.includes(file)&&!file.startsWith('scripts/orchestrator-flow/'))
   assert.deepEqual(uncovered,[])
 })

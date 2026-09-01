@@ -49,8 +49,9 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { REPO, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX } from './manage-migration-author-lanes.mjs'
+import { REPO, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX, parseReviewCursor } from './manage-migration-author-lanes.mjs'
 import { approvalLine, evidenceTiedToHead, refusalLine, trustedVerdictEvidence, unambiguouslyTiedToHead } from './lib/review-verdict.mjs'
+import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, isValidatedVerdictArtifact, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact } from './lib/review-verdict-artifact.mjs'
 
 export class ApprovalCheckError extends Error {}
 
@@ -130,12 +131,29 @@ const tiedToHead = evidenceTiedToHead
 // space-separated `REQUEST CHANGES` counts too: it is how a reviewer writing prose
 // spells the same refusal, and only the underscore form was recognised before.
 
-export function evaluateExactHeadApproval({ pr, headSha, evidence = [], assignments = [] }) {
+export function evaluateExactHeadApproval(input) {
+  const { pr, headSha, evidence = [], assignments = [], verdicts } = input
   if (!/^[0-9a-f]{40}$/i.test(String(headSha ?? ''))) throw new ApprovalCheckError('an exact 40-character head SHA is required')
   if (!Number.isInteger(Number(pr)) || Number(pr) <= 0) throw new ApprovalCheckError('an exact pull request number is required')
 
   const pinned = assignments.filter((row) => String(row.headSha ?? '').toLowerCase() === String(headSha).toLowerCase())
   if (!pinned.length) throw new ApprovalCheckError(`no reviewer was ever assigned head ${headSha}; an assignment pinned to an earlier head does not carry forward to new commits`)
+
+  if (Object.prototype.hasOwnProperty.call(input, 'verdicts')) {
+    const exact = (verdicts ?? []).filter((row) => Number(row.pr) === Number(pr) && String(row.head_sha).toLowerCase() === String(headSha).toLowerCase())
+    if (exact.some((row) => !isValidatedVerdictArtifact(row))) throw new ApprovalCheckError('durable verdict input crossed the approval boundary without artifact validation')
+    if (new Set(exact.map((row) => row.ref)).size !== exact.length) throw new ApprovalCheckError('duplicate durable verdict refs cannot be counted')
+    if (exact.some((row) => row.verdict !== 'APPROVE')) throw new ApprovalCheckError(`head ${headSha} carries a durable reviewer refusal; answer it with a new commit and a fresh exact-head review`)
+    const approvals = exact.filter((row) => row.verdict === 'APPROVE')
+    if (!approvals.length) throw new ApprovalCheckError(`head ${headSha} has no durable APPROVE artifact; a review that wrote no artifact never authorizes a merge`)
+    const latestBySlot = new Map()
+    for (const assignment of pinned) {
+      const prior = latestBySlot.get(assignment.slot)
+      if (!prior || Number(assignment.replacementSequence ?? 0) > Number(prior.replacementSequence ?? 0)) latestBySlot.set(assignment.slot, assignment)
+    }
+    for (const assignment of latestBySlot.values()) if (!approvals.some((row) => row.assignment_sha === assignment.sha)) throw new ApprovalCheckError(`review slot ${assignment.slot} has no durable APPROVE for its latest exact-head assignment`)
+    return { approved: true, head_sha: headSha, pr: Number(pr), assignments: latestBySlot.size, approvals: new Set(approvals.map((row) => row.ref)).size }
+  }
 
   const authenticated = evidence.filter(trustedVerdictEvidence)
   const atHead = authenticated.filter((row) => tiedToHead(row, headSha))
@@ -165,8 +183,9 @@ export function parseAssignmentRef(ref) {
 // production never writes: the adapter-shape defect this file's own header warns
 // about, committed in the file that warns about it. The tail now mirrors
 // `matchesReplacementTuple`.
-  const match = /^refs\/db-review-(?:assignments|replacements)\/(\d+)-(\d+)-([0-9a-f]{40})(?:-slot\d+)?(?:-\d+)?(?:\/.*)?$/.exec(String(ref ?? ''))
-  return match ? { issue: Number(match[1]), pr: Number(match[2]), headSha: match[3] } : null
+  const match = /^refs\/db-review-(assignments|replacements)\/(\d+)-(\d+)-([0-9a-f]{40})(?:-slot(\d+))?(?:-(\d+))?$/.exec(String(ref ?? ''))
+  if (!match || (match[1] === 'replacements') !== Boolean(match[6])) return null
+  return { issue: Number(match[2]), pr: Number(match[3]), headSha: match[4], slot: Number(match[5] ?? 1), replacementSequence: match[6] ? Number(match[6]) : null }
 }
 
 // Assignment refs are named <issue>-<pr>-<headSha>, so the pull request alone is
@@ -205,13 +224,33 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
     const parsed = parseAssignmentRef(row.ref)
     if (!parsed || parsed.pr !== pr) return []
     issueNumbers.add(parsed.issue)
-    return [parsed]
+    return [{...parsed,ref:row.ref,sha:row.object?.sha}]
+  })
+  const verdictRows = [REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((prefix) => {
+    const rows = readJson(['api', `repos/${REPO}/git/matching-refs/${prefix.replace(/^refs\//, '')}/`])
+    return Array.isArray(rows) ? rows : []
+  }).filter((row)=>{const parsed=parseVerdictRef(row.ref);return parsed?.pr===pr&&parsed.headSha===headSha.toLowerCase()})
+  const verdicts=verdictRows.map((row)=>{
+    const named=parseVerdictRef(row.ref),sha=row.object?.sha
+    const commit=readJson(['api',`repos/${REPO}/git/commits/${sha}`]),record=parseVerdictCommit(commit)
+    const slot=named.slot===1?'':`-slot${named.slot}`
+    const expectedAssignment=named.replacementSequence===null
+      ?`${REVIEW_ASSIGNMENT_REF_PREFIX}/${named.issue}-${named.pr}-${named.headSha}${slot}`
+      :`${REVIEW_REPLACEMENT_REF_PREFIX}/${named.issue}-${named.pr}-${named.headSha}${slot}-${named.replacementSequence}`
+    const assignment=assignments.find((candidate)=>candidate.ref===expectedAssignment)
+    if(!assignment?.sha)throw new ApprovalCheckError(`verdict ${row.ref} has no exact assignment object`)
+    const assignmentCommit=readJson(['api',`repos/${REPO}/git/commits/${assignment.sha}`]),cursor=parseReviewCursor(assignmentCommit)
+    const commentId=/#issuecomment-(\d+)$/.exec(String(record.findings_ref??''))?.[1]
+    if(!commentId)throw new ApprovalCheckError(`verdict ${row.ref} has an invalid findings reference`)
+    const findingsBody=readJson(['api',`repos/${REPO}/issues/comments/${commentId}`])?.body
+    try{return validateVerdictArtifact({ref:row.ref,sha,commit,findingsBody,assignment:{sha:assignment.sha,reviewer:cursor.reviewer}})}
+    catch(error){throw new ApprovalCheckError(`verdict ${row.ref} is invalid: ${error.message}`)}
   })
   const evidence = [
     ...[...issueNumbers].flatMap((number) => readPages(`repos/${REPO}/issues/${number}/comments?per_page=100`)),
     ...readPages(`repos/${REPO}/pulls/${pr}/reviews?per_page=100`),
   ]
-  return { pr, headSha, evidence, assignments }
+  return { pr, headSha, evidence, assignments, verdicts }
 }
 
 export function main(env = process.env) {

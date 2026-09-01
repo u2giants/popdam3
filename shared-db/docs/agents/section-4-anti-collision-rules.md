@@ -284,6 +284,16 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    and ask Albert one concise decision. Never send secrets or licensed rows.
    Do not impose a fixed hard-kill timer on a reviewer that is still making progress.
 
+   Run the returned wrapper only through `scripts/run-governed-review.mjs`. The
+   adapter withholds the result until it has posted the complete findings and
+   created the immutable verdict ref while the exact reviewer lease is still
+   held. Calling a wrapper directly produces supplementary diligence, never
+   merge or preview evidence; there is no manual verdict-recording fallback.
+   The manager CLI rejects `--record-review-verdict`; only the terminal adapter
+   can call the create-only recorder after posting the assigned wrapper output.
+   Prose may free reviewer capacity during cutover, but it never authorizes a
+   merge, preview, or replacement; those gates consume durable artifacts only.
+
    **A verdict with no coverage statement is not review evidence** (issue #1220,
    fixed wrapper-side in `ai-devops` PR #43). Two wrappers could finish a run
    having produced no findings and no verdict at all and still exit 0, and one
