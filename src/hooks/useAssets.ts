@@ -154,24 +154,27 @@ async function fetchAssetFullTextIds(search: string) {
  * `public.filter_effective_assets`, which resolves both scopes server-side.
  */
 /**
- * ⛔ OFF because the contract still cannot supply a list total.
+ * ⛔ OFF. The contract regressed again and now fails on every call.
  *
- * Re-measured against production as a real `authenticated` user on 2026-08-31,
- * after shared-db 20260831044913 fixed the original timeout:
+ * Re-measured against production as a real `authenticated` user on 2026-09-02:
  *
- *   filter_effective_assets, 200 rows, no count   -> 200 @ 0.99s  ✅ fixed
- *   filter_effective_assets, any rows, count=exact -> 500 57014 @ 8.07s
- *   get_filter_counts {licensorId}                -> 4 of 8 calls failed
+ *   filter_effective_assets, 5 rows, no filter, no count -> 500 57014 @ 8.1s
+ *   filter_effective_assets, 200 rows, no count          -> 500 57014 @ 8.1s
+ *   get_filter_counts {tagFilter}                        -> 0 of 8 calls passed
+ *   get_filter_counts {licensorId}                       -> 8 of 8 passed @ ~0.2s ✅
  *
- * Fetching rows is fast now. Counting is not: `count=exact` never completes,
- * and the facet count flaps on the 8s ceiling. Enabling this would break
- * pagination outright and error the sidebar about half the time on a licensor
- * filter.
+ * The identity count was fixed by shared-db#2054, but `filter_effective_assets`
+ * now times out even for five rows with nothing filtered — worse than before
+ * #1945. Traced to the `with authorized as materialized (...)` entitlement CTE
+ * added in shared-db 20260901130428 / 20260901142825: a MATERIALIZED CTE is an
+ * optimization barrier, so the function can no longer be inlined.
  *
- * Tracked as u2giants/shared-db#2054 (follow-up to #1945). Turn this to `true`
- * only after a list total can be obtained inside the ceiling AND the facet count
- * passes repeatedly — measure several consecutive calls, not one: a single warm
- * call passes today.
+ * Tracked as u2giants/shared-db#2138. Before flipping this to `true`, measure
+ * ALL THREE over several consecutive calls, not one — a single warm call has
+ * passed at every stage of this while the real shapes failed:
+ *   1. rows returned inside the ceiling,
+ *   2. the tag facet count passing as reliably as the identity count,
+ *   3. a list total obtainable (count=exact, or get_filter_counts.total).
  */
 const EFFECTIVE_SCOPE_CONTRACT_READY = false;
 
