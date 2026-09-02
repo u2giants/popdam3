@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260901142825",
+  "migration_sha256": "bc8ef9e10f5ef6fd91f61d7b03516464cfc1a799d9dbae27944c1551742a15ba",
+  "checks": [
+    {
+      "id": "popdam_effective_count_indexed_union_2054",
+      "kind": "catalog_contract",
+      "contract": "popdam_effective_count_indexed_union_v1",
+      "expected_count": 1
+    }
+  ]
+}

@@ -395,6 +395,13 @@ code — but an orchestrator that leaves items standing in it is carrying other 
 The block prints **before** the refill line, not after it, so a queue that has dispatchable work
 cannot hide it — that ordering is deliberate.
 
+### Queue priority
+
+Among eligible structural issues, work that releases the largest number of other open issues is
+first. The count includes direct and chained `depends_on` relationships. If two issues release the
+same number, the older issue is first. The numeric `priority:` field remains required for scope
+compatibility but does not override blocker impact or age.
+
 An issue with **no** `db-work-scope` block at all is `unclassified`: it is not admitted, it is not
 worked, and it already blocks an empty-lane claim. Classify it or send it back.
 
@@ -719,8 +726,9 @@ rules below are the operative summary.
      only when there is no verdict and no progress, or a concrete transport, coverage, or
      truncated-output failure. Never replace `REVISE` or reduce coverage: exhaust active providers
     not failed on the exact head, then fail closed with the exact blocker. The configured rotation is
-    Grok 4.6, GLM 5.3, Kimi K3, Muse Spark 1.2 Contributor, Codex GPT-5.6 Sol, and DeepSeek,
-    minus the live orchestrator's own engine. Qwen and Gemini are inactive.
+    Grok 4.6, GLM 5.3, Kimi K3, Muse Spark 1.2 Contributor, and Codex GPT-5.6 Sol,
+    minus the live orchestrator's own engine. Qwen, Gemini and DeepSeek are inactive; DeepSeek
+    was RETIRED on 2026-09-01 (issue #2078) and is not drawable.
 
    The `Cross-PR object collision` CI check is only the backstop. By the time it fires, somebody's
    session is already wasted — on 2026-07-31, three of four were.
@@ -1496,9 +1504,13 @@ have already happened in this repo, more than once.
 
     What actually re-checks a migration pull request against current `main` is
     `.github/workflows/guarded-migration-merge.yml`, whose required context
-    `Migration guarded merge authorization` re-runs collision and lease validation on a head that
-    contains current `main`, while holding the merge lock. A pull request with no migrations is
-    auto-authorized by `.github/workflows/migration-author-lease.yml`.
+    `Migration guarded merge authorization` re-runs collision, exact-head review, and—when the
+    pull request changes a migration—lease validation on a head that contains current `main`,
+    while holding the merge lock. **Every pull request, including documentation-only and other
+    non-migration changes, uses that guarded merge lane.** A non-migration pull request needs no
+    migration-author claim, but it is never auto-authorized by the lease workflow. When production
+    acquires its lock, it revokes every open pull request's earlier merge authorization before
+    releasing that lock, so a stale green result cannot bypass the production freeze.
 
     Older documents — including `docs/owner-rulings.md`'s 2026-08-06/14 entries and
     `plan_orchestrator-workflow-gaps.md` — describe the earlier `strict: true` state. That history

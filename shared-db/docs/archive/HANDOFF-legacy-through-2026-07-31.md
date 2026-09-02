@@ -3710,7 +3710,7 @@ Owner-confirmed 2026-07-27:
    select * from public.search_style_tracker_link_candidates('licensor','One Piece (Toei)',8,'fuzzy'); -- TOEI - ONE PIECE, 1.0
    select * from public.search_style_tracker_link_candidates('licensor','Coca-Cola',8,'fuzzy');        -- COCA COLA, 1.0
    select * from public.search_style_tracker_link_candidates('customer','Burlington, Ross',8,'fuzzy'); -- Burlington, 0.9
-   select * from public.search_style_tracker_link_candidates('sku','VSZ93DA',8,'fuzzy');
+   select * from public.search_style_tracker_link_candidates('sku','AAA93DA',8,'fuzzy');
    ```
 5. Confirm one row per `target_id` in every result (the alias join must not duplicate candidates).
 6. Exercise the real screen against preview: PopDAM `/styles` → Master Data matching, confirm the

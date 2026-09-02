@@ -84,7 +84,9 @@ begin
           / length('require_dam_access') <> 1
      or position('authorized as materialized' in v_definition) = 0
      or position('from authorized' in v_definition) = 0
-     or position('cross join public.assets a' in v_definition) = 0
+     or position('identity_asset_ids as' in v_definition) = 0
+     or position('cross join identity_asset_ids i' in v_definition) = 0
+     or position('join public.assets a on a.id = i.id' in v_definition) = 0
      or position('filter_effective_assets_unchecked_1703' in v_definition) > 0
      or not exists (
        select 1 from pg_proc
@@ -176,8 +178,8 @@ begin
   end if;
   select pg_get_functiondef('public.get_effective_filter_counts(jsonb)'::regprocedure)
     into v_definition;
-  if position('filter_effective_assets' in v_definition) = 0
-     or position('get_effective_filter_counts_unchecked_1703' in v_definition) > 0
+  if position('get_effective_filter_counts_unchecked_1703' in v_definition) = 0
+     or position('filter_effective_assets' in v_definition) > 0
      or (length(v_definition) - length(replace(v_definition, 'require_dam_access', '')))
        / length('require_dam_access') <> 1 then
     raise exception 'effective counts must use the parity filter behind one DAM gate';

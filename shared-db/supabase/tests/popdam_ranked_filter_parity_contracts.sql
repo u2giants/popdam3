@@ -25,7 +25,7 @@ begin
      or position('customerid' in lower(v_search)) > position('page as materialized' in lower(v_search)) then
     raise exception 'ranked filters are missing or occur after pagination';
   end if;
-  if position('filter_effective_assets' in v_counts)=0 or position('require_dam_access' in v_counts)=0 then
+  if position('get_effective_filter_counts_unchecked_1703' in v_counts)=0 or position('require_dam_access' in v_counts)=0 then
     raise exception 'effective counts do not share the parity filter and DAM gate';
   end if;
   if has_function_privilege('anon','public.filter_effective_assets(jsonb)','EXECUTE')

@@ -30,7 +30,7 @@ Companions, both verified against live calls — read before implementing:
 >
 > **`GET /prodHistory` without `stageCode` returns only the `ISS` (issued) lines.** `stageCode=REC`
 > returns **receipt** lines that appear nowhere in the default response — zero key overlap, verified
-> across four windows. Order 22717 ordered 4,800 on its `ISS` line and received 4,548 on its `REC`
+> across four windows. Order 90003 (synthetic values) ordered 5,000 on its `ISS` line and received 4,748 on its `REC`
 > line; only the first is in the default response. Full evidence:
 > [`verification/coldlion-prodhistory-stage-discovery-20260819/README.md`](verification/coldlion-prodhistory-stage-discovery-20260819/README.md).
 >

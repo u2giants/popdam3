@@ -54,6 +54,17 @@ behavior. It no longer defines current licensing authority. For Licensors, Prope
 Characters, Style Guides, Franchises, and licensed Assets, use the 2026-08-16 rules linked
 above. ColdLion also owns official Licensor names and ColdLion-only Property truth outside scrape coverage.
 
+> ### ⚠️ Licensor (`merchGroup05`) and property (`merchGroup06`) are component-level, never Master-level
+> **Owner ruling, Albert, 2026-09-01:** one Master assortment (ColdLion's *prepack*) can hold four
+> designs with four different licensors and properties, so a licensor or property stamped on the
+> Master is meaningless. Read both from the sub-item only; never fall back to the Master when the
+> component value is blank; explode assortments to components before grouping any report, royalty
+> calculation, or licence-expiry check by licensor or property. A Master's licensor set is derived,
+> and it is a set, not a value. Full rule:
+> [`business-rules-erp-data.md` §9](business-rules-erp-data.md). Read it from the ordinary
+> `merchGroup05`/`merchGroup06` fields on the exploded component row of either history feed —
+> the separate `ppkMerchGroup*` family this repo once documented no longer exists in the API.
+
 ---
 
 ## 1. Vocabulary, in the three systems' own words

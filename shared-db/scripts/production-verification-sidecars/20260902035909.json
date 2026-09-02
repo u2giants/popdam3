@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260902035909",
+  "migration_sha256": "d370e49387671cd8ce72f8b20cdebb045cc5fc84f4d3e17052520d0042e2227d",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 83,
+      "line_end": 83,
+      "disposition": "checks",
+      "reason": "This execute rewrites the existing Licensing Manager RPC. The authority catalog contract proves the exact Marvel-contract over Disney-OPA exception and all original DCP-to-OPA authority protections; predecessor contracts preserve set-based execution, bounded enrichment, privacy-safe presentation, and source-purpose behavior.",
+      "check_ids": [
+        "dcp_opa_authority_1999",
+        "set_based_authority_1999",
+        "bounded_enrichment_1999",
+        "creative_contract_1999",
+        "source_purpose_1999"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "dcp_opa_authority_1999",
+      "kind": "catalog_contract",
+      "contract": "dcp_opa_property_authority_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "set_based_authority_1999",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_set_based_authority_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "bounded_enrichment_1999",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_bounded_enrichment_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "creative_contract_1999",
+      "kind": "catalog_contract",
+      "contract": "creative_submission_contract_status_v1",
+      "expected_count": 1
+    },
+    {
+      "id": "source_purpose_1999",
+      "kind": "catalog_contract",
+      "contract": "scraped_properties_source_purpose_v1",
+      "expected_count": 1
+    }
+  ]
+}

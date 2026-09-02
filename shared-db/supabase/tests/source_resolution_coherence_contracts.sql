@@ -47,7 +47,7 @@ begin
   begin
     execute 'set local role anon';
     perform plm.set_source_resolution(
-      'zztest', 'property', 'anon-must-fail', 'unresolved',
+      'paramount', 'property', 'contract-test-anon-must-fail', 'unresolved',
       null, null, null, null, null, null
     );
     execute 'reset role';
@@ -58,18 +58,18 @@ begin
 
   execute 'set local role authenticated';
   perform plm.set_source_resolution(
-    'zztest', 'property', 'authenticated-command', 'unresolved',
+    'paramount', 'property', 'contract-test-authenticated-command', 'unresolved',
     null, null, null, null, null, null
   );
   execute 'reset role';
   delete from plm.source_resolution
-    where source_system = 'zztest' and entity_kind = 'property'
-      and source_id = 'authenticated-command';
+    where source_system = 'paramount' and entity_kind = 'property'
+      and source_id = 'contract-test-authenticated-command';
 
   begin
     insert into plm.source_resolution (
       source_system, entity_kind, source_id, resolution_status
-    ) values ('zztest', 'property', 'matched-without-target', 'matched');
+    ) values ('paramount', 'property', 'contract-test-matched-without-target', 'matched');
     raise exception 'matched resolution without a target was accepted';
   exception when check_violation then null;
   end;
@@ -77,7 +77,7 @@ begin
   begin
     insert into plm.source_resolution (
       source_system, entity_kind, source_id, resolution_status, core_property_id
-    ) values ('zztest', 'character', 'wrong-kind', 'matched', gen_random_uuid());
+    ) values ('paramount', 'character', 'contract-test-wrong-kind', 'matched', gen_random_uuid());
     raise exception 'character-to-property target was accepted';
   exception when check_violation or foreign_key_violation then null;
   end;

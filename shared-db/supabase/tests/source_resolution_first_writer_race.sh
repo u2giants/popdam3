@@ -8,7 +8,7 @@ second_log="${RUNNER_TEMP:-/tmp}/source-resolution-second-writer.log"
 
 cleanup() {
   psql -v ON_ERROR_STOP=1 --no-psqlrc -q -c \
-    "delete from plm.source_resolution where source_system='zztest-race' and entity_kind='property' and source_id='same-key'" \
+    "delete from plm.source_resolution where source_system='paramount' and entity_kind='property' and source_id='contract-test-first-writer-race'" \
     >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -18,7 +18,7 @@ PGAPPNAME=source-resolution-first-writer \
 psql -v ON_ERROR_STOP=1 --no-psqlrc >"$first_log" 2>&1 <<'SQL' &
 begin;
 select plm.set_source_resolution(
-  'zztest-race','property','same-key','unresolved',
+  'paramount','property','contract-test-first-writer-race','unresolved',
   null,null,null,null,'first',null
 );
 select pg_sleep(10);
@@ -45,7 +45,7 @@ set +e
 psql -v ON_ERROR_STOP=1 --no-psqlrc >"$second_log" 2>&1 <<'SQL'
 \set VERBOSITY verbose
 select plm.set_source_resolution(
-  'zztest-race','property','same-key','no_match',
+  'paramount','property','contract-test-first-writer-race','no_match',
   null,null,null,null,'second',null
 );
 SQL

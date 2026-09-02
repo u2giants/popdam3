@@ -47,7 +47,7 @@ windows carry values. Two readings fit that equally well and the API cannot sepa
 > fields are **68-70% populated, in every year 2019-2026**. The 291-row sample was drawn from 26
 > single days and simply landed on light ones. Only `subDimCode` and `itemImage` are genuinely
 > always empty. See
-> [`coldlion-negative-quantities-evidence-20260827.md`](coldlion-negative-quantities-evidence-20260827.md)
+> `coldlion-negative-quantities-evidence-20260827.md` *(withdrawn 2026-09-01 — deleted as customer transaction evidence)*
 > §2 — **a correction is owed to ColdLion.**
 
 Because invoicing *is* populated throughout, the "older orders are closed, so zero is correct"
@@ -79,7 +79,7 @@ year 2019-2026 plus the two most recent. Raw payloads are customer order data an
 > it is the only enum in the entire spec, and no response field carries a description in any of the
 > seven definitions — the reply narrows the ask to `mgTypeCode`, `divisionCode`, `active` and the
 > undocumented response fields. See
-> [`coldlion-19k-row-resample-20260827.md`](coldlion-19k-row-resample-20260827.md).
+> `coldlion-19k-row-resample-20260827.md` *(withdrawn 2026-09-01 — deleted as customer transaction evidence)*.
 
 **Verified 2026-08-26 — partially done at the time.** `prodHistory.stageCode` then carried the
 description `"Production stage code. Example: ISS, INTRAN, REC"`.
@@ -168,7 +168,7 @@ register entry 2.11. What we owe them, from the evidence above and in
    malformed (HTTP 400 with `"status": 500` in the body). **False:** re-tested live on both
    endpoints with 8-day and 31-day ranges, the response is a clean 400 in both the wire status
    and the body, with a clear message naming the rule. **Correct this with ColdLion.** See
-   [`coldlion-19k-row-resample-20260827.md`](coldlion-19k-row-resample-20260827.md).
+   `coldlion-19k-row-resample-20260827.md` *(withdrawn 2026-09-01 — deleted as customer transaction evidence)*.
 5. **Negative quantities and costs** — `linePickQty`, `unshippedQty` and `subQty` reach -564.
    Confirm these are genuine reversals rather than a report artefact, since we will be loading
    them as-is. **None appeared in the 291-row re-measure** — they are in the production feed, not

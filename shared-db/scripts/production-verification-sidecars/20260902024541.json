@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260902024541",
+  "migration_sha256": "cc159cbd07afc6876350c23c0d397a087554c6ea69541937f355899384c76cfc",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 131,
+      "line_end": 476,
+      "disposition": "checks",
+      "check_ids": [
+        "source_resolution_supported_home_contract"
+      ],
+      "reason": "The verifier-owned source_resolution_supported_home_v1 contract checks the exact durable constraints, source allowlist, policy, grants, security-invoker API views, durable-first consumer rewrites, dynamic target-lock functions, all 26 exact-function landing guards including frozen OPA property_id, and the zero-foreign-key invariant produced by every marker in this reviewed range."
+    }
+  ],
+  "checks": [
+    {
+      "id": "source_resolution_supported_home_contract",
+      "kind": "catalog_contract",
+      "contract": "source_resolution_supported_home_v1",
+      "expected_count": 1
+    }
+  ]
+}

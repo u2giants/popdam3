@@ -119,7 +119,7 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 > default. For 2024-07-01..07: default 144, `REC` a further 159.
 >
 > `REC` lines are the **receipts** (what actually arrived), carried as separate lines of the same
-> production orders. Order 22717: line 1 `ISS` ordered 4,800; line 2 `REC` received 4,548. Omitting
+> production orders. Order 90003 (synthetic values): line 1 `ISS` ordered 5,000; line 2 `REC` received 4,748. Omitting
 > `REC` loses every short shipment and every receipt date in the dataset.
 >
 > **There are exactly three stages: `ISS`, `INTRAN`, `REC`** — authoritative, ColdLion 2026-08-19.
@@ -194,16 +194,16 @@ how many pieces are in one pack. The endpoint then returns **one row per compone
 each carrying a `sub*` block (`subItemNo`, `subColorCode`, `subSizeCode`,
 `subMerchGroup01`–`06`), with `quantity` = how many of that style are in one pack.
 
-Real example (sales order 7127367):
+Worked example (synthetic item, prepack and price values; real shape):
 
 ```
-master AAH6601  prePackCode=PPK2536  prepackQty=6  lineQty=1680  linePrice=2.07
-  AAP66ABMVT01  x1   Abstract / Motivational
-  AAQ66FPFRA01  x1   Floral / Framed
-  AAQ66WMPPC01  x1   Wall Metal
-  AA166WMFSH01  x1   Wall Metal / Fish
-  AAH66ABSKY01  x1   Abstract / Sky
-  AAH66PHSAN01  x1   Photo / Sand
+master ZZA6601  prePackCode=PPK0001  prepackQty=6  lineQty=1800  linePrice=2.50
+  ZZA66AAMVT01  x1   Abstract / Motivational
+  ZZA66BBFRA01  x1   Floral / Framed
+  ZZA66CCPPC01  x1   Wall Metal
+  ZZA66DDFSH01  x1   Wall Metal / Fish
+  ZZA66EESKY01  x1   Abstract / Sky
+  ZZA66FFSAN01  x1   Photo / Sand
 ```
 
 **The recipe is trustworthy.** Across **413 packs** in the sample, the component `quantity`
@@ -222,8 +222,8 @@ About **34%** of sales rows are assortment components.
 
 Component block is `prepackItemNo` / `prepackQty` / `ppkDetailQty` / `ppkDetailQty2` /
 `ppkDetailCost`, with `totalPpkQty` on the master and `ppkMerchGroup01`–`14` for taxonomy.
-Example: production order 23825, master AAW2A02, 800 packs × 4 pieces = `totalPpkQty` 3,200,
-pack cost 1.71 split evenly at 0.4275 per piece. About **52%** of production rows are
+Example (synthetic values, real shape): production order 90001, master ZZC2A02, 800 packs × 4
+pieces = `totalPpkQty` 3,200, pack cost 2.00 split evenly at 0.5000 per piece. About **52%** of production rows are
 assortment components.
 
 ### 4.3 The repeated-row trap — ✅ RESOLVED UPSTREAM 2026-08-17, rule is now simple
@@ -234,7 +234,7 @@ assortment components.
 >
 > **Verified live 2026-08-17.** `prodLineSeq` is present on every row (1,475 rows across nine
 > 7-day windows, **zero** null or missing), integer, 1..31 within a window. The old
-> cause-A example — order **23825** / AAW2A02, which returned **8 rows for 4 components** on
+> cause-A example — order **90001** / ZZC2A02, which returned **8 rows for 4 components** on
 > 2026-08-14 — now returns **exactly 4**, all `prodLineSeq = 3`, all `lastProdDate = 2026-01-08`
 > (the maximum of the two that used to fan out). The duplication is gone at the source.
 
@@ -251,7 +251,7 @@ assortment components.
 
 **Residual quirk worth knowing:** the surviving fan-out is now on **`lastProdCost`**, not
 `lastProdDate` — two historical production records share the same maximum date but carry different
-costs (e.g. order 20872, line 1, component CTZHS0MSC01: `lastProdCost` 3.09 vs 3.64). Only legacy
+costs (e.g. order 90002, line 1, component ZZD00AAAA01: `lastProdCost` 3.00 vs 3.60 — synthetic values). Only legacy
 data showed it: **0 duplicates in any window from 2019-06, 2020-01, 2022-09, 2023-11, 2024-07,
 2025-04 or 2026-01** — all 98 came from March 2021.
 
@@ -276,13 +276,13 @@ Before 2026-08-17, `prodHistory` returned the same `(prodOrderNo, itemNo, prepac
 once with **two causes that were indistinguishable in shape**.
 
 **Cause A — genuine duplicate fan-out.** The rows are the same purchase, differing only in the
-`last*` lookup fields. Production order 23825 / AAW2A02 returned 8 rows for 4 components; each
+`last*` lookup fields. Production order 90001 / ZZC2A02 returned 8 rows for 4 components; each
 pair differed **only** in `lastProdDate` (2026-01-04 vs 2026-01-08). Loading both double-counts.
 
-**Cause B — two real buy lines on one order.** Production order 20907 / VSZ4803 / PPK1020 also
-returned 8 rows for 4 components, but one set is **1,600 packs** and the other **3,000 packs**
-(`prodOrderQty`, `totalPpkQty` 6400 vs 12000, `extCost` 3840 vs 7200). Both are real and both
-must be counted. Collapsing them erases a 3,000-pack purchase.
+**Cause B — two real buy lines on one order.** Production order 90004 / ZZH4803 / PPK0004 also
+returned 8 rows for 4 components, but one set is **1,500 packs** and the other **3,000 packs**
+(`prodOrderQty`, `totalPpkQty` 6000 vs 12000, `extCost` 3000 vs 6000 — synthetic values, real
+shape). Both are real and both must be counted. Collapsing them erases a 3,000-pack purchase.
 
 Measured across the sample: **261 repeated groups — 131 cause A, 130 cause B.** Almost an even
 split, so neither "always collapse" nor "never collapse" is acceptable.
@@ -308,14 +308,15 @@ shows the quantity and pricing of each component."*
 So on a prepack line, every component row repeats the same `lineQty` and carries **its own**
 `linePrice`. Two rows on one order with the same item and different prices are **not two lines**.
 
-Worked example — sales order `7121866`, item `VSZ4812`, customer `ROS010`, prepack `PPK1557`:
+Worked example (synthetic item, customer, prepack and price values; real shape) — item `ZZB4812`,
+customer `CUS010`, prepack `PPK0002`:
 
 | Row | `lineQty` | `linePrice` | `subItemNo` |
 |---|---|---|---|
-| 1 | 3200 | 4.08 | `VPZ8FKGAM01` |
-| 2 | 3200 | 5.28 | `VSZ48DYPN03` |
-| 3 | 3200 | 5.28 | `VSZ48MVSP03` |
-| 4 | 3200 | 5.28 | `VSZ48SESC01` |
+| 1 | 3000 | 4.00 | `ZZB48AAAA01` |
+| 2 | 3000 | 5.00 | `ZZB48BBBB03` |
+| 3 | 3000 | 5.00 | `ZZB48CCCC03` |
+| 4 | 3000 | 5.00 | `ZZB48DDDD01` |
 
 **This settles the sales-order line key**, which the payload does not carry
 (`orderHistory` has 59 fields and no line number — confirmed against the live spec):
@@ -416,10 +417,10 @@ most of it, and there are **three distinct causes**:
 4. **Stock production for Amazon** (`AMA030`). Amazon goods are made to stock for their warehouse,
    not presold, so there is no customer PO. Verified 10 of 10 unlinked. **This is what the 10
    "unexplained" 2026-08 rows were** — rules §8. Do **not** generalise it from `prodTypeCode`:
-   `Stock*` types are 92% linked (DOL900 alone has 120 linked `Stock*` rows).
+   `Stock*` types are 92% linked (one non-Amazon customer alone has 120 linked `Stock*` rows).
 
 **Residue after all four causes:** 6 unlinked lines out of 803 in 2024+ `ISS` non-`COS` non-Amazon
-data (0.7%) — orders 23034, 23039, 23040, 23044, 23852. Three are quantity-1 lines that look like
+data (0.7%) — orders 90010, 90011, 90012, 90013, 90014 (synthetic). Three are quantity-1 lines that look like
 charges. Not worth chasing unless a report trips over them.
 
 > **Correction, 2026-08-17.** An earlier version called these rows "stock production not raised
@@ -436,9 +437,9 @@ joins as progressively incomplete rather than as zero.
 > **CORRECTED 2026-08-27.** This section claimed quantities reach **-564**. A 3,981-row sweep of
 > `orderHistory` across 2019-2026, plus 198 `prodHistory` rows on all three stages, **could not
 > reproduce that figure.** The only negatives found anywhere are **four rows**, all July 2020, all
-> item `BFC102AMV` for customer `AAF100`, at **-3** (`unshippedAmount` -24.00). The cause is
+> one item for one customer, at **-3** (`unshippedAmount` -21.00 — synthetic price). The cause is
 > visible in the row: `lineQty` 1 against `lineInvoiceQty` 4. **Do not quote -564 to ColdLion.**
-> Full evidence: [`coldlion-negative-quantities-evidence-20260827.md`](coldlion-negative-quantities-evidence-20260827.md).
+> Full evidence: `coldlion-negative-quantities-evidence-20260827.md` *(withdrawn 2026-09-01 — deleted as customer transaction evidence)*.
 
 Negatives are real, so **do not add non-negative constraints** — but they are a handful of rows,
 not a routine occurrence, and the ones we can see are an order/invoice mismatch rather than a
@@ -476,7 +477,7 @@ now that the feed is known to span four divisions — see
 
 | Question | Answer | Verified |
 |---|---|---|
-| **Production-order line number** (was the one true blocker) | `prodLineSeq` **added**; the duplicated prod reference number was the cause; ColdLion now selects the maximum `lastProdDate` | Yes — §4.3. Present on 1,475/1,475 rows; order 23825 went from 8 rows to 4 |
+| **Production-order line number** (was the one true blocker) | `prodLineSeq` **added**; the duplicated prod reference number was the cause; ColdLion now selects the maximum `lastProdDate` | Yes — §4.3. Present on 1,475/1,475 rows; order 90001 went from 8 rows to 4 |
 | **Paging / rate limits for a bulk pull** | `fromDate`–`toDate` must be **within 7 days (inclusive)**; ~2 seconds per 7-day window from their office | Yes — §2 (8 days refused, 7 accepted) and §3 (0.1–1.4s typical here) |
 | **Is `subUpc` ever populated?** | Rarely. UPCs are not usually assigned to prepack components; one known case, a Walmart assortment | Consistent with 0/1,985 measured — **keep the column**, see §5.1 |
 | **What does a `COS` production PO mean?** | Sample production: extra pieces of a customer's item made for the licensor (contractual samples) or internally (DAVID samples) | Yes — quantities 3–15, median 4, all unlinked. [`business-rules-erp-data.md`](business-rules-erp-data.md) §1 |

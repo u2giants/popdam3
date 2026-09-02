@@ -31,7 +31,8 @@ export const REPO = 'u2giants/shared-db'
 // WHAT THE RAISE ACTUALLY COSTS. Downstream capacity, not correctness. Eight
 // authors finishing together queue in front of the single preview stage. The
 // owner approved six active reviewers, including Codex GPT-5.6 Sol and DeepSeek,
-// before this cap was activated. Ref writes are ~6/hour per lane, so eight lanes
+// before this cap was activated. DeepSeek was retired on 2026-09-01 (#2078),
+// leaving five; the cap is unaffected -- it bounds authors, not reviewers. Ref writes are ~6/hour per lane, so eight lanes
 // stay far inside GitHub's limits and the rate-limit caveat recorded in
 // plan_multi_agent_database_coordination_hardening.md is satisfied at this cap.
 export const MAX_AUTHOR_LANES = 8
@@ -47,9 +48,12 @@ export const REVIEW_ASSIGNMENT_REF_PREFIX = 'refs/db-review-assignments'
 export const REVIEW_ACTIVE_REF_PREFIX = 'refs/db-review-active'
 export const REVIEW_EXCLUSION_REF_PREFIX = 'refs/db-review-exclusions'
 export const REVIEW_EXCLUSION_REASONS = new Set(['already-reviewed','independence-conflict','terminal-unavailable'])
+export const REVIEW_RETURN_REF_PREFIX = 'refs/db-review-returns'
+export const REVIEW_RETIRED_VERDICT_REF_PREFIX = 'refs/db-review-retired-verdicts'
 export const REVIEW_ACTIVE_CUTOVER_REF = 'refs/db-coordination/reviewer-index-cutover'
-export const REVIEW_OPERATION_REQUEST_LIMIT = 23, REVIEW_MUTEX_SECTION_RESERVE = 14 // slot 2 = 9 pre-mutex + this reserve; slot 1 = 6 + reserve. The bounded per-PR exclusion read is now inside the mutex so it cannot race assignment. This entry gate refuses to acquire the mutex unless the whole mutex-held section still fits. Release is guaranteed separately by cleanupReserve. Derivation: docs/verification/reviewer-assignment-api-budget-2026-08-28.md (#1812, #1833)
+export const REVIEW_OPERATION_REQUEST_LIMIT = 25, REVIEW_MUTEX_SECTION_RESERVE = 15 // slot 2 = 10 pre-mutex + this reserve; slot 1 = 7 + reserve. RE-DERIVED, NOT WIDENED (issue #2075): every reviewer operation now proves 'a verdict exists for this head' from the create-only durable verdict refs instead of from comment prose. That costs exactly ONE listing of refs/db-review-verdict pre-mutex (cached for the rest of the operation by reviewOperationIo) and ONE uncached re-listing inside the mutex section, so each half grew by exactly one request. Measured totals moved 21->23 (slot-2 assignment), 18->20 (slot-2 replacement), and 8->9 pre-mutex for the first replacement, with the post-mutex replacement section going 10->11. The bounded per-PR exclusion read is now inside the mutex so it cannot race assignment. This entry gate refuses to acquire the mutex unless the whole mutex-held section still fits. Release is guaranteed separately by cleanupReserve. Derivation: docs/verification/reviewer-assignment-api-budget-2026-08-28.md (#1812, #1833)
 export const REVIEW_QUOTA_RESERVE = 100
+export const REVIEW_LEASE_SUSPECT_HOURS = 24 // Advisory visibility only. Age never releases a lease.
 // Page ceiling for listReviewRefsPaged. It is a REFUSAL, not a truncation: past
 // this the reviewer audit stops rather than reporting a partial view of the
 // durable review history (issue #1798).
@@ -62,13 +66,50 @@ export const REVIEW_QUOTA_RESERVE = 100
 // The headroom this constant appears to grant is illusory; the operation will
 // hit the request budget first (issue #1798 round 3, glm-5.3 Medium).
 export const REVIEW_REF_PAGE_LIMIT = 6
+//
+// `readsRepository` RECORDS A FACT ABOUT THE WRAPPER, NOT A PREFERENCE (#2078).
+// `true` means the wrapper hands its model a real, self-contained checkout of the
+// code under review and the model can open files in it. `false` means the wrapper
+// is a conversational API client: it sees only the text of the brief it is given,
+// so it can only review the change as DESCRIBED, never as WRITTEN. Verified per
+// wrapper in ai-devops/bin before this field was written, not assumed:
+//   ai-grok-review    -- `--cwd` on a real checkout, read-only permission set.
+//   ai-glm            -- OpenCode session pinned to the review directory, read-only agent.
+//   ai-kimi           -- read-only agent profile over the checkout/worktree.
+//   ai-muse           -- `ai-review-sandbox ensure-copy` clone plus an evidence packet;
+//                        its live doctor probe reads a file inside that directory.
+//   ai-codex-review   -- `codex exec --sandbox read-only` over the sandbox copy.
+//   ai-deepseek-agent -- HTTP conversation only. No filesystem, no diff, no tools.
+//                        The `--worktree` argument sets a spawn cwd it never uses.
+// A `false` entry can never record a code-review verdict; see recordReviewVerdict.
+//
+// THIS IS A HAND-MAINTAINED CROSS-REPOSITORY CLAIM, AND IT CAN ROT (#2079).
+// The wrappers live in `u2giants/ai-devops`, not here. No check in THIS
+// repository can open them, so nothing mechanical re-verifies these values: if
+// `ai-muse`'s sandbox copy or `ai-kimi`'s read-only profile changes upstream,
+// the roster keeps saying `true` and the gate keeps recording confabulations
+// with full ceremony. Rather than pretend that is solved, every entry records
+// WHEN the claim was checked and AGAINST WHAT, so staleness is visible instead
+// of implied. `date` is the day a human read the wrapper; `evidence` is the
+// exact wrapper behaviour that was read. Treat an old date as UNVERIFIED and
+// re-read the wrapper before trusting its `true`.
 export const REVIEWERS = Object.freeze([
-  { name:'grok-4.6', wrapper:'ai-grok-review' }, { name:'glm-5.3', wrapper:'ai-glm' },
-  { name:'kimi-k3', wrapper:'ai-kimi' }, { name:'qwen-3.8-max', wrapper:'ai-qwen' },
-  { name:'glm-5.2', wrapper:'ai-glm' },
-  { name:'muse-spark-1.2-contributor', wrapper:'ai-muse' },
-  { name:'codex-gpt-5.6-sol', wrapper:'ai-codex-review', orchestratorEngine:'codex' },
-  { name:'deepseek-chat', wrapper:'ai-deepseek-agent' },
+  { name:'grok-4.6', wrapper:'ai-grok-review', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-grok-review: grok --cwd <checkout> with a read-only permission set' } },
+  { name:'glm-5.3', wrapper:'ai-glm', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-glm: OpenCode session pinned to the review directory, read-only agent' } },
+  { name:'kimi-k3', wrapper:'ai-kimi', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-kimi: read-only agent profile over the checkout/worktree' } },
+  { name:'qwen-3.8-max', wrapper:'ai-qwen', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-qwen: retired from the rotation; wrapper hands the model a real checkout' } },
+  { name:'glm-5.2', wrapper:'ai-glm', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-01', evidence:'historical label for the ai-glm wrapper above; same checkout' } },
+  { name:'muse-spark-1.2-contributor', wrapper:'ai-muse', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-muse: ai-review-sandbox ensure-copy clone plus evidence packet; the doctor probe reads a file inside it' } },
+  { name:'codex-gpt-5.6-sol', wrapper:'ai-codex-review', orchestratorEngine:'codex', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-codex-review: codex exec --sandbox read-only over the sandbox copy' } },
+  { name:'deepseek-chat', wrapper:'ai-deepseek-agent', readsRepository:false,
+    readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-deepseek-agent: HTTP chat completions only; --worktree sets a spawn cwd it never uses' } },
 ])
 // Keep REVIEWERS as the historical evidence registry. Paused providers remain
 // readable forever, but only ACTIVE_REVIEWERS can receive new work.
@@ -191,7 +232,39 @@ export const REVIEWERS = Object.freeze([
 // Qwen remains historical-only, and Gemini remains outside the registry, while
 // ai-devops reviewer reliability is being repaired (owner instruction,
 // 2026-08-28). Historical names are never deleted because durable refs use them.
-export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2'])
+//
+// RETIRED 2026-09-01 (issue #2078): 'deepseek-chat'. NOT a provider-quality pause
+// and not a health-check failure -- `ai-deepseek-agent` is structurally incapable
+// of reading the code it is asked to review. On issue #1987 / PR #1989 it produced
+// a complete, confidently formatted, well-ranked review of a file name, five
+// functions, two tables and two columns that DO NOT EXIST anywhere in the branch,
+// and the pipeline recorded it as a durable verdict artifact bound to the exact
+// head. The same run could have said APPROVE and produced a green merge gate over
+// SQL no reviewer ever saw. Retirement is the correct disposition, not a pause:
+// no future wrapper version fixes a conversational API client having no checkout.
+// Its historical name stays readable in REVIEWERS forever because durable refs
+// (`refs/db-review-assignments/1987-1989-2108fcd1...`) still name it.
+export const RETIRED_REVIEWERS = Object.freeze(['qwen-3.8-max', 'glm-5.2', 'deepseek-chat'])
+
+// The single fact the gate was missing (#2078). A verdict is evidence only if the
+// reviewer could open the file. Unknown names fail closed.
+export function reviewerReadsRepository(name, reviewers=REVIEWERS){
+  return reviewers.find((row)=>row.name===name)?.readsRepository===true
+}
+
+// #2079 ROUND 3. The two directions need OPPOSITE defaults for an unknown name.
+// The merge gate asks "may this verdict authorize?" and an unknown name must
+// answer no -- that is `reviewerReadsRepository` above. Replacement asks "may this
+// verdict be stripped off the head?" and an unknown name must answer NO THERE TOO,
+// which is the opposite boolean. Only a roster row that positively says
+// `readsRepository:false` (today: deepseek-chat) may be discarded. A name that is
+// absent, misspelled, case-shifted (`parseReviewCursor` matches case-insensitively
+// while the roster lookup does not) or dropped from REVIEWERS is UNCLASSIFIABLE,
+// and un-reviewing a head on an unclassifiable artifact is the hole #2078 was.
+export function reviewerKnownNonReading(name, reviewers=REVIEWERS){
+  const row=reviewers.find((entry)=>entry.name===name)
+  return Boolean(row)&&row.readsRepository===false
+}
 
 // ACTIVE ROTATION EXPANSION (owner approval, 2026-08-28). Codex GPT-5.6 Sol and
 // DeepSeek are active rotation providers. No overflow provider remains; when all
@@ -239,7 +312,13 @@ export const EXCLUSIVE_REFS = Object.freeze({
 // and is usually a thirty-second fix, the second is the provider being down and
 // means waiting. Collapsing them is what produced a two-day pause of a working
 // reviewer (#1287). Keep them distinct.
-export const TERMINAL_FAILURE_CODES = Object.freeze(['insufficient_quota','provider_unavailable','local_dependency_unavailable','wrapper_terminal_failure','turn_limit_cancelled'])
+// `reviewer_cannot_read_repository` (#2079) is the code for a reviewer that is
+// structurally incapable of reading the code under review. It is terminal in the
+// strongest sense -- no retry, no wrapper version and no better prompt gives an
+// HTTP client a checkout -- and it exists so the recovery route this tool NAMES
+// is one an operator can actually run, instead of forcing a misdescription as
+// `wrapper_terminal_failure`.
+export const TERMINAL_FAILURE_CODES = Object.freeze(['insufficient_quota','provider_unavailable','local_dependency_unavailable','wrapper_terminal_failure','turn_limit_cancelled','reviewer_cannot_read_repository'])
 
 export const QUEUE_STATUSES = new Set(['ready','blocked','owner-decision'])
 export const QUEUE_WORK_TYPES = new Set(['structural','curated-master-data','application-data','source-data','repo-maintenance','documentation','security-settings'])
@@ -411,6 +490,33 @@ export function conflicts(a, b) {
 // lost the read/write distinction must not be handed a weaker answer.
 function overlaps(a, b) { return conflicts({ writes: a, reads: [] }, { writes: b, reads: [] }) }
 
+function downstreamBlockerCounts(dependencyEdges) {
+  const dependents = new Map()
+  for (const [issue, dependencies] of Object.entries(dependencyEdges)) {
+    for (const dependency of dependencies) {
+      if (!dependents.has(dependency)) dependents.set(dependency, new Set())
+      dependents.get(dependency).add(Number(issue))
+    }
+  }
+  const count = (issue) => {
+    const seen = new Set(), pending = [...(dependents.get(issue) ?? [])]
+    while (pending.length) {
+      const dependent = pending.pop()
+      if (seen.has(dependent)) continue
+      seen.add(dependent)
+      pending.push(...(dependents.get(dependent) ?? []))
+    }
+    return seen.size
+  }
+  return new Map(Object.keys(dependencyEdges).map(Number).map((issue)=>[issue,count(issue)]))
+}
+
+function queueOrder(a,b) {
+  return b.blockedIssueCount-a.blockedIssueCount
+    || a.createdAt-b.createdAt
+    || a.issue-b.issue
+}
+
 export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null, claimPullStates = new Map(), authoredOnMain = new Set()) {
   const openNumbers = new Set(allOpenIssueNumbers.map(Number))
   const skipped = [], unclassified = [], malformed = [], unlabelled = [], candidates = [], notOrchestratorWork = []
@@ -477,8 +583,11 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
       const waiting = scope.dependencies.filter((number)=>openNumbers.has(number))
       if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
     }
-    candidates.push({ issue:issue.number, title:issue.title, ...scope })
+    const createdAt = Date.parse(issue.createdAt ?? issue.created_at ?? '')
+    candidates.push({ issue:issue.number, title:issue.title, createdAt:Number.isFinite(createdAt)?createdAt:Number(issue.number), ...scope })
   }
+  const blockerCounts = downstreamBlockerCounts(dependencyEdges)
+  for (const candidate of candidates) candidate.blockedIssueCount = blockerCounts.get(candidate.issue) ?? 0
   const protectedClaims = claims.map((claim)=>{
     const lease = parseAuthorLease(claim.body,now)
     return { claim:claim.number, issue:null, priority:Number.MAX_SAFE_INTEGER, writes:lease.writes, reads:lease.reads ?? [], objects:lease.writes, capacityActive:lease.capacityActive, leaseState:lease.capacityState, expiresAt:lease.expiresAt?.toISOString?.() ?? null, prState:claimPullStates.get(claim.number) ?? 'unknown' }
@@ -488,7 +597,8 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     if (components[i].some((a)=>components[j].some((b)=>conflicts(a,b)))) components[i].push(...components.splice(j,1)[0]); else j++
   }
   const queues = Array.from({length:MAX_AUTHOR_LANES},(_,index)=>({ lane:index+1, active:null, activeLeaseState:null, activeExpiresAt:null, activePrState:null, protected:[], queued:[], objects:[], reads:[] }))
-  const ordered = components.sort((a,b)=>Number(Boolean(b.some(x=>x.claim)))-Number(Boolean(a.some(x=>x.claim))) || Math.max(...b.map(x=>x.priority))-Math.max(...a.map(x=>x.priority)))
+  const componentRank = (component) => component.filter((item)=>item.issue).sort(queueOrder)[0]
+  const ordered = components.sort((a,b)=>Number(Boolean(b.some(x=>x.claim)))-Number(Boolean(a.some(x=>x.claim))) || (componentRank(a)&&componentRank(b)?queueOrder(componentRank(a),componentRank(b)):0))
   for (const component of ordered) {
     const protectedItems = component.filter((x)=>x.claim)
     const activeItem = protectedItems.find((x)=>x.capacityActive)
@@ -505,7 +615,7 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
       lane.activePrState = activeItem.prState
     }
     lane.protected.push(...protectedItems.map((item)=>item.claim))
-    lane.queued.push(...component.filter((x)=>x.issue).sort((a,b)=>b.priority-a.priority || a.issue-b.issue).map((x)=>x.issue))
+    lane.queued.push(...component.filter((x)=>x.issue).sort(queueOrder).map((x)=>x.issue))
     lane.objects.push(...new Set(component.flatMap((x)=>x.writes ?? x.objects ?? [])))
     lane.reads.push(...new Set(component.flatMap((x)=>x.reads ?? [])))
   }
@@ -516,7 +626,7 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
   // A CYCLE IS NEVER STARTABLE and is invisible to an open/closed test, so it is
   // reported as its own finding rather than as N tasks that merely look blocked.
   const dependencyCycles = findDependencyCycles(dependencyEdges)
-  return { queues, expiredClaims, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dependencyCycles, grandfatheredDependencies, dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length&&!dependencyCycles.length }
+  return { queues, expiredClaims, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dependencyCycles, grandfatheredDependencies, blockerCounts:Object.fromEntries(blockerCounts), dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length&&!dependencyCycles.length }
 }
 
 // RETURN PATH (AGENTS.md 0.0-C). A rejected task is forwarded to the repository
@@ -680,7 +790,7 @@ export function isTransientGitHubTransport(error) {
 // noisy.
 export const EXPECTED_REF_ABSENCE=/HTTP 404/i
 export const EXPECTED_REF_PRESENCE=/reference already exists/i
-let reviewWireBudget=null,reviewCommitBase=null
+let reviewWireBudget=null,reviewCommitBase=null,freshDurableVerdictRefs=null
 function consumeReviewWireRequest(){
   if(!reviewWireBudget)return
   const usable=reviewWireBudget.locked&&!reviewWireBudget.cleanup?REVIEW_OPERATION_REQUEST_LIMIT-(reviewWireBudget.cleanupReserve??0):REVIEW_OPERATION_REQUEST_LIMIT
@@ -690,7 +800,7 @@ function consumeReviewWireRequest(){
 export function withReviewRequestBudget(fn){
   if(reviewWireBudget)return fn(reviewWireBudget)
   reviewWireBudget={count:0}
-  try{return fn(reviewWireBudget)}finally{reviewWireBudget=null;reviewCommitBase=null}
+  try{return fn(reviewWireBudget)}finally{reviewWireBudget=null;reviewCommitBase=null;freshDurableVerdictRefs=null}
 }
 export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms),attempts=4,expectedFailure=null,reportStderr=(text)=>process.stderr.write(text)}={}) {
   let last
@@ -784,7 +894,7 @@ export const githubIo = {
   readActiveReviewLeases(){
     const names=[...ACTIVE_REVIEWERS,...OVERFLOW_REVIEWERS].map((row)=>row.name)
     const allowed=new Set(names)
-    const fields=names.map((name,index)=>`r${index}:object(expression:${JSON.stringify(`${REVIEW_ACTIVE_REF_PREFIX}/${name}`)}){oid ... on Commit{message}}`).join(' ')
+    const fields=names.map((name,index)=>`r${index}:object(expression:${JSON.stringify(`${REVIEW_ACTIVE_REF_PREFIX}/${name}`)}){oid ... on Commit{message committedDate}}`).join(' ')
     const query=`query($owner:String!,$name:String!){repository(owner:$owner,name:$name){defaultBranchRef{target{oid ... on Commit{tree{oid}}}} ${fields}}}`
     const data=ghJson(['api','graphql','-f',`query=${query}`,'-F','owner=u2giants','-F','name=shared-db'])
     if(data?.errors?.length)throw new LaneError('active reviewer lease snapshot returned GraphQL errors')
@@ -799,7 +909,7 @@ export const githubIo = {
       if(target===undefined)throw new LaneError('active reviewer lease snapshot is unreadable')
       if(target===null)return
       if(!allowed.has(name)||!target?.oid||!target?.message)throw new LaneError('active reviewer lease snapshot is unreadable')
-      entries.push([`${REVIEW_ACTIVE_REF_PREFIX}/${name}`,{sha:target.oid,commit:{message:target.message}}])
+      entries.push([`${REVIEW_ACTIVE_REF_PREFIX}/${name}`,{sha:target.oid,commit:{message:target.message,committedDate:target.committedDate??null}}])
     })
     return new Map(entries)
   },
@@ -890,7 +1000,7 @@ export const githubIo = {
   openWorkIssues(pager = ghPaginated) {
     const rows = pager(`repos/${REPO}/issues?state=open&per_page=100`)
     return rows.filter((x)=>!x.pull_request)
-      .map((x)=>({ number:x.number, title:x.title, body:x.body, labels:(x.labels??[]).map((l)=>l.name) }))
+      .map((x)=>({ number:x.number, title:x.title, body:x.body, createdAt:x.created_at, labels:(x.labels??[]).map((l)=>l.name) }))
       .filter((x)=>!x.labels.some((name)=>COORDINATION_LABELS.has(name)))
   },
   openIssueNumbers() { return ghPaginated(`repos/${REPO}/issues?state=open&per_page=100`).filter((x)=>!x.pull_request).map((x)=>x.number) },
@@ -1443,9 +1553,16 @@ export function releaseOwnedRef(ref, ownerSha, io = githubIo) {
 export function parseReviewCursor(commit) {
   if (!commit) return null
   const message=commit.message ?? commit.commit?.message ?? ''
-  const match=/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?$/i.exec(message)??/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) /i.exec(message)
+  const match=/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?$/i.exec(message)??/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))? /i.exec(message)
   if (!match) throw new LaneError('reviewer cursor does not point to a recognized assignment')
-  return {sequence:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5],slot:match[6]?Number(match[6]):1}
+  // `slot` is NULL when the message does not state one, never a guessed 1.
+  // Replacement messages written before PR #2077 carry no `slot=` token at all,
+  // and reading their silence as "slot 1" is exactly how a slot-2 replacement
+  // was returned as slot 1 (grok-4.6 REVISE, high finding 1). The REF NAME is
+  // the authority on which slot a record belongs to -- see parseAssignmentRef --
+  // and this parser now says "not stated" so a caller cannot mistake a default
+  // for evidence.
+  return {sequence:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5],slot:match[6]?Number(match[6]):null}
 }
 
 export function recordReviewVerdict(options,io=githubIo){
@@ -1460,7 +1577,12 @@ export function recordReviewVerdict(options,io=githubIo){
   const assignmentSha=io.readRef(assignmentRef)
   if(!assignmentSha)throw new LaneError('the exact durable reviewer assignment does not exist')
   const assignment=parseReviewCursor(io.getCommit(assignmentSha))
-  if(assignment.issue!==issue||assignment.pr!==pr||assignment.headSha.toLowerCase()!==headSha||(assignment.slot??1)!==slot)throw new LaneError('the assignment record disagrees with the requested verdict tuple')
+  if(assignment.issue!==issue||assignment.pr!==pr||assignment.headSha.toLowerCase()!==headSha||(assignment.slot!==null&&assignment.slot!==slot))throw new LaneError('the assignment record disagrees with the requested verdict tuple')
+  // #2078. Refuse BEFORE any commit or ref is created, and before the lease and
+  // PR reads, so a reviewer that cannot open the code leaves no artifact at all.
+  // This is a property of the wrapper, so no retry, no re-run and no better
+  // formatted output can satisfy it.
+  if(!reviewerReadsRepository(assignment.reviewer))throw new LaneError(`reviewer ${assignment.reviewer} runs through a wrapper that has no access to the repository under review -- it never reads the diff, only the text of the brief, so its verdict describes the change as DESCRIBED rather than as WRITTEN. Refusing to record a code-review verdict from it. This is a property of the wrapper: no retry and no re-run can satisfy it. Draw a reviewer that reads the code with the exact command: ${nonReadingReviewerReplacementCommand({issue,pr,headSha,slot},assignment.sequence)}`)
   const activeRef=reviewActiveRef(assignment.reviewer)
   if(io.readRef(activeRef)!==assignmentSha)throw new LaneError('reviewer does not hold the exact active lease; late or conflicting verdict refused')
   const live=io.getPr(pr)
@@ -1490,7 +1612,47 @@ export function recordReviewVerdict(options,io=githubIo){
   return validateVerdictArtifact({ref,sha,commit:io.getCommit(sha),findingsBody,activeLeaseSha:assignmentSha,assignment:{sha:assignmentSha,reviewer:assignment.reviewer}})
 }
 
-export function readReviewVerdicts(issue,pr,headSha,io=githubIo){
+// THE EXACT RECOVERY ROUTE FOR A NON-READING REVIEWER (#2079).
+// The refusal above used to end with a bare "use --replace-failed-reviewer",
+// which an operator could follow straight into a second refusal: replacement
+// requires a recognized terminal failure code and both no-verdict confirmations,
+// and (before this change) any durable verdict at the head blocked it outright.
+// This builds the command that actually runs, so the message names a route
+// rather than a direction.
+export function nonReadingReviewerReplacementCommand({issue,pr,headSha,slot=1},failedSequence){
+  return `node scripts/manage-migration-author-lanes.mjs --replace-failed-reviewer --issue ${issue} --pr ${pr} --head-sha ${headSha} --review-slot ${slot} --failed-sequence ${failedSequence} --failure-code reviewer_cannot_read_repository --confirm-no-verdict --confirm-no-artifact`
+}
+
+// THE READ SIDE OF THE SAME FACT (#2079).
+// The write-side guard in recordReviewVerdict only binds FUTURE verdicts. It
+// cannot retract `refs/db-review-verdicts/1987-1989-fe810d47...`, the artifact
+// deepseek-chat already produced for a migration it could not open, and that
+// artifact was still merge-gate-valid.
+//
+// A verdict from a reviewer that cannot read the repository is treated as
+// ABSENT, not as a refusal. That choice is deliberate. A refusal would be
+// permanent -- the artifact is immutable and create-only, so the slot could
+// never be satisfied and the pull request would be stuck forever, trading one
+// deadlock for another. Treated as absent, the slot simply has no verdict: the
+// gate refuses for the ordinary "no durable APPROVE" reason, and
+// --replace-failed-reviewer can draw a reviewer that reads the code and finish
+// the review. Absence is recoverable; a permanent refusal is not.
+//
+// THAT IS ONLY TRUE BECAUSE THE MERGE GATE APPLIES THE SAME RULE. This function
+// is read by the PREVIEW gate, which under merge-first runs AFTER the merge. An
+// earlier version of this comment claimed the merge gate refuses for the ordinary
+// "no durable APPROVE" reason; it did not, because it applied no such filter at
+// all -- a disregarded APPROVE still authorized there, and a disregarded REVISE
+// still blocked the head permanently, which is exactly the deadlock this
+// treat-as-absent choice exists to avoid. `evaluateExactHeadApproval` in
+// `check-exact-head-approval.mjs` now disregards both directions the same way,
+// so the two gates agree. Do not remove it there on the assumption that this
+// function covers it.
+//
+// It is not silently dropped: `includeDisregarded` returns the rows with
+// `disregarded:true` so callers can SAY that an artifact exists and why it does
+// not count.
+export function readReviewVerdicts(issue,pr,headSha,io=githubIo,{includeDisregarded=false}={}){
   const prefixes=[REVIEW_VERDICT_REF_PREFIX,REVIEW_VERDICT_REPLACEMENT_REF_PREFIX]
   const rows=prefixes.flatMap((prefix)=>io.listRefs(`${prefix}/${Number(issue)}-${Number(pr)}-${String(headSha).toLowerCase()}`))
   return rows.map(({ref,sha})=>{
@@ -1501,12 +1663,32 @@ export function readReviewVerdicts(issue,pr,headSha,io=githubIo){
       ?`${REVIEW_ASSIGNMENT_REF_PREFIX}/${named.issue}-${named.pr}-${named.headSha}${reviewSlotSuffix(named.slot)}`
       :`${REVIEW_REPLACEMENT_REF_PREFIX}/${named.issue}-${named.pr}-${named.headSha}${reviewSlotSuffix(named.slot)}-${named.replacementSequence}`
     const assignmentSha=io.readRef(assignmentRef)
-    if(!assignmentSha)throw new LaneError(`verdict ${ref} has no live assignment record`)
-    const assignment=parseReviewCursor(io.getCommit(assignmentSha))
+    // A RETURNED ASSIGNMENT STILL ANSWERS FOR ITS VERDICT.
+    //
+    // `recordReviewVerdict` does not hold the review mutex, so a verdict can
+    // land in the narrow window between the exclusion's fresh verdict scan and
+    // its atomic push. The assignment ref is then gone and this read is null.
+    // Throwing there would make the audit chain the return exists to protect
+    // break the pull request permanently: the exclusion is already recorded, so
+    // re-running it is idempotent and restores nothing. The return record is the
+    // durable proof of that assignment -- it names the same SHA and reviewer,
+    // and its commit is parented on the assignment commit, so the object is
+    // still reachable. Resolve through it. This does NOT let the verdict
+    // authorize anything: `assertDurableReviewApproval` treats the returned slot
+    // as unapproved regardless of what this verdict says.
+    let assignmentIdentity=assignmentSha?{sha:assignmentSha,reviewer:parseReviewCursor(io.getCommit(assignmentSha)).reviewer}:null
+    if(!assignmentIdentity){
+      const retired=readReviewReturns(named.issue,named.pr,named.headSha,io).find((row)=>row.slot===named.slot&&row.replacementSequence===named.replacementSequence&&row.assignmentSha===String(record.assignment_sha??'').toLowerCase())
+      if(!retired)throw new LaneError(`verdict ${ref} has no live assignment record`)
+      assignmentIdentity={sha:retired.assignmentSha,reviewer:retired.reviewer}
+    }
+    const assignment={reviewer:assignmentIdentity.reviewer}
     const findingsBody=io.readFindings(record.findings_ref)
-    try{return validateVerdictArtifact({ref,sha,commit,findingsBody,assignment:{sha:assignmentSha,reviewer:assignment.reviewer}})}
+    let validated
+    try{validated=validateVerdictArtifact({ref,sha,commit,findingsBody,assignment:{sha:assignmentIdentity.sha,reviewer:assignment.reviewer}})}
     catch(error){throw new LaneError(`verdict ${ref} is invalid: ${error.message}`)}
-  })
+    return {...validated,ref,reviewer:assignment.reviewer,disregarded:!reviewerReadsRepository(assignment.reviewer)}
+  }).filter((row)=>includeDisregarded||!row.disregarded)
 }
 
 export function reviewActiveRef(reviewer){
@@ -1517,7 +1699,7 @@ export function reviewActiveRef(reviewer){
 export function parseReviewLease(commit){
   if(!commit)return null
   const message=commit.message??commit.commit?.message??''
-  const match=/^db-coordination reviewer-lease generation=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) sequence=(\d+)$/i.exec(message)??/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=\d+)?$/i.exec(message)??/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) /i.exec(message)
+  const match=/^db-coordination reviewer-lease generation=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) sequence=(\d+)$/i.exec(message)??/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=\d+)?$/i.exec(message)??/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=\d+)? /i.exec(message)
   if(!match)throw new LaneError('active reviewer lease is malformed')
   const cursorForm=!match[6]
   const lease={generation:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5],sequence:Number(cursorForm?match[1]:match[6])}
@@ -1554,24 +1736,319 @@ function reviewerExclusions(issue,pr,io,{fresh=false}={}){
   return result
 }
 
+// A RETURN IS THE AUDIT TRAIL FOR AN ASSIGNMENT THAT WAS NEVER REVIEWED.
+//
+// Excluding a reviewer that already held this head's assignment used to strand
+// the pull request permanently. The exclusion released the provider's lease but
+// left the per-head assignment ref naming the now-excluded reviewer, so every
+// later --assign-reviewer refused with "it was not returned or re-leased" while
+// assertDurableReviewApproval kept demanding an APPROVE for a slot no eligible
+// reviewer could ever be drawn into. --replace-failed-reviewer is not the way
+// out: it requires a TERMINAL_FAILURE_CODES value, and a reviewer excluded for
+// independence did not fail. Nothing else could return the slot.
+//
+// The return record is the missing half of the exclusion, not a relaxation of
+// it. The excluded reviewer stays excluded forever; only the SLOT comes back.
+// The record is create-only, named for the exact assignment it retires, and its
+// commit is parented on that assignment commit so the retired assignment object
+// stays reachable after its ref is compare-and-cleared. The assignment is never
+// silently dropped: the record keeps who was assigned, to which head and slot,
+// which assignment SHA it retires, and why it came back.
+export function parseReviewReturn(commit){
+  if(!commit)return null
+  const message=commit.message??commit.commit?.message??''
+  // `replacement=` is OPTIONAL and carries the replacement sequence of the
+  // assignment being retired, or is absent for an original (sequence-less)
+  // assignment. It is recorded because a slot's history is ORDERED: without it,
+  // `assertDurableReviewApproval` cannot tell "the returned record is older than
+  // the live one" from "the live record is the stale original the returned
+  // replacement had already superseded", and the second case must fail closed.
+  // `sequence=` is the retired assignment's GLOBALLY MONOTONE cursor sequence,
+  // and it is what makes a returned slot answerable again. The replacement
+  // sequence alone could not: an original assignment has none, so a re-drawn
+  // original always compared as 0 and a slot whose replacement had been returned
+  // stayed red forever, even after a fresh reviewer approved the new assignment
+  // (grok-4.6 REVISE, high finding 2). It is optional only so that a record
+  // written before this change still parses; such a record is ordered by reading
+  // the retired assignment commit instead.
+  const match=/^db-coordination reviewer-return reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{40}) slot=(\d+) assignment=([0-9a-f]{40})(?: sequence=(\d+))?(?: replacement=(\d+))? reason=([a-z-]+)$/i.exec(message)
+  if(!match||!REVIEWERS.some((row)=>row.name===match[1])||!REVIEW_EXCLUSION_REASONS.has(match[9])||Number(match[5])<1||(match[7]!==undefined&&Number(match[7])<1)||(match[8]!==undefined&&Number(match[8])<1))throw new LaneError('reviewer return is malformed')
+  return {reviewer:match[1],issue:Number(match[2]),pr:Number(match[3]),headSha:match[4].toLowerCase(),slot:Number(match[5]),assignmentSha:match[6].toLowerCase(),sequence:match[7]===undefined?null:Number(match[7]),replacementSequence:match[8]===undefined?null:Number(match[8]),reason:match[9]}
+}
+
+// THE REF NAME IS THE AUTHORITY ON SLOT AND SEQUENCE.
+//
+// A commit message is written by whichever command created it, and the
+// replacement writer did not state a slot at all before PR #2077. The REF, by
+// contrast, is constructed from the request in every writer and is what the
+// merge gate, the verdict namespace, and the return namespace are all keyed on.
+// So slot, head and replacement sequence are read from the ref here, once, and
+// every caller shares this one parser rather than repeating the pattern.
+export function parseAssignmentRef(ref){
+  const match=/^refs\/db-review-(assignments|replacements)\/(\d+)-(\d+)-([0-9a-f]{40})(?:-slot(\d+))?(?:-(\d+))?$/.exec(String(ref??''))
+  if(!match||(match[1]==='replacements')!==Boolean(match[6]))return null
+  const slot=Number(match[5]??1)
+  if(!Number.isInteger(slot)||slot<1)return null
+  return {replacement:match[1]==='replacements',issue:Number(match[2]),pr:Number(match[3]),headSha:match[4],slot,replacementSequence:match[6]?Number(match[6]):null}
+}
+
+export function reviewReturnRef({issue,pr,headSha,slot,assignmentSha}){
+  return `${REVIEW_RETURN_REF_PREFIX}/${Number(issue)}-${Number(pr)}-${String(headSha).toLowerCase()}${reviewSlotSuffix(slot)}-${String(assignmentSha).toLowerCase()}`
+}
+
+// Every assignment SHA durably returned for this exact head. The ref name
+// carries the retired assignment SHA, but the COMMIT is what is trusted here: a
+// ref name is only a label, and this answer decides whether a review slot is
+// live work or superseded history. Absence of the namespace is absence of any
+// return -- this reader never invents one.
+export function readReviewReturns(issue,pr,headSha,io=githubIo){
+  const head=String(headSha).toLowerCase()
+  const rows=io.listRefs?.(`${REVIEW_RETURN_REF_PREFIX}/${Number(issue)}-${Number(pr)}-${head}`)??[]
+  return rows.map((row)=>{
+    const parsed=parseReviewReturn(row.commit??io.getCommit(row.sha))
+    if(parsed.issue!==Number(issue)||parsed.pr!==Number(pr)||parsed.headSha!==head||row.ref!==reviewReturnRef(parsed))throw new LaneError('durable reviewer return does not match its ref identity')
+    return {...parsed,ref:row.ref,sha:row.sha}
+  })
+}
+
+// THE VERDICT RACE LEAVES A PIN, AND THE PIN IS CLEARED HERE.
+//
+// `recordReviewVerdict` does not take the review mutex. The return's verdict
+// scan is re-read inside the mutex at the last possible moment, so a verdict
+// that lands after THAT read still slips through. It authorizes nothing -- its
+// `assignment_sha` names the retired object, and the merge gate treats the
+// returned slot as unapproved regardless. But the create-only verdict ref is
+// keyed per {issue, pr, head, slot, replacement sequence}, not per assignment
+// SHA, so the raced verdict OCCUPIES the tuple. The re-drawn reviewer then
+// cannot record any verdict for this head, and the only escape was a new push
+// (grok-4.6 REVISE, medium finding).
+//
+// So the orphan is retired, not deleted and not ignored: the verdict object is
+// moved under its own durable namespace, named for the tuple AND the verdict
+// SHA, in one atomic push that compare-and-clears the tuple ref. The audit
+// survives -- the object stays reachable under a ref that says exactly which
+// retired assignment it answered -- and the head stays reviewable. Anything
+// that is not plainly this orphan (a verdict naming some other assignment)
+// stops the command for audit rather than being moved.
+export function retiredVerdictRef({issue,pr,headSha,slot,replacementSequence,verdictSha}){
+  return `${REVIEW_RETIRED_VERDICT_REF_PREFIX}/${Number(issue)}-${Number(pr)}-${String(headSha).toLowerCase()}${reviewSlotSuffix(slot)}${replacementSequence==null?'':`-${Number(replacementSequence)}`}-${String(verdictSha).toLowerCase()}`
+}
+
+function retireVerdictsOrphanedByReturn({issue,pr,returns,ownerSha},io){
+  if(!returns.length||typeof io.readReviewRefs!=='function')return []
+  const refs=returns.map((row)=>verdictRef({issue,pr,headSha:row.headSha,slot:row.slot,replacementSequence:row.replacementSequence}))
+  const raced=io.readReviewRefs(refs)
+  const orphans=refs.map((ref,index)=>({ref,sha:raced.get(ref)??null,row:returns[index]})).filter((row)=>row.sha)
+  if(!orphans.length)return []
+  const changes=[{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha}]
+  for(const orphan of orphans){
+    const record=parseVerdictCommit(io.getCommit(orphan.sha))
+    if(String(record.assignment_sha??'').toLowerCase()!==String(orphan.row.sha).toLowerCase())throw new LaneError(`verdict ${orphan.ref} does not answer the assignment this exclusion returned; reviewer exclusion stopped for audit`)
+    orphan.retiredRef=retiredVerdictRef({issue,pr,headSha:orphan.row.headSha,slot:orphan.row.slot,replacementSequence:orphan.row.replacementSequence,verdictSha:orphan.sha})
+    changes.push({ref:orphan.retiredRef,expected:null,sha:orphan.sha},{ref:orphan.ref,expected:orphan.sha,sha:null})
+  }
+  io.atomicReviewRefs(changes)
+  const after=io.readReviewRefs([MUTEX_REF,...orphans.flatMap((orphan)=>[orphan.retiredRef,orphan.ref])])
+  if(after.get(MUTEX_REF)!==ownerSha)throw new LaneError('atomic retired-verdict readback mismatch')
+  for(const orphan of orphans)if(after.get(orphan.retiredRef)!==orphan.sha||after.get(orphan.ref)!==null)throw new LaneError('atomic retired-verdict readback mismatch')
+  return orphans.map((orphan)=>({ref:orphan.ref,retiredRef:orphan.retiredRef,sha:orphan.sha}))
+}
+
+// The rows a reviewer's own durable return records say were handed back, shaped
+// exactly like the live rows `excludeReviewerForPr` builds from assignment refs,
+// so the retirement below cannot tell -- and does not need to tell -- a first run
+// from a repair run. Identity is proved from the commit and then checked against
+// the ref name, the same way `readReviewReturns` does it; a ref name is a label,
+// never the authority on what was returned.
+export function reviewReturnsHeldBy({issue,pr,reviewer,rows},io){
+  return (rows??io.listRefs(`${REVIEW_RETURN_REF_PREFIX}/${Number(issue)}-${Number(pr)}-`)??[]).flatMap((row)=>{
+    const record=parseReviewReturn(row.commit??io.getCommit(row.sha))
+    if(record.issue!==Number(issue)||record.pr!==Number(pr)||row.ref!==reviewReturnRef(record))throw new LaneError('durable reviewer return does not match its ref identity')
+    if(record.reviewer!==reviewer)return []
+    return [{ref:row.ref,sha:record.assignmentSha,headSha:record.headSha,slot:record.slot,replacementSequence:record.replacementSequence}]
+  })
+}
+
+// Which of those returned rows still has a verdict sitting on its per-tuple ref.
+// This is a READ, taken before the mutex, so a repair run that has nothing to
+// retire costs one batched request and never takes the global lock.
+function outstandingRetirements(rows,{issue,pr},io){
+  if(!rows.length||typeof io.readReviewRefs!=='function')return []
+  const refs=rows.map((row)=>verdictRef({issue,pr,headSha:row.headSha,slot:row.slot,replacementSequence:row.replacementSequence}))
+  const raced=io.readReviewRefs(refs)
+  return rows.filter((row,index)=>Boolean(raced.get(refs[index])))
+}
+
 export function excludeReviewerForPr({issue,pr,reviewer,reason,evidenceSha},io=githubIo){
   return withReviewRequestBudget(()=>{
     io=reviewOperationIo(io);issue=Number(issue);pr=Number(pr);reviewer=String(reviewer??'');reason=String(reason??'');evidenceSha=String(evidenceSha??'')
     if(!Number.isInteger(issue)||!Number.isInteger(pr)||!REVIEWERS.some((row)=>row.name===reviewer)||!REVIEW_EXCLUSION_REASONS.has(reason)||!/^[0-9a-f]{7,40}$/i.test(evidenceSha))throw new LaneError('reviewer exclusion requires issue, PR, known reviewer, allowed reason, and durable evidence SHA')
     const evidence=parseReviewCursor(io.getCommit(evidenceSha))
     if(evidence.issue!==issue||evidence.pr!==pr||evidence.reviewer!==reviewer)throw new LaneError('reviewer exclusion evidence does not match the issue, PR, and reviewer')
-    const durable=[...io.listRefs(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-`)??[],...io.listRefs(`${REVIEW_REPLACEMENT_REF_PREFIX}/${issue}-${pr}-`)??[]].some((row)=>row.sha===evidenceSha)
-    if(!durable)throw new LaneError('reviewer exclusion evidence is not a durable assignment or replacement record for this pull request')
+    const assignmentRows=io.listRefs(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-`)??[]
+    const replacementRows=io.listRefs(`${REVIEW_REPLACEMENT_REF_PREFIX}/${issue}-${pr}-`)??[]
+    const durable=[...assignmentRows,...replacementRows].some((row)=>row.sha===evidenceSha)
+    // A RETURNED assignment is still durable evidence. Its ref was
+    // compare-and-cleared when the exclusion returned it, so a second, identical
+    // --exclude-reviewer would otherwise stop seeing its own evidence and refuse
+    // -- an idempotent command that fails the second time is not idempotent. The
+    // return record, matched by ref name and then PROVED by its commit, is what
+    // keeps the evidence readable after the assignment ref is gone.
+    let returnRowCache=null
+    const listReturnRows=()=>returnRowCache??(returnRowCache=io.listRefs(`${REVIEW_RETURN_REF_PREFIX}/${issue}-${pr}-`)??[])
+    const returnedEvidence=durable?null:listReturnRows().find((row)=>row.ref.endsWith(`-${evidenceSha.toLowerCase()}`))
+    if(returnedEvidence){
+      const record=parseReviewReturn(returnedEvidence.commit??io.getCommit(returnedEvidence.sha))
+      if(record.issue!==issue||record.pr!==pr||record.reviewer!==reviewer||record.assignmentSha!==evidenceSha.toLowerCase()||returnedEvidence.ref!==reviewReturnRef(record))throw new LaneError('durable reviewer return does not match its ref identity')
+    }
+    if(!durable&&!returnedEvidence)throw new LaneError('reviewer exclusion evidence is not a durable assignment or replacement record for this pull request')
+    // WHAT THE EXCLUDED REVIEWER STILL HOLDS.
+    //
+    // Releasing the provider's lease frees the PROVIDER; it does not free the
+    // SLOT. Any per-head assignment ref of this pull request that still names
+    // this reviewer has to come back in the same mutex section as the exclusion,
+    // or that slot can never be filled again (see parseReviewReturn above).
+    //
+    // The scan is bounded by the heads of ONE pull request, and both reads are
+    // batched into a single request each where the io supports it, so the
+    // pre-mutex spend this adds is +2 and does not grow with head count. Test
+    // doubles without the batched readers fall back to per-ref reads.
+    // BOTH namespaces are scanned. A replacement ref names its reviewer exactly
+    // the way an original assignment ref does, and `--assign-reviewer` reads the
+    // replacement namespace FIRST, so a replacement left naming an excluded
+    // reviewer strands the pull request in precisely the same way the original
+    // assignment did (issue #1999). Returning only originals would have fixed
+    // half of one defect.
+    // Every row is named by parseAssignmentRef, so slot and replacement sequence
+    // come from the REF. Reading them from the commit is what charged a slot-2
+    // replacement return to slot 1 (grok-4.6 REVISE, high finding 1): a
+    // replacement message has no slot token, so the parse silently answered 1,
+    // which then named the return ref, chose which verdict ref was consulted,
+    // and told the merge gate which slot had been handed back.
+    // A ref this parser cannot name is KEPT here, not filtered away. Dropping it
+    // silently was the wrong direction: a reviewer whose only outstanding record
+    // was a legacy link with no namespace tail was excluded with no return
+    // written for it, which re-creates the stranded slot this whole path exists
+    // to repair. The row is carried into the loop instead, and stops the command
+    // as soon as its commit turns out to name the reviewer being excluded.
+    const scanRows=[...assignmentRows,...replacementRows].map((row)=>({row,named:parseAssignmentRef(row.ref)})).filter(({named})=>named===null||(named.issue===issue&&named.pr===pr))
+    const scanRefs=scanRows.map(({row})=>row.ref)
+    const scanRecords=scanRefs.length?io.readReviewRecords?.(scanRefs,null):null
+    const held=[]
+    for(const {row,named} of scanRows){
+      const record=scanRecords?.get(row.ref)
+      const parsed=parseReviewCursor(record?.sha===row.sha?record.commit:(row.commit??io.getCommit(row.sha)))
+      if(parsed.reviewer!==reviewer||parsed.issue!==issue||parsed.pr!==pr)continue
+      if(!named)throw new LaneError(`assignment ${row.ref} cannot be named by the shared ref parser and still holds reviewer ${reviewer}; reviewer exclusion refused rather than excluding a reviewer without returning the slot`)
+      // The commit must AGREE with its ref wherever it says anything at all. A
+      // disagreement is corruption, not a preference between two answers.
+      if(!named.headSha.startsWith(parsed.headSha.toLowerCase()))throw new LaneError(`assignment ${row.ref} names a head its commit does not`)
+      if(parsed.slot!==null&&parsed.slot!==named.slot)throw new LaneError(`assignment ${row.ref} names slot ${named.slot} but its commit says slot ${parsed.slot}`)
+      held.push({ref:row.ref,sha:row.sha,headSha:named.headSha,slot:named.slot,replacementSequence:named.replacementSequence,sequence:parsed.sequence})
+    }
+    // A reviewer that already recorded a durable verdict for an assignment
+    // FINISHED that work. Returning it would strip the assignment record the
+    // verdict artifact is validated against, so refuse outright rather than
+    // break the audit chain -- an exclusion is not a way to erase a verdict.
+    //
+    // The scan is a FUNCTION because it is run twice: once here, so an obviously
+    // reviewed assignment is refused before the global mutex is taken, and again
+    // INSIDE the mutex immediately before the write. `recordReviewVerdict` does
+    // not take the review mutex, so the pre-mutex answer alone is a stale read a
+    // concurrent verdict can invalidate; `readReviewRefs` is never memoized, so
+    // the second call is a genuinely fresh read at the last possible moment.
+    // The verdict ref of a REPLACEMENT assignment lives in its own namespace, so
+    // each held record is asked about its own sequence rather than assuming an
+    // original.
+    const scanOutstanding=()=>{
+      const verdictRefs=held.map((row)=>verdictRef({issue,pr,headSha:row.headSha,slot:row.slot,replacementSequence:row.replacementSequence}))
+      const verdictShas=verdictRefs.length?(io.readReviewRefs?.(verdictRefs)??new Map(verdictRefs.map((each)=>[each,io.readRef(each)]))):new Map()
+      return held.filter((row,index)=>{
+        if(!verdictShas.get(verdictRefs[index]))return true
+        throw new LaneError(`reviewer ${reviewer} already recorded a durable verdict for issue #${issue} PR #${pr} head ${row.headSha} slot ${row.slot}; a reviewed assignment is never returned`)
+      })
+    }
+    // Returning a slot compare-and-clears a durable assignment ref. On the
+    // production io that is one `git push --atomic` with `--force-with-lease` on
+    // every expected SHA -- a true compare-and-swap. The non-atomic fallback has
+    // no such primitive: its release is compare-THEN-delete, which can retire a
+    // ref another writer moved in between, and a partial fallback run leaves the
+    // assignment ref naming the excluded reviewer with the return record already
+    // created, a state the documented re-run cannot repair. So the return path
+    // REFUSES rather than falling back. The exclusion record itself, which
+    // creates but never clears, still has a safe fallback below.
+    if(held.length&&typeof io.atomicReviewRefs!=='function')throw new LaneError('returning a review slot requires atomic compare-and-swap ref support; reviewer exclusion refused before mutex acquisition')
     const ref=`${REVIEW_EXCLUSION_REF_PREFIX}/${issue}-${pr}-${reviewer}`,existing=io.readRef(ref)
-    if(existing){const parsed=parseReviewExclusion(io.getCommit(existing));if(parsed.issue===issue&&parsed.pr===pr&&parsed.reviewer===reviewer&&parsed.reason===reason&&parsed.evidenceSha===evidenceSha)return {...parsed,ref,sha:existing};throw new LaneError(`reviewer ${reviewer} already has a different durable exclusion for issue #${issue} PR #${pr}`)}
+    let repeat=null
+    if(existing){
+      const parsed=parseReviewExclusion(io.getCommit(existing))
+      if(parsed.issue!==issue||parsed.pr!==pr||parsed.reviewer!==reviewer||parsed.reason!==reason||parsed.evidenceSha!==evidenceSha)throw new LaneError(`reviewer ${reviewer} already has a different durable exclusion for issue #${issue} PR #${pr}`)
+      // Idempotent when nothing is left to hand back. When an assignment IS
+      // still outstanding this is the repair route for a pull request excluded
+      // before returns existed: re-running the IDENTICAL exclusion completes it,
+      // with no new exclusion record and no second reason.
+      // A RE-RUN MUST BE ABLE TO REACH THE RETIREMENT.
+      //
+      // The raced-verdict retirement is a SECOND atomic push, made after the one
+      // that records the exclusion and its returns. If that second push fails,
+      // or the process dies between the two, the exclusion and every return are
+      // already durable and every returned assignment ref is already cleared --
+      // so a re-run finds nothing held and used to stop on this line, before the
+      // retirement could run a second time. The orphaned verdict then held the
+      // per-tuple ref for that head with no repair short of a new push, which is
+      // the very escape this feature was written to close.
+      //
+      // So the re-run reconstructs the returned rows from the DURABLE return
+      // records this reviewer's own exclusion wrote -- the assignment refs are
+      // gone, the records that retired them are not -- and hands them to the same
+      // retirement. Nothing new is recorded: if no verdict is still sitting on a
+      // returned tuple, the command stays the plain idempotent no-op it was.
+      const retryReturns=held.length?[]:outstandingRetirements(reviewReturnsHeldBy({issue,pr,reviewer,rows:listReturnRows()},io),{issue,pr},io)
+      if(!held.length&&!retryReturns.length)return {...parsed,ref,sha:existing,returned:[]}
+      if(retryReturns.length&&typeof io.atomicReviewRefs!=='function')throw new LaneError('retiring a raced verdict requires atomic compare-and-swap ref support; reviewer exclusion refused before mutex acquisition')
+      repeat={...parsed,ref,sha:existing,retryReturns}
+    }
     const ownerSha=io.makeOwnerCommit(`db-coordination reviewer-exclusion-lock issue=${issue} pr=${pr} reviewer=${reviewer}`)
     requireReviewWireCapacity(REVIEW_MUTEX_SECTION_RESERVE);acquireReviewMutex(ownerSha,io)
     try{
-      if(io.readRef(ref))throw new LaneError(`reviewer ${reviewer} was excluded concurrently; retry to inspect the durable record`)
-      const sha=io.makeOwnerCommit(`db-coordination reviewer-exclusion reviewer=${reviewer} issue=${issue} pr=${pr} reason=${reason} evidence=${evidenceSha}`),leaseRef=reviewActiveRef(reviewer),leaseSha=io.readRef(leaseRef),releaseLease=leaseSha===evidenceSha
-      if(io.atomicReviewRefs){io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},{ref,expected:null,sha},...(releaseLease?[{ref:leaseRef,expected:evidenceSha,sha:null}]:[])]);const after=io.readReviewRefs([MUTEX_REF,ref,...(releaseLease?[leaseRef]:[])]);if(after.get(MUTEX_REF)!==ownerSha||after.get(ref)!==sha||(releaseLease&&after.get(leaseRef)!==null))throw new LaneError('atomic reviewer exclusion readback mismatch')}
-      else{if(!io.createRef(ref,sha)&&readRefAfterWrite(ref,sha,io)!==sha)throw new LaneError('reviewer exclusion record could not be proved');if(releaseLease)releaseOwnedRef(leaseRef,evidenceSha,io)}
-      return {issue,pr,reviewer,reason,evidenceSha,ref,sha,releasedLease:releaseLease}
+      if(!repeat&&io.readRef(ref))throw new LaneError(`reviewer ${reviewer} was excluded concurrently; retry to inspect the durable record`)
+      const sha=repeat?repeat.sha:io.makeOwnerCommit(`db-coordination reviewer-exclusion reviewer=${reviewer} issue=${issue} pr=${pr} reason=${reason} evidence=${evidenceSha}`)
+      // One create-only return record per outstanding assignment, each parented
+      // on the assignment commit it retires so that commit stays reachable once
+      // its ref is compare-and-cleared. `makeReviewVerdictCommit` is the
+      // existing parented-commit maker; test doubles without it fall back to the
+      // ordinary owner commit, which keeps the message but not the parent.
+      // FRESH, inside the mutex, at the last moment before the write: this is
+      // the authoritative answer to "did this reviewer already deliver a
+      // verdict", and the only one the return is allowed to act on.
+      const returns=scanOutstanding().map((row)=>({...row,
+        returnRef:reviewReturnRef({issue,pr,headSha:row.headSha,slot:row.slot,assignmentSha:row.sha}),
+        returnSha:(io.makeReviewVerdictCommit??io.makeOwnerCommit).call(io,`db-coordination reviewer-return reviewer=${reviewer} issue=${issue} pr=${pr} head=${row.headSha} slot=${row.slot} assignment=${row.sha} sequence=${row.sequence}${row.replacementSequence===null?'':` replacement=${row.replacementSequence}`} reason=${reason}`,row.sha)}))
+      const leaseRef=reviewActiveRef(reviewer),leaseSha=io.readRef(leaseRef)
+      const releaseLease=Boolean(leaseSha)&&(leaseSha===evidenceSha||returns.some((row)=>row.sha===leaseSha))
+      if(io.atomicReviewRefs){
+        io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},...(repeat?[]:[{ref,expected:null,sha}]),
+          // Create the return BEFORE clearing the assignment, in the same atomic
+          // push: either the audit record and the retirement both land, or
+          // neither does. There is no window where the assignment ref is gone
+          // and nothing records why.
+          ...returns.flatMap((row)=>[{ref:row.returnRef,expected:null,sha:row.returnSha},{ref:row.ref,expected:row.sha,sha:null}]),
+          ...(releaseLease?[{ref:leaseRef,expected:leaseSha,sha:null}]:[])])
+        const after=io.readReviewRefs([MUTEX_REF,ref,...returns.flatMap((row)=>[row.returnRef,row.ref]),...(releaseLease?[leaseRef]:[])])
+        if(after.get(MUTEX_REF)!==ownerSha||after.get(ref)!==sha||(releaseLease&&after.get(leaseRef)!==null))throw new LaneError('atomic reviewer exclusion readback mismatch')
+        for(const row of returns)if(after.get(row.returnRef)!==row.returnSha||after.get(row.ref)!==null)throw new LaneError('atomic reviewer return readback mismatch')
+        retireVerdictsOrphanedByReturn({issue,pr,returns:[...returns,...(repeat?.retryReturns??[])],ownerSha},io)
+      }
+      else{
+        // Unreachable for a return: the pre-mutex guard above already refused
+        // this io when anything was held. Kept as a hard stop so no later edit
+        // can quietly reintroduce a non-compare-and-swap retirement.
+        if(returns.length)throw new LaneError('returning a review slot requires atomic compare-and-swap ref support')
+        if(!repeat&&!io.createRef(ref,sha)&&readRefAfterWrite(ref,sha,io)!==sha)throw new LaneError('reviewer exclusion record could not be proved')
+        if(releaseLease)releaseOwnedRef(leaseRef,leaseSha,io)
+      }
+      return {issue,pr,reviewer,reason,evidenceSha,ref,sha,releasedLease:releaseLease,
+        returned:returns.map((row)=>({assignmentRef:row.ref,assignmentSha:row.sha,headSha:row.headSha,slot:row.slot,replacementSequence:row.replacementSequence,ref:row.returnRef,sha:row.returnSha}))}
     }
     finally{finalizeReviewMutex(ownerSha,io)}
   })
@@ -1595,10 +2072,14 @@ function reviewOperationIo(io){
     if(key==='__reviewOperation')return true
     if(key==='__cacheRef')return (ref,sha)=>cache.set(`readRef:${JSON.stringify([ref])}`,sha)
     if(key==='__freshListRefs')return (...args)=>target.listRefs(...args)
+    // Uncached durable-verdict listing for the post-mutex re-check. It must not
+    // answer from the pre-mutex snapshot: the point of the recheck is that a
+    // verdict may have landed while the mutex was being acquired.
+    if(key==='__freshDurableVerdictRefs')return ()=>readDurableVerdictRefs(target)
     const value=target[key]
     if(typeof value!=='function')return value
     return (...args)=>{
-      const cacheable=['listRefs','getCommit','getPr','getIssue','getIssueComments','getPrReviews'].includes(key)
+      const cacheable=['listRefs','listReviewRefsPaged','getCommit','getPr','getIssue','getIssueComments','getPrReviews'].includes(key)
       const cacheKey=cacheable?`${String(key)}:${JSON.stringify(args)}`:null
       if(cacheable&&cache.has(cacheKey))return cache.get(cacheKey)
       const result=value.apply(target,args)
@@ -1775,40 +2256,170 @@ export function gateAuthorizes(evidence,headSha,bundleId,readAssignments){
     (readAssignments?.()??[]).some((assignment)=>assignment?.headSha===headSha)))
 }
 
-// A verdict exists for an exact head when an issue comment, a PR comment, or a
-// PR review is tied to that head AND carries a decision. Extracted so the
-// replacement guard and the busy-reviewer probe cannot drift apart: "this review
-// is finished" has to mean the same thing in both places.
-export function hasVerdictForHead(issue,pr,headSha,io){
-  const evidence=[...(io.getIssueComments?.(Number(issue))??[]),...(io.getIssueComments?.(Number(pr))??[]),...(io.getPrReviews?.(Number(pr))??[])]
-  return anyVerdictFor(evidence,headSha)
+// A VERDICT IS AN ARTIFACT, NEVER A SENTENCE (issue #2075).
+//
+// This predicate used to be "an issue comment, a PR comment, or a PR review tied
+// to this head contains a decision word". That made every lane decision -- lease
+// liveness, the busy probe, the capacity report, assignment, replacement and
+// release -- answerable by PROSE, and in particular by the governed-review
+// runner's own findings comment in the window before its create-only artifact
+// was recorded. Issue #2075 is exactly that: a findings comment whose verdict
+// line was posted, whose artifact was never written, and whose pull request then
+// deadlocked in BOTH directions -- the lease looked finished, so replacement and
+// release were refused, while no artifact existed to authorize anything.
+//
+// The only thing that records a verdict is `recordReviewVerdict`, and the only
+// thing it produces is a create-only ref under refs/db-review-verdicts/ or
+// refs/db-review-verdict-replacements/. So that is what is read here. Comment
+// text remains evidence for a human; it is no longer an input to any decision.
+//
+// ONE REQUEST, NOT ONE PER LEASE. `git/matching-refs` is a plain string-prefix
+// match (measured 2026-08-30, see check-exact-head-approval.mjs), and both
+// namespaces share the prefix `refs/db-review-verdict`, so a single listing
+// answers for every (issue, pr, head) tuple an operation asks about and
+// `reviewOperationIo` caches it for the rest of that operation.
+export const DURABLE_VERDICT_REF_NAMESPACE = 'refs/db-review-verdict'
+function readDurableVerdictRefs(io){
+  // `listReviewRefsPaged` walks explicit pages and REFUSES past
+  // REVIEW_REF_PAGE_LIMIT rather than returning a partial list; plain `listRefs`
+  // refuses at 100 rows inside a wire budget. Either refusal is loud, and loud is
+  // the only safe failure here: a silently short list reads as "no verdict",
+  // which is the fail-OPEN direction for release and replacement.
+  const reader=typeof io?.listReviewRefsPaged==='function'?io.listReviewRefsPaged.bind(io):(typeof io?.listRefs==='function'?io.listRefs.bind(io):null)
+  if(!reader)throw new LaneError('durable reviewer verdict refs are unreadable; a verdict can only be proved by its create-only artifact, never by comment text')
+  const rows=reader(DURABLE_VERDICT_REF_NAMESPACE)
+  if(!Array.isArray(rows))throw new LaneError('durable reviewer verdict refs are unreadable; a verdict can only be proved by its create-only artifact, never by comment text')
+  return rows
+}
+export function listDurableVerdictRefs(io,{fresh=false}={}){
+  if(!fresh)return readDurableVerdictRefs(io)
+  if(freshDurableVerdictRefs)return freshDurableVerdictRefs
+  const rows=typeof io?.__freshDurableVerdictRefs==='function'?io.__freshDurableVerdictRefs():readDurableVerdictRefs(io)
+  if(!Array.isArray(rows))throw new LaneError('durable reviewer verdict refs are unreadable; a verdict can only be proved by its create-only artifact, never by comment text')
+  if(reviewWireBudget)freshDurableVerdictRefs=rows
+  return rows
+}
+export function hasVerdictForHead(issue,pr,headSha,io,options={}){
+  const head=String(headSha??'').toLowerCase()
+  return listDurableVerdictRefs(io,options).some((row)=>{
+    const named=parseVerdictRef(row.ref)
+    return Boolean(named)&&named.issue===Number(issue)&&named.pr===Number(pr)&&named.headSha===head
+  })
+}
+
+// #2079 READ SIDE, REPLACEMENT PATH. `hasVerdictForHead` answers from durable ref
+// NAMES only -- deliberately, because that is one listing and no attribution. But
+// the replacement path needs attribution: a verdict artifact left by a reviewer
+// that cannot open the repository must NOT forbid the replacement that exists to
+// re-review that exact slot. So resolve each durable verdict ref at this head back
+// to the assignment (or replacement) ref it names, read that record's reviewer,
+// and ask `reviewerReadsRepository`.
+//
+// FAIL CLOSED. Anything unresolvable -- a malformed verdict ref, a missing or
+// unreadable assignment record, a name outside the roster -- blocks. Replacement
+// is the "un-review this head" direction, so ambiguity must never open it. Comment
+// text is not consulted anywhere in here.
+function durableVerdictBlocksReplacement(ref,io){
+  const named=parseVerdictRef(ref)
+  if(!named)return true
+  const owningRef=named.replacementSequence===null
+    ?`${REVIEW_ASSIGNMENT_REF_PREFIX}/${named.issue}-${named.pr}-${named.headSha}${reviewSlotSuffix(named.slot)}`
+    :`${REVIEW_REPLACEMENT_REF_PREFIX}/${named.issue}-${named.pr}-${named.headSha}${reviewSlotSuffix(named.slot)}-${named.replacementSequence}`
+  let reviewer=null
+  try{
+    const sha=io.readRef(owningRef)
+    if(sha)reviewer=parseReviewCursor(io.getCommit(sha))?.reviewer??null
+  }catch{return true}
+  if(!reviewer)return true
+  // NOT `reviewerReadsRepository(reviewer)`: that returns false for an unknown
+  // name, which would PERMIT replacement on an artifact nobody can attribute.
+  // Only a roster row explicitly marked non-reading may be discarded.
+  return !reviewerKnownNonReading(reviewer)
+}
+export function headVerdictBlocksReplacement(issue,pr,headSha,io,options={}){
+  const head=String(headSha??'').toLowerCase()
+  return listDurableVerdictRefs(io,options).some((row)=>{
+    const named=parseVerdictRef(row.ref)
+    if(!named||named.issue!==Number(issue)||named.pr!==Number(pr)||named.headSha!==head)return false
+    return durableVerdictBlocksReplacement(row.ref,io)
+  })
 }
 
 export function assertDurableReviewApproval(issue,pr,headSha,io=githubIo){
-  const head=String(headSha).toLowerCase(),verdicts=readReviewVerdicts(issue,pr,head,io)
+  const head=String(headSha).toLowerCase(),allVerdicts=readReviewVerdicts(issue,pr,head,io,{includeDisregarded:true})
+  const disregarded=allVerdicts.filter((row)=>row.disregarded),verdicts=allVerdicts.filter((row)=>!row.disregarded)
+  // #2079. A verdict recorded before the write-side guard existed, by a reviewer
+  // that cannot open the code, is not evidence in either direction: it neither
+  // approves nor refuses this head. It is reported, then ignored.
+  const disregardedNote=disregarded.length?` (${disregarded.length} durable verdict artifact(s) at this head are DISREGARDED because their reviewer cannot read the repository: ${disregarded.map((row)=>`${row.ref} by ${row.reviewer}`).join(', ')}. Re-review the slot with --replace-failed-reviewer --failure-code reviewer_cannot_read_repository)`:''
   if(verdicts.some((row)=>row.verdict!=='APPROVE'))throw new LaneError('the exact head carries a durable reviewer refusal')
   const assignments=[REVIEW_ASSIGNMENT_REF_PREFIX,REVIEW_REPLACEMENT_REF_PREFIX].flatMap((prefix)=>io.listRefs(`${prefix}/${Number(issue)}-${Number(pr)}-${head}`)).map(({ref,sha})=>{
-    const match=/^refs\/db-review-(assignments|replacements)\/(\d+)-(\d+)-([0-9a-f]{40})(?:-slot(\d+))?(?:-(\d+))?$/.exec(ref)
-    if(!match||(match[1]==='replacements')!==Boolean(match[6]))throw new LaneError(`assignment ref ${ref} is malformed`)
-    return{ref,sha,slot:Number(match[5]??1),replacementSequence:match[6]?Number(match[6]):null}
+    const named=parseAssignmentRef(ref)
+    if(!named)throw new LaneError(`assignment ref ${ref} is malformed`)
+    return{ref,sha,slot:named.slot,replacementSequence:named.replacementSequence}
   })
+  // A durably RETURNED assignment is superseded history, not a live slot. The
+  // exclusion that returned it also compare-and-cleared its ref, so this filter
+  // normally has nothing to do; it is here so a return that raced a re-created
+  // ref still cannot resurrect a slot no reviewer holds. It never lets a slot
+  // pass without an APPROVE -- it removes the retired assignment entirely, and
+  // if every assignment for this head was returned the refusal below fires.
+  const returnRecords=readReviewReturns(issue,pr,head,io)
+  const returned=new Set(returnRecords.map((row)=>row.assignmentSha))
   const latest=new Map()
-  for(const assignment of assignments){const prior=latest.get(assignment.slot);if(!prior||Number(assignment.replacementSequence??0)>Number(prior.replacementSequence??0))latest.set(assignment.slot,assignment)}
+  for(const assignment of assignments){if(returned.has(assignment.sha))continue;const prior=latest.get(assignment.slot);if(!prior||Number(assignment.replacementSequence??0)>Number(prior.replacementSequence??0))latest.set(assignment.slot,assignment)}
   if(!latest.size)throw new LaneError('the exact head has no durable reviewer assignment')
-  for(const assignment of latest.values())if(!verdicts.some((row)=>row.verdict==='APPROVE'&&row.assignment_sha===assignment.sha))throw new LaneError(`review slot ${assignment.slot} has no durable APPROVE for its latest exact-head assignment`)
+  // A RETURNED SLOT IS AN UNAPPROVED SLOT, NEVER A DISAPPEARED ONE.
+  //
+  // Dropping the retired assignment above is only half the answer. Removing it
+  // also removes the SLOT from `latest` whenever nothing has refilled it, and
+  // the loop below only demands an APPROVE for slots that are still in the map.
+  // With one slot that fails closed at the emptiness refusal above; with two, a
+  // returned slot 1 beside an already-approved slot 2 left the gate green while
+  // NOBODY had approved slot 1's assignment of this head -- a merge authorized
+  // over an unreviewed slot, which is exactly the failure the return was written
+  // to prevent. So every slot that was ever returned for this head must still be
+  // answered for: it needs a live assignment at least as new as the newest thing
+  // returned for it, and that assignment needs its own APPROVE below. A slot
+  // whose returned record was a replacement is not satisfied by falling back to
+  // the older original the replacement had already superseded.
+  //
+  // "NEWER" IS THE GLOBAL CURSOR SEQUENCE, NOT THE REPLACEMENT NAMESPACE.
+  //
+  // The first version of this rule compared `replacementSequence`, treating an
+  // original assignment as 0. That closed the hole and opened a worse one: after
+  // any replacement for a slot was returned, `--assign-reviewer` recreates the
+  // ORIGINAL ref, whose namespace sequence is 0, so `0 < returnedSequence`
+  // stayed true forever and the slot could never be answered -- not even by a
+  // freshly drawn reviewer who had recorded their own APPROVE (grok-4.6 REVISE,
+  // high finding 2). A namespace tail is not a clock. The reviewer cursor IS:
+  // every assignment and every replacement spends one strictly increasing
+  // sequence from the same durable counter, across both namespaces. So a slot
+  // that was returned is answerable by exactly one thing -- a live assignment
+  // for the same slot drawn AFTER the returned record was drawn -- which still
+  // excludes another slot's APPROVE and still excludes the superseded original
+  // the returned replacement had already replaced.
+  const cursorSequence=(sha)=>{const parsed=parseReviewCursor(io.getCommit(sha));const value=Number(parsed?.sequence);if(!Number.isInteger(value)||value<1)throw new LaneError(`assignment ${sha} has no readable reviewer sequence`);return value}
+  const newestReturned=new Map()
+  for(const row of returnRecords){const sequence=row.sequence==null?cursorSequence(row.assignmentSha):Number(row.sequence);if(!(newestReturned.get(row.slot)>=sequence))newestReturned.set(row.slot,sequence)}
+  for(const [slot,sequence] of newestReturned){
+    const live=latest.get(slot)
+    if(!live||cursorSequence(live.sha)<=sequence)throw new LaneError(`review slot ${slot} was durably returned and has no live exact-head assignment newer than the returned one to approve; it cannot be satisfied by another slot, nor by a record the returned one had already superseded. Draw a new reviewer for this exact head and slot (--assign-reviewer when the returned record was the original assignment, --replace-failed-reviewer with the same --failed-sequence when it was a replacement), and that new assignment must record its own APPROVE.`)
+  }
+  for(const assignment of latest.values())if(!verdicts.some((row)=>row.verdict==='APPROVE'&&row.assignment_sha===assignment.sha))throw new LaneError(`review slot ${assignment.slot} has no durable APPROVE for its latest exact-head assignment${disregardedNote}`)
   return verdicts
 }
 
-function assertReviewLeaseStillStale(row,states){
+function assertReviewLeaseStillStale(row,states,io){
   if(!row)return
-  const state=states?.get(`${row.assignment.issue}:${row.assignment.pr}`),evidence=state?.evidence??[]
-  const verdict=anyVerdictFor(evidence,row.assignment.headSha)
+  const state=states?.get(`${row.assignment.issue}:${row.assignment.pr}`)
+  const verdict=hasVerdictForHead(row.assignment.issue,row.assignment.pr,row.assignment.headSha,io,{fresh:true})
   if(state?.pr?.state==='open'&&state?.pr?.head?.sha===row.assignment.headSha&&!verdict)throw new LaneError(`reviewer ${row.assignment.reviewer} lease became live after mutex acquisition`)
 }
 
 function isReviewAssignmentLive(assignment,states,io){
-  const state=states?.get(`${assignment.issue}:${assignment.pr}`),pr=state?.pr??io.getPr(assignment.pr),evidence=state?.evidence
-  const verdict=evidence?anyVerdictFor(evidence,assignment.headSha):hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io)
+  const state=states?.get(`${assignment.issue}:${assignment.pr}`),pr=state?.pr??io.getPr(assignment.pr)
+  const verdict=hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io)
   return pr?.state==='open'&&pr?.head?.sha===assignment.headSha&&!verdict
 }
 
@@ -1843,29 +2454,58 @@ export function findBusyReviewers(io,requested=[]){
     let sha
     try{sha=snapshot?snapshot.get(ref)?.sha??null:io.readRef(ref)}catch{return null}
     if(!sha)continue
-    let assignment
-    try{assignment=parseReviewLease(snapshot?.get(ref)?.commit??io.getCommit(sha))}catch{return null}
+    let assignment,commit
+    try{commit=snapshot?.get(ref)?.commit??io.getCommit(sha);assignment=parseReviewLease(commit)}catch{return null}
     if(!assignment||assignment.reviewer!==reviewer.name||(io.requiresExactReviewHeadSha&&!/^[0-9a-f]{40}$/i.test(assignment.headSha)))return null
-    records.push({reviewer,ref,sha,assignment})
+    const heldSince=commit?.committedDate??commit?.committer?.date??commit?.commit?.committer?.date??null
+    records.push({reviewer,ref,sha,assignment,heldSince})
   }
   let states=null
     try{states=typeof io.readReviewStates==='function'?io.readReviewStates([...records.map((row)=>row.assignment),...requested]):null}catch{return null}
   for(const {reviewer,ref,sha,assignment} of records){
-    let prRow,evidence
+    let prRow
     try{
       const state=states?.get(`${assignment.issue}:${assignment.pr}`)
-      prRow=state?.pr??io.getPr(assignment.pr);evidence=state?.evidence
+      prRow=state?.pr??io.getPr(assignment.pr)
     }catch{return null}
     if(prRow?.state!=='open'||prRow?.head?.sha!==assignment.headSha){stale.push({ref,sha,assignment});continue}
     let verdict
-    try{verdict=evidence?anyVerdictFor(evidence,assignment.headSha):hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io)}catch{return null}
+    try{verdict=hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io)}catch{return null}
     if(verdict){stale.push({ref,sha,assignment});continue}
     busy.add(assignment.reviewer)
   }
   Object.defineProperty(busy,'stale',{value:stale,enumerable:false})
   Object.defineProperty(busy,'states',{value:states,enumerable:false})
-  Object.defineProperty(busy,'leases',{value:new Map(records.map((row)=>[row.assignment.reviewer,{sha:row.sha,lease:row.assignment}])),enumerable:false})
+  Object.defineProperty(busy,'leases',{value:new Map(records.map((row)=>[row.assignment.reviewer,{sha:row.sha,lease:row.assignment,heldSince:row.heldSince}])),enumerable:false})
   return busy
+}
+
+export function reviewLeaseAgeHours(heldSince,now=new Date()){
+  const start=new Date(heldSince).getTime(),end=new Date(now).getTime()
+  if(!heldSince||!Number.isFinite(start)||!Number.isFinite(end)||end<start)return null
+  return (end-start)/3_600_000
+}
+
+export function reviewerCapacityReport(io=githubIo,now=new Date()){
+  const busy=findBusyReviewers(io)
+  if(!busy)throw new LaneError('active reviewer leases are unreadable; reviewer capacity is unknown')
+  const staleByReviewer=new Map(busy.stale.map((row)=>[row.assignment.reviewer,row]))
+  const rows=ACTIVE_REVIEWERS.map((reviewer)=>{
+    const record=busy.leases.get(reviewer.name)
+    if(!record)return {reviewer:reviewer.name,held:false,issue:null,pr:null,headSha:null,sequence:null,heldSinceIso:null,ageHours:null,prState:null,headMatches:null,verdictPresent:false,classification:'free'}
+    const state=busy.states?.get(`${record.lease.issue}:${record.lease.pr}`),pr=state?.pr
+    let verdictPresent=false
+    try{verdictPresent=hasVerdictForHead(record.lease.issue,record.lease.pr,record.lease.headSha,io)}catch{verdictPresent=false}
+    const ageHours=reviewLeaseAgeHours(record.heldSince,now)
+    let classification
+    if(!state||!pr)classification='unknown'
+    else if(staleByReviewer.has(reviewer.name))classification='stale-reclaimable'
+    else if(ageHours===null)classification='unknown'
+    else if(ageHours>=REVIEW_LEASE_SUSPECT_HOURS)classification='suspect-aged'
+    else classification='live'
+    return {reviewer:reviewer.name,held:true,issue:record.lease.issue,pr:record.lease.pr,headSha:record.lease.headSha,sequence:record.lease.sequence,heldSinceIso:record.heldSince??null,ageHours:ageHours===null?null:Number(ageHours.toFixed(2)),prState:pr?.state??null,headMatches:pr?pr.head?.sha===record.lease.headSha:null,verdictPresent,classification}
+  })
+  return {generatedAt:new Date(now).toISOString(),advisorySuspectHours:REVIEW_LEASE_SUSPECT_HOURS,summary:{total:rows.length,free:rows.filter((row)=>row.classification==='free').length,live:rows.filter((row)=>['live','suspect-aged'].includes(row.classification)).length,reclaimable:rows.filter((row)=>row.classification==='stale-reclaimable').length,unknown:rows.filter((row)=>row.classification==='unknown').length},reviewers:rows}
 }
 
 export function describeMovedAssignmentHead(request,recorded){
@@ -2056,7 +2696,20 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
         requireReplacementEvidence(replacement,io)
       }
       const replacement=replacements.sort((a,b)=>b.sequence-a.sequence)[0], reviewer=REVIEWERS.find((r)=>r.name===replacement.reviewer)
-      if(exclusions.has(replacement.reviewer))throw new LaneError(`durable replacement reviewer ${replacement.reviewer} is excluded for this PR (${exclusions.get(replacement.reviewer).reason}); it was not returned or re-leased`)
+      // DELIBERATE: this refusal does NOT re-draw, and does not return the slot
+      // itself. Retiring a durable assignment or replacement is a recorded,
+      // audited act -- it clears a ref under compare-and-swap and writes the
+      // return record that says who held it and why it came back. Only
+      // `--exclude-reviewer` does that, and it now returns BOTH namespaces in
+      // the same atomic push as the exclusion, so the state this refusal names
+      // can no longer be produced by a correct exclusion. What remains is a
+      // pull request excluded before returns existed, or a torn state: for those
+      // the honest answer is a fail-closed stop pointing at the repair command
+      // (re-run the identical `--exclude-reviewer`), not an assignment path
+      // silently discarding another command's durable record with no audit
+      // trail. The exclusion of the REVIEWER is absolute either way -- they can
+      // never be drawn again for this pull request.
+      if(exclusions.has(replacement.reviewer))throw new LaneError(`durable replacement reviewer ${replacement.reviewer} is excluded for this PR (${exclusions.get(replacement.reviewer).reason}); re-run the identical --exclude-reviewer to return this slot. The returned record is a REPLACEMENT, so --assign-reviewer will not refill it: draw the new reviewer with --replace-failed-reviewer for the same --failed-sequence.`)
       if(!eligibleNames.has(replacement.reviewer))throw new LaneError(`durable replacement sequence ${replacement.sequence} belongs to a retired reviewer or orchestrator-conflicting reviewer ${replacement.reviewer}; its active lease was not recreated. Record a new governed replacement for this exact head`)
       const replacementLeaseRef=reviewActiveRef(reviewer.name),liveReplacement=preflightBusy.leases.get(reviewer.name),staleReplacement=preflightBusy.stale.find((row)=>row.ref===replacementLeaseRef)
       if(liveReplacement&&liveReplacement.sha!==replacement.replacementSha&&!staleReplacement)throw new LaneError(`reviewer ${reviewer.name} has an unrelated live lease; assignment retry repair refused`)
@@ -2065,8 +2718,9 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
       const freshStates=io.readReviewStates?.([replacement,...(staleReplacement?[staleReplacement.assignment]:[])])
       assertReviewRequestEligible(request,freshStates,io)
       const replacementLive=isReviewAssignmentLive(replacement,freshStates,io),replacementTarget=replacementLive?replacement.replacementSha:null
+      if(replacementLive&&!liveReplacement)assertAssignmentWasNotTerminallyReleased(request,replacement,io)
       if(io.atomicReviewRefs){
-        if(staleReplacement)assertReviewLeaseStillStale(staleReplacement,freshStates)
+        if(staleReplacement)assertReviewLeaseStillStale(staleReplacement,freshStates,io)
         const changes=[{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha}]
         if(failed)changes.push({ref:reviewActiveRef(failed.lease.reviewer),expected:failed.sha,sha:null})
         changes.push({ref:replacementLeaseRef,expected:staleReplacement?.sha??(liveReplacement?.sha??null),sha:replacementTarget})
@@ -2083,7 +2737,9 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
     const priorSha=io.readRef(assignmentRef)
     if(priorSha){
       const prior=parseReviewCursor(io.getCommit(priorSha)),leaseRef=reviewActiveRef(prior.reviewer),preflightLease=preflightBusy.leases.get(prior.reviewer),stalePrior=preflightBusy.stale.find((row)=>row.ref===leaseRef&&row.sha===priorSha)
-      if(exclusions.has(prior.reviewer))throw new LaneError(`durable assignment reviewer ${prior.reviewer} is excluded for this PR (${exclusions.get(prior.reviewer).reason}); it was not returned or re-leased`)
+      // Same deliberate refusal as the replacement branch above: the assignment
+      // path never retires a slot itself. See the comment there.
+      if(exclusions.has(prior.reviewer))throw new LaneError(`durable assignment reviewer ${prior.reviewer} is excluded for this PR (${exclusions.get(prior.reviewer).reason}); re-run the identical --exclude-reviewer to return this slot, then re-run this --assign-reviewer to draw a fresh reviewer for it.`)
       const retryStates=io.readReviewStates?.([prior,...(stalePrior?[stalePrior.assignment]:[])])
       assertReviewRequestEligible(request,retryStates,io)
       // Eligibility is re-checked on EVERY retry return below, not only the
@@ -2095,12 +2751,20 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
       // same way a fresh assignment would, never hand back a stale answer.
       if(!eligibleNames.has(prior.reviewer))throw new LaneError(`durable assignment sequence ${prior.sequence} belongs to a retired reviewer or orchestrator-conflicting reviewer ${prior.reviewer}; its active lease was not recreated. Record a governed replacement for this exact head`)
       if(preflightLease?.sha===priorSha&&preflightLease.lease.issue===prior.issue&&preflightLease.lease.pr===prior.pr&&preflightLease.lease.headSha===prior.headSha&&preflightLease.lease.sequence===prior.sequence&&!stalePrior){
+        assertAssignmentWasNotTerminallyReleased(request,prior,io)
+        requireOwnedRef(MUTEX_REF,ownerSha,io)
+        if(io.atomicReviewRefs){
+          io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},{ref:leaseRef,expected:priorSha,sha:priorSha}])
+          const after=io.readReviewRefs([MUTEX_REF,leaseRef])
+          if(after.get(MUTEX_REF)!==ownerSha||after.get(leaseRef)!==priorSha)throw new LaneError('assignment retry lease changed after mutex acquisition')
+        }else if(io.readRef(leaseRef)!==priorSha)throw new LaneError('assignment retry lease changed after mutex acquisition')
         return {...prior,slot:request.slot,wrapper:REVIEWERS.find((r)=>r.name===prior.reviewer)?.wrapper}
       }
       if(stalePrior){
-        if(io.atomicReviewRefs){assertReviewLeaseStillStale(stalePrior,io.readReviewStates([stalePrior.assignment]));io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},{ref:leaseRef,expected:priorSha,sha:null}]);const after=io.readReviewRefs([MUTEX_REF,leaseRef]);if(after.get(MUTEX_REF)!==ownerSha||after.get(leaseRef)!==null)throw new LaneError('stale assignment lease release readback mismatch')}
+        if(io.atomicReviewRefs){assertReviewLeaseStillStale(stalePrior,io.readReviewStates([stalePrior.assignment]),io);io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},{ref:leaseRef,expected:priorSha,sha:null}]);const after=io.readReviewRefs([MUTEX_REF,leaseRef]);if(after.get(MUTEX_REF)!==ownerSha||after.get(leaseRef)!==null)throw new LaneError('stale assignment lease release readback mismatch')}
         else if(io.readRef(leaseRef)===priorSha)releaseOwnedRef(leaseRef,priorSha,io)
       }
+      assertAssignmentWasNotTerminallyReleased(request,prior,io)
       const live=io.getPr(prior.pr)
       if(reviewTargetEligible(live,io)&&live?.head?.sha===prior.headSha&&!hasVerdictForHead(prior.issue,prior.pr,prior.headSha,io)){
         requireOwnedRef(MUTEX_REF,ownerSha,io)
@@ -2109,10 +2773,29 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
       return {...prior,slot:request.slot,wrapper:REVIEWERS.find((r)=>r.name===prior.reviewer)?.wrapper}
     }
     const cursorSha=io.readRef(REVIEW_CURSOR_REF), current=parseReviewCursor(cursorSha?io.getCommit(cursorSha):null)
-    if(current&&current.issue===request.issue&&current.pr===request.pr&&current.headSha===request.headSha&&(current.slot??1)===request.slot){
-      if(exclusions.has(current.reviewer))throw new LaneError(`current reviewer ${current.reviewer} is excluded for this PR (${exclusions.get(current.reviewer).reason}); it was not returned or re-leased`)
+    // The cursor adoption shortcut is SKIPPED, not refused, when the cursor's
+    // reviewer is durably excluded for this pull request. Its assignment came
+    // back with the exclusion (see excludeReviewerForPr), so there is nothing
+    // left to adopt, and the ordinary round-robin below draws a fresh reviewer
+    // while `notTaken` keeps the excluded one permanently out of the draw.
+    //
+    // This used to throw. That refusal is what made an exclusion fatal: the
+    // cursor keeps pointing at the excluded reviewer for this exact tuple, so
+    // every later --assign-reviewer for the head landed here and refused again
+    // with no command anywhere that could change the answer.
+    if(current&&!exclusions.has(current.reviewer)&&current.issue===request.issue&&current.pr===request.pr&&current.headSha===request.headSha&&(current.slot??1)===request.slot){
       assertReviewRequestEligible(request,io.readReviewStates?.([current]),io)
-      if(ACTIVE_REVIEWERS.some((row)=>row.name===current.reviewer)&&!eligibleNames.has(current.reviewer))throw new LaneError(`current reviewer ${current.reviewer} conflicts with the live orchestrator engine; assign an independent reviewer`)
+      // #2079. Mirror the prior-assignment path at the top of this function.
+      // This branch used to create the durable assignment ref and RETURN a
+      // retired reviewer whenever the global cursor happened to name it for the
+      // same issue/PR/head/slot -- no lease was taken, because the eligibility
+      // guard below wraps only lease creation, so no verdict could ever result.
+      // That is wasted work and an inconsistent refusal, and it named no repair.
+      // Refuse here, before any ref is created, with the same repair route.
+      if(!eligibleNames.has(current.reviewer))throw new LaneError(ACTIVE_REVIEWERS.some((row)=>row.name===current.reviewer)
+        ?`current reviewer ${current.reviewer} conflicts with the live orchestrator engine; assign an independent reviewer`
+        :`current reviewer cursor sequence ${current.sequence} belongs to a retired reviewer or orchestrator-conflicting reviewer ${current.reviewer}; no assignment was recorded and no lease was taken. Record a governed replacement for this exact head`)
+      assertAssignmentWasNotTerminallyReleased(request,current,io)
       if(!io.createRef(assignmentRef,cursorSha)&&readRefAfterWrite(assignmentRef,cursorSha,io)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
       const live=io.getPr(current.pr)
       if(reviewTargetEligible(live,io)&&live?.head?.sha===current.headSha&&!hasVerdictForHead(current.issue,current.pr,current.headSha,io)){
@@ -2136,7 +2819,11 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
     const start=(sequence-1)%ACTIVE_REVIEWERS.length
     const notTaken=(row)=>eligibleNames.has(row.name)&&!busy.has(row.name)&&row.name!==excludedProvider&&!exclusions.has(row.name)
     const reviewer=Array.from({length:ACTIVE_REVIEWERS.length},(_,offset)=>ACTIVE_REVIEWERS[(start+offset)%ACTIVE_REVIEWERS.length]).find(notTaken)??OVERFLOW_REVIEWERS.find(notTaken)
-    if(!reviewer){const excluded=[...exclusions.entries()].map(([name,row])=>`${name} (${row.reason})`).join(', ');throw new LaneError(`${request.slot===1?'no reviewer is available':`no independent reviewer is available for slot ${request.slot}`}: every eligible provider is busy, already assigned to this head, or excluded for this PR${excluded?`; durable exclusions: ${excluded}`:''}`)}
+    if(!reviewer){
+      const excluded=[...exclusions.entries()].map(([name,row])=>`${name} (${row.reason})`).join(', ')
+      const holders=[...busy].map((name)=>{const lease=busy.leases.get(name)?.lease;return `${name}${lease?` #${lease.issue}/PR #${lease.pr}`:''}`})
+      throw new LaneError(`${request.slot===1?'no reviewer is available':`no independent reviewer is available for slot ${request.slot}`}: ${holders.length} of ${ACTIVE_REVIEWERS.length} hold live leases (${holders.join(', ')||'none'}); remaining providers are already assigned to this head, conflict with the live orchestrator, or are excluded for this PR${excluded?`; durable exclusions: ${excluded}`:''}. Inspect --reviewer-capacity; a terminal holder can only be freed with --release-failed-reviewer and its exact failure evidence.`)
+    }
     const assignmentSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}${request.slot!==1?` slot=${request.slot}`:''}`)
     const leaseRef=reviewActiveRef(reviewer.name)
     const leaseSha=assignmentSha
@@ -2147,11 +2834,11 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
         requireOwnedRef(MUTEX_REF,ownerSha,io)
         const freshStates=io.readReviewStates([{issue:request.issue,pr:request.pr,headSha:request.headSha},...(selectedStale?[selectedStale.assignment]:[])])
         const fresh=freshStates?.get(`${request.issue}:${request.pr}`)
-        const freshVerdict=anyVerdictFor(fresh?.evidence,request.headSha)
+        const freshVerdict=hasVerdictForHead(request.issue,request.pr,request.headSha,io,{fresh:true})
         if(!reviewIssueEligible(fresh?.issue,fresh?.pr,io)||!reviewTargetEligible(fresh?.pr,io)||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError('review assignment issue, PR head, or verdict changed after mutex acquisition')
         if(selectedStale){
-          const revived=freshStates?.get(`${selectedStale.assignment.issue}:${selectedStale.assignment.pr}`), evidence=revived?.evidence??[]
-          const verdict=anyVerdictFor(evidence,selectedStale.assignment.headSha)
+          const revived=freshStates?.get(`${selectedStale.assignment.issue}:${selectedStale.assignment.pr}`)
+          const verdict=hasVerdictForHead(selectedStale.assignment.issue,selectedStale.assignment.pr,selectedStale.assignment.headSha,io,{fresh:true})
           if(revived?.pr?.state==='open'&&revived?.pr?.head?.sha===selectedStale.assignment.headSha&&!verdict)throw new LaneError('selected reviewer lease became live after mutex acquisition')
         }
         io.atomicReviewRefs([
@@ -2326,7 +3013,7 @@ export function reissueMergedStrandedClaim(options,now=new Date(),io=githubIo){
 
 function parseReviewReplacement(commit) {
   const message=commit?.message ?? commit?.commit?.message ?? ''
-  const match=/^db-coordination reviewer-replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) failed-sequence=(\d+) prior-sequence=(\d+) failure-ref=([0-9a-f]{7,40})$/i.exec(message)??/^db-coordination reviewer-failure-replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) failed-sequence=(\d+) prior-sequence=(\d+) failure-ref=(self) /i.exec(message)
+  const match=/^db-coordination reviewer-replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=\d+)? failed-sequence=(\d+) prior-sequence=(\d+) failure-ref=([0-9a-f]{7,40})$/i.exec(message)??/^db-coordination reviewer-failure-replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=\d+)? failed-sequence=(\d+) prior-sequence=(\d+) failure-ref=(self) /i.exec(message)
   if(!match)throw new LaneError('reviewer replacement ref does not point to a recognized replacement')
   return {sequence:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5],failedSequence:Number(match[6]),priorSequence:Number(match[7]),failureSha:match[8]}
 }
@@ -2374,25 +3061,104 @@ export function reviewerExecutionPreflight({reviewer,wrapper,worktree,headSha,sk
   return {reviewer,wrapper,worktree,headSha,ready:true,doctorChecked:!skipDoctor,failingChecks:doctor?.failingChecks??[]}
 }
 
+function validateTerminalReviewerFailure(options,label='reviewer failure'){
+  const request={issue:Number(options.issue),pr:Number(options.pr),headSha:String(options.headSha??''),failedSequence:Number(options.failedSequence),slot:Number(options.slot??1)}
+  if(!Number.isInteger(request.issue)||!Number.isInteger(request.pr)||!/^[0-9a-f]{40}$/i.test(request.headSha)||!Number.isInteger(request.failedSequence))throw new LaneError(`${label} requires exact issue, PR, 40-character head SHA, and failed sequence`)
+  if(!Number.isInteger(request.slot)||request.slot<1)throw new LaneError(`${label} slot must be a positive integer (1 = first reviewer, 2 = second independent reviewer)`)
+  if(!TERMINAL_FAILURE_CODES.includes(String(options.failureCode??'')))throw new LaneError(`${label} requires a recognized terminal provider/tool failure code (${TERMINAL_FAILURE_CODES.join(', ')})`)
+  if(String(options.failureCode)==='local_dependency_unavailable'){
+    if(!String(options.failingCheck??'').trim())throw new LaneError('local_dependency_unavailable requires --failing-check naming the exact doctor check that failed. A failure record that cannot name the failing check is a guess.')
+    if(!options.confirmLocalDependencyUnfixable)throw new LaneError(`this is a LOCAL dependency fault ("${String(options.failingCheck).trim()}"), not a provider fault. Fix it on this machine and retry the SAME reviewer. If it genuinely cannot be fixed here, re-run with --confirm-local-dependency-unfixable.`)
+  }else if(String(options.failingCheck??'').trim())throw new LaneError('--failing-check applies only to local_dependency_unavailable')
+  if(!options.confirmNoVerdict||!options.confirmNoArtifact)throw new LaneError(`${label} requires explicit confirmation that the failed session produced no verdict and no artifact`)
+  return request
+}
+
+export function failedReviewerReleaseCommand(request,{failureCode,failingCheck}={}){
+  const local=String(failureCode)==='local_dependency_unavailable'
+    ?` --failing-check ${JSON.stringify(String(failingCheck))} --confirm-local-dependency-unfixable`
+    :''
+  return `--release-failed-reviewer --issue ${request.issue} --pr ${request.pr} --head-sha ${request.headSha} --failed-sequence ${request.failedSequence} --review-slot ${request.slot} --failure-code ${String(failureCode)}${local} --confirm-no-verdict --confirm-no-artifact`
+}
+
+function reviewerFailureRef(request){return `${REVIEW_FAILURE_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${request.failedSequence}`}
+
+function parseReviewRelease(commit){
+  const message=commit?.message??commit?.commit?.message??''
+  const match=/^db-coordination reviewer-failure-release reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{40}) failed-sequence=(\d+) code=([a-z_]+)(?: failing-check=([^ ]+))? verdict=none artifact=none replacement=none$/i.exec(message)
+  if(!match)throw new LaneError('reviewer release evidence is unreadable')
+  return {reviewer:match[1],issue:Number(match[2]),pr:Number(match[3]),headSha:match[4],failedSequence:Number(match[5]),failureCode:match[6],failingCheck:match[7]??null}
+}
+
+function assertAssignmentWasNotTerminallyReleased(request,assignment,io){
+  const ref=reviewerFailureRef({...request,failedSequence:assignment.sequence}),sha=io.readRef(ref)
+  if(!sha)return
+  const released=parseReviewRelease(io.getCommit(sha))
+  if(released.issue===request.issue&&released.pr===request.pr&&released.headSha===request.headSha&&released.failedSequence===assignment.sequence&&released.reviewer===assignment.reviewer)throw new LaneError(`reviewer ${assignment.reviewer} terminal failure was released with immutable evidence; assignment retry will not recreate its lease. Use --replace-failed-reviewer for this sequence after capacity is available.`)
+  throw new LaneError('reviewer failure evidence exists but does not match the durable assignment; assignment retry refused')
+}
+
+function resolveFailedReviewRecord(request,io){
+  const slotSuffix=reviewSlotSuffix(request.slot),assignmentRef=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}${slotSuffix}`,assignmentSha=io.readRef(assignmentRef)
+  if(!assignmentSha)throw new LaneError(`no durable reviewer assignment exists for issue #${request.issue} PR #${request.pr} at the exact head`)
+  const initial=parseReviewCursor(io.getCommit(assignmentSha)),replacementBase=`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}${slotSuffix}`
+  const replacementRows=io.listRefs?.(replacementBase)??[]
+  const replacements=replacementRows.filter((row)=>inReviewReplacementNamespace(row.ref,replacementBase)||(request.slot===1&&row.ref===replacementBase)).map((row)=>{const parsed=parseReviewReplacement(row.commit??io.getCommit(row.sha));return {...parsed,failureSha:parsed.failureSha==='self'?row.sha:parsed.failureSha}})
+  for(const replacement of replacements)requireReplacementEvidence(replacement,io)
+  const predecessors=replacements.filter((row)=>row.sequence===request.failedSequence)
+  const original=request.failedSequence===initial.sequence?initial:predecessors.length===1?predecessors[0]:null
+  if(!original||original.issue!==request.issue||original.pr!==request.pr||original.headSha!==request.headSha)throw new LaneError('durable reviewer assignment or replacement does not match the failure request')
+  return original
+}
+
+export function releaseFailedReviewer(options,io=githubIo){
+  return withReviewRequestBudget(()=>{
+    io=reviewOperationIo(io)
+    const request=validateTerminalReviewerFailure(options,'reviewer release'),failureRef=reviewerFailureRef(request)
+    const original=resolveFailedReviewRecord(request,io),failedLeaseRef=reviewActiveRef(original.reviewer),priorFailureSha=io.readRef(failureRef)
+    if(priorFailureSha){
+      const prior=parseReviewRelease(io.getCommit(priorFailureSha))
+      if(prior.issue!==request.issue||prior.pr!==request.pr||prior.headSha!==request.headSha||prior.failedSequence!==request.failedSequence||prior.reviewer!==original.reviewer||prior.failureCode!==String(options.failureCode))throw new LaneError('immutable reviewer release evidence does not match this request')
+      if(io.readRef(failedLeaseRef)!==null)throw new LaneError('reviewer release evidence exists but the active lease is still present; reconciliation requires manual audit')
+      throw new LaneError(`reviewer ${original.reviewer} terminal failure was already released with immutable evidence ${priorFailureSha}`)
+    }
+    const preflightBusy=findBusyReviewers(io,[request])
+    if(!preflightBusy)throw new LaneError('active reviewer leases are unreadable; reviewer release refused before mutex acquisition')
+    const state=preflightBusy.states?.get(`${request.issue}:${request.pr}`),issueRow=state?.issue??io.getIssue(request.issue),prRow=state?.pr??io.getPr(request.pr)
+    if(!reviewIssueEligible(issueRow,prRow,io)||!reviewTargetEligible(prRow,io)||prRow?.head?.sha!==request.headSha)throw new LaneError('reviewer release requires the exact eligible PR head')
+    if(hasVerdictForHead(request.issue,request.pr,request.headSha,io))throw new LaneError('an existing verdict for the exact head forbids reviewer release')
+    const cached=preflightBusy.leases?.get(original.reviewer),failedLeaseSha=cached?.sha??io.readRef(failedLeaseRef),failedLease=failedLeaseSha?(cached?.sha===failedLeaseSha?cached.lease:parseReviewLease(io.getCommit(failedLeaseSha))):null
+    if(!failedLease||![failedLease.issue,failedLease.pr,failedLease.headSha,failedLease.sequence,failedLease.reviewer].every((value,index)=>value===[request.issue,request.pr,request.headSha,request.failedSequence,original.reviewer][index]))throw new LaneError('failed reviewer active lease does not match the terminal failure evidence')
+    if(typeof io.atomicReviewRefs!=='function'||typeof io.readReviewRefs!=='function')throw new LaneError('reviewer release requires atomic compare-and-swap ref support')
+    const checkNote=String(options.failingCheck??'').trim()?` failing-check=${String(options.failingCheck).trim().replace(/\s+/g,'_')}`:''
+    const failureSha=io.makeOwnerCommit(`db-coordination reviewer-failure-release reviewer=${original.reviewer} issue=${request.issue} pr=${request.pr} head=${request.headSha} failed-sequence=${request.failedSequence} code=${String(options.failureCode)}${checkNote} verdict=none artifact=none replacement=none`)
+    const ownerSha=io.makeOwnerCommit(`db-coordination reviewer-release-lock issue=${request.issue} pr=${request.pr} head=${request.headSha} failed-sequence=${request.failedSequence}`)
+    let acquired=false
+    try{
+      requireReviewWireCapacity(8);acquireReviewMutex(ownerSha,io);acquired=true;requireOwnedRef(MUTEX_REF,ownerSha,io)
+      const freshStates=io.readReviewStates([original]),fresh=freshStates?.get(`${request.issue}:${request.pr}`)
+      if(!reviewIssueEligible(fresh?.issue,fresh?.pr,io)||!reviewTargetEligible(fresh?.pr,io)||fresh?.pr?.head?.sha!==request.headSha||hasVerdictForHead(request.issue,request.pr,request.headSha,io,{fresh:true}))throw new LaneError('reviewer release issue, PR head, or verdict changed after mutex acquisition')
+      const locked=io.readReviewRefs([MUTEX_REF,failureRef,failedLeaseRef])
+      if(locked.get(MUTEX_REF)!==ownerSha||locked.get(failureRef)!==null||locked.get(failedLeaseRef)!==failedLeaseSha)throw new LaneError('reviewer release ownership changed after preflight')
+      io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},{ref:failureRef,expected:null,sha:failureSha},{ref:failedLeaseRef,expected:failedLeaseSha,sha:null}])
+      const after=io.readReviewRefs([MUTEX_REF,failureRef,failedLeaseRef])
+      if(after.get(MUTEX_REF)!==ownerSha||after.get(failureRef)!==failureSha||after.get(failedLeaseRef)!==null)throw new LaneError('atomic reviewer release readback mismatch')
+      return {...request,reviewer:original.reviewer,failureCode:String(options.failureCode),failureSha,releasedLeaseSha:failedLeaseSha}
+    }finally{if(acquired)finalizeReviewMutex(ownerSha,io)}
+  })
+}
+
 function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failureCode,failingCheck,confirmLocalDependencyUnfixable,confirmNoVerdict,confirmNoArtifact,slot=1},io){
   io=reviewOperationIo(io)
-  const request={issue:Number(issue),pr:Number(pr),headSha:String(headSha??''),failedSequence:Number(failedSequence),slot:Number(slot)}
+  const request=validateTerminalReviewerFailure({issue,pr,headSha,failedSequence,failureCode,failingCheck,confirmLocalDependencyUnfixable,confirmNoVerdict,confirmNoArtifact,slot},'reviewer replacement')
   const eligible=reviewersForOrchestrator(io.resolveOrchestratorEngine?.())
   const eligibleNames=new Set(eligible.map((row)=>row.name))
-  if(!Number.isInteger(request.issue)||!Number.isInteger(request.pr)||!/^[0-9a-f]{40}$/i.test(request.headSha)||!Number.isInteger(request.failedSequence))throw new LaneError('reviewer replacement requires exact issue, PR, 40-character head SHA, and failed sequence')
-  if(!Number.isInteger(request.slot)||request.slot<1)throw new LaneError('reviewer replacement slot must be a positive integer (1 = first reviewer, 2 = second independent reviewer)')
-  if(!TERMINAL_FAILURE_CODES.includes(String(failureCode??'')))throw new LaneError(`reviewer replacement requires a recognized terminal provider/tool failure code (${TERMINAL_FAILURE_CODES.join(', ')})`)
   // A LOCAL fault is not the reviewer's fault. Replacing on one spends a
   // rotation slot and records permanent evidence against a provider that was
   // working, which is exactly how glm-5.3 was benched for two days. The named
   // failing check is required so the evidence says what actually broke, and a
   // replacement is only issued once the operator states plainly that the local
   // fault cannot be fixed on this machine right now.
-  if(String(failureCode)==='local_dependency_unavailable'){
-    if(!String(failingCheck??'').trim())throw new LaneError('local_dependency_unavailable requires --failing-check naming the exact doctor check that failed. A failure record that cannot name the failing check is a guess.')
-    if(!confirmLocalDependencyUnfixable)throw new LaneError(`this is a LOCAL dependency fault ("${String(failingCheck).trim()}"), not a provider fault. Fix it on this machine and retry the SAME reviewer -- a replacement spends a rotation slot and records permanent evidence against a provider that is working. If it genuinely cannot be fixed here, re-run with --confirm-local-dependency-unfixable.`)
-  }else if(String(failingCheck??'').trim())throw new LaneError('--failing-check applies only to local_dependency_unavailable')
-  if(!confirmNoVerdict||!confirmNoArtifact)throw new LaneError('reviewer replacement requires explicit confirmation that the failed session produced no verdict and no artifact')
   const preflightBusy=findBusyReviewers(io,[request])
   if(!preflightBusy)throw new LaneError('active reviewer leases are unreadable; reviewer replacement refused before mutex acquisition')
   const preflightExclusions=reviewerExclusions(request.issue,request.pr,io)
@@ -2412,7 +3178,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
   // Slot >=2 must stay independent of slot 1 after a replacement, not only at
   // first assignment. Resolved read-only, pre-mutex, exactly as assignment does.
   const excludedProvider=request.slot===1?null:resolveSlotOneReviewer(request.issue,request.pr,request.headSha,io)
-  const fixedRecords=io.readReviewRecords?.([replacementRef,assignmentRef,REVIEW_CURSOR_REF,assignmentVerdictRef],replacementBase)??null
+  const fixedRecords=io.readReviewRecords?.([replacementRef,assignmentRef,REVIEW_CURSOR_REF,assignmentVerdictRef,failureRef],replacementBase)??null
   let ownerSha=null,mutexAcquired=false
   try{
     let priorReplacement=fixedRecords?(fixedRecords.get(replacementRef)?.sha??null):io.readRef(replacementRef)
@@ -2436,13 +3202,15 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       requireReviewWireCapacity(11);acquireReviewMutex(ownerSha,io);mutexAcquired=true
       const freshStates=io.readReviewStates?.([parsed,...(staleReplacement?[staleReplacement.assignment]:[])])
       const freshExclusions=reviewerExclusions(request.issue,request.pr,io,{fresh:true})
-      if(freshExclusions.has(parsed.reviewer))throw new LaneError(`durable replacement reviewer ${parsed.reviewer} is excluded for this PR (${freshExclusions.get(parsed.reviewer).reason}); it was not returned or re-leased`)
+      // Same deliberate refusal as the assignment paths: only --exclude-reviewer
+      // retires a durable record, and it now does so for both namespaces.
+      if(freshExclusions.has(parsed.reviewer))throw new LaneError(`durable replacement reviewer ${parsed.reviewer} is excluded for this PR (${freshExclusions.get(parsed.reviewer).reason}); re-run the identical --exclude-reviewer to return this slot. The returned record is a REPLACEMENT, so --assign-reviewer will not refill it: draw the new reviewer with --replace-failed-reviewer for the same --failed-sequence.`)
       assertReviewRequestEligible(request,freshStates,io)
       const replacementLive=isReviewAssignmentLive(parsed,freshStates,io),replacementTarget=replacementLive?priorReplacement:null
       let failedDeleted=false,staleDeleted=false
       try{if(io.atomicReviewRefs){
           requireOwnedRef(MUTEX_REF,ownerSha,io)
-          if(staleReplacement)assertReviewLeaseStillStale(staleReplacement,freshStates)
+          if(staleReplacement)assertReviewLeaseStillStale(staleReplacement,freshStates,io)
           const changes=[]
           changes.push({ref:MUTEX_REF,expected:ownerSha,sha:ownerSha})
           if(failed)changes.push({ref:reviewActiveRef(failed.lease.reviewer),expected:failed.sha,sha:null})
@@ -2487,6 +3255,12 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     const predecessors=parsedReplacements.filter((row)=>row.sequence===request.failedSequence)
     const original=request.failedSequence===initial.sequence?initial:predecessors.length===1?predecessors[0]:null
     if(!original||original.issue!==request.issue||original.pr!==request.pr||original.headSha!==request.headSha)throw new LaneError('durable reviewer assignment or replacement does not match the replacement request')
+    const releasedFailureSha=fixedRecords?(fixedRecords.get(failureRef)?.sha??null):io.readRef(failureRef)
+    let releasedFailure=null
+    if(releasedFailureSha){
+      releasedFailure=parseReviewRelease(fixedRecords?.get(failureRef)?.sha===releasedFailureSha?fixedRecords.get(failureRef).commit:io.getCommit(releasedFailureSha))
+      if(releasedFailure.issue!==request.issue||releasedFailure.pr!==request.pr||releasedFailure.headSha!==request.headSha||releasedFailure.failedSequence!==request.failedSequence||releasedFailure.reviewer!==original.reviewer||releasedFailure.failureCode!==String(failureCode))throw new LaneError('immutable reviewer release evidence does not match the replacement request')
+    }
     const cursorSha=fixedRecords?.get(REVIEW_CURSOR_REF)?.sha??io.readRef(REVIEW_CURSOR_REF), cursor=parseReviewCursor(cursorSha?(fixedRecords?.get(REVIEW_CURSOR_REF)?.sha===cursorSha?fixedRecords.get(REVIEW_CURSOR_REF).commit:io.getCommit(cursorSha)):null)
     if(!cursor||cursor.sequence<request.failedSequence)throw new LaneError('reviewer cursor is behind the failed durable assignment')
     const preflightState=preflightBusy.states?.get(`${request.issue}:${request.pr}`)
@@ -2501,12 +3275,25 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     // head that was named, but the pull request has since moved past it. Same
     // truth, said plainly, instead of a technicality.
     if(prRow?.head?.sha!==request.headSha)throw new LaneError(`review replacement requires the exact open PR head: sequence=${initial.sequence} reviewer=${initial.reviewer} IS recorded for issue #${request.issue} PR #${request.pr} under head ${request.headSha}, but the pull request has since moved to head ${String(prRow?.head?.sha??'unknown')}. Nothing is missing. A push replaced the code under review, so a replacement reviewer would be bound to a commit the failed reviewer never saw. Assign a reviewer to the new code instead: --assign-reviewer --issue ${request.issue} --pr ${request.pr} --head-sha ${String(prRow?.head?.sha??'<current head>')}`)
-    const answeredAssignmentRef=request.failedSequence===initial.sequence?assignmentRef:original.ref
-    const answeredVerdictRef=answeredAssignmentRef
-      .replace(REVIEW_ASSIGNMENT_REF_PREFIX,REVIEW_VERDICT_REF_PREFIX)
-      .replace(REVIEW_REPLACEMENT_REF_PREFIX,REVIEW_VERDICT_REPLACEMENT_REF_PREFIX)
-    const durableVerdict=fixedRecords?(fixedRecords.get(answeredVerdictRef)?.sha??null):io.readRef(answeredVerdictRef)
-    const hasVerdict=Boolean(durableVerdict)||(preflightState?.evidence?anyVerdictFor(preflightState.evidence,request.headSha):hasVerdictForHead(request.issue,request.pr,request.headSha,io))
+    // #2079 x #2075. Two rules, both required, and neither may weaken the other.
+    //
+    // #2075 (PR #2080): only a create-only durable artifact is a verdict. Comment
+    // prose -- including the governed runner's own findings comment -- is never
+    // read here, so `anyVerdictFor(preflightState.evidence, ...)` is gone.
+    //
+    // #2079: a durable artifact blocks replacement only if the reviewer that
+    // produced it could read the repository. `hasVerdictForHead` answers from ref
+    // NAMES alone and attributes nothing, so on its own it would let the artifact
+    // deepseek-chat left behind forbid the very replacement the refusal message
+    // tells the operator to run -- the head would be permanently unreviewable.
+    // `headVerdictBlocksReplacement` is `hasVerdictForHead` plus that attribution,
+    // resolved through the assignment ref the verdict ref names, and it fails
+    // CLOSED whenever attribution cannot be resolved.
+    //
+    // The artifact answering THIS assignment is a subset of the head-wide
+    // listing, so the attributed head-wide check answers for it too and the
+    // separate single-ref read it used to do is gone.
+    const hasVerdict=headVerdictBlocksReplacement(request.issue,request.pr,request.headSha,io)
     if(hasVerdict)throw new LaneError('an existing verdict for the exact head forbids reviewer replacement')
     const failedLeaseRef=reviewActiveRef(original.reviewer),cachedFailed=preflightBusy.leases?.get(original.reviewer),failedLeaseSha=cachedFailed?.sha??io.readRef(failedLeaseRef)
     const failedLease=failedLeaseSha?(cachedFailed?.sha===failedLeaseSha?cachedFailed.lease:parseReviewLease(io.getCommit(failedLeaseSha))):null
@@ -2538,9 +3325,18 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       const overflow=OVERFLOW_REVIEWERS.find((row)=>eligibleNames.has(row.name)&&!failedNames.has(row.name)&&!preflightBusy.has(row.name)&&row.name!==excludedProvider&&!preflightExclusions.has(row.name))
       if(overflow){sequence=cursor.sequence+1+ACTIVE_REVIEWERS.length;reviewer=overflow}
     }
-    if(!reviewer)throw new LaneError(request.slot===1?'no other reviewer is available; every active provider has already failed on this exact head':`no other independent reviewer is available for slot ${request.slot}: every active provider has already failed on this exact head, is busy, or is already holding an earlier slot for it`)
-    const replacementSha=io.makeOwnerCommit(`db-coordination reviewer-failure-replacement sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha} failed-sequence=${request.failedSequence} prior-sequence=${cursor.sequence} failure-ref=self failed-reviewer=${original.reviewer} code=${failureCode}${checkNote} verdict=none artifact=none`)
-    failureSha=replacementSha;ownerSha=replacementSha
+    if(!reviewer){
+      const failedList=[...failedNames].filter((name)=>ACTIVE_REVIEWERS.some((row)=>row.name===name))
+      const busyList=[...preflightBusy].filter((name)=>!failedNames.has(name)).map((name)=>{const lease=preflightBusy.leases.get(name)?.lease;return `${name}${lease?` #${lease.issue}/PR #${lease.pr}`:''}`})
+      const unavailable=ACTIVE_REVIEWERS.map((row)=>row.name).filter((name)=>!failedNames.has(name)&&!preflightBusy.has(name)&&(!eligibleNames.has(name)||name===excludedProvider||preflightExclusions.has(name)))
+      const releaseCommand=failedReviewerReleaseCommand(request,{failureCode,failingCheck})
+      const compatiblePrefix=request.slot===1?'no other reviewer is available':'no other independent reviewer is available for slot '+request.slot
+      throw new LaneError(`${compatiblePrefix}; no replacement reviewer is available: ${failedList.length} of ${ACTIVE_REVIEWERS.length} already failed on this exact head (${failedList.join(', ')||'none'}); ${busyList.length} of ${ACTIVE_REVIEWERS.length} hold other live leases (${busyList.join(', ')||'none'}); ${unavailable.length} are otherwise ineligible or excluded (${unavailable.join(', ')||'none'}). If this failed holder must be freed before another terminal holder can be reclaimed, run ${releaseCommand}.`)
+    }
+    const replacementSha=io.makeOwnerCommit(releasedFailureSha
+      ?`db-coordination reviewer-replacement sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}${request.slot!==1?` slot=${request.slot}`:''} failed-sequence=${request.failedSequence} prior-sequence=${cursor.sequence} failure-ref=${releasedFailureSha}`
+      :`db-coordination reviewer-failure-replacement sequence=${sequence} reviewer=${reviewer.name} issue=${request.issue} pr=${request.pr} head=${request.headSha}${request.slot!==1?` slot=${request.slot}`:''} failed-sequence=${request.failedSequence} prior-sequence=${cursor.sequence} failure-ref=self failed-reviewer=${original.reviewer} code=${failureCode}${checkNote} verdict=none artifact=none`)
+    failureSha=releasedFailureSha??replacementSha;ownerSha=replacementSha
     const cursorReplacementSha=replacementSha
     const replacementLeaseRef=reviewActiveRef(reviewer.name)
     const replacementLeaseSha=cursorReplacementSha
@@ -2554,12 +3350,15 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
         requireOwnedRef(MUTEX_REF,ownerSha,io)
         const freshStates=io.readReviewStates([original,...(replacementStale?[replacementStale.assignment]:[])])
         const fresh=freshStates?.get(`${request.issue}:${request.pr}`)
-        const freshVerdict=anyVerdictFor(fresh?.evidence,request.headSha)
+        // Same attributed, durable-only rule as the pre-mutex check above (#2079 x
+        // #2075). A plain `hasVerdictForHead` here would re-open the exact hole the
+        // pre-mutex check closes, one mutex acquisition later.
+        const freshVerdict=headVerdictBlocksReplacement(request.issue,request.pr,request.headSha,io,{fresh:true})
         if(!reviewIssueEligible(fresh?.issue,fresh?.pr,io)||!reviewTargetEligible(fresh?.pr,io)||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError('review replacement issue, PR head, or verdict changed after mutex acquisition')
-        assertReviewLeaseStillStale(replacementStale,freshStates)
+        assertReviewLeaseStillStale(replacementStale,freshStates,io)
         const changes=[
           {ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},
-          {ref:failureRef,expected:null,sha:failureSha},
+          {ref:failureRef,expected:releasedFailureSha??null,sha:failureSha},
           {ref:REVIEW_CURSOR_REF,expected:cursorSha,sha:cursorReplacementSha},
           {ref:replacementRef,expected:null,sha:replacementSha},
           {ref:replacementLeaseRef,expected:replacementStale?.sha??null,sha:replacementLeaseSha},
@@ -2574,8 +3373,8 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
         const locked=io.readReviewRefs([MUTEX_REF,REVIEW_CURSOR_REF,failedLeaseRef,...(replacementStale?[replacementLeaseRef]:[])])
         if(locked.get(MUTEX_REF)!==ownerSha||locked.get(REVIEW_CURSOR_REF)!==cursorSha||locked.get(failedLeaseRef)!==failedLeaseSha||(replacementStale&&locked.get(replacementLeaseRef)!==replacementStale.sha))throw new LaneError('review replacement state changed after preflight')
       }else {requireOwnedRef(MUTEX_REF,ownerSha,io);if(io.readRef(REVIEW_CURSOR_REF)!==cursorSha)throw new LaneError('reviewer cursor changed after preflight')}
-      if(!io.createRef(failureRef,failureSha))throw new LaneError('review failure evidence already exists without a replacement; manual audit required')
-      failureCreated=true
+      if(releasedFailureSha){if(io.readRef(failureRef)!==releasedFailureSha)throw new LaneError('review release evidence changed after preflight')}
+      else {if(!io.createRef(failureRef,failureSha))throw new LaneError('review failure evidence already exists without a replacement; manual audit required');failureCreated=true}
       if(!io.readReviewRefs&&readRefAfterWrite(failureRef,failureSha,io)!==failureSha)throw new LaneError('immutable review failure evidence could not be proved')
       requireOwnedRef(MUTEX_REF,ownerSha,io)
       io.updateRef(REVIEW_CURSOR_REF,cursorReplacementSha);cursorUpdated=true
@@ -2865,9 +3664,7 @@ function activateReviewCutoverOperation(io) {
       // probe goes blind, and a second reviewer can be handed the same
       // provider: the double-assignment hazard this activation exists to
       // prevent, failing silently.
-      const verdict = state
-        ? anyVerdictFor(state.evidence, lease.headSha)
-        : hasVerdictForHead(lease.issue, lease.pr, lease.headSha, io)
+      const verdict = hasVerdictForHead(lease.issue, lease.pr, lease.headSha, io)
       if (verdict) continue
       const leaseRef = reviewActiveRef(lease.reviewer)
       const existingLease = existingLeases ? (existingLeases.get(leaseRef) ?? null) : io.readRef(leaseRef)
@@ -3097,7 +3894,11 @@ export function resumeAuthorLease(options, now = new Date(), io = githubIo) {
     const lease=parseAuthorLease(before.body,now)
     if(lease.legacy||lease.owner!==options.owner)throw new LaneError('claim lease is legacy or belongs to a different owner')
     if(lease.capacityState!=='relinquished')throw new LaneError('claim capacity is not relinquished')
-    assertLaneAvailable(claims.filter((claim)=>String(claim.number)!==String(options.claim)),lease.objects,now,{prSources:io.prSources?.()??[]})
+    const sources=io.prSources?.()??[],selfPrs=sources.filter((source)=>source.branch===lease.branch)
+    if(selfPrs.length>1)throw new LaneError('claim branch has multiple open pull-request sources')
+    if(selfPrs.length&&(selfPrs[0].versions?.length!==1||String(selfPrs[0].versions[0])!==lease.version))throw new LaneError('claim branch pull request does not carry the permanent claim version')
+    const otherPrs=selfPrs.length?sources.filter((source)=>source!==selfPrs[0]):sources
+    assertLaneAvailable(claims.filter((claim)=>String(claim.number)!==String(options.claim)),lease.objects,now,{prSources:otherPrs})
     if(!io.readRef(`refs/db-claims/${lease.version}`))throw new LaneError('permanent version reservation is unreadable')
     const expiresAt=new Date(now.valueOf()+options.leaseHours*3600000)
     const expected=replaceLeaseExpiry(replaceCapacityState(before.body,'active'),expiresAt)
@@ -3672,7 +4473,15 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       if (!pr?.head?.sha || pr.head.sha !== metadata.headSha) throw new LaneError('exclusive lane head SHA does not match the live pull request')
       const claims = io.openClaims()
       const matching = claims.map((claim)=>({ ...claim, lease:parseAuthorLease(claim.body) })).filter((claim)=>!claim.lease.legacy && claim.lease.branch===pr.head.ref && claim.lease.active)
-      if (matching.length !== 1) throw new LaneError('exclusive lane requires exactly one live author claim for the pull-request branch')
+      if (kind !== 'merge' && matching.length !== 1) throw new LaneError('exclusive lane requires exactly one live author claim for the pull-request branch')
+      if (kind === 'merge' && matching.length > 1) throw new LaneError('exclusive merge lane requires at most one live author claim for the pull-request branch')
+      if (kind === 'merge' && matching.length === 0) {
+        let files
+        try { files = io.getPrFiles?.(metadata.pr) } catch (error) { throw new LaneError(`exclusive merge lane cannot read pull request files (${error.message})`) }
+        if (!Array.isArray(files)) throw new LaneError('exclusive merge lane cannot establish whether the pull request changes migrations')
+        const changesMigration = files.some((file) => /^supabase\/migrations\/[^/]+\.sql$/.test(String(file?.path ?? file?.filename ?? '')))
+        if (changesMigration) throw new LaneError('exclusive merge lane requires exactly one live author claim for a pull request that changes migrations')
+      }
       if (kind === 'merge' && pr.base?.sha !== io.mainSha?.()) throw new LaneError('pull request is not based on the current main tip')
       if (kind === 'merge' && io.readRef(EXCLUSIVE_REFS.production)) throw new LaneError('production promotion is active; merges are frozen')
     }
@@ -3703,6 +4512,8 @@ function parseArgs(argv) {
     else if (a === '--exclude-reviewer') out.excludeReviewer = true
     else if (a === '--activate-review-cutover') out.activateReviewCutover = true
     else if (a === '--replace-failed-reviewer') out.replaceFailedReviewer = true
+    else if (a === '--release-failed-reviewer') out.releaseFailedReviewer = true
+    else if (a === '--reviewer-capacity') out.reviewerCapacity = true
     else if (a === '--reviewer-preflight') out.reviewerPreflight = true
     else if (a === '--cleanup-stale') out.cleanup = true
     else if (a === '--release-claim') out.releaseClaim = next(i), i++
@@ -3770,6 +4581,8 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.reissueMergedClaim){console.log(JSON.stringify(reissueMergedStrandedClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.reversionClaim){console.log(JSON.stringify(reversionActiveClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.replaceFailedReviewer){console.log(JSON.stringify(replaceFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
+    if(o.releaseFailedReviewer){console.log(JSON.stringify(releaseFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
+    if(o.reviewerCapacity){console.log(JSON.stringify(reviewerCapacityReport(io,now),null,2));return 0}
     if(o.excludeReviewer){console.log(JSON.stringify(excludeReviewerForPr(o,io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}
     if(o.assignReviewer){console.log(JSON.stringify(assignNextReviewer({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}

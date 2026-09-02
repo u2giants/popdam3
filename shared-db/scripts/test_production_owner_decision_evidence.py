@@ -74,6 +74,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(permissions("production-apply-review","production-apply"),{
             "contents":"read","actions":"read","checks":"read","issues":"read","pull-requests":"read"})
         self.assertEqual(permissions("production-apply"),{
-            "contents":"write","actions":"read","checks":"read","issues":"read","pull-requests":"read"})
+            "contents":"write","actions":"read","checks":"read","issues":"read","pull-requests":"read",
+            "statuses":"write"})
 
 if __name__=="__main__": unittest.main()

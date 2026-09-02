@@ -337,6 +337,13 @@
       "line_sha256": "dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa"
     },
     {
+      "site": "scripts/check_pass2_routine_supersession.py:23",
+      "semantic_key": "scripts/check_pass2_routine_supersession.py:655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198:1",
+      "line_sha256": "655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198",
+      "disposition": "excluded",
+      "reason": "Explanatory docstring prose describing why a contract test reports a function missing its intended grants; it is narrative documentation, not a code path that diagnoses or reports a missing object."
+    },
+    {
       "site": "scripts/check_production_verification_sidecars.py:41",
       "disposition": "enriched",
       "reason": "This call site reports independent evidence and preserves the existing refusal exit.",
@@ -603,6 +610,13 @@
       "line_sha256": "24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299"
     },
     {
+      "site": "scripts/manage-migration-author-lanes.mjs:2318",
+      "disposition": "excluded",
+      "reason": "Prose comment above durableVerdictBlocksReplacement, not executable logic. The word \"missing\" here names the unreadable-assignment-record case that the function immediately below treats as blocking, so this call site documents a fail-closed path rather than a silently missing one.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671:1",
+      "line_sha256": "2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671"
+    },
+    {
       "site": "scripts/manage-migration-author-lanes.mjs:3430",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
@@ -615,6 +629,13 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2:1",
       "line_sha256": "40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2"
+    },
+    {
+      "site": "scripts/manage-migration-author-lanes.mjs:226",
+      "disposition": "excluded",
+      "reason": "Prose comment explaining the #2078 reviewer-repository-access gate; the word matches the discovery pattern but the line is not a throughput call site and carries no derivation behavior.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8:1",
+      "line_sha256": "435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2006",
@@ -692,6 +713,13 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6:1",
       "line_sha256": "b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6"
+    },
+    {
+      "site": "scripts/manage-migration-author-lanes.mjs:1619",
+      "disposition": "excluded",
+      "reason": "Prose comment added by the #2076 reviewer-exclusion return path; the wording matches the discovery pattern but the line is not a throughput call site and carries no derivation behavior.",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f:1",
+      "line_sha256": "b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2989",
@@ -1611,7 +1639,7 @@
       "line_sha256": "c306e35745386b717b583be41a182e378d17ce899e352842a4d0cfbae51ccc3c"
     }
   ],
-  "call_site_count": 228,
-  "call_site_sha256": "c6503e7624a40740ea6f8826feb1a241ae1c9ab954219078f0f99eb6e745e688",
+  "call_site_count": 232,
+  "call_site_sha256": "4652270fe77316dc580c9f20306fc008a00b1252444a24a145ea615c33acaad8",
   "disposition": "Every discovered site has an explicit reviewed disposition bound to its source-line content; line movement alone does not require regeneration, while a content change requires review."
 }

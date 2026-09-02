@@ -7,6 +7,16 @@ export const stripVerdictLabel = (line) => String(line).replace(/^[\s>*_#-]+/, '
 const bodyLines = (body) => String(body ?? '').split(/\r?\n/)
 export const verdictOpensLine = (body, pattern) => bodyLines(body).some((line) => pattern.test(stripVerdictLabel(line)))
 
+// The union of every decision word this file's own consumers accept once the
+// leading `[\s>*_#-]` punctuation and an optional `VERDICT:` label are stripped.
+// Exported so a WRITER can ask the exact question the READERS ask -- "would any
+// consumer read this line as a verdict?" -- instead of re-deriving a narrower
+// regex of its own. Issue #2075: the governed-review runner voided only the
+// terminal strict `VERDICT:` line, so a blockquoted, heading or bold copy of the
+// same decision survived the void and was still read as a verdict here.
+export const VERDICT_WORD = /^(?:APPROVE(?:D)?|REJECT(?:ED)?|REVISE|REQUEST[_\s]CHANGES)(?![A-Za-z0-9])/i
+export const lineOpensWithVerdictWord = (line) => VERDICT_WORD.test(stripVerdictLabel(line))
+
 export function trustedVerdictEvidence(row) {
   const association = String(row?.author_association ?? row?.authorAssociation ?? '').toUpperCase()
   return TRUSTED_ASSOCIATIONS.has(association)

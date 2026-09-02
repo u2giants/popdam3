@@ -1814,6 +1814,31 @@ class BehavioralSidecarTests(unittest.TestCase):
         )
         self.assertIn("has_function_privilege('authenticated'", sql)
 
+    def test_real_2054_sidecar_is_hash_bound_and_asserts_indexed_union_counts(self):
+        version = "20260901142825"
+        migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))
+        checks = load_behavior_sidecars(REPO, {version: migration}, [version])
+        targets = derive_targets({version: migration}, [version])
+        sql = build_behavior_sql(checks)
+
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]["kind"], "catalog_contract")
+        self.assertEqual(
+            checks[0]["migration_sha256"],
+            "bc8ef9e10f5ef6fd91f61d7b03516464cfc1a799d9dbae27944c1551742a15ba",
+        )
+        self.assertIn("public.filter_effective_assets", targets.functions)
+        self.assertIn("public.get_effective_filter_counts", targets.functions)
+        self.assertIn("public.get_filter_counts", targets.functions)
+        self.assertIn("identity_asset_ids as", sql)
+        self.assertIn("union all", sql)
+        self.assertIn("a.licensor_id = ", sql)
+        self.assertIn("sg.licensor_id = ", sql)
+        self.assertIn("a.customer_id = ", sql)
+        self.assertIn("sg.customer_id = ", sql)
+        self.assertIn("__includeOwnFacets2054", sql)
+        self.assertIn("has_function_privilege('authenticated'", sql)
+
     def test_real_1703_forward_7_sidecar_is_hash_bound_and_asserts_single_heap_fetch(self):
         version = "20260831212757"
         migration = next((REPO / "supabase" / "migrations").glob(f"{version}_*.sql"))

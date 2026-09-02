@@ -55,3 +55,23 @@ Issue #1911 preserves the 22-request ceiling while making merged-head replacemen
 Cutover audit complete before activation: one bounded GraphQL read found five open PRs (#1660, #1670, #1712, #1748, #1749), no GitHub review verdicts, and zero active reviewer refs. Five exact current-head assignment-ref reads, using each PR's linked issue, were all absent. No historical prefix was enumerated and no pre-cutover active lease needed creation.
 
 Live proof on PR #1777's first pushed head succeeded: sequence 454 assigned `glm-5.3` to exact SHA `e2a5a062155ea2498b342fdf1e91846d4ef5692f`; the cursor, active lease, and immutable assignment all pointed to commit `943314fa6d6162317676da3b5e13b79c7bd6a5a3`, and the shared mutex was absent. The first atomic readback was deliberately treated as stale/unknown; an idempotent retry returned the same assignment without advancing. The final amended PR head is assigned again and recorded on the PR before merge so the verdict remains exact-head bound.
+
+## Re-derivation 2026-09-01 (issue #2075): the durable-verdict listing
+
+Ceiling `REVIEW_OPERATION_REQUEST_LIMIT` 23 -> 25 and `REVIEW_MUTEX_SECTION_RESERVE` 14 -> 15. This is a RE-DERIVATION, not a widening: the operation genuinely does one more read on each side of the mutex, and the headroom above the most expensive measured operation is unchanged at 2.
+
+Cause. Every reviewer operation used to answer "does a verdict exist for this head?" by scanning issue comments, PR comments, and PR reviews for a decision word. Issue #2075 is what that costs: a governed review posted its findings, failed to record its create-only artifact, and the surviving comment made the lease look finished in both directions -- replacement and release refused, nothing authorized. `hasVerdictForHead` now reads only the create-only refs under `refs/db-review-verdicts/` and `refs/db-review-verdict-replacements/`.
+
+Why it is exactly two requests. `git/matching-refs` is a plain string-prefix match, so the single shared prefix `refs/db-review-verdict` returns both namespaces in one call, and it answers for every (issue, PR, head) tuple an operation asks about rather than one call per lease. `reviewOperationIo` caches that listing for the rest of the operation, so the pre-mutex half costs one. The post-mutex recheck must not answer from the pre-mutex snapshot -- a verdict landing during mutex acquisition is precisely what it looks for -- so it takes one uncached listing through `__freshDurableVerdictRefs`, memoised for the remainder of the mutex section.
+
+Measured, by the wire-attempt fixtures in `scripts/manage-migration-author-lanes.test.mjs`:
+
+| Operation | Before | After |
+|---|---|---|
+| Slot-2 assignment, complete | 21 | 23 |
+| Slot-2 replacement, complete | 18 | 20 |
+| First replacement, pre-mutex | 8 | 9 |
+| First replacement, post-mutex section | 10 | 11 |
+| Idempotent replacement retry, pre-mutex | 9 | 10 |
+
+The mutex entry gate still refuses to acquire the mutex unless the whole mutex-held section fits, and the behavioural test that adds one extra counted pre-mutex call and requires a refusal BEFORE the mutex exists is unchanged and still passes.

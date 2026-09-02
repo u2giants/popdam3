@@ -49,14 +49,15 @@ absent from `ISS`, 0 `ISS` keys absent from default.
 
 Receipt lines are **separate lines of the same production order**, not restatements of the ISS line.
 
-Production order **22717**, 2024-07-01, item `VSZ20ATRN01`, customer `HLL770`:
+Production order **90003**, 2024-07-01, item `ZZF20AAAA01`, customer `CUS770`
+(synthetic order, item, customer and quantity values; real shape):
 
 | Stage | `prodLineSeq` | `prodOrderQty` | `salesOrderNo` | `custPONumber` | `receiveDate` |
 |---|---|---|---|---|---|
-| `ISS` | 1 | **4,800** | 7123801 | populated | 2024-08-23 |
-| `REC` | 2 | **4,548** | **0** | empty | 2024-08-23 |
+| `ISS` | 1 | **5,000** | <order redacted> | populated | 2024-08-23 |
+| `REC` | 2 | **4,748** | **0** | empty | 2024-08-23 |
 
-Ordered 4,800, received 4,548 — a **252-piece shortfall that is invisible in the default response**.
+Ordered 5,000, received 4,748 — a **252-piece shortfall that is invisible in the default response**.
 Multiply that across seven years of purchasing and the gap is the entire subject of "did we get what
 we paid for".
 

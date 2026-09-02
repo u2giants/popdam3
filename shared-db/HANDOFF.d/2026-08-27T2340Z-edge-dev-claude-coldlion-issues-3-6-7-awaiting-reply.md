@@ -24,8 +24,8 @@ the feed before building a loader. Open questions to the vendor are tracked in
 - **Issue 3** re-checked: ColdLion has **fixed `stageCode`** (real enum ISS/INTRAN/REC). Remaining
   ask narrowed to `mgTypeCode`, `divisionCode`, `active`, and response-field descriptions.
 - **Issue 6** raised: no unique key exists; duplicate rows are real, not a request artefact (all
-  160 colliding keys had both rows inside the same window). Named orders 7109618, 7121891, 7124128.
-- **Issue 7** raised: `salesOrderLineNo` = 0 on 30 rows. Named orders 7114595, 7124128, 7126086.
+  160 colliding keys had both rows inside the same window). Named orders (synthetic values, real shape) 9000001, 9000002, 9000003.
+- **Issue 7** raised: `salesOrderLineNo` = 0 on 30 rows. Named orders (synthetic values, real shape) 9000004, 9000003, 9000005.
 
 ## 4. Open items
 1. **Awaiting ColdLion's reply** on issues 2, 3 (remainder), 5, 6, 7. No action until it arrives.

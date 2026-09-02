@@ -5,8 +5,8 @@ and stop misnaming the refusal — plus repair the reviewer-issue evidence captu
 
 Governed by **issue [#2058](https://github.com/u2giants/shared-db/issues/2058)** —
 the purpose-built repository-maintenance handover opened at 2026-09-01 16:31 UTC by
-the orchestrator session that hit this deadlock. Its briefing is
-[`HANDOFF.d/2026-09-01T1630Z-edge-dev-codex-reviewer-capacity-deadlock.md`](HANDOFF.d/2026-09-01T1630Z-edge-dev-codex-reviewer-capacity-deadlock.md).
+the orchestrator session that hit this deadlock. That completed handoff is retained
+in Git history and retired by implementation PR #2064.
 Issue [#1851](https://github.com/u2giants/shared-db/issues/1851) is the earlier,
 broader record of the same pool and holds two defects deliberately left out of scope
 here; keep it open and cross-referenced. This plan is the design #2058 asks for.
@@ -14,7 +14,8 @@ here; keep it open and cross-referenced. This plan is the design #2058 asks for.
 Also governed by
 ("reviewer pool exhausted: all six reviewers leased across three PRs, no lane can
 commission"), label `db-work`, `work_type: repo-maintenance`.
-Session handoff: [`HANDOFF.d/2026-09-01T1627Z-edge-dev-claude-reviewer-lease-capacity-truth.md`](HANDOFF.d/2026-09-01T1627Z-edge-dev-claude-reviewer-lease-capacity-truth.md)
+The repository-maintenance session handoff is likewise retained in Git history and
+retired by implementation PR #2064.
 
 ---
 
@@ -22,18 +23,17 @@ Session handoff: [`HANDOFF.d/2026-09-01T1627Z-edge-dev-claude-reviewer-lease-cap
 
 | # | Step | State | Evidence |
 |---|---|---|---|
-| 0 | Plan written, registered, linked from `AGENTS.md` | ⬜ open | this file + handoff backlink |
-| 1 | `--release-failed-reviewer`: release a dead lease without drawing a replacement | ⬜ open | — |
-| 2 | Lease age + holder identity readable (`held_since`, terminal-state marker) | ⬜ open | — |
-| 3 | `--reviewer-capacity` report: who holds what, since when, alive or dead | ⬜ open | — |
-| 4 | Refusal message names the true cause and the blocking holders | ⬜ open | — |
-| 5 | `ai-reviewer-issue`: never advertise evidence that was not captured | ⬜ open | — |
-| 6 | Tests green, PR merged, `#2058` closed and `#1851` updated | ⬜ open | — |
+| 0 | Plan written, registered, linked from `AGENTS.md` | ✅ done | PR #2060 merged as `c013fbea63ad891bb28d3e3de65e0779152d94f0` |
+| 1 | `--release-failed-reviewer`: release a dead lease without drawing a replacement | ✅ implemented | `release frees a terminally failed lease when all six reviewer slots are full`; 337-test suite |
+| 2 | Lease age + holder identity readable (`held_since`, terminal-state marker) | ✅ implemented | `review lease age is truthful for known and unknown commit dates`; 337-test suite |
+| 3 | `--reviewer-capacity` report: who holds what, since when, alive or dead | ✅ implemented | `capacity report classifies free, live, stale, verdict, aged, and unknown leases without mutation`; live six-row read succeeded |
+| 4 | Refusal message names the true cause and the blocking holders | ✅ implemented | all-six saturation and release-then-replacement regressions; 337-test suite |
+| 5 | `ai-reviewer-issue`: never advertise evidence that was not captured | ✅ done | `popcre/ai-devops` `113839d39f0179b66bda86f79ef5761ee8eb70ca`; 52 tests; exact-head APPROVE |
+| 6 | Tests green, PR merged, `#2058` closed and `#1851` updated | 🟨 in progress | PR #2064 open; 337 tests green; live governed replacement proof follows merge |
 
-**A fresh session starts at Step 1.** Steps 1–4 are one repository
-(`u2giants/shared-db`), one file, one pull request. Step 5 is a *different*
-repository (`u2giants/ai-devops`) and a separate pull request — it can be done
-first, last, or in parallel by another session.
+**Do not restart implementation.** Steps 1–5 are complete. The current session
+owns Step 6: merge PR #2064 after its gates pass, prove one governed replacement,
+close #2058, and update #1851.
 
 ---
 

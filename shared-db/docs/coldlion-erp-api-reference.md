@@ -130,7 +130,7 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 >
 > ⚠️ `lineQty` and `lineInvoiceQty` are **parent-line totals**, not per-SKU. On a prepack order they
 > are identical on every exploded row and summing them multiplies the true figure by the number of
-> components. **Read [`coldlion-prepack-sku-mapping.md`](coldlion-prepack-sku-mapping.md) before
+> components. **Read [`business-rules-erp-data.md` §10](business-rules-erp-data.md) before
 > building any order-history loader**, alongside
 > [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md).
 

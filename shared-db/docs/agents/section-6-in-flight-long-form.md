@@ -40,8 +40,8 @@ traps that will silently corrupt a load if you skip it:
 - **⚠️ The default `prodHistory` response is INCOMPLETE.** Without `stageCode` you get only the
   `ISS` (issued) lines. **There are exactly three stages — `ISS`, `INTRAN`, `REC`** (authoritative,
   ColdLion 2026-08-19) and all three carry real rows with **zero key overlap** between them.
-  Omitting them loses everything about what actually *arrived* — order 22717 ordered 4,800 and
-  received 4,548, and only the `ISS` half is in the default. **Fetch all three and record which
+  Omitting them loses everything about what actually *arrived* — order 90003 ordered 5,000 and
+  received 4,748 (synthetic values), and only the `ISS` half is in the default. **Fetch all three and record which
   stage each row came from**, because the payload does not say and the keys do not collide, so a
   stage-blind table triple-counts quantities with no error. The pull is 3 stages × N windows.
 - **Hard 7-day window cap (since 2026-08-17).** `fromDate`–`toDate` must be **within 7 days,
