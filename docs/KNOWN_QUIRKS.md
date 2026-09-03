@@ -277,15 +277,15 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 ---
 
-## 26. Bridge Agent Self-Update Uses `docker inspect` + `docker run`, Not `docker compose up`
+## 26. Bridge Agent Self-Update Must Remain Compose-Owned and Fail Closed
 
 **Files**: `apps/bridge-agent/src/index.ts`
 
-**Why Compose alone fails**: The bridge agent runs inside a Docker container and has no access to the `docker-compose.yml` file that lives on the host filesystem.
+**Why**: A 2026-09-03 update incident proved that synthesizing a replacement with `docker run` is unsafe. A bad image first crash-looped; the fallback then detached the replacement from Compose, inherited host-specific configuration, and created repeated name conflicts. The recovery was prolonged further by a stale saved environment and an unsupported Synology CPU limit in the reference Compose file.
 
-**`POPDAM_CONTAINER_NAME` env var is critical**: Without this anchor, each update cycle inherits the mutated name from the previous cycle (e.g. `popdam-bridge-old-123-old-456`). The `deploy/synology/docker-compose.yml` sets `POPDAM_CONTAINER_NAME: popdam-bridge` explicitly.
+**Required contract**: self-update only runs through an existing Compose file. Missing Compose state or a Compose failure is reported and leaves the running container recoverable; it never falls back to `docker run`, renames containers, strips read-only flags, or prunes backups. The manual updater validates Compose first, never runs `compose down`, verifies stability for 45 seconds, and restores the prior image if verification fails.
 
-**Build identity must NOT come from env vars (fixed 1.16.4)**: `recreateViaDockerRun` clones the *previous* container's entire `.Config.Env` as explicit `-e` flags onto the new container (to preserve `SUPABASE_URL`, `AGENT_KEY`, etc. on installs with no compose file). Explicit `-e` overrides the new image's baked `ENV`, so `POPDAM_BUILD_SHA`/`POPDAM_IMAGE_TAG` get **frozen at the first-ever image's values** and re-inherited every update — e.g. the agent reports `build_sha=8340ef9 / v1.16.0` while genuinely running `a35414d / 1.16.3`. This makes the admin "Build mismatch" badge (which compares reported `build_sha` to `BRIDGE_LATEST_BUILD.sha`) a **false positive**. Fix: build identity is now baked into an **immutable file** `/app/build-info.json` (Dockerfile) and read by `readBuildInfo()` in `index.ts` — a file in the image layer cannot be overridden by env-cloning, so the reported sha always matches the running image. Env vars remain only as a pre-1.16.4 / dev fallback. **Do not "simplify" this back to `process.env.POPDAM_BUILD_SHA`.** To verify an image's true build at any time: `docker inspect <img> --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'`.
+**Build/runtime validation**: build identity remains baked into immutable `/app/build-info.json`. The Docker build must also import the compiled eligibility module from the clean runtime stage, so a missing JSON artifact cannot publish. Do not replace this with a host build or a test against a dirty local `dist/` directory.
 
 ---
 

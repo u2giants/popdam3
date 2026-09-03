@@ -76,10 +76,9 @@ function logScanMemory(stage: string, meta: Record<string, unknown> = {}) {
 
 // ── Version info ──
 // Build identity (git sha + image tag) is read from an IMMUTABLE file baked into the
-// image at build time — deliberately NOT from env vars. The self-updater's
-// recreateViaDockerRun clones the PREVIOUS container's env as explicit `-e` flags,
-// which override the new image's baked POPDAM_BUILD_SHA/POPDAM_IMAGE_TAG and would
-// otherwise freeze the reported build identity at the first-ever image's values
+// image at build time — deliberately NOT from env vars. Earlier self-update code
+// cloned the previous container's env, which could override the new image's baked
+// POPDAM_BUILD_SHA/POPDAM_IMAGE_TAG and freeze the reported build identity
 // (see docs/KNOWN_QUIRKS.md #26). A file in the image layer cannot be overridden by
 // env-cloning, so the agent always reports the sha of the image it is actually
 // running, and the sha-based drift detector stays trustworthy. Env vars are kept
@@ -1793,129 +1792,26 @@ async function handleApplyUpdate() {
       { timeout: 120_000 },
       async (err: Error | null) => {
         if (!err) return; // new container is up — this one exits naturally
-        logger.warn("docker compose up failed — falling back to docker run recreation", { error: err.message });
-        await recreateViaDockerRun(containerId, NEW_IMAGE, startedAt, execFileAsync);
+        const msg = `docker compose recreation failed; current container was left recoverable: ${err.message}`;
+        logger.error("Self-update stopped safely", { error: msg });
+        await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
       },
     );
     return;
   }
 
-  // ── Step 3b: No compose file found — recreate via docker run ───────
-  logger.warn("No compose file found — recreating container via docker run");
-  await recreateViaDockerRun(containerId, NEW_IMAGE, startedAt, execFileAsync);
-}
-
-async function recreateViaDockerRun(
-  containerId: string,
-  newImage: string,
-  startedAt: string,
-  execFileAsync: (cmd: string, args: string[], opts?: object) => Promise<{ stdout: string; stderr: string }>,
-) {
-  try {
-    // Inspect the running container to clone its config
-    const { stdout: inspectOut } = await execFileAsync("docker", [
-      "inspect", containerId, "--format", "{{json .}}",
-    ]);
-    const info = JSON.parse(inspectOut.trim());
-
-    // Use POPDAM_CONTAINER_NAME as the canonical target name, regardless of how the
-    // current container is named. Without this anchor, each update cycle inherits the
-    // mutated name from the previous cycle (e.g. popdam-bridge-old-123-old-456-old-789).
-    const canonicalName = process.env.POPDAM_CONTAINER_NAME || "popdam-bridge";
-
-    // Collect -e flags
-    const envArgs: string[] = (info.Config?.Env ?? []).flatMap((e: string) => ["-e", e]);
-
-    // Collect -v flags, stripping :ro from all bind mounts so the recreated container
-    // always has read-write access (fixes NAS volume mounted :ro via old install bundle).
-    const bindArgs: string[] = (info.HostConfig?.Binds ?? []).flatMap((b: string) => ["-v", b.replace(/:ro$/, "")]);
-
-    // Collect --network flags (connect to first network; others added after start)
-    const networks = Object.keys(info.NetworkSettings?.Networks ?? {});
-    const primaryNetwork = networks[0];
-    const networkArgs: string[] = primaryNetwork ? ["--network", primaryNetwork] : [];
-
-    // Restart policy
-    const restartPolicy: string = info.HostConfig?.RestartPolicy?.Name || "unless-stopped";
-    const restartArgs = ["--restart", restartPolicy];
-
-    // Rename ourselves to a temp name first — this frees up the canonical name
-    // while we're still running, so the new container can claim it immediately.
-    // docker rename works on running containers without disrupting the process.
-    const oldTempName = `${canonicalName}-old-${Date.now()}`;
-    logger.info("Renaming current container to free up name", { from: containerId, to: oldTempName });
-    await execFileAsync("docker", ["rename", containerId, oldTempName]);
-
-    // Use inspected image if caller didn't specify one (e.g. self-heal path)
-    const imageToRun = newImage || (info.Config?.Image as string) || "";
-    if (!imageToRun) throw new Error("Cannot determine image name for recreated container");
-
-    // Start new container with the canonical name — always anchored, never mutated
-    logger.info("Starting replacement container", { name: canonicalName, image: imageToRun });
-    await execFileAsync("docker", [
-      "run", "-d",
-      "--name", canonicalName,
-      ...restartArgs,
-      ...networkArgs,
-      ...envArgs,
-      ...bindArgs,
-      imageToRun,
-    ]);
-
-    // Prune graveyard: remove any stopped containers whose names match the -old-* or
-    // -updating-* patterns that accumulate from previous update cycles. Best-effort.
-    try {
-      const { stdout: psOut } = await execFileAsync("docker", [
-        "ps", "-a", "--format", "{{.Names}}\t{{.Status}}",
-      ]);
-      const deadNames = psOut.trim().split("\n")
-        .filter((line) => {
-          const [name, status] = line.split("\t");
-          return (
-            status?.startsWith("Exited") &&
-            (name?.startsWith(`${canonicalName}-old-`) || name?.startsWith(`${canonicalName}-updating-`))
-          );
-        })
-        .map((line) => line.split("\t")[0]!);
-      if (deadNames.length > 0) {
-        logger.info("Pruning dead update containers", { count: deadNames.length, names: deadNames });
-        await execFileAsync("docker", ["rm", ...deadNames]).catch((e) =>
-          logger.warn("Partial failure pruning dead containers", { error: (e as Error).message })
-        );
-      }
-    } catch (e) {
-      logger.warn("Container graveyard cleanup failed (non-fatal)", { error: (e as Error).message });
-    }
-
-    // Suppress SIGTERM so we can complete cleanup before exiting.
-    // docker stop sends SIGTERM to us (via dumb-init), which would kill node
-    // before docker rm can run. We ignore it, finish cleanup, then exit.
-    process.removeAllListeners("SIGTERM");
-    process.on("SIGTERM", () => { /* suppressed — cleanup in progress */ });
-
-    // Fire docker stop on ourselves (now named oldTempName, still same containerId)
-    exec(`docker stop --time 15 ${containerId}`, () => {});
-
-    // Wait for SIGTERM to be delivered, then remove ourselves
-    await new Promise(r => setTimeout(r, 2_000));
-    await execFileAsync("docker", ["rm", containerId]).catch(() => {});
-
-    logger.info("Container recreated successfully via docker run", { canonicalName });
-    // Exit cleanly — docker stop was already issued so unless-stopped won't restart
-    process.exit(0);
-  } catch (e) {
-    const msg = `Failed to recreate container: ${(e as Error).message}. Mount the compose file into the container or set POPDAM_COMPOSE_PATH.`;
-    logger.error("Self-update recreation failed", { error: msg });
-    await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
-  }
+  // Never synthesize a replacement with docker run. That loses Compose
+  // ownership and can strand or overwrite host-specific configuration.
+  const msg = "No Compose file found; self-update stopped without replacing the running container";
+  logger.error("Self-update stopped safely", { error: msg });
+  await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
 }
 
 /**
  * On startup, write a small test file into the NAS mount root.
- * If the filesystem is read-only (EROFS), recreate the container without :ro
- * on the bind mounts so the next start can write marker files normally.
+ * A read-only result is reported but never mutates container topology.
  */
-async function checkAndHealReadOnlyMount(): Promise<void> {
+async function checkNasMountWritable(): Promise<void> {
   const testPath = join(config.nasContainerMountRoot, ".pop-rw-test");
   try {
     writeFileSync(testPath, "rw-check");
@@ -1923,22 +1819,12 @@ async function checkAndHealReadOnlyMount(): Promise<void> {
   } catch (e: unknown) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code === "EROFS" || code === "EACCES") {
-      logger.warn("NAS volume is read-only — recreating container without :ro bind mounts", {
+      const message = "NAS volume is read-only; fix the Compose bind mount before running write-dependent bridge operations";
+      logger.error(message, {
         mountRoot: config.nasContainerMountRoot,
         code,
       });
-      const selfId = process.env.HOSTNAME ?? "";
-      if (!selfId) {
-        logger.error("Cannot self-heal: HOSTNAME env var not set (container ID unknown)");
-        return;
-      }
-      const { execFile } = await import("node:child_process");
-      const { promisify } = await import("node:util");
-      const execFileAsync = promisify(execFile);
-      // Pass empty newImage — recreateViaDockerRun falls back to docker inspect image.
-      await recreateViaDockerRun(selfId, "", new Date().toISOString(), execFileAsync);
-      // recreateViaDockerRun calls process.exit(0) on success; reaching here means
-      // it failed — log and continue so the rest of startup can proceed (degraded).
+      lastError = message;
     }
     // ENOENT = mount root doesn't exist yet (scanRoot not configured); skip silently.
   }
@@ -1995,8 +1881,9 @@ async function main() {
     paired: config.isPaired,
   });
 
-  // Self-heal: if NAS volume is mounted read-only, recreate container without :ro
-  await checkAndHealReadOnlyMount();
+  // Validate the mount without mutating Docker/container topology. A bad host
+  // configuration must remain visible and recoverable for an operator to fix.
+  await checkNasMountWritable();
 
   // Warn about missing DO Spaces credentials (expected — will arrive via heartbeat)
   if (!config.doSpacesKey || !config.doSpacesSecret) {

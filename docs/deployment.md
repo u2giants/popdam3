@@ -195,14 +195,15 @@ The bridge agent runs as a Docker container on the Synology NAS, managed by `doc
 
 **Updating on the NAS (two paths):**
 
-Primary — in-app self-update: Admin UI → Settings → Agents → Update. This sets an `UPDATE_REQUEST` command in `admin_config`. The agent receives it on the next heartbeat, pulls `:stable`, and recreates its own container. Requires `POPDAM_CONTAINER_NAME` env var to be set in the agent's `.env`; without it, old containers accumulate.
+Primary — in-app self-update: Admin UI → Settings → Agents → Update. This sets an `UPDATE_REQUEST` command in `admin_config`. The agent receives it on the next heartbeat, pulls `:stable`, and recreates through its existing Compose file. If Compose cannot be found or fails, the update stops visibly and preserves the running container; there is no unmanaged `docker run` fallback.
 
 Fallback — manual on NAS:
 ```bash
 sudo docker compose pull
-sudo docker compose down
-sudo docker compose up -d
+sudo ./update.sh
 ```
+
+The updater validates Compose before mutation, recreates only `bridge-agent`, waits through the restart window, confirms zero restarts plus Compose ownership, and restores the prior image on failure. Never use `docker compose down` for a bridge update. The PopDAM NAS mount must be writable for marker/check-in behavior; the independent Style Guides mount remains read-only. The reference Compose intentionally omits `deploy.resources.limits.cpus` because the Synology kernel rejects Docker NanoCPU controls.
 
 **Versioning:** bump `apps/bridge-agent/package.json` version in the same commit as any bridge agent change (patch/minor/major per impact).
 
