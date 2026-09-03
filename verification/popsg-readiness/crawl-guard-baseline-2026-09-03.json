@@ -1,0 +1,29 @@
+{
+  "observed_at": "2026-09-03T17:53:00Z",
+  "production_url": "https://qsllyeztdwjgirsysgai.supabase.co",
+  "source_artifact": "baseline-2026-09-03T164944Z.json",
+  "trustworthy_completed_runs": 30,
+  "window": {
+    "oldest_started_at": "2026-08-04T22:00:30.18-04:00",
+    "newest_started_at": "2026-09-02T22:00:14.53-04:00"
+  },
+  "files_found": {
+    "minimum": 218660,
+    "maximum": 219992,
+    "window_span": 1332,
+    "largest_daily_drop": 42,
+    "largest_daily_drop_percent": 0.0192,
+    "largest_daily_rise": 348,
+    "largest_daily_rise_percent": 0.1588,
+    "drop_days": 4,
+    "rise_days": 11,
+    "flat_days": 14
+  },
+  "recommended_initial_guard": {
+    "absolute_drop": 1000,
+    "percentage_drop": 1.0,
+    "evaluation": "attention_required when either threshold is exceeded for an accessible nonempty root; never inactivate candidates for a guarded run",
+    "scope": "evaluate accepted rows per root, not the pre-server files_found total"
+  },
+  "rationale": "The largest observed ordinary one-day decrease was 42 files (0.0192%). A 1000-file or 1% threshold is more than 23 times the observed absolute decrease while remaining conservative against unsafe inactivation. The shared contract must keep the values configurable and must establish per-root accepted-count history before automatic reconciliation."
+}
