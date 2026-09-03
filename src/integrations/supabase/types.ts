@@ -1367,8 +1367,11 @@ export type Database = {
       hts_rag_determinations: {
         Row: {
           classification_state: string
+          comparison_category: string
+          comparison_details: Json
           comparison_key: string
           comparison_review_state: string
+          completion_key: string | null
           created_at: string
           id: string
           method: string
@@ -1377,11 +1380,15 @@ export type Database = {
           product_example_id: string
           proposed_hts: string | null
           result_hash: string
+          session_id: string | null
         }
         Insert: {
           classification_state: string
+          comparison_category?: string
+          comparison_details?: Json
           comparison_key: string
           comparison_review_state?: string
+          completion_key?: string | null
           created_at?: string
           id?: string
           method: string
@@ -1390,11 +1397,15 @@ export type Database = {
           product_example_id: string
           proposed_hts?: string | null
           result_hash: string
+          session_id?: string | null
         }
         Update: {
           classification_state?: string
+          comparison_category?: string
+          comparison_details?: Json
           comparison_key?: string
           comparison_review_state?: string
+          completion_key?: string | null
           created_at?: string
           id?: string
           method?: string
@@ -1403,6 +1414,7 @@ export type Database = {
           product_example_id?: string
           proposed_hts?: string | null
           result_hash?: string
+          session_id?: string | null
         }
         Relationships: [
           {
@@ -1429,14 +1441,21 @@ export type Database = {
           claimed_by: string | null
           completed_at: string | null
           created_at: string
+          dead_letter_reason: string | null
+          dead_lettered_at: string | null
           error_code: string | null
           extraction_version: string
           id: string
           input_hash: string
+          max_attempts: number
           model_version: string
+          parse_error_code: string | null
+          parse_state: string
           product_example_id: string
           prompt_version: string
+          raw_extraction: Json | null
           result_hash: string | null
+          review_needed: boolean
           status: string
         }
         Insert: {
@@ -1446,14 +1465,21 @@ export type Database = {
           claimed_by?: string | null
           completed_at?: string | null
           created_at?: string
+          dead_letter_reason?: string | null
+          dead_lettered_at?: string | null
           error_code?: string | null
           extraction_version: string
           id?: string
           input_hash: string
+          max_attempts?: number
           model_version: string
+          parse_error_code?: string | null
+          parse_state?: string
           product_example_id: string
           prompt_version: string
+          raw_extraction?: Json | null
           result_hash?: string | null
+          review_needed?: boolean
           status?: string
         }
         Update: {
@@ -1463,14 +1489,21 @@ export type Database = {
           claimed_by?: string | null
           completed_at?: string | null
           created_at?: string
+          dead_letter_reason?: string | null
+          dead_lettered_at?: string | null
           error_code?: string | null
           extraction_version?: string
           id?: string
           input_hash?: string
+          max_attempts?: number
           model_version?: string
+          parse_error_code?: string | null
+          parse_state?: string
           product_example_id?: string
           prompt_version?: string
+          raw_extraction?: Json | null
           result_hash?: string | null
+          review_needed?: boolean
           status?: string
         }
         Relationships: [
@@ -1677,6 +1710,87 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      hts_rag_provider_responses: {
+        Row: {
+          created_at: string
+          determination_id: string | null
+          enrichment_state: string
+          extraction_job_id: string | null
+          id: string
+          model_version: string
+          parse_error_code: string | null
+          parse_state: string
+          parsed_payload: Json | null
+          persisted_at: string
+          prompt_version: string
+          provider: string
+          raw_response: Json
+          raw_response_hash: string
+          released_at: string | null
+          request_hash: string
+          session_id: string
+          turn_index: number
+          turn_role: string
+        }
+        Insert: {
+          created_at?: string
+          determination_id?: string | null
+          enrichment_state?: string
+          extraction_job_id?: string | null
+          id?: string
+          model_version: string
+          parse_error_code?: string | null
+          parse_state?: string
+          parsed_payload?: Json | null
+          persisted_at?: string
+          prompt_version: string
+          provider: string
+          raw_response: Json
+          raw_response_hash: string
+          released_at?: string | null
+          request_hash: string
+          session_id: string
+          turn_index: number
+          turn_role: string
+        }
+        Update: {
+          created_at?: string
+          determination_id?: string | null
+          enrichment_state?: string
+          extraction_job_id?: string | null
+          id?: string
+          model_version?: string
+          parse_error_code?: string | null
+          parse_state?: string
+          parsed_payload?: Json | null
+          persisted_at?: string
+          prompt_version?: string
+          provider?: string
+          raw_response?: Json
+          raw_response_hash?: string
+          released_at?: string | null
+          request_hash?: string
+          session_id?: string
+          turn_index?: number
+          turn_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_provider_responses_determination_id_fkey"
+            columns: ["determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_provider_responses_extraction_job_id_fkey"
+            columns: ["extraction_job_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_extraction_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hts_rag_review_events: {
         Row: {
@@ -4601,12 +4715,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4630,11 +4744,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4655,11 +4769,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4680,11 +4794,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4697,11 +4811,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
