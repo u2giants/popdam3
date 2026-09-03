@@ -362,7 +362,7 @@ nested fallback logic filled that gap until provider differences exposed it.
 
   ```json
   {
-    "meta/muse-spark-1.2": {
+    "meta/muse-spark-1.3": {
       "tool_choice_modes": ["auto"],
       "prefer": ["json_schema", "json_object", "tool_auto"]
     },
@@ -655,7 +655,7 @@ Run all local suites and builds. Add a small authenticated smoke script or
 documented command that runs one known-safe test image against:
 
 - Current production vision model.
-- Muse Spark 1.2.
+- Muse Spark 1.3 Contributor.
 - One schema-only model.
 - One tools-only model.
 - Current ERP classification model with a non-production fixture.

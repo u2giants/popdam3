@@ -31,7 +31,7 @@ export interface CapabilityOverride {
 export type CapabilityOverrides = Record<string, CapabilityOverride>;
 
 const DEFAULT_OVERRIDES: CapabilityOverrides = {
-  "meta/muse-spark-1.2": { tool_choice_modes: ["auto"], prefer: ["json_schema", "json_object", "tool_auto"] },
+  "meta/muse-spark-1.3": { tool_choice_modes: ["auto"], prefer: ["json_schema", "json_object", "tool_auto"] },
   "minimax/minimax-m3": { tools: false, prefer: ["json_schema", "json_object"] },
 };
 const CACHE_MS = 10 * 60_000;

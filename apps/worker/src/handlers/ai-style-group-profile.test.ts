@@ -92,7 +92,7 @@ test("Style Group profiling sends Muse directly to Meta without an OpenRouter pr
     requestBody = JSON.parse(String(init?.body));
     return new Response(JSON.stringify({
       id: "meta-test",
-      model: "muse-spark-1.2-contributor",
+      model: "muse-spark-1.3-contributor",
       choices: [{ message: { content: JSON.stringify(PROFILE) } }],
     }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
@@ -101,11 +101,11 @@ test("Style Group profiling sends Muse directly to Meta without an OpenRouter pr
       GROUP,
       MEMBERS,
       [{ base64: "AAAA", mimeType: "image/jpeg" }],
-      "meta-direct/muse-spark-1.2-contributor",
+      "meta-direct/muse-spark-1.3-contributor",
     );
     assert.equal(profile.group_ai_description, PROFILE.group_ai_description);
     assert.equal(requestUrl, "https://api.meta.ai/v1/chat/completions");
-    assert.equal(requestBody.model, "muse-spark-1.2-contributor");
+    assert.equal(requestBody.model, "muse-spark-1.3-contributor");
     assert.equal(requestBody.provider, undefined);
   } finally {
     globalThis.fetch = originalFetch;

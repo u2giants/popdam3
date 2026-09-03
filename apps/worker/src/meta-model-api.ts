@@ -4,7 +4,7 @@ const META_CHAT_COMPLETIONS_URL = "https://api.meta.ai/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 export const META_DIRECT_PREFIX = "meta-direct/";
-export const META_MUSE_CONTRIBUTOR_MODEL = `${META_DIRECT_PREFIX}muse-spark-1.2-contributor`;
+export const META_MUSE_CONTRIBUTOR_MODEL = `${META_DIRECT_PREFIX}muse-spark-1.3-contributor`;
 
 export class MetaModelApiError extends Error {
   constructor(public status: number, public body: string) {

@@ -39,7 +39,7 @@ describe("saveAiModelConfig", () => {
         ok: true,
         config: {
           AI_TASK_MODELS: {
-            value: { vision_tagging: "meta-direct/muse-spark-1.2-contributor" },
+            value: { vision_tagging: "meta-direct/muse-spark-1.3-contributor" },
           },
         },
       });

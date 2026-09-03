@@ -29,7 +29,7 @@ export const config = {
   openRouterApiKey: optional("OPENROUTER_API_KEY", ""),
 
   // Meta Model API direct key — used when an AI task selects a
-  // "meta-direct/..." model such as Muse Spark 1.2 Contributor.
+  // "meta-direct/..." model such as Muse Spark 1.3 Contributor.
   metaApiKey: optional("META_API_KEY", ""),
 
   // Direct DeepSeek API key — used ONLY for cacheable high-volume batch work

@@ -880,7 +880,7 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
 // ── Route: get-openrouter-vision-models ─────────────────────────────
 
 const BUILTIN_AI_MODEL_CAPABILITY_OVERRIDES: Record<string, Record<string, unknown>> = {
-  "meta/muse-spark-1.2": {
+  "meta/muse-spark-1.3": {
     tool_choice_modes: ["auto"],
     prefer: ["json_schema", "json_object", "tool_auto"],
   },
@@ -934,8 +934,8 @@ async function handleGetOpenrouterVisionModels() {
   });
 
   models.push({
-    id: "meta-direct/muse-spark-1.2-contributor",
-    name: "Meta Muse Spark 1.2 Contributor (direct API; training data enabled)",
+    id: "meta-direct/muse-spark-1.3-contributor",
+    name: "Meta Muse Spark 1.3 Contributor (direct API; training data enabled)",
     context_length: 1_048_576,
     input_modalities: ["text", "image"],
     image_input: true,
