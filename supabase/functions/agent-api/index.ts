@@ -2761,6 +2761,12 @@ async function handleClaimStyleGuideCrawl(_body: Record<string, unknown>, agentI
 
   const roots = (rootsRow?.value as string[]) || [];
 
+  // A bridge restart must resume the already claimed run instead of creating a
+  // competing crawl. Older claims have no run_id and fall through once.
+  if (isOrphan && typeof req.run_id === "string" && req.run_id) {
+    return json({ ok: true, run_id: req.run_id, roots, resumed: true });
+  }
+
   // Claim the request
   await db.from("admin_config").upsert({
     key: "STYLE_GUIDE_CRAWL_REQUEST",
@@ -2781,6 +2787,18 @@ async function handleClaimStyleGuideCrawl(_body: Record<string, unknown>, agentI
     .single();
 
   if (runErr) return err(runErr.message, 500);
+
+  await db.from("admin_config").upsert({
+    key: "STYLE_GUIDE_CRAWL_REQUEST",
+    value: {
+      ...req,
+      status: "claimed",
+      claimed_by: agentId,
+      claimed_at: new Date().toISOString(),
+      run_id: run.id,
+    },
+    updated_at: new Date().toISOString(),
+  });
 
   console.log(`[claim-style-guide-crawl] Agent ${agentId} claimed crawl, run_id=${run.id}`);
   return json({ ok: true, run_id: run.id, roots });

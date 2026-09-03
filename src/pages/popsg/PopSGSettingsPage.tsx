@@ -1058,7 +1058,7 @@ export default function PopSGSettingsPage() {
                       <div className="flex-1">
                         <div className="text-foreground">Renderable, no preview yet</div>
                         <div className="text-[11px] text-muted-foreground">
-                          pdf / ai / psd files not yet rendered
+                          eligible creative files not yet rendered
                           {previewStats.queued_now > 0 && (
                             <> — <span className="text-amber-600 font-medium">{previewStats.queued_now.toLocaleString()} currently in queue</span></>
                           )}
@@ -1078,7 +1078,7 @@ export default function PopSGSettingsPage() {
                       <div className="flex-1">
                         <div className="text-foreground">Render errors</div>
                         <div className="text-[11px] text-muted-foreground">
-                          pdf / ai / psd files where rendering failed — see Render Job History for details
+                          eligible creative files where rendering failed — see Render Job History for details
                         </div>
                       </div>
                       <span className={`font-mono font-semibold tabular-nums ${previewStats.render_errored > 0 ? "text-destructive" : ""}`}>
@@ -1092,7 +1092,7 @@ export default function PopSGSettingsPage() {
                       <div className="flex-1">
                         <div className="text-foreground">Unsupported format</div>
                         <div className="text-[11px] text-muted-foreground">
-                          jpg, png, mp4, etc. — no preview will ever be generated
+                          legacy or unclassified formats outside the current preview contract
                         </div>
                       </div>
                       <span className="font-mono font-semibold tabular-nums text-muted-foreground">

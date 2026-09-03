@@ -1,0 +1,12 @@
+{
+  "observed_at": "2026-09-03T16:55:00Z",
+  "production_url": "https://qsllyeztdwjgirsysgai.supabase.co",
+  "active_rows_with_thumbnail_error": 8132,
+  "categories": {
+    "missing": { "rows": 5079, "without_preview": 5079, "with_preview": 0 },
+    "ghostscript": { "rows": 1487, "without_preview": 1429, "with_preview": 58 },
+    "unsupported": { "rows": 1225, "without_preview": 836, "with_preview": 389 },
+    "other": { "rows": 341, "without_preview": 333, "with_preview": 8 }
+  },
+  "disposition": "Pre-reconciliation baseline only. Missing-file rows must be remeasured after active-path reconciliation; no retries or terminal classifications are authorized from this snapshot."
+}

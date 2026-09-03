@@ -370,6 +370,7 @@ export async function claimStyleGuideCrawl(): Promise<{ run_id: string; roots: s
 
 import type { StyleGuideFileRecord } from "./style-guide-crawler.js";
 import type { PdfTextSampleResult } from "./pdf-text-sampler.js";
+import type { StyleGuideCrawlCompletion } from "./sg-crawl-continuation.js";
 
 export async function completeStyleGuideCrawl(
   runId: string,
@@ -378,8 +379,8 @@ export async function completeStyleGuideCrawl(
   totalFiles?: number,
   error?: string,
   inaccessibleRoots?: string[],
-): Promise<void> {
-  await callApi("complete-style-guide-crawl", {
+): Promise<StyleGuideCrawlCompletion> {
+  const data = await callApi("complete-style-guide-crawl", {
     run_id: runId,
     files,
     done,
@@ -387,6 +388,7 @@ export async function completeStyleGuideCrawl(
     error,
     inaccessible_roots: inaccessibleRoots?.length ? inaccessibleRoots : undefined,
   });
+  return data as unknown as StyleGuideCrawlCompletion;
 }
 
 // ── PDF Text Sample ────────────────────────────────────────────────
