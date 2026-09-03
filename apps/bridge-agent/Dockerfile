@@ -84,11 +84,13 @@ WORKDIR /app
 
 # Copy only production artifacts
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/sg-eligibility-contract.json ./dist/sg-eligibility-contract.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 
 # Verify path-filters survived into runtime stage
 RUN node -e "require('@popdam/path-filters');console.log('RUNTIME CHECK: @popdam/path-filters OK');"
+RUN node -e "import('./dist/sg-ingest-filter.js').then(()=>console.log('RUNTIME CHECK: eligibility contract OK'))"
 
 # Bake build identity into an IMMUTABLE file (authoritative source at runtime).
 # The self-updater's recreateViaDockerRun clones the previous container's env as `-e`
