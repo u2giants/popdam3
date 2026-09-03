@@ -43,3 +43,6 @@ oc_logs.txt
 .env.local
 .env*.local
 .ai/reviews/
+
+# Private operational evidence (licensed filenames/paths, candidate exports)
+.private/

@@ -7,7 +7,7 @@ Handoff: [HANDOFF.d/2026-09-03T1600Z-hetz-codex-popsg-production-readiness.md](H
 
 | Step | Status | Evidence |
 |---|---|---|
-| 1. Freeze the acceptance contract and baseline | ⬜ open | Re-run the commands in §9.1 and save artifacts under `verification/popsg-readiness/` |
+| 1. Freeze the acceptance contract and baseline | ⬜ open | Commit summaries under `verification/popsg-readiness/`; keep licensed path exports under git-ignored `.private/popsg-readiness/` |
 | 2. Route and ship the shared-database contract | ⬜ open | Shared-db migration, tests, preview proof, merged PR, and production apply record |
 | 3. Make crawl completion truthful and restart-safe | ⬜ open | Agent/API tests and a forced-cleanup-failure integration result |
 | 4. Reconcile the current ghost rows safely | ⬜ open | Before/after candidate export and live NAS/database parity report |
@@ -22,7 +22,7 @@ Handoff: [HANDOFF.d/2026-09-03T1600Z-hetz-codex-popsg-production-readiness.md](H
 
 ## 1. The ultimate goal
 
-PopSG must be a trustworthy, current production library of every **eligible creative file** in POP Creations' canonical Style Guides NAS share. A user must be able to browse, filter, and search that library without seeing files that no longer exist, silently missing eligible files, or being told a crawl succeeded when reconciliation failed. Every technically previewable file must either have a useful preview or a visible, classified exception. Search must cover paths, guide metadata, curated tags, and extracted document text where extraction is supported.
+PopSG must be a trustworthy, current production library of every **eligible creative file** in POP Creations' canonical Style Guides NAS share. A user must be able to browse, filter, and search that library without seeing files that no longer exist, silently missing eligible files, or being told a crawl succeeded when reconciliation failed. Every technically previewable file must either have a useful preview or a visible, classified exception. Search must cover paths, guide metadata, curated tags, and text extracted directly from active PopSG PDF files.
 
 “Comprehensive copy” does **not** mean copying file bytes into PopSG or indexing every NAS object. The locked eligible set is the existing creative-file allow-list: AI, PSD, EPS, PDF, TIF/TIFF, JPG/JPEG, and PNG. System folders, hidden files, shortcuts, fonts, archives, video, 3D, office documents, and other non-previewable formats remain excluded, but Admin must expose excluded counts by reason so the boundary is measurable rather than invisible.
 
@@ -75,6 +75,7 @@ Counts are a dated baseline, not constants. Re-measure before implementation and
 - Reconciliation counters, alerts, and Admin visibility.
 - Preview-error classification, retries for recoverable errors, and explicit terminal exceptions.
 - Completion of licensing/tech-pack PDF text extraction and source-file resolution.
+- A separate incremental text-extraction pipeline for active PopSG PDFs, keyed to `style_guide_files`; the existing PopDAM asset backfill is not this corpus.
 - Unified server-side PopSG search across path/name, guide metadata, active tags, and extracted PDF text where available.
 - Filter parity, database-side pagination, ranking, counts/facets, signed-in browser verification, performance gates, deployment, documentation, and rollback.
 
@@ -103,6 +104,7 @@ All code described here was on `main` at `f76c91ed0ded318afe4de3a9c01516b6a9f5d4
 - `style_guide_file_groups` and `style_guide_folders` are database-backed aggregates refreshed after a crawl. Their refresh also timed out.
 - Nightly `nightly-sg-crawl` queues a crawl at 02:00 UTC. The crawl’s empty-root guard exists, but no low/nonzero regression guard exists.
 - PDF extraction and source resolution already exist as described in `docs/POPSG.md:178-210`, but the backfill is incomplete.
+- The existing `pdf_text_samples`/Windows backfill is keyed to PopDAM `assets`. The PopSG render path in `apps/windows-agent/src/index.ts:572-602` only uploads thumbnails; PopSG files do not yet have their own extracted-text store or extraction job.
 
 No fix, cleanup, shared-db issue, migration, or application implementation has started. This plan, handoff, and issue #107 are documentation/tracking artifacts only.
 
@@ -116,6 +118,7 @@ No fix, cleanup, shared-db issue, migration, or application implementation has s
 6. **Preview coverage and search coverage are different:** a missing preview should not make a file undiscoverable; extracted text and tags must remain searchable when available.
 7. **A nightly delay is normal:** files added after the latest completed crawl are not ghosts. Acceptance compares the database to a same-window snapshot or a just-completed crawl, not a later moving NAS.
 8. **The production target is confirmed:** all database findings came from `https://qsllyeztdwjgirsysgai.supabase.co`, not the retired Ohio project.
+9. **PopSG PDF content search needs its own source:** joining PopDAM `pdf_text_samples` through the small `sku_files_used` set would cover only linked source references, not the active PopSG PDF corpus. The plan therefore creates an incremental PopSG PDF-text pipeline rather than pretending the existing backfill provides comprehensive coverage.
 
 ## 7. Approaches considered and rejected
 
@@ -127,6 +130,7 @@ No fix, cleanup, shared-db issue, migration, or application implementation has s
 - **Compare against every raw NAS file. Rejected.** PopSG intentionally excludes non-creative and non-previewable content; raw counts create false deficits.
 - **Put new migrations in PopDAM or use Dashboard SQL. Rejected.** Shared database structure is governed by `u2giants/shared-db`.
 - **Use browser-side filtering/search over downloaded rows. Rejected.** The corpus is over 200,000 rows; filters, authorization, ranking, counts, and paging must happen server-side.
+- **Call PopDAM `pdf_text_samples` comprehensive PopSG content search. Rejected.** That table is keyed to PopDAM assets and only a small linked subset reaches PopSG through `sku_files_used`; it cannot search the PopSG PDF corpus.
 - **Declare all render errors blockers. Rejected.** Some files are corrupt, missing, or technically terminal. Classify them and set an accepted exception policy; do not endlessly retry terminal cases.
 - **Archive guides using current `sg_archive_usage`. Rejected.** The PDF/source backfill is incomplete, so apparent non-use is not reliable.
 
@@ -141,12 +145,15 @@ No fix, cleanup, shared-db issue, migration, or application implementation has s
 - **2026-09-03:** preserve the existing eligible creative extensions and excluded system-name rules. Excluded formats are counted in Admin but do not become library rows.
 - **2026-09-03:** database structure changes go through shared-db branch/PR/preview-first workflow; application row cleanup remains PopSG-owned data work after target proof.
 - **2026-09-03:** search and filter before pagination; counts/facets describe the same authorized result set.
+- **2026-09-03, GLM review incorporated:** PopSG gets a dedicated incremental PDF-text pipeline for every active PDF in `style_guide_files`. Store extraction text/status/error/content identity against the PopSG file; use the existing Windows extraction cascade where practical, but do not overload PopDAM `pdf_text_samples` or widen the PopDAM licensing/tech-pack backfill.
+- **2026-09-03, GLM review incorporated:** licensed filenames, path inventories, and candidate-row exports live only under local git-ignored `.private/popsg-readiness/`. Committed `verification/popsg-readiness/` artifacts contain aggregate counts, hashes, commands, timestamps, redacted examples, and links/descriptions—never licensed paths.
+- **2026-09-03, GLM review incorporated:** Edge/agent API changes are backward-compatible. Responses retain `ok: true` on accepted calls and add fields without changing/removing old ones. New Edge behavior must be proven against the prior production bridge client, and rollout must not expose an old agent to an incompatible response.
 - **2026-09-03:** missing previews never remove otherwise eligible files from browsing/search.
 - **2026-09-03:** do not archive NAS style guides under this plan.
 
 ### Open for implementer judgment
 
-- Batch size for cleanup and aggregate refresh technique. Choose from preview load tests; each transaction should finish comfortably below the production statement limit and resume from a durable cursor.
+- Batch size for cleanup and aggregate maintenance technique. For aggregates, explicitly compare `REFRESH MATERIALIZED VIEW CONCURRENTLY` after adding/proving the required unique indexes versus incremental summary maintenance; reject the current blocking full refresh if it cannot meet the preview load/lock budget. Each operation must finish comfortably below production limits and resume safely.
 - Search implementation shape: extend an existing RPC or add PopSG-specific search documents/RPCs. Choose the smallest governed design that supports combined path/metadata/tag/PDF-text ranking, authorization, filter parity, and bounded incremental maintenance.
 - Alert transport. Reuse an existing PopDAM operational alert path if one exists; otherwise make Admin status unmistakable and open a separately scoped alert-integration issue rather than hard-coding a new provider.
 - Terminal preview classification thresholds. Derive them from current error codes and representative files; never infer corruption solely from retry count.
@@ -159,7 +166,7 @@ No owner decision is required before reversible preview implementation and testi
 
 #### 9.1 Freeze the acceptance contract and baseline
 
-Create `verification/popsg-readiness/README.md` and a timestamped baseline artifact. Add a project-owned read-only script under `scripts/` that emits:
+Create committed `verification/popsg-readiness/README.md` and a timestamped **summary** artifact. Create local `.private/popsg-readiness/` for raw licensed-path/candidate evidence; `.gitignore` already excludes `.private/`. Add a project-owned read-only script under `scripts/` that emits:
 
 - confirmed project ref/URL;
 - latest crawl ID, roots, status, start/end, inaccessible roots;
@@ -170,14 +177,14 @@ Create `verification/popsg-readiness/README.md` and a timestamped baseline artif
 - PDF extraction and source-resolution coverage;
 - aggregate-view row counts/freshness.
 
-The NAS inventory must reuse/export the same skip/extension contract as `sg-ingest-filter.ts`; do not maintain an undocumented second allow-list. Run broad NAS reads using `synology-long-running-operations`, low priority, durable output, and no user-data writes.
+The script must send filenames, full paths, row IDs, and candidate exports only to `.private/popsg-readiness/`; it may commit only counts, extension/category summaries, timestamps, non-reversible hashes, and redacted examples under `verification/popsg-readiness/`. The NAS inventory must reuse/export the same skip/extension contract as `sg-ingest-filter.ts`; do not maintain an undocumented second allow-list. Run broad NAS reads as a detached, low-priority, durable read with recorded PID/start/end/exit/error evidence and no NAS user-data writes (the behavior required by `synology-long-running-operations`, even when that named skill is unavailable).
 
 Dependency: none. This baseline gates all later data changes.
-**You’ll know it worked when** a reviewer can re-run one documented command and derive every readiness count from saved, timestamped artifacts with zero permission errors and a confirmed `qsllyeztdwjgirsysgai` target.
+**You’ll know it worked when** a reviewer can re-run one documented command and derive every readiness count from saved, timestamped summaries with zero permission errors and a confirmed `qsllyeztdwjgirsysgai` target; `git check-ignore .private/popsg-readiness/probe` succeeds; and `git grep` plus a staged secret/path review finds no licensed path export.
 
 #### 9.2 Route the shared-database work
 
-Classify the required database objects from scratch and open a `db-work` issue in `u2giants/shared-db` naming at least: `style_guide_crawl_runs`, the cleanup RPC(s), aggregate refresh contract, search RPC/documents/indexes, and any status/metrics fields. Do not assume issue #107 grants a migration-author lane. The shared-db orchestrator authors the migration on a dedicated branch, tests it in preview, merges the PR, and—only with the production promotion gate satisfied—applies it to production. App code must not depend on the new contract until production structure exists.
+Classify the required database objects from scratch and open a `db-work` issue in `u2giants/shared-db` naming at least: `style_guide_crawl_runs`, the cleanup RPC(s), aggregate refresh contract, PopSG PDF extraction rows/status/claim-complete contract, search RPC/documents/indexes, and any status/metrics fields. The replacement cleanup/continuation RPCs must be service-role-only unless a narrowly authorized user-facing wrapper is proven necessary; explicitly remove/reject the baseline function’s broad `authenticated` grant. Do not assume issue #107 grants a migration-author lane. The shared-db orchestrator authors the migration on a dedicated branch, tests it in preview, merges the PR, and—only with the production promotion gate satisfied—applies it to production. App code must not depend on the new contract until production structure exists. If `codex-shared-db-change` is unavailable, the invariant is still: inspect read-only freely, but route all structure through the one shared-db orchestrator and never write app-side DDL.
 
 Dependency: 9.1 defines the behavior and baseline.
 **You’ll know it worked when** the shared-db issue is dispatched, its PR is merged, preview behavior/performance evidence is attached, production migration ledger is verified, and generated consumer types have synced back without app-side migration files.
@@ -217,6 +224,8 @@ Refactor `handleCompleteStyleGuideCrawl()` in `supabase/functions/agent-api/inde
 
 Update `apps/bridge-agent/src/api-client.ts` and `style-guide-crawler.ts` so the agent understands an accepted-but-reconciling response, retries safely, and does not start a competing crawl. Do not keep an Edge invocation open indefinitely; use a durable follow-up mechanism already present in the system or short bounded continuation calls.
 
+Compatibility is mandatory: `complete-style-guide-crawl` continues returning `ok: true` for every accepted old-agent request, with only additive response fields. Add a contract fixture for the exact prior production bridge client behavior (`callApi` treats missing/false `ok` as failure). Publish and verify a bridge build that tolerates the new additive states before activating any Edge behavior that depends on the client understanding them; because additive `ok: true` responses remain old-client-safe, the Edge may deploy first only if that compatibility test passes. Record both deployed versions and perform a heartbeat/crawl smoke after each rollout step.
+
 Dependency: 9.3 contract.
 **You’ll know it worked when** automated tests force cleanup timeout, refresh timeout, dropped records, duplicate completion, and process restart; none produce a completed status until parity is reached, and the next invocation resumes rather than restarts.
 
@@ -235,12 +244,12 @@ Dependency: 9.4.
 
 #### 9.6 Reconcile today’s ghost rows
 
-After the new contract is deployed, run a fresh crawl during a stable comparison window. Export the candidate rows (`id`, root/path, crawl IDs, last seen, preview/tag/link presence) to a protected verification artifact; never commit licensed filenames to a public repository. Prove the target immediately before each data write. Preview candidate count and representative existence checks, then use the bounded application-owned cleanup to mark confirmed absences inactive. Do not delete rows or NAS content.
+After the new contract is deployed, run a fresh crawl during a stable comparison window. Export candidate rows (`id`, root/path, crawl IDs, last seen, preview/tag/link presence) only to `.private/popsg-readiness/`; commit only redacted counts/hashes. Prove the target immediately before each data write. Preview candidate count and representative existence checks, then use the bounded application-owned cleanup to mark confirmed absences inactive. Do not delete rows or NAS content.
 
 After cleanup, refresh aggregates through the supported contract and verify exact path parity. Account separately for files created during the comparison window. Confirm a returned path reactivates its prior row and metadata safely.
 
 Dependency: 9.3–9.5 deployed.
-**You’ll know it worked when** current eligible NAS paths and active database paths have zero unexplained difference at the same snapshot boundary, ghost rows remain recoverable as inactive, and Guides/Files counts reflect the reconciled active set.
+**You’ll know it worked when** current eligible NAS paths and active database paths have zero unexplained difference at the same snapshot boundary, every explained difference is recorded privately with path, observation timestamps, reason, and disposition, ghost rows remain recoverable as inactive, and Guides/Files counts reflect the reconciled active set.
 
 #### 9.7 Build Admin health and alerts
 
@@ -270,14 +279,22 @@ Correct misleading UI copy at `PopSGSettingsPage.tsx:1055-1100`: the current all
 Dependency: reconciled active set from 9.6 so inactive ghosts do not inflate failures.
 **You’ll know it worked when** every active eligible file is exactly one of: useful preview, actively queued/retrying, or reviewed terminal exception; there are zero unexplained/no-status files; recoverable error counts stop recurring on a clean ordinary run.
 
-#### 9.9 Finish PDF extraction and source resolution
+#### 9.9 Finish PopDAM source resolution and build PopSG PDF extraction
 
-Resume the existing Windows-agent PDF backfill; do not start a parallel loop or widen it beyond licensing/tech-pack PDFs. Expose durable remaining/succeeded/failed/skipped counts and last progress time. Diagnose terminal failures without deleting evidence. After extraction reaches zero actionable remaining, run/verify the nightly fuzzy resolver and review the 87 unresolved baseline rows using existing quarantine rules.
+First finish the existing **PopDAM asset** Windows-agent PDF backfill; do not start a parallel loop or widen it beyond licensing/tech-pack PDFs. Expose durable remaining/succeeded/failed/skipped counts and last progress time. Diagnose terminal failures without deleting evidence. After extraction reaches zero actionable remaining, run/verify the nightly fuzzy resolver and review the 87 unresolved baseline rows using existing quarantine rules.
+
+Separately implement the dedicated **PopSG PDF** pipeline locked in §8:
+
+1. Shared-db provides rows/status and bounded claim/complete RPCs keyed to `style_guide_files.id`, with content identity (`size_bytes`, `modified_at`, and a safe hash/version where available), extracted text, method, page/character counts, terminal error/skip reason, attempts, and timestamps. Inactive files are not claimable; content changes invalidate prior extraction safely.
+2. Add agent-api claim/complete/progress actions using agent authentication and least privilege.
+3. Extend `apps/windows-agent/src/api-client.ts`, `pdf-text-sampler.ts`, and the polling/orchestration code to reuse the existing native-text → local OCR → AI-last-resort cascade for PopSG PDFs. Serialize/schedule it with ordinary renders and the PopDAM asset backfill so only one controlled workload owns capacity at a time.
+4. Maintain search documents incrementally when extraction completes or a file becomes inactive/reactivated; never perform a full-corpus rebuild inside an Edge request or migration.
+5. Expose PopSG PDF extraction coverage/failures separately in Admin; never combine them with the PopDAM asset backfill totals.
 
 Do not delete `legacy_ungated` source rows or act on `sg_archive_usage` until coverage and per-row match quality are reviewed. Preserve `file_name` when links are absent.
 
-Dependency: can run after 9.6 and in parallel with 9.8 if the same Windows agent capacity is scheduled to avoid starvation.
-**You’ll know it worked when** actionable PDF remaining is zero, every failure/skip has a reason, resolver metrics are current, representative “Files Used” panels open the correct PopSG file, and no unresolved row was guessed below the approved fuzzy threshold.
+Dependency: shared-db extraction contract from 9.2 and reconciled files from 9.6. PopDAM source resolution and PopSG extraction may be developed separately, but Windows execution is serialized to avoid starvation.
+**You’ll know it worked when** both corpora report independently: actionable PopDAM backfill remaining is zero; every active PopSG PDF has current extracted text or a reviewed terminal reason; content changes requeue; inactive files disappear from content search; resolver metrics are current; representative “Files Used” panels open the correct PopSG file; and no unresolved row was guessed below the approved fuzzy threshold.
 
 #### 9.10 Build comprehensive server-side search and filters
 
@@ -285,11 +302,11 @@ Create a governed PopSG search contract that combines:
 
 - filename, relative path, directory, licensor, property, and guide name;
 - active curated `tag_names` / `tag_search_text`;
-- extracted PDF text linked to the PopSG file where such text exists;
+- text from the dedicated PopSG PDF extraction rows linked directly by `style_guide_file_id`;
 - synonym/separator expansion already used by `expandFallbackTerms`;
 - authorization, active-state filtering, deterministic ranking, and stable pagination.
 
-Update `src/pages/popsg/PopSGLibraryPage.tsx:610-703` to call that contract in Guides and Files modes. Preserve guide grouping while making a guide match if any active child matches; explain why it matched when feasible. Add filters for licensor, property, guide/folder, file type, preview state, render exception, tags, modified-date range, and content availability. Apply filters before pagination; return total/facets for the same result set. Avoid N+1 queries and browser-side corpus filtering. Use incremental/indexed maintenance; do not rebuild the entire corpus inside a migration.
+Update `src/pages/popsg/PopSGLibraryPage.tsx:610-703` to call that contract in Guides and Files modes. Preserve guide grouping while making a guide match if any active child matches; explain why it matched when feasible. **Must-have launch filters** are licensor, property, guide/folder, file type, preview state, render exception, and tags. Modified-date range and content-availability are a second slice that may land separately but must complete before final production-ready acceptance. Apply filters before pagination; return total/facets for the same result set. Avoid N+1 queries and browser-side corpus filtering. Use incremental/indexed maintenance; do not rebuild the entire corpus inside a migration.
 
 Dependency: search DB contract from 9.2 and stable active/content state from 9.6/9.9.
 **You’ll know it worked when** contract tests find fixtures by each searchable field and extracted text, excluded/inactive rows never appear, combined filters retain correct totals/facets across pages, and production p95 queries meet the agreed budget on the full corpus.
@@ -303,11 +320,11 @@ Dependency: search DB contract from 9.2 and stable active/content state from 9.6
 Create `verification/popsg-readiness/final-acceptance.md` with current timestamp, exact deployed SHAs/Edge versions, confirmed production project URL, and links to private licensed-path evidence without copying licensed filenames into the public repo. Verify:
 
 1. Three consecutive ordinary nightly crawls finish ingest + reconciliation + aggregate refresh without manual intervention, timeouts, unexplained mismatch, or false-green status.
-2. A same-window NAS/database comparison has zero unexplained eligible-path differences.
+2. A same-window NAS/database comparison has zero unexplained eligible-path differences and includes a private explained-difference ledger with path, timestamps, reason, and disposition plus a committed redacted summary/hash.
 3. Regression-guard synthetic/preview evidence proves mass inactivation is blocked.
 4. Every active file has preview/queue/terminal status; no unexplained bucket remains.
 5. Actionable PDF backfill is zero and unresolved source rows are explained/reviewed.
-6. Signed-in production browser journeys: browse guide, switch Files/Guides, filter each dimension, combine filters, search by filename/path/tag/extracted phrase, paginate/sort, open preview, observe terminal exception, inspect Admin health.
+6. Signed-in production browser journeys: browse guide, switch Files/Guides, filter each dimension, combine filters, search by filename/path/tag and a phrase extracted from a known active PopSG PDF, paginate/sort, open preview, observe terminal exception, inspect Admin health.
 7. Desktop and mobile layouts work; browser console/network contain no unexpected errors.
 8. Direct URLs return HTTP 200 and live build/deployment identifiers match merged commits.
 
@@ -342,6 +359,7 @@ Add focused Deno tests for `complete-style-guide-crawl` helpers:
 - cleanup timeout and aggregate-refresh timeout produce non-complete status;
 - bounded continuation and idempotent duplicate completion;
 - old agent submitting unsupported extensions;
+- exact prior bridge client consuming the new additive `ok: true` completion response without throwing/crash-looping;
 - counter accuracy and error persistence.
 
 Run the repository’s Edge typecheck/test command documented in `docs/development.md` and the deployment workflow’s exact checks.
@@ -356,6 +374,8 @@ In `u2giants/shared-db`, add migration behavior tests for:
 - regression guard preserving active rows;
 - search authorization, active filtering, ranking, combined filters, facets/counts, stable paging;
 - aggregate freshness and representative-volume query plans.
+- replacement cleanup/continuation RPC grants exclude `authenticated` unless a narrowly tested wrapper is required.
+- PopSG PDF claim/complete idempotency, content-change invalidation, inactive exclusion, terminal retry policy, and search-document maintenance.
 
 Run `/worksp/shared-db/scripts/check-sql.sh`, repository tests, preview apply, and preview load/performance checks named in its `AGENTS.md`.
 
@@ -384,11 +404,12 @@ Use authenticated browser testing and preserve screenshots/network evidence for 
 - Never add migrations under PopDAM’s `supabase/migrations/`; its mirror is read-only.
 - Production/shared infrastructure is read-only unless exact current-chat authority exists. Do not live-edit servers or increase timeouts.
 - NAS is read-only in this plan. Use `edgesynology2` for broad reads; do not write to it. Use the long-running NAS skill for broad inventories.
-- Never log, commit, or put licensed filenames/private exports into public issues or verification files. Store private evidence only in its approved protected location and link descriptively.
+- Never log, commit, or put licensed filenames/private exports into public issues or verification files. Raw evidence lives only in git-ignored `.private/popsg-readiness/`; committed verification contains redacted summaries/hashes only.
 - Do not print secrets. Use 1Password vault `vibe_coding` and protected injection.
 - Do not use `files_found` as accepted coverage. Separate every lifecycle count.
 - Do not call a partial/timed-out scan complete. Three ordinary nightly runs are part of acceptance.
 - Do not run parallel PDF backfills, crawls, cleanup loops, or render retries.
+- Preserve backward compatibility across staggered agent deployments: accepted Edge responses keep `ok: true` and add fields only; verify the prior client and record bridge/Edge rollout order.
 - Do not delete style-guide rows or NAS files; inactivate rows reversibly.
 - Keep PopDAM and PopSG tenant behavior separate despite the shared image/database.
 - Filter/authorize before pagination; browser-side RLS after service-role ranking is not sufficient.
@@ -401,7 +422,8 @@ Use authenticated browser testing and preserve screenshots/network evidence for 
 - Canonical DB directory: `/worksp/shared-db`; do not update its currently behind checkout casually—follow its startup/concurrency rules.
 - GitHub CLI was authenticated for `u2giants`; verify with `gh auth status` before use.
 - Supabase CLI/MCP can reach production, but verify with project URL/ref before each write. The local `supabase` MCP is pinned to `qsllyeztdwjgirsysgai` in `.mcp.json`; still call `get_project_url`.
-- NAS SSH alias: `edgesynology2`; expected hostname `edgesynology2`; read root `/volume1/styleguides`. Use SSH only under the NAS skill’s rules.
+- NAS SSH alias: `edgesynology2`; expected hostname `edgesynology2`; read root `/volume1/styleguides`. Broad reads must be detached, low-priority, durable, checked to completion, and record permission errors rather than weakening access.
+- Private evidence: `/worksp/popdam/.private/popsg-readiness/` (local, git-ignored). It may contain licensed path/candidate exports and must never be committed. Commit-safe redacted summaries go in `/worksp/popdam/verification/popsg-readiness/`.
 - Production UI: `https://sg.designflow.app`; signed-in QA needs an account with `app_access='styleguides'` and administrator rights for Settings.
 - Authentication/secrets: 1Password vault `vibe_coding`; use the existing PopDAM/Supabase, GitHub, NAS, and test-user items documented by repository runbooks. Never put values in this plan, shell arguments, logs, or commits.
 - Local frontend: follow `docs/development.md`; normally install dependencies and run the documented Vite development command, then root tests/lint/build.
@@ -418,7 +440,7 @@ Use authenticated browser testing and preserve screenshots/network evidence for 
 - [ ] Regression guard blocks empty, inaccessible, and suspicious low-nonzero crawls.
 - [ ] Admin exposes lifecycle counts, mismatch age, failures, and safe resume action; meaningful alerts work.
 - [ ] Every active file has preview, active queue/retry, or reviewed terminal exception; zero unexplained preview states.
-- [ ] Actionable PDF extraction remaining is zero; source resolution is current and unresolved records are reviewed without unsafe guesses.
+- [ ] Actionable PopDAM licensing/tech-pack extraction remaining is zero; every active PopSG PDF has current extracted text or a reviewed terminal reason; source resolution is current and unresolved records are reviewed without unsafe guesses.
 - [ ] Unified server-side search covers path/name/metadata/tags/extracted text with filter/facet/paging parity and authorization.
 - [ ] Required test suites/builds pass in both repos.
 - [ ] Shared-db migration is preview-tested, merged, production-applied under the correct gate, and consumer types sync.
@@ -440,16 +462,16 @@ Use authenticated browser testing and preserve screenshots/network evidence for 
 
 - Exact cleanup batch size: choose the largest preview-tested batch that remains comfortably below production limits under concurrent load.
 - Drop threshold: derive from at least 30 trustworthy historical crawls; favor preserving rows and attention-required over automatic mass inactivation.
-- Search architecture: choose the least complex governed option meeting ranking, authorization, content, facets, and incremental maintenance; retain a visible fallback during rollout.
+- Search architecture: choose the least complex governed option meeting ranking, authorization, dedicated PopSG PDF content, facets, and incremental maintenance; retain a visible fallback during rollout.
 - Alert transport: reuse an authenticated existing operational channel; if none exists, Admin visibility is mandatory and external alert integration becomes a separately tracked dependency.
 - Terminal preview acceptance: approve categories only after representative file inspection proves retries or alternate renderers cannot help.
 
 ## Mandatory self-audit
 
-1. **Could a brand-new AI session execute this plan without asking a question? Yes.** Sections 1–4 define the business outcome, system, trigger, and boundary; sections 5–8 preserve code state, evidence, rejected paths, and locked/open decisions; §9 gives ordered file/function-level steps with dependencies and gates; §§10–13 define tests, rules, access, completion, rollback, and decision criteria.
-2. **Does the plan carry all current background, nuance, and rejected reasoning? Yes.** The dated live counts and log root cause are in §§3 and 6; existing code contracts and line references are in §5; failed/dead-end approaches are explicit in §7; eligibility, reversible inactivation, same-window comparison, false-success prevention, preview exceptions, PDF scope, and archive prohibition are preserved throughout.
+1. **Could a brand-new AI session execute this plan without asking a question? Yes.** Sections 1–4 define the business outcome, system, trigger, and boundary; sections 5–8 preserve code state, evidence, rejected paths, and locked/open decisions—including the dedicated PopSG PDF source, exact private-evidence location, and Edge/agent compatibility rule added after GLM 5.3 review; §9 gives ordered file/function-level steps with dependencies and gates; §§10–13 define tests, rules, access, completion, rollback, and decision criteria.
+2. **Does the plan carry all current background, nuance, and rejected reasoning? Yes.** The dated live counts and log root cause are in §§3 and 6; existing code contracts and line references are in §5; failed/dead-end approaches are explicit in §7; eligibility, reversible inactivation, same-window comparison, false-success prevention, preview exceptions, separate PopDAM/PopSG PDF scopes, private evidence, backward compatibility, least privilege, and archive prohibition are preserved throughout.
 3. **Is the ultimate goal sufficient for correct judgment if a step is wrong? Yes.** §1 defines trustworthy eligible-file fidelity, honest state, preview exception semantics, and content search, and explicitly says the goal wins over conflicting steps. §8 distinguishes locked decisions from implementation judgment calls, and §13 gives decision criteria and rollback.
 
 ### Checklist result
 
-All 13 sections are present; the plan is standalone; every implementation step names concrete targets and a verification gate; rejected approaches, locked/open decisions, out-of-scope work, named tests, environment/access, secret-safe references, landing/deployment proof, STATUS tracking, and reciprocal plan/handoff links are included. **Self-audit: PASS (2026-09-03).**
+All 13 sections are present; the plan is standalone; every implementation step names concrete targets and a verification gate; rejected approaches, locked/open decisions, out-of-scope work, named tests, environment/access, secret-safe references, landing/deployment proof, STATUS tracking, and reciprocal plan/handoff links are included. GLM 5.3’s three required changes and six non-blocking improvements were integrated: dedicated PopSG PDF text, precise private evidence, backward compatibility/deploy order, aggregate-refresh options, explained-difference ledger, phased filters, portable skill behavior, least-privilege grants, and refreshed line-reference caution. **Self-audit: PASS (2026-09-03, post-GLM integration).**
