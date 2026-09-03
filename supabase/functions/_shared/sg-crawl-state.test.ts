@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard } from "./sg-crawl-state";
+import { canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard } from "./sg-crawl-state.ts";
 
 const config = { absoluteDrop: 1_000, percentageDrop: 0.01, minimumPriorCount: 10_000 };
 
