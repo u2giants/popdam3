@@ -1,0 +1,7 @@
+{
+  "extensions": ["ai", "psd", "eps", "pdf", "tif", "tiff", "jpg", "jpeg", "png"],
+  "skipNames": [".ds_store", "thumbs.db", "desktop.ini", ".localized", "seafile-ignore.txt"],
+  "skipPrefixes": [".", "@", "#", "$"],
+  "skipDirectoryNames": ["__macosx"],
+  "skipExtensions": ["lnk", "url", "webloc"]
+}

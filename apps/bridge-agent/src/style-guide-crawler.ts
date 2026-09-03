@@ -15,6 +15,7 @@ import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { safeFilesystemModifiedAt } from "./file-date-validation.js";
 import { isIngestableFile } from "./sg-ingest-filter.js";
+import eligibilityContract from "./sg-eligibility-contract.json";
 
 // ── Normalization ────────────────────────────────────────────────
 
@@ -37,28 +38,17 @@ export function normalizeName(input: string): string {
 
 // ── Skip logic (mirrors path-filters but simpler) ────────────────
 
-const SKIP_NAMES = new Set([
-  ".ds_store", "thumbs.db", "desktop.ini", ".localized",
-  // PERMANENT: `seafile-ignore.txt` is a canary file owned by ANOTHER application.
-  // It must never be crawled, recorded, processed, rendered, opened, or modified
-  // by PopDAM/PopSG. Do not remove this entry. Because style_guide_files.licensor_name
-  // is a generated column (split_part(relative_path,'/',1)), a root-level file like
-  // this one also pollutes the licensor list with its own filename.
-  "seafile-ignore.txt",
-]);
-
-const SKIP_PREFIXES = [".", "@", "#", "$"];
-
-const SKIP_EXTENSIONS = new Set([
-  "lnk", "url", "webloc", // Windows/macOS shortcut files
-]);
+const SKIP_NAMES = new Set(eligibilityContract.skipNames);
+const SKIP_PREFIXES = eligibilityContract.skipPrefixes;
+const SKIP_EXTENSIONS = new Set(eligibilityContract.skipExtensions);
+const SKIP_DIRECTORY_NAMES = new Set(eligibilityContract.skipDirectoryNames);
 
 function shouldSkipEntry(name: string): boolean {
   if (!name) return true;
   const lower = name.toLowerCase();
   if (SKIP_NAMES.has(lower)) return true;
   if (SKIP_PREFIXES.includes(name[0])) return true;
-  if (lower === "__macosx") return true;
+  if (SKIP_DIRECTORY_NAMES.has(lower)) return true;
   const dot = lower.lastIndexOf(".");
   if (dot !== -1 && SKIP_EXTENSIONS.has(lower.slice(dot + 1))) return true;
   return false;

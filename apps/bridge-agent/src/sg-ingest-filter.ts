@@ -13,10 +13,9 @@
  *
  * Kept dependency-free so it can be unit tested without agent config/env.
  */
-export const INGESTABLE_EXTENSIONS = new Set([
-  "ai", "psd", "eps", "pdf",
-  "tif", "tiff", "jpg", "jpeg", "png",
-]);
+import eligibilityContract from "./sg-eligibility-contract.json";
+
+export const INGESTABLE_EXTENSIONS = new Set(eligibilityContract.extensions);
 
 /** True when a FILE (never a directory) is allowed into the library. */
 export function isIngestableFile(name: string): boolean {
