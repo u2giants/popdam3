@@ -9,7 +9,7 @@ Handoff: [HANDOFF.d/2026-09-03T1600Z-hetz-codex-popsg-production-readiness.md](H
 |---|---|---|
 | 1. Freeze the acceptance contract and baseline | ✅ complete | `verification/popsg-readiness/baseline-2026-09-03T164944Z.json`; reusable exact-contract collector; edge2 job exit 0 with zero inaccessible paths; private path evidence remains git-ignored |
 | 2. Route and ship the shared-database contract | 🟨 in progress | Routed as `u2giants/shared-db#2212` to active orchestrator marker #2193; migration/preview/merge/production proof pending |
-| 3. Make crawl completion truthful and restart-safe | ⬜ open | Agent/API tests and a forced-cleanup-failure integration result |
+| 3. Make crawl completion truthful and restart-safe | 🟨 in progress | Pure lifecycle/drop-guard helpers and 5 tests landed; dependent RPC orchestration and forced-failure integration pending shared-db #2212 |
 | 4. Reconcile the current ghost rows safely | ⬜ open | Before/after candidate export and live NAS/database parity report |
 | 5. Add crawl regression protection and operator visibility | ⬜ open | Admin screenshots and alert/failure tests |
 | 6. Finish and classify preview coverage | ⬜ open | Render-error classification artifact and verified preview statistics |
