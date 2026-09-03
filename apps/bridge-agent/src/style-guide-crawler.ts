@@ -15,7 +15,7 @@ import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { safeFilesystemModifiedAt } from "./file-date-validation.js";
 import { isIngestableFile } from "./sg-ingest-filter.js";
-import eligibilityContract from "./sg-eligibility-contract.json";
+import { eligibilityContract } from "./sg-ingest-filter.js";
 import { boundedRetryDelay, completionDisposition, type StyleGuideCrawlCompletion } from "./sg-crawl-continuation.js";
 
 // ── Normalization ────────────────────────────────────────────────

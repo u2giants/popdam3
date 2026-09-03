@@ -13,7 +13,16 @@
  *
  * Kept dependency-free so it can be unit tested without agent config/env.
  */
-import eligibilityContract from "./sg-eligibility-contract.json";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+export const eligibilityContract = require("./sg-eligibility-contract.json") as {
+  extensions: string[];
+  skipNames: string[];
+  skipPrefixes: string[];
+  skipDirectoryNames: string[];
+  skipExtensions: string[];
+};
 
 export const INGESTABLE_EXTENSIONS = new Set(eligibilityContract.extensions);
 
