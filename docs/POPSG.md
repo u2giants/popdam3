@@ -1,5 +1,7 @@
 # PopSG — Licensor Style Guide Library
 
+> Active implementation plan: [`plan_popsg_production_readiness.md`](../plan_popsg_production_readiness.md). Read its STATUS table before work on crawl fidelity, previews, PDF/source coverage, or search/filter production readiness.
+
 ## What is PopSG?
 
 PopSG is the licensor-facing side of the Designflow platform. Where PopDAM is a licensed-product DAM (SKUs, ERP, render pipeline), PopSG is a read-only style guide library: licensors browse PDF/AI style guides organised by licensor → property → folder.

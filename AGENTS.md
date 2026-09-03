@@ -76,6 +76,10 @@ Active Style-Group-scoped AI metadata plan:
 
 - `plan_style_group_scoped_ai_metadata.md` — separate shared product/SKU facts from file-specific visual facts, combine both scopes in search without copying rows, and replace primary-asset tag propagation with safe group metadata refresh. Read its STATUS table first; do not re-derive or re-plan completed steps.
 
+Active PopSG production-readiness plan:
+
+- `plan_popsg_production_readiness.md` — make PopSG a truthful, current, preview-accounted, comprehensively searchable/filterable library of the eligible creative files on the Style Guides NAS share. Read its STATUS table first; do not re-derive or re-plan completed steps.
+
 Then load additional docs only when relevant — do **not** ingest every `.md` file:
 
 | Task / question | Read these docs | Usually do not need |
