@@ -1135,6 +1135,28 @@ export default function StylesPage() {
   const savedViews = savedViewsQuery.data ?? [];
   const activeView = savedViews.find((view) => view.id === activeViewId) ?? null;
   const rows = rowsQuery.data ?? [];
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`style-tracker-rows:${active.name}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "style_tracker_rows", filter: `source_sheet=eq.${active.name}` },
+        (payload) => {
+          void queryClient.invalidateQueries({ queryKey: ["style-rows", active.name] });
+          void queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
+          if (payload.eventType !== "UPDATE") {
+            void queryClient.invalidateQueries({ queryKey: ["style-row-count", active.name] });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [active.name, queryClient]);
+
   const customerOptionById = useMemo(() => new Map((customerOptionsQuery.data ?? []).map((option) => [option.id, option.name])), [customerOptionsQuery.data]);
   const designerOptionKeys = useMemo(() => new Set((designerOptionsQuery.data ?? []).map((name) => normalized(name))), [designerOptionsQuery.data]);
   const packagingTypeOptionKeys = useMemo(() => new Set((packagingTypeOptionsQuery.data ?? []).map((name) => normalized(name))), [packagingTypeOptionsQuery.data]);
