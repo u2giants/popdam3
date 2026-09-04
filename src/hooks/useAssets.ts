@@ -154,27 +154,28 @@ async function fetchAssetFullTextIds(search: string) {
  * `public.filter_effective_assets`, which resolves both scopes server-side.
  */
 /**
- * ⛔ OFF. The contract regressed again and now fails on every call.
+ * ⛔ OFF. Rows are fixed; counting a tag filter still is not.
  *
- * Re-measured against production as a real `authenticated` user on 2026-09-02:
+ * Re-measured against production as a real `authenticated` user on 2026-09-03,
+ * after shared-db 20260903075635 reached production. 3 consecutive calls each:
  *
- *   filter_effective_assets, 5 rows, no filter, no count -> 500 57014 @ 8.1s
- *   filter_effective_assets, 200 rows, no count          -> 500 57014 @ 8.1s
- *   get_filter_counts {tagFilter}                        -> 0 of 8 calls passed
- *   get_filter_counts {licensorId}                       -> 8 of 8 passed @ ~0.2s ✅
+ *   rows, 5 and 200, no filter, no count -> 3/3 pass @ 0.19-0.40s  ✅
+ *   rows, 200, licensorId                -> 3/3 pass @ 0.12-0.32s  ✅
+ *   rows, 200, tagFilter                 -> pass @ 1.3-2.1s        ✅
+ *   get_filter_counts {} and {licensorId}-> 3/3 pass @ 0.12-1.22s  ✅
+ *   get_filter_counts {tagFilter}        -> 0/12 across four tags, ~8.1s
+ *   filter_effective_assets count=exact  -> 0/3, ~8.1s
  *
- * The identity count was fixed by shared-db#2054, but `filter_effective_assets`
- * now times out even for five rows with nothing filtered — worse than before
- * #1945. Traced to the `with authorized as materialized (...)` entitlement CTE
- * added in shared-db 20260901130428 / 20260901142825: a MATERIALIZED CTE is an
- * optimization barrier, so the function can no longer be inlined.
+ * So the tag predicate itself is fine and indexed — the ROW path filters by tag
+ * in 1.3s — but counting that same set times out. Tracked as
+ * u2giants/shared-db#2138.
  *
- * Tracked as u2giants/shared-db#2138. Before flipping this to `true`, measure
- * ALL THREE over several consecutive calls, not one — a single warm call has
- * passed at every stage of this while the real shapes failed:
- *   1. rows returned inside the ceiling,
- *   2. the tag facet count passing as reliably as the identity count,
- *   3. a list total obtainable (count=exact, or get_filter_counts.total).
+ * Turning this on needs a list total. Either `count=exact` starts completing,
+ * or this hook takes the total from `get_filter_counts.total` instead — but that
+ * only works once the counts call is reliable for EVERY effective filter, tags
+ * included. Measure several consecutive calls per filter type before flipping:
+ * a single warm call has passed at every stage of this while the real shapes
+ * failed.
  */
 const EFFECTIVE_SCOPE_CONTRACT_READY = false;
 
