@@ -1141,8 +1141,12 @@ export default function StylesPage() {
       .channel(`style-tracker-rows:${active.name}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "style_tracker_rows", filter: `source_sheet=eq.${active.name}` },
+        { event: "*", schema: "public", table: "style_tracker_rows" },
         (payload) => {
+          const changedSourceSheet = (payload.new as { source_sheet?: unknown } | null)?.source_sheet
+            ?? (payload.old as { source_sheet?: unknown } | null)?.source_sheet;
+          if (typeof changedSourceSheet === "string" && changedSourceSheet !== active.name) return;
+
           void queryClient.invalidateQueries({ queryKey: ["style-rows", active.name] });
           void queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
           if (payload.eventType !== "UPDATE") {

@@ -7,7 +7,8 @@ describe("Master Data realtime refresh", () => {
     const source = await readFile(path.resolve(__dirname, "../pages/StylesPage.tsx"), "utf8");
 
     expect(source).toContain('channel(`style-tracker-rows:${active.name}`)');
-    expect(source).toContain('{ event: "*", schema: "public", table: "style_tracker_rows", filter: `source_sheet=eq.${active.name}` }');
+    expect(source).toContain('{ event: "*", schema: "public", table: "style_tracker_rows" }');
+    expect(source).toContain('changedSourceSheet !== active.name');
     expect(source).toContain('queryKey: ["style-rows", active.name]');
     expect(source).toContain('queryKey: ["style-row-count", active.name]');
     expect(source).toContain("supabase.removeChannel(channel)");
