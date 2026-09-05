@@ -2929,26 +2929,133 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         updated_at: new Date().toISOString(),
       });
     } else {
-      await db.from("style_guide_crawl_runs").update({
+      // ── Reconcile BEFORE completion ───────────────────────────────
+      // shared-db migration 20260905104802 adds CHECK constraint
+      // `style_guide_crawl_runs_completion_requires_reconcile`: a run may not be
+      // written as status='completed' until BOTH reconcile_completed_at and
+      // refresh_completed_at are set. So the order here is mandatory:
+      //   1. run reconcile_stale_sg_files_batch to exhaustion (it is bounded and
+      //      resumable, so it must be called in a loop until done),
+      //   2. refresh the matviews WITH the run id (that is what stamps
+      //      refresh_completed_at),
+      //   3. only then mark the run completed.
+      // Both RPCs are service-role only; `db` is serviceClient(), so the caller
+      // key is correct.
+      let reconcileOk = accessibleRoots.length > 0;
+      let reconcileFailure: string | undefined = accessibleRoots.length > 0
+        ? undefined
+        : "No accessible roots to reconcile; refusing to report completion";
+
+      const MAX_RECONCILE_BATCHES = 500;
+
+      for (const root of accessibleRoots) {
+        const rootLabel = root.split("/").filter(Boolean).pop() || root;
+        let batches = 0;
+        for (;;) {
+          const { data, error: reconcileErr } = await db.rpc("reconcile_stale_sg_files_batch", {
+            p_root_label: rootLabel,
+            p_run_id: runId,
+            p_batch_size: 5000,
+            p_min_ratio: 0.5,
+          });
+          if (reconcileErr) {
+            reconcileOk = false;
+            reconcileFailure = `Reconcile failed for root "${rootLabel}": ${reconcileErr.message}`;
+            console.error("[complete-style-guide-crawl]", reconcileFailure);
+            break;
+          }
+          const batch = (Array.isArray(data) ? data[0] : data) as {
+            deactivated: number;
+            remaining: number;
+            done: boolean;
+            guard_state: string | null;
+            guard_reason: string | null;
+          } | null;
+          if (!batch) {
+            reconcileOk = false;
+            reconcileFailure = `Reconcile returned no result for root "${rootLabel}"`;
+            console.error("[complete-style-guide-crawl]", reconcileFailure);
+            break;
+          }
+          console.log(
+            `[complete-style-guide-crawl] Reconcile root "${rootLabel}": deactivated=${batch.deactivated} remaining=${batch.remaining} done=${batch.done}`,
+          );
+          if (batch.guard_state && batch.guard_state !== "ok") {
+            // The guard refused to inactivate anything and parked the run as
+            // attention_required. Do NOT mark it completed.
+            reconcileOk = false;
+            reconcileFailure =
+              `Reconcile guard "${batch.guard_state}" fired for root "${rootLabel}": ${batch.guard_reason ?? "no reason given"}`;
+            console.error("[complete-style-guide-crawl]", reconcileFailure);
+            break;
+          }
+          if (batch.done) break;
+          if (++batches >= MAX_RECONCILE_BATCHES) {
+            reconcileOk = false;
+            reconcileFailure =
+              `Reconcile did not finish for root "${rootLabel}" after ${MAX_RECONCILE_BATCHES} batches`;
+            console.error("[complete-style-guide-crawl]", reconcileFailure);
+            break;
+          }
+        }
+        if (!reconcileOk) break;
+      }
+
+      // Refresh the PopSG aggregation matviews now that is_active is finalized
+      // for this crawl — they back the guides grid + folder tree so the Library
+      // stops re-aggregating all active rows per request. Passing the run id is
+      // required: that is what stamps refresh_completed_at, without which the
+      // completion CHECK constraint rejects the update below.
+      if (reconcileOk) {
+        const { error: refreshErr } = await db.rpc("refresh_style_guide_matviews", {
+          p_run_id: runId,
+          p_search_batch_size: 5000,
+        });
+        if (refreshErr) {
+          reconcileOk = false;
+          reconcileFailure = `Matview refresh failed: ${refreshErr.message}`;
+          console.error("[complete-style-guide-crawl]", reconcileFailure);
+        }
+      }
+
+      if (!reconcileOk) {
+        // Completion was not earned. Record the run as failed with the reason
+        // rather than attempting a write the database would reject anyway.
+        await db.from("style_guide_crawl_runs").update({
+          status: "failed",
+          error_message: reconcileFailure,
+          completed_at: new Date().toISOString(),
+          files_found: finalFileCount,
+          ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
+        }).eq("id", runId);
+
+        await db.from("admin_config").upsert({
+          key: "STYLE_GUIDE_CRAWL_REQUEST",
+          value: {
+            status: "failed",
+            error: reconcileFailure,
+            completed_at: new Date().toISOString(),
+            files_found: finalFileCount,
+            inaccessible_roots: inaccessibleRoots,
+          },
+          updated_at: new Date().toISOString(),
+        });
+
+        console.log(
+          `[complete-style-guide-crawl] Run ${runId} done=${done}, files=${finalFileCount}, error=${reconcileFailure}`,
+        );
+        return json({ ok: true });
+      }
+
+      const { error: completeErr } = await db.from("style_guide_crawl_runs").update({
         status: "completed",
         completed_at: new Date().toISOString(),
         files_found: finalFileCount,
         ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
       }).eq("id", runId);
-
-      // Mark stale files via DB function (RPC is reliable; PostgREST PATCH with .neq()
-      // on UUID columns fails silently and leaves ghost rows active).
-      if (accessibleRoots.length > 0) {
-        for (const root of accessibleRoots) {
-          const rootLabel = root.split("/").filter(Boolean).pop() || root;
-          const { data: deactivated, error: deactivateErr } = await db
-            .rpc("deactivate_stale_sg_files", { p_root_label: rootLabel, p_run_id: runId });
-          if (deactivateErr) {
-            console.error("[complete-style-guide-crawl] Staleness cleanup failed:", deactivateErr.message);
-          } else {
-            console.log(`[complete-style-guide-crawl] Deactivated ${deactivated} stale files for root "${rootLabel}"`);
-          }
-        }
+      if (completeErr) {
+        console.error("[complete-style-guide-crawl] Completion update failed:", completeErr.message);
+        return err(`Crawl completion failed: ${completeErr.message}`, 500);
       }
 
       await db.from("admin_config").upsert({
@@ -2961,16 +3068,6 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         },
         updated_at: new Date().toISOString(),
       });
-
-      // Refresh the PopSG aggregation matviews now that is_active is finalized
-      // for this crawl — they back the guides grid + folder tree so the Library
-      // stops re-aggregating all active rows per request. Best-effort: a briefly
-      // stale matview is preferable to failing crawl completion.
-      // See migration popsg_aggregation_matviews.
-      const { error: refreshErr } = await db.rpc("refresh_style_guide_matviews");
-      if (refreshErr) {
-        console.error("[complete-style-guide-crawl] Matview refresh failed:", refreshErr.message);
-      }
     }
     console.log(
       `[complete-style-guide-crawl] Run ${runId} done=${done}, files=${finalFileCount}, error=${effectiveCrawlError || "none"}`,
