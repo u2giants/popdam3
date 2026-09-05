@@ -2942,9 +2942,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       // Both RPCs are service-role only; `db` is serviceClient(), so the caller
       // key is correct.
       let reconcileOk = accessibleRoots.length > 0;
-      let reconcileFailure: string | undefined = accessibleRoots.length > 0
-        ? undefined
-        : "No accessible roots to reconcile; refusing to report completion";
+      let reconcileFailure: string | undefined = accessibleRoots.length > 0 ? undefined : "No accessible roots to reconcile; refusing to report completion";
 
       const MAX_RECONCILE_BATCHES = 500;
 
@@ -2984,16 +2982,14 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
             // The guard refused to inactivate anything and parked the run as
             // attention_required. Do NOT mark it completed.
             reconcileOk = false;
-            reconcileFailure =
-              `Reconcile guard "${batch.guard_state}" fired for root "${rootLabel}": ${batch.guard_reason ?? "no reason given"}`;
+            reconcileFailure = `Reconcile guard "${batch.guard_state}" fired for root "${rootLabel}": ${batch.guard_reason ?? "no reason given"}`;
             console.error("[complete-style-guide-crawl]", reconcileFailure);
             break;
           }
           if (batch.done) break;
           if (++batches >= MAX_RECONCILE_BATCHES) {
             reconcileOk = false;
-            reconcileFailure =
-              `Reconcile did not finish for root "${rootLabel}" after ${MAX_RECONCILE_BATCHES} batches`;
+            reconcileFailure = `Reconcile did not finish for root "${rootLabel}" after ${MAX_RECONCILE_BATCHES} batches`;
             console.error("[complete-style-guide-crawl]", reconcileFailure);
             break;
           }
