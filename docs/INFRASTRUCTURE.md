@@ -182,7 +182,7 @@ There are 11 Edge Functions. All are deployed to Supabase Edge Runtime (Deno).
 - `ai-tagging-handlers.ts` — count-untagged-assets (bulk tagging ops moved to Railway worker)
 - `tag-propagation-handlers.ts` — bulk-propagate-group-tags, count-groups-for-propagation
 - `erp-handlers.ts` — apply-erp-enrichment, classify-erp-categories
-- `erp-browse-handlers.ts` — trigger-erp-sync, erp-sync-runs, erp-review-queue, erp-review-action, erp-items-browse
+- `erp-browse-handlers.ts` — erp-enrichment-stats, erp-review-queue, erp-review-action, erp-items-browse
 - `metadata-handlers.ts` — reprocess-asset-metadata, backfill-sku-names
 - `purge-handlers.ts` — purge-old-assets
 - `install-bundle-handler.ts` — generate-install-bundle
@@ -235,25 +235,17 @@ The stub is kept deployed so any stale references to this function URL return a 
 
 ---
 
-### 5. `erp-sync`
+### 5. `erp-sync` — REMOVED 2026-09-06
 
-**Purpose:** Fetches item data from the DesignFlow ERP API and stages it in the local database.
+The DesignFlow ERP item feed was retired by owner ruling: ColdLion (`plm.item`) is the
+canonical item master. The function fetched `https://api.designflow.app/api/item_master/lib/getApiAllItems`
+and upserted `erp_items_raw` / `erp_items_current`; its last successful run was 2026-05-21
+and the 2026-07-26 attempt failed with a 403. The function, its admin-api actions
+(`trigger-erp-sync`, `erp-sync-runs`) and its settings UI have been deleted.
 
-**Auth:** Service role key (triggered by `trigger-erp-sync` admin-api action).
-
-**ERP source:** `https://api.item.designflow.app/lib/getApiAllItems`
-
-**Process:**
-1. Create an `erp_sync_runs` row with status `running`.
-2. Fetch all items from the ERP API (or incremental from watermark date in `admin_config.ERP_LAST_SYNC_DATE`).
-3. Validate each item with Zod schema.
-4. Insert raw payloads into `erp_items_raw` (immutable audit log, one row per item per sync).
-5. Upsert normalized data into `erp_items_current` (one row per `external_id`).
-6. Extract MG01–MG06 codes, size code, licensor code, property code, division code.
-7. Items before `ERP_CATEGORY_CUTOFF_DATE` have `mg_category` set to NULL (legacy items need AI classification).
-8. Items before `INGESTION_MIN_DATE` ("2020-01-01") are filtered out.
-9. Update watermark `ERP_LAST_SYNC_DATE` on success.
-10. Update `erp_sync_runs` row with final counts and status.
+`erp_items_current` and `erp_items_raw` still exist as frozen tables in the shared
+database and are still read by the enrichment pipelines. Dropping them is a shared-db
+decision, tracked there.
 
 ---
 

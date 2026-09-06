@@ -1,5 +1,8 @@
 # PopDAM — Developer Onboarding Guide
 
+> **Retired 2026-09-06.** The `erp-sync` Edge Function and its DesignFlow feed have been removed; ColdLion `plm.item` is the canonical item master. `erp_items_current` is frozen at the 2026-05-21 sync. The sections below describe historical behaviour.
+
+
 > **Start here.** This document gives you everything you need to understand PopDAM's business, architecture, codebase, and development workflow. After reading this, you should be able to open a PR on day one.
 
 ---

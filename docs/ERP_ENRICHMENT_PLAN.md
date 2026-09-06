@@ -1,5 +1,8 @@
 # ERP Integration — Current State
 
+> **Retired 2026-09-06.** The `erp-sync` Edge Function and its DesignFlow feed have been removed; ColdLion `plm.item` is the canonical item master. `erp_items_current` is frozen at the 2026-05-21 sync. The sections below describe historical behaviour.
+
+
 > This document replaced the original implementation plan (now fully built). It describes how the ERP pipeline actually works as of May 2025.
 
 ---

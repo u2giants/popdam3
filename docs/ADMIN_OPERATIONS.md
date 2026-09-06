@@ -302,17 +302,12 @@ Returns the total number of style groups (used to calculate propagation progress
 
 ## ERP Operations
 
-### `trigger-erp-sync`
-Invokes the `erp-sync` Edge Function to fetch fresh data from the DesignFlow ERP API.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `full_sync` | `boolean` | If true, ignores watermark and fetches all items |
-| `startDate` | `string` | ISO date string (optional override) |
-| `endDate` | `string` | ISO date string (optional override) |
-
-### `erp-sync-runs`
-Returns the 10 most recent ERP sync run records. No body parameters.
+> **Retired 2026-09-06.** The DesignFlow ERP feed is no longer the item master.
+> ColdLion (`plm.item`) is canonical per `docs/core-master-data-consolidation-aim.md` §4
+> in `u2giants/shared-db`. The `trigger-erp-sync` / `erp-sync-runs` actions and the
+> `erp-sync` Edge Function have been removed. `erp_items_current` is now frozen data
+> (last successful sync 2026-05-21) and is still read by the enrichment/classification
+> pipelines below until they are repointed.
 
 ### `erp-enrichment-stats`
 Returns counts and statistics for ERP enrichment: total ERP items, matched assets, enriched counts, category distribution. No body parameters.

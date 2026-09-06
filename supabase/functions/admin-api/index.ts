@@ -64,8 +64,6 @@ import {
   handleErpItemsDismiss,
   handleErpReviewAction,
   handleErpReviewQueue,
-  handleErpSyncRuns,
-  handleTriggerErpSync,
 } from "../_shared/admin-handlers/erp-browse-handlers.ts";
 
 import { handleProdOrderStats, handleProdOrderSyncRuns, handleTriggerProdOrderSync } from "../_shared/admin-handlers/prod-order-handlers.ts";
@@ -1821,10 +1819,6 @@ corsServe(async (req: Request) => {
         return await handlePurgeExcludedSubfolderAssets();
 
       // ── ERP (from erp-handlers.ts + erp-browse-handlers.ts) ──
-      case "trigger-erp-sync":
-        return await handleTriggerErpSync(body);
-      case "erp-sync-runs":
-        return await handleErpSyncRuns();
       case "erp-enrichment-stats":
         return await handleErpEnrichmentStats();
       case "erp-review-queue":
