@@ -41,7 +41,12 @@ type RebuildState = {
   finalize_cursor?: number;
 };
 
-export function formatError(e: unknown): string {
+export function formatError(e: unknown, http?: { status?: number | null; statusText?: string | null }): string {
+  const httpParts = [
+    http?.status ? `http_status=${String(http.status)}` : null,
+    http?.statusText ? `http_status_text=${String(http.statusText)}` : null,
+  ].filter(Boolean) as string[];
+
   if (e && typeof e === "object") {
     const err = e as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
     const parts = [
@@ -49,12 +54,48 @@ export function formatError(e: unknown): string {
       err.code ? `code=${String(err.code)}` : null,
       err.details ? `details=${String(err.details)}` : null,
       err.hint ? `hint=${String(err.hint)}` : null,
-    ].filter(Boolean);
-    if (parts.length > 0) return parts.join(" | ");
-    return "Database error supplied no message";
+    ].filter(Boolean) as string[];
+    if (parts.length > 0) return [...parts, ...httpParts].join(" | ");
+    // PostgREST returns no body on a HEAD request, so every field can be blank.
+    // The HTTP status is then the only thing that says what went wrong.
+    return [
+      "Database error supplied no message",
+      ...httpParts,
+    ].join(" | ");
   }
   const fallback = String(e ?? "").trim();
-  return fallback || "Database error supplied no message";
+  if (fallback) return [fallback, ...httpParts].join(" | ");
+  return ["Database error supplied no message", ...httpParts].join(" | ");
+}
+
+/**
+ * Row count for progress reporting only.
+ *
+ * Uses PostgREST's "planned" count (the planner's row estimate) rather than an
+ * exact count: exact counting `assets where is_deleted = false` scans ~135k
+ * index entries with ~69k heap fetches, which measured 1.1 s warm and 14.9 s
+ * cold against the 8 s statement_timeout inherited from `authenticator`. On
+ * 2026-09-06 that killed the whole nightly rebuild before it processed a single
+ * asset.
+ *
+ * `head` is deliberately false: a HEAD response carries no body, so a PostgREST
+ * error arrives with every field blank and the failure cannot describe itself.
+ */
+async function countRowsForProgress(
+  table: "assets" | "style_groups",
+  applyFilters: boolean,
+): Promise<{ count: number | null; error: string | null }> {
+  const client = db();
+  let q = client.from(table).select("id", { count: "planned", head: false }).limit(0);
+  if (applyFilters) q = q.eq("is_deleted", false);
+  const res = await q;
+  if (res.error) {
+    return {
+      count: null,
+      error: formatError(res.error, { status: res.status, statusText: res.statusText }),
+    };
+  }
+  return { count: res.count ?? null, error: null };
 }
 
 function isStatementTimeout(msg: string): boolean {
@@ -155,23 +196,15 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
   state = normalizeState(state);
 
-  // Count total assets once
+  // Count total assets once. Progress reporting only - never fatal.
   if (typeof state.total_assets !== "number") {
-    const { count, error: countErr } = await client
-      .from("assets")
-      .select("id", { count: "exact", head: true })
-      .eq("is_deleted", false);
+    const { count, error: countErr } = await countRowsForProgress("assets", true);
     if (countErr) {
-      return {
-        ok: false,
-        done: false,
-        error: formatBatchError({
-          rpc: "assets_exact_count",
-          stage: "clear_assets",
-          rawError: formatError(countErr),
-        }),
-        error_stage: "clear_assets",
-      };
+      logger.warn("rebuild-style-groups: asset count unavailable, continuing without a progress total", {
+        query: "assets_planned_count",
+        stage: "clear_assets",
+        error: countErr,
+      });
     }
     state.total_assets = count ?? 0;
     await saveState(state);
@@ -253,7 +286,14 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
     let totalGroupsBeforeDelete: number | undefined;
     if (!hasMore) {
-      const { count } = await client.from("style_groups").select("id", { count: "exact", head: true });
+      const { count, error: sgCountErr } = await countRowsForProgress("style_groups", false);
+      if (sgCountErr) {
+        logger.warn("rebuild-style-groups: style group count unavailable", {
+          query: "style_groups_planned_count",
+          stage: "clear_assets",
+          error: sgCountErr,
+        });
+      }
       totalGroupsBeforeDelete = count ?? undefined;
     }
 
