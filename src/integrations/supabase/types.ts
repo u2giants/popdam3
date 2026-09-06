@@ -2815,38 +2815,92 @@ export type Database = {
       }
       style_guide_crawl_runs: {
         Row: {
+          accepted_for_reconcile: boolean
+          active_before_reconcile: number | null
           agent_id: string | null
+          attention_reason: string | null
           completed_at: string | null
           created_at: string
           error_message: string | null
+          files_deactivated: number
           files_found: number | null
+          files_reactivated: number
+          files_upserted: number
+          guard_reason: string | null
+          guard_state: string | null
           id: string
           inaccessible_roots: string[] | null
+          ingest_completed_at: string | null
+          lifecycle_state: string
+          reconcile_batches: number
+          reconcile_completed_at: string | null
+          reconcile_started_at: string | null
+          refresh_completed_at: string | null
+          refresh_started_at: string | null
           roots_scanned: string[] | null
+          search_documents_synced: number
+          stale_candidates_at_start: number | null
+          stale_remaining: number | null
           started_at: string | null
           status: string
         }
         Insert: {
+          accepted_for_reconcile?: boolean
+          active_before_reconcile?: number | null
           agent_id?: string | null
+          attention_reason?: string | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
+          files_deactivated?: number
           files_found?: number | null
+          files_reactivated?: number
+          files_upserted?: number
+          guard_reason?: string | null
+          guard_state?: string | null
           id?: string
           inaccessible_roots?: string[] | null
+          ingest_completed_at?: string | null
+          lifecycle_state?: string
+          reconcile_batches?: number
+          reconcile_completed_at?: string | null
+          reconcile_started_at?: string | null
+          refresh_completed_at?: string | null
+          refresh_started_at?: string | null
           roots_scanned?: string[] | null
+          search_documents_synced?: number
+          stale_candidates_at_start?: number | null
+          stale_remaining?: number | null
           started_at?: string | null
           status?: string
         }
         Update: {
+          accepted_for_reconcile?: boolean
+          active_before_reconcile?: number | null
           agent_id?: string | null
+          attention_reason?: string | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
+          files_deactivated?: number
           files_found?: number | null
+          files_reactivated?: number
+          files_upserted?: number
+          guard_reason?: string | null
+          guard_state?: string | null
           id?: string
           inaccessible_roots?: string[] | null
+          ingest_completed_at?: string | null
+          lifecycle_state?: string
+          reconcile_batches?: number
+          reconcile_completed_at?: string | null
+          reconcile_started_at?: string | null
+          refresh_completed_at?: string | null
+          refresh_started_at?: string | null
           roots_scanned?: string[] | null
+          search_documents_synced?: number
+          stale_candidates_at_start?: number | null
+          stale_remaining?: number | null
           started_at?: string | null
           status?: string
         }
@@ -3021,6 +3075,65 @@ export type Database = {
           },
         ]
       }
+      style_guide_pdf_text: {
+        Row: {
+          attempts: number
+          claim_expires_at: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          content_identity: string
+          created_at: string
+          error_message: string | null
+          extracted_at: string | null
+          extracted_text: string | null
+          page_count: number | null
+          status: string
+          style_guide_file_id: string
+          text_length: number | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claim_expires_at?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          content_identity: string
+          created_at?: string
+          error_message?: string | null
+          extracted_at?: string | null
+          extracted_text?: string | null
+          page_count?: number | null
+          status?: string
+          style_guide_file_id: string
+          text_length?: number | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claim_expires_at?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          content_identity?: string
+          created_at?: string
+          error_message?: string | null
+          extracted_at?: string | null
+          extracted_text?: string | null
+          page_count?: number | null
+          status?: string
+          style_guide_file_id?: string
+          text_length?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_pdf_text_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: true
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_guide_render_queue: {
         Row: {
           attempts: number
@@ -3063,6 +3176,83 @@ export type Database = {
             foreignKeyName: "style_guide_render_queue_style_guide_file_id_fkey"
             columns: ["style_guide_file_id"]
             isOneToOne: false
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_guide_search_documents: {
+        Row: {
+          directory_path: string
+          document_updated_at: string
+          file_extension: string | null
+          filename: string
+          is_active: boolean
+          licensor_name: string | null
+          modified_at: string | null
+          pdf_text_length: number
+          pdf_text_status: string | null
+          property_folder: string | null
+          relative_path: string
+          root_label: string
+          search_vector: unknown
+          size_bytes: number | null
+          source_identity: string
+          style_guide_file_id: string
+          style_guide_folder: string | null
+          style_guide_name: string
+          tag_names: string[]
+          thumbnail_url: string | null
+        }
+        Insert: {
+          directory_path: string
+          document_updated_at?: string
+          file_extension?: string | null
+          filename: string
+          is_active?: boolean
+          licensor_name?: string | null
+          modified_at?: string | null
+          pdf_text_length?: number
+          pdf_text_status?: string | null
+          property_folder?: string | null
+          relative_path: string
+          root_label: string
+          search_vector: unknown
+          size_bytes?: number | null
+          source_identity: string
+          style_guide_file_id: string
+          style_guide_folder?: string | null
+          style_guide_name: string
+          tag_names?: string[]
+          thumbnail_url?: string | null
+        }
+        Update: {
+          directory_path?: string
+          document_updated_at?: string
+          file_extension?: string | null
+          filename?: string
+          is_active?: boolean
+          licensor_name?: string | null
+          modified_at?: string | null
+          pdf_text_length?: number
+          pdf_text_status?: string | null
+          property_folder?: string | null
+          relative_path?: string
+          root_label?: string
+          search_vector?: unknown
+          size_bytes?: number | null
+          source_identity?: string
+          style_guide_file_id?: string
+          style_guide_folder?: string | null
+          style_guide_name?: string
+          tag_names?: string[]
+          thumbnail_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_search_documents_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: true
             referencedRelation: "style_guide_files"
             referencedColumns: ["id"]
           },
@@ -3820,6 +4010,21 @@ export type Database = {
           style_guide_file_id: string
         }[]
       }
+      claim_style_guide_pdf_text: {
+        Args: {
+          p_batch_size?: number
+          p_claim_ttl?: string
+          p_max_attempts?: number
+          p_worker_id: string
+        }
+        Returns: {
+          attempts: number
+          content_identity: string
+          relative_path: string
+          root_label: string
+          style_guide_file_id: string
+        }[]
+      }
       claim_tiff_jobs: {
         Args: {
           p_agent_id: string
@@ -3860,6 +4065,16 @@ export type Database = {
           has_more: boolean
           last_id: string
         }[]
+      }
+      complete_style_guide_pdf_text: {
+        Args: {
+          p_content_identity: string
+          p_error?: string
+          p_page_count?: number
+          p_style_guide_file_id: string
+          p_text?: string
+        }
+        Returns: boolean
       }
       count_pdf_backfill_remaining: { Args: never; Returns: number }
       create_dam_order: {
@@ -4206,6 +4421,21 @@ export type Database = {
       normalize_for_sg_match: { Args: { p: string }; Returns: string }
       normalize_style_guide_tag: { Args: { p_value: string }; Returns: string }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
+      preview_stale_sg_files: {
+        Args: { p_min_ratio?: number; p_root_label: string; p_run_id: string }
+        Returns: {
+          active_total: number
+          guard_reason: string
+          guard_state: string
+          root_inaccessible: boolean
+          root_label: string
+          run_active_total: number
+          run_files_found: number
+          run_id: string
+          safe_to_reconcile: boolean
+          stale_candidates: number
+        }[]
+      }
       promote_coldlion_source_owned: {
         Args: { p_client_plan?: Json; p_expected: Json; p_is_drill?: boolean }
         Returns: {
@@ -4270,6 +4500,21 @@ export type Database = {
           done: boolean
           groups_created: number
           next_cursor: string
+        }[]
+      }
+      reconcile_stale_sg_files_batch: {
+        Args: {
+          p_batch_size?: number
+          p_min_ratio?: number
+          p_root_label: string
+          p_run_id: string
+        }
+        Returns: {
+          deactivated: number
+          done: boolean
+          guard_reason: string
+          guard_state: string
+          remaining: number
         }[]
       }
       reconcile_style_group_stats_batch: {
@@ -4358,7 +4603,13 @@ export type Database = {
           relationships_written: number
         }[]
       }
-      refresh_style_guide_matviews: { Args: never; Returns: undefined }
+      refresh_style_guide_matviews: {
+        Args: { p_run_id?: string; p_search_batch_size?: number }
+        Returns: {
+          refreshed_at: string
+          search_documents_synced: number
+        }[]
+      }
       refresh_style_tracker_item_bridge: {
         Args: never
         Returns: {
@@ -4479,6 +4730,22 @@ export type Database = {
           rank: number
           style_group_id: string
         }[]
+      }
+      search_style_guide_library: {
+        Args: {
+          p_extensions?: string[]
+          p_licensors?: string[]
+          p_limit?: number
+          p_modified_after?: string
+          p_modified_before?: string
+          p_offset?: number
+          p_properties?: string[]
+          p_query?: string
+          p_sort?: string
+          p_style_guides?: string[]
+          p_tags?: string[]
+        }
+        Returns: Json
       }
       search_style_tracker_link_candidates: {
         Args: {
