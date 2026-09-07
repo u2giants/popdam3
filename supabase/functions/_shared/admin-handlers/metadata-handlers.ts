@@ -37,7 +37,9 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
     .select("id, relative_path, filename, is_licensed, workflow_status, licensor_id, property_id, sku")
     .eq("is_deleted", false)
     .range(offset, offset + BATCH_SIZE - 1)
-    .order("created_at");
+    // UUID order uses the primary-key index. created_at had no usable index and
+    // timed out even for a one-row authenticated batch.
+    .order("id");
 
   if (fetchErr) return err(fetchErr.message, 500);
   if (!assets || assets.length === 0) {
