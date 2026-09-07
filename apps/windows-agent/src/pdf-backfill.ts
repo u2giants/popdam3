@@ -56,6 +56,7 @@ export async function processOne(
   const buffer = await readFile(fullPath);
   let rawText = "";
   let numPages: number | null = null;
+  const extractionErrors: string[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mupdfRef: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,10 +70,15 @@ export async function processOne(
     numPages = mupdfDoc.countPages();
     const parts: string[] = [];
     for (let p = 0; p < (numPages ?? 0); p++) {
-      parts.push(mupdfDoc.loadPage(p).toStructuredText("preserve-whitespace").asText());
+      const page = mupdfDoc.loadPage(p);
+      const structuredText = page.toStructuredText("preserve-whitespace");
+      parts.push(structuredText.asText());
+      structuredText.destroy?.();
+      page.destroy?.();
     }
     rawText = parts.join("\n").trim();
   } catch (e) {
+    extractionErrors.push(`mupdf text: ${(e as Error).message}`);
     logger.warn("PDF backfill: mupdf text failed", { filename: asset.filename, error: (e as Error).message });
   }
 
@@ -93,6 +99,8 @@ export async function processOne(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const pixmap = page.toPixmap([2, 0, 0, 2, 0, 0] as any, mupdfRef.ColorSpace.DeviceRGB, false);
         pngBuffer = Buffer.from(pixmap.asPNG() as Uint8Array);
+        pixmap.destroy?.();
+        page.destroy?.();
 
         // Hi-res page image for OCR/AI input + UI preview (pdf_text_samples.thumbnail_url)
         if (uploadPreviews) {
@@ -122,9 +130,15 @@ export async function processOne(
         }
       }
     } catch (e) {
+      extractionErrors.push(`mupdf render: ${(e as Error).message}`);
       logger.warn("PDF backfill: page render failed", { filename: asset.filename, error: (e as Error).message });
     }
   }
+
+  // MuPDF objects own WebAssembly memory. A long backfill must release each
+  // document explicitly instead of waiting for a future garbage collection.
+  mupdfDoc?.destroy?.();
+  mupdfDoc = null;
 
   // Fast path: mupdf text was sufficient
   if (rawText.length >= 100) {
@@ -152,6 +166,7 @@ export async function processOne(
       await worker.terminate();
       ocrText = (result.data.text as string).trim();
     } catch (e) {
+      extractionErrors.push(`ocr: ${(e as Error).message}`);
       logger.warn("PDF backfill: OCR failed", { filename: asset.filename, error: (e as Error).message });
     }
   }
@@ -177,6 +192,7 @@ export async function processOne(
       aiText = await callAiVision(pngBuffer, aiConfig);
     } catch (e) {
       aiErr = (e as Error).message;
+      extractionErrors.push(`ai vision: ${aiErr}`);
     }
   }
 
@@ -203,7 +219,7 @@ export async function processOne(
     extracted_text: finalCount > 0 ? finalText : null,
     page_count: numPages,
     char_count: finalCount,
-    extraction_error: aiErr ? aiErr.slice(0, 500) : null,
+    extraction_error: extractionErrors.length > 0 ? extractionErrors.join("; ").slice(0, 500) : null,
     sample_thumbnail_url: sampleThumbnailUrl,
     asset_thumbnail_url: assetThumbnailUrl,
   };
