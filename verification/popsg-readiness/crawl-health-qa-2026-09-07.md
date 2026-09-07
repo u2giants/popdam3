@@ -8,7 +8,9 @@
 
 The panel truthfully showed discovered/accepted/stale/deactivated/remaining labels, active-library and prior-run counts, aggregate freshness, the empty-crawl guard reason, and the safe instruction that existing files were preserved and the next ordinary crawl should retry. The manual crawl control was not used.
 
-Desktop and 390-pixel mobile checks passed. At 390 pixels the card was 356 pixels wide and the document had zero horizontal overflow. Five observed crawl-health Admin requests returned HTTP 200. The settings-page check produced no warning/error-level browser console messages.
+Desktop and 390-pixel mobile checks passed. At 390 pixels the card was 356 pixels wide and the document had zero horizontal overflow. Five observed crawl-health Admin requests returned HTTP 200.
+
+The broader Settings journey is not accepted: the separate preview-coverage RPC repeatedly returned HTTP 500, and matching Virginia database logs recorded normal statement-timeout cancellations. The timeout was not increased. Structural repair is routed as `u2giants/shared-db#2509`; final console/network acceptance remains pending it.
 
 Raw screenshots remain private and git-ignored because production QA may reveal licensed library context:
 
