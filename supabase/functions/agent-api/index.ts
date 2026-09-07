@@ -3425,15 +3425,16 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
     thumbnail_url: (r.sample_thumbnail_url as string) || null,
     sampled_at: new Date().toISOString(),
   }));
-  const { data: insertedSamples, error: sampleErr } = await db.from("pdf_text_samples")
-    .upsert(sampleRows, { onConflict: "asset_id", ignoreDuplicates: true })
-    .select("asset_id");
+  // Use the same bounded bulk path as the PDF sampler. A direct REST upsert
+  // fires the expensive per-row FILES USED parser and can exceed the normal
+  // statement timeout even for the deliberately small three-file claim.
+  const { data: insertedCount, error: sampleErr } = await db.rpc("bulk_insert_pdf_text_samples", {
+    p_rows: sampleRows,
+  });
   if (sampleErr) return err(`pdf_text_samples upsert failed: ${sampleErr.message}`, 500);
-  const insertedAssetIds = new Set(
-    ((insertedSamples ?? []) as Array<{ asset_id: string | null }>).flatMap((row) => row.asset_id ? [row.asset_id] : []),
-  );
-  if (insertedAssetIds.size !== sampleRows.length) {
-    return err(`PDF backfill committed ${insertedAssetIds.size} of ${sampleRows.length} claimed samples`, 409);
+  const committedCount = Number(insertedCount ?? 0);
+  if (committedCount !== sampleRows.length) {
+    return err(`PDF backfill committed ${committedCount} of ${sampleRows.length} claimed samples`, 409);
   }
 
   // 2. Parse FILES USED sections and insert to sku_files_used.
@@ -3485,7 +3486,7 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const { data: bfRow } = await db.from("admin_config")
     .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
   const bf = (bfRow?.value as Record<string, unknown>) || {};
-  const newProcessed = ((bf.processed as number) ?? 0) + insertedAssetIds.size;
+  const newProcessed = ((bf.processed as number) ?? 0) + committedCount;
   const total = (bf.total as number) ?? 0;
   const nowIso = new Date().toISOString();
 
