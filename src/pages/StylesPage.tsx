@@ -34,6 +34,7 @@ import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
 import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
 import { MASTER_DATA_FETCH_BATCH_SIZE, shouldFetchNextMasterDataBatch } from "@/lib/master-data-loading";
 import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
+import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
 import { cn } from "@/lib/utils";
 
 LicenseManager.setLicenseKey("");
@@ -1244,14 +1245,21 @@ export default function StylesPage() {
       }
       const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
       if (error) throw error;
-      const refreshed = await (supabase as any).rpc("refresh_style_tracker_item_bridge");
-      if (refreshed.error) throw refreshed.error;
+      await refreshStyleTrackerBridgeWithRetry(
+        () => (supabase as any).rpc("refresh_style_tracker_item_bridge"),
+      );
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
       queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
     },
-    onError: (error) => toast.error("Could not save style row", { description: error.message }),
+    onError: (error) => {
+      if (error instanceof StyleRowSavedBridgeRefreshError) {
+        toast.warning("Style row saved; linked item data is still refreshing", { description: error.message });
+        return;
+      }
+      toast.error("Could not save style row", { description: error.message });
+    },
   });
 
   const addRow = useMutation({
