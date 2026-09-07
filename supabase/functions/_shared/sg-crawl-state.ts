@@ -23,6 +23,21 @@ export interface SgDropGuardResult {
   dropPercentage: number;
 }
 
+export function buildSgIngestCompletionUpdate(
+  discoveredCount: number,
+  acceptedCount: number,
+  inaccessibleRoots: string[],
+  completedAt: string,
+): Record<string, unknown> {
+  return {
+    files_found: discoveredCount,
+    files_upserted: acceptedCount,
+    ingest_completed_at: completedAt,
+    lifecycle_state: "reconciling",
+    ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
+  };
+}
+
 export function countAcceptedExtensions(
   files: Array<Record<string, unknown>>,
   allowedExtensions: ReadonlySet<string>,

@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard } from "./sg-crawl-state.ts";
+import { buildSgIngestCompletionUpdate, canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard } from "./sg-crawl-state.ts";
 
 const config = { absoluteDrop: 1_000, percentageDrop: 0.01, minimumPriorCount: 10_000 };
+
+describe("buildSgIngestCompletionUpdate", () => {
+  it("persists the accepted count before reconciliation can evaluate the run", () => {
+    expect(buildSgIngestCompletionUpdate(216_400, 216_374, [], "2026-09-07T12:00:00.000Z")).toEqual({
+      files_found: 216_400,
+      files_upserted: 216_374,
+      ingest_completed_at: "2026-09-07T12:00:00.000Z",
+      lifecycle_state: "reconciling",
+    });
+  });
+});
 
 describe("countAcceptedExtensions", () => {
   it("tracks received, accepted, and rejected separately", () => {

@@ -45,6 +45,7 @@ import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNu
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
+import { buildSgIngestCompletionUpdate } from "../_shared/sg-crawl-state.ts";
 import { assignStyleGroup } from "../_shared/style-group-assignment.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
@@ -2900,6 +2901,21 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
     const rootsScanned = (runData?.roots_scanned as string[] | null) || [];
     const inaccessibleRootSet = new Set(inaccessibleRoots);
     const accessibleRoots = rootsScanned.filter((root) => !inaccessibleRootSet.has(root));
+    const rootLabels = [...new Set(rootsScanned.map((root) => root.split("/").filter(Boolean).pop() || root))];
+    let acceptedFileCount = 0;
+    for (const rootLabel of rootLabels) {
+      const { count, error: acceptedCountErr } = await db
+        .from("style_guide_files")
+        .select("id", { count: "exact", head: true })
+        .eq("root_label", rootLabel)
+        .eq("crawl_run_id", runId)
+        .eq("is_active", true);
+      if (acceptedCountErr) {
+        console.error("[complete-style-guide-crawl] Could not count accepted files:", acceptedCountErr.message);
+        return err(`Could not count accepted crawl files: ${acceptedCountErr.message}`, 500);
+      }
+      acceptedFileCount += count ?? 0;
+    }
     const zeroFileCrawl = finalFileCount === 0;
     const effectiveCrawlError = crawlError ||
       (zeroFileCrawl
@@ -2929,13 +2945,30 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         updated_at: new Date().toISOString(),
       });
     } else {
+      // Persist the accepted ingest result before asking the database guard to
+      // evaluate this run. The guard deliberately reads files_found from the
+      // run row; leaving the default zero here makes a healthy crawl look empty.
+      const { error: ingestStateErr } = await db.from("style_guide_crawl_runs").update(
+        buildSgIngestCompletionUpdate(
+          finalFileCount,
+          acceptedFileCount,
+          inaccessibleRoots,
+          new Date().toISOString(),
+        ),
+      ).eq("id", runId);
+      if (ingestStateErr) {
+        console.error("[complete-style-guide-crawl] Could not persist ingest completion:", ingestStateErr.message);
+        return err(`Could not persist crawl ingest completion: ${ingestStateErr.message}`, 500);
+      }
+
       // ── Reconcile BEFORE completion ───────────────────────────────
       // shared-db migration 20260905104802 adds CHECK constraint
       // `style_guide_crawl_runs_completion_requires_reconcile`: a run may not be
       // written as status='completed' until BOTH reconcile_completed_at and
       // refresh_completed_at are set. So the order here is mandatory:
-      //   1. run reconcile_stale_sg_files_batch to exhaustion (it is bounded and
-      //      resumable, so it must be called in a loop until done),
+      //   1. run one bounded reconcile_stale_sg_files_batch call; when work
+      //      remains, return an additive continuation state so the bridge calls
+      //      again instead of holding one Edge request open indefinitely,
       //   2. refresh the matviews WITH the run id (that is what stamps
       //      refresh_completed_at),
       //   3. only then mark the run completed.
@@ -2943,58 +2976,58 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       // key is correct.
       let reconcileOk = accessibleRoots.length > 0;
       let reconcileFailure: string | undefined = accessibleRoots.length > 0 ? undefined : "No accessible roots to reconcile; refusing to report completion";
-
-      const MAX_RECONCILE_BATCHES = 500;
+      let reconcileAttentionRequired = false;
 
       for (const root of accessibleRoots) {
         const rootLabel = root.split("/").filter(Boolean).pop() || root;
-        let batches = 0;
-        for (;;) {
-          const { data, error: reconcileErr } = await db.rpc("reconcile_stale_sg_files_batch", {
-            p_root_label: rootLabel,
-            p_run_id: runId,
-            p_batch_size: 5000,
-            p_min_ratio: 0.5,
-          });
-          if (reconcileErr) {
-            reconcileOk = false;
-            reconcileFailure = `Reconcile failed for root "${rootLabel}": ${reconcileErr.message}`;
-            console.error("[complete-style-guide-crawl]", reconcileFailure);
-            break;
-          }
-          const batch = (Array.isArray(data) ? data[0] : data) as {
-            deactivated: number;
-            remaining: number;
-            done: boolean;
-            guard_state: string | null;
-            guard_reason: string | null;
-          } | null;
-          if (!batch) {
-            reconcileOk = false;
-            reconcileFailure = `Reconcile returned no result for root "${rootLabel}"`;
-            console.error("[complete-style-guide-crawl]", reconcileFailure);
-            break;
-          }
-          console.log(
-            `[complete-style-guide-crawl] Reconcile root "${rootLabel}": deactivated=${batch.deactivated} remaining=${batch.remaining} done=${batch.done}`,
-          );
-          if (batch.guard_state && batch.guard_state !== "ok") {
-            // The guard refused to inactivate anything and parked the run as
-            // attention_required. Do NOT mark it completed.
-            reconcileOk = false;
-            reconcileFailure = `Reconcile guard "${batch.guard_state}" fired for root "${rootLabel}": ${batch.guard_reason ?? "no reason given"}`;
-            console.error("[complete-style-guide-crawl]", reconcileFailure);
-            break;
-          }
-          if (batch.done) break;
-          if (++batches >= MAX_RECONCILE_BATCHES) {
-            reconcileOk = false;
-            reconcileFailure = `Reconcile did not finish for root "${rootLabel}" after ${MAX_RECONCILE_BATCHES} batches`;
-            console.error("[complete-style-guide-crawl]", reconcileFailure);
-            break;
-          }
+        const { data, error: reconcileErr } = await db.rpc("reconcile_stale_sg_files_batch", {
+          p_root_label: rootLabel,
+          p_run_id: runId,
+          p_batch_size: 5000,
+          p_min_ratio: 0.5,
+        });
+        if (reconcileErr) {
+          reconcileOk = false;
+          reconcileFailure = `Reconcile failed for root "${rootLabel}": ${reconcileErr.message}`;
+          console.error("[complete-style-guide-crawl]", reconcileFailure);
+          break;
         }
-        if (!reconcileOk) break;
+        const batch = (Array.isArray(data) ? data[0] : data) as {
+          deactivated: number;
+          remaining: number;
+          done: boolean;
+          guard_state: string | null;
+          guard_reason: string | null;
+        } | null;
+        if (!batch) {
+          reconcileOk = false;
+          reconcileFailure = `Reconcile returned no result for root "${rootLabel}"`;
+          console.error("[complete-style-guide-crawl]", reconcileFailure);
+          break;
+        }
+        console.log(
+          `[complete-style-guide-crawl] Reconcile root "${rootLabel}": deactivated=${batch.deactivated} remaining=${batch.remaining} done=${batch.done}`,
+        );
+        if (batch.guard_state && batch.guard_state !== "ok") {
+          // The guard refused to inactivate anything and parked the run as
+          // attention_required. Do NOT mark it completed.
+          reconcileOk = false;
+          reconcileAttentionRequired = true;
+          reconcileFailure = `Reconcile guard "${batch.guard_state}" fired for root "${rootLabel}": ${batch.guard_reason ?? "no reason given"}`;
+          console.error("[complete-style-guide-crawl]", reconcileFailure);
+          break;
+        }
+        if (!batch.done) {
+          return json({
+            ok: true,
+            state: "reconciling",
+            retry_after_ms: 1_000,
+            counters: {
+              deactivated: batch.deactivated,
+              remaining: batch.remaining,
+            },
+          });
+        }
       }
 
       // Refresh the PopSG aggregation matviews now that is_active is finalized
@@ -3040,7 +3073,11 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         console.log(
           `[complete-style-guide-crawl] Run ${runId} done=${done}, files=${finalFileCount}, error=${reconcileFailure}`,
         );
-        return json({ ok: true });
+        return json({
+          ok: true,
+          state: reconcileAttentionRequired ? "attention_required" : "failed",
+          error: reconcileFailure,
+        });
       }
 
       const { error: completeErr } = await db.from("style_guide_crawl_runs").update({
@@ -3070,7 +3107,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
     );
   }
 
-  return json({ ok: true });
+  return json({ ok: true, ...(done ? { state: "completed" } : {}) });
 }
 
 // ── Route: claim-sg-render ───────────────────────────────────────
