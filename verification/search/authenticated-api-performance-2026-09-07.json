@@ -1,0 +1,25 @@
+{
+  "target": "qsllyeztdwjgirsysgai.supabase.co",
+  "role": "viewer-authenticated",
+  "measured_at": "2026-09-07T12:22:19.923Z",
+  "viewer_ceiling_ms": 8000,
+  "get_filter_counts_no_filter_ms": [6569.1, 3913.9, 699.6],
+  "get_filter_counts_blue": {
+    "expected_total": 39621,
+    "attempts": 12,
+    "passes": 10,
+    "failures": 2,
+    "timings_ms": [8051.5, 8028.5, 2992.5, 447.7, 416.0, 417.0, 408.2, 482.7, 382.0, 399.0, 387.8, 419.8],
+    "failure_code": "57014",
+    "failure_message": "canceling statement due to statement timeout"
+  },
+  "filter_effective_assets_blue_exact_count": {
+    "attempts": 3,
+    "passes": 0,
+    "failures": 3,
+    "timings_ms": [8056.2, 8052.1, 8059.6],
+    "failure_code": "57014",
+    "failure_message": "canceling statement due to statement timeout"
+  },
+  "conclusion": "A real viewer still exceeds the eight-second ceiling. The filtered facet warmed successfully after two cold failures, but exact list totals failed every attempt."
+}
