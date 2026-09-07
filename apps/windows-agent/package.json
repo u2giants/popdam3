@@ -5,22 +5,23 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "tsx --test \"src/**/*.test.ts\"",
+    "test": "tsx --test src/pdf-text-sampler.test.ts && vitest run --root ../.. apps/windows-agent/src/tiff-timestamps.vitest.ts",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
     "@aws-sdk/client-s3": "^3.600.0",
     "@popdam/path-filters": "file:../../packages/path-filters",
     "dotenv": "^16.4.5",
-    "@anthropic-ai/sdk": "^0.30.0",
     "mupdf": "^1.26.0",
     "sharp": "^0.33.0",
     "tesseract.js": "^5.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
+    "@types/node": "^20.11.0",
     "tsx": "^4.7.0",
-    "@types/node": "^20.11.0"
+    "typescript": "^5.4.0",
+    "vitest": "^3.2.7"
   }
 }
