@@ -6,7 +6,7 @@ import { expandFallbackTerms } from "@/lib/dam-search";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -213,6 +213,7 @@ function FileDetailSheet({
             <>
               <SheetHeader className="mb-4">
                 <SheetTitle className="truncate text-sm font-semibold">{file.filename}</SheetTitle>
+                <SheetDescription className="sr-only">File preview and metadata</SheetDescription>
               </SheetHeader>
 
               {/* Thumbnail */}
@@ -340,6 +341,7 @@ function GuideDetailSheet({
           <>
             <SheetHeader className="mb-4">
               <SheetTitle className="truncate text-sm font-semibold">{group.style_guide_name}</SheetTitle>
+              <SheetDescription className="sr-only">Style guide files and metadata</SheetDescription>
             </SheetHeader>
 
             <div className="mb-4 space-y-2 rounded-md border border-border bg-muted/20 p-3 text-xs">
