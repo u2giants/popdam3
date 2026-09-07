@@ -12,7 +12,10 @@ import { loadAuthoritativeLicensingMaps, resolveAuthoritativeLicensing } from ".
 
 export async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
-  const BATCH_SIZE = 200;
+  // Keep one edge invocation below the authenticated database ceiling. The
+  // persistent worker supplies 25; direct/older callers retain the old 200.
+  const requestedBatchSize = typeof body.batch_size === "number" ? Math.floor(body.batch_size) : 200;
+  const BATCH_SIZE = Math.max(1, Math.min(requestedBatchSize, 200));
   const db = serviceClient();
 
   // Fetch grand total once at the start of the operation (offset 0 only)

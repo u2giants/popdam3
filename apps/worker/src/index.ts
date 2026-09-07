@@ -15,6 +15,7 @@ import { logger } from "./logger.js";
 import { tick } from "./operation-loop.js";
 import { maybeEmbedPendingSearchDocuments } from "./handlers/embed-search.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
+import { maybeWriteWorkerHeartbeat } from "./worker-heartbeat.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -47,9 +48,11 @@ async function main() {
     process.exit(1);
   }
   logger.info("worker: connected to Supabase — polling loop started");
+  await withDependencyTimeout("worker heartbeat", maybeWriteWorkerHeartbeat());
 
   while (running) {
     try {
+      await withDependencyTimeout("worker heartbeat", maybeWriteWorkerHeartbeat());
       await tick();
       await withDependencyTimeout("search embedding maintenance", maybeEmbedPendingSearchDocuments());
     } catch (e) {

@@ -28,6 +28,7 @@ import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
 import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-tags.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
+import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 import {
   getNextAutoResumeAt,
@@ -416,6 +417,8 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
       return handlePopSGFileTags(opState);
     case "embed-dam-search":
       return handleEmbedSearch(opState);
+    case "reprocess-metadata":
+      return handleReprocessMetadata(opState);
     default:
       return { ok: false, done: false, error: `Unknown operation: ${opKey}` };
   }
