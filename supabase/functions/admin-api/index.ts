@@ -114,6 +114,7 @@ import {
 const ADMIN_AUTH_OPTS = {
   parseMode: "strict",
   allowServiceRole: true,
+  allowVerifiedLegacyServiceRole: true,
   allowClaimsFallback: true, // admin-api only — see _shared/admin-auth.ts
   roleQueryAttempts: 3, // replaces the old withRetry() around the role query
 } as const;

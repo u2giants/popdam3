@@ -63,6 +63,24 @@ export function isServiceRoleToken(
 }
 
 /**
+ * Does a JWT-shaped token claim Supabase's service_role? This is only a cheap
+ * pre-filter. Callers must still prove the signature by using the token against
+ * Supabase before granting access.
+ */
+export function claimsServiceRole(token: string): boolean {
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+  try {
+    const padded = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
+    const payload = JSON.parse(atob(padded)) as { role?: unknown };
+    return payload.role === "service_role";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Given every `user_roles` row for a user, is that user an admin?
  *
  * `user_roles` is UNIQUE(user_id, role), so a user may legitimately hold both

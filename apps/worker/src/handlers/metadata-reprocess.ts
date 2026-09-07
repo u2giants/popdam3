@@ -6,11 +6,8 @@ type FetchLike = typeof fetch;
 export async function handleReprocessMetadata(
   op: OpState,
   fetchImpl: FetchLike = fetch,
-  edgeKey = config.supabaseSecretKey,
+  edgeKey = config.supabaseSecretKey || config.supabaseServiceRoleKey,
 ): Promise<BatchResult> {
-  if (!edgeKey) {
-    return { ok: false, done: false, error: "Metadata reprocess requires SUPABASE_SECRET_KEY in the Railway worker" };
-  }
   const offset = typeof op.cursor === "number" ? op.cursor : 0;
   const response = await fetchImpl(`${config.supabaseUrl}/functions/v1/admin-api`, {
     method: "POST",

@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   extractBearerToken,
+  claimsServiceRole,
   isServiceRoleToken,
   rolesGrantAdmin,
 } from "../../supabase/functions/_shared/auth-policy.ts";
+
+function unsignedJwt(payload: Record<string, unknown>) {
+  const encode = (value: Record<string, unknown>) => btoa(JSON.stringify(value))
+    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  return `${encode({ alg: "HS256" })}.${encode(payload)}.signature`;
+}
 
 describe("extractBearerToken — strict mode (admin-api, erp-sync, helper-api)", () => {
   it("extracts the token after a literal 'Bearer ' prefix", () => {
@@ -61,6 +68,14 @@ describe("isServiceRoleToken", () => {
     expect(isServiceRoleToken(key, "")).toBe(false);
     expect(isServiceRoleToken("", "")).toBe(false);
     expect(isServiceRoleToken(null, key)).toBe(false);
+  });
+});
+
+describe("claimsServiceRole", () => {
+  it("recognizes only a well-formed service-role claim", () => {
+    expect(claimsServiceRole(unsignedJwt({ role: "service_role" }))).toBe(true);
+    expect(claimsServiceRole(unsignedJwt({ role: "authenticated" }))).toBe(false);
+    expect(claimsServiceRole("not-a-jwt")).toBe(false);
   });
 });
 

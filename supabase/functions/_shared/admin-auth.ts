@@ -19,7 +19,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serviceClient } from "./service-client.ts";
-import { extractBearerToken, isServiceRoleToken, rolesGrantAdmin } from "./auth-policy.ts";
+import { claimsServiceRole, extractBearerToken, isServiceRoleToken, rolesGrantAdmin } from "./auth-policy.ts";
 
 export type AuthVia = "service_role" | "jwt";
 
@@ -42,6 +42,12 @@ export interface AuthOpts {
    * callers such as the Railway worker). Default false — never implicit.
    */
   allowServiceRole?: boolean;
+  /**
+   * admin-api only: accept the legacy service-role JWT after Supabase itself
+   * verifies its signature and service access. Needed by the Railway worker;
+   * deployed edge functions hold the newer sb_secret key under the same env name.
+   */
+  allowVerifiedLegacyServiceRole?: boolean;
   /**
    * Fall back to `auth.getClaims()` when `auth.getUser()` rejects the token.
    * Default false. Only `admin-api` has ever done this; enabling it elsewhere
@@ -83,6 +89,15 @@ export async function authenticateUser(
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (isServiceRoleToken(token, serviceRoleKey)) {
       return { ok: true, userId: "system", via: "service_role" };
+    }
+    if (opts.allowVerifiedLegacyServiceRole && claimsServiceRole(token)) {
+      const verifier = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        token,
+        { global: { headers: { Authorization: `Bearer ${token}` } } },
+      );
+      const { error } = await verifier.from("admin_config").select("key").limit(1);
+      if (!error) return { ok: true, userId: "system", via: "service_role" };
     }
   }
 
