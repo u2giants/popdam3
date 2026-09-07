@@ -1103,9 +1103,7 @@ async function handleIngest(
 
     // processing_queue inserts removed — AI tagging is now handled by the Railway worker
 
-    const relatedGroup = Array.isArray(existingByPath.style_groups)
-      ? existingByPath.style_groups[0] ?? null
-      : existingByPath.style_groups ?? null;
+    const relatedGroup = Array.isArray(existingByPath.style_groups) ? existingByPath.style_groups[0] ?? null : existingByPath.style_groups ?? null;
     await assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, licensing, db, {
       styleGroupId: existingByPath.style_group_id,
       group: relatedGroup as Record<string, unknown> | null,

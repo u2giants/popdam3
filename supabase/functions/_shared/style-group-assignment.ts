@@ -21,9 +21,26 @@ export type StyleGroupAssignment = {
 };
 
 export const STYLE_GROUP_ASSIGNMENT_COLUMNS = [
-  "id", "sku", "folder_path", "is_licensed", "licensor_id", "licensor_code", "licensor_name",
-  "property_id", "property_code", "property_name", "division_code", "division_name",
-  "mg01_code", "mg01_name", "mg02_code", "mg02_name", "mg03_code", "mg03_name", "size_code", "size_name",
+  "id",
+  "sku",
+  "folder_path",
+  "is_licensed",
+  "licensor_id",
+  "licensor_code",
+  "licensor_name",
+  "property_id",
+  "property_code",
+  "property_name",
+  "division_code",
+  "division_name",
+  "mg01_code",
+  "mg01_name",
+  "mg02_code",
+  "mg02_name",
+  "mg03_code",
+  "mg03_name",
+  "size_code",
+  "size_name",
 ] as const;
 
 function sameValue(left: unknown, right: unknown): boolean {
