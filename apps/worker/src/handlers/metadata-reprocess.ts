@@ -6,13 +6,17 @@ type FetchLike = typeof fetch;
 export async function handleReprocessMetadata(
   op: OpState,
   fetchImpl: FetchLike = fetch,
+  edgeKey = config.supabaseSecretKey,
 ): Promise<BatchResult> {
+  if (!edgeKey) {
+    return { ok: false, done: false, error: "Metadata reprocess requires SUPABASE_SECRET_KEY in the Railway worker" };
+  }
   const offset = typeof op.cursor === "number" ? op.cursor : 0;
   const response = await fetchImpl(`${config.supabaseUrl}/functions/v1/admin-api`, {
     method: "POST",
     headers: {
-      apikey: config.supabaseServiceRoleKey,
-      Authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+      apikey: edgeKey,
+      Authorization: `Bearer ${edgeKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

@@ -24,6 +24,9 @@ function optionalInt(key: string, fallback: number): number {
 export const config = {
   supabaseUrl: required("SUPABASE_URL"),
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
+  // New-format server key used only when invoking Supabase Edge Functions.
+  // The legacy JWT service-role key remains the database client credential.
+  supabaseSecretKey: optional("SUPABASE_SECRET_KEY", ""),
 
   // OpenRouter API key — single gateway for most AI providers
   openRouterApiKey: optional("OPENROUTER_API_KEY", ""),

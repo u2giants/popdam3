@@ -18,7 +18,7 @@ test("reprocess metadata resumes from its cursor and uses a bounded edge batch",
     }), { status: 200 });
   }) as typeof fetch;
 
-  const result = await handleReprocessMetadata({ status: "running", cursor: 50 }, fakeFetch);
+  const result = await handleReprocessMetadata({ status: "running", cursor: 50 }, fakeFetch, "test-secret");
   assert.deepEqual(requestBody, {
     action: "reprocess-asset-metadata",
     offset: 50,
@@ -41,7 +41,7 @@ test("reprocess metadata surfaces a database timeout for normal retry handling",
     JSON.stringify({ ok: false, error: "canceling statement due to statement timeout" }),
     { status: 500 },
   )) as typeof fetch;
-  const result = await handleReprocessMetadata({ status: "running", cursor: 0 }, fakeFetch);
+  const result = await handleReprocessMetadata({ status: "running", cursor: 0 }, fakeFetch, "test-secret");
   assert.equal(result.ok, false);
   assert.match(String(result.error), /statement timeout/);
 });
