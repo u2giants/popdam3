@@ -361,7 +361,14 @@ function startHeartbeat() {
       // Full-library PDF/.ai backfill (self-driven claim loop — no asset list passed).
       // Runs the entire mupdf→OCR→AI extraction on this Windows VM so the load stays off
       // the Synology. runPdfBackfill never throws; the finally just clears the guard.
-      if (response.commands?.trigger_pdf_backfill && !isBackfillingPdfText) {
+      if (
+        response.commands?.trigger_pdf_backfill &&
+        !isBackfillingPdfText &&
+        !isSamplingPdfText &&
+        !isRunningCompatAudit &&
+        !isRunningCompatAuditPreview &&
+        activeJobs === 0
+      ) {
         const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
         isBackfillingPdfText = true;
         logger.info("PDF backfill requested via heartbeat");
@@ -622,6 +629,8 @@ function startPolling() {
       });
     } else if (stopAcceptingJobs) {
       logger.debug("Skipping poll — job claiming halted (force_stop_jobs active)");
+    } else if (isBackfillingPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview) {
+      logger.debug("Skipping render claims — an exclusive maintenance workload is active");
     } else {
       // Fill all available slots — try PopDAM jobs first, then SG jobs
       while (activeJobs < maxConcurrency) {
