@@ -748,6 +748,11 @@ async function handleHeartbeat(
         const target = windowsBackfillCapable ? "windows-render" : "bridge";
         return agentType === target;
       })(),
+      trigger_popsg_pdf_backfill: (() => {
+        const sg = configMap.POPSG_PDF_BACKFILL as Record<string, unknown> | undefined;
+        const dam = configMap.PDF_BACKFILL as Record<string, unknown> | undefined;
+        return agentType === "windows-render" && sg?.status === "running" && dam?.status !== "running";
+      })(),
     },
   };
 
@@ -3288,6 +3293,79 @@ function parseFilesUsedFromText(text: string): string[] {
   return [...new Set(found)];
 }
 
+// ── Routes: dedicated PopSG PDF text extraction ──────────────────────────────
+
+async function handleClaimStyleGuidePdfText(agentId: string, agentType: string) {
+  if (agentType !== "windows-render") return err("PopSG PDF extraction requires a Windows render agent", 403);
+  const db = serviceClient();
+  const [{ data: sgRow }, { data: damRow }] = await Promise.all([
+    db.from("admin_config").select("value").eq("key", "POPSG_PDF_BACKFILL").maybeSingle(),
+    db.from("admin_config").select("value").eq("key", "PDF_BACKFILL").maybeSingle(),
+  ]);
+  const sg = (sgRow?.value as Record<string, unknown>) || {};
+  const dam = (damRow?.value as Record<string, unknown>) || {};
+  if (sg.status !== "running" || dam.status === "running") {
+    return json({ ok: true, jobs: [], status: dam.status === "running" ? "waiting_for_popdam" : sg.status ?? "idle" });
+  }
+
+  const { data, error } = await db.rpc("claim_style_guide_pdf_text", {
+    p_worker_id: agentId,
+    p_batch_size: 10,
+    p_claim_ttl: "15 minutes",
+    p_max_attempts: 3,
+  });
+  if (error) return err(`claim_style_guide_pdf_text failed: ${error.message}`, 500);
+  const jobs = (data ?? []) as unknown[];
+  if (jobs.length === 0) {
+    await db.from("admin_config").upsert({
+      key: "POPSG_PDF_BACKFILL",
+      value: { ...sg, status: "completed", completed_at: new Date().toISOString() },
+      updated_at: new Date().toISOString(),
+    });
+  }
+  return json({ ok: true, jobs, status: jobs.length ? "running" : "completed" });
+}
+
+async function handleCompleteStyleGuidePdfText(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const results = Array.isArray(body.results) ? body.results as Record<string, unknown>[] : [];
+  if (results.length === 0 || results.length > 10) return err("results must contain 1 to 10 items", 400);
+
+  let accepted = 0;
+  let refused = 0;
+  for (const result of results) {
+    const fileId = optionalString(result, "style_guide_file_id");
+    const identity = optionalString(result, "content_identity");
+    if (!fileId || !identity) return err("style_guide_file_id and content_identity are required", 400);
+    const errorMessage = optionalString(result, "extraction_error");
+    const { data, error } = await db.rpc("complete_style_guide_pdf_text", {
+      p_style_guide_file_id: fileId,
+      p_content_identity: identity,
+      p_text: errorMessage ? undefined : optionalString(result, "extracted_text"),
+      p_page_count: typeof result.page_count === "number" ? result.page_count : undefined,
+      p_error: errorMessage,
+    });
+    if (error) return err(`complete_style_guide_pdf_text failed: ${error.message}`, 500);
+    if (data === true) accepted++;
+    else refused++;
+  }
+
+  const { data: configRow } = await db.from("admin_config")
+    .select("value").eq("key", "POPSG_PDF_BACKFILL").maybeSingle();
+  const config = (configRow?.value as Record<string, unknown>) || {};
+  await db.from("admin_config").upsert({
+    key: "POPSG_PDF_BACKFILL",
+    value: {
+      ...config,
+      processed: ((config.processed as number) ?? 0) + accepted,
+      refused: ((config.refused as number) ?? 0) + refused,
+      last_batch_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+  return json({ ok: true, accepted, refused });
+}
+
 // ── Route: claim-pdf-backfill-batch ──────────────────────────────────────────
 
 async function handleClaimPdfBackfillBatch() {
@@ -3344,7 +3422,16 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
     thumbnail_url: (r.sample_thumbnail_url as string) || null,
     sampled_at: new Date().toISOString(),
   }));
-  await db.from("pdf_text_samples").upsert(sampleRows, { onConflict: "asset_id", ignoreDuplicates: true });
+  const { data: insertedSamples, error: sampleErr } = await db.from("pdf_text_samples")
+    .upsert(sampleRows, { onConflict: "asset_id", ignoreDuplicates: true })
+    .select("asset_id");
+  if (sampleErr) return err(`pdf_text_samples upsert failed: ${sampleErr.message}`, 500);
+  const insertedAssetIds = new Set(
+    ((insertedSamples ?? []) as Array<{ asset_id: string | null }>).flatMap((row) => row.asset_id ? [row.asset_id] : []),
+  );
+  if (insertedAssetIds.size !== sampleRows.length) {
+    return err(`PDF backfill committed ${insertedAssetIds.size} of ${sampleRows.length} claimed samples`, 409);
+  }
 
   // 2. Parse FILES USED sections and insert to sku_files_used.
   //    Only licensing-sheet / tech-pack PDFs are a valid source (see migration
@@ -3395,7 +3482,7 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const { data: bfRow } = await db.from("admin_config")
     .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
   const bf = (bfRow?.value as Record<string, unknown>) || {};
-  const newProcessed = ((bf.processed as number) ?? 0) + results.length;
+  const newProcessed = ((bf.processed as number) ?? 0) + insertedAssetIds.size;
   const total = (bf.total as number) ?? 0;
   const nowIso = new Date().toISOString();
 
@@ -4304,6 +4391,10 @@ corsServe(async (req: Request) => {
         return await handleClaimSgRender(body);
       case "complete-sg-render":
         return await handleCompleteSgRender(body);
+      case "claim-style-guide-pdf-text":
+        return await handleClaimStyleGuidePdfText(agentId, agentType);
+      case "complete-style-guide-pdf-text":
+        return await handleCompleteStyleGuidePdfText(body);
       case "claim-pdf-backfill-batch":
         return await handleClaimPdfBackfillBatch();
       case "complete-pdf-backfill-batch":

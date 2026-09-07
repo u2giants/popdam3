@@ -79,6 +79,7 @@ export interface WindowsHeartbeatResponse {
     trigger_pdf_text_sample?: boolean;
     pdf_text_sample_assets?: unknown[];
     trigger_pdf_backfill?: boolean;
+    trigger_popsg_pdf_backfill?: boolean;
     force_restart?: boolean;
     force_apply_update?: boolean;
     force_stop_jobs?: boolean;
@@ -181,7 +182,6 @@ export async function completeSgRender(
   });
 }
 
-
 export async function completePdfTextSample(results: unknown[]): Promise<void> {
   await callApi("complete-pdf-text-sample", { results });
 }
@@ -244,6 +244,31 @@ export async function reportPdfBackfillProgress(
   }
 }
 
+export interface StyleGuidePdfTextJob {
+  style_guide_file_id: string;
+  root_label: string;
+  relative_path: string;
+  content_identity: string;
+  attempts: number;
+}
+
+export interface StyleGuidePdfTextResult {
+  style_guide_file_id: string;
+  content_identity: string;
+  extracted_text: string | null;
+  page_count: number | null;
+  extraction_error: string | null;
+}
+
+export async function claimStyleGuidePdfText(agentId: string): Promise<StyleGuidePdfTextJob[]> {
+  const data = await callApi("claim-style-guide-pdf-text", { agent_id: agentId });
+  return (data.jobs as StyleGuidePdfTextJob[]) ?? [];
+}
+
+export async function completeStyleGuidePdfText(results: StyleGuidePdfTextResult[]): Promise<void> {
+  await callApi("complete-style-guide-pdf-text", { results });
+}
+
 /**
  * Update an asset's fields (e.g. pdf_page2_url after PDF rendering).
  */
@@ -275,9 +300,7 @@ export async function pair(
   pairingCode: string,
   agentName: string,
 ): Promise<{ agent_id: string; agent_key: string }> {
-  const maskedCode = pairingCode.length > 4
-    ? `${pairingCode.slice(0, 4)}-****-****-****`
-    : "****";
+  const maskedCode = pairingCode.length > 4 ? `${pairingCode.slice(0, 4)}-****-****-****` : "****";
   const endpoint = config.agentApiUrl;
 
   logger.info("Attempting pairing", { endpoint, pairingCode: maskedCode });
@@ -350,7 +373,7 @@ export async function pair(
       fullResponse: rawBody.slice(0, 500),
     });
     throw new Error(
-      (data.error as string) || `Pairing rejected by server (no error message in response)`
+      (data.error as string) || `Pairing rejected by server (no error message in response)`,
     );
   }
 

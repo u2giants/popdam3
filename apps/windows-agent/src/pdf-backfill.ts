@@ -16,8 +16,8 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { logger } from "./logger";
 import * as api from "./api-client";
-import { uploadThumbnail, uploadPdfPage } from "./uploader";
-import { callAiVision, type AiConfig } from "./pdf-text-sampler";
+import { uploadPdfPage, uploadThumbnail } from "./uploader";
+import { type AiConfig, callAiVision } from "./pdf-text-sampler";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dynamicImport = new Function("m", "return import(m)") as (m: string) => Promise<any>;
@@ -27,10 +27,11 @@ const THUMBNAIL_WIDTH = 800;
 
 // ── Process a single file (.pdf / .ai) ────────────────────────────────────────
 
-async function processOne(
+export async function processOne(
   asset: api.BackfillAsset,
   fullPath: string,
   aiConfig: AiConfig,
+  uploadPreviews = true,
 ): Promise<api.BackfillResult> {
   const base = {
     asset_id: asset.id,
@@ -41,9 +42,14 @@ async function processOne(
   const fileStat = await stat(fullPath);
   if (fileStat.size > PDF_SIZE_LIMIT_BYTES) {
     return {
-      ...base, extraction_method: "skipped", extracted_text: null,
-      page_count: null, char_count: 0, extraction_error: null,
-      sample_thumbnail_url: null, asset_thumbnail_url: null,
+      ...base,
+      extraction_method: "skipped",
+      extracted_text: null,
+      page_count: null,
+      char_count: 0,
+      extraction_error: null,
+      sample_thumbnail_url: null,
+      asset_thumbnail_url: null,
     };
   }
 
@@ -89,14 +95,16 @@ async function processOne(
         pngBuffer = Buffer.from(pixmap.asPNG() as Uint8Array);
 
         // Hi-res page image for OCR/AI input + UI preview (pdf_text_samples.thumbnail_url)
-        try {
-          sampleThumbnailUrl = await uploadPdfPage(asset.id, 0, pngBuffer);
-        } catch (e) {
-          logger.warn("PDF backfill: page upload failed (non-fatal)", { filename: asset.filename, error: (e as Error).message });
+        if (uploadPreviews) {
+          try {
+            sampleThumbnailUrl = await uploadPdfPage(asset.id, 0, pngBuffer);
+          } catch (e) {
+            logger.warn("PDF backfill: page upload failed (non-fatal)", { filename: asset.filename, error: (e as Error).message });
+          }
         }
 
         // 800px JPEG asset thumbnail when the asset is missing one
-        if (asset.needs_thumbnail) {
+        if (uploadPreviews && asset.needs_thumbnail) {
           try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const sharpLib: any = await dynamicImport("sharp").catch(() => null);
@@ -121,9 +129,14 @@ async function processOne(
   // Fast path: mupdf text was sufficient
   if (rawText.length >= 100) {
     return {
-      ...base, extraction_method: "pdf_text", extracted_text: rawText,
-      page_count: numPages, char_count: rawText.length, extraction_error: null,
-      sample_thumbnail_url: sampleThumbnailUrl, asset_thumbnail_url: assetThumbnailUrl,
+      ...base,
+      extraction_method: "pdf_text",
+      extracted_text: rawText,
+      page_count: numPages,
+      char_count: rawText.length,
+      extraction_error: null,
+      sample_thumbnail_url: sampleThumbnailUrl,
+      asset_thumbnail_url: assetThumbnailUrl,
     };
   }
 
@@ -145,9 +158,14 @@ async function processOne(
 
   if (ocrText.length >= 100) {
     return {
-      ...base, extraction_method: "ocr_text", extracted_text: ocrText,
-      page_count: numPages, char_count: ocrText.length, extraction_error: null,
-      sample_thumbnail_url: sampleThumbnailUrl, asset_thumbnail_url: assetThumbnailUrl,
+      ...base,
+      extraction_method: "ocr_text",
+      extracted_text: ocrText,
+      page_count: numPages,
+      char_count: ocrText.length,
+      extraction_error: null,
+      sample_thumbnail_url: sampleThumbnailUrl,
+      asset_thumbnail_url: assetThumbnailUrl,
     };
   }
 
@@ -164,9 +182,14 @@ async function processOne(
 
   if (aiText.length > 0) {
     return {
-      ...base, extraction_method: "ai_vision", extracted_text: aiText,
-      page_count: numPages, char_count: aiText.length, extraction_error: null,
-      sample_thumbnail_url: sampleThumbnailUrl, asset_thumbnail_url: assetThumbnailUrl,
+      ...base,
+      extraction_method: "ai_vision",
+      extracted_text: aiText,
+      page_count: numPages,
+      char_count: aiText.length,
+      extraction_error: null,
+      sample_thumbnail_url: sampleThumbnailUrl,
+      asset_thumbnail_url: assetThumbnailUrl,
     };
   }
 
@@ -175,11 +198,14 @@ async function processOne(
   const method = finalCount >= 100 ? "pdf_text" : finalCount > 0 ? "likely_scanned" : "failed";
 
   return {
-    ...base, extraction_method: method,
+    ...base,
+    extraction_method: method,
     extracted_text: finalCount > 0 ? finalText : null,
-    page_count: numPages, char_count: finalCount,
+    page_count: numPages,
+    char_count: finalCount,
     extraction_error: aiErr ? aiErr.slice(0, 500) : null,
-    sample_thumbnail_url: sampleThumbnailUrl, asset_thumbnail_url: assetThumbnailUrl,
+    sample_thumbnail_url: sampleThumbnailUrl,
+    asset_thumbnail_url: assetThumbnailUrl,
   };
 }
 
@@ -222,10 +248,16 @@ export async function runPdfBackfill(mountRoot: string, aiConfig: AiConfig): Pro
         const errMsg = (e as Error).message;
         logger.warn("PDF backfill: file failed", { filename: asset.filename, error: errMsg });
         results.push({
-          asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-          extraction_method: "failed", extracted_text: null,
-          page_count: null, char_count: 0, extraction_error: errMsg.slice(0, 500),
-          sample_thumbnail_url: null, asset_thumbnail_url: null,
+          asset_id: asset.id,
+          filename: asset.filename,
+          relative_path: asset.relative_path,
+          extraction_method: "failed",
+          extracted_text: null,
+          page_count: null,
+          char_count: 0,
+          extraction_error: errMsg.slice(0, 500),
+          sample_thumbnail_url: null,
+          asset_thumbnail_url: null,
         });
       }
     }

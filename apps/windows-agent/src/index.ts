@@ -13,23 +13,24 @@
  */
 
 import { config } from "./config";
-import { logger, getLogTail } from "./logger";
+import { getLogTail, logger } from "./logger";
 import * as api from "./api-client";
-import { renderFile, renderNativeImage, type PdfRenderResult, type CompatWorker } from "./renderer";
-import { uploadThumbnail, uploadPdfPage, uploadSgThumbnail, reinitializeS3Client } from "./uploader";
-import { runPreflight, type HealthStatus } from "./preflight";
-import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate, RESTART_EXIT_CODE } from "./updater";
-import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
+import { type CompatWorker, type PdfRenderResult, renderFile, renderNativeImage } from "./renderer";
+import { reinitializeS3Client, uploadPdfPage, uploadSgThumbnail, uploadThumbnail } from "./uploader";
+import { type HealthStatus, runPreflight } from "./preflight";
+import { getUpdateState, initUpdater, postRestartHealthCheck, RESTART_EXIT_CODE, triggerImmediateUpdate } from "./updater";
+import { compressTiff, deleteOriginalBackup, scanTiffFiles, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
 import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
 import { ensureNasMapped } from "./nas-mapper";
-import { shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
+import { resetSkipWarnings, shouldSkipPath } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
-import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler";
+import { type AiModelDef, type PdfSampleAsset, runPdfTextSample } from "./pdf-text-sampler";
 import { runPdfBackfill } from "./pdf-backfill";
-import { runCompatAudit, runCompatAuditPreview, createCompatAuditWorker } from "./compat-audit";
+import { runStyleGuidePdfBackfill } from "./style-guide-pdf-backfill";
+import { createCompatAuditWorker, runCompatAudit, runCompatAuditPreview } from "./compat-audit";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ async function getCompatWorker(): Promise<CompatWorker | undefined> {
 }
 let isSamplingPdfText = false;
 let isBackfillingPdfText = false;
+let isBackfillingSgPdfText = false;
 let isRunningCompatAudit = false;
 let isRunningCompatAuditPreview = false;
 let lastError: string | undefined;
@@ -139,7 +141,7 @@ async function doPairing() {
     await writeFile(config.agentConfigPath, JSON.stringify(merged, null, 2), "utf-8");
 
     logger.info("Agent config merged successfully", {
-      preservedKeys: Object.keys(existing).filter(k => !["agent_id", "agent_key", "paired_at", "pairing_code"].includes(k)),
+      preservedKeys: Object.keys(existing).filter((k) => !["agent_id", "agent_key", "paired_at", "pairing_code"].includes(k)),
     });
   } catch (e) {
     logger.error("Failed to persist agent config — key will be lost on restart", {
@@ -179,8 +181,8 @@ function toUncPath(relativePath: string): string {
   }
 
   // Fall back to UNC path
-  const host = cloudNasHost.replace(/^\\+/, '');
-  const share = cloudNasShare.replace(/^\\+/, '').replace(/^\/+/, '');
+  const host = cloudNasHost.replace(/^\\+/, "");
+  const share = cloudNasShare.replace(/^\\+/, "").replace(/^\/+/, "");
   return `\\\\${host}\\${share}\\${windowsPath}`;
 }
 
@@ -364,6 +366,7 @@ function startHeartbeat() {
       if (
         response.commands?.trigger_pdf_backfill &&
         !isBackfillingPdfText &&
+        !isBackfillingSgPdfText &&
         !isSamplingPdfText &&
         !isRunningCompatAudit &&
         !isRunningCompatAuditPreview &&
@@ -379,27 +382,44 @@ function startHeartbeat() {
           anthropicApiKey: cloudAnthropicApiKey,
           openRouterApiKey: cloudOpenRouterApiKey,
           aiTaskModels: cloudAiTaskModels,
-        }).catch((e) =>
-          logger.error("PDF backfill error", { error: (e as Error).message })
-        ).finally(() => {
+        }).catch((e) => logger.error("PDF backfill error", { error: (e as Error).message })).finally(() => {
           isBackfillingPdfText = false;
+        });
+      }
+
+      if (
+        response.commands?.trigger_popsg_pdf_backfill &&
+        !isBackfillingPdfText &&
+        !isBackfillingSgPdfText &&
+        !isSamplingPdfText &&
+        !isRunningCompatAudit &&
+        !isRunningCompatAuditPreview &&
+        activeJobs === 0
+      ) {
+        isBackfillingSgPdfText = true;
+        logger.info("PopSG PDF extraction requested via heartbeat");
+        runStyleGuidePdfBackfill(agentId, toSgUncPath, {
+          models: cloudAiModels,
+          pdf_extraction: cloudPdfExtractionConfig,
+          googleApiKey: cloudGoogleAiApiKey,
+          anthropicApiKey: cloudAnthropicApiKey,
+          openRouterApiKey: cloudOpenRouterApiKey,
+          aiTaskModels: cloudAiTaskModels,
+        }).catch((e) => logger.error("PopSG PDF extraction error", { error: (e as Error).message })).finally(() => {
+          isBackfillingSgPdfText = false;
         });
       }
 
       // Check if cloud requests immediate update (standard — respects idle check)
       if (response.commands?.trigger_update) {
         logger.info("Cloud requested immediate update check");
-        triggerImmediateUpdate(agentId).catch((e) =>
-          logger.error("Triggered update failed", { error: (e as Error).message })
-        );
+        triggerImmediateUpdate(agentId).catch((e) => logger.error("Triggered update failed", { error: (e as Error).message }));
       }
 
       // Force apply update — bypass activeJobs guard
       if (response.commands?.force_apply_update) {
         logger.info("Cloud requested force update — bypassing active-jobs guard");
-        triggerImmediateUpdate(agentId, true).catch((e) =>
-          logger.error("Force update failed", { error: (e as Error).message })
-        );
+        triggerImmediateUpdate(agentId, true).catch((e) => logger.error("Force update failed", { error: (e as Error).message }));
       }
 
       // Force restart — exit immediately, launcher restarts us
@@ -515,7 +535,7 @@ async function processJob(job: api.RenderJob): Promise<void> {
   const filename = path.basename(job.relative_path);
 
   // Skip temp/autosave files (filename-level, not folder-level)
-  if (filename.startsWith('~') || filename.startsWith('._')) {
+  if (filename.startsWith("~") || filename.startsWith("._")) {
     logger.info("Skipping junk file", { relativePath: job.relative_path });
     await api.completeRender(job.job_id, false, undefined, "Skipped: junk/temp file");
     return;
@@ -629,7 +649,10 @@ function startPolling() {
       });
     } else if (stopAcceptingJobs) {
       logger.debug("Skipping poll — job claiming halted (force_stop_jobs active)");
-    } else if (isBackfillingPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview) {
+    } else if (
+      isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText ||
+      isRunningCompatAudit || isRunningCompatAuditPreview
+    ) {
       logger.debug("Skipping render claims — an exclusive maintenance workload is active");
     } else {
       // Fill all available slots — try PopDAM jobs first, then SG jobs
@@ -645,7 +668,9 @@ function startPolling() {
             activeJobs++;
             processJob(job)
               .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
-              .finally(() => { activeJobs--; });
+              .finally(() => {
+                activeJobs--;
+              });
             continue;
           }
 
@@ -661,7 +686,9 @@ function startPolling() {
             activeJobs++;
             processSgJob(sgJob)
               .catch((e) => logger.error("Uncaught SG job error", { error: (e as Error).message }))
-              .finally(() => { activeJobs--; });
+              .finally(() => {
+                activeJobs--;
+              });
             continue;
           }
 
@@ -706,7 +733,7 @@ async function main() {
   if (!config.supabaseUrl) {
     throw new Error(
       "Missing required: POPDAM_SERVER_URL or SUPABASE_URL.\n" +
-      "Set one of these in your .env file next to the agent executable."
+        "Set one of these in your .env file next to the agent executable.",
     );
   }
 
@@ -725,8 +752,8 @@ async function main() {
     if (!config.pairingCode) {
       throw new Error(
         "No agent key and no pairing code. " +
-        "Set POPDAM_SERVER_URL and POPDAM_PAIRING_CODE in your .env, " +
-        "or restore %ProgramData%\\PopDAM\\agent-config.json with agent_key."
+          "Set POPDAM_SERVER_URL and POPDAM_PAIRING_CODE in your .env, " +
+          "or restore %ProgramData%\\PopDAM\\agent-config.json with agent_key.",
       );
     }
 
@@ -745,7 +772,7 @@ async function main() {
         if (msg.includes("Invalid or expired")) {
           throw new Error(
             "Pairing code is invalid or expired. " +
-            "Generate a new pairing code and update POPDAM_PAIRING_CODE."
+              "Generate a new pairing code and update POPDAM_PAIRING_CODE.",
           );
         }
 
@@ -759,7 +786,7 @@ async function main() {
         if (attempt === MAX_PAIRING_RETRIES) {
           throw new Error(
             `Pairing failed after ${MAX_PAIRING_RETRIES} attempts. ` +
-            "Likely causes: server URL unreachable, pairing expired, or outbound HTTPS blocked."
+              "Likely causes: server URL unreachable, pairing expired, or outbound HTTPS blocked.",
           );
         }
 
@@ -804,7 +831,7 @@ async function main() {
   if (!cloudNasHost) {
     logger.warn(
       "NAS_HOST not configured. Set it in PopDAM Settings → Windows Agent. " +
-      "Render jobs will be skipped until configured."
+        "Render jobs will be skipped until configured.",
     );
   }
 
@@ -918,9 +945,14 @@ function startTiffScanChecker() {
       let currentDir = "";
       const scanStarted = Date.now();
 
-      for await (const file of scanTiffFiles(scanRoot, scanRoot, {
-        onProgress: (dir?: string) => { dirsScanned++; if (dir) currentDir = dir; },
-      })) {
+      for await (
+        const file of scanTiffFiles(scanRoot, scanRoot, {
+          onProgress: (dir?: string) => {
+            dirsScanned++;
+            if (dir) currentDir = dir;
+          },
+        })
+      ) {
         batch.push(file);
         totalFound++;
 
@@ -1027,14 +1059,18 @@ function startTiffPolling() {
 
             if (result.success) {
               logger.info("TIFF job completed", {
-                jobId, mode, newSize: result.new_file_size,
+                jobId,
+                mode,
+                newSize: result.new_file_size,
                 timestamp_restore_status: result.timestamp_restore_status,
                 mtime_restored: result.mtime_restored,
                 creation_time_restored: result.creation_time_restored,
               });
             } else {
               logger.warn("TIFF job failed", {
-                jobId, error: result.error, error_code: result.error_code,
+                jobId,
+                error: result.error,
+                error_code: result.error_code,
                 timestamp_restore_status: result.timestamp_restore_status,
               });
             }
@@ -1177,7 +1213,7 @@ async function handleDirBrowse(cmd: { request_id: string; path: string }) {
             } catch { /* skip */ }
           }
           return entry;
-        })
+        }),
       );
     }
 
@@ -1213,14 +1249,19 @@ function startHygieneScanChecker() {
       logger.info("Starting hygiene scan", { sessionId, checkTypes });
 
       const nasMapResult = await ensureNasMapped(cloudNasMountPath, {
-        host: cloudNasHost, share: cloudNasShare,
-        username: cloudNasUsername, password: cloudNasPassword,
+        host: cloudNasHost,
+        share: cloudNasShare,
+        username: cloudNasUsername,
+        password: cloudNasPassword,
       });
 
       if (!nasMapResult.ok) {
         logger.error("Hygiene scan aborted — NAS not accessible", { error: nasMapResult.error });
         await api.callApi("report-hygiene-findings", {
-          findings: [], session_id: sessionId, done: true, error: nasMapResult.error,
+          findings: [],
+          session_id: sessionId,
+          done: true,
+          error: nasMapResult.error,
         });
         hygieneScanRunning = false;
         setTimeout(loop, CHECK_MS);
@@ -1257,7 +1298,9 @@ function startHygieneScanChecker() {
       async function walkDir(dir: string) {
         if (cancelled) return;
         let entries;
-        try { entries = await readdir(dir, { withFileTypes: true }); } catch (e) {
+        try {
+          entries = await readdir(dir, { withFileTypes: true });
+        } catch (e) {
           totalSkipped++;
           logger.debug("Hygiene scan: dir unreadable", { dir, error: (e as Error).message });
           return;
@@ -1295,10 +1338,15 @@ function startHygieneScanChecker() {
 
                 if (findings.length >= BATCH_SIZE) {
                   const resp = await api.callApi("report-hygiene-findings", {
-                    findings, session_id: sessionId, done: false,
+                    findings,
+                    session_id: sessionId,
+                    done: false,
                     progress: makeProgress(),
                   });
-                  if (resp?.cancelled) { cancelled = true; return; }
+                  if (resp?.cancelled) {
+                    cancelled = true;
+                    return;
+                  }
                   findings.length = 0;
                 }
               }
@@ -1306,10 +1354,15 @@ function startHygieneScanChecker() {
               // Report progress every 5 files (more frequent updates)
               if (totalChecked % 5 === 0) {
                 const resp = await api.callApi("report-hygiene-findings", {
-                  findings: [], session_id: sessionId, done: false,
+                  findings: [],
+                  session_id: sessionId,
+                  done: false,
                   progress: makeProgress(),
                 });
-                if (resp?.cancelled) { cancelled = true; return; }
+                if (resp?.cancelled) {
+                  cancelled = true;
+                  return;
+                }
               }
             } catch (e) {
               totalErrors++;
@@ -1322,13 +1375,18 @@ function startHygieneScanChecker() {
       await walkDir(scanRoot);
 
       await api.callApi("report-hygiene-findings", {
-        findings, session_id: sessionId, done: true,
+        findings,
+        session_id: sessionId,
+        done: true,
         progress: makeProgress(),
         ...(cancelled ? { error: "Scan cancelled by user" } : {}),
       });
 
       logger.info(cancelled ? "Hygiene scan cancelled by user" : "Hygiene scan complete", {
-        totalChecked, totalErrors, findingsReported: findings.length, sessionId,
+        totalChecked,
+        totalErrors,
+        findingsReported: findings.length,
+        sessionId,
       });
     } catch (e) {
       logger.error("Hygiene scan failed", { error: (e as Error).message });
@@ -1405,14 +1463,11 @@ import { parseTenants, runSupervisor } from "./tenant-supervisor";
         stack: (e as Error).stack,
       });
 
-      const likelyConfigIssue =
-        msg.includes("No agent key and no pairing code") ||
+      const likelyConfigIssue = msg.includes("No agent key and no pairing code") ||
         msg.includes("invalid or expired") ||
         msg.includes("Missing required: POPDAM_SERVER_URL or SUPABASE_URL");
 
-      const delay = likelyConfigIssue
-        ? 60_000
-        : Math.min(MAIN_RETRY_MAX_MS, MAIN_RETRY_BASE_MS * Math.pow(2, Math.min(attempt - 1, 8)));
+      const delay = likelyConfigIssue ? 60_000 : Math.min(MAIN_RETRY_MAX_MS, MAIN_RETRY_BASE_MS * Math.pow(2, Math.min(attempt - 1, 8)));
 
       logger.warn("Startup blocked; agent will retry automatically (process stays alive)", {
         retryInSeconds: Math.round(delay / 1000),

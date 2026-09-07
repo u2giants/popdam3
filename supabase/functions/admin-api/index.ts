@@ -1313,6 +1313,65 @@ async function handleGetPdfBackfillStatus() {
   return json({ backfill, agent, remaining_count: remaining, updated_at: row?.updated_at ?? null });
 }
 
+async function getPopSgPdfCoverage(db: ReturnType<typeof serviceClient>) {
+  const statuses = ["pending", "claimed", "extracted", "failed", "skipped"] as const;
+  const [active, ...counts] = await Promise.all([
+    db.from("style_guide_files").select("id", { count: "exact", head: true })
+      .eq("is_active", true).in("file_extension", ["pdf", ".pdf"]),
+    ...statuses.map((status) => db.from("style_guide_pdf_text").select("style_guide_file_id", { count: "exact", head: true }).eq("status", status)),
+  ]);
+  return {
+    active_pdfs: active.count ?? 0,
+    statuses: Object.fromEntries(statuses.map((status, index) => [status, counts[index].count ?? 0])),
+  };
+}
+
+async function handleTriggerPopSgPdfBackfill() {
+  const db = serviceClient();
+  const { data: damRow } = await db.from("admin_config")
+    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+  const dam = (damRow?.value as Record<string, unknown>) || {};
+  if (dam.status === "running") return err("Finish or pause the PopDAM PDF backfill first", 409);
+
+  const coverage = await getPopSgPdfCoverage(db);
+  const now = new Date().toISOString();
+  await db.from("admin_config").upsert({
+    key: "POPSG_PDF_BACKFILL",
+    value: {
+      status: "running",
+      started_at: now,
+      completed_at: null,
+      processed: 0,
+      refused: 0,
+      total: coverage.active_pdfs,
+      initial_statuses: coverage.statuses,
+    },
+    updated_at: now,
+  });
+  return json({ ok: true, coverage });
+}
+
+async function handlePausePopSgPdfBackfill() {
+  const db = serviceClient();
+  const { data } = await db.from("admin_config")
+    .select("value").eq("key", "POPSG_PDF_BACKFILL").maybeSingle();
+  await db.from("admin_config").upsert({
+    key: "POPSG_PDF_BACKFILL",
+    value: { ...((data?.value as Record<string, unknown>) || {}), status: "paused" },
+    updated_at: new Date().toISOString(),
+  });
+  return json({ ok: true });
+}
+
+async function handleGetPopSgPdfBackfillStatus() {
+  const db = serviceClient();
+  const [{ data }, coverage] = await Promise.all([
+    db.from("admin_config").select("value,updated_at").eq("key", "POPSG_PDF_BACKFILL").maybeSingle(),
+    getPopSgPdfCoverage(db),
+  ]);
+  return json({ ok: true, backfill: data?.value ?? null, coverage, updated_at: data?.updated_at ?? null });
+}
+
 // ── Route: trigger-pdf-text-sample ──────────────────────────────────
 
 async function handleTriggerPdfTextSample(body: Record<string, unknown>) {
@@ -1916,6 +1975,12 @@ corsServe(async (req: Request) => {
         return await handleResumePdfBackfill();
       case "get-pdf-backfill-status":
         return await handleGetPdfBackfillStatus();
+      case "trigger-popsg-pdf-backfill":
+        return await handleTriggerPopSgPdfBackfill();
+      case "pause-popsg-pdf-backfill":
+        return await handlePausePopSgPdfBackfill();
+      case "get-popsg-pdf-backfill-status":
+        return await handleGetPopSgPdfBackfillStatus();
       case "trigger-pdf-text-sample":
         return await handleTriggerPdfTextSample(body);
       case "find-ai-pdf-duplicates":
