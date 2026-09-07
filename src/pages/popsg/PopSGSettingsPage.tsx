@@ -56,6 +56,31 @@ interface PopSGTaggingStats {
   last_completed_at: string | null;
 }
 
+interface PopSGCrawlRun {
+  id: string;
+  status: string;
+  lifecycle_state: string;
+  created_at: string;
+  completed_at: string | null;
+  files_found: number;
+  files_upserted: number;
+  files_deactivated: number;
+  stale_candidates_at_start: number | null;
+  stale_remaining: number | null;
+  guard_state: string | null;
+  guard_reason: string | null;
+  reconcile_completed_at: string | null;
+  refresh_completed_at: string | null;
+  inaccessible_roots: string[] | null;
+  error_message: string | null;
+}
+
+interface PopSGCrawlHealth {
+  last_run: PopSGCrawlRun | null;
+  recent_runs: PopSGCrawlRun[];
+  total_active_files: number;
+}
+
 function PopSGTaggingCard() {
   const operation = usePersistentOperation("tag-popsg-files");
   const { data: stats, refetch, isFetching, error } = useQuery<PopSGTaggingStats>({
@@ -689,9 +714,19 @@ export default function PopSGSettingsPage() {
   }, [setSearchParams]);
 
   const queryClient = useQueryClient();
+  const { call: callAdminApi } = useAdminApi();
   const crawlProgress = useCrawlProgress();
   const { crawlTriggered, handleTriggerCrawl } = useCrawlLifecycle(crawlProgress, "trigger-style-guide-crawl");
   const crawlActive = crawlProgress.status === "queued" || crawlProgress.status === "running" || crawlTriggered;
+  const { data: crawlHealth, refetch: refetchCrawlHealth, isFetching: crawlHealthFetching } = useQuery<PopSGCrawlHealth>({
+    queryKey: ["popsg", "crawl-health"],
+    queryFn: () => callAdminApi("get-style-guide-crawl-status") as Promise<PopSGCrawlHealth>,
+    refetchInterval: crawlActive ? 5_000 : 30_000,
+  });
+  const lastCrawlRun = crawlHealth?.last_run;
+  const priorCrawlRun = crawlHealth?.recent_runs?.[1];
+  const fullyReconciled = lastCrawlRun?.status === "completed" &&
+    Boolean(lastCrawlRun.reconcile_completed_at) && Boolean(lastCrawlRun.refresh_completed_at);
 
   const agentStatus = useAgentStatus();
 
@@ -1115,6 +1150,56 @@ export default function PopSGSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {lastCrawlRun && (
+                <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {fullyReconciled
+                        ? <CheckCircle2 className="h-4 w-4 text-success" />
+                        : <AlertCircle className="h-4 w-4 text-destructive" />}
+                      <span className="font-medium">
+                        {fullyReconciled ? "Fully reconciled" : "Needs attention"}
+                      </span>
+                      <Badge variant={fullyReconciled ? "secondary" : "destructive"}>
+                        {lastCrawlRun.lifecycle_state || lastCrawlRun.status}
+                      </Badge>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => refetchCrawlHealth()} disabled={crawlHealthFetching}>
+                      <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${crawlHealthFetching ? "animate-spin" : ""}`} />
+                      Refresh health
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {[
+                      ["Discovered", lastCrawlRun.files_found],
+                      ["Accepted", lastCrawlRun.files_upserted],
+                      ["Stale candidates", lastCrawlRun.stale_candidates_at_start ?? 0],
+                      ["Deactivated", lastCrawlRun.files_deactivated],
+                      ["Remaining", lastCrawlRun.stale_remaining ?? 0],
+                    ].map(([label, value]) => (
+                      <div key={String(label)}>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+                        <p className="font-mono font-semibold tabular-nums">{Number(value).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-muted-foreground">
+                    Active library: {(crawlHealth?.total_active_files ?? 0).toLocaleString()}
+                    {priorCrawlRun ? ` · Prior ordinary run: ${priorCrawlRun.files_found.toLocaleString()}` : ""}
+                    {lastCrawlRun.refresh_completed_at
+                      ? ` · Aggregates refreshed ${formatDateTime(lastCrawlRun.refresh_completed_at)}`
+                      : " · Aggregates not refreshed"}
+                  </p>
+                  {(lastCrawlRun.guard_reason || lastCrawlRun.error_message) && (
+                    <p className="text-destructive">{lastCrawlRun.guard_reason || lastCrawlRun.error_message}</p>
+                  )}
+                  {!fullyReconciled && (
+                    <p className="font-medium text-destructive">
+                      Existing files were preserved. Let the next ordinary crawl retry; do not force completion.
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="flex items-center gap-3">
                 <Button
                   onClick={handleTriggerCrawl}

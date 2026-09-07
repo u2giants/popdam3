@@ -803,13 +803,14 @@ async function handleGetStyleGuideCrawlStatus() {
   const { data: reqRow } = await db.from("admin_config").select("value").eq("key", "STYLE_GUIDE_CRAWL_REQUEST").maybeSingle();
   const request = (reqRow?.value as Record<string, unknown>) || null;
 
-  const { data: lastRun } = await db.from("style_guide_crawl_runs")
-    .select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: recentRuns } = await db.from("style_guide_crawl_runs")
+    .select("*").order("created_at", { ascending: false }).limit(5);
+  const lastRun = recentRuns?.[0] ?? null;
 
   const { count: totalActive } = await db.from("style_guide_files")
     .select("*", { count: "exact", head: true }).eq("is_active", true);
 
-  return json({ ok: true, request, last_run: lastRun, total_active_files: totalActive ?? 0 });
+  return json({ ok: true, request, last_run: lastRun, recent_runs: recentRuns ?? [], total_active_files: totalActive ?? 0 });
 }
 
 // ── Route: browse-style-guide-files ─────────────────────────────────
