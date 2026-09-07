@@ -3383,10 +3383,11 @@ async function handleClaimPdfBackfillBatch() {
   // Surface RPC errors as 5xx so the agent retries (and logs a real reason) instead of
   // receiving an ok:true response with empty/garbage data — the latter previously crashed
   // the agent's claim loop with an opaque "error: unknown".
-  // Each completion insert refreshes search documents through database triggers.
-  // Keep the batch below the normal authenticated statement ceiling; 25 rows
-  // timed out in production even though all extraction work had succeeded.
-  const { data: assets, error: claimErr } = await db.rpc("claim_pdf_backfill_batch", { p_limit: 3 });
+  // Completion now uses bulk_insert_pdf_text_samples(), which suppresses the
+  // expensive per-row FILES USED parser. Keep the remaining search-document
+  // refreshes well below the former 25-row ceiling while avoiding three-row
+  // round-trip overhead across the full backlog.
+  const { data: assets, error: claimErr } = await db.rpc("claim_pdf_backfill_batch", { p_limit: 10 });
   if (claimErr) return err(`claim_pdf_backfill_batch failed: ${claimErr.message}`, 500);
   const rows = (assets as Array<{ id: string; filename: string; relative_path: string; needs_thumbnail: boolean }>) || [];
 
