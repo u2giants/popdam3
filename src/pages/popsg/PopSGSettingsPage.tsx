@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ExternalLink, Eye, EyeOff, RotateCw, RotateCcw, Save, RefreshCw, Trash2, Settings,
-  CheckCircle2, Clock, AlertCircle, FileX, Tags,
+  CheckCircle2, Clock, AlertCircle, FileX, FileText, Tags,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_APP } from "@/lib/app-mode";
@@ -79,6 +79,21 @@ interface PopSGCrawlHealth {
   last_run: PopSGCrawlRun | null;
   recent_runs: PopSGCrawlRun[];
   total_active_files: number;
+}
+
+interface PopSGPdfBackfillStatus {
+  backfill: {
+    status?: string;
+    processed?: number;
+    refused?: number;
+    started_at?: string | null;
+    completed_at?: string | null;
+  } | null;
+  coverage: {
+    active_pdfs: number;
+    statuses: Record<"pending" | "claimed" | "extracted" | "failed" | "skipped", number>;
+  };
+  updated_at: string | null;
 }
 
 function PopSGTaggingCard() {
@@ -839,6 +854,17 @@ export default function PopSGSettingsPage() {
     refetchInterval: 30_000,
   });
 
+  const {
+    data: pdfStatus,
+    error: pdfStatusError,
+    refetch: refetchPdfStatus,
+    isFetching: pdfStatusFetching,
+  } = useQuery<PopSGPdfBackfillStatus>({
+    queryKey: ["popsg", "pdf-backfill-status"],
+    queryFn: () => callAdminApi("get-popsg-pdf-backfill-status") as Promise<PopSGPdfBackfillStatus>,
+    refetchInterval: 30_000,
+  });
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
       <div className="flex items-center gap-3">
@@ -1023,6 +1049,62 @@ export default function PopSGSettingsPage() {
                 Save
               </Button>
 
+            </CardContent>
+          </Card>
+
+          {/* PDF text extraction */}
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FileText className="h-4 w-4 text-primary" />
+                  PDF Search Coverage
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs">
+                  PopSG PDF text is tracked separately from PopDAM licensing and tech-pack extraction.
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => refetchPdfStatus()}
+                disabled={pdfStatusFetching}
+                aria-label="Refresh PDF search coverage"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${pdfStatusFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pdfStatusError ? (
+                <p className="text-xs text-destructive">PDF extraction coverage could not be loaded.</p>
+              ) : !pdfStatus ? (
+                <p className="text-xs text-muted-foreground">Loading…</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {[
+                      ["Active PDFs", pdfStatus.coverage.active_pdfs],
+                      ["Extracted", pdfStatus.coverage.statuses.extracted],
+                      ["Waiting", pdfStatus.coverage.statuses.pending + pdfStatus.coverage.statuses.claimed],
+                      ["Failed", pdfStatus.coverage.statuses.failed],
+                      ["Terminal skips", pdfStatus.coverage.statuses.skipped],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="rounded-md border border-border bg-muted/20 p-2.5">
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+                        <p className="mt-0.5 text-lg font-semibold tabular-nums">{Number(value).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {pdfStatus.backfill?.status === "running"
+                      ? `Extraction is running · ${Number(pdfStatus.backfill.processed ?? 0).toLocaleString()} processed`
+                      : pdfStatus.backfill?.status === "completed"
+                        ? `Extraction completed${pdfStatus.backfill.completed_at ? ` ${formatDateTime(pdfStatus.backfill.completed_at)}` : ""}`
+                        : "Not started. It remains gated until the PopDAM PDF queue and governed terminal-outcome contract are complete."}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
