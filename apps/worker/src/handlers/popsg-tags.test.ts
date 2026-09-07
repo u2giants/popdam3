@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildPopSGTaxonomyLookups,
+  buildCanonicalAliasEntries,
   inferPopSGTags,
   normalizePopSGTag,
   resolvePopSGField,
@@ -27,6 +28,33 @@ function fixture(overrides: Partial<PopSGTagFile> = {}): PopSGTagFile {
 
 test("normalizes punctuation, camel case, separators, and whitespace", () => {
   assert.equal(normalizePopSGTag("  Spider-Man_AllOverPrint  "), "spider man all over print");
+});
+
+test("matches the canonical database normalizer across all 21 frozen fixtures", () => {
+  const fixtures = [
+    ["", ""], ["BATMAN", "batman"], ["SpiderMan", "spider man"], ["  Batman  ", "batman"],
+    ["Batman   Returns", "batman returns"], ["Batman\tReturns\nCore", "batman returns core"],
+    ["Parks & Rec", "parks rec"], ["Ferris Bueller's Day Off", "ferris buellers day off"],
+    ["Gabby’s Dollhouse", "gabbys dollhouse"], ["TOEI - ONE PIECE", "toei one piece"],
+    ["Batman–Robin", "batman robin"], ["Batman—Robin", "batman robin"],
+    ["Marvel_Style_Guide", "marvel style guide"], ["Marvel/Disney\\Wb", "marvel disney wb"],
+    ["The Mummy (1999)!", "the mummy 1999"], ["Batman...Returns", "batman returns"],
+    ["ＭＡＲＶＥＬ", "marvel"], ["Ofﬁce", "office"], ["Café", "caf"],
+    ["___---!!!", ""], ["Phase6Ready", "phase6 ready"],
+  ];
+  for (const [input, expected] of fixtures) assert.equal(normalizePopSGTag(input), expected, input);
+});
+
+test("builds aliases from canonical rows and rejects globally ambiguous property aliases", () => {
+  assert.deepEqual(buildCanonicalAliasEntries([
+    { alias: "Nick", canonicalName: "Viacom Multi" },
+  ], "licensor"), [{
+    name: "Viacom Multi", normalized: "nick", canonical: "viacom multi", facet: "licensor",
+  }]);
+  assert.deepEqual(buildCanonicalAliasEntries([
+    { alias: "Classic", canonicalName: "Classic A" },
+    { alias: "Classic", canonicalName: "Classic B" },
+  ], "property"), []);
 });
 
 test("uses every directory level and preserves path depth evidence", () => {

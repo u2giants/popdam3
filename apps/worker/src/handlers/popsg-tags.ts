@@ -59,7 +59,7 @@ export interface PopSGTagFile {
   input_fingerprint: string;
 }
 
-interface TaxonomyEntry {
+export interface TaxonomyEntry {
   name: string;
   // The normalized string we search for in a path (the alias form for aliases,
   // otherwise the canonical name).
@@ -69,26 +69,6 @@ interface TaxonomyEntry {
   canonical?: string;
   facet: "licensor" | "property" | "character";
 }
-
-// Curated aliases: a normalized variant mapped to the canonical name exactly as
-// it appears in the licensors / properties tables. An alias only ever resolves
-// when its canonical row actually exists in the taxonomy, so a bad entry here
-// can never invent a licensor/property link — it just does nothing.
-// Bucket A: folder short-forms/nicknames whose canonical licensor DOES exist in
-// core.licensor. `canonical` must match a core.licensor name (case/punct-insensitive);
-// an alias whose canonical is absent is silently ignored, so these can't fabricate links.
-const LICENSOR_ALIASES: ReadonlyArray<{ alias: string; canonical: string }> = [
-  { alias: "NBC Universal", canonical: "NBC" },
-  { alias: "Marvel Style Guide", canonical: "Marvel" },
-  { alias: "One Piece", canonical: "TOEI - ONE PIECE" },
-  { alias: "Peanuts", canonical: "Peanuts Worldwide" },
-  { alias: "Sesame Workshop", canonical: "Sesame Street" },
-  // Paramount / Nickelodeon / Viacom are the same licensor family in core.
-  { alias: "Paramount", canonical: "Viacom Multi" },
-  { alias: "Nickelodeon", canonical: "Viacom Multi" },
-  { alias: "Viacom", canonical: "Viacom Multi" },
-];
-const PROPERTY_ALIASES: ReadonlyArray<{ alias: string; canonical: string }> = [];
 
 interface FieldMatch {
   canonical: string;
@@ -280,6 +260,32 @@ export function normalizePopSGTag(value: string): string {
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+export function buildCanonicalAliasEntries(
+  rows: ReadonlyArray<{ alias: string; canonicalName: string | null }>,
+  facet: "licensor" | "property",
+): TaxonomyEntry[] {
+  const candidates = new Map<string, Map<string, string>>();
+  for (const row of rows) {
+    if (!row.canonicalName) continue;
+    const normalized = normalizePopSGTag(row.alias);
+    const canonical = normalizePopSGTag(row.canonicalName);
+    if (!normalized || !canonical || normalized === canonical) continue;
+    const targets = candidates.get(normalized) ?? new Map<string, string>();
+    targets.set(canonical, row.canonicalName);
+    candidates.set(normalized, targets);
+  }
+
+  const entries: TaxonomyEntry[] = [];
+  for (const [normalized, targets] of candidates) {
+    // Property aliases are parent-scoped in core. A globally ambiguous alias
+    // cannot be applied safely to a path-only tag, so fail closed.
+    if (targets.size !== 1) continue;
+    const [[canonical, name]] = [...targets.entries()];
+    entries.push({ name, normalized, canonical, facet });
+  }
+  return entries;
 }
 
 function stripRevisionNoise(value: string): string {
@@ -501,28 +507,24 @@ async function loadTaxonomy(): Promise<TaxonomyEntry[]> {
   // frequently store that code rather than the legal name, so we resolve against
   // name AND code. Characters have no populated `core.character` yet (0 rows), so
   // the legacy public.characters catalog remains the only source for that facet.
-  const [licensorsResult, propertiesResult, charactersResult] = await Promise.all([
-    client.schema("core").from("licensor").select("name, code"),
-    client.schema("core").from("property").select("name"),
+  const [licensorsResult, propertiesResult, charactersResult, licensorAliasesResult, propertyAliasesResult] = await Promise.all([
+    client.schema("core").from("licensor").select("id, name, code"),
+    client.schema("core").from("property").select("id, name"),
     client.from("characters").select("name"),
+    client.schema("core").from("licensor_alias").select("alias, licensor_id"),
+    client.schema("core").from("property_alias").select("alias, property_id"),
   ]);
 
-  for (const result of [licensorsResult, propertiesResult, charactersResult]) {
+  for (const result of [licensorsResult, propertiesResult, charactersResult, licensorAliasesResult, propertyAliasesResult]) {
     if (result.error) throw new Error(`PopSG taxonomy load failed: ${result.error.message}`);
   }
 
   const entries: TaxonomyEntry[] = [];
-  const canonicalByFacet: Record<TaxonomyEntry["facet"], Map<string, string>> = {
-    licensor: new Map(),
-    property: new Map(),
-    character: new Map(),
-  };
   const append = (rows: Array<{ name: string }> | null, facet: TaxonomyEntry["facet"]) => {
     for (const row of rows ?? []) {
       const normalized = normalizePopSGTag(row.name);
       if (!normalized) continue;
       entries.push({ name: row.name, normalized, facet });
-      if (!canonicalByFacet[facet].has(normalized)) canonicalByFacet[facet].set(normalized, row.name);
     }
   };
   append(licensorsResult.data as Array<{ name: string }> | null, "licensor");
@@ -531,33 +533,31 @@ async function loadTaxonomy(): Promise<TaxonomyEntry[]> {
 
   // Licensor merch-group code -> canonical licensor name (e.g. "WB" -> Warner
   // Bros). Registered as an alias entry so folders that store the code resolve.
-  for (const row of (licensorsResult.data as Array<{ name: string; code: string | null }> | null) ?? []) {
+  const licensors = (licensorsResult.data as Array<{ id: string; name: string; code: string | null }> | null) ?? [];
+  const properties = (propertiesResult.data as Array<{ id: string; name: string }> | null) ?? [];
+  for (const row of licensors) {
     const canonicalNormalized = normalizePopSGTag(row.name);
     const codeNormalized = row.code ? normalizePopSGTag(row.code) : "";
     if (!canonicalNormalized || !codeNormalized || codeNormalized === canonicalNormalized) continue;
     entries.push({ name: row.name, normalized: codeNormalized, canonical: canonicalNormalized, facet: "licensor" });
   }
 
-  // Aliases resolve to a canonical row only when that row exists in the table.
-  const appendAliases = (
-    aliases: ReadonlyArray<{ alias: string; canonical: string }>,
-    facet: "licensor" | "property",
-  ) => {
-    for (const { alias, canonical } of aliases) {
-      const aliasNormalized = normalizePopSGTag(alias);
-      const canonicalNormalized = normalizePopSGTag(canonical);
-      const canonicalName = canonicalByFacet[facet].get(canonicalNormalized);
-      if (!aliasNormalized || !canonicalName || aliasNormalized === canonicalNormalized) continue;
-      entries.push({
-        name: canonicalName,
-        normalized: aliasNormalized,
-        canonical: canonicalNormalized,
-        facet,
-      });
-    }
-  };
-  appendAliases(LICENSOR_ALIASES, "licensor");
-  appendAliases(PROPERTY_ALIASES, "property");
+  const licensorNameById = new Map(licensors.map((row) => [row.id, row.name]));
+  const propertyNameById = new Map(properties.map((row) => [row.id, row.name]));
+  entries.push(...buildCanonicalAliasEntries(
+    ((licensorAliasesResult.data ?? []) as Array<{ alias: string; licensor_id: string }>).map((row) => ({
+      alias: row.alias,
+      canonicalName: licensorNameById.get(row.licensor_id) ?? null,
+    })),
+    "licensor",
+  ));
+  entries.push(...buildCanonicalAliasEntries(
+    ((propertyAliasesResult.data ?? []) as Array<{ alias: string; property_id: string }>).map((row) => ({
+      alias: row.alias,
+      canonicalName: propertyNameById.get(row.property_id) ?? null,
+    })),
+    "property",
+  ));
 
   taxonomyCache = { entries, loadedAt: Date.now() };
   return entries;
