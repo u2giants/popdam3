@@ -16,7 +16,15 @@ export type StyleGroupAssignment = {
   assetId: string;
   sku: string;
   groupFields: Record<string, unknown>;
+  existingGroup?: Record<string, unknown> | null;
+  currentStyleGroupId?: string | null;
 };
+
+export const STYLE_GROUP_ASSIGNMENT_COLUMNS = [
+  "id", "sku", "folder_path", "is_licensed", "licensor_id", "licensor_code", "licensor_name",
+  "property_id", "property_code", "property_name", "division_code", "division_name",
+  "mg01_code", "mg01_name", "mg02_code", "mg02_name", "mg03_code", "mg03_name", "size_code", "size_name",
+] as const;
 
 function sameValue(left: unknown, right: unknown): boolean {
   return (left ?? null) === (right ?? null);
@@ -33,15 +41,17 @@ export function changedStyleGroupFields(
 
 export async function assignStyleGroup(
   db: StyleGroupAssignmentDb,
-  { assetId, sku, groupFields }: StyleGroupAssignment,
+  { assetId, sku, groupFields, existingGroup, currentStyleGroupId }: StyleGroupAssignment,
 ): Promise<{ groupId: string; created: boolean; metadataUpdated: boolean }> {
-  const selected = await db.from("style_groups")
-    .select(`id, ${Object.keys(groupFields).join(", ")}`)
-    .eq("sku", sku)
-    .maybeSingle();
-  if (selected.error) throw new Error(`style group lookup failed: ${selected.error.message}`);
-
-  let group = selected.data as Record<string, unknown> | null;
+  let group = existingGroup;
+  if (group === undefined) {
+    const selected = await db.from("style_groups")
+      .select(`id, ${Object.keys(groupFields).join(", ")}`)
+      .eq("sku", sku)
+      .maybeSingle();
+    if (selected.error) throw new Error(`style group lookup failed: ${selected.error.message}`);
+    group = selected.data as Record<string, unknown> | null;
+  }
   let created = false;
   let metadataUpdated = false;
 
@@ -75,11 +85,13 @@ export async function assignStyleGroup(
   const groupId = group.id as string;
   // Conditional assignment keeps repeated scans from refreshing the asset's
   // search document when membership has not changed.
-  const assignment = await db.from("assets")
-    .update({ style_group_id: groupId })
-    .eq("id", assetId)
-    .neq("style_group_id", groupId);
-  if (assignment.error) throw new Error(`asset style group assignment failed: ${assignment.error.message}`);
+  if (currentStyleGroupId !== groupId) {
+    const assignment = await db.from("assets")
+      .update({ style_group_id: groupId })
+      .eq("id", assetId)
+      .neq("style_group_id", groupId);
+    if (assignment.error) throw new Error(`asset style group assignment failed: ${assignment.error.message}`);
+  }
 
   return { groupId, created, metadataUpdated };
 }

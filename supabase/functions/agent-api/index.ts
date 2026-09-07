@@ -46,7 +46,7 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments } from "../_shared/sg-crawl-state.ts";
-import { assignStyleGroup } from "../_shared/style-group-assignment.ts";
+import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -787,6 +787,7 @@ async function assignToStyleGroup(
   derived: Pick<DerivedMetadata, "is_licensed">,
   licensing: LicensingResolution,
   db: ReturnType<typeof serviceClient>,
+  existing?: { styleGroupId: string | null; group: Record<string, unknown> | null },
 ): Promise<void> {
   try {
     const sku = extractSkuFolder(relativePath);
@@ -820,7 +821,13 @@ async function assignToStyleGroup(
       size_name: skuFields.size_name ?? null,
     };
 
-    await assignStyleGroup(db, { assetId, sku, groupFields });
+    await assignStyleGroup(db, {
+      assetId,
+      sku,
+      groupFields,
+      existingGroup: existing?.group,
+      currentStyleGroupId: existing?.styleGroupId,
+    });
   } catch (e) {
     // This is deliberately propagated. The bridge retries failed ingest calls,
     // making a post-write assignment failure visible and recoverable.
@@ -954,7 +961,7 @@ async function handleIngest(
 
   const { data: existingByPath } = await db
     .from("assets")
-    .select("id")
+    .select(`id, style_group_id, style_groups(${STYLE_GROUP_ASSIGNMENT_COLUMNS.join(", ")})`)
     .eq("relative_path", relativePath)
     .maybeSingle();
 
@@ -1096,7 +1103,13 @@ async function handleIngest(
 
     // processing_queue inserts removed — AI tagging is now handled by the Railway worker
 
-    await assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, licensing, db);
+    const relatedGroup = Array.isArray(existingByPath.style_groups)
+      ? existingByPath.style_groups[0] ?? null
+      : existingByPath.style_groups ?? null;
+    await assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, licensing, db, {
+      styleGroupId: existingByPath.style_group_id,
+      group: relatedGroup as Record<string, unknown> | null,
+    });
 
     return json({
       ok: true,

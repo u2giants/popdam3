@@ -25,10 +25,16 @@ describe("style-group ingestion assignment", () => {
       q.update = (...args: any[]) => { (table === "style_groups" ? groups : assets).push(args[0]); return originalUpdate(...args); };
       return q;
     }};
-    const result = await assignStyleGroup(db, { assetId: "asset-1", sku: "ABC1234", groupFields: { sku: "ABC1234", folder_path: "Decor/ABC1234", is_licensed: true } });
+    const result = await assignStyleGroup(db, {
+      assetId: "asset-1",
+      sku: "ABC1234",
+      groupFields: { sku: "ABC1234", folder_path: "Decor/ABC1234", is_licensed: true },
+      existingGroup: group,
+      currentStyleGroupId: "group-1",
+    });
     expect(result).toMatchObject({ groupId: "group-1", created: false, metadataUpdated: false });
     expect(groups).toEqual([]);
-    expect(assets).toEqual([{ style_group_id: "group-1" }]);
+    expect(assets).toEqual([]);
   });
 
   it("creates a new SKU once and relies on the membership trigger for cached counts", async () => {
