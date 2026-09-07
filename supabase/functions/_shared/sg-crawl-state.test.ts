@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSgIngestCompletionUpdate, canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard } from "./sg-crawl-state.ts";
+import { buildSgIngestCompletionUpdate, canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard, hasMoreSgSearchDocuments } from "./sg-crawl-state.ts";
 
 const config = { absoluteDrop: 1_000, percentageDrop: 0.01, minimumPriorCount: 10_000 };
 
@@ -49,5 +49,13 @@ describe("canCompleteSgCrawl", () => {
     expect(canCompleteSgCrawl("refreshing", { remaining: 1 }, true)).toBe(false);
     expect(canCompleteSgCrawl("refreshing", { remaining: 0 }, false)).toBe(false);
     expect(canCompleteSgCrawl("refreshing", { remaining: 0 }, true)).toBe(true);
+  });
+});
+
+describe("hasMoreSgSearchDocuments", () => {
+  it("continues while a full bounded batch was synchronized", () => {
+    expect(hasMoreSgSearchDocuments(5_000, 5_000)).toBe(true);
+    expect(hasMoreSgSearchDocuments(4_999, 5_000)).toBe(false);
+    expect(hasMoreSgSearchDocuments(0, 5_000)).toBe(false);
   });
 });

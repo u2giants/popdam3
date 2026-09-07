@@ -45,7 +45,7 @@ import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNu
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
-import { buildSgIngestCompletionUpdate } from "../_shared/sg-crawl-state.ts";
+import { buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments } from "../_shared/sg-crawl-state.ts";
 import { assignStyleGroup } from "../_shared/style-group-assignment.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
@@ -3036,14 +3036,35 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       // required: that is what stamps refresh_completed_at, without which the
       // completion CHECK constraint rejects the update below.
       if (reconcileOk) {
-        const { error: refreshErr } = await db.rpc("refresh_style_guide_matviews", {
+        const searchBatchSize = 5000;
+        const { data: refreshData, error: refreshErr } = await db.rpc("refresh_style_guide_matviews", {
           p_run_id: runId,
-          p_search_batch_size: 5000,
+          p_search_batch_size: searchBatchSize,
         });
         if (refreshErr) {
           reconcileOk = false;
           reconcileFailure = `Matview refresh failed: ${refreshErr.message}`;
           console.error("[complete-style-guide-crawl]", reconcileFailure);
+        } else {
+          const refresh = (Array.isArray(refreshData) ? refreshData[0] : refreshData) as {
+            search_documents_synced: number;
+          } | null;
+          const synced = refresh?.search_documents_synced ?? 0;
+          if (hasMoreSgSearchDocuments(synced, searchBatchSize)) {
+            const { error: continuationErr } = await db.from("style_guide_crawl_runs").update({
+              lifecycle_state: "refreshing",
+              refresh_completed_at: null,
+            }).eq("id", runId);
+            if (continuationErr) {
+              return err(`Could not persist search refresh continuation: ${continuationErr.message}`, 500);
+            }
+            return json({
+              ok: true,
+              state: "refreshing",
+              retry_after_ms: 1_000,
+              counters: { search_documents_synced: synced },
+            });
+          }
         }
       }
 

@@ -71,3 +71,7 @@ export function evaluateSgDropGuard(
 export function canCompleteSgCrawl(stage: SgCrawlStage, counters: Pick<SgCrawlCounters, "remaining">, aggregateFresh: boolean): boolean {
   return stage === "refreshing" && counters.remaining === 0 && aggregateFresh;
 }
+
+export function hasMoreSgSearchDocuments(synced: number, batchSize: number): boolean {
+  return synced >= batchSize;
+}
