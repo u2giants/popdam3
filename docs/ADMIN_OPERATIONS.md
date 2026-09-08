@@ -492,6 +492,16 @@ Maximum 50 images per call.
 
 ColdLion (`http://x5.coldlion.com/EhpApi`) is an external API used for merchandise group code lookups.
 
+### Direct prepack landing loader
+
+`npm run sync:coldlion-prepacks -- --apply` performs the guarded server-side
+load used by issue #114. It requires protected-injected `COLDLION_API_KEY` and
+the production Postgres `PG*` variables, refuses any database target other than
+Virginia project `qsllyeztdwjgirsysgai`, proves the terminal `/items` page,
+requires the complete bare-array `/itemDetails` response, probes every distinct
+code through `/prepackDetail`, and writes all landing rows plus three durable
+probe records in one transaction. Never pass credential values in arguments.
+
 ### `debug-coldlion-lookup`
 Performs a test lookup against the ColdLion API and returns the raw response. Used for diagnosing integration issues.
 

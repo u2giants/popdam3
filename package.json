@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "sync:coldlion-prepacks": "node scripts/sync-coldlion-prepacks.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
