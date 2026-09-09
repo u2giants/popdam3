@@ -66,9 +66,13 @@ Date filters, plus the free-text search box, which searches
 The summary counts (total, linked, ambiguous, not linked) are read as count
 queries over the whole dataset, not derived from loaded rows.
 
-The default view is sorted by newest **Order Date** first and shows 250 rows per
+The default view is sorted by newest **Order Date** first and shows 1,500 rows per
 page. Users can change the sort or page size, and saved views can restore their
 own sort.
+
+The grid virtualizes cells, so the browser does not create DOM text for every
+off-screen row. Ctrl+F is therefore captured and focuses the page's database-backed
+OrderList search, which searches the full result set.
 
 **The block's rows and its exact total are two separate requests** (fixed
 2026-08-26). Asking PostgREST for both in one call put the request that renders

@@ -449,18 +449,27 @@ function formatAuditTime(value: string) {
 }
 
 async function fetchRows(sourceSheet: string) {
-  const rows: StyleRow[] = [];
-  for (let from = 0; ; from += MASTER_DATA_FETCH_BATCH_SIZE) {
-    const to = from + MASTER_DATA_FETCH_BATCH_SIZE - 1;
+  const fetchBatch = async (from: number) => {
     const { data, error } = await (supabase as any)
       .from("style_tracker_rows_with_bridge")
       .select("*")
       .eq("source_sheet", sourceSheet)
       .order("source_row_number", { ascending: false })
-      .range(from, to);
+      .range(from, from + MASTER_DATA_FETCH_BATCH_SIZE - 1);
     if (error) throw error;
-    rows.push(...((data ?? []) as StyleRow[]));
-    if (!shouldFetchNextMasterDataBatch(data?.length ?? 0)) break;
+    return (data ?? []) as StyleRow[];
+  };
+
+  // PostgREST caps responses at 1,000 rows. Fetch four ordered ranges at a time
+  // so a 15k-row sheet does not wait for 15 serial network round trips.
+  const rows: StyleRow[] = [];
+  const concurrency = 4;
+  for (let from = 0; ; from += MASTER_DATA_FETCH_BATCH_SIZE * concurrency) {
+    const batches = await Promise.all(
+      Array.from({ length: concurrency }, (_, index) => fetchBatch(from + index * MASTER_DATA_FETCH_BATCH_SIZE)),
+    );
+    for (const batch of batches) rows.push(...batch);
+    if (batches.some((batch) => !shouldFetchNextMasterDataBatch(batch.length))) break;
   }
   return rows;
 }
@@ -1098,6 +1107,7 @@ export default function StylesPage() {
   const { isAdmin } = useIsAdmin();
   const { user } = useAuth();
   const gridRef = useRef<AgGridReact<StyleRow>>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [activeSheet, setActiveSheet] = useState<(typeof configs)[number]["name"]>("License.Style");
   const [quickFilter, setQuickFilter] = useState("");
   const [showAllPageRows, setShowAllPageRows] = useState(false);
@@ -1136,6 +1146,18 @@ export default function StylesPage() {
   const savedViews = savedViewsQuery.data ?? [];
   const activeView = savedViews.find((view) => view.id === activeViewId) ?? null;
   const rows = rowsQuery.data ?? [];
+
+  useEffect(() => {
+    const focusGridSearch = (event: globalThis.KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", focusGridSearch);
+    return () => window.removeEventListener("keydown", focusGridSearch);
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -1684,6 +1706,7 @@ export default function StylesPage() {
     ];
   };
 
+
   return (
     <div className="flex h-[calc(100vh-var(--pd-header-h))] flex-col bg-background">
       <div className="border-b border-border bg-background px-4 py-3">
@@ -1702,7 +1725,7 @@ export default function StylesPage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input value={quickFilter} onChange={(event) => setQuickFilter(event.target.value)} className="h-9 pl-8" placeholder="Search master data" />
+              <Input ref={searchRef} value={quickFilter} onChange={(event) => setQuickFilter(event.target.value)} className="h-9 pl-8" placeholder="Search master data (Ctrl+F)" />
             </div>
             <Button variant="outline" size="sm" onClick={() => rowsQuery.refetch()} disabled={rowsQuery.isFetching}>
               <RefreshCw className={cn("h-4 w-4", rowsQuery.isFetching && "animate-spin")} />

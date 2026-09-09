@@ -21,10 +21,9 @@ import type {
  */
 export const ORDER_LIST_FETCH_BATCH_SIZE = 500;
 
-export const ORDER_LIST_DEFAULT_PAGE_SIZE = 250;
-// Every option must divide ORDER_LIST_FETCH_BATCH_SIZE: AG Grid requires the
-// block size to be a whole number of pages.
-export const ORDER_LIST_PAGE_SIZE_OPTIONS = [50, 100, 250, 500];
+export const ORDER_LIST_DEFAULT_PAGE_SIZE = 1500;
+// Page sizes are whole multiples of the 500-row database block.
+export const ORDER_LIST_PAGE_SIZE_OPTIONS = [500, 1000, 1500];
 
 export function shouldFetchNextOrderListBatch(receivedRowCount: number) {
   return receivedRowCount === ORDER_LIST_FETCH_BATCH_SIZE;

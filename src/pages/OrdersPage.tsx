@@ -35,6 +35,7 @@ import type { OrderListRow, OrderListSavedView } from "@/types/order-list";
 export default function OrdersPage() {
   const { user, loading: authLoading } = useAuth();
   const gridRef = useRef<AgGridReact<OrderListRow>>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const [search, setSearch] = useState("");
   const [editor, setEditor] = useState<{ mode: OrderEditorMode; row: OrderListRow | null } | null>(null);
@@ -58,6 +59,18 @@ export default function OrdersPage() {
   const relinkLine = useRelinkOrderLine(refreshRows);
 
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const focusGridSearch = (event: globalThis.KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", focusGridSearch);
+    return () => window.removeEventListener("keydown", focusGridSearch);
+  }, []);
 
   const datasource = useMemo<IDatasource>(
     () => ({
@@ -127,6 +140,7 @@ export default function OrdersPage() {
   const handleEditOrder = useCallback((row: OrderListRow) => {
     setEditor({ mode: "edit", row });
   }, []);
+
 
   /**
    * Void or restore. There is deliberately no delete RPC, so a correction stamps
@@ -210,9 +224,10 @@ export default function OrdersPage() {
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
+            ref={searchRef}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search orders"
+            placeholder="Search orders (Ctrl+F)"
             aria-label="Search orders"
             className="h-8 w-56 pl-7 text-xs"
           />

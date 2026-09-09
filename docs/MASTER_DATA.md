@@ -39,7 +39,7 @@ Important RPCs:
 
 Rows are loaded newest-first, but the browser loads the full active tab so quick
 search, column filters, and saved filters always evaluate the complete list.
-Pagination still defaults to 500 visible rows. **Show All** sits beside the
+Pagination defaults to 1,500 visible rows. **Show All** sits beside the
 bottom pagination controls and expands the current filtered result set; it does
 not change which rows are searched or filtered.
 
@@ -98,7 +98,11 @@ canonical item links. A pre-refresh database backup was taken before replacement
 - The controlled description sections are picker/autocomplete driven. `MG01`, `MG02`, and `MG03` use the MerchGroup schema in `src/lib/mg-lookup.ts`; MG02 is limited by MG01, and MG03 is limited by MG01 + MG02. `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
 - A nonblank description must have approved values for MG01, MG02, MG03, Licensor + Property, and Size before the grid accepts the edit.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
-- Grid pagination defaults to 500 rows per page, with 1,000 and 1,500 row options.
+- Grid pagination defaults to 1,500 rows per page, with 500 and 1,000 row options.
+- Master Data fetches four 1,000-row ranges concurrently, preserving the full
+  in-browser dataset while avoiding one serial network wait per range.
+- Ctrl+F focuses the grid's full-dataset search because virtualized off-screen
+  cells are not browser-searchable DOM text.
 - AG Grid Enterprise is installed without a license key for now, matching the PLM-style trial setup. Keep AG Grid packages pinned to the same exact version; a previous `35.3.1` Enterprise + `35.1.0` Community/React mismatch caused a blank page before React mounted.
 
 ## View Customization (Saved Views)

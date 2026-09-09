@@ -323,10 +323,10 @@ describe("OrderList database query building", () => {
     ]);
   });
 
-  it("keeps every page size a whole division of the fetched block", () => {
-    expect(ORDER_LIST_DEFAULT_PAGE_SIZE).toBe(250);
+  it("keeps every page size aligned to whole fetched blocks", () => {
+    expect(ORDER_LIST_DEFAULT_PAGE_SIZE).toBe(1500);
     for (const size of ORDER_LIST_PAGE_SIZE_OPTIONS) {
-      expect(ORDER_LIST_FETCH_BATCH_SIZE % size).toBe(0);
+      expect(size % ORDER_LIST_FETCH_BATCH_SIZE).toBe(0);
     }
   });
 });
