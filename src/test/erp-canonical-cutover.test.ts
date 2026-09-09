@@ -34,6 +34,10 @@ describe("canonical ERP cutover", () => {
       expect(read(path), path).not.toMatch(/erp_items_(?:current|raw)/);
     }
     expect(read("supabase/functions/export-table/index.ts")).toContain('schema("api").from("plm_item_list")');
+    for (const path of ["migration/export-all-tables.ps1", "migration/export-from-browser.md"]) {
+      expect(read(path), path).not.toMatch(/erp_items_(?:current|raw)/);
+      expect(read(path), path).toContain("plm_item_list");
+    }
   });
 
   it("keeps dismiss, show-dismissed, and restore behavior wired to canonical identities", () => {
