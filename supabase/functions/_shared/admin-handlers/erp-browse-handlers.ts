@@ -5,12 +5,7 @@
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { optionalString, requireString } from "../validators.ts";
-import {
-  canonicalItemKey,
-  canonicalItemKeySql,
-  canonicalItems,
-  predictionSourceId,
-} from "../canonical-erp-items.ts";
+import { canonicalItemKey, canonicalItemKeySql, canonicalItems, predictionSourceId } from "../canonical-erp-items.ts";
 
 // ── erp-enrichment-stats ────────────────────────────────────────────
 

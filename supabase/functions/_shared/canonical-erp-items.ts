@@ -43,9 +43,14 @@ export function predictionSourceId(key: string): string {
 export function rawMgFieldsFromCanonical(item: CanonicalMgFields): Record<string, string> {
   return Object.fromEntries([
     ["mg_category", item.mg_category],
-    ["mg01", item.mg01_code], ["mg01_code", item.mg01_code],
-    ["mg02", item.mg02_code], ["mg02_code", item.mg02_code],
-    ["mg03", item.mg03_code], ["mg03_code", item.mg03_code],
-    ["mg04", item.mg04_code], ["mg05", item.mg05_code], ["mg06", item.mg06_code],
+    ["mg01", item.mg01_code],
+    ["mg01_code", item.mg01_code],
+    ["mg02", item.mg02_code],
+    ["mg02_code", item.mg02_code],
+    ["mg03", item.mg03_code],
+    ["mg03_code", item.mg03_code],
+    ["mg04", item.mg04_code],
+    ["mg05", item.mg05_code],
+    ["mg06", item.mg06_code],
   ].filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0));
 }
