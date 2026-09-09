@@ -35,7 +35,7 @@ SHEETS = {
         "legacy": {
             "A": "print_fair_row", "B": "style_sku", "C": "group_id", "D": "description",
             "E": "originally_designed_for", "F": "designer", "G": "commissioned",
-            "H": "rfq_code", "I": "legacy_ba", "J": "ba", "K": "upc", "L": "customer_sku",
+            "V": "rfq_code", "I": "legacy_ba", "J": "ba", "K": "upc", "L": "customer_sku",
             "M": "licensor", "N": "license_status", "O": "concept_sent",
             "P": "concept_resubmit", "Q": "concept_resubmitted", "R": "concept_approval",
             "S": "concept_approved_with_comments", "T": "request_pre_production_sample",
@@ -76,7 +76,7 @@ SHEETS = {
 
 EXPECTED_HEADERS = {
     "License.Style": {
-        "AF": "Ordered Proff Photos", "AH": "Professional Photos",
+        "V": "RFQ Code", "AF": "Ordered Proff Photos", "AH": "Professional Photos",
     },
     "Generic.Style": {
         "U": "UPC Code", "V": "Sample Received", "W": "Pre Production Sent",

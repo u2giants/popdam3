@@ -18,6 +18,16 @@ describe("Master Data source column contract", () => {
     expect(page).toContain('values: ["Yes", "No"]');
   });
 
+  it("matches Google date and Yes/No types and omits Generic's blank A column", () => {
+    expect(page).not.toContain('{ letter: "A", header: "A"');
+    expect(page).toContain('{ letter: "V", header: "RFQ Code"');
+    expect(page.match(/header: "Test report"[^\n]+yesNo: true/g)).toHaveLength(2);
+    expect(page).toContain('header: "Concept Sent", width: 145, typedField: "concept_status", legacyKey: "concept_sent", date: true');
+    expect(page).toContain('header: "Sample Received", width: 170, legacyKey: "sample_received", date: true');
+    expect(page).toContain('{ letter: "U", header: "UPC Code", width: 150, legacyKey: "upc_code", number: true }');
+    expect(importer).toContain('"V": "rfq_code"');
+  });
+
   it("refuses an import when the workbook headers drift again", () => {
     expect(importer).toContain("validate_headers(sheet_name, worksheet)");
     expect(importer).toContain("refusing a shifted import");

@@ -100,6 +100,7 @@ type SheetColumn = {
   optionKind?: "customer" | "licensor" | "designer" | "factory" | "packagingType";
   date?: boolean;
   yesNo?: boolean;
+  number?: boolean;
 };
 
 type ReviewItem = {
@@ -213,69 +214,69 @@ const licensedColumns: SheetColumn[] = [
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Originally Designed For", width: 190, typedField: "customer_id", legacyKey: "originally_designed_for", linkKind: "customer", optionKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
-  { letter: "G", header: "New BA# commissioned", width: 170, typedField: "commissioned", legacyKey: "commissioned" },
-  { letter: "H", header: "RFQ Code", width: 130, legacyKey: "rfq_code" },
+  { letter: "G", header: "New BA# commissioned", width: 170, typedField: "commissioned", legacyKey: "commissioned", date: true },
+  { letter: "V", header: "RFQ Code", width: 130, legacyKey: "rfq_code" },
   { letter: "I", header: "Legacy BA#", width: 130, hide: true, legacyKey: "legacy_ba" },
   { letter: "J", header: "BA#", width: 115, legacyKey: "ba" },
   { letter: "K", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
   { letter: "L", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
   { letter: "M", header: "Licensor", width: 130, typedField: "licensor", legacyKey: "licensor", linkKind: "licensor" },
   { letter: "N", header: "License Status", width: 155, typedField: "license_status", legacyKey: "license_status" },
-  { letter: "O", header: "Concept Sent", width: 145, typedField: "concept_status", legacyKey: "concept_sent" },
-  { letter: "P", header: "Concept Resubmit", width: 165, legacyKey: "concept_resubmit" },
-  { letter: "Q", header: "Concept Resubmitted", width: 175, legacyKey: "concept_resubmitted" },
-  { letter: "R", header: "Concept Approval", width: 165, legacyKey: "concept_approval" },
-  { letter: "S", header: "Concept Approved with Comments", width: 225, legacyKey: "concept_approved_with_comments" },
-  { letter: "T", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
+  { letter: "O", header: "Concept Sent", width: 145, typedField: "concept_status", legacyKey: "concept_sent", date: true },
+  { letter: "P", header: "Concept Resubmit", width: 165, legacyKey: "concept_resubmit", date: true },
+  { letter: "Q", header: "Concept Resubmitted", width: 175, legacyKey: "concept_resubmitted", date: true },
+  { letter: "R", header: "Concept Approval", width: 165, legacyKey: "concept_approval", date: true },
+  { letter: "S", header: "Concept Approved with Comments", width: 225, legacyKey: "concept_approved_with_comments", date: true },
+  { letter: "T", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample", date: true },
   { letter: "U", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
   { letter: "SAMPLE_ETA", header: "Sample ETA", headerTooltip: "ETA From Factory", width: 150, legacyKey: "sample_eta", date: true },
-  { letter: "W", header: "Sample Photos Received", width: 200, legacyKey: "sample_photos_received" },
-  { letter: "X", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
-  { letter: "Y", header: "Pre Production Resubmit", width: 205, legacyKey: "pre_production_resubmit" },
-  { letter: "Z", header: "Pre Production Resubmitted", width: 225, legacyKey: "pre_production_resubmitted" },
-  { letter: "AA", header: "Pre Production approved w/comment", width: 255, legacyKey: "pre_production_approved_comment" },
-  { letter: "AB", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval" },
-  { letter: "AC", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval" },
+  { letter: "W", header: "Sample Photos Received", width: 200, legacyKey: "sample_photos_received", date: true },
+  { letter: "X", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent", date: true },
+  { letter: "Y", header: "Pre Production Resubmit", width: 205, legacyKey: "pre_production_resubmit", date: true },
+  { letter: "Z", header: "Pre Production Resubmitted", width: 225, legacyKey: "pre_production_resubmitted", date: true },
+  { letter: "AA", header: "Pre Production approved w/comment", width: 255, legacyKey: "pre_production_approved_comment", date: true },
+  { letter: "AB", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval", date: true },
+  { letter: "AC", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval", date: true },
   { letter: "AD", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
   { letter: "AE", header: "Ordered Cont Sample", width: 190, legacyKey: "ordered_cont_sample" },
   { letter: "AF", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
   { letter: "AG", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
   { letter: "AH", header: "Professional Photos", width: 180, legacyKey: "professional_photos", yesNo: true },
-  { letter: "AI", header: "Test report", width: 150, legacyKey: "test_report" },
-  { letter: "AK", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
+  { letter: "AI", header: "Test report", width: 150, legacyKey: "test_report", yesNo: true },
+  { letter: "AK", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued", yesNo: true },
   { letter: "AL", header: "Customer Exclusive", width: 180, legacyKey: "customer_exclusive" },
-  { letter: "AM", header: "Annual Samples to Need Order", width: 220, legacyKey: "annual_samples_need_order" },
-  { letter: "AN", header: "Annual Samples Ordered", width: 205, legacyKey: "annual_samples_ordered" },
-  { letter: "AO", header: "Contractual Samples RE-Order", width: 235, legacyKey: "contractual_samples_reorder" },
+  { letter: "AM", header: "Annual Samples to Need Order", width: 220, legacyKey: "annual_samples_need_order", yesNo: true },
+  { letter: "AN", header: "Annual Samples Ordered", width: 205, legacyKey: "annual_samples_ordered", date: true },
+  { letter: "AO", header: "Contractual Samples RE-Order", width: 235, legacyKey: "contractual_samples_reorder", yesNo: true },
   { letter: "AQ", header: "TP Assigned", width: 135, legacyKey: "tp_assigned" },
   { letter: "AU", header: "Note:", width: 300, typedField: "notes", legacyKey: "note" },
 ];
 
 const genericColumns: SheetColumn[] = [
-  { letter: "A", header: "A", width: 130 },
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
   { letter: "PKG", header: "Packaging Type", width: 175, legacyKey: "packaging_type", optionKind: "packagingType" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Special Customer", width: 170, typedField: "customer_id", legacyKey: "special_customer", linkKind: "customer", optionKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
-  { letter: "G", header: "commissioned", width: 140, typedField: "commissioned", legacyKey: "commissioned" },
+  { letter: "G", header: "commissioned", width: 140, typedField: "commissioned", legacyKey: "commissioned", date: true },
   { letter: "H", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
   { letter: "I", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
-  { letter: "R", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
+  { letter: "R", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample", date: true },
   { letter: "S", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
   { letter: "SAMPLE_ETA", header: "Sample ETA", headerTooltip: "ETA From Factory", width: 150, legacyKey: "sample_eta", date: true },
   { letter: "T", header: "RFQ Code", width: 150, legacyKey: "rfq_code" },
-  { letter: "V", header: "Sample Received", width: 170, legacyKey: "sample_received" },
-  { letter: "W", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
-  { letter: "X", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval" },
-  { letter: "Y", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval" },
+  { letter: "U", header: "UPC Code", width: 150, legacyKey: "upc_code", number: true },
+  { letter: "V", header: "Sample Received", width: 170, legacyKey: "sample_received", date: true },
+  { letter: "W", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent", date: true },
+  { letter: "X", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval", date: true },
+  { letter: "Y", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval", date: true },
   { letter: "Z", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
   { letter: "AA", header: "Ordered David sample", width: 190, legacyKey: "ordered_david_sample" },
   { letter: "AB", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
   { letter: "AC", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
   { letter: "AD", header: "Professional Photos", width: 180, legacyKey: "professional_photos", yesNo: true },
-  { letter: "AE", header: "Test report", width: 150, legacyKey: "test_report" },
-  { letter: "AG", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
+  { letter: "AE", header: "Test report", width: 150, legacyKey: "test_report", yesNo: true },
+  { letter: "AG", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued", yesNo: true },
 ];
 
 const configs = [
@@ -325,6 +326,27 @@ function yesNoValue(value: unknown) {
   if (value === true || String(value).toLowerCase() === "true" || String(value).toLowerCase() === "yes") return "Yes";
   if (value === false || String(value).toLowerCase() === "false" || String(value).toLowerCase() === "no") return "No";
   return value ?? "";
+}
+
+function numberValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : value;
+}
+
+function dateValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const text = String(value).trim();
+  const slashDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!slashDate) return text;
+  const [, month, day, year] = slashDate;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function googleDateDisplay(value: unknown) {
+  const text = String(value ?? "");
+  const isoDate = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return isoDate ? `${Number(isoDate[2])}/${Number(isoDate[3])}/${isoDate[1]}` : text;
 }
 
 function displayValueFor(row: StyleRow | undefined, column: SheetColumn) {
@@ -1589,6 +1611,8 @@ export default function StylesPage() {
         cellEditor:
           column.date
             ? "agDateStringCellEditor"
+            : column.number
+            ? "agNumberCellEditor"
             : column.yesNo
             ? "agRichSelectCellEditor"
             : column.typedField === "description"
@@ -1623,12 +1647,17 @@ export default function StylesPage() {
               }
             : undefined,
         filter: column.date ? "agDateColumnFilter" : true,
-        cellDataType: column.date ? "dateString" : undefined,
+        cellDataType: column.date ? "dateString" : column.number ? "number" : undefined,
+        valueFormatter: column.date ? (params) => googleDateDisplay(params.value) : undefined,
         sortable: true,
         resizable: true,
         valueGetter: (params) =>
-          column.yesNo
+          column.date
+            ? dateValue(valueFor(params.data, column))
+            : column.yesNo
             ? yesNoValue(valueFor(params.data, column))
+            : column.number
+            ? numberValue(valueFor(params.data, column))
             : column.optionKind === "customer"
             ? params.data?.customer_id ?? null
             : column.optionKind === "designer"
