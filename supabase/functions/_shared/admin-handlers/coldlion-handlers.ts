@@ -18,7 +18,7 @@ export async function getColdlionApiKey(): Promise<string> {
   if (data?.value && typeof data.value === "string" && data.value.trim()) {
     return data.value.trim();
   }
-  return "Z21355JALT13A54L9X5"; // Hardcoded fallback
+  throw new Error("COLDLION_API_KEY is missing from admin_config");
 }
 
 // ── debug-coldlion-lookup ───────────────────────────────────────────
