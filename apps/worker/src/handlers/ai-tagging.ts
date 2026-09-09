@@ -157,6 +157,7 @@ type BatchAsset = {
   status: string | null;
   ai_tagged_at: string | null;
   sku: string | null;
+  division_code: string | null;
   style_group_id: string | null;
 };
 
@@ -170,7 +171,7 @@ async function buildBatchAssetRequest(
 ) {
   const client = db();
   const { data: asset, error } = await client.from("assets")
-    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, style_group_id")
+    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id")
     .eq("id", assetId).single();
   if (error || !asset) throw new Error(`Asset not found: ${assetId}`);
   const typed = asset as BatchAsset;
@@ -501,7 +502,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
   // Fetch asset
   const { data: asset, error: fetchErr } = await client
     .from("assets")
-    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, style_group_id")
+    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id")
     .eq("id", assetId)
     .single();
 

@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import {
   RefreshCw, Play, Database, BarChart3, AlertCircle,
   CheckCircle2, Clock, Loader2, Eye, Zap, Bot, Search,
-  ChevronLeft, ChevronRight, List, Undo2, X, Check, Pencil,
+  ChevronLeft, ChevronRight, List, Undo2, X, Check, Pencil, EyeOff,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -1113,6 +1113,7 @@ function ErpItemsBrowser() {
   const [sortAsc, setSortAsc] = useState(true);
   const [groupByCategory, setGroupByCategory] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(true);
+  const [showDismissed, setShowDismissed] = useState(false);
   const [selectedPredIds, setSelectedPredIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -1127,7 +1128,7 @@ function ErpItemsBrowser() {
   const effectiveSortBy = groupByCategory ? "category_then_confidence" : sortBy;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, effectiveSortBy, sortAsc, pendingOnly],
+    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, effectiveSortBy, sortAsc, pendingOnly, showDismissed],
     queryFn: () => call("erp-items-browse", {
       search: debouncedSearch,
       page,
@@ -1135,6 +1136,7 @@ function ErpItemsBrowser() {
       sort_by: effectiveSortBy,
       sort_asc: sortAsc,
       pending_predictions_only: pendingOnly,
+      show_dismissed: showDismissed,
     }),
   });
 
@@ -1168,6 +1170,17 @@ function ErpItemsBrowser() {
       setSelectedPredIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
       queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const dismissMutation = useMutation({
+    mutationFn: (params: { item_identity: string; dismiss: boolean }) =>
+      call("erp-items-dismiss", { ids: [params.item_identity], dismiss: params.dismiss }),
+    onSuccess: (_, params) => {
+      toast.success(params.dismiss ? "Item dismissed" : "Item restored");
+      queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
       queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
     },
     onError: (e) => toast.error((e as Error).message),
@@ -1287,6 +1300,13 @@ function ErpItemsBrowser() {
               className="rounded"
             />
             Pending review only
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input type="checkbox" checked={showDismissed}
+              onChange={(e) => { setShowDismissed(e.target.checked); setPage(1); }}
+              className="rounded"
+            />
+            Show dismissed
           </label>
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
             <input type="checkbox" checked={groupByCategory}
@@ -1419,8 +1439,9 @@ function ErpItemsBrowser() {
                             {renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code), item.raw_mg_fields?.mg03)}
                           </td>
                           <td className="px-3 py-2 align-top">
-                            {hasPred && (
-                              <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1">
+                              {hasPred && (
+                                <>
                                 <Button size="icon" variant="ghost"
                                   className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
                                   onClick={() => reviewMutation.mutate({ action: "approve", prediction_id: item.prediction_id, override_category: overrides[item.prediction_id] })}
@@ -1435,8 +1456,17 @@ function ErpItemsBrowser() {
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
-                              </div>
-                            )}
+                                </>
+                              )}
+                              <Button size="icon" variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => dismissMutation.mutate({ item_identity: item.item_identity, dismiss: !item.dismissed })}
+                                disabled={dismissMutation.isPending || !item.item_identity}
+                                title={item.dismissed ? "Restore item" : "Dismiss item"}
+                              >
+                                {item.dismissed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );

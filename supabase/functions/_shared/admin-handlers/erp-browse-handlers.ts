@@ -5,16 +5,22 @@
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { optionalString, requireString } from "../validators.ts";
+import {
+  canonicalItemKey,
+  canonicalItemKeySql,
+  canonicalItems,
+  predictionSourceId,
+} from "../canonical-erp-items.ts";
 
 // ── erp-enrichment-stats ────────────────────────────────────────────
 
 export async function handleErpEnrichmentStats() {
   const db = serviceClient();
 
-  const { count: totalErp } = await db.from("erp_items_current")
+  const { count: totalErp } = await canonicalItems(db)
     .select("*", { count: "exact", head: true });
 
-  const { count: withMgCat } = await db.from("erp_items_current")
+  const { count: withMgCat } = await canonicalItems(db)
     .select("*", { count: "exact", head: true })
     .not("mg_category", "is", null);
 
@@ -26,12 +32,12 @@ export async function handleErpEnrichmentStats() {
     .select("*", { count: "exact", head: true })
     .in("status", ["approved", "auto_applied"]);
 
-  const { count: ruleClassified } = await db.from("erp_items_current")
+  const { count: ruleClassified } = await canonicalItems(db)
     .select("*", { count: "exact", head: true })
     .is("mg_category", null)
     .not("mg01_code", "is", null);
 
-  const { count: needsAiRaw } = await db.from("erp_items_current")
+  const { count: needsAiRaw } = await canonicalItems(db)
     .select("*", { count: "exact", head: true })
     .is("mg_category", null);
 
@@ -41,13 +47,13 @@ export async function handleErpEnrichmentStats() {
 
   const needsAi = Math.max(0, (needsAiRaw ?? 0) - (alreadyHandled ?? 0));
 
-  const { count: skuMatched } = await db.from("erp_items_current")
+  const { count: skuMatched } = await canonicalItems(db)
     .select("*", { count: "exact", head: true })
     .not("style_number", "is", null);
 
   // Items where mg01_code couldn't be resolved to a schema code (single-char)
   // These stored descriptions in the code field (pre-fix) or have unmatched API values
-  const { count: unresolvedMg } = await db.from("erp_items_current")
+  const { count: unresolvedMg } = await canonicalItems(db)
     .select("*", { count: "exact", head: true })
     .not("mg01_code", "is", null)
     .not("mg01_code", "like", "_"); // single-char codes are length 1; descriptions are longer
@@ -111,17 +117,21 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   if (error) return err(error.message, 500);
 
   // Enrich with item descriptions
-  const externalIds = (data || []).map((d: any) => d.external_id);
-  const { data: erpItems } = await db.from("erp_items_current")
-    .select("external_id, item_description, style_number")
-    .in("external_id", externalIds.length > 0 ? externalIds : ["__none__"]);
+  const externalIds = (data || []).map((d: any) => d.external_id as string);
+  const sourceIds = [...new Set(externalIds.map(predictionSourceId))];
+  const { data: erpItems } = await canonicalItems(db)
+    .select("source_id, source_system, division_code, item_description, style_number")
+    .in("source_id", sourceIds.length > 0 ? sourceIds : ["__none__"])
+    .order("division_code", { ascending: true });
 
   const descMap: Record<string, { description: string; style_number: string }> = {};
   for (const item of erpItems || []) {
-    descMap[item.external_id] = {
+    const value = {
       description: item.item_description || "",
       style_number: item.style_number || "",
     };
+    descMap[canonicalItemKey(item)] = value;
+    if (!descMap[item.source_id]) descMap[item.source_id] = value;
   }
 
   const items = (data || []).map((d: any) => ({
@@ -266,21 +276,32 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  const predJoin = `LEFT JOIN (
-    SELECT DISTINCT ON (external_id) id, external_id, predicted_category, confidence, rationale, status
-    FROM product_category_predictions
-    WHERE status = 'pending'
-    ORDER BY external_id, created_at DESC
-  ) p ON p.external_id = e.external_id`;
+  const itemKeySql = canonicalItemKeySql("e");
+  const predJoin = `LEFT JOIN LATERAL (
+    SELECT id, external_id, predicted_category, confidence, rationale, status
+    FROM product_category_predictions candidate
+    WHERE candidate.status = 'pending'
+      AND candidate.external_id IN (${itemKeySql}, e.source_id)
+    ORDER BY CASE WHEN candidate.external_id = ${itemKeySql} THEN 0 ELSE 1 END, candidate.created_at DESC
+    LIMIT 1
+  ) p ON true`;
 
-  const countSql = `SELECT count(*)::int as cnt FROM erp_items_current e ${predJoin} ${whereClause}`;
+  const countSql = `SELECT count(*)::int as cnt FROM api.plm_item_list e ${predJoin} ${whereClause}`;
   const dataSql = `SELECT
-    e.id, e.external_id, e.style_number, e.item_description, e.mg_category,
+    e.id, e.source_id as external_id, ${itemKeySql} as item_identity,
+    e.style_number, e.item_description, e.mg_category,
     e.mg01_code, e.mg02_code, e.mg03_code, e.size_code, e.licensor_code,
-    e.property_code, e.division_code, e.erp_updated_at, e.synced_at, e.raw_mg_fields, e.dismissed,
+    e.property_code, e.division_code, e.erp_updated_at, e.synced_at,
+    jsonb_strip_nulls(jsonb_build_object(
+      'mg_category', e.mg_category,
+      'mg01', e.mg01_code, 'mg01_code', e.mg01_code,
+      'mg02', e.mg02_code, 'mg02_code', e.mg02_code,
+      'mg03', e.mg03_code, 'mg03_code', e.mg03_code
+    )) as raw_mg_fields,
+    e.dismissed,
     p.id as prediction_id, p.predicted_category, p.confidence as prediction_confidence,
     p.rationale as prediction_rationale, p.status as prediction_status
-  FROM erp_items_current e ${predJoin} ${whereClause}
+  FROM api.plm_item_list e ${predJoin} ${whereClause}
   ORDER BY ${effectiveSort} ${sortAsc ? "ASC" : "DESC"} NULLS LAST${secondarySort}
   LIMIT ${pageSize} OFFSET ${offset}`;
 
@@ -313,10 +334,15 @@ export async function handleErpItemsDismiss(body: Record<string, unknown>) {
   if (!Array.isArray(ids) || ids.length === 0) return err("ids must be a non-empty array", 400);
   if (ids.length > 5000) return err("Max 5000 items per batch", 400);
 
-  const { error } = await db.from("erp_items_current")
-    .update({ dismissed: dismiss })
-    .in("id", ids);
+  const itemKeys = ids.filter((id): id is string => typeof id === "string" && id.split("|").length === 3);
+  if (itemKeys.length !== ids.length) return err("Every id must be a canonical item identity", 400);
+
+  const { data, error } = await db.rpc("set_popdam_item_dismissed", {
+    item_keys: itemKeys,
+    dismissed: dismiss,
+  });
   if (error) return err(error.message, 500);
 
-  return json({ ok: true, updated: ids.length, dismissed: dismiss });
+  const updated = typeof data === "number" ? data : itemKeys.length;
+  return json({ ok: true, updated, dismissed: dismiss });
 }

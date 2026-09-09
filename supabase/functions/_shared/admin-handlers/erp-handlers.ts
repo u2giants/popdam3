@@ -8,6 +8,7 @@
 
 import { serviceClient } from "../service-client.ts";
 import { err, json } from "../http.ts";
+import { canonicalItemMatchKey, canonicalItems } from "../canonical-erp-items.ts";
 
 // ── Route: apply-erp-enrichment ─────────────────────────────────────
 
@@ -25,15 +26,14 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   const db = serviceClient();
 
   // Fetch a candidate batch of ERP items, then filter to those with matching assets
-  const { data: candidates, error: candidateErr } = await db
-    .from("erp_items_current")
+  const { data: candidates, error: candidateErr } = await canonicalItems(db)
     .select(
-      "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code",
+      "id, source_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code",
     )
     .not("style_number", "is", null)
     .neq("style_number", "")
     .order("mg_category", { ascending: true, nullsFirst: false })
-    .order("external_id", { ascending: true })
+    .order("source_id", { ascending: true })
     .limit(300);
 
   if (candidateErr) return err(candidateErr.message, 500);
@@ -41,11 +41,11 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   const candidateSkus = (candidates ?? []).map((c) => c.style_number).filter(Boolean) as string[];
   const { data: matchedAssets } = await db
     .from("assets")
-    .select("sku")
+    .select("sku, division_code")
     .in("sku", candidateSkus.length > 0 ? candidateSkus : ["__none__"])
     .eq("is_deleted", false);
-  const matchedSkuSet = new Set((matchedAssets ?? []).map((a) => a.sku).filter(Boolean));
-  const erpItems = (candidates ?? []).filter((c) => c.style_number && matchedSkuSet.has(c.style_number)).slice(0, 50);
+  const matchedSkuSet = new Set((matchedAssets ?? []).map((a) => canonicalItemMatchKey(a.sku, a.division_code)));
+  const erpItems = (candidates ?? []).filter((c) => c.style_number && matchedSkuSet.has(canonicalItemMatchKey(c.style_number, c.division_code))).slice(0, 50);
 
   if (erpItems.length === 0) {
     return json({ ok: true, done: true, assets_to_update: 0, groups_to_update: 0, sample_updates: [] });
@@ -60,19 +60,21 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 
   const sampleSkus = skus.slice(0, 25);
   const [assetSampleRes, groupSampleRes] = await Promise.all([
-    db.from("assets").select("id, sku, filename").in("sku", sampleSkus).eq("is_deleted", false).limit(250),
-    db.from("style_groups").select("id, sku").in("sku", sampleSkus).limit(250),
+    db.from("assets").select("id, sku, division_code, filename").in("sku", sampleSkus).eq("is_deleted", false).limit(250),
+    db.from("style_groups").select("id, sku, division_code").in("sku", sampleSkus).limit(250),
   ]);
 
   const assetCountBySku = new Map<string, number>();
   for (const a of assetSampleRes.data ?? []) {
     if (!a.sku) continue;
-    assetCountBySku.set(a.sku, (assetCountBySku.get(a.sku) ?? 0) + 1);
+    const key = canonicalItemMatchKey(a.sku, a.division_code);
+    assetCountBySku.set(key, (assetCountBySku.get(key) ?? 0) + 1);
   }
   const groupCountBySku = new Map<string, number>();
   for (const g of groupSampleRes.data ?? []) {
     if (!g.sku) continue;
-    groupCountBySku.set(g.sku, (groupCountBySku.get(g.sku) ?? 0) + 1);
+    const key = canonicalItemMatchKey(g.sku, g.division_code);
+    groupCountBySku.set(key, (groupCountBySku.get(key) ?? 0) + 1);
   }
 
   const sample_updates: Array<Record<string, unknown>> = [];
@@ -120,7 +122,7 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     if (Object.keys(updates).length === 0 && !predictedCategory) continue;
 
     sample_updates.push({
-      external_id: erpItem.external_id,
+      external_id: erpItem.source_id,
       sku: erpItem.style_number,
       description: erpItem.item_description ?? null,
       classification_source: classificationSource,
@@ -128,8 +130,8 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       predicted_category: predictedCategory,
       prediction_status: predictionStatus,
       proposed_fields: updates,
-      matching_asset_count: assetCountBySku.get(erpItem.style_number) ?? 0,
-      matching_group_count: groupCountBySku.get(erpItem.style_number) ?? 0,
+      matching_asset_count: assetCountBySku.get(canonicalItemMatchKey(erpItem.style_number, erpItem.division_code)) ?? 0,
+      matching_group_count: groupCountBySku.get(canonicalItemMatchKey(erpItem.style_number, erpItem.division_code)) ?? 0,
     });
   }
 

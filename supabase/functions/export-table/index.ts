@@ -28,8 +28,7 @@ const ALLOWED_TABLES = [
   "render_queue",
   "tiff_optimization_queue",
   "hygiene_findings",
-  "erp_items_current",
-  "erp_items_raw",
+  "plm_item_list",
   "erp_sync_runs",
   "erp_enrichment_log",
   "product_categories",
@@ -43,6 +42,7 @@ const ALLOWED_TABLES = [
 function tableSource(db: ReturnType<typeof createClient>, table: string) {
   if (table === "licensors") return db.schema("core").from("licensor");
   if (table === "properties") return db.schema("core").from("property");
+  if (table === "plm_item_list") return db.schema("api").from("plm_item_list");
   return db.from(table);
 }
 

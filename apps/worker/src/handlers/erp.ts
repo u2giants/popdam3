@@ -14,6 +14,12 @@ import type { ChatMessage } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
 import type { BatchResult, OpState } from "../types.js";
+import {
+  canonicalItemKey,
+  canonicalItemMatchKey,
+  canonicalItems,
+  rawMgFieldsFromCanonical,
+} from "../canonical-erp-items.js";
 
 const DEFAULT_CLASSIFICATION_MODEL = "anthropic/claude-3.5-haiku";
 const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden", "Other"];
@@ -68,12 +74,12 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
     ? opState.run_id
     : crypto.randomUUID();
 
-  const { data: erpItems, error: erpErr } = await client
-    .from("erp_items_current")
-    .select("id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at")
+  const { data: erpItems, error: erpErr } = await canonicalItems(client)
+    .select("id, source_id, source_system, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at")
     .not("style_number", "is", null)
     .neq("style_number", "")
-    .order("external_id")
+    .order("source_id")
+    .order("division_code")
     .range(offset, offset + batchSize - 1);
 
   if (erpErr) return { ok: false, done: false, error: erpErr.message };
@@ -99,11 +105,14 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
       new Date(erpItem.erp_updated_at) >= new Date("2025-05-10");
 
     if (!mgCategoryReliable) {
-      const { data: predictionRow } = await client
+      const predictionKeys = [canonicalItemKey(erpItem), erpItem.source_id];
+      const { data: predictionRows } = await client
         .from("product_category_predictions")
-        .select("predicted_category, confidence, classification_source, status")
-        .eq("erp_item_id", erpItem.id)
-        .maybeSingle();
+        .select("external_id, predicted_category, confidence, classification_source, status, created_at")
+        .in("external_id", predictionKeys)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      const predictionRow = predictionRows?.find((row) => row.external_id === predictionKeys[0]) ?? predictionRows?.[0] ?? null;
 
       if (predictionRow && ["approved", "auto_applied"].includes(predictionRow.status)) {
         productCategory = predictionRow.predicted_category;
@@ -138,12 +147,14 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
           .from("assets")
           .select(`id, ${updateFields.join(", ")}`)
           .eq("sku", erpItem.style_number)
+          .eq("division_code", erpItem.division_code)
           .eq("is_deleted", false)
           .limit(1),
         client
           .from("style_groups")
           .select(`id, ${updateFields.join(", ")}`)
           .eq("sku", erpItem.style_number)
+          .eq("division_code", erpItem.division_code)
           .limit(1),
       ]);
 
@@ -151,6 +162,7 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
         .from("assets")
         .update(updates)
         .eq("sku", erpItem.style_number)
+        .eq("division_code", erpItem.division_code)
         .eq("is_deleted", false)
         .select("id");
       assetsUpdated += assetRows?.length ?? 0;
@@ -159,6 +171,7 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
         .from("style_groups")
         .update(updates)
         .eq("sku", erpItem.style_number)
+        .eq("division_code", erpItem.division_code)
         .select("id");
       groupsUpdated += groupRows?.length ?? 0;
 
@@ -220,11 +233,11 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
 
 // ── ERP Classification ───────────────────────────────────────────────────────
 
-function isUnclassifiable(item: { item_description: string | null; style_number: string | null; external_id: string }): boolean {
+function isUnclassifiable(item: { item_description: string | null; style_number: string | null; source_id: string }): boolean {
   const desc = (item.item_description || "").trim().toLowerCase();
   const style = (item.style_number || "").trim();
   if (!desc && !style) return true;
-  if (desc === item.external_id?.toLowerCase() || desc === style?.toLowerCase()) return true;
+  if (desc === item.source_id?.toLowerCase() || desc === style?.toLowerCase()) return true;
   if (desc.length > 0 && desc.length <= 6 && /^[a-z0-9]+$/i.test(desc)) return true;
   const junkPatterns = [
     /^assortment$/i, /^test$/i, /^testing$/i, /^sample$/i, /^n\/?a$/i,
@@ -259,25 +272,30 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
 
   type ErpCandidate = {
     id: string;
-    external_id: string;
+    source_id: string;
+    source_system: string;
+    division_code: string | null;
     style_number: string | null;
     item_description: string | null;
+    mg_category: string | null;
     mg01_code: string | null;
     mg02_code: string | null;
     mg03_code: string | null;
-    raw_mg_fields: unknown;
+    mg04_code: string | null;
+    mg05_code: string | null;
+    mg06_code: string | null;
   };
 
   const candidates: ErpCandidate[] = [];
 
   for (let i = 0; i < maxScanWindows && candidates.length < batchSize; i++) {
-    const { data: windowRows, error: windowErr } = await client
-      .from("erp_items_current")
-      .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
+    const { data: windowRows, error: windowErr } = await canonicalItems(client)
+      .select("id, source_id, source_system, division_code, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code")
       .is("mg_category", null)
       .not("style_number", "is", null)
       .neq("style_number", "")
-      .order("external_id", { ascending: true })
+      .order("source_id", { ascending: true })
+      .order("division_code", { ascending: true })
       .range(scanOffset, scanOffset + scanWindow - 1);
 
     if (windowErr) return { ok: false, done: false, error: windowErr.message };
@@ -289,37 +307,37 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
     scanOffset += rows.length;
 
     const styleNumbers = [...new Set(rows.map((r) => r.style_number).filter((v): v is string => !!v))];
-    const erpItemIds = rows.map((r) => r.id);
+    const predictionKeys = rows.flatMap((row) => [canonicalItemKey(row), row.source_id]);
 
     const [assetMatchRes, groupMatchRes, existingPredictionsRes] = await Promise.all([
       styleNumbers.length
-        ? client.from("assets").select("sku").in("sku", styleNumbers).eq("is_deleted", false)
+        ? client.from("assets").select("sku, division_code").in("sku", styleNumbers).eq("is_deleted", false)
         : Promise.resolve({ data: [], error: null }),
       styleNumbers.length
-        ? client.from("style_groups").select("sku").in("sku", styleNumbers)
+        ? client.from("style_groups").select("sku, division_code").in("sku", styleNumbers)
         : Promise.resolve({ data: [], error: null }),
-      erpItemIds.length
-        ? client.from("product_category_predictions").select("erp_item_id,status").in("erp_item_id", erpItemIds)
+      predictionKeys.length
+        ? client.from("product_category_predictions").select("external_id,status").in("external_id", predictionKeys)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
     const matchedSkuSet = new Set<string>([
-      ...((assetMatchRes.data ?? []).map((r) => r.sku).filter((v): v is string => !!v)),
-      ...((groupMatchRes.data ?? []).map((r) => r.sku).filter((v): v is string => !!v)),
+      ...((assetMatchRes.data ?? []).map((r) => canonicalItemMatchKey(r.sku, r.division_code))),
+      ...((groupMatchRes.data ?? []).map((r) => canonicalItemMatchKey(r.sku, r.division_code))),
     ]);
 
     const terminalPredictionIds = new Set<string>(
       (existingPredictionsRes.data ?? [])
         .filter((r) => ["auto_applied", "approved", "unclassifiable"].includes(r.status))
-        .map((r) => r.erp_item_id)
+        .map((r) => r.external_id)
         .filter((v): v is string => !!v),
     );
 
     for (const row of rows) {
       if (candidates.length >= batchSize) break;
       if (!row.style_number) continue;
-      if (!matchedSkuSet.has(row.style_number)) continue;
-      if (terminalPredictionIds.has(row.id)) continue;
+      if (!matchedSkuSet.has(canonicalItemMatchKey(row.style_number, row.division_code))) continue;
+      if (terminalPredictionIds.has(canonicalItemKey(row)) || terminalPredictionIds.has(row.source_id)) continue;
       candidates.push(row);
     }
 
@@ -335,10 +353,11 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
   let failed = 0;
 
   for (const item of candidates) {
+    const rawMgFields = rawMgFieldsFromCanonical(item);
     if (isUnclassifiable(item)) {
       const { error: insertError } = await client.from("product_category_predictions").insert({
-        erp_item_id: item.id,
-        external_id: item.external_id,
+        erp_item_id: null,
+        external_id: canonicalItemKey(item),
         predicted_category: "Unknown",
         confidence: 0,
         rationale: "Insufficient product data for classification",
@@ -346,11 +365,11 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
         ai_model: null,
         ai_prompt_version: "v1",
         status: "unclassifiable",
-        input_context: { style_number: item.style_number, item_description: item.item_description, raw_mg_fields: item.raw_mg_fields },
+        input_context: { style_number: item.style_number, item_description: item.item_description, raw_mg_fields: rawMgFields },
       });
       if (insertError) {
         failed++;
-        logger.warn("erp-classify: failed to save unclassifiable result", { external_id: item.external_id, error: insertError.message });
+        logger.warn("erp-classify: failed to save unclassifiable result", { external_id: item.source_id, error: insertError.message });
         continue;
       }
       skippedUnclassifiable++;
@@ -390,7 +409,7 @@ CORRECTION EXAMPLES (learn from these past mistakes):
 Product to classify:
 - Style Number: ${item.style_number || "unknown"}
 - Description: ${item.item_description || "none"}
-- MG fields: ${JSON.stringify(item.raw_mg_fields || {})}
+- MG fields: ${JSON.stringify(rawMgFields)}
 
 Use the provided tool to return your classification.`;
 
@@ -410,8 +429,8 @@ Use the provided tool to return your classification.`;
       const status = parsed.confidence >= 0.65 ? "auto_applied" : "pending";
 
       const { error: insertError } = await client.from("product_category_predictions").insert({
-        erp_item_id: item.id,
-        external_id: item.external_id,
+        erp_item_id: null,
+        external_id: canonicalItemKey(item),
         predicted_category: parsed.category,
         confidence: parsed.confidence,
         rationale: parsed.rationale,
@@ -419,14 +438,14 @@ Use the provided tool to return your classification.`;
         ai_model: classificationModel,
         ai_prompt_version: "v1",
         status,
-        input_context: { style_number: item.style_number, item_description: item.item_description, raw_mg_fields: item.raw_mg_fields },
+        input_context: { style_number: item.style_number, item_description: item.item_description, raw_mg_fields: rawMgFields },
       });
       if (insertError) throw new Error(`Failed to save classification: ${insertError.message}`);
 
       classified++;
     } catch (e) {
       failed++;
-      logger.warn("erp-classify: classification error", { external_id: item.external_id, error: String(e) });
+      logger.warn("erp-classify: classification error", { external_id: item.source_id, error: String(e) });
     }
   }
 

@@ -233,10 +233,17 @@ select json_build_object(
   'item_details', (select count(*) from coldlion.item_detail),
   'detail_items_with_prepack', (select count(distinct (company_code, division_code, item_no)) from coldlion.item_detail where nullif(btrim(pre_pack_code),'') is not null),
   'detail_distinct_prepack_codes', (select count(distinct pre_pack_code) from coldlion.item_detail where nullif(btrim(pre_pack_code),'') is not null),
-  'frozen_items_with_prepack', (select count(*) from public.erp_items_current where nullif(btrim(prepack_code),'') is not null),
-  'matching_items', (select count(*) from public.erp_items_current e where nullif(btrim(e.prepack_code),'') is not null and exists (select 1 from coldlion.item_detail d where d.item_no=e.style_number and d.pre_pack_code=e.prepack_code)),
-  'changed_items', (select count(*) from public.erp_items_current e where nullif(btrim(e.prepack_code),'') is not null and exists (select 1 from coldlion.item_detail d where d.item_no=e.style_number and nullif(btrim(d.pre_pack_code),'') is not null) and not exists (select 1 from coldlion.item_detail d where d.item_no=e.style_number and d.pre_pack_code=e.prepack_code)),
-  'frozen_only_items', (select count(*) from public.erp_items_current e where nullif(btrim(e.prepack_code),'') is not null and not exists (select 1 from coldlion.item_detail d where d.item_no=e.style_number and nullif(btrim(d.pre_pack_code),'') is not null))
+  'served_items_with_prepack', (select count(*) from api.plm_item_list where nullif(btrim(prepack_code),'') is not null),
+  'served_codes_missing_from_detail', (
+    select count(*) from api.plm_item_list served
+    where nullif(btrim(served.prepack_code),'') is not null
+      and not exists (
+        select 1 from coldlion.item_detail detail
+        where detail.division_code = served.division_code
+          and detail.item_no = served.style_number
+          and detail.pre_pack_code = served.prepack_code
+      )
+  )
 ) as reconciliation;
 `;
 }

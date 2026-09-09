@@ -44,8 +44,6 @@ const TABLES_IN_ORDER = [
   "render_queue",
   "tiff_optimization_queue",
   "hygiene_findings",
-  "erp_items_current",
-  "erp_items_raw",
   "erp_enrichment_log",
   "product_categories",
   "product_types",

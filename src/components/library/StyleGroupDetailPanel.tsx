@@ -38,6 +38,7 @@ import {
 import CheckoutBar from "@/components/library/CheckoutBar";
 import { cn } from "@/lib/utils";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
+import { isLegacyErpItem } from "@/lib/canonical-erp-items";
 import { Constants } from "@/integrations/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -498,23 +499,25 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
     setLocalPrimaryId(group.primary_asset_id);
   }, [group.primary_asset_id]);
 
-  const ERP_MG_CUTOFF = "2025-05-14";
-
   const { data: erpItemData } = useQuery({
-    queryKey: ["erp-item-data", group.sku],
+    queryKey: ["erp-item-data", group.sku, group.division_code],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("erp_items_current")
+      let query = (supabase as any)
+        .schema("api")
+        .from("plm_item_list")
         .select("erp_updated_at, item_description")
         .eq("style_number", group.sku)
-        .limit(1)
-        .maybeSingle();
+        .order("division_code", { ascending: true })
+        .limit(1);
+      if (group.division_code) query = query.eq("division_code", group.division_code);
+      const { data, error } = await query.maybeSingle();
+      if (error) throw error;
       return data ?? null;
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLegacyGroup = erpItemData?.erp_updated_at ? erpItemData.erp_updated_at < ERP_MG_CUTOFF : false;
+  const isLegacyGroup = isLegacyErpItem(erpItemData?.erp_updated_at);
   const erpDescription = erpItemData?.item_description ?? null;
   const itemDescription = group.item_description ?? erpDescription;
 

@@ -6,8 +6,8 @@
  *   - Full text descriptions (e.g. "Stretched/Box", "Canvas", "Foil") — post-May-2025 API format
  *
  * These functions detect which format is present and normalise to single-character codes,
- * so that mg01_code / mg02_code / mg03_code in erp_items_current always hold the canonical
- * letter/digit code. The original API value is preserved in raw_mg_fields for display.
+ * so that MG values from the retired DesignFlow sync were normalized to the
+ * canonical letter/digit code. The ColdLion-backed item view now supplies codes directly.
  */
 
 /** True if val is already a single-character code (letter or digit). */
