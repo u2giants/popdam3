@@ -106,10 +106,11 @@ export type OrderListGridProps = {
   onRelink: (row: OrderListRow) => void;
   onEditOrder: (row: OrderListRow) => void;
   onDisplayedRowsChanged?: (count: number) => void;
+  onSelectionChanged?: (rows: OrderListRow[]) => void;
 };
 
 export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGridProps>(function OrderListGrid(
-  { datasource, onCellEdited, onRelink, onEditOrder, onDisplayedRowsChanged },
+  { datasource, onCellEdited, onRelink, onEditOrder, onDisplayedRowsChanged, onSelectionChanged },
   ref,
 ) {
   const { theme } = useAppearance();
@@ -216,6 +217,8 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       suppressDragLeaveHidesColumns
       maintainColumnOrder
       cellSelection={{ handle: { mode: "fill", direction: "xy" } }}
+      rowSelection={{ mode: "multiRow", checkboxes: true, headerCheckbox: false }}
+      onSelectionChanged={(event) => onSelectionChanged?.(event.api.getSelectedRows())}
       sideBar={{
         toolPanels: [
           {

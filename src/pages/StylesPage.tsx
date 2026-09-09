@@ -8,6 +8,7 @@ import { Check, ChevronDown, Clock3, Columns3, Database, Pencil, Plus, RefreshCw
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { GridAiHelperDialog, type GridAiPlan } from "@/components/grid/GridAiHelperDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -1121,6 +1122,7 @@ export default function StylesPage() {
   const [viewNameInput, setViewNameInput] = useState("");
   const [gridReady, setGridReady] = useState(false);
   const [viewsMenuOpen, setViewsMenuOpen] = useState(false);
+  const [selectedRowCount, setSelectedRowCount] = useState(0);
   const lastAppliedSheetRef = useRef<string | null>(null);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
@@ -1706,6 +1708,33 @@ export default function StylesPage() {
     ];
   };
 
+  const applyAiBulkEdit = async (plan: GridAiPlan) => {
+    const selectedRows = gridRef.current?.api.getSelectedRows() ?? [];
+    const column = active.columns.find((item) => item.letter === plan.field);
+    if (!column || !selectedRows.length) throw new Error("Select rows and an editable column first.");
+    let value = plan.value;
+    if (column.optionKind === "customer") {
+      const match = (customerOptionsQuery.data ?? []).find((option) => normalized(option.name) === normalized(String(value ?? "")));
+      if (!match && value !== null && value !== "") throw new Error("The requested customer is not in the Customer list.");
+      value = match?.id ?? null;
+    }
+    if (column.typedField === "designer" && value && !designerOptionKeys.has(normalized(String(value)))) throw new Error("The requested designer is not in the Creative Designer list.");
+    if (column.optionKind === "packagingType" && value && !packagingTypeOptionKeys.has(normalized(String(value)))) throw new Error("The requested packaging type is not in the Packaging Types list.");
+    if (column.typedField === "description") {
+      const validationError = validateDescriptionSelection(value, descriptionOptions);
+      if (validationError) throw new Error(validationError);
+    }
+    for (let index = 0; index < selectedRows.length; index += 10) {
+      await Promise.all(selectedRows.slice(index, index + 10).map(async (row) => {
+        const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
+        if (error) throw error;
+      }));
+    }
+    await refreshStyleTrackerBridgeWithRetry(() => (supabase as any).rpc("refresh_style_tracker_item_bridge"));
+    await queryClient.invalidateQueries({ queryKey: ["style-rows", active.name] });
+    await queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
+  };
+
 
   return (
     <div className="flex h-[calc(100vh-var(--pd-header-h))] flex-col bg-background">
@@ -1715,6 +1744,7 @@ export default function StylesPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted">
               <Table2 className="h-4 w-4 text-primary" />
             </div>
+            {isAdmin && <GridAiHelperDialog pageName="Master Data" selectedRowCount={selectedRowCount} fields={active.columns.map((column) => ({ key: column.letter, label: column.header }))} onApply={applyAiBulkEdit} />}
             <div className="min-w-0">
               <h1 className="text-lg font-semibold leading-tight text-foreground">Master Data</h1>
               <p className="text-xs text-muted-foreground">
@@ -1979,7 +2009,8 @@ export default function StylesPage() {
               const column = active.columns.find((item) => item.letter === event.colDef.colId);
               if (column) updateCell.mutate({ row: event.data, column, value: event.newValue });
             }}
-            rowSelection={{ mode: "multiRow", checkboxes: false, headerCheckbox: false }}
+            rowSelection={{ mode: "multiRow", checkboxes: true, headerCheckbox: true }}
+            onSelectionChanged={(event) => setSelectedRowCount(event.api.getSelectedRows().length)}
             cellSelection={{ handle: { mode: "fill", direction: "xy" } }}
             sideBar={{ toolPanels: [{ id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" }], hiddenByDefault: true }}
             pagination

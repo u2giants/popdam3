@@ -103,6 +103,9 @@ canonical item links. A pre-refresh database backup was taken before replacement
   in-browser dataset while avoiding one serial network wait per range.
 - Ctrl+F focuses the grid's full-dataset search because virtualized off-screen
   cells are not browser-searchable DOM text.
+- Administrators can select rows and use **AI helper** to preview one bulk
+  field/value update before confirming it. The planner uses `gpt-5.6-luna`
+  with medium reasoning; existing picker and description rules still validate saves.
 - AG Grid Enterprise is installed without a license key for now, matching the PLM-style trial setup. Keep AG Grid packages pinned to the same exact version; a previous `35.3.1` Enterprise + `35.1.0` Community/React mismatch caused a blank page before React mounted.
 
 ## View Customization (Saved Views)

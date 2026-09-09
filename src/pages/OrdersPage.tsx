@@ -11,6 +11,7 @@ import {
 } from "@/components/orders/OrderEditorDialog";
 import { MasterDataLinkDialog } from "@/components/orders/MasterDataLinkDialog";
 import { OrderListGrid } from "@/components/orders/OrderListGrid";
+import { GridAiHelperDialog, type GridAiPlan } from "@/components/grid/GridAiHelperDialog";
 import { OrderListSummary } from "@/components/orders/OrderListSummary";
 import { OrderListViewsMenu } from "@/components/orders/OrderListViewsMenu";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ import {
 } from "@/hooks/useOrderList";
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrderListEdit } from "@/lib/order-list";
+import { buildOrderListEdit, ORDER_LIST_COLUMNS } from "@/lib/order-list";
 import type { OrderListRow, OrderListSavedView } from "@/types/order-list";
 
 export default function OrdersPage() {
@@ -42,6 +43,7 @@ export default function OrdersPage() {
   const [relinkRow, setRelinkRow] = useState<OrderListRow | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [filteredCount, setFilteredCount] = useState<number | null>(null);
+  const [selectedRows, setSelectedRows] = useState<OrderListRow[]>([]);
 
   const authReady = Boolean(user) && !authLoading;
   const savedViewsQuery = useOrderListSavedViews(user?.id);
@@ -141,6 +143,23 @@ export default function OrdersPage() {
     setEditor({ mode: "edit", row });
   }, []);
 
+  const applyAiBulkEdit = async (plan: GridAiPlan) => {
+    if (!selectedRows.length) throw new Error("Select the rows to update first.");
+    for (let index = 0; index < selectedRows.length; index += 8) {
+      await Promise.all(selectedRows.slice(index, index + 8).map(async (row) => {
+        const edit = buildOrderListEdit(row, plan.field, plan.value);
+        const { error } = await (supabase.rpc as any)("update_dam_order", {
+          p_order_id: edit.orderId,
+          p_order_patch: edit.orderPatch,
+          p_line_patches: Object.keys(edit.linePatch).length ? [{ id: edit.orderLineId, ...edit.linePatch }] : [],
+        });
+        if (error) throw error;
+      }));
+    }
+    refreshRows();
+    setSelectedRows([]);
+  };
+
 
   /**
    * Void or restore. There is deliberately no delete RPC, so a correction stamps
@@ -233,6 +252,8 @@ export default function OrdersPage() {
           />
         </div>
 
+        <GridAiHelperDialog pageName="OrderList" selectedRowCount={selectedRows.length} fields={ORDER_LIST_COLUMNS.filter((column) => column.editable).map((column) => ({ key: column.field, label: column.header }))} onApply={applyAiBulkEdit} />
+
         <Button
           type="button"
           size="sm"
@@ -287,6 +308,7 @@ export default function OrdersPage() {
             onCellEdited={handleCellEdited}
             onRelink={setRelinkRow}
             onEditOrder={handleEditOrder}
+            onSelectionChanged={setSelectedRows}
           />
         </div>
       </div>

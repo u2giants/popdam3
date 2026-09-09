@@ -104,6 +104,7 @@ import {
   handleTriggerHygieneScan,
   handleUpdateHygieneFindings,
 } from "../_shared/admin-handlers/hygiene-handlers.ts";
+import { handlePlanGridBulkEdit } from "../_shared/admin-handlers/grid-ai-handler.ts";
 
 // ── Auth: JWT validation only (any authenticated user) ──────────────
 
@@ -1744,6 +1745,8 @@ corsServe(async (req: Request) => {
     const { userId } = authResult;
 
     switch (action) {
+      case "plan-grid-bulk-edit":
+        return await handlePlanGridBulkEdit(body);
       case "fetch-thumbnail-by-url":
         return await handleFetchThumbnailByUrl(body);
 
