@@ -57,20 +57,32 @@ SHEETS = {
             "sku": "B", "group_id": "C", "description": "D", "customer": "E",
             "designer": "F", "commissioned": "G", "upc": "H", "customer_sku": "I",
             "licensor": "J", "royalty": "M", "concept_status": "N",
-            "pre_production_status": "V", "production_status": "X",
-            "default_vendor": "Y", "discontinued": "AF", "notes": None,
+            "pre_production_status": "W", "production_status": "Y",
+            "default_vendor": "Z", "discontinued": "AG", "notes": None,
         },
         "legacy": {
             "B": "style_sku", "C": "group_id", "D": "description", "E": "special_customer",
             "F": "designer", "G": "commissioned", "H": "upc", "I": "customer_sku",
             "J": "licensor", "M": "royalty", "N": "concept_sent", "O": "concept_resubmit",
             "P": "concept_resubmitted", "Q": "concept_approval", "R": "request_pre_production_sample",
-            "S": "sample_vendor", "T": "rfq_code", "U": "sample_received",
-            "V": "pre_production_sent", "W": "pre_production_approval",
-            "X": "production_approval", "Y": "default_vendor_sales", "Z": "ordered_david_sample",
-            "AA": "ordered_proff_photos", "AB": "ordered_test_report", "AC": "professional_photos",
-            "AD": "test_report", "AE": "catalog_image", "AF": "discontinued",
+            "S": "sample_vendor", "T": "rfq_code", "U": "upc_code", "V": "sample_received",
+            "W": "pre_production_sent", "X": "pre_production_approval",
+            "Y": "production_approval", "Z": "default_vendor_sales", "AA": "ordered_david_sample",
+            "AB": "ordered_proff_photos", "AC": "ordered_test_report", "AD": "professional_photos",
+            "AE": "test_report", "AF": "catalog_image", "AG": "discontinued",
         },
+    },
+}
+
+EXPECTED_HEADERS = {
+    "License.Style": {
+        "AF": "Ordered Proff Photos", "AH": "Professional Photos",
+    },
+    "Generic.Style": {
+        "U": "UPC Code", "V": "Sample Received", "W": "Pre Production Sent",
+        "X": "Pre Production Approval", "Y": "Production Approval",
+        "Z": "Default Vendor(Sales)", "AB": "Ordered Proff Photos",
+        "AD": "Professional Photos", "AG": "Discontinued",
     },
 }
 
@@ -120,6 +132,20 @@ def discontinued_value(value: Any) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y", "x"}
 
 
+def normalized_header(value: Any) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
+def validate_headers(sheet_name: str, worksheet: Any) -> None:
+    mismatches = []
+    for letter, expected in EXPECTED_HEADERS[sheet_name].items():
+        actual = worksheet[f"{letter}2"].value
+        if normalized_header(actual) != normalized_header(expected):
+            mismatches.append(f"{letter}: expected {expected!r}, found {actual!r}")
+    if mismatches:
+        raise SystemExit(f"{sheet_name} column layout changed; refusing a shifted import: {'; '.join(mismatches)}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("xlsx", type=Path)
@@ -136,6 +162,7 @@ def main() -> None:
         writer = csv.writer(handle, dialect="excel-tab", quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
         for sheet_name, config in SHEETS.items():
             worksheet = workbook[sheet_name]
+            validate_headers(sheet_name, worksheet)
             count = 0
             for row_number, cells in enumerate(worksheet.iter_rows(min_row=3), start=3):
                 by_letter = {get_column_letter(cell.column): display_value(cell.value) for cell in cells if cell.value is not None}

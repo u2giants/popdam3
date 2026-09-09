@@ -99,6 +99,7 @@ type SheetColumn = {
   linkKind?: FieldKey;
   optionKind?: "customer" | "licensor" | "designer" | "factory" | "packagingType";
   date?: boolean;
+  yesNo?: boolean;
 };
 
 type ReviewItem = {
@@ -239,7 +240,7 @@ const licensedColumns: SheetColumn[] = [
   { letter: "AE", header: "Ordered Cont Sample", width: 190, legacyKey: "ordered_cont_sample" },
   { letter: "AF", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
   { letter: "AG", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
-  { letter: "AH", header: "Professional Photos", width: 180, legacyKey: "professional_photos" },
+  { letter: "AH", header: "Professional Photos", width: 180, legacyKey: "professional_photos", yesNo: true },
   { letter: "AI", header: "Test report", width: 150, legacyKey: "test_report" },
   { letter: "AK", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
   { letter: "AL", header: "Customer Exclusive", width: 180, legacyKey: "customer_exclusive" },
@@ -264,17 +265,17 @@ const genericColumns: SheetColumn[] = [
   { letter: "S", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
   { letter: "SAMPLE_ETA", header: "Sample ETA", headerTooltip: "ETA From Factory", width: 150, legacyKey: "sample_eta", date: true },
   { letter: "T", header: "RFQ Code", width: 150, legacyKey: "rfq_code" },
-  { letter: "U", header: "Sample Received", width: 170, legacyKey: "sample_received" },
-  { letter: "V", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
-  { letter: "W", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval" },
-  { letter: "X", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval" },
-  { letter: "Y", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
-  { letter: "Z", header: "Ordered David sample", width: 190, legacyKey: "ordered_david_sample" },
-  { letter: "AA", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
-  { letter: "AB", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
-  { letter: "AC", header: "Professional Photos", width: 180, legacyKey: "professional_photos" },
-  { letter: "AD", header: "Test report", width: 150, legacyKey: "test_report" },
-  { letter: "AF", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
+  { letter: "V", header: "Sample Received", width: 170, legacyKey: "sample_received" },
+  { letter: "W", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
+  { letter: "X", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval" },
+  { letter: "Y", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval" },
+  { letter: "Z", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
+  { letter: "AA", header: "Ordered David sample", width: 190, legacyKey: "ordered_david_sample" },
+  { letter: "AB", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
+  { letter: "AC", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
+  { letter: "AD", header: "Professional Photos", width: 180, legacyKey: "professional_photos", yesNo: true },
+  { letter: "AE", header: "Test report", width: 150, legacyKey: "test_report" },
+  { letter: "AG", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
 ];
 
 const configs = [
@@ -318,6 +319,12 @@ function valueFor(row: StyleRow | undefined, column: SheetColumn) {
   if (!row) return "";
   const typed = column.typedField ? row[column.typedField] : null;
   return typed ?? row.row_data?.[column.letter] ?? (column.legacyKey ? row.row_data?.[column.legacyKey] : "") ?? "";
+}
+
+function yesNoValue(value: unknown) {
+  if (value === true || String(value).toLowerCase() === "true" || String(value).toLowerCase() === "yes") return "Yes";
+  if (value === false || String(value).toLowerCase() === "false" || String(value).toLowerCase() === "no") return "No";
+  return value ?? "";
 }
 
 function displayValueFor(row: StyleRow | undefined, column: SheetColumn) {
@@ -384,7 +391,7 @@ function statusFor(row: StyleRow | undefined, column: SheetColumn) {
 }
 
 function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown) {
-  const nextValue = value === "" ? null : column.typedField === "discontinued" ? ["true", "yes", "1"].includes(String(value).toLowerCase()) : String(value);
+  const nextValue = value === "" ? null : column.yesNo ? String(value).toLowerCase() === "yes" : column.typedField === "discontinued" ? ["true", "yes", "1"].includes(String(value).toLowerCase()) : String(value);
   if (column.optionKind === "customer") {
     const rowData = { ...(row.row_data ?? {}) };
     delete rowData[column.letter];
@@ -1582,6 +1589,8 @@ export default function StylesPage() {
         cellEditor:
           column.date
             ? "agDateStringCellEditor"
+            : column.yesNo
+            ? "agRichSelectCellEditor"
             : column.typedField === "description"
             ? DescriptionBuilderEditor
             : column.optionKind || column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
@@ -1592,6 +1601,8 @@ export default function StylesPage() {
         cellEditorParams:
           column.typedField === "description"
             ? { options: descriptionOptions }
+            : column.yesNo
+            ? { values: ["Yes", "No"] }
             : column.optionKind || column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
             ? {
                 values:
@@ -1616,7 +1627,9 @@ export default function StylesPage() {
         sortable: true,
         resizable: true,
         valueGetter: (params) =>
-          column.optionKind === "customer"
+          column.yesNo
+            ? yesNoValue(valueFor(params.data, column))
+            : column.optionKind === "customer"
             ? params.data?.customer_id ?? null
             : column.optionKind === "designer"
               ? displayValueFor(params.data, column)
