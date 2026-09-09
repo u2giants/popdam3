@@ -30,6 +30,7 @@ import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
+import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
   isTransientInterruption,
@@ -47,6 +48,27 @@ const submissionLeaseRetryAfter = new Map<string, number>();
  *  worker has no timeout, so 50 keeps ops running hot while still yielding often
  *  enough to check for user interruptions and serve other lanes. */
 const MAX_BATCHES_PER_TICK = 50;
+
+async function recordStyleGroupTerminalOutcome(
+  opKey: string,
+  state: OpState,
+  status: "succeeded" | "failed",
+): Promise<void> {
+  if (opKey !== "rebuild-style-groups" || !state.run_id || !state.started_at) return;
+  const run: TerminalRun = {
+    operation: opKey,
+    run_id: state.run_id,
+    status,
+    stage: state.last_stage,
+    error: state.error,
+    reason_code: state.interruption_reason_code,
+    progress: state.progress ?? {},
+    started_at: state.started_at,
+    ended_at: state.updated_at ?? new Date().toISOString(),
+  };
+  await appendTerminalRun(db(), run);
+  await alertTerminalFailure(run);
+}
 
 // Lane isolation — operations in the same lane are mutually exclusive
 const OP_LANES: Record<string, string> = {
@@ -642,15 +664,18 @@ export async function tick(): Promise<void> {
 
   const [opKey, opState] = runningEntries[0] as [string, OpState];
 
-  // Legacy op: no cursor — mark interrupted
+  // Legacy op: no cursor — it cannot be resumed safely.
   if (opState.cursor === undefined) {
-    await persistOpState(opKey, {
+    const failedState: OpState = {
       ...opState,
-      status: "interrupted",
+      run_id: opState.run_id ?? crypto.randomUUID(),
+      status: "failed",
       interruption_reason_code: "legacy_format",
+      error: "Operation state has no cursor and cannot be resumed safely",
       updated_at: new Date().toISOString(),
-    });
-    logger.warn("tick: legacy op interrupted", { opKey });
+    };
+    if (await persistOpState(opKey, failedState)) await recordStyleGroupTerminalOutcome(opKey, failedState, "failed");
+    logger.warn("tick: legacy op failed", { opKey });
     return;
   }
 
@@ -699,11 +724,11 @@ export async function tick(): Promise<void> {
       const errMsg = normalizeBatchError(e, "Dispatch failed without an error message");
       const reason = classifyError(errMsg);
       logger.error("tick: dispatch threw", { opKey, error: errMsg });
-      await persistOpState(opKey, {
+      const failureState: OpState = {
         ...currentState,
         cursor,
         progress,
-        status: "interrupted",
+        status: isTransientInterruption(reason) ? "interrupted" : "failed",
         interruption_reason_code: reason,
         error: errMsg,
         last_stage: currentState.last_stage,
@@ -711,7 +736,9 @@ export async function tick(): Promise<void> {
         last_successful_cursor: cursor,
         next_auto_resume_at: nextAutoResumeAt(reason, currentState),
         updated_at: new Date().toISOString(),
-      });
+      };
+      const persisted = await persistOpState(opKey, failureState);
+      if (persisted && failureState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
       return;
     }
 
@@ -833,15 +860,16 @@ export async function tick(): Promise<void> {
     const killReason = detectFailureKillSwitch(progress, currentState.started_at);
     if (killReason) {
       logger.error("tick: failure kill switch triggered", { opKey, reason: killReason, batchCount });
-      await persistOpState(opKey, {
+      const failureState: OpState = {
         ...currentState,
         cursor,
         progress,
-        status: "interrupted",
+        status: "failed",
         interruption_reason_code: "repeated_failure",
         error: `Auto-stopped: ${killReason}`,
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (await persistOpState(opKey, failureState)) await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
       return;
     }
 
@@ -860,11 +888,11 @@ export async function tick(): Promise<void> {
         elapsed_ms: result.elapsed_ms,
         postgres_code: result.postgres_code,
       });
-      await persistOpState(opKey, {
+      const failureState: OpState = {
         ...currentState,
         cursor,
         progress,
-        status: "interrupted",
+        status: isTransientInterruption(reason) ? "interrupted" : "failed",
         interruption_reason_code: reason,
         error: batchErr,
         last_stage: result.error_stage,
@@ -873,7 +901,9 @@ export async function tick(): Promise<void> {
         retry_page_size: result.retry_page_size ?? currentState.retry_page_size,
         next_auto_resume_at: nextAutoResumeAt(reason, currentState),
         updated_at: new Date().toISOString(),
-      });
+      };
+      const persisted = await persistOpState(opKey, failureState);
+      if (persisted && failureState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
       return;
     }
 
@@ -924,7 +954,7 @@ export async function tick(): Promise<void> {
 
     if (result.done) {
       logger.info("tick: op completed", { opKey, batches: batchCount, progress });
-      await persistOpState(opKey, {
+      const completedState: OpState = {
         ...currentState,
         cursor,
         progress,
@@ -938,7 +968,8 @@ export async function tick(): Promise<void> {
         last_successful_cursor: cursor,
         result_message: buildResultMessage(opKey, progress),
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (await persistOpState(opKey, completedState)) await recordStyleGroupTerminalOutcome(opKey, completedState, "succeeded");
       return;
     }
 

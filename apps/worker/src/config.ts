@@ -55,4 +55,8 @@ export const config = {
 
   // Assets fetched per AI tagging batch
   aiBatchSize: optionalInt("AI_BATCH_SIZE", 50),
+
+  // Owner-selected operational destination for terminal bulk-operation failures.
+  // Empty is intentional until an existing monitored destination is supplied.
+  bulkOperationAlertWebhookUrl: optional("BULK_OPERATION_ALERT_WEBHOOK_URL", ""),
 } as const;
