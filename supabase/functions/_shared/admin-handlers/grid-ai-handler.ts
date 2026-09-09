@@ -34,20 +34,40 @@ export async function handlePlanGridBulkEdit(body: Record<string, unknown>) {
       model: MODEL,
       reasoning: { effort: "medium" },
       input: [
-        { role: "system", content: "Convert one bulk spreadsheet edit request into exactly one allowed field and one literal replacement value. Never broaden scope, calculate values, or return more than one edit." },
+        {
+          role: "system",
+          content:
+            "Convert one bulk spreadsheet edit request into exactly one allowed field and one literal replacement value. Never broaden scope, calculate values, or return more than one edit.",
+        },
         { role: "user", content: JSON.stringify({ page, instruction, allowed_fields: fields }) },
       ],
-      text: { format: { type: "json_schema", name: "grid_bulk_edit", strict: true, schema: {
-        type: "object",
-        properties: { field: { type: "string", enum: fields.map((field) => field.key) }, value: { type: ["string", "number", "boolean", "null"] }, summary: { type: "string" } },
-        required: ["field", "value", "summary"], additionalProperties: false,
-      } } },
+      text: {
+        format: {
+          type: "json_schema",
+          name: "grid_bulk_edit",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              field: { type: "string", enum: fields.map((field) => field.key) },
+              value: { type: ["string", "number", "boolean", "null"] },
+              summary: { type: "string" },
+            },
+            required: ["field", "value", "summary"],
+            additionalProperties: false,
+          },
+        },
+      },
     }),
   });
   const payload = await response.json() as Record<string, unknown>;
   if (!response.ok) return err(`OpenAI API error: ${response.status}`, 502);
   let plan: Record<string, unknown>;
-  try { plan = JSON.parse(outputText(payload)); } catch { return err("AI returned an invalid edit plan", 502); }
+  try {
+    plan = JSON.parse(outputText(payload));
+  } catch {
+    return err("AI returned an invalid edit plan", 502);
+  }
   if (!fields.some((field) => field.key === plan.field)) return err("AI selected a field that is not editable", 400);
   return json({ ok: true, model: MODEL, reasoning_effort: "medium", plan });
 }
