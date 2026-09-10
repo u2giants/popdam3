@@ -42,6 +42,15 @@ export const ORDER_LIST_SEARCH_COLUMNS = [
   "snapshot_description",
 ] as const;
 
+/** True when a loaded row contains the page-search text. */
+export function orderListRowMatchesSearch(row: OrderListRow | null | undefined, search: string) {
+  const term = search.trim().toLocaleLowerCase();
+  if (!row || !term) return false;
+  return ORDER_LIST_SEARCH_COLUMNS.some((column) =>
+    String(row[column] ?? "").toLocaleLowerCase().includes(term),
+  );
+}
+
 export type OrderListFilter = {
   column: string;
   /** PostgREST operator: eq, ilike, gte, lte, is, not.ilike, not.is. */

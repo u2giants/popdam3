@@ -6,6 +6,7 @@ import {
   ORDER_LIST_PAGE_SIZE_OPTIONS,
   buildOrderListFilters,
   buildOrderListSearchClause,
+  orderListRowMatchesSearch,
   buildOrderListSort,
   ORDER_LIST_FETCH_BATCH_SIZE,
   buildOrderListEdit,
@@ -310,6 +311,12 @@ describe("OrderList database query building", () => {
     expect(clause).toContain("production_order_number.ilike.%D0644%");
     expect(clause).toContain("sku.ilike.%D0644%");
     expect(buildOrderListSearchClause("   ")).toBeNull();
+  });
+
+  it("highlights a loaded row using the same recognizable search columns", () => {
+    expect(orderListRowMatchesSearch({ sku: "D0644" } as any, "0644")).toBe(true);
+    expect(orderListRowMatchesSearch({ notes: "D0644" } as any, "0644")).toBe(false);
+    expect(orderListRowMatchesSearch({ sku: "D0644" } as any, "   ")).toBe(false);
   });
 
   it("always ends sorting on a stable tiebreaker", () => {

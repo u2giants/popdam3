@@ -17,6 +17,7 @@ import {
   masterDataDescription,
   masterDataLicenseStatus,
   needsReview,
+  orderListRowMatchesSearch,
   type OrderListColumn,
 } from "@/lib/order-list";
 import type { OrderListRow } from "@/types/order-list";
@@ -107,10 +108,12 @@ export type OrderListGridProps = {
   onEditOrder: (row: OrderListRow) => void;
   onDisplayedRowsChanged?: (count: number) => void;
   onSelectionChanged?: (rows: OrderListRow[]) => void;
+  search?: string;
+  highlightedRowId?: string | null;
 };
 
 export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGridProps>(function OrderListGrid(
-  { datasource, onCellEdited, onRelink, onEditOrder, onDisplayedRowsChanged, onSelectionChanged },
+  { datasource, onCellEdited, onRelink, onEditOrder, onDisplayedRowsChanged, onSelectionChanged, search = "", highlightedRowId = null },
   ref,
 ) {
   const { theme } = useAppearance();
@@ -209,6 +212,9 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       // A voided order is still returned by the view, so it has to LOOK voided --
       // otherwise a cancelled order reads as a live one.
       getRowStyle={(params) => {
+        if (params.data?.order_line_id === highlightedRowId && orderListRowMatchesSearch(params.data, search)) {
+          return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b" };
+        }
         if (params.data?.order_voided_at) return { opacity: 0.55, textDecoration: "line-through" };
         return params.data && needsReview(params.data) ? { backgroundColor: "#fef3c7", color: "#713f12" } : undefined;
       }}

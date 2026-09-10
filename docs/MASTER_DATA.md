@@ -104,8 +104,9 @@ canonical item links. A pre-refresh database backup was taken before replacement
 - Grid pagination defaults to 1,500 rows per page, with 500 and 1,000 row options.
 - Master Data fetches four 1,000-row ranges concurrently, preserving the full
   in-browser dataset while avoiding one serial network wait per range.
-- Ctrl+F focuses the grid's full-dataset search because virtualized off-screen
-  cells are not browser-searchable DOM text.
+- Ctrl+F focuses the grid's full-dataset Find box. Find keeps the full table
+  visible, moves to the first matching row, and highlights matching rows rather
+  than filtering every other row out.
 - Administrators can select rows and use **AI helper** to preview one bulk
   field/value update before confirming it. The planner uses `gpt-5.6-luna`
   with medium reasoning; existing picker and description rules still validate saves.

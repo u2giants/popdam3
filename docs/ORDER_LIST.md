@@ -72,7 +72,8 @@ own sort.
 
 The grid virtualizes cells, so the browser does not create DOM text for every
 off-screen row. Ctrl+F is therefore captured and focuses the page's database-backed
-OrderList search, which searches the full result set.
+OrderList Find box. Find locates the first match across the full result set,
+moves to and highlights that row, and leaves the surrounding rows visible.
 Administrators can select rows and use **AI helper** to preview one bulk field/value
 update before confirming it. The planner uses `gpt-5.6-luna` with medium reasoning;
 the existing OrderList write contract still validates every saved value.

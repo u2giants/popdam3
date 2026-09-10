@@ -19,8 +19,8 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useDamCustomers } from "@/hooks/useDamCustomers";
 import {
-  clearOrderListCountCache,
   fetchOrderListBlock,
+  findOrderListRow,
   useCreateOrder,
   useOrderListLinkCandidates,
   useOrderListSavedViews,
@@ -39,6 +39,7 @@ export default function OrdersPage() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const [search, setSearch] = useState("");
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
   const [editor, setEditor] = useState<{ mode: OrderEditorMode; row: OrderListRow | null } | null>(null);
   const [relinkRow, setRelinkRow] = useState<OrderListRow | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
@@ -83,7 +84,7 @@ export default function OrdersPage() {
             endRow: params.endRow,
             sortModel: params.sortModel as Array<{ colId: string; sort: string }>,
             filterModel: params.filterModel as Record<string, unknown>,
-            search,
+            search: "",
           });
           setLoadError(null);
           setFilteredCount(block.totalRowCount);
@@ -97,14 +98,49 @@ export default function OrdersPage() {
         }
       },
     }),
-    [search],
+    [],
   );
 
-  // A new search term is a different result set, so the cached blocks go.
   useEffect(() => {
-    clearOrderListCountCache();
     gridRef.current?.api?.setGridOption("datasource", datasource);
   }, [datasource]);
+
+  useEffect(() => {
+    const term = search.trim();
+    if (!term) {
+      setHighlightedRowId(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const api = gridRef.current?.api;
+      if (!api) return;
+      try {
+        const match = await findOrderListRow({
+          search: term,
+          filterModel: api.getFilterModel(),
+          sortModel: api.getColumnState().filter((column) => column.sort).map((column) => ({ colId: column.colId, sort: column.sort! })),
+        });
+        if (cancelled) return;
+        if (!match) {
+          setHighlightedRowId(null);
+          toast.info(`No OrderList row contains "${term}"`);
+          return;
+        }
+        setHighlightedRowId(match.row.order_line_id);
+        const pageSize = api.paginationGetPageSize();
+        api.paginationGoToPage(Math.floor(match.index / pageSize));
+        window.requestAnimationFrame(() => api.ensureIndexVisible(match.index, "middle"));
+      } catch (error) {
+        if (cancelled) return;
+        toast.error((error as Error).message);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [search]);
 
   const counts = useMemo(
     () => ({
@@ -246,8 +282,8 @@ export default function OrdersPage() {
             ref={searchRef}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search orders (Ctrl+F)"
-            aria-label="Search orders"
+            placeholder="Find in orders (Ctrl+F)"
+            aria-label="Find in orders"
             className="h-8 w-56 pl-7 text-xs"
           />
         </div>
@@ -305,6 +341,8 @@ export default function OrdersPage() {
           <OrderListGrid
             ref={gridRef}
             datasource={datasource}
+            search={search}
+            highlightedRowId={highlightedRowId}
             onCellEdited={handleCellEdited}
             onRelink={setRelinkRow}
             onEditOrder={handleEditOrder}

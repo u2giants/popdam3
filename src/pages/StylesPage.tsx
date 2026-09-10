@@ -1140,6 +1140,7 @@ export default function StylesPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const [activeSheet, setActiveSheet] = useState<(typeof configs)[number]["name"]>("License.Style");
   const [quickFilter, setQuickFilter] = useState("");
+  const normalizedGridSearch = quickFilter.trim().toLocaleLowerCase();
   const [showAllPageRows, setShowAllPageRows] = useState(false);
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
@@ -1189,6 +1190,18 @@ export default function StylesPage() {
     window.addEventListener("keydown", focusGridSearch);
     return () => window.removeEventListener("keydown", focusGridSearch);
   }, []);
+
+  useEffect(() => {
+    const api = gridRef.current?.api;
+    if (!api || !gridReady || !normalizedGridSearch) return;
+    const match = rows.find((row) => JSON.stringify(row).toLocaleLowerCase().includes(normalizedGridSearch));
+    if (!match) return;
+    const node = api.getRowNode(match.id);
+    if (node?.rowIndex == null) return;
+    api.paginationGoToPage(Math.floor(node.rowIndex / api.paginationGetPageSize()));
+    api.ensureNodeVisible(node, "middle");
+    api.redrawRows();
+  }, [gridReady, normalizedGridSearch, rows]);
 
   useEffect(() => {
     const channel = supabase
@@ -1797,7 +1810,7 @@ export default function StylesPage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input ref={searchRef} value={quickFilter} onChange={(event) => setQuickFilter(event.target.value)} className="h-9 pl-8" placeholder="Search master data (Ctrl+F)" />
+              <Input ref={searchRef} value={quickFilter} onChange={(event) => setQuickFilter(event.target.value)} className="h-9 pl-8" placeholder="Find in master data (Ctrl+F)" />
             </div>
             <Button variant="outline" size="sm" onClick={() => rowsQuery.refetch()} disabled={rowsQuery.isFetching}>
               <RefreshCw className={cn("h-4 w-4", rowsQuery.isFetching && "animate-spin")} />
@@ -2024,7 +2037,6 @@ export default function StylesPage() {
             columnDefs={columnDefs}
             defaultColDef={{ minWidth: 90, suppressHeaderMenuButton: false, wrapHeaderText: true, autoHeaderHeight: true }}
             loading={rowsQuery.isLoading}
-            quickFilterText={quickFilter}
             onFilterChanged={(event) => {
               if (!showAllPageRows) return;
               const filteredRowCount = Math.max(event.api.getDisplayedRowCount(), 1);
@@ -2034,6 +2046,9 @@ export default function StylesPage() {
             }}
             getRowId={(params) => params.data.id}
             getRowStyle={(params) => {
+              if (normalizedGridSearch && JSON.stringify(params.data).toLocaleLowerCase().includes(normalizedGridSearch)) {
+                return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b" };
+              }
               const approval = approvalHighlightForRow(params.data);
               if (approval === "production") return { backgroundColor: "#dcfce7", color: "#14532d" };
               if (approval === "concept") return { backgroundColor: "#fef3c7", color: "#713f12" };
