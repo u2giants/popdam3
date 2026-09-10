@@ -80,6 +80,10 @@ Active PopSG production-readiness plan:
 
 - `plan_popsg_production_readiness.md` — make PopSG a truthful, current, preview-accounted, comprehensively searchable/filterable library of the eligible creative files on the Style Guides NAS share. Read its STATUS table first; do not re-derive or re-plan completed steps.
 
+Active Master Data and OrderList loading-performance plan:
+
+- `plan_master_data_orderlist_loading_performance.md` — render the first 4,000 Master Data rows immediately, stop downloading unused view fields, and replace OrderList Find's multi-request position scan with one governed shared-db lookup. Read its STATUS table first; do not re-derive or re-plan completed steps.
+
 Then load additional docs only when relevant — do **not** ingest every `.md` file:
 
 | Task / question | Read these docs | Usually do not need |

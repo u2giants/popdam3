@@ -1,5 +1,7 @@
 # Master Data Style Tracker
 
+Active loading-performance work is tracked in [`../plan_master_data_orderlist_loading_performance.md`](../plan_master_data_orderlist_loading_performance.md). Read its STATUS table first; do not re-derive or re-plan completed steps.
+
 This is the Master Data page at `https://dam.designflow.app/styles`. It mirrors
 the legacy Google Sheet style tracker while PLM is not yet fully hosted in the
 shared Supabase project.

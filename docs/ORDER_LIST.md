@@ -1,5 +1,7 @@
 # OrderList (`/orders`)
 
+Active loading/Find-performance work is tracked in [`../plan_master_data_orderlist_loading_performance.md`](../plan_master_data_orderlist_loading_performance.md). Read its STATUS table first; do not re-derive or re-plan completed steps.
+
 PopDAM's replacement for the legacy Google Sheet `OrderList`. Signed-in PopDAM
 staff can view, search, filter, sort, edit and create order lines, with product
 facts read from PopDAM Master Data instead of copied onto every order row.
