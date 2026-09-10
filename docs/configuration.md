@@ -200,6 +200,7 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 | `OPENROUTER_API_KEY` | Yes | AI tagging and ERP classification — **not the same as admin_config.OPENROUTER_API_KEY** |
 | `META_API_KEY` | No | Meta Model API direct access when Image Tagging selects `meta-direct/muse-spark-1.3-contributor` |
 | `GOOGLE_AI_API_KEY` | No | Legacy fallback if no OpenRouter key |
+| `BULK_OPERATION_ALERT_WEBHOOK_URL` | No until owner selects an existing monitored destination | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success |
 
 **Critical:** `OPENROUTER_API_KEY` in Railway and `OPENROUTER_API_KEY` in `admin_config` are two separate things. Setting the key in the admin UI (Settings → AI Models) only updates `admin_config`. The Railway worker reads exclusively from Railway ENV variables.
 
