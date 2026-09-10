@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValueChangedEvent, ColDef, ColumnState, DefaultMenuItem, GetContextMenuItemsParams, GridReadyEvent, MenuItemDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
@@ -33,7 +33,14 @@ import {
 } from "@/lib/style-tracker-candidates";
 import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
 import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
-import { MASTER_DATA_FETCH_BATCH_SIZE, shouldFetchNextMasterDataBatch } from "@/lib/master-data-loading";
+import {
+  MASTER_DATA_FETCH_BATCH_SIZE,
+  STYLE_TRACKER_ROW_SELECT,
+  flattenMasterDataPages,
+  masterDataPageOffsets,
+  nextMasterDataPageOffset,
+  shouldFetchNextMasterDataBatch,
+} from "@/lib/master-data-loading";
 import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
 import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
 import { cn } from "@/lib/utils";
@@ -478,11 +485,11 @@ function formatAuditTime(value: string) {
   return auditTimeFormatter.format(new Date(value));
 }
 
-async function fetchRows(sourceSheet: string) {
+async function fetchRowsPage(sourceSheet: string, pageOffset: number) {
   const fetchBatch = async (from: number) => {
     const { data, error } = await (supabase as any)
       .from("style_tracker_rows_with_bridge")
-      .select("*")
+      .select(STYLE_TRACKER_ROW_SELECT)
       .eq("source_sheet", sourceSheet)
       .order("source_row_number", { ascending: false })
       .range(from, from + MASTER_DATA_FETCH_BATCH_SIZE - 1);
@@ -490,18 +497,14 @@ async function fetchRows(sourceSheet: string) {
     return (data ?? []) as StyleRow[];
   };
 
-  // PostgREST caps responses at 1,000 rows. Fetch four ordered ranges at a time
-  // so a 15k-row sheet does not wait for 15 serial network round trips.
-  const rows: StyleRow[] = [];
-  const concurrency = 4;
-  for (let from = 0; ; from += MASTER_DATA_FETCH_BATCH_SIZE * concurrency) {
-    const batches = await Promise.all(
-      Array.from({ length: concurrency }, (_, index) => fetchBatch(from + index * MASTER_DATA_FETCH_BATCH_SIZE)),
-    );
-    for (const batch of batches) rows.push(...batch);
-    if (batches.some((batch) => !shouldFetchNextMasterDataBatch(batch.length))) break;
-  }
-  return rows;
+  // PostgREST caps responses at 1,000 rows. A query page is four ordered
+  // ranges so the grid can render its first 4,000 rows before later pages load.
+  const batches = await Promise.all(masterDataPageOffsets(pageOffset).map(fetchBatch));
+  return {
+    rows: batches.flat(),
+    hasNextPage: batches.every((batch) => shouldFetchNextMasterDataBatch(batch.length)),
+    nextOffset: nextMasterDataPageOffset(pageOffset),
+  };
 }
 
 async function fetchCellAuditLog(cell: AuditCell | null) {
@@ -1156,7 +1159,12 @@ export default function StylesPage() {
   const lastAppliedSheetRef = useRef<string | null>(null);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
-  const rowsQuery = useQuery({ queryKey: ["style-rows", active.name], queryFn: () => fetchRows(active.name) });
+  const rowsQuery = useInfiniteQuery({
+    queryKey: ["style-rows", active.name],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => fetchRowsPage(active.name, pageParam),
+    getNextPageParam: (lastPage) => lastPage.hasNextPage ? lastPage.nextOffset : undefined,
+  });
   const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
   const cellAuditQuery = useQuery({
     queryKey: ["style-cell-audit", auditCell?.row.id, auditCell?.column.letter],
@@ -1177,7 +1185,14 @@ export default function StylesPage() {
   });
   const savedViews = savedViewsQuery.data ?? [];
   const activeView = savedViews.find((view) => view.id === activeViewId) ?? null;
-  const rows = rowsQuery.data ?? [];
+  const rows = useMemo(() => flattenMasterDataPages(rowsQuery.data?.pages ?? []), [rowsQuery.data?.pages]);
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = rowsQuery;
+
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   useEffect(() => {
     const focusGridSearch = (event: globalThis.KeyboardEvent) => {
@@ -1739,6 +1754,7 @@ export default function StylesPage() {
   );
 
   const totalRows = countQuery.data ?? rows.length;
+  const isLoadingRemainingRows = rowsQuery.hasNextPage || rowsQuery.isFetchingNextPage;
   const auditRows = cellAuditQuery.data ?? [];
 
   const contextMenuItems = (params: GetContextMenuItemsParams<StyleRow>): (DefaultMenuItem | MenuItemDef<StyleRow>)[] => {
@@ -1803,7 +1819,9 @@ export default function StylesPage() {
             <div className="min-w-0">
               <h1 className="text-lg font-semibold leading-tight text-foreground">Master Data</h1>
               <p className="text-xs text-muted-foreground">
-                {rows.length.toLocaleString()} loaded rows · {totalRows.toLocaleString()} total rows
+                {isLoadingRemainingRows
+                  ? `${rows.length.toLocaleString()} of ${totalRows.toLocaleString()} rows loaded — loading the rest. Find and filters cover loaded rows.`
+                  : `${totalRows.toLocaleString()} rows loaded`}
               </p>
             </div>
           </div>

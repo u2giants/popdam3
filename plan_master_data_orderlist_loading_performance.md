@@ -8,9 +8,9 @@ Fresh sessions start at **Step 1**. Re-read the downstream phase before starting
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
-| 1. Record baselines and exact payload contract | ⬜ open | 2026-09-10 | Run the commands and save the artifacts specified in Step 1. |
-| 2. Render the first 4,000 Master Data rows immediately | ⬜ open | 2026-09-10 | Tests and browser evidence specified in Step 2. |
-| 3. Stop downloading unused Master Data fields | ⬜ open | 2026-09-10 | Select-contract tests and payload measurements specified in Step 3. |
+| 1. Record baselines and exact payload contract | 🟨 partial | 2026-09-10 | Sanitized Licensed baseline: `docs/verification/grid-loading-performance/2026-09-10T1514Z/README.md`; Generic/OrderList traces remain after test-session rotation. Explicit projection contract test added in Step 2–3 commit. |
+| 2. Render the first 4,000 Master Data rows immediately | ✅ complete — local verification | 2026-09-10 | `useInfiniteQuery` releases four 1,000-row ranges per page and appends later pages; focused tests and build passed. Production verification remains Step 6. |
+| 3. Stop downloading unused Master Data fields | ✅ complete — local verification | 2026-09-10 | Explicit select projection and contract test exclude verified unused view metadata; production byte measurement remains Step 6. |
 | 4. Add the governed OrderList Find-position RPC | ⬜ open — queued as shared-db #2665 | 2026-09-10 | Shared-db migration, SQL tests, preview evidence, PR and merge SHA. |
 | 5. Replace the OrderList multi-request scan with the RPC | ⬜ open — blocked by Step 4 | 2026-09-10 | App tests and browser/network evidence specified in Step 5. |
 | 6. Ship and verify production behavior and performance | ⬜ open — blocked by Steps 2–5 | 2026-09-10 | CI run, deployed SHA, browser screenshots and before/after measurements. |

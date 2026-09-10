@@ -104,8 +104,10 @@ canonical item links. A pre-refresh database backup was taken before replacement
 - A nonblank description must have approved values for MG01, MG02, MG03, Licensor + Property, and Size before the grid accepts the edit.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
 - Grid pagination defaults to 1,500 rows per page, with 500 and 1,000 row options.
-- Master Data fetches four 1,000-row ranges concurrently, preserving the full
-  in-browser dataset while avoiding one serial network wait per range.
+- Master Data renders the first four 1,000-row ranges as soon as they arrive,
+  then appends later four-range pages in the background. Until the truthful
+  loading notice clears, Find and column filters cover the rows already loaded;
+  once complete they cover the full in-browser tab.
 - Ctrl+F focuses the grid's full-dataset Find box. Find keeps the full table
   visible, moves to the first matching row, and highlights matching rows rather
   than filtering every other row out.
