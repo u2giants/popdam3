@@ -200,9 +200,48 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 | `OPENROUTER_API_KEY` | Yes | AI tagging and ERP classification — **not the same as admin_config.OPENROUTER_API_KEY** |
 | `META_API_KEY` | No | Meta Model API direct access when Image Tagging selects `meta-direct/muse-spark-1.3-contributor` |
 | `GOOGLE_AI_API_KEY` | No | Legacy fallback if no OpenRouter key |
-| `BULK_OPERATION_ALERT_WEBHOOK_URL` | No until owner selects an existing monitored destination | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success |
+| `BULK_OPERATION_ALERT_WEBHOOK_URL` | Yes once the `bulk-operation-alert` function is deployed | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success. Set it to the deployed `bulk-operation-alert` function URL including its `?key=` shared secret (see below). |
 
 **Critical:** `OPENROUTER_API_KEY` in Railway and `OPENROUTER_API_KEY` in `admin_config` are two separate things. Setting the key in the admin UI (Settings → AI Models) only updates `admin_config`. The Railway worker reads exclusively from Railway ENV variables.
+
+---
+
+## Bulk-operation failure alerts (`supabase/functions/bulk-operation-alert`)
+
+The owner's alert destination is the mailbox **hello@popcre.com**, which is not a webhook.
+The `bulk-operation-alert` edge function is the receiving endpoint: the Railway worker POSTs
+its terminal-failure JSON to the function, and the function emails it via the shared Brevo
+helper (the same path `send-invite-email` uses).
+
+Request body — exactly what `alertTerminalFailure` in `apps/worker/src/terminal-outcomes.ts` sends:
+
+| Field | Notes |
+|-------|-------|
+| `type` | Always `bulk_operation_failed` |
+| `operation` | e.g. `rebuild-style-groups` |
+| `run_id` | Run identifier |
+| `status` | Always `failed` for an alert |
+| `stage` | Optional |
+| `error` | Optional failure message |
+| `reason_code` | Optional |
+| `progress` | Open-ended object; `licensor` / `property` / `style_group` / `scope` keys are rendered as scope lines when present |
+| `started_at`, `ended_at` | ISO timestamps |
+
+Supabase function secrets:
+
+| Secret | Required | Purpose |
+|--------|----------|---------|
+| `BREVO_API_KEY` | Yes | Already used by `send-invite-email` |
+| `BULK_OPERATION_ALERT_SECRET` | Yes | Shared secret. With it unset the function refuses every request with 500 rather than becoming an open mail relay. |
+| `BULK_OPERATION_ALERT_EMAIL_TO` | No | Overrides the default recipient `hello@popcre.com` |
+
+Auth follows the repo's existing `x-agent-key` shape: the shared secret in the `x-alert-key`
+header. Because the worker's alert POST sends only `content-type` and its destination is a bare
+URL, the secret is also accepted as the `key` query parameter — that is the only channel a
+URL-configured webhook has. `verify_jwt = false` for this function; it enforces its own secret.
+
+The function returns 2xx **only** when Brevo accepted the message (502 otherwise), so the
+worker's "alert delivery failed" logging keeps meaning what it says.
 
 ---
 
