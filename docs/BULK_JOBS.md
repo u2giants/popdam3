@@ -153,6 +153,11 @@ destination. When it is unset or rejects delivery, the worker logs an error rath
 claiming an alert was sent. Cron remains an enqueue-only signal and is never used to
 decide whether the rebuild succeeded.
 
+GitHub Actions is the default monitored destination. `Monitor Nightly Style Group
+Rebuild` runs after the normal rebuild window and reads the worker's latest terminal row,
+not `cron.job_run_details`. It fails visibly when the worker reported failure or when no
+terminal outcome was recorded. The webhook remains an optional immediate second channel.
+
 OpenRouter phases are `prepared`, `submitting`, `pending`, `applying`,
 `completed`, and `ambiguous_submission`. Pending jobs are checked no faster than
 every 10 seconds. An expired submission lease without a saved provider ID is
