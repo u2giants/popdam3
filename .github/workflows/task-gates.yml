@@ -1,0 +1,36 @@
+name: Task Gates
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: task-gates-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out PopDAM
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check out accepted task-gate engine
+        uses: actions/checkout@v4
+        with:
+          repository: popcre/ai-devops
+          ref: 4d83f9a5dc400f87408663eddac872b9074c18ed
+          path: .task-gates-toolkit
+          persist-credentials: false
+      - name: Add task-gate commands to the runner path
+        shell: bash
+        run: echo "$GITHUB_WORKSPACE/.task-gates-toolkit/bin" >> "$GITHUB_PATH"
+      - name: Verify installed command and PopDAM policy
+        shell: bash
+        run: |
+          ai-task-gates version
+          ai-repo-policy | jq -e '.repository == "u2giants/popdam3"'
+          bash scripts/test-task-gates.sh

@@ -121,6 +121,11 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 
 ## Shared DB Gatekeeper
 
+Repository-local task routing is declared in `.ai-devops/task-gates.json` and
+verified by `scripts/test-task-gates.sh`. Protected browser, agent, worker,
+deployment, and shared-database paths require their full treatment;
+acknowledgement never bypasses a database-route refusal.
+
 This repo shares Supabase backend project `qsllyeztdwjgirsysgai` with the other
 POP apps. All database/schema changes for that shared backend must be authored
 in the canonical repo [`u2giants/shared-db`](https://github.com/u2giants/shared-db)
