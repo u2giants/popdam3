@@ -6,6 +6,7 @@ const failedRun: TerminalRun = {
   operation: "rebuild-style-groups",
   run_id: "failed-run-1",
   status: "failed",
+  source_status: "failed",
   stage: "clear_assets",
   error: "Deliberate failure",
   reason_code: "deliberate_test",
@@ -29,8 +30,16 @@ test("a later success does not overwrite a recorded failed run", async () => {
   };
 
   assert.equal(await appendTerminalRun(store, failedRun), true);
-  assert.equal(await appendTerminalRun(store, { ...failedRun, run_id: "successful-run-2", status: "succeeded", error: undefined, reason_code: undefined }), true);
-  assert.deepEqual(rows.map((row) => [row.run_id, row.status]), [["failed-run-1", "failed"], ["successful-run-2", "succeeded"]]);
+  assert.equal(await appendTerminalRun(store, {
+    ...failedRun,
+    run_id: "successful-run-2",
+    status: "completed",
+    source_status: "completed",
+    progress: { total_processed: 135_300, failed: 0 },
+    error: undefined,
+    reason_code: undefined,
+  }), true);
+  assert.deepEqual(rows.map((row) => [row.run_id, row.status]), [["failed-run-1", "failed"], ["successful-run-2", "completed"]]);
 });
 
 test("retrying the same terminal run is idempotent", async () => {

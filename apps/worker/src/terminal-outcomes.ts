@@ -9,12 +9,13 @@
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 
-export type TerminalRunStatus = "succeeded" | "failed";
+export type TerminalRunStatus = "completed" | "failed";
 
 export interface TerminalRun {
   operation: string;
   run_id: string;
   status: TerminalRunStatus;
+  source_status: TerminalRunStatus;
   stage?: string;
   error?: string;
   reason_code?: string;

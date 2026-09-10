@@ -58,11 +58,16 @@ async function recordStyleGroupTerminalOutcome(
   const run: TerminalRun = {
     operation: opKey,
     run_id: state.run_id,
-    status,
+    status: status === "succeeded" ? "completed" : "failed",
+    source_status: status === "succeeded" ? "completed" : "failed",
     stage: state.last_stage,
     error: state.error,
     reason_code: state.interruption_reason_code,
-    progress: state.progress ?? {},
+    // The live schema classifies `completed` as successful only when the
+    // terminal row carries an explicit numeric zero-failure counter.
+    progress: status === "succeeded"
+      ? { ...(state.progress ?? {}), failed: Number(state.progress?.failed ?? 0) }
+      : (state.progress ?? {}),
     started_at: state.started_at,
     ended_at: state.updated_at ?? new Date().toISOString(),
   };
