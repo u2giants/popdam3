@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "_comment": "PopDAM strengthens browser, agent, worker, function, release, and shared-database paths while preserving its multi-runtime production contracts.",
+  "paths": [
+    { "glob": "AGENTS.md", "class": "reviewer-safety" },
+    { "glob": "HANDOFF.md", "class": "reviewer-safety" },
+    { "glob": "HANDOFF.d/**", "class": "reviewer-safety" },
+    { "glob": "plan_*.md", "class": "reviewer-safety" },
+    { "glob": ".ai-devops/**", "class": "reviewer-safety" },
+    { "glob": "scripts/test-task-gates.sh", "class": "reviewer-safety" },
+    { "glob": "src/**", "class": "ui-live-workflow" },
+    { "glob": ".github/workflows/**", "class": "deployment" },
+    { "glob": "Dockerfile*", "class": "deployment" },
+    { "glob": "nginx.conf", "class": "deployment" },
+    { "glob": "deploy/**", "class": "deployment" },
+    { "glob": "apps/worker/**", "class": "deployment" },
+    { "glob": "apps/bridge-agent/**", "class": "deployment" },
+    { "glob": "apps/windows-agent/**", "class": "deployment" },
+    { "glob": "apps/popdam-helper/**", "class": "deployment" },
+    { "glob": "packages/path-filters/**", "class": "deployment" },
+    { "glob": "supabase/functions/**", "class": "deployment" },
+    { "glob": "package.json", "class": "deployment" },
+    { "glob": "shared-db/**", "class": "shared-db" },
+    { "glob": "supabase/migrations/**", "class": "shared-db" },
+    { "glob": "src/integrations/supabase/types.ts", "class": "shared-db" },
+    { "glob": "fixtures/task-gates/governed-data/**", "class": "shared-db" }
+  ],
+  "gates": {
+    "prose": { "required": ["direct-main-reconciliation"], "forbidden_actions": [] },
+    "code": { "required": ["direct-main-reconciliation", "local-tests"], "forbidden_actions": [] },
+    "ui-live-workflow": { "required": ["direct-main-reconciliation", "local-tests", "authenticated-workflow-proof", "visual-proof", "repository-rulebook-full-treatment"], "forbidden_actions": [] },
+    "reviewer-safety": { "required": ["direct-main-reconciliation", "local-tests", "repository-rulebook-full-treatment"], "forbidden_actions": [] },
+    "deployment": { "required": ["direct-main-reconciliation", "local-tests", "production-release-review", "owner-authorization"], "forbidden_actions": [] },
+    "shared-db": { "required": ["stop-and-route-to-u2giants-shared-db", "governed-shared-db-branch-and-pr", "no-app-owned-schema"], "forbidden_actions": ["database"] }
+  }
+}
