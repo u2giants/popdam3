@@ -132,9 +132,7 @@ export function buildAlertFields(payload: BulkOperationAlertPayload): AlertField
 export function buildAlertSubject(payload: BulkOperationAlertPayload): string {
   const operation = present(payload.operation) ?? "unknown operation";
   const runId = present(payload.run_id);
-  return runId
-    ? `PopDAM bulk-operation failure: ${operation} (run ${runId})`
-    : `PopDAM bulk-operation failure: ${operation}`;
+  return runId ? `PopDAM bulk-operation failure: ${operation} (run ${runId})` : `PopDAM bulk-operation failure: ${operation}`;
 }
 
 /** Plain-text rendering, also used as the fallback body for text-only clients. */

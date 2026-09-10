@@ -17,13 +17,7 @@
 
 import { corsServe, json } from "../_shared/http.ts";
 import { sendBrevoEmail } from "../_shared/brevo.ts";
-import {
-  authorizeAlertRequest,
-  buildAlertHtml,
-  buildAlertSubject,
-  buildAlertText,
-  type BulkOperationAlertPayload,
-} from "../_shared/bulk-operation-alert.ts";
+import { authorizeAlertRequest, buildAlertHtml, buildAlertSubject, buildAlertText, type BulkOperationAlertPayload } from "../_shared/bulk-operation-alert.ts";
 
 const DEFAULT_RECIPIENT = "hello@popcre.com";
 
