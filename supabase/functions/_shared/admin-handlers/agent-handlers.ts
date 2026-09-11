@@ -168,6 +168,7 @@ export async function handleTriggerScan(
   const targetAgentId = optionalString(body, "agent_id");
   const db = serviceClient();
   const requestId = crypto.randomUUID();
+  const actorId = userId === "system" ? null : userId;
 
   // Auto-clear force_stop / scan_abort on all agents when user explicitly
   // triggers a scan — the user's intent is unambiguous.
@@ -199,7 +200,7 @@ export async function handleTriggerScan(
       target_agent_id: targetAgentId,
     },
     updated_at: new Date().toISOString(),
-    updated_by: userId,
+    updated_by: actorId,
   });
 
   if (error) return err(error.message, 500);
@@ -751,7 +752,7 @@ export async function handleTriggerAgentUpdate(
           metadata: {
             ...meta,
             trigger_update: true,
-            update_requested_by: userId,
+            update_requested_by: actorId,
             update_requested_at: new Date().toISOString(),
           },
         })
