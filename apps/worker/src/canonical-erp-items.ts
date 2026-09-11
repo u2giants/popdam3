@@ -77,6 +77,16 @@ export function selectClassificationCandidates<T extends CanonicalItemIdentity &
   return selected;
 }
 
+/**
+ * Keeps only ERP rows whose three-part identity resolves to exactly one
+ * canonical item. Ambiguous duplicates (same number and division under two
+ * companies) would otherwise write competing values to the same SKU/division,
+ * with the last row silently winning.
+ */
+export function resolvedErpItems<T extends CanonicalItemIdentity>(rows: T[], canonicalIds: Map<string, string>): T[] {
+  return rows.filter((row) => canonicalIds.has(canonicalItemKey(row)));
+}
+
 export function canonicalItemKey(item: CanonicalItemIdentity): string {
   return `${item.source_system}|${item.division_code ?? ""}|${item.source_id}`;
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canonicalItemKey, canonicalItemMatchKey, rawMgFieldsFromCanonical, selectClassificationCandidates, uniqueCanonicalItemIds } from "./canonical-erp-items.js";
+import { canonicalItemKey, canonicalItemMatchKey, rawMgFieldsFromCanonical, resolvedErpItems, selectClassificationCandidates, uniqueCanonicalItemIds } from "./canonical-erp-items.js";
 
 test("unresolved or ambiguous identities never reach AI classification", () => {
   const rows = [
@@ -33,6 +33,20 @@ test("ambiguous same-division identities stay unresolved instead of borrowing an
   ]);
   assert.equal(ids.has("coldlion|CW001|ABC123"), false);
   assert.equal(ids.get("coldlion|SP001|ABC123"), "d");
+});
+
+test("ERP apply skips ambiguous same-division duplicates so neither overwrites the SKU", () => {
+  const rows = [
+    { source_system: "coldlion", division_code: "CW001", source_id: "DUP", item_description: "Company A wall art" },
+    { source_system: "coldlion", division_code: "CW001", source_id: "DUP", item_description: "Company B mug" },
+    { source_system: "coldlion", division_code: "CW001", source_id: "ONE", item_description: "Unique item" },
+  ];
+  const canonicalIds = uniqueCanonicalItemIds([
+    { id: "a", source_system: "coldlion", item_number: "DUP", raw: { divisionCode: "CW001" } },
+    { id: "b", source_system: "coldlion", item_number: "DUP", raw: { divisionCode: "CW001" } },
+    { id: "one", source_system: "coldlion", item_number: "ONE", raw: { divisionCode: "CW001" } },
+  ]);
+  assert.deepEqual(resolvedErpItems(rows, canonicalIds).map((r) => r.source_id), ["ONE"]);
 });
 
 test("canonical item identity includes the division", () => {

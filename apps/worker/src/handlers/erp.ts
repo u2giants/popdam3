@@ -17,6 +17,7 @@ import type { BatchResult, OpState } from "../types.js";
 import {
   canonicalItemIdMap,
   canonicalItemKey,
+  resolvedErpItems,
   selectClassificationCandidates,
   canonicalItemMatchKey,
   canonicalItems,
@@ -93,7 +94,9 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
   let assetsUpdated = 0;
   let groupsUpdated = 0;
 
-  for (const erpItem of erpItems) {
+  // Ambiguous identities are skipped entirely: two duplicates would otherwise
+  // write competing values to the same SKU/division and the last would win.
+  for (const erpItem of resolvedErpItems(erpItems, canonicalIds)) {
     if (!erpItem.style_number) continue;
 
     const updates: Record<string, unknown> = {};
