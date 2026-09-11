@@ -59,10 +59,21 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 
   const skus = erpItems.map((e) => e.style_number).filter(Boolean) as string[];
 
-  const [assetCountRes, groupCountRes] = await Promise.all([
-    db.from("assets").select("*", { count: "exact", head: true }).in("sku", skus).eq("is_deleted", false),
-    db.from("style_groups").select("*", { count: "exact", head: true }).in("sku", skus),
-  ]);
+  // Count per division, exactly as the worker updates by SKU + division; a
+  // SKU-only count would include same-SKU rows in other divisions.
+  const skusByDivision = new Map<string | null, string[]>();
+  for (const e of erpItems) {
+    if (!e.style_number) continue;
+    const key = e.division_code ?? null;
+    skusByDivision.set(key, [...(skusByDivision.get(key) ?? []), e.style_number]);
+  }
+  const byDivision = (q: any, division: string | null) => division === null ? q.is("division_code", null) : q.eq("division_code", division);
+  const divisionCounts = await Promise.all([...skusByDivision].map(([division, divisionSkus]) => Promise.all([
+    byDivision(db.from("assets").select("*", { count: "exact", head: true }).in("sku", divisionSkus).eq("is_deleted", false), division),
+    byDivision(db.from("style_groups").select("*", { count: "exact", head: true }).in("sku", divisionSkus), division),
+  ])));
+  const assetCountRes = { count: divisionCounts.reduce((sum, [a]) => sum + (a.count ?? 0), 0) };
+  const groupCountRes = { count: divisionCounts.reduce((sum, [, g]) => sum + (g.count ?? 0), 0) };
 
   const sampleSkus = skus.slice(0, 25);
   const [assetSampleRes, groupSampleRes] = await Promise.all([

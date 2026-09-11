@@ -71,6 +71,12 @@ describe("canonical ERP handler behavior", () => {
     expect(fixture.calls).toContainEqual({ table: "product_category_predictions", column: "plm_item_id", value: "canonical-cw" });
   });
 
+  it("dry-run totals count only the matched division, as the worker updates by SKU and division", async () => {
+    fixture.tables.assets.push({ id: "asset-other-division", sku: "SAME", division_code: "ZZ001", is_deleted: false });
+    const body = await (await handleApplyErpEnrichment({ mode: "dry-run" })).json();
+    expect(body.assets_to_update).toBe(1);
+  });
+
   it("dry-run skips ambiguous same-division duplicates, matching the worker apply", async () => {
     fixture.tables["plm.item"].push({ id: "canonical-cw-other-company", source_system: "coldlion", item_number: "SAME", description: "Other company", raw: { divisionCode: "CW001" } });
     const body = await (await handleApplyErpEnrichment({ mode: "dry-run" })).json();
