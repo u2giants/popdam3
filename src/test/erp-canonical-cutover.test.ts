@@ -48,4 +48,15 @@ describe("canonical ERP cutover", () => {
     expect(handler).toContain("set_popdam_item_dismissed");
     expect(handler).toContain("item_identity");
   });
+
+  it("does not borrow an item description when a SKU spans divisions and the caller has no division", () => {
+    for (const path of [
+      "src/components/library/StyleGroupDetailPanel.tsx",
+      "apps/worker/src/handlers/ai-tagging-shared.ts",
+    ]) {
+      const source = read(path);
+      expect(source, path).toMatch(/\.limit\([^?]+\? 1 : 2\)/);
+      expect(source, path).toMatch(/\.length === 1/);
+    }
+  });
 });

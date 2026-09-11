@@ -23,6 +23,20 @@ export function canonicalItems(db: ServiceClient) {
   return db.schema(CANONICAL_ITEM_SCHEMA).from(CANONICAL_ITEM_VIEW);
 }
 
+export async function canonicalItemIdMap(db: ServiceClient, items: CanonicalItemIdentity[]): Promise<Map<string, string>> {
+  const sourceIds = [...new Set(items.map((item) => item.source_id).filter(Boolean))];
+  if (sourceIds.length === 0) return new Map();
+  const { data, error } = await db.schema("plm").from("item")
+    .select("id, source_system, item_number, raw")
+    .eq("source_system", "coldlion")
+    .in("item_number", sourceIds);
+  if (error) throw new Error(`Failed to resolve canonical item IDs: ${error.message}`);
+  return new Map((data ?? []).map((item: any) => [
+    canonicalItemKey({ source_system: item.source_system, division_code: item.raw?.divisionCode ?? null, source_id: item.item_number }),
+    item.id,
+  ]));
+}
+
 export function canonicalItemKey(item: CanonicalItemIdentity): string {
   return `${item.source_system}|${item.division_code ?? ""}|${item.source_id}`;
 }

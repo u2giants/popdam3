@@ -114,15 +114,15 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   // Enrich with item descriptions
   const itemIds = [...new Set((data || []).map((d: any) => d.plm_item_id).filter(Boolean))];
   const { data: erpItems, error: itemError } = itemIds.length
-    ? await canonicalItems(db).select("id, item_description, style_number").in("id", itemIds)
+    ? await db.schema("plm").from("item").select("id, description, item_number").in("id", itemIds)
     : { data: [], error: null };
   if (itemError) return err(itemError.message, 500);
 
   const descMap: Record<string, { description: string; style_number: string }> = {};
   for (const item of erpItems || []) {
     const value = {
-      description: item.item_description || "",
-      style_number: item.style_number || "",
+      description: item.description || "",
+      style_number: item.item_number || "",
     };
     descMap[item.id] = value;
   }
@@ -270,11 +270,15 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const itemKeySql = canonicalItemKeySql("e");
-  const predJoin = `LEFT JOIN LATERAL (
+  const predJoin = `LEFT JOIN plm.item canonical_item
+    ON canonical_item.source_system = e.source_system
+   AND canonical_item.item_number = e.source_id
+   AND coalesce(canonical_item.raw ->> 'divisionCode', '') = coalesce(e.division_code, '')
+  LEFT JOIN LATERAL (
     SELECT id, external_id, predicted_category, confidence, rationale, status
     FROM product_category_predictions candidate
     WHERE candidate.status = 'pending'
-      AND candidate.plm_item_id = e.id
+      AND candidate.plm_item_id = canonical_item.id
     ORDER BY candidate.created_at DESC, candidate.id
     LIMIT 1
   ) p ON true`;

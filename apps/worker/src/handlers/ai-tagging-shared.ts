@@ -277,9 +277,10 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
       .select("item_description")
       .eq("style_number", asset.sku)
       .order("division_code", { ascending: true })
-      .limit(1);
+      .limit(asset.division_code ? 1 : 2);
     if (asset.division_code) erpQuery = erpQuery.eq("division_code", asset.division_code);
-    const { data: erpItem } = await erpQuery.maybeSingle();
+    const { data: erpRows } = await erpQuery;
+    const erpItem = erpRows?.length === 1 ? erpRows[0] : null;
     erpDescription = erpItem?.item_description ?? null;
 
     const { data: humanDescription, error: humanDescriptionError } = await client

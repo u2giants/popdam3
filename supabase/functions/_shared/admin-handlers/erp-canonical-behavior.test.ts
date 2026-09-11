@@ -46,8 +46,12 @@ beforeEach(() => {
   fixture.rpc.mockReset();
   fixture.tables = {
     "api.plm_item_list": [
-      { id: "canonical-cw", source_id: "SAME", source_system: "coldlion", division_code: "CW001", style_number: "SAME", item_description: "CW description", mg_category: null },
+      { id: "legacy-cw", source_id: "SAME", source_system: "coldlion", division_code: "CW001", style_number: "SAME", item_description: "CW description", mg_category: null },
       { id: "canonical-sp", source_id: "SAME", source_system: "coldlion", division_code: "SP001", style_number: "SAME", item_description: "SP description", mg_category: null },
+    ],
+    "plm.item": [
+      { id: "canonical-cw", source_system: "coldlion", item_number: "SAME", description: "CW description", raw: { divisionCode: "CW001" } },
+      { id: "canonical-sp", source_system: "coldlion", item_number: "SAME", description: "SP description", raw: { divisionCode: "SP001" } },
     ],
     assets: [{ id: "asset-cw", sku: "SAME", division_code: "CW001", is_deleted: false }],
     style_groups: [],
@@ -94,7 +98,7 @@ describe("canonical ERP handler behavior", () => {
     fixture.rpc.mockResolvedValue({ data: [], error: null });
     await handleErpItemsBrowse({ show_dismissed: false });
     for (const [, params] of fixture.rpc.mock.calls) {
-      expect(params.query_text).toContain("candidate.plm_item_id = e.id");
+      expect(params.query_text).toContain("candidate.plm_item_id = canonical_item.id");
       expect(params.query_text).toContain("e.dismissed = false");
     }
     fixture.rpc.mockClear();

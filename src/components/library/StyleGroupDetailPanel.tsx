@@ -508,11 +508,11 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
         .select("erp_updated_at, item_description")
         .eq("style_number", group.sku)
         .order("division_code", { ascending: true })
-        .limit(1);
+        .limit(group.division_code ? 1 : 2);
       if (group.division_code) query = query.eq("division_code", group.division_code);
-      const { data, error } = await query.maybeSingle();
+      const { data, error } = await query;
       if (error) throw error;
-      return data ?? null;
+      return data?.length === 1 ? data[0] : null;
     },
     staleTime: 5 * 60 * 1000,
   });

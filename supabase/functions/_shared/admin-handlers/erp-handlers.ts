@@ -8,7 +8,7 @@
 
 import { serviceClient } from "../service-client.ts";
 import { err, json } from "../http.ts";
-import { canonicalItemMatchKey, canonicalItems } from "../canonical-erp-items.ts";
+import { canonicalItemIdMap, canonicalItemKey, canonicalItemMatchKey, canonicalItems } from "../canonical-erp-items.ts";
 
 // ── Route: apply-erp-enrichment ─────────────────────────────────────
 
@@ -50,6 +50,7 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   if (erpItems.length === 0) {
     return json({ ok: true, done: true, assets_to_update: 0, groups_to_update: 0, sample_updates: [] });
   }
+  const canonicalIds = await canonicalItemIdMap(db, erpItems);
 
   const skus = erpItems.map((e) => e.style_number).filter(Boolean) as string[];
 
@@ -91,7 +92,7 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       const { data: predictionRow } = await db
         .from("product_category_predictions")
         .select("predicted_category, confidence, classification_source, status")
-        .eq("plm_item_id", erpItem.id)
+        .eq("plm_item_id", canonicalIds.get(canonicalItemKey({ ...erpItem, source_system: "coldlion" })) ?? "00000000-0000-0000-0000-000000000000")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

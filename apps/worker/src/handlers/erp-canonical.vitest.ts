@@ -10,7 +10,9 @@ vi.mock("../supabase.js", () => ({
       const q: any = new Proxy({}, { get: (_, method) => {
         if (method === "then") return (resolve: (value: unknown) => unknown) => {
           const data = table === "api.plm_item_list"
-            ? [{ id: "canonical-sp", source_system: "coldlion", division_code: "SP001", source_id: "SAME", style_number: "SAME", mg_category: null }]
+            ? [{ id: "legacy-sp", source_system: "coldlion", division_code: "SP001", source_id: "SAME", style_number: "SAME", mg_category: null }]
+            : table === "plm.item"
+              ? [{ id: "canonical-sp", source_system: "coldlion", item_number: "SAME", raw: { divisionCode: "SP001" } }]
             : table === "product_category_predictions" && selectedId === "canonical-sp"
               ? [{ predicted_category: "Tabletop", status: "approved", confidence: 0.9 }]
               : [];

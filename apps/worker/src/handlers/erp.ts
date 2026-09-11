@@ -15,6 +15,7 @@ import { getRuntimeModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
 import type { BatchResult, OpState } from "../types.js";
 import {
+  canonicalItemIdMap,
   canonicalItemKey,
   canonicalItemMatchKey,
   canonicalItems,
@@ -86,6 +87,7 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
   if (!erpItems || erpItems.length === 0) {
     return { ok: true, done: true, updated: 0, assets_updated: 0, groups_updated: 0, total: offset };
   }
+  const canonicalIds = await canonicalItemIdMap(client, erpItems);
 
   let assetsUpdated = 0;
   let groupsUpdated = 0;
@@ -108,7 +110,7 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
       const { data: predictionRow } = await client
         .from("product_category_predictions")
         .select("predicted_category, confidence, classification_source, status, created_at")
-        .eq("plm_item_id", erpItem.id)
+        .eq("plm_item_id", canonicalIds.get(canonicalItemKey(erpItem)) ?? "00000000-0000-0000-0000-000000000000")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -306,7 +308,8 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
     scanOffset += rows.length;
 
     const styleNumbers = [...new Set(rows.map((r) => r.style_number).filter((v): v is string => !!v))];
-    const predictionItemIds = rows.map((row) => row.id);
+    const canonicalIds = await canonicalItemIdMap(client, rows);
+    const predictionItemIds = [...canonicalIds.values()];
 
     const [assetMatchRes, groupMatchRes, existingPredictionsRes] = await Promise.all([
       styleNumbers.length
@@ -336,7 +339,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
       if (candidates.length >= batchSize) break;
       if (!row.style_number) continue;
       if (!matchedSkuSet.has(canonicalItemMatchKey(row.style_number, row.division_code))) continue;
-      if (terminalPredictionIds.has(row.id)) continue;
+      if (terminalPredictionIds.has(canonicalIds.get(canonicalItemKey(row)) ?? "")) continue;
       candidates.push(row);
     }
 
