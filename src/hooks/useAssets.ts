@@ -154,30 +154,48 @@ async function fetchAssetFullTextIds(search: string) {
  * `public.filter_effective_assets`, which resolves both scopes server-side.
  */
 /**
- * ⛔ OFF. Rows are fixed; counting a tag filter still is not.
- *
- * Re-measured against production as a real `authenticated` user on 2026-09-03,
- * after shared-db 20260903075635 reached production. 3 consecutive calls each:
- *
- *   rows, 5 and 200, no filter, no count -> 3/3 pass @ 0.19-0.40s  ✅
- *   rows, 200, licensorId                -> 3/3 pass @ 0.12-0.32s  ✅
- *   rows, 200, tagFilter                 -> pass @ 1.3-2.1s        ✅
- *   get_filter_counts {} and {licensorId}-> 3/3 pass @ 0.12-1.22s  ✅
- *   get_filter_counts {tagFilter}        -> 0/12 across four tags, ~8.1s
- *   filter_effective_assets count=exact  -> 0/3, ~8.1s
- *
- * So the tag predicate itself is fine and indexed — the ROW path filters by tag
- * in 1.3s — but counting that same set times out. Tracked as
- * u2giants/shared-db#2138.
- *
- * Turning this on needs a list total. Either `count=exact` starts completing,
- * or this hook takes the total from `get_filter_counts.total` instead — but that
- * only works once the counts call is reliable for EVERY effective filter, tags
- * included. Measure several consecutive calls per filter type before flipping:
- * a single warm call has passed at every stage of this while the real shapes
- * failed.
+ * Enabled after shared-db #2501 preview qualification with migration
+ * 20260911052640: repeated authenticated tag/licensor/property/mixed-filter
+ * pages, exact ID HEAD totals, and facets agree. Deploy with that migration.
+ * Keep full rows separate from exact counts; wide counted RPCs materialize
+ * every matching asset (the previous shared-db#2138 blocker).
  */
-const EFFECTIVE_SCOPE_CONTRACT_READY = false;
+const EFFECTIVE_SCOPE_CONTRACT_READY = true;
+
+// These RPCs share the same effective-metadata working set. Running a page,
+// facets, and an exact count together can push one request into the database's
+// bounded timeout. Keep only this expensive scope serial; ordinary asset
+// queries remain concurrent.
+let effectiveScopeQueryTail: Promise<void> = Promise.resolve();
+
+function abortError(): Error {
+  const error = new Error("Effective-scope query was superseded");
+  error.name = "AbortError";
+  return error;
+}
+
+/**
+ * Serializes effective-scope RPCs. When React Query cancels an obsolete query
+ * (for example after a filter change), its signal both aborts the in-flight
+ * request and skips work still waiting in the queue, so stale filters never
+ * hold the slot ahead of the current one.
+ */
+export async function runEffectiveScopeQuery<T>(
+  query: () => PromiseLike<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (signal?.aborted) throw abortError();
+  const previous = effectiveScopeQueryTail.catch(() => undefined);
+  let release!: () => void;
+  effectiveScopeQueryTail = new Promise<void>((resolve) => { release = resolve; });
+  try {
+    await previous;
+    if (signal?.aborted) throw abortError();
+    return await query();
+  } finally {
+    release();
+  }
+}
 
 export function needsEffectiveScope(filters: AssetFilters): boolean {
   if (!EFFECTIVE_SCOPE_CONTRACT_READY) return false;
@@ -189,12 +207,21 @@ export function wouldNeedEffectiveScope(filters: AssetFilters): boolean {
   return Boolean(filters.tagFilter || filters.licensorId || filters.propertyId);
 }
 
-/** The subset of the filter payload the effective contract owns. */
+function supportedProductCategories(categories: string[]): string[] {
+  return categories.map((category) => category.trim())
+    .filter((category) => buildProductCategoryOrFilter([category], "relative_path"));
+}
+
+/** The subset of the filter payload delegated to the effective contract. */
 export function buildEffectiveFilterPayload(filters: AssetFilters): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   if (filters.tagFilter) payload.tagFilter = filters.tagFilter;
   if (filters.licensorId) payload.licensorId = filters.licensorId;
   if (filters.propertyId) payload.propertyId = filters.propertyId;
+  // The contract implements the same category/path alternatives. Keeping this
+  // predicate inside the RPC avoids materializing the effective set before OR.
+  const productCategory = supportedProductCategories(filters.productCategory);
+  if (productCategory.length > 0) payload.productCategory = productCategory;
   return payload;
 }
 
@@ -262,7 +289,7 @@ function applyFilters(
   if (filters.artSource.length > 0) {
     query = query.in("art_source", filters.artSource);
   }
-  if (filters.productCategory.length > 0) {
+  if (!effectiveScopeApplied && filters.productCategory.length > 0) {
     const categoryFilter = buildProductCategoryOrFilter(filters.productCategory, "relative_path");
     if (categoryFilter) query = query.or(categoryFilter);
   }
@@ -302,6 +329,29 @@ function applyVisibility(query: any, minDate: string) {
   );
 }
 
+/** Keep exact totals narrow while applying the same scope as the full-row page. */
+export function buildAssetCountQuery(
+  filters: AssetFilters,
+  minDate: string,
+  fullTextAssetIds?: string[] | null,
+  fallbackSearchFilter?: string | null,
+  effectiveScope = needsEffectiveScope(filters),
+) {
+  const query = effectiveScope
+    ? supabase.rpc(
+        "filter_effective_assets",
+        // A JSON string keeps this a true HEAD. Supabase sends object arguments
+        // as POST, and select() would then request a response body again.
+        { p_filters: JSON.stringify(buildEffectiveFilterPayload(filters)) },
+        { count: "exact", head: true },
+      ).select("id").range(0, 0)
+    : supabase.from("assets").select("id", { count: "exact", head: true });
+  return applyVisibility(
+    applyFilters(query, filters, fullTextAssetIds, fallbackSearchFilter, effectiveScope),
+    minDate,
+  );
+}
+
 export function useAssets(
   filters: AssetFilters,
   sortField: SortField,
@@ -315,7 +365,7 @@ export function useAssets(
   return useQuery({
     queryKey: ["assets", filters, sortField, sortDirection, page, visibilityDate, effectivePageSize],
     enabled,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
       const minDate = visibilityDate ?? "2020-01-01";
@@ -354,7 +404,6 @@ export function useAssets(
         ? supabase.rpc(
             "filter_effective_assets",
             { p_filters: buildEffectiveFilterPayload(filters) as unknown as Json },
-            { count: "exact" },
           )
         : supabase.from("assets").select("*", { count: "exact" });
 
@@ -371,8 +420,28 @@ export function useAssets(
         query = query.range(from, to);
       }
 
-      const { data, error, count } = await query;
+      // An exact count on a wide RPC materializes every matching asset. Fetch
+      // full rows only for the page, and count the identical filtered IDs.
+      // Fetch the visible page before the exact total. Starting page, facets,
+      // and the effective-scope count together can make the otherwise-fast
+      // count contend until the server's eight-second limit. The page remains
+      // the useful first unit of work, and the narrow count follows once it has
+      // released its database work.
+      const pageResult = effectiveScope
+        ? await runEffectiveScopeQuery(() => query.abortSignal(signal), signal)
+        : await query;
+      const { data, error } = pageResult;
+      // A failed page (for example a timeout) must not start the exact count:
+      // that would add database work, hold the queue, and delay the error.
       if (error) throw error;
+      const countResult = effectiveScope
+        ? await runEffectiveScopeQuery(
+            () => buildAssetCountQuery(filters, minDate, fullTextAssetIds, fallbackSearchFilter, true).abortSignal(signal),
+            signal,
+          )
+        : null;
+      if (countResult?.error) throw countResult.error;
+      const count = countResult ? countResult.count : pageResult.count;
 
       const assets = useRelevance
         ? sortByRank((data ?? []) as Asset[], fullTextAssetIds!, (asset) => asset.id).slice(from, to + 1)
@@ -390,7 +459,7 @@ export function useAssets(
 export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
   return useQuery({
     queryKey: ["asset-count", filters, visibilityDate],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {
         try {
@@ -408,18 +477,10 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
       const minDate = visibilityDate ?? "2020-01-01";
       const { ids: fullTextAssetIds, fallback: fallbackSearchFilter } = await resolveAssetSearch(filters.search);
 
-      const effectiveScope = needsEffectiveScope(filters);
-      let query: any = effectiveScope
-        ? supabase.rpc(
-            "filter_effective_assets",
-            { p_filters: buildEffectiveFilterPayload(filters) as unknown as Json },
-            { count: "exact", head: true },
-          )
-        : supabase.from("assets").select("*", { count: "exact", head: true });
-
-      query = applyFilters(query, filters, fullTextAssetIds, fallbackSearchFilter, effectiveScope);
-      query = applyVisibility(query, minDate);
-      const { count, error } = await query;
+      const query = buildAssetCountQuery(filters, minDate, fullTextAssetIds, fallbackSearchFilter);
+      const { count, error } = needsEffectiveScope(filters)
+        ? await runEffectiveScopeQuery(() => query.abortSignal(signal), signal)
+        : await query;
       if (error) throw error;
       return count ?? 0;
     },
@@ -436,7 +497,7 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
 export function useFilterCounts(filters: AssetFilters) {
   return useQuery({
     queryKey: ["filter-counts", filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {
         try {
@@ -467,10 +528,16 @@ export function useFilterCounts(filters: AssetFilters) {
       if (filters.stage.length > 0) filterPayload.stage = filters.stage;
       if (filters.customer) filterPayload.customer = filters.customer;
       if (filters.program) filterPayload.program = filters.program;
+      const productCategory = supportedProductCategories(filters.productCategory);
+      if (productCategory.length > 0) filterPayload.productCategory = productCategory;
+      if (filters.fileStatus.length > 0) filterPayload.fileStatus = filters.fileStatus;
 
-      const { data, error } = await supabase.rpc("get_filter_counts", {
+      const facetQuery = supabase.rpc("get_filter_counts", {
         p_filters: filterPayload as unknown as Json,
       });
+      const { data, error } = needsEffectiveScope(filters)
+        ? await runEffectiveScopeQuery(() => facetQuery.abortSignal(signal), signal)
+        : await facetQuery;
       if (error) throw error;
       return (data ?? {}) as unknown as FacetCounts;
     },
