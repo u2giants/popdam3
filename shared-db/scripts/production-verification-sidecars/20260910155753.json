@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260910155753",
+  "migration_sha256": "fb69bc5b5e54c2dd3a6008667c342194eac7727cf5c0054952ab4c199c5fb3df",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 1095,
+      "line_end": 1147,
+      "disposition": "checks",
+      "check_ids": [
+        "all_licensor_property_source_coverage"
+      ],
+      "reason": "The do-block covered by this review is a targeted in-place rewrite of api.db_data_admin_scraped_properties, the same pattern 20260910123636 and 20260907200221 used on this exact signature. The block reads the CURRENT body with pg_get_functiondef, returns unchanged when all three replacement texts are already present (so an isolated re-run is a no-op rather than a corruption), refuses with an exception unless the body still contains the three exact literal texts this migration was derived from, counts each of those three anchors and refuses with an exception unless each occurs EXACTLY once (replace() rewrites every copy, so a duplicated anchor would otherwise be rewritten in both places and still satisfy the new-text checks below), executes the same definition with only those three blocks replaced, and refuses again unless every new text plus the pre-existing plm.pmt_property and plm.sega_submission_property arms survive. Nothing is interpolated: every old and new text is a fixed dollar-quoted literal written in this file, so no identifier or value comes from data. Its durable post-apply outcome IS the new text of the routine in pg_proc, and a hash-bound sidecar CAN assert that: catalog contract all_licensor_property_source_coverage_v1 reads pg_get_functiondef of this exact signature back from the catalog after apply and requires the three new latest-complete clocks, the three new source tables and the two new source-purpose labels to be present, and requires plm.coke_approval_vocabulary_value and the three plm.wwe_*_inferred tables to be ABSENT, so no Property vocabulary can be manufactured from inferred or secondary evidence. The contract is a strict superset of dcp_stable_identity_property_match_v1, so every assertion #2576 and #2449 made about this routine is carried forward and nothing they proved stops being proved. Synthetic behaviour is covered additionally by supabase/tests/pmt_trackerplus_submission_landing_contracts.sql on every pull request."
+    }
+  ],
+  "checks": [
+    {
+      "id": "all_licensor_property_source_coverage",
+      "kind": "catalog_contract",
+      "contract": "all_licensor_property_source_coverage_v1",
+      "expected_count": 1
+    }
+  ]
+}

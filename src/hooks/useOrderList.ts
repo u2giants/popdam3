@@ -69,6 +69,8 @@ export type OrderListBlockRequest = {
  */
 export type OrderListBlock = { rows: OrderListRow[]; totalRowCount: number | null };
 
+export type OrderListFindRequest = Pick<OrderListBlockRequest, "filterModel" | "sortModel" | "search">;
+
 /** Applies filters, search and sort identically to the row and count queries. */
 function applyOrderListShape<T>(query: T, request: OrderListBlockRequest, withSort: boolean): T {
   let q = query as any;
@@ -160,6 +162,47 @@ export async function fetchOrderListBlock(request: OrderListBlockRequest): Promi
     rows: (data ?? []) as OrderListRow[],
     totalRowCount: countResult.status === "fulfilled" ? countResult.value : null,
   };
+}
+
+/**
+ * Finds the first matching row and its position in the unsearched, filtered
+ * list. This lets the grid scroll to a database-wide match without turning the
+ * search box into another filter.
+ */
+export async function findOrderListRow(request: OrderListFindRequest): Promise<{ row: OrderListRow; index: number } | null> {
+  if (!request.search?.trim()) return null;
+
+  const matchQuery = applyOrderListShape(
+    orderListTable().select(ORDER_LIST_SELECT),
+    { ...request, startRow: 0, endRow: 1 },
+    true,
+  );
+  const { data: matches, error: matchError } = await matchQuery.range(0, 0);
+  if (matchError) throw matchError;
+  const row = (matches?.[0] ?? null) as OrderListRow | null;
+  if (!row) return null;
+
+  const baseRequest = { ...request, search: "", startRow: 0, endRow: 1 };
+  const count = await fetchOrderListCount(baseRequest);
+  if (count == null) throw new Error("Could not locate the matching order in the full list.");
+
+  const ranges = Array.from({ length: Math.ceil(count / 1000) }, (_, index) => ({
+    from: index * 1000,
+    to: Math.min((index + 1) * 1000 - 1, count - 1),
+  }));
+  for (let start = 0; start < ranges.length; start += 6) {
+    const pages = await Promise.all(ranges.slice(start, start + 6).map(async (range) => {
+      const query = applyOrderListShape(orderListTable().select("order_line_id"), baseRequest, true);
+      const { data, error } = await query.range(range.from, range.to);
+      if (error) throw error;
+      return { from: range.from, rows: data ?? [] };
+    }));
+    for (const page of pages) {
+      const offset = page.rows.findIndex((candidate: { order_line_id?: string }) => candidate.order_line_id === row.order_line_id);
+      if (offset >= 0) return { row, index: page.from + offset };
+    }
+  }
+  return null;
 }
 
 export type OrderListStatusCounts = {

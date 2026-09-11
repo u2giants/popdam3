@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValueChangedEvent, ColDef, ColumnState, DefaultMenuItem, GetContextMenuItemsParams, GridReadyEvent, MenuItemDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
@@ -8,6 +8,7 @@ import { Check, ChevronDown, Clock3, Columns3, Database, Pencil, Plus, RefreshCw
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { GridAiHelperDialog, type GridAiPlan } from "@/components/grid/GridAiHelperDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -32,7 +33,14 @@ import {
 } from "@/lib/style-tracker-candidates";
 import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
 import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
-import { MASTER_DATA_FETCH_BATCH_SIZE, shouldFetchNextMasterDataBatch } from "@/lib/master-data-loading";
+import {
+  MASTER_DATA_FETCH_BATCH_SIZE,
+  STYLE_TRACKER_ROW_SELECT,
+  flattenMasterDataPages,
+  masterDataPageOffsets,
+  nextMasterDataPageOffset,
+  shouldFetchNextMasterDataBatch,
+} from "@/lib/master-data-loading";
 import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
 import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
 import { cn } from "@/lib/utils";
@@ -98,6 +106,8 @@ type SheetColumn = {
   linkKind?: FieldKey;
   optionKind?: "customer" | "licensor" | "designer" | "factory" | "packagingType";
   date?: boolean;
+  yesNo?: boolean;
+  number?: boolean;
 };
 
 type ReviewItem = {
@@ -211,69 +221,69 @@ const licensedColumns: SheetColumn[] = [
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Originally Designed For", width: 190, typedField: "customer_id", legacyKey: "originally_designed_for", linkKind: "customer", optionKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
-  { letter: "G", header: "New BA# commissioned", width: 170, typedField: "commissioned", legacyKey: "commissioned" },
-  { letter: "H", header: "RFQ Code", width: 130, legacyKey: "rfq_code" },
+  { letter: "G", header: "New BA# commissioned", width: 170, typedField: "commissioned", legacyKey: "commissioned", date: true },
+  { letter: "V", header: "RFQ Code", width: 130, legacyKey: "rfq_code" },
   { letter: "I", header: "Legacy BA#", width: 130, hide: true, legacyKey: "legacy_ba" },
   { letter: "J", header: "BA#", width: 115, legacyKey: "ba" },
   { letter: "K", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
   { letter: "L", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
   { letter: "M", header: "Licensor", width: 130, typedField: "licensor", legacyKey: "licensor", linkKind: "licensor" },
   { letter: "N", header: "License Status", width: 155, typedField: "license_status", legacyKey: "license_status" },
-  { letter: "O", header: "Concept Sent", width: 145, typedField: "concept_status", legacyKey: "concept_sent" },
-  { letter: "P", header: "Concept Resubmit", width: 165, legacyKey: "concept_resubmit" },
-  { letter: "Q", header: "Concept Resubmitted", width: 175, legacyKey: "concept_resubmitted" },
-  { letter: "R", header: "Concept Approval", width: 165, legacyKey: "concept_approval" },
-  { letter: "S", header: "Concept Approved with Comments", width: 225, legacyKey: "concept_approved_with_comments" },
-  { letter: "T", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
+  { letter: "O", header: "Concept Sent", width: 145, typedField: "concept_status", legacyKey: "concept_sent", date: true },
+  { letter: "P", header: "Concept Resubmit", width: 165, legacyKey: "concept_resubmit", date: true },
+  { letter: "Q", header: "Concept Resubmitted", width: 175, legacyKey: "concept_resubmitted", date: true },
+  { letter: "R", header: "Concept Approval", width: 165, legacyKey: "concept_approval", date: true },
+  { letter: "S", header: "Concept Approved with Comments", width: 225, legacyKey: "concept_approved_with_comments", date: true },
+  { letter: "T", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample", date: true },
   { letter: "U", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
   { letter: "SAMPLE_ETA", header: "Sample ETA", headerTooltip: "ETA From Factory", width: 150, legacyKey: "sample_eta", date: true },
-  { letter: "W", header: "Sample Photos Received", width: 200, legacyKey: "sample_photos_received" },
-  { letter: "X", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
-  { letter: "Y", header: "Pre Production Resubmit", width: 205, legacyKey: "pre_production_resubmit" },
-  { letter: "Z", header: "Pre Production Resubmitted", width: 225, legacyKey: "pre_production_resubmitted" },
-  { letter: "AA", header: "Pre Production approved w/comment", width: 255, legacyKey: "pre_production_approved_comment" },
-  { letter: "AB", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval" },
-  { letter: "AC", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval" },
+  { letter: "W", header: "Sample Photos Received", width: 200, legacyKey: "sample_photos_received", date: true },
+  { letter: "X", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent", date: true },
+  { letter: "Y", header: "Pre Production Resubmit", width: 205, legacyKey: "pre_production_resubmit", date: true },
+  { letter: "Z", header: "Pre Production Resubmitted", width: 225, legacyKey: "pre_production_resubmitted", date: true },
+  { letter: "AA", header: "Pre Production approved w/comment", width: 255, legacyKey: "pre_production_approved_comment", date: true },
+  { letter: "AB", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval", date: true },
+  { letter: "AC", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval", date: true },
   { letter: "AD", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
   { letter: "AE", header: "Ordered Cont Sample", width: 190, legacyKey: "ordered_cont_sample" },
   { letter: "AF", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
   { letter: "AG", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
-  { letter: "AH", header: "Professional Photos", width: 180, legacyKey: "professional_photos" },
-  { letter: "AI", header: "Test report", width: 150, legacyKey: "test_report" },
-  { letter: "AK", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
+  { letter: "AH", header: "Professional Photos", width: 180, legacyKey: "professional_photos", yesNo: true },
+  { letter: "AI", header: "Test report", width: 150, legacyKey: "test_report", yesNo: true },
+  { letter: "AK", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued", yesNo: true },
   { letter: "AL", header: "Customer Exclusive", width: 180, legacyKey: "customer_exclusive" },
-  { letter: "AM", header: "Annual Samples to Need Order", width: 220, legacyKey: "annual_samples_need_order" },
-  { letter: "AN", header: "Annual Samples Ordered", width: 205, legacyKey: "annual_samples_ordered" },
-  { letter: "AO", header: "Contractual Samples RE-Order", width: 235, legacyKey: "contractual_samples_reorder" },
+  { letter: "AM", header: "Annual Samples to Need Order", width: 220, legacyKey: "annual_samples_need_order", yesNo: true },
+  { letter: "AN", header: "Annual Samples Ordered", width: 205, legacyKey: "annual_samples_ordered", date: true },
+  { letter: "AO", header: "Contractual Samples RE-Order", width: 235, legacyKey: "contractual_samples_reorder", yesNo: true },
   { letter: "AQ", header: "TP Assigned", width: 135, legacyKey: "tp_assigned" },
   { letter: "AU", header: "Note:", width: 300, typedField: "notes", legacyKey: "note" },
 ];
 
 const genericColumns: SheetColumn[] = [
-  { letter: "A", header: "A", width: 130 },
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
   { letter: "PKG", header: "Packaging Type", width: 175, legacyKey: "packaging_type", optionKind: "packagingType" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Special Customer", width: 170, typedField: "customer_id", legacyKey: "special_customer", linkKind: "customer", optionKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
-  { letter: "G", header: "commissioned", width: 140, typedField: "commissioned", legacyKey: "commissioned" },
+  { letter: "G", header: "commissioned", width: 140, typedField: "commissioned", legacyKey: "commissioned", date: true },
   { letter: "H", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
   { letter: "I", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
-  { letter: "R", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
+  { letter: "R", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample", date: true },
   { letter: "S", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
   { letter: "SAMPLE_ETA", header: "Sample ETA", headerTooltip: "ETA From Factory", width: 150, legacyKey: "sample_eta", date: true },
   { letter: "T", header: "RFQ Code", width: 150, legacyKey: "rfq_code" },
-  { letter: "U", header: "Sample Received", width: 170, legacyKey: "sample_received" },
-  { letter: "V", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
-  { letter: "W", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval" },
-  { letter: "X", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval" },
-  { letter: "Y", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
-  { letter: "Z", header: "Ordered David sample", width: 190, legacyKey: "ordered_david_sample" },
-  { letter: "AA", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
-  { letter: "AB", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
-  { letter: "AC", header: "Professional Photos", width: 180, legacyKey: "professional_photos" },
-  { letter: "AD", header: "Test report", width: 150, legacyKey: "test_report" },
-  { letter: "AF", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
+  { letter: "U", header: "UPC Code", width: 150, legacyKey: "upc_code", number: true },
+  { letter: "V", header: "Sample Received", width: 170, legacyKey: "sample_received", date: true },
+  { letter: "W", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent", date: true },
+  { letter: "X", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval", date: true },
+  { letter: "Y", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval", date: true },
+  { letter: "Z", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
+  { letter: "AA", header: "Ordered David sample", width: 190, legacyKey: "ordered_david_sample" },
+  { letter: "AB", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
+  { letter: "AC", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
+  { letter: "AD", header: "Professional Photos", width: 180, legacyKey: "professional_photos", yesNo: true },
+  { letter: "AE", header: "Test report", width: 150, legacyKey: "test_report", yesNo: true },
+  { letter: "AG", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued", yesNo: true },
 ];
 
 const configs = [
@@ -317,6 +327,33 @@ function valueFor(row: StyleRow | undefined, column: SheetColumn) {
   if (!row) return "";
   const typed = column.typedField ? row[column.typedField] : null;
   return typed ?? row.row_data?.[column.letter] ?? (column.legacyKey ? row.row_data?.[column.legacyKey] : "") ?? "";
+}
+
+function yesNoValue(value: unknown) {
+  if (value === true || String(value).toLowerCase() === "true" || String(value).toLowerCase() === "yes") return "Yes";
+  if (value === false || String(value).toLowerCase() === "false" || String(value).toLowerCase() === "no") return "No";
+  return value ?? "";
+}
+
+function numberValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : value;
+}
+
+function dateValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const text = String(value).trim();
+  const slashDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!slashDate) return text;
+  const [, month, day, year] = slashDate;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function googleDateDisplay(value: unknown) {
+  const text = String(value ?? "");
+  const isoDate = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return isoDate ? `${Number(isoDate[2])}/${Number(isoDate[3])}/${isoDate[1]}` : text;
 }
 
 function displayValueFor(row: StyleRow | undefined, column: SheetColumn) {
@@ -383,7 +420,7 @@ function statusFor(row: StyleRow | undefined, column: SheetColumn) {
 }
 
 function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown) {
-  const nextValue = value === "" ? null : column.typedField === "discontinued" ? ["true", "yes", "1"].includes(String(value).toLowerCase()) : String(value);
+  const nextValue = value === "" ? null : column.yesNo ? String(value).toLowerCase() === "yes" : column.typedField === "discontinued" ? ["true", "yes", "1"].includes(String(value).toLowerCase()) : String(value);
   if (column.optionKind === "customer") {
     const rowData = { ...(row.row_data ?? {}) };
     delete rowData[column.letter];
@@ -448,21 +485,26 @@ function formatAuditTime(value: string) {
   return auditTimeFormatter.format(new Date(value));
 }
 
-async function fetchRows(sourceSheet: string) {
-  const rows: StyleRow[] = [];
-  for (let from = 0; ; from += MASTER_DATA_FETCH_BATCH_SIZE) {
-    const to = from + MASTER_DATA_FETCH_BATCH_SIZE - 1;
+async function fetchRowsPage(sourceSheet: string, pageOffset: number) {
+  const fetchBatch = async (from: number) => {
     const { data, error } = await (supabase as any)
       .from("style_tracker_rows_with_bridge")
-      .select("*")
+      .select(STYLE_TRACKER_ROW_SELECT)
       .eq("source_sheet", sourceSheet)
       .order("source_row_number", { ascending: false })
-      .range(from, to);
+      .range(from, from + MASTER_DATA_FETCH_BATCH_SIZE - 1);
     if (error) throw error;
-    rows.push(...((data ?? []) as StyleRow[]));
-    if (!shouldFetchNextMasterDataBatch(data?.length ?? 0)) break;
-  }
-  return rows;
+    return (data ?? []) as StyleRow[];
+  };
+
+  // PostgREST caps responses at 1,000 rows. A query page is four ordered
+  // ranges so the grid can render its first 4,000 rows before later pages load.
+  const batches = await Promise.all(masterDataPageOffsets(pageOffset).map(fetchBatch));
+  return {
+    rows: batches.flat(),
+    hasNextPage: batches.every((batch) => shouldFetchNextMasterDataBatch(batch.length)),
+    nextOffset: nextMasterDataPageOffset(pageOffset),
+  };
 }
 
 async function fetchCellAuditLog(cell: AuditCell | null) {
@@ -1098,8 +1140,10 @@ export default function StylesPage() {
   const { isAdmin } = useIsAdmin();
   const { user } = useAuth();
   const gridRef = useRef<AgGridReact<StyleRow>>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [activeSheet, setActiveSheet] = useState<(typeof configs)[number]["name"]>("License.Style");
   const [quickFilter, setQuickFilter] = useState("");
+  const normalizedGridSearch = quickFilter.trim().toLocaleLowerCase();
   const [showAllPageRows, setShowAllPageRows] = useState(false);
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
@@ -1111,10 +1155,16 @@ export default function StylesPage() {
   const [viewNameInput, setViewNameInput] = useState("");
   const [gridReady, setGridReady] = useState(false);
   const [viewsMenuOpen, setViewsMenuOpen] = useState(false);
+  const [selectedRowCount, setSelectedRowCount] = useState(0);
   const lastAppliedSheetRef = useRef<string | null>(null);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
-  const rowsQuery = useQuery({ queryKey: ["style-rows", active.name], queryFn: () => fetchRows(active.name) });
+  const rowsQuery = useInfiniteQuery({
+    queryKey: ["style-rows", active.name],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => fetchRowsPage(active.name, pageParam),
+    getNextPageParam: (lastPage) => lastPage.hasNextPage ? lastPage.nextOffset : undefined,
+  });
   const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
   const cellAuditQuery = useQuery({
     queryKey: ["style-cell-audit", auditCell?.row.id, auditCell?.column.letter],
@@ -1135,7 +1185,38 @@ export default function StylesPage() {
   });
   const savedViews = savedViewsQuery.data ?? [];
   const activeView = savedViews.find((view) => view.id === activeViewId) ?? null;
-  const rows = rowsQuery.data ?? [];
+  const rows = useMemo(() => flattenMasterDataPages(rowsQuery.data?.pages ?? []), [rowsQuery.data?.pages]);
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = rowsQuery;
+
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  useEffect(() => {
+    const focusGridSearch = (event: globalThis.KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", focusGridSearch);
+    return () => window.removeEventListener("keydown", focusGridSearch);
+  }, []);
+
+  useEffect(() => {
+    const api = gridRef.current?.api;
+    if (!api || !gridReady || !normalizedGridSearch) return;
+    const match = rows.find((row) => JSON.stringify(row).toLocaleLowerCase().includes(normalizedGridSearch));
+    if (!match) return;
+    const node = api.getRowNode(match.id);
+    if (node?.rowIndex == null) return;
+    api.paginationGoToPage(Math.floor(node.rowIndex / api.paginationGetPageSize()));
+    api.ensureNodeVisible(node, "middle");
+    api.redrawRows();
+  }, [gridReady, normalizedGridSearch, rows]);
 
   useEffect(() => {
     const channel = supabase
@@ -1558,6 +1639,10 @@ export default function StylesPage() {
         cellEditor:
           column.date
             ? "agDateStringCellEditor"
+            : column.number
+            ? "agNumberCellEditor"
+            : column.yesNo
+            ? "agRichSelectCellEditor"
             : column.typedField === "description"
             ? DescriptionBuilderEditor
             : column.optionKind || column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
@@ -1568,6 +1653,8 @@ export default function StylesPage() {
         cellEditorParams:
           column.typedField === "description"
             ? { options: descriptionOptions }
+            : column.yesNo
+            ? { values: ["Yes", "No"] }
             : column.optionKind || column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
             ? {
                 values:
@@ -1588,11 +1675,18 @@ export default function StylesPage() {
               }
             : undefined,
         filter: column.date ? "agDateColumnFilter" : true,
-        cellDataType: column.date ? "dateString" : undefined,
+        cellDataType: column.date ? "dateString" : column.number ? "number" : undefined,
+        valueFormatter: column.date ? (params) => googleDateDisplay(params.value) : undefined,
         sortable: true,
         resizable: true,
         valueGetter: (params) =>
-          column.optionKind === "customer"
+          column.date
+            ? dateValue(valueFor(params.data, column))
+            : column.yesNo
+            ? yesNoValue(valueFor(params.data, column))
+            : column.number
+            ? numberValue(valueFor(params.data, column))
+            : column.optionKind === "customer"
             ? params.data?.customer_id ?? null
             : column.optionKind === "designer"
               ? displayValueFor(params.data, column)
@@ -1660,6 +1754,7 @@ export default function StylesPage() {
   );
 
   const totalRows = countQuery.data ?? rows.length;
+  const isLoadingRemainingRows = rowsQuery.hasNextPage || rowsQuery.isFetchingNextPage;
   const auditRows = cellAuditQuery.data ?? [];
 
   const contextMenuItems = (params: GetContextMenuItemsParams<StyleRow>): (DefaultMenuItem | MenuItemDef<StyleRow>)[] => {
@@ -1684,6 +1779,34 @@ export default function StylesPage() {
     ];
   };
 
+  const applyAiBulkEdit = async (plan: GridAiPlan) => {
+    const selectedRows = gridRef.current?.api.getSelectedRows() ?? [];
+    const column = active.columns.find((item) => item.letter === plan.field);
+    if (!column || !selectedRows.length) throw new Error("Select rows and an editable column first.");
+    let value = plan.value;
+    if (column.optionKind === "customer") {
+      const match = (customerOptionsQuery.data ?? []).find((option) => normalized(option.name) === normalized(String(value ?? "")));
+      if (!match && value !== null && value !== "") throw new Error("The requested customer is not in the Customer list.");
+      value = match?.id ?? null;
+    }
+    if (column.typedField === "designer" && value && !designerOptionKeys.has(normalized(String(value)))) throw new Error("The requested designer is not in the Creative Designer list.");
+    if (column.optionKind === "packagingType" && value && !packagingTypeOptionKeys.has(normalized(String(value)))) throw new Error("The requested packaging type is not in the Packaging Types list.");
+    if (column.typedField === "description") {
+      const validationError = validateDescriptionSelection(value, descriptionOptions);
+      if (validationError) throw new Error(validationError);
+    }
+    for (let index = 0; index < selectedRows.length; index += 10) {
+      await Promise.all(selectedRows.slice(index, index + 10).map(async (row) => {
+        const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
+        if (error) throw error;
+      }));
+    }
+    await refreshStyleTrackerBridgeWithRetry(() => (supabase as any).rpc("refresh_style_tracker_item_bridge"));
+    await queryClient.invalidateQueries({ queryKey: ["style-rows", active.name] });
+    await queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
+  };
+
+
   return (
     <div className="flex h-[calc(100vh-var(--pd-header-h))] flex-col bg-background">
       <div className="border-b border-border bg-background px-4 py-3">
@@ -1692,17 +1815,20 @@ export default function StylesPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted">
               <Table2 className="h-4 w-4 text-primary" />
             </div>
+            {isAdmin && <GridAiHelperDialog pageName="Master Data" selectedRowCount={selectedRowCount} fields={active.columns.map((column) => ({ key: column.letter, label: column.header }))} onApply={applyAiBulkEdit} />}
             <div className="min-w-0">
               <h1 className="text-lg font-semibold leading-tight text-foreground">Master Data</h1>
               <p className="text-xs text-muted-foreground">
-                {rows.length.toLocaleString()} loaded rows · {totalRows.toLocaleString()} total rows
+                {isLoadingRemainingRows
+                  ? `${rows.length.toLocaleString()} of ${totalRows.toLocaleString()} rows loaded — loading the rest. Find and filters cover loaded rows.`
+                  : `${totalRows.toLocaleString()} rows loaded`}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input value={quickFilter} onChange={(event) => setQuickFilter(event.target.value)} className="h-9 pl-8" placeholder="Search master data" />
+              <Input ref={searchRef} value={quickFilter} onChange={(event) => setQuickFilter(event.target.value)} className="h-9 pl-8" placeholder="Find in master data (Ctrl+F)" />
             </div>
             <Button variant="outline" size="sm" onClick={() => rowsQuery.refetch()} disabled={rowsQuery.isFetching}>
               <RefreshCw className={cn("h-4 w-4", rowsQuery.isFetching && "animate-spin")} />
@@ -1929,7 +2055,6 @@ export default function StylesPage() {
             columnDefs={columnDefs}
             defaultColDef={{ minWidth: 90, suppressHeaderMenuButton: false, wrapHeaderText: true, autoHeaderHeight: true }}
             loading={rowsQuery.isLoading}
-            quickFilterText={quickFilter}
             onFilterChanged={(event) => {
               if (!showAllPageRows) return;
               const filteredRowCount = Math.max(event.api.getDisplayedRowCount(), 1);
@@ -1939,6 +2064,9 @@ export default function StylesPage() {
             }}
             getRowId={(params) => params.data.id}
             getRowStyle={(params) => {
+              if (normalizedGridSearch && JSON.stringify(params.data).toLocaleLowerCase().includes(normalizedGridSearch)) {
+                return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b" };
+              }
               const approval = approvalHighlightForRow(params.data);
               if (approval === "production") return { backgroundColor: "#dcfce7", color: "#14532d" };
               if (approval === "concept") return { backgroundColor: "#fef3c7", color: "#713f12" };
@@ -1956,7 +2084,8 @@ export default function StylesPage() {
               const column = active.columns.find((item) => item.letter === event.colDef.colId);
               if (column) updateCell.mutate({ row: event.data, column, value: event.newValue });
             }}
-            rowSelection={{ mode: "multiRow", checkboxes: false, headerCheckbox: false }}
+            rowSelection={{ mode: "multiRow", checkboxes: true, headerCheckbox: true }}
+            onSelectionChanged={(event) => setSelectedRowCount(event.api.getSelectedRows().length)}
             cellSelection={{ handle: { mode: "fill", direction: "xy" } }}
             sideBar={{ toolPanels: [{ id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" }], hiddenByDefault: true }}
             pagination

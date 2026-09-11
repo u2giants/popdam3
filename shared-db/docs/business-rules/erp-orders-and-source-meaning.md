@@ -294,8 +294,11 @@ any of these as likely rather than surprising.**
 - **The renumbering dates** — POP Creations around late April 2025, Edge Home and Spruce around
   September 2025 — were read off when the group definitions were last modified, not given to us.
   They decide which rows we trust as-is. **Proposed.**
-- **Which flag means "retired" is unknown.** An item carries four overlapping ones: status, active,
-  available and discontinued, and they disagree. We use *active*. That is a guess. **Unknown.**
+- **Which flag means "retired" is now answered narrowly.** ColdLion confirmed that only
+  `active` is in use, but also that it is not maintained reliably. `active = N` is a real
+  suppression signal; its absence is not proof an item is sellable. The other lifecycle-looking
+  fields are stale residue and are not business status. **Settled for source handling; saleability
+  remains Unknown unless POP has separate evidence.**
 - **Nothing in the ERP links a licensor to its properties.** We derived the link from which licensor
   appears on items carrying each property, and hand-filled roughly forty properties that have no
   items yet. Those forty are our knowledge, not the ERP's. There is also a royalty code on the item
@@ -322,13 +325,43 @@ the item-level field entirely. **Settled** (JamieLynn 2026-08-28, verified live)
   accounts back to 2006, and accounts too small for CRM. See the section above.
 - **ColdLion is not a revenue report.** Its order feed can be counted only by someone who knows it
   contains the same line more than once.
-- **ColdLion is not self-documenting.** Its API specification carries no allowed-value list on any
-  field but one, and no description on any response field at all. ColdLion improved the one field we
-  named (JamieLynn, 2026-08-26: *"Changed the doc."*) but the general gap remains open. **The
-  meaning of an ERP value therefore comes from asking or from measuring, never from reading the
-  specification.**
+- **ColdLion's API is not business authority.** As of 2026-09-10, the specification does supply
+  typed response schemas and rejects invalid declared enum values, which makes it a useful
+  integration contract. It still does not establish business meaning: interpret ERP values through
+  the settled rules and verified source behaviour, never from a field name or schema alone.
 - **An ERP field name does not establish its meaning.** Several fields here mean something other
   than their name suggests, and two of the most obvious-looking ones are empty.
+
+### The item master mixes products with charges, and barely says which is which
+
+The ColdLion item master is not a product catalogue. Alongside real products it
+holds fee and charge codes, raw-material and component codes, sample and test
+placeholders, and abandoned junk records. The ERP does provide a flag for this -
+a single-character non-inventory field on the item record, landed here as
+`non_inventory_item` and mirrored in the DesignFlow item header as
+`non_inv_item` - but it is close to unused.
+
+Measured on 2026-09-07 across roughly 19,600 item records: 15 were flagged as
+non-inventory, about 14,900 were flagged as ordinary products, and about 4,700
+carried no value at all. At least 35 entries that are plainly not products -
+glitter fee, reprint fee, colour corners, handling, foil stamp fee, sample
+charge, port charge, plate cost, ticketing, discount, commission, lenticular
+material, felt pieces, clear hang tabs - were recorded as ordinary products. A
+further ~450 records are junk: 250 with no description, and about 150 that are
+gibberish or test entries such as "awd" and "Test Alex 5".
+
+Two consequences for any work that reads this feed:
+
+1. **Never count item rows as products.** A population taken straight from the
+   item master overstates the catalogue by fees, materials, placeholders and
+   junk, and the flag will not filter them out for you.
+2. **The absence of the flag proves nothing.** Only a positive non-inventory
+   value carries information today; blank and "product" are indistinguishable
+   until the field is corrected at source and kept current.
+
+Which entries belong on each side of the line is a business question, not an ERP
+question - see *Non-inventory items* in
+[`product-items-and-identifiers.md`](product-items-and-identifiers.md).
 
 ### How ColdLion answers questions — and why that matters
 

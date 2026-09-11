@@ -1,3 +1,4 @@
+<!-- handoff-pointer: v1 -->
 # HANDOFF — shared-db
 
 This file is a **pointer**, not a document. Keep it under one screen. Everything below
@@ -35,13 +36,6 @@ in any markdown file says.
 
 **`AGENTS.md` is the router and the standing-rules home.** Read it first; it points at
 the deeper docs per task. Do not read every `.md` file in this repo.
-
-## Open proposal — author lane capacity
-
-**[`plan_author_lane_capacity_five_to_eight.md`](plan_author_lane_capacity_five_to_eight.md)**
-— proposed raise of `MAX_AUTHOR_LANES` from five to eight, with the reviewer-roster growth
-it requires. **Proposed, not applied.** The enforced cap is the constant in
-`scripts/manage-migration-author-lanes.mjs`, never this pointer.
 
 ## Standing rule — no document wins by name or by date
 

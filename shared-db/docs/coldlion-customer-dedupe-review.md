@@ -1,5 +1,10 @@
 # Coldlion customer dedupe + status model — review & PENDING decisions
 
+> **Customer codes are scrubbed (2026-09-02, issue #2103).** Every ColdLion customer/vendor master
+> code below is a synthetic placeholder (`CUSTnnn`), used consistently across the
+> ColdLion docs, and some ERP legal names and addresses are generalised. The real codes, ERP legal
+> names and addresses live in the ColdLion question register, not in this public repository.
+
 > **STATUS: PARTIALLY IMPLEMENTED (2026-07-17).** Schema + the reversible bulk are DONE;
 > the destructive per-row merges/deletes are the remaining step (§3 below). Delete each
 > section once its work lands, and fold permanent facts into
@@ -109,12 +114,12 @@ Real examples of what that assumption produced:
 
 | Canonical customer | Coldlion codes merged into it |
 |---|---|
-| GORDON BROTHER'S GROUP | GBG802, GBG803, GBG804, GBG805, GBG806, GBG807 (**6**) |
-| JUST A DOLLAR | JAD010, JAD020, JAD030, JAD040, JUS572 (**5**) |
-| ONCE UPON A CHILD | ONC001, ONC252, ONC397, ONC540 (**4**) |
-| WAL-MART STORES INC | WAL010, WAL070 |
-| TJ MAXX | NEW010, NEW349 |
-| BARNES & NOBLE | BNB184, BNN001 |
+| GORDON BROTHER'S GROUP | CUST041, CUST042, CUST043, CUST044, CUST045, CUST046 (**6**) |
+| JUST A DOLLAR | CUST059, CUST060, CUST061, CUST062, CUST064 (**5**) |
+| ONCE UPON A CHILD | CUST087, CUST088, CUST089, CUST090 (**4**) |
+| WAL-MART STORES INC | CUST108, CUST111 |
+| TJ MAXX | CUST078, CUST079 |
+| BARNES & NOBLE | CUST012, CUST013 |
 
 If those codes are **separate stores/billing accounts that must stay separate customers**, the
 merge is wrong and must be undone (each code gets its own canonical row). If they are **one
@@ -125,18 +130,18 @@ any further dedupe.**
 
 1. **Apostrophe split — a real duplicate we created.** Exact-name matching treated these as
    different companies:
-   - `GORDON BROTHER'S GROUP` (codes GBG802–807)
-   - `GORDON BROTHERS GROUP` (codes GBG800, GBG801)
-   - plus a pre-existing Directus row `Gordon Brothers` (sim 0.76 → GBG800)
+   - `GORDON BROTHER'S GROUP` (codes CUST041–CUST046)
+   - `GORDON BROTHERS GROUP` (codes CUST039, CUST040)
+   - plus a pre-existing Directus row `Gordon Brothers` (sim 0.76 → CUST039)
 
    Almost certainly **one company split across three canonical rows**.
-2. **ERP junk promoted as a live customer.** Coldlion codes `DOL060` and `OUA115` are both named
+2. **ERP junk promoted as a live customer.** Coldlion codes `CUST025` and `CUST091` are both named
    **"DO NOT USE"** — they merged into one canonical customer literally named *DO NOT USE*, active
    and visible to every app. Should be inactivated/excluded outright.
 3. **Duplicates among the pre-existing rows themselves** (a Directus row and a DesignFlow row that
    are the same company, neither mapped to Coldlion):
-   - `Dollarama L.P.` (Directus) + `Dollarama` (DesignFlow) → both are Coldlion `DOL580`
-   - `Burlington Stores, Inc.` (Directus) + `Burlington` (DesignFlow) → both are Coldlion `MOD010`
+   - `Dollarama L.P.` (Directus) + `Dollarama` (DesignFlow) → both are Coldlion `CUST027`
+   - `Burlington Stores, Inc.` (Directus) + `Burlington` (DesignFlow) → both are Coldlion `CUST076`
 
 ### 2.4 Name similarity is unreliable in BOTH directions — do not auto-merge
 
@@ -144,29 +149,29 @@ any further dedupe.**
 
 | Our record | Best Coldlion "match" | Score |
 |---|---|---:|
-| Michael's | MICHAEL S ROTOLO | 0.59 |
-| Boscov's Department Store, LLC | BOLO'S DEPARTMENT STORE | 0.63 |
-| Ross Stores | P&P STORES | 0.50 |
-| Dollar Tree | A DOLLAR | 0.50 |
-| MAC Wholesale | MEGA WHOLESALE | 0.61 |
-| Beacon Products Inc | GNI PRODUCTS INC. | 0.54 |
-| Fiesta Mart, Inc. | D MART INC | 0.50 |
-| C&S Wholesale Grocers | SJL WHOLESALE GROUP | 0.50 |
-| Petra Industries | HMS INDUSTRIES INC | 0.48 |
-| Sunrise Records | RECORDS SURPLUS | 0.45 |
-| DII Enterprises LLC | JAX ENTERPRISES | 0.50 |
-| Variety Stores, Inc. | EXCELLENT VARIETY STORE INC | 0.57 |
+| Michael's | unrelated ERP record (a personal name) | 0.59 |
+| Boscov's Department Store, LLC | unrelated ERP record `CUST015` | 0.63 |
+| Ross Stores | unrelated ERP record `CUST092` | 0.50 |
+| Dollar Tree | unrelated ERP record (generic "dollar" name) | 0.50 |
+| MAC Wholesale | unrelated ERP record `CUST072` | 0.61 |
+| Beacon Products Inc | unrelated ERP record `CUST048` | 0.54 |
+| Fiesta Mart, Inc. | unrelated ERP record (generic "mart" name) | 0.50 |
+| C&S Wholesale Grocers | unrelated ERP record `CUST097` | 0.50 |
+| Petra Industries | unrelated ERP record `CUST050` | 0.48 |
+| Sunrise Records | unrelated ERP record `CUST094` | 0.45 |
+| DII Enterprises LLC | unrelated ERP record `CUST063` | 0.50 |
+| Variety Stores, Inc. | unrelated ERP record `CUST035` | 0.57 |
 
 **False negatives** (low score, obviously the same company) — proof a score threshold alone
 cannot drive this:
 
 | Our record | Coldlion | Score |
 |---|---|---:|
-| Bed Bath | BED BATH & BEYOND | 0.62 |
-| Homegoods | HOME GOODS | 0.62 |
-| BoxLunch | BOX LUNCH | 0.58 |
-| Spencer's | SPENCER GIFTS | 0.53 |
-| Shoppers World | SW GROUP-SHOPPERS WORLD | 0.65 |
+| Bed Bath | ERP spelling of the same brand | 0.62 |
+| Homegoods | ERP spelling of the same brand | 0.62 |
+| BoxLunch | ERP spelling of the same brand | 0.58 |
+| Spencer's | ERP spelling of the same brand | 0.53 |
+| Shoppers World | ERP spelling of the same brand | 0.65 |
 
 ### 2.5 DECISION LOG — Albert, 2026-07-16
 
@@ -175,24 +180,24 @@ Rulings given. **None are implemented yet.** "Merge" = collapse into one canonic
 
 | # | Records | Ruling | Final status |
 |---|---|---|---|
-| 1 | Gordon Brothers: `GORDON BROTHER'S GROUP` (GBG802–807) = `GORDON BROTHERS GROUP` (GBG800–801) = Directus `Gordon Brothers` | **Merge all** | **Inactive** |
-| 2 | JUST A DOLLAR (JAD010/020/030/040, JUS572) | — | **Inactive** |
-| 3 | ONCE UPON A CHILD (ONC001/252/397/540) | — | **Inactive** |
-| 4 | Walmart `WAL010` (bricks & mortar) | keep | **Active** |
-| 5 | Walmart `WAL060` (WAL-MART.COM = 1P e-com), `WAL080` (WALMART SELLER CENTER = 3P e-com) | keep separate from WAL010 | **Inactive** (still needed in the ERP) |
-| 6 | Target `TAR010` (bricks & mortar) vs `TAR020` (TARGET.COM) | **keep separate** | **both Inactive** |
-| 7 | Nordstrom (Directus) + `NOR020` NORDSTROM RACK | **merge** | **Inactive** |
-| 8 | Big Lots (US) vs `BIG225` BIG LOTS CANADA | **separate** | Big Lots US **Active**; Canada **Inactive** |
-| 9 | TJX vs `TKM300` TJX UK | **separate** | TJX **Active**; TJX UK **Inactive** |
+| 1 | Gordon Brothers: `GORDON BROTHER'S GROUP` (CUST041–CUST046) = `GORDON BROTHERS GROUP` (CUST039–CUST040) = Directus `Gordon Brothers` | **Merge all** | **Inactive** |
+| 2 | JUST A DOLLAR (CUST059/CUST060/CUST061/CUST062, CUST064) | — | **Inactive** |
+| 3 | ONCE UPON A CHILD (CUST087/CUST088/CUST089/CUST090) | — | **Inactive** |
+| 4 | Walmart `CUST108` (bricks & mortar) | keep | **Active** |
+| 5 | Walmart `CUST110` (1P e-com), `CUST112` (3P marketplace) | keep separate from CUST108 | **Inactive** (still needed in the ERP) |
+| 6 | Target `CUST099` (bricks & mortar) vs `CUST100` (.com) | **keep separate** | **both Inactive** |
+| 7 | Nordstrom (Directus) + `CUST084` NORDSTROM RACK | **merge** | **Inactive** |
+| 8 | Big Lots (US) vs `CUST010` BIG LOTS CANADA | **separate** | Big Lots US **Active**; Canada **Inactive** |
+| 9 | TJX vs `CUST102` TJX UK | **separate** | TJX **Active**; TJX UK **Inactive** |
 | 10 | TJX Canada — "sometimes Winners, sometimes HomeSense" | **consolidate all under one customer named `TJX Canada`** | **Active** |
 | 11 | Amazon 1P vs Amazon 3P | **separate** | 1P **Active**; 3P **Inactive** |
-| 12 | `Dollarama L.P.` (Directus) + `Dollarama` (DesignFlow) + `DOL580` | **merge** | name → **`Dollarama`** |
-| 13 | `Burlington Stores, Inc.` (Directus) + `Burlington` (DesignFlow) + `MOD010/MOD011` | **merge**. Legacy alias **Modecraft** (hence the `MOD` codes) | name → **`Burlington`** |
-| 14 | `Michael's` vs `MICHAEL S ROTOLO` | **different companies** | **both Inactive** |
-| 15 | `Fiesta Mart` vs `D MART INC` | **different companies** | **both Inactive** |
-| 16 | `Ross Stores` (aka Ross Dress for Less / Ross) vs `P&P STORES` | **different companies** | Ross **Active**; P&P **Inactive** |
-| 17 | `Bed Bath` + `BED010` BED BATH & BEYOND | **merge** | **Inactive** |
-| 18 | `Homegoods` + `HOM020` HOME GOODS | **merge** | name → **`Homegoods`** · status **not stated — open** |
+| 12 | `Dollarama L.P.` (Directus) + `Dollarama` (DesignFlow) + `CUST027` | **merge** | name → **`Dollarama`** |
+| 13 | `Burlington Stores, Inc.` (Directus) + `Burlington` (DesignFlow) + `CUST076/CUST077` | **merge**. Legacy alias **Modecraft** (hence the `MOD` codes) | name → **`Burlington`** |
+| 14 | `Michael's` vs the similarly-named unrelated ERP record | **different companies** | **both Inactive** |
+| 15 | `Fiesta Mart` vs the similarly-named unrelated ERP record | **different companies** | **both Inactive** |
+| 16 | `Ross Stores` (aka Ross Dress for Less / Ross) vs unrelated ERP record `CUST092` | **different companies** | Ross **Active**; the other record **Inactive** |
+| 17 | `Bed Bath` + `CUST009` BED BATH & BEYOND | **merge** | **Inactive** |
+| 18 | `Homegoods` + `CUST051` HOME GOODS | **merge** | name → **`Homegoods`** · status **not stated — open** |
 
 **Schema implication raised by #10 and #13:** customers need **aliases** (TJX Canada ⇄ Winners ⇄
 HomeSense; Burlington ⇄ Modecraft). `core.customer.routing_aliases` (text) exists today for CRM
@@ -212,12 +217,12 @@ scores tied or were close, that silently hid the right answer. Confirmed wrong c
 
 | Our record | What pass 1 reported | The actual match |
 |---|---|---|
-| Ross Stores | `PPS006` P&P STORES (0.50) | **`ROS010` ROSS STORES INC SUPPLIERS** |
-| Big Lots | `BIG225` BIG LOTS **CANADA** (0.45) | **`BIG226` BIG LOTS STORES INC** (Columbus OH, US) |
-| Dollar Tree Stores | `DOL200` DOLLAR TREE STORES INC **CAN** (0.70) | **`DTM500` DOLLAR TREE MERCHANDISING** (Chesapeake VA, US) |
+| Ross Stores | `CUST092` (an unrelated store group, 0.50) | **`CUST096`** (the real Ross ERP record) |
+| Big Lots | `CUST010` BIG LOTS **CANADA** (0.45) | **`CUST011` BIG LOTS STORES INC** (US) |
+| Dollar Tree Stores | `CUST026` DOLLAR TREE STORES INC **CAN** (0.70) | **`CUST031` DOLLAR TREE MERCHANDISING** (US) |
 
 **Any re-run must report top-N candidates (N≥3) with country/city, not top-1.** Name similarity
-alone also cannot see that `HOM020 HOME GOODS` and `MAR020 MARSHALLS` are both Framingham MA —
+alone also cannot see that `CUST051 HOME GOODS` and `CUST071 MARSHALLS` share the TJX head-office address —
 i.e. TJX entities. Address is a stronger signal than the name for this data set.
 
 ### 2.7 STILL NEEDS CLARIFICATION (blocking)
@@ -226,42 +231,42 @@ i.e. TJX entities. Address is a stronger signal than the name for this data set.
 
 | # | Item | Question |
 |---|---|---|
-| A | `WAL070` — a **second** row named `WAL-MART STORES INC`, identical name/address to `WAL010` | You named WAL010/060/080 but not this. What is it? Currently merged into WAL010. |
-| B | `WAL020` WAL-MART CANADA | Active or inactive? (Country is not a consistent rule for you: Big Lots Canada → inactive, but TJX Canada → active.) |
-| C | `TAR081` TARGET S.A (**Panama**) | Not covered by the Target ruling. Status? |
-| D | Which row **is** "TJX"? | No Coldlion row is named TJX. Candidates: `NEW010`+`NEW349` TJ MAXX, `MAR020` MARSHALLS. Is "TJX Active" = TJ Maxx only, or the whole US group? |
-| E | `NEW010` vs `NEW349` | Two identical `TJ MAXX` rows (both Framingham MA), currently merged. One customer? |
-| F | `MAR020` MARSHALLS (Framingham MA) | Part of the active TJX, or its own customer? |
-| G | TJX Canada members | I find `WIN030` WINNERS DISTRIBUTION CENTER, `HOM030` Winners Merchants International LP, `CMA030` CM/MARSHALLS DISTRIBUTION — all Mississauga ON. **There is no "HomeSense" row.** Is Marshalls Canada (`CMA030`) part of TJX Canada too? |
-| H | `HOM020` HOME GOODS | Merge into `Homegoods` per §2.5 #18, but **active or inactive not stated**. Note its address is Framingham MA = TJX HQ, so it may belong to the TJX question. |
-| I | Dollar Tree | `DTM500` (US), `DOL800` DOLLAR TREE MERCHANDISING C (Burnaby BC), `DOL200` DOLLAR TREE STORES INC CAN (Burnaby BC). US active? Both Canada rows one customer, inactive? |
-| J | Big Lots | `BIG226` BIG LOTS STORES INC (US) is the active one — but `WIS030` has the **same name**, is flagged inactive in Coldlion, and was never promoted. Confirm BIG226 is "Big Lots". |
-| K | `MOD010` vs `MOD011` | Two identical BURLINGTON STORES rows. One customer? Status not stated. |
+| A | `CUST111` — a **second** row carrying the same ERP legal name and address as `CUST108` | You named CUST108/CUST110/CUST112 but not this. What is it? Currently merged into CUST108. |
+| B | `CUST109` WAL-MART CANADA | Active or inactive? (Country is not a consistent rule for you: Big Lots Canada → inactive, but TJX Canada → active.) |
+| C | `CUST101` TARGET S.A (**Panama**) | Not covered by the Target ruling. Status? |
+| D | Which row **is** "TJX"? | No Coldlion row is named TJX. Candidates: `CUST078`+`CUST079` TJ MAXX, `CUST071` MARSHALLS. Is "TJX Active" = TJ Maxx only, or the whole US group? |
+| E | `CUST078` vs `CUST079` | Two identical `TJ MAXX` rows (both at the TJX head-office address), currently merged. One customer? |
+| F | `CUST071` MARSHALLS (TJX head-office address) | Part of the active TJX, or its own customer? |
+| G | TJX Canada members | I find `CUST115` and `CUST052` (two Winners entities) and `CUST018` (Marshalls Canada) — all at one Canadian address. **There is no "HomeSense" row.** Is Marshalls Canada (`CUST018`) part of TJX Canada too? |
+| H | `CUST051` HOME GOODS | Merge into `Homegoods` per §2.5 #18, but **active or inactive not stated**. Note its address is the TJX head office, so it may belong to the TJX question. |
+| I | Dollar Tree | `CUST031` (US), `CUST028` DOLLAR TREE MERCHANDISING C (Canada), `CUST026` DOLLAR TREE STORES INC CAN (Canada). US active? Both Canada rows one customer, inactive? |
+| J | Big Lots | `CUST011` BIG LOTS STORES INC (US) is the active one — but `CUST116` has the **same name**, is flagged inactive in Coldlion, and was never promoted. Confirm CUST011 is "Big Lots". |
+| K | `CUST076` vs `CUST077` | Two identical BURLINGTON STORES rows. One customer? Status not stated. |
 
 **CRITICAL — a merge already made that contradicts a ruling:**
-`AMA030` and `AMA3P` are **both named `AMAZON.COM.INDC LLCQ`**, so the import merged them into a
-single canonical customer. The code `AMA3P` plainly means 3P. Ruling #11 requires 1P **Active** and
+`CUST003` and `CUST004` **both carry the same ERP legal name**, so the import merged them into a
+single canonical customer. The code `CUST004` plainly means 3P. Ruling #11 requires 1P **Active** and
 3P **Inactive** — **impossible while they are one row.** This merge must be undone. There is also a
-third row, `UCI` named `Amazon 3P`. Proposed: `AMA030` = 1P (Active); `AMA3P` + `UCI` = 3P (Inactive)
+third row, `CUST107` named `Amazon 3P`. Proposed: `CUST003` = 1P (Active); `CUST004` + `CUST107` = 3P (Inactive)
 — **confirm**.
 
-**The other 14 multi-code groups from §2.2, still unruled:** Barnes & Noble (BNB184, BNN001) ·
-BOB BAY & SON (BBS050, BOB121) · CLOSE OUT CENTER (CLO006/007) · DOLLAR VILLAGE (DOL012, DOLL012) ·
-DUAV CHILDRENS WEAR (DUA003/005) · HUDSON GROUP (HUD300, HUD500) · III NYC 99 (III099, III570) ·
-MINIMAX STORES (MIN006/007) · NEBRASKA FURNITURE MART (NFM020, NFM345) · NEXUS (NEX118, NEX203) ·
-OFFICE 1 SUPERSTORES (OFF010, PRE900) · TOYS 4 U (TOY001, TOY232) · WEST END EXPRESS (WEE001, WES285) ·
-P&P STORES (PPS006/007 — inactive per #16, but confirm the two codes are one customer).
+**The other 14 multi-code groups from §2.2, still unruled:** Barnes & Noble (CUST012, CUST013) ·
+BOB BAY & SON (CUST007, CUST014) · CLOSE OUT CENTER (CUST017, CUST120) · DOLLAR VILLAGE (CUST024, CUST030) ·
+DUAV CHILDRENS WEAR (CUST032, CUST121) · HUDSON GROUP (CUST054, CUST055) · III NYC 99 (CUST056, CUST057) ·
+MINIMAX STORES (CUST075, CUST122) · NEBRASKA FURNITURE MART (CUST082, CUST083) · NEXUS (CUST080, CUST081) ·
+OFFICE 1 SUPERSTORES (CUST085, CUST093) · TOYS 4 U (CUST103, CUST105) · WEST END EXPRESS (CUST113, CUST114) ·
+an unrelated store group (CUST092, CUST123 — inactive per #16, but confirm the two codes are one customer).
 
 **And the 81 with no Coldlion counterpart** (§2.9) — default to Potential, or inactivate?
 
 ### 2.8 Likely-good merges (still confirm before executing)
 
-`Dollarama L.P.`→`DOL580` (1.00) · `Diamond Comic Distributors, Inc`→`DCD101` ·
-`Nebraska Furniture Mart`→`NFM020` · `Ollie's Bargain Outlet`→`OLL629` ·
-`Regent Products Corp.`→`REG899` · `Four Seasons General Merchandise`→`FSG090` ·
-`Citi Trends`→`ALL020` · `Hobby Lobby`→`HLL770` · `Kirkland's`→`KIR500` ·
-`Toys"R"Us`→`TOY100` · `Zulily`→`ZUL308` · `Kroger`→`KROG001` · `Lidl`→`LIDL` ·
-`Danawares`→`DAN001` · `Cook Brothers Corp`→`COO174` · `Giant Tiger`→`GAI222` ·
+`Dollarama L.P.`→`CUST027` (1.00) · `Diamond Comic Distributors, Inc`→`CUST021` ·
+`Nebraska Furniture Mart`→`CUST082` · `Ollie's Bargain Outlet`→`CUST086` ·
+`Regent Products Corp.`→`CUST095` · `Four Seasons General Merchandise`→`CUST036` ·
+`Citi Trends`→`CUST002` · `Hobby Lobby`→`CUST049` · `Kirkland's`→`CUST065` ·
+`Toys"R"Us`→`CUST104` · `Zulily`→`CUST117` · `Kroger`→`CUST067` · `Lidl`→`CUST068` ·
+`Danawares`→`CUST020` · `Cook Brothers Corp`→`CUST019` · `Giant Tiger`→`CUST038` ·
 plus the §2.4 false-negatives (Bed Bath, Homegoods, BoxLunch, Spencer's, Shoppers World).
 
 ### 2.9 The 81 with no Coldlion counterpart
@@ -314,28 +319,28 @@ flags. What remains is the per-row **merges, deletes, display_names, and `potent
 "Merge X→Y" = `core.merge_customer(X_id, Y_id)`; the loser's name is auto-kept as an alias.
 
 ### 4.1 Clarifications to the family rulings
-- **Amazon (SPLIT, not merge):** `AMA030` + `AMA3P` share the name `AMAZON.COM.INDC LLCQ` and were
-  wrongly merged into ONE row. SPLIT: `AMA030` = Amazon 1P, display **"Amazon"**, **active**. Move
-  `AMA3P` + `UCI` onto one **"Amazon 3P"** row, **inactive**. Directus/DesignFlow "Amazon" → 1P row.
-- **Walmart:** `WAL010` B&M **active**, display "Walmart"; `WAL070` (dup) → merge into WAL010; `WAL060`
-  (.com/1P), `WAL080` (seller/3P), `WAL020` (Canada) separate **inactive**; directus "Walmart" → WAL010.
-- **Target:** `TAR010` B&M + `TAR020` .COM separate, **both inactive**; `TAR081` (Panama) diff co, **inactive**.
-- **Nordstrom:** directus Nordstrom + `NOR020` Rack → **merge**, **inactive**.
-- **Big Lots:** `BIG226` (US) **active**, display "Big Lots"; `BIG225` (Canada) **inactive**; `WIS030`
+- **Amazon (SPLIT, not merge):** `CUST003` + `CUST004` share one ERP legal name and were
+  wrongly merged into ONE row. SPLIT: `CUST003` = Amazon 1P, display **"Amazon"**, **active**. Move
+  `CUST004` + `CUST107` onto one **"Amazon 3P"** row, **inactive**. Directus/DesignFlow "Amazon" → 1P row.
+- **Walmart:** `CUST108` B&M **active**, display "Walmart"; `CUST111` (dup) → merge into CUST108; `CUST110`
+  (.com/1P), `CUST112` (seller/3P), `CUST109` (Canada) separate **inactive**; directus "Walmart" → CUST108.
+- **Target:** `CUST099` B&M + `CUST100` .COM separate, **both inactive**; `CUST101` (Panama) diff co, **inactive**.
+- **Nordstrom:** directus Nordstrom + `CUST084` Rack → **merge**, **inactive**.
+- **Big Lots:** `CUST011` (US) **active**, display "Big Lots"; `CUST010` (Canada) **inactive**; `CUST116`
   (same name, Coldlion-inactive, unpromoted) = Big Lots, inactive.
-- **TJX (US):** merge `NEW010`+`NEW349` (TJ Maxx) + `MAR020` (Marshalls) + directus "The TJX Companies,
+- **TJX (US):** merge `CUST078`+`CUST079` (TJ Maxx) + `CUST071` (Marshalls) + directus "The TJX Companies,
   Inc." → **"TJX" active**; aliases TJ Maxx, Marshalls, The TJX Companies Inc.
-- **TJX UK:** `TKM300` **inactive**; directus "Tjxeurope" → alias.
-- **TJX Canada:** merge `WIN030` + `HOM030` + `CMA030` + directus "Tjxcanada" → **"TJX Canada" active**;
+- **TJX UK:** `CUST102` **inactive**; directus "Tjxeurope" → alias.
+- **TJX Canada:** merge `CUST115` + `CUST052` + `CUST018` + directus "Tjxcanada" → **"TJX Canada" active**;
   aliases Winners, HomeSense, Marshalls Canada (no literal HomeSense row exists in Coldlion).
-- **Dollarama:** merge `Dollarama L.P.` + `Dollarama` + `DOL580` → name **"Dollarama"**.
-- **Burlington:** merge `Burlington Stores, Inc.` + `Burlington` + `MOD010` + `MOD011` → name
+- **Dollarama:** merge `Dollarama L.P.` + `Dollarama` + `CUST027` → name **"Dollarama"**.
+- **Burlington:** merge `Burlington Stores, Inc.` + `Burlington` + `CUST076` + `CUST077` → name
   **"Burlington"**, **active**; alias **"Modecraft"** (legacy_name).
-- **Gordon Brothers:** merge `GORDON BROTHER'S GROUP` (GBG802-807) + `GORDON BROTHERS GROUP` (GBG800-801)
+- **Gordon Brothers:** merge `GORDON BROTHER'S GROUP` (CUST041-CUST046) + `GORDON BROTHERS GROUP` (CUST039-CUST040)
   + directus `Gordon Brothers` → one, **inactive**.
-- **Dollar Tree:** `DTM500` (US) **active**; merge `DOL800` + `DOL200` (Canada) → **inactive**.
-- **General → Dollar General** (`DOL900`) **active**; `GED080` GENERAL DISCOUNT separate **inactive**.
-- **DO NOT USE** (`DOL060`,`OUA115`): ERP junk. **Delete** the canonical row (like West End Express).
+- **Dollar Tree:** `CUST031` (US) **active**; merge `CUST028` + `CUST026` (Canada) → **inactive**.
+- **General → Dollar General** (`CUST029`) **active**; `CUST047` (an unrelated discount chain) separate **inactive**.
+- **DO NOT USE** (`CUST025`,`CUST091`): ERP junk. **Delete** the canonical row (like West End Express).
 
 ### 4.2 Sheet 1 — multi-code groups (all confirmed one customer)
 `potential`: Barnes & Noble.
@@ -358,24 +363,24 @@ Exteriors (I) · Toynk (I) · Tractor Supply (P) · Urban Outfitters (P) · Urba
 Vwhlsl (I) · Yankee Toy Box (I) · pOpshelf (A) · Gabes (A) · AAFES (A).
 
 **Merge into a Coldlion row (loser name kept as alias; display = short label):**
-4 Seasons → **4SGM** (A) [+ Four Seasons General Merchandise + FSG090 here; FSG242 FOUR SEASONS GIFTS is
-SEPARATE, I] · 99 Only → 99 Cents Only Stores LLC (99C100 = 99C400) I · At Home → AT HOME STORES (ATH160)
-P · At Home Group Inc. = alias of AT HOME STORES · Bealls, Inc. → **Bealls Outlet** (BEA020) A · Books A
-Million (A) [BOOKS & BOOKS Cayman = 2 diff, I] · BoxLunch (BOX030) A · Christianbook (I) · Citi Trends
-(ALL020) I · Cook Brothers Corp → COOK BROTHERS INC. (COO174) I · Danawares (DAN001) A · DD's Discounts
-(DDS100) A · DESPERATE ENTERPRISES → **Desperate Enterprises** (DES001) A · Diamond Comic Distributors
-(DCD101) I · Ebapparel → E B APPAREL INC (EBA090) I · Four Seasons General Merchandise → **4SGM** (FSG090)
-A · FYE → **FYE** (TRA020 Transworld) P · General → **Dollar General** (DOL900) A · Giant Tiger (GAI222) I
-· Hobby Lobby (HLL770) A · Hot Topic (HOT030) A · Hy-Vee (I) · Kirkland's (KIR500) I · Kohl's (KOH010) P ·
-Kroger (KROG001) P · Lidl (LIDL) A · Nebraska Furniture Mart (NFM020/NFM345) I · Ollie's Bargain Outlet →
-**Ollies** (OLL629) A · Spencer's (SPE682) A · Variety Stores, Inc. → display **VW** = "Variety
-Wholesalers", A [EXCELLENT VARIETY STORE INC EVS171 = 2 diff, I; **VW ≠ Vwhlsl**] · Zulily (ZUL308) I.
+4 Seasons → **4SGM** (A) [+ Four Seasons General Merchandise + CUST036 here; CUST037 (a different Four Seasons ERP record) is
+SEPARATE, I] · 99 Only → its ERP records (CUST118 = CUST119) I · At Home → its ERP record (CUST005)
+P · At Home Group Inc. = alias of At Home · Bealls, Inc. → **Bealls Outlet** (CUST008) A · Books A
+Million (A) [an unrelated similarly-named ERP record = 2 diff, I] · BoxLunch (CUST016) A · Christianbook (I) · Citi Trends
+(CUST002) I · Cook Brothers Corp → its ERP record (CUST019) I · Danawares (CUST020) A · DD's Discounts
+(CUST022) A · DESPERATE ENTERPRISES → **Desperate Enterprises** (CUST023) A · Diamond Comic Distributors
+(CUST021) I · Ebapparel → its ERP record (CUST033) I · Four Seasons General Merchandise → **4SGM** (CUST036)
+A · FYE → **FYE** (CUST106 Transworld) P · General → **Dollar General** (CUST029) A · Giant Tiger (CUST038) I
+· Hobby Lobby (CUST049) A · Hot Topic (CUST053) A · Hy-Vee (I) · Kirkland's (CUST065) I · Kohl's (CUST066) P ·
+Kroger (CUST067) P · Lidl (CUST068) A · Nebraska Furniture Mart (CUST082/CUST083) I · Ollie's Bargain Outlet →
+**Ollies** (CUST086) A · Spencer's (CUST098) A · Variety Stores, Inc. → display **VW** = "Variety
+Wholesalers", A [unrelated ERP record CUST035 = 2 diff, I; **VW ≠ Vwhlsl**] · Zulily (CUST117) I.
 
-**Two-different-companies, BOTH inactive (no merge):** Bargain Hunt · Beacon Products Inc (+GNI250) ·
-Boscov's (+BOL006) · C&S Wholesale (+SJL2) · DII Enterprises (+JAX278) · MAC Wholesale (+MEG552) ·
-Mid-States Distributing (+MID120) · Midwest Marketing (+ALI291) · Midwest Trading (+MID100) · National
-Wholesale Liquidators (+LIQ150) · Petra Industries (+HMS720) · Regent Products (+REG899) · Sunrise Records
-(+REC127) · Super Value Market (+LTS126) · Wakefern (+ATL006) · Weis Markets (+IMI667).
+**Two-different-companies, BOTH inactive (no merge):** Bargain Hunt · Beacon Products Inc (+CUST048) ·
+Boscov's (+CUST015) · C&S Wholesale (+CUST097) · DII Enterprises (+CUST063) · MAC Wholesale (+CUST072) ·
+Mid-States Distributing (+CUST074) · Midwest Marketing (+CUST001) · Midwest Trading (+CUST073) · National
+Wholesale Liquidators (+CUST069) · Petra Industries (+CUST050) · Regent Products (+CUST095) · Sunrise Records
+(+CUST094) · Super Value Market (+CUST070) · Wakefern (+CUST006) · Weis Markets (+CUST058).
 
 **Internal alias merges (same company twice; keep decided one, other becomes alias):**
 Aldi's + ALDI USA → **Aldi** (A) · B&N + Bn → Barnes & Noble · BAM → Books A Million · Bealls → Bealls
@@ -385,8 +390,8 @@ Outlet · DDs → DD's Discounts · Dii → DII Enterprises LLC (I) · Gabe's �
 TJX · Tjxcanada → TJX Canada · Tjxeurope → TJX UK.
 
 ### 4.4 OPEN conflicts to confirm before executing 4.3
-1. **Homegoods** status never given (merge Homegoods + HOM020 → "Homegoods"; A or I? and is it part of
-   TJX US — HOM020 is at Framingham MA = TJX HQ — or its own customer?).
+1. **Homegoods** status never given (merge Homegoods + CUST051 → "Homegoods"; A or I? and is it part of
+   TJX US — CUST051 is at the TJX head office — or its own customer?).
 2. **UPD**: "United Pacific Designs Inc." → merge_into UPD, but the "UPD" row is marked inactive. One
    customer, display "UPD" — active or inactive?
 3. **DO NOT USE**: delete (like West End Express) or inactivate?

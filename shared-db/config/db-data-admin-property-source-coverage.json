@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "issue": 2579,
+  "migration_version": "20260910155753",
+  "rpc": "api.db_data_admin_scraped_properties(text,text,integer)",
+  "inventory_view": "api.source_capture_inventory",
+  "purpose": "Machine-readable authority for all-licensor Property-source coverage in DB Data Admin. Every plm base table belongs to exactly one family below, and every family carries exactly one disposition. Selectors and purposes only: no licensed label, row, URL, contract or raw evidence may ever appear in this file.",
+  "dispositions": [
+    "exposed",
+    "not_applicable_no_source_property_vocabulary",
+    "blocked_missing_landing_shape"
+  ],
+  "selector_rules": "A plm base table is resolved to a family by, in order: an exact match in table_names, then the longest match in table_prefixes, then table_regex. A tie between two families, a table matched by no family, and a family matched by no table are all failures.",
+  "families": [
+    {
+      "family": "disney_opa_submissions",
+      "licensor": "Disney (OPA, incl. Marvel / Lucasfilm / Pixar studio authority)",
+      "business_purpose": "Submissions",
+      "disposition": "exposed",
+      "source_system": "disney_opa",
+      "source_table": "plm.opa_property",
+      "table_prefixes": ["opa_"],
+      "reason": "The OPA submission Property vocabulary, with studio and scope authority preserved."
+    },
+    {
+      "family": "disney_dcp_creative",
+      "licensor": "Disney",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_table": "plm.dcp_property",
+      "table_prefixes": ["dcp_"],
+      "reason": "DCP Vault Creative Property vocabulary with independent contract and OPA authority resolution."
+    },
+    {
+      "family": "marvel_dcp_creative",
+      "licensor": "Marvel",
+      "business_purpose": "Creative (retained DCP evidence)",
+      "disposition": "exposed",
+      "source_table": "plm.marvel_dcp_property",
+      "table_prefixes": ["marvel_dcp_"],
+      "reason": "Retained mixed-guide DCP evidence, presented as non-authoritative and never as Marvel Creative authority."
+    },
+    {
+      "family": "marvel_asgard_creative",
+      "licensor": "Marvel",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_system": "marvel_asgard",
+      "source_table": "plm.marvel_asgard_style_guide",
+      "table_prefixes": ["marvel_asgard_"],
+      "reason": "The ASGARD style-guide Property context is Marvel Creative authority and stays separate from OPA and DCP."
+    },
+    {
+      "family": "lucasfilm_dcp_creative",
+      "licensor": "Lucasfilm / Star Wars",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_table": "plm.lucasfilm_dcp_property",
+      "table_prefixes": ["lucasfilm_dcp_"],
+      "reason": "DCP Vault Creative vocabulary with Star Wars presentation and source provenance preserved."
+    },
+    {
+      "family": "twentieth_century_dcp_creative",
+      "licensor": "20th Century",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_table": "plm.twentieth_century_dcp_property",
+      "table_prefixes": ["twentieth_century_dcp_"],
+      "reason": "DCP Vault Creative vocabulary."
+    },
+    {
+      "family": "paramount_trackerplus_submissions",
+      "licensor": "Paramount",
+      "business_purpose": "Submissions",
+      "disposition": "exposed",
+      "source_system": "paramount_trackerplus",
+      "source_table": "plm.pmt_trackerplus_submission_property",
+      "table_prefixes": ["pmt_trackerplus_submission_"],
+      "latest_complete_clock": "pmt_trackerplus_latest",
+      "reason": "The authenticated TrackerPlus submission picker is the canonical Paramount Submissions vocabulary. Its local identity is the exact-label SHA-256; it is never a Paramount source ID and is never merged into plm.pmt_property."
+    },
+    {
+      "family": "paramount_creative_library",
+      "licensor": "Paramount",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_system": "paramount_creative_library",
+      "source_table": "plm.pmt_property",
+      "table_prefixes": ["pmt_"],
+      "reason": "Creative Library Property vocabulary, kept as a separate business purpose from TrackerPlus Submissions."
+    },
+    {
+      "family": "warner_starlabs_creative",
+      "licensor": "Warner Bros.",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_system": "warner_starlabs",
+      "source_table": "plm.wb_property",
+      "table_prefixes": ["wb_"],
+      "reason": "STARLABS Creative vocabulary with namespaces and normalized identity preserved."
+    },
+    {
+      "family": "nbcu_creative",
+      "licensor": "NBCUniversal",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_system": "nbcu_creative_asset_factory",
+      "source_table": "plm.nbcu_property",
+      "table_prefixes": ["nbcu_"],
+      "reason": "Creative Asset Factory Property vocabulary."
+    },
+    {
+      "family": "wildbrain_creative",
+      "licensor": "Strawberry Shortcake / WildBrain",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_system": "wildbrain_tenovos",
+      "source_table": "plm.wildbrain_era",
+      "table_prefixes": ["wildbrain_"],
+      "reason": "Era vocabulary is the WildBrain Creative Property vocabulary."
+    },
+    {
+      "family": "sega_submissions",
+      "licensor": "Sega",
+      "business_purpose": "Submissions",
+      "disposition": "exposed",
+      "source_system": "sega_product_approval",
+      "source_table": "plm.sega_submission_property",
+      "table_prefixes": ["sega_submission"],
+      "reason": "Product Approval submission vocabulary, kept separate from Sega Creative."
+    },
+    {
+      "family": "sega_creative",
+      "licensor": "Sega",
+      "business_purpose": "Creative",
+      "disposition": "exposed",
+      "source_system": "sega_dsi",
+      "source_table": "plm.sega_property",
+      "table_prefixes": ["sega_"],
+      "reason": "DSI Creative Property vocabulary."
+    },
+    {
+      "family": "coca_cola_creative",
+      "licensor": "Coca-Cola",
+      "business_purpose": "Creative (Asset Library Property choices)",
+      "disposition": "exposed",
+      "source_system": "coke_brandcomply",
+      "source_table": "plm.coke_asset_property_option",
+      "table_prefixes": ["coke_"],
+      "latest_complete_clock": "coke_property_latest",
+      "must_not_expose": ["plm.coke_approval_vocabulary_value"],
+      "reason": "The asset-library Property choice list is the only source-supported Coca-Cola Property vocabulary. No Coca-Cola Submissions vocabulary may be manufactured from approval, contract or free-text evidence."
+    },
+    {
+      "family": "wwe_submissions",
+      "licensor": "WWE",
+      "business_purpose": "Submissions",
+      "disposition": "exposed",
+      "source_system": "wwe_submissions",
+      "source_table": "plm.wwe_property",
+      "table_prefixes": ["wwe_"],
+      "latest_complete_clock": "wwe_submission_latest",
+      "must_not_expose": [
+        "plm.wwe_asset_property_inferred",
+        "plm.wwe_character_property_inferred",
+        "plm.wwe_style_guide_property_inferred"
+      ],
+      "reason": "The submission Property vocabulary under the latest complete submission capture. No WWE Creative vocabulary may be derived from inferred, folder, tag, guide or asset evidence."
+    },
+    {
+      "family": "peanuts_creative",
+      "licensor": "Peanuts",
+      "business_purpose": "Creative assets, characters, style guides and programs",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["peanuts_"],
+      "reason": "The Peanuts capture carries assets, characters, style guides, programs and relationships but no source Property vocabulary. No section may be invented for it."
+    },
+    {
+      "family": "sesame_creative",
+      "licensor": "Sesame Workshop",
+      "business_purpose": "Creative assets, brands, characters, style guides and categories",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["sesame_"],
+      "reason": "The Sesame capture carries no source Property vocabulary."
+    },
+    {
+      "family": "coldlion_erp_canonical",
+      "licensor": "ColdLion (POP Creations operational data)",
+      "business_purpose": "Canonical operational ERP data",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["erp_"],
+      "reason": "ColdLion is our own operational system, not a licensor portal Property scrape."
+    },
+    {
+      "family": "coldlion_promotion_governance",
+      "licensor": "ColdLion (POP Creations operational data)",
+      "business_purpose": "Promotion governance and quarantine",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["coldlion_"],
+      "reason": "Landing governance tables, not a source Property vocabulary."
+    },
+    {
+      "family": "coldlion_raw_api_mirror",
+      "licensor": "ColdLion (POP Creations operational data)",
+      "business_purpose": "Raw mirror of the ColdLion API",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": [
+        "ContainerHeader", "DesignTeamTime", "DesignTeamTimes", "FOBCountry",
+        "FactoryTime", "FactoryTimes", "GridAccessLevel", "GridChildrenLayout",
+        "GridChildrenLayoutOrder", "GridLayout", "GridViewState", "LicenseFeedBacks",
+        "LicensingTime", "LicensingTimes", "OrderLeadTime", "ProdOrderDetail",
+        "ProdOrderHeader", "ProdPaymentTerms", "ProdShipmentTransitTime",
+        "ProductNickname", "RFQContainer", "RFQGroup", "RFQItem", "RFQItemDivision",
+        "RFQItemStatus", "RFQStep", "RFQVendor", "RFQWhse", "SeasonCode",
+        "ShippingPort", "StandardizedDetail", "StandardizedGroup",
+        "StandardizedProductElement", "StandardizedProductElementValue",
+        "StandardizedProductType", "StandardizedSize", "StandardizedVendor",
+        "StandardizedVersion", "UDFComponent", "UDFElement", "UDFElementType",
+        "UDFGroup", "UDFQuery", "UDFTable", "companyCode", "deliveryLocation",
+        "divisionCode", "externalApi", "groups", "item", "itemAttachment",
+        "itemDepth", "itemDetail", "itemHeader", "itemLicenseImage", "itemSize",
+        "itemType", "licensingFeedbackReply", "licensingMilestone",
+        "licensingStatus", "productUserAssignment"
+      ],
+      "reason": "Verbatim ColdLion API landing tables. Enumerated by exact name on purpose: a new mirror table is unclassified and fails this manifest closed rather than passing unnoticed."
+    },
+    {
+      "family": "art_pieces",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Art pieces and their attachments",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["art_"],
+      "reason": "Application data, not a licensor portal Property vocabulary."
+    },
+    {
+      "family": "contract_property_evidence",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Signed-contract Property evidence",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["contract_"],
+      "reason": "Contract evidence is authority used when resolving a scraped row; it is not itself a scraped source vocabulary."
+    },
+    {
+      "family": "creative_submission_resolution",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Creative-to-Submissions resolution records",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["creative_"],
+      "reason": "Resolution and archive records about scraped rows, not a source vocabulary."
+    },
+    {
+      "family": "source_resolution",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Source-to-canonical resolution",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["source_"],
+      "reason": "Resolution records, not a source vocabulary."
+    },
+    {
+      "family": "item_landing_and_import",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Item landing, import and taxonomy staging",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["item_"],
+      "reason": "Application data."
+    },
+    {
+      "family": "licensing_workflow",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Licensing feedback, status and write authorization",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["licensing_"],
+      "reason": "Application workflow data."
+    },
+    {
+      "family": "master_data_imports",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Curated master-data import staging",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["customer_import", "licensor_import", "property_import"],
+      "reason": "Import staging for curated Master Data, governed separately from source scrapes."
+    },
+    {
+      "family": "merch_groups",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Merch group taxonomy",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["merch_"],
+      "reason": "Application taxonomy."
+    },
+    {
+      "family": "production_orders",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Production orders and lane canaries",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["production_"],
+      "reason": "Application data."
+    },
+    {
+      "family": "rfq",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Requests for quotation",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["rfq_"],
+      "reason": "Application data."
+    },
+    {
+      "family": "samples",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Sample tracking",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["sample"],
+      "reason": "Application data.",
+      "absent_from_repo_migrations": "The plm.sample_* sample-tracking tables predate this repository's migration history, so the catalog derived from supabase/migrations cannot see them; they are present in the live catalog, where this family is still required to match."
+    },
+    {
+      "family": "style_tracker",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Style tracker bridges and value resolution",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["style_"],
+      "reason": "Application data."
+    },
+    {
+      "family": "taxonomy_governance",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Taxonomy baselines, breakers and review",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["taxonomy_"],
+      "reason": "Application governance data."
+    },
+    {
+      "family": "vendors",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Vendor exclusion and quarantine",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["vendor_"],
+      "reason": "Application data."
+    },
+    {
+      "family": "platform_operations",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Platform and grid operations",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["deployment_environment", "grid_cell_notes", "reference_value"],
+      "reason": "Application and platform data."
+    }
+  ]
+}

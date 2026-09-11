@@ -28,6 +28,29 @@ routines DECLARED BY LATER MIGRATIONS, i.e. exactly the ones the older revoke
 could not legitimately have reached. Routines that already existed at the older
 migration's own point in history keep whatever it does to them, so the migration
 still proves the parity it was written to prove.
+
+PROVENANCE: A LATER FILENAME PROVES NOTHING (issue #2537)
+--------------------------------------------------------
+The definition repair above assumed that if a later migration DECLARES a
+routine, then whatever the catalog holds for that routine is that later
+migration's work. In this replay that is false. A later migration can fail in
+pass 1 and fail again in pass 2, or not have run yet at all -- and then the
+catalog still holds the BASELINE (or otherwise obsolete) body. Snapshotting it
+and putting it back after the pass-2 file destroys the very forward repair the
+pass-2 file just made, and the damage is invisible: both migrations "applied",
+and only a contract test much later reports the old plan shape.
+
+So a routine's snapshot is taken ONLY when some migration later than this one
+that declares it is PROVEN to have applied successfully in THIS replay -- pass-1
+success or pass-2 success, recorded as it happens and handed to this script in
+--applied-migrations. Routines whose later declarations are all failed, not yet
+attempted, or otherwise unproven are REFUSED: they are reported and left alone,
+so the pass-2 file's own definition stands. Refusing to restore preserves the
+newest PROVEN body; restoring on filename alone cannot.
+
+The privilege repair is unaffected. It re-grants EXECUTE on routines that exist
+in the catalog right now, exactly as they are; it never writes a body, so it
+cannot resurrect an unproven definition.
 """
 
 from __future__ import annotations
@@ -94,6 +117,43 @@ def later_collisions(migration: Path, migrations_dir: Path) -> dict[str, list[st
     return collisions
 
 
+def read_applied_migrations(path: Path) -> set[str]:
+    """Basenames of migrations PROVEN applied so far in this replay.
+
+    The caller appends a line the moment a migration really applies -- pass 1 or
+    pass 2. An absent name is not evidence of failure, only of the absence of
+    proof, and this repair treats those identically: no proof, no restoration.
+    """
+    if not path.exists():
+        raise FileNotFoundError(path)
+    return {
+        line.strip()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+
+
+def classify_collisions(
+    collisions: dict[str, list[str]], applied: set[str]
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Split colliding routines into proven-newer and unproven, one by one.
+
+    Each routine is judged on its OWN later declarations. Two routines redefined
+    by the same pass-2 file routinely have different outcomes -- one later
+    migration applied, the other rolled back -- and classifying them together
+    would either lose a real repair or restore an obsolete body.
+    """
+    proven: dict[str, list[str]] = {}
+    unproven: dict[str, list[str]] = {}
+    for routine, files in collisions.items():
+        landed = [name for name in files if name in applied]
+        if landed:
+            proven[routine] = landed
+        else:
+            unproven[routine] = files
+    return proven, unproven
+
+
 def later_only_routines(migration: Path, migrations_dir: Path, schemas: set[str]) -> set[str]:
     """Routines in `schemas` that only migrations NEWER than `migration` declare.
 
@@ -128,10 +188,19 @@ def snapshot_query(
     parts: list[str] = []
     if collisions:
         parts.append(
-            "select 1 as ord, pg_get_functiondef(p.oid) || E';\\n' as stmt, "
-            "n.nspname as s, p.proname as f, "
+            "select x.ord, x.stmt, n.nspname as s, p.proname as f, "
             "pg_get_function_identity_arguments(p.oid) as a "
             "from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
+            "cross join lateral (values "
+            "(1, format('do $pass2$ begin if to_regprocedure(%L) is not null then execute %L; end if; end $pass2$;', "
+            "format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.oidvectortypes(p.proargtypes)), "
+            "format('alter %s %I.%I(%s) reset all', case p.prokind when 'p' then 'procedure' else 'function' end, "
+            "n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)))), "
+            "(2, pg_get_functiondef(p.oid) || E';\\n'), "
+            "(3, format('alter %s %I.%I(%s) security %s;', "
+            "case p.prokind when 'p' then 'procedure' else 'function' end, "
+            "n.nspname, p.proname, pg_get_function_identity_arguments(p.oid), "
+            "case when p.prosecdef then 'definer' else 'invoker' end))) x(ord, stmt) "
             f"where lower(n.nspname || '.' || p.proname) in ({_literals(collisions)})"
         )
     if privilege_routines:
@@ -140,7 +209,7 @@ def snapshot_query(
         # proacl means the built-in default (EXECUTE to PUBLIC), which acldefault
         # reproduces exactly rather than being silently treated as "no grants".
         parts.append(
-            "select 2 as ord, format('grant execute on function %s to %s;', "
+            "select 4 as ord, format('grant execute on function %s to %s;', "
             "p.oid::regprocedure::text, "
             "case when acl.grantee = 0 then 'public' "
             "else acl.grantee::regrole::text end) as stmt, "
@@ -163,22 +232,55 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("migration", type=Path)
     parser.add_argument("--migrations-dir", type=Path, required=True)
+    parser.add_argument(
+        "--applied-migrations",
+        type=Path,
+        required=True,
+        help=(
+            "File listing the basenames of migrations PROVEN applied so far in "
+            "this replay, one per line. Required: without it a later filename "
+            "would be mistaken for a later definition (issue #2537)."
+        ),
+    )
     args = parser.parse_args()
 
+    try:
+        applied = read_applied_migrations(args.applied_migrations)
+    except FileNotFoundError:
+        print(
+            f"PASS-2 ORDER REPAIR: refusing -- the applied-migration record "
+            f"{args.applied_migrations} does not exist, so no routine in the "
+            "catalog can be shown to come from a later migration.",
+            file=sys.stderr,
+        )
+        return 2
+
     collisions = later_collisions(args.migration, args.migrations_dir)
+    proven, unproven = classify_collisions(collisions, applied)
     schemas = broad_routine_revoke_schemas(args.migration)
     privilege_routines = later_only_routines(args.migration, args.migrations_dir, schemas)
 
-    if not collisions and not privilege_routines:
-        return 0
-
-    if collisions:
+    if unproven:
         print(
-            f"PASS-2 ORDER REPAIR: {args.migration.name} redeclares routines also "
-            "defined by later migrations:",
+            f"PASS-2 ORDER REPAIR: {args.migration.name} redeclares routines that "
+            "later migrations also declare, but NONE of those later migrations is "
+            "proven to have applied in this replay. Their catalog definitions are "
+            "not newer truth, so they are NOT snapshotted or restored:",
             file=sys.stderr,
         )
-        for routine, files in collisions.items():
+        for routine, files in sorted(unproven.items()):
+            print(f"  {routine}: unproven later file(s) {', '.join(files)}", file=sys.stderr)
+
+    if not proven and not privilege_routines:
+        return 0
+
+    if proven:
+        print(
+            f"PASS-2 ORDER REPAIR: {args.migration.name} redeclares routines also "
+            "defined by later migrations that DID apply in this replay:",
+            file=sys.stderr,
+        )
+        for routine, files in sorted(proven.items()):
             print(f"  {routine}: {', '.join(files)}", file=sys.stderr)
     if privilege_routines:
         print(
@@ -191,7 +293,7 @@ def main() -> int:
         for routine in sorted(privilege_routines):
             print(f"  {routine}", file=sys.stderr)
 
-    print(snapshot_query(collisions, privilege_routines))
+    print(snapshot_query(proven, privilege_routines))
     return 0
 
 

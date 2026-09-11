@@ -1,0 +1,21 @@
+{
+  "_why": "MIRROR of the live required status checks on the protected branch, NOT the authority. GitHub branch protection still enforces at merge time. scripts/check-required-checks-preflight.mjs reads this because the merge workflow token cannot read branch protection (there is no `administration` permission scope in GitHub Actions; declaring one makes the workflow unparseable). Rewritten by scripts/update-required-checks.mjs from the post-write readback. Do not hand-edit.",
+  "repo": "u2giants/shared-db",
+  "branch": "main",
+  "capturedIso": "2026-09-08T21:28:48.825Z",
+  "strict": false,
+  "contexts": [
+    "Agent work contract",
+    "Cancelled work guard",
+    "Cross-PR object collision",
+    "Domain ownership",
+    "Handoff contract",
+    "Intake pointer guard",
+    "Migration author lease",
+    "Migration guarded merge authorization",
+    "Orchestrator marker guard",
+    "Promotion contract tests (offline)",
+    "SQL migration guards",
+    "Tools offline tests"
+  ]
+}

@@ -37,6 +37,8 @@
 | [6.17](#617-owner-ruling-designflows-numeric-division-ids-are-wrong-and-do-not-come-to-this-database-the-coldlion-division-code-is-the-only-division-there-is-albert-hazan-2026-08-19) | OWNER RULING — DesignFlow's numeric division ids are WRONG and do NOT come to this database; the ColdLion division CODE is the only division there is (Albert Hazan, 2026-08-19) |
 | [6.16](#616-owner-ruling-licence-contracts-are-not-a-source-for-this-database-and-licence-term-and-territory-do-not-belong-in-it-at-all-albert-hazan-2026-08-19) | OWNER RULING — licence CONTRACTS are NOT a source for this database, and licence TERM and TERRITORY do not belong in it at all (Albert Hazan, 2026-08-19) |
 | [6.18](#618-owner-ruling-albert-does-not-sign-off-on-technical-risk-never-gate-on-a-judgement-he-cannot-make-albert-hazan-2026-08-18) | OWNER RULING — Albert does not sign off on technical risk; never gate on a judgement he cannot make (Albert Hazan, 2026-08-18) |
+| [6.19](#619-owner-ruling-contact-information-does-not-belong-in-this-system-at-all-except-popcrm-routing-email-albert-hazan-2026-09-06) | OWNER RULING — contact information does not belong in this system at all, except PopCRM routing email (Albert Hazan, 2026-09-06) |
+| [6.20](#620-owner-ruling-the-peanuts-property-is-the-art-program-not-the-retailer-initiative-and-wildbrains-era-and-creative-group-are-two-axes-not-a-choice-albert-hazan-2026-09-07) | OWNER RULING — the Peanuts property is the ART PROGRAM, not the retailer initiative; and WildBrain's era and creative group are two axes, not a choice (Albert Hazan, 2026-09-07) |
 
 ---
 
@@ -1586,6 +1588,43 @@ The first application was issue #1812: a plan sentence reserving the reviewer wi
 ceiling for Albert was withdrawn, because keeping the old ceiling did not preserve an owner
 decision — it broke one, refusing 100% of the two-independent-reviewer assignments §4 requires.
 
+### 6.19 OWNER RULING — contact information does not belong in this system at all, except PopCRM routing email (Albert Hazan, 2026-09-06)
+
+> "we shouldn't be importing any contact information into any part of this system except
+> email addresses in popcrm to determine routing for emails."
+> — Albert Hazan, 2026-09-06
+
+**The rule.** No contact information is imported into any part of this system. Not email
+addresses, phone numbers, personal addresses, or any other means of reaching a named person
+— for artists, factory or vendor staff, customer staff, or anyone else.
+
+**The one exception.** Email addresses in **PopCRM**, held for the single purpose of
+determining routing for outbound email. That exception is bounded by its purpose: it does
+not license storing other contact fields alongside those addresses, and it does not extend
+to any other application or schema.
+
+**This is stronger than §6.14 and does not replace it.** §6.14 says personal identifiers
+must not appear in anything we *write* — documents, issues, commits — because this
+repository is public. This ruling says such data must not be *imported into the database*
+in the first place, public repository or not. Both apply.
+
+**What it obliges you to do.**
+
+1. Do not add a column, table, staging field, or import mapping that carries contact
+   information, and do not accept one from a source feed. If a source supplies it, drop it
+   at the boundary rather than landing it and cleaning it up later.
+2. When contact information is found already resident, it is removed — not masked, not
+   left in place with a note. Removal of an existing column is a structural change and takes
+   the normal migration-author route.
+3. Historical or frozen data is not exempt. First application: issue #2110, the
+   `designflow_frozen_20260710` schema, where the resident contact data was 11 rows of
+   `artists.email` plus four never-populated `customers` contact columns.
+
+**Why it matters beyond privacy.** Contact data is the one class of content whose value to
+us is near zero and whose cost on exposure is unbounded — it is not part of any business
+question this database answers. Keeping it creates an obligation with no corresponding
+benefit.
+
 ---
 
 ## 0.1-A OWNER RULING
@@ -1882,3 +1921,95 @@ the one narrower check that could earn its place later are in
 [`docs/artifact-consistency-checker-rejected-20260813.md`](docs/artifact-consistency-checker-rejected-20260813.md).
 The mitigation for unsourced figures is this section plus the plan standard's rule that a
 status row marked done must cite an artifact, never a bare number.
+
+### 6.20 OWNER RULING — the Peanuts property is the ART PROGRAM, not the retailer initiative; and WildBrain's era and creative group are two axes, not a choice (Albert Hazan, 2026-09-07)
+
+Given on shared-db issue #1275, which asked which vocabulary table is the "property-shaped
+entity" for the licensor scrape families. Recorded in full at issue #1275; this section is the
+durable copy. No licensor values appear here — this repository is public (§6.14).
+
+#### The correction that came first: we capture METADATA, not art
+
+> "ai or our software doesn't yet download the actual art files in the style guide yet.
+> We're only collecting metadata."
+> — Albert Hazan, 2026-09-07
+
+Every `plm.<licensor>_asset` row is an **asset metadata record**. No art binary is downloaded
+or stored by any capture. Anything in this repository that says we "capture assets" means
+metadata, and any design that assumes a stored file, a checksum over art bytes, or a
+content-addressed identity is wrong on its face.
+
+**Consequence that must not be lost.** A change signal built on portal-published metadata
+cannot detect art replaced in place under an unchanged file name with unchanged metadata.
+That failure mode is one of the three motivations #1275 states for its incremental design. The
+issue's own "Why" section names all three in one sentence — *"Licensors add guides, replace art in
+place under the same file name, and withdraw assets"* — and this ruling means the design does
+**not** solve the middle one. The other two, additions and withdrawals, are unaffected. Do not
+overstate this in either direction: the design is not useless, and it is not complete.
+
+(The sentence is quoted here so this claim can be checked from the repository alone. A reviewer
+working from a checkout cannot read a GitHub issue body, and a durable ruling should not rest on
+a source its reader cannot open.)
+
+#### Peanuts: the art program is the property
+
+> "99% of the time we're designing product using 'what the art looks like'. retailer-specific
+> style guides are exactly that: tied to only one specific retailer and only for a certain
+> time period. we barely use those."
+> — Albert Hazan, 2026-09-07
+
+`plm.peanuts_art_program` is the durable, property-shaped entity. `plm.peanuts_initiative` is
+retailer- and period-bound and is a **secondary tag** — retained and searchable, never the
+parent an asset belongs to.
+
+**Design consequence.** An initiative is *expected* to stop appearing when its retail window
+closes. That is normal retirement, not withdrawal. A lifecycle rule that marks a vanished
+initiative `withdrawn` under the marked-never-deleted principle (owner ruling 2026-08-19,
+recorded on issue #1275, not in this file) will raise a false alarm every season and must not be
+written.
+
+#### WildBrain: era and creative group are orthogonal — the earlier question was malformed
+
+> "those are 2 completely different things, not things that are mutually exclusive.
+> Your question is like asking 'what do you like better, orange juice or greek mythology'.
+> There are 'Classic' Style Guides, '2003' Style Guides, 'Berry in the Big City' Style
+> Guides, etc."
+> — Albert Hazan, 2026-09-07
+
+`plm.wildbrain_era` (which version of the property) and `plm.wildbrain_creative_group` (what
+kind of document) are **two independent axes**. The framing
+recorded on #1275 on 2026-08-20 — "`era` vs `creative_group`" — presented them as competing
+candidates and is **withdrawn**.
+
+The live catalog already agrees: `plm.wildbrain_asset` carries **both** `era_source_id` and
+`creative_group_source_id`.
+
+**But the two axes are not symmetric, and the schema says so.** In
+`supabase/migrations/20260819014639_wildbrain_dam_source_landing.sql`, `era_source_id` is
+`not null` (line 448) while `creative_group_source_id` is nullable (line 449), and its index is
+partial on `is not null` (lines 507-508). Every asset carries exactly one era; an asset may carry
+no creative group at all. Do not write "every guide has one of each" — it is false.
+
+**Design consequence.** Both tables are durable entities and both take lifecycle columns.
+Era is the property-shaped entity wherever a single parent is required, and it is the mandatory
+axis; creative group is an optional document-type dimension — independent of era, not a child of
+it, and not of equal standing.
+
+#### The general lesson this ruling encodes
+
+Two vocabulary tables sitting side by side in one licensor family are **not** presumptively
+alternatives. Before asking the owner to choose between them, check whether the entity table
+carries foreign keys to both — if it does, the answer is "both", and the question is
+malformed. Asking it anyway spends owner attention to obtain a wrong answer, and a wrong
+answer recorded as a ruling outlives the session that took it.
+
+#### Not decided here
+
+Sesame Workshop's equivalent question is **not** answered. All five `plm.sesame_*` vocabulary
+tables are empty — the schema landed under `20260819212002` but no capture was ever loaded.
+A property decision taken against zero rows is a guess dressed as a ruling. It follows the
+first real Sesame load. Do not put it to the owner before then.
+
+The remaining #1275 decisions — snapshot-row identity, join-row lifecycle meaning, DCP
+metadata-run baselines, Warner chunk-addressed baselines, and the bulk-withdrawal coverage
+contract — are engineering decisions and are **not** owner decisions (§6.18).

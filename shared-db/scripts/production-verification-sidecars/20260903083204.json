@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260903083204",
+  "migration_sha256": "8b9e2bb249ccccfe71cc103e03b829d801c8b819fc991a9aca6f95c55d835e5f",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 278,
+      "line_end": 278,
+      "disposition": "no_durable_target",
+      "reason": "This dynamic statement builds an ON COMMIT DROP temporary probe table inside the migration's own self-verification DO block, copying the live business_path CHECK definition read from pg_constraint. It creates no durable object, alters no persistent schema, and leaves nothing behind after the transaction, so there is no post-apply catalog state a durable check could observe."
+    },
+    {
+      "line_start": 299,
+      "line_end": 299,
+      "disposition": "no_durable_target",
+      "reason": "This dynamic statement inserts probe values into that same ON COMMIT DROP temporary table to observe whether the copied business_path CHECK accepts or rejects each value. It writes only to transient temporary storage that disappears at commit, touches no durable relation, and therefore has no persistent post-apply state for a hash-bound check to assert."
+    },
+    {
+      "line_start": 334,
+      "line_end": 334,
+      "disposition": "no_durable_target",
+      "reason": "This dynamic statement builds a second ON COMMIT DROP temporary probe table carrying the live sample_workflow_valid_flow_path CHECK definition so the workflow_type and business_path matrix can be exercised in full. It creates no durable object and vanishes at commit, leaving no persistent catalog target for a durable check."
+    }
+  ],
+  "checks": []
+}

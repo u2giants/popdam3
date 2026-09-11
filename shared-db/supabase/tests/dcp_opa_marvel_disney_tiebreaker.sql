@@ -79,10 +79,10 @@ begin
   ) returning resolution_id into v_lucasfilm_resolution;
 
   insert into plm.dcp_opa_property_resolution_member (
-    resolution_id, licensed_property_id, member_ordinal
+    resolution_id, licensed_property_id, member_ordinal, submission_source_system, submission_source_table, submission_source_id
   ) values
-    (v_marvel_resolution, v_opa_property_id, 1),
-    (v_lucasfilm_resolution, v_opa_property_id, 1);
+    (v_marvel_resolution, v_opa_property_id, 1, 'disney_opa', 'plm.opa_property', v_opa_property_id::text),
+    (v_lucasfilm_resolution, v_opa_property_id, 1, 'disney_opa', 'plm.opa_property', v_opa_property_id::text);
 
   select api.db_data_admin_scraped_properties(v_search, null, 100) into v_page;
 

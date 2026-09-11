@@ -260,22 +260,22 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------- D
--- PHASE 3/4 PRECONDITIONS. These are NOT pass/fail gates on Phase 2 — they are the
--- measurements the owner needs before approving Phase 3/4, asserted here so they cannot
--- be quoted from a stale document. See docs/plm-item-phase3-4-execution-plan.md.
+-- PHASE 3/4 STATE. Phase 4's serving-view cutover was authorized and shipped by #2466;
+-- the legacy bridge FK remains deliberately unrepointed pending its own guarded work.
 do $$
 declare
   v_pass integer := 0; v_fail integer := 0; v_def text; v_n integer;
   v_erp integer; v_bridge integer; v_bridge_linked integer; v_item integer; v_import integer;
 begin
-  raise notice '=== D. PHASE 3/4 PRECONDITIONS (no cutover may have happened yet) ===';
+  raise notice '=== D. PHASE 3/4 STATE ===';
 
-  -- D1. api.plm_item_list must STILL read the legacy table. If it does not, Phase 4 shipped.
+  -- D1. #2466 repointed the serving contract to canonical plm.item. The old
+  --     assertion was a temporary pre-cutover guard and is now obsolete.
   select pg_get_viewdef('api.plm_item_list'::regclass, true) into v_def;
-  if v_def like '%erp_items_current%' then
-    v_pass := v_pass + 1; raise notice 'PASS api.plm_item_list still reads public.erp_items_current (Phase 4 has NOT shipped)';
+  if v_def like '%plm.item i%' then
+    v_pass := v_pass + 1; raise notice 'PASS api.plm_item_list reads canonical plm.item (#2466)';
   else
-    v_fail := v_fail + 1; raise notice 'FAIL api.plm_item_list no longer reads erp_items_current — an unapproved cutover shipped';
+    v_fail := v_fail + 1; raise notice 'FAIL api.plm_item_list does not read canonical plm.item after #2466';
   end if;
 
   -- D2. The bridge FK must still point at the legacy table, unrepointed.

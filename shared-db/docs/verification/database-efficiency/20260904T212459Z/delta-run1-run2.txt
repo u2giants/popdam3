@@ -1,0 +1,45 @@
+SHAPE relation-stats.json                run1=893 run2=893 keys_identical=True
+SHAPE pg-stat-statements-top300.json     run1=300 run2=300 keys_identical=True
+SHAPE functions-security.json            run1=359 run2=359 keys_identical=True
+SHAPE indexes.json                       run1=3388 run2=3388 keys_identical=True
+SHAPE foreign-keys.json                  run1=1081 run2=1081 keys_identical=True
+SHAPE environment-and-security.json      run1=1015 run2=1015 keys_identical=True
+
+ADVISOR security identical= True 340
+ADVISOR performance identical= True 1390
+
+FUNCTIONS identical set= True identical md5= True
+
+RELATION DELTAS (nonzero, top 20 by |delta total_bytes| or tuple churn)
+relations with any movement: 3
+  public.style_guide_folders                    dsize=0          dins=380      dupd=0        dhot=0        ddel=0        ddead=0
+  public.agent_registrations                    dsize=0          dins=0        dupd=18       dhot=0        ddel=0        ddead=18
+  crm.worker_delta_cursor                       dsize=0          dins=0        dupd=2        dhot=2        ddel=0        ddead=2
+
+PGSS: run1 ids 299 run2 ids 299 common 298
+statements advancing: 23
+  dtotal_ms=6650.8       dcalls=526      dwal=0            SELECT wal->>$5 as type, wal->>$6 as schema, wal->>$7 as table, COALESCE(wal->>$
+  dtotal_ms=4259.1       dcalls=1        dwal=222402       SELECT public.refresh_style_guide_matviews()
+  dtotal_ms=492.5        dcalls=1        dwal=320          select json_agg(t)::text as data from ( select n.nspname as schema, c.relname as
+  dtotal_ms=59.9         dcalls=32       dwal=0            WITH pgrst_source AS ( SELECT "public"."admin_config"."key", "public"."admin_con
+  dtotal_ms=59.2         dcalls=74       dwal=0            WITH pgrst_source AS (SELECT "pgrst_call".* FROM (SELECT $1 AS json_data) pgrst_
+  dtotal_ms=57.8         dcalls=128      dwal=0            WITH pgrst_source AS ( SELECT "public"."admin_config"."value" FROM "public"."adm
+  dtotal_ms=32.9         dcalls=9        dwal=0            select schemaname, tablename, format($2, schemaname, tablename)::regclass as oid
+  dtotal_ms=28.2         dcalls=74       dwal=0            WITH pgrst_source AS (SELECT "pgrst_call".* FROM (SELECT $1 AS json_data) pgrst_
+  dtotal_ms=25.5         dcalls=852      dwal=0            select set_config('search_path', $1, true), set_config('role', $2, true), set_co
+  dtotal_ms=23.7         dcalls=17       dwal=0            WITH pgrst_source AS (DELETE FROM "public"."render_queue" WHERE "public"."render
+  dtotal_ms=22.9         dcalls=9        dwal=0            WITH pgrst_source AS (SELECT "pgrst_call".* FROM (SELECT $1 AS json_data) pgrst_
+  dtotal_ms=19.6         dcalls=17       dwal=71722        WITH pgrst_source AS (UPDATE "public"."agent_registrations" SET "last_heartbeat"
+  dtotal_ms=17.5         dcalls=318      dwal=0            WITH pgrst_source AS ( SELECT "public"."agent_registrations"."id", "public"."age
+  dtotal_ms=11.7         dcalls=17       dwal=0            WITH pgrst_source AS ( SELECT "public"."render_queue".* FROM "public"."render_qu
+  dtotal_ms=11.4         dcalls=50       dwal=0            WITH pgrst_source AS (SELECT "pgrst_call".* FROM (SELECT $1 AS json_data) pgrst_
+
+NAMED FUNCTION STATEMENT MOVEMENT run1 -> run2
+  refresh_style_group_counts_batch   calls 7 -> 7 | total_ms 669462.8 -> 669462.8
+  rebuild_style_groups_batch         calls 3973 -> 3973 | total_ms 11849391.9 -> 11849391.9
+  refresh_style_guide_matviews       calls 1 -> 1 | total_ms 7467.0 -> 7467.0
+  clear_style_group_batch            calls 287 -> 287 | total_ms 9935165.1 -> 9935165.1
+  refresh_style_guide_matviews       calls 657 -> 658 | total_ms 5279954.3 -> 5284213.3
+
+INDEXES zero-scan run1=1876 run2=1875 ; indexes whose idx_scan advanced: 24
+  indexes that left zero-scan during the window: 1 ['cron.job.job_pkey']

@@ -1,5 +1,10 @@
 # Implementation plan — ColdLion raw landing layer, phases 2 to 6
 
+> **SUPERSEDED FOR EXECUTION 2026-09-02.** Preserve this file as the historical owner-decision
+> and measurement record, but do not execute its STATUS table, history keys, paging assumptions,
+> field counts, or starting point. Current work starts at
+> [`../plan_coldlion_landing_schema_completion.md`](../plan_coldlion_landing_schema_completion.md).
+
 > ### 🧭 ColdLion front door
 > New to ColdLion, or about to conclude something is broken/unknown? Start at
 > [`coldlion.md`](coldlion.md), and **check
@@ -10,7 +15,7 @@
 **Governing issue:** [#1184](https://github.com/u2giants/shared-db/issues/1184) · **Companions:** [#1204](https://github.com/u2giants/shared-db/issues/1204) (phases 2-6 authorized), [#1202](https://github.com/u2giants/shared-db/issues/1202) (rulings that supersede the design doc), [#1031](https://github.com/u2giants/shared-db/issues/1031) (backfill runner — reconcile, do not duplicate)
 **Handoff:** [`../HANDOFF.d/2026-08-19T1500Z-al8960ofc-claude-coldlion-phases-2-6-plan.md`](../HANDOFF.d/2026-08-19T1500Z-al8960ofc-claude-coldlion-phases-2-6-plan.md)
 
-## STATUS
+## HISTORICAL STATUS — DO NOT EXECUTE
 
 | # | Step | State | Evidence |
 |---|---|---|---|
@@ -24,7 +29,7 @@
 | 6 | `coldlion.customer` + `coldlion.vendor`, retire the generic bucket | ⬜ open | |
 | 7 | Loaders (ongoing sync) for every table above | ⬜ open | |
 
-**A fresh session starts at step 1.** Steps 2-6 are independent of each other once step 1 is done.
+**Superseded:** a fresh session starts at the completion plan linked above, not step 1 here.
 
 **Owner's priority, 2026-08-19: build these tables next** (steps 1-6). The two other candidate jobs
 were weighed and deliberately not chosen first — see §13 open question 9 for the one that is still

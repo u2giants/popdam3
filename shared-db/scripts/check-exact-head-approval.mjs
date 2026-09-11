@@ -47,11 +47,13 @@
 // bytes on PR #1809 -- it is a process-integrity gate and a large improvement. It is
 // not proof of reviewer identity, and it should never be cited as one.
 import { execFileSync } from 'node:child_process'
+import { runGitHubCommand } from './lib/github-transport.mjs'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { REPO, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_RETURN_REF_PREFIX, parseAssignmentRef, parseReviewCursor, parseReviewReturn, reviewReturnRef, reviewerReadsRepository } from './manage-migration-author-lanes.mjs'
 import { approvalLine, evidenceTiedToHead, refusalLine, trustedVerdictEvidence, unambiguouslyTiedToHead } from './lib/review-verdict.mjs'
 import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, isValidatedVerdictArtifact, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact } from './lib/review-verdict-artifact.mjs'
+import { changedPathsFromPullRequestFiles, classifyChangedPaths } from './lib/documents-only-change.mjs'
 
 export class ApprovalCheckError extends Error {}
 
@@ -135,6 +137,36 @@ export function evaluateExactHeadApproval(input) {
   const { pr, headSha, evidence = [], assignments = [], verdicts } = input
   if (!/^[0-9a-f]{40}$/i.test(String(headSha ?? ''))) throw new ApprovalCheckError('an exact 40-character head SHA is required')
   if (!Number.isInteger(Number(pr)) || Number(pr) <= 0) throw new ApprovalCheckError('an exact pull request number is required')
+
+  // THE DOCUMENTS-ONLY LANE (issue #2102, owner decision 2026-09-02).
+  //
+  // A pull request whose changed files are all prose documents does not draw from
+  // the external database-reviewer pool, so this gate must not demand an
+  // assignment and an APPROVE that nothing is allowed to produce. Every other
+  // automated check still runs, and this pull request still merges only through
+  // the guarded merge lane holding the merge lock -- the exemption is from the
+  // reviewer POOL, not from the gate, and not from the checks.
+  //
+  // Rulebook files (`AGENTS.md`, skills, `plan_*.md`) are NOT documents here:
+  // they instruct every later session, so they keep the full treatment. The
+  // classifier lists them explicitly and fails closed on anything it cannot read,
+  // so an absent or malformed file list costs a review rather than granting an
+  // exemption. `changedFiles` absent entirely -- every caller that predates this
+  // rule, and every test below -- behaves exactly as before.
+  const documents = Object.prototype.hasOwnProperty.call(input, 'changedFiles')
+    ? classifyChangedPaths(input.changedFiles)
+    : { documentsOnly: false, reason: 'no changed-file list was supplied' }
+  if (documents.documentsOnly) {
+    // A refusal already recorded at this head still blocks it. Nothing draws a
+    // reviewer for a documents-only pull request, but if one was drawn before the
+    // classification -- or by a lane that reclassified mid-flight -- its answer is
+    // not discarded by an exemption.
+    const recorded = (verdicts ?? []).filter((row) => Number(row.pr) === Number(pr) && String(row.head_sha).toLowerCase() === String(headSha).toLowerCase())
+    if (recorded.some((row) => !isValidatedVerdictArtifact(row))) throw new ApprovalCheckError('durable verdict input crossed the approval boundary without artifact validation')
+    const refused = recorded.filter((row) => reviewerReadsRepository(row.reviewer) && row.verdict !== 'APPROVE')
+    if (refused.length) throw new ApprovalCheckError(`head ${headSha} carries a durable reviewer refusal; a documents-only pull request is exempt from DRAWING a reviewer, never from answering one that already reviewed these bytes`)
+    return { approved: true, head_sha: headSha, pr: Number(pr), documents_only: true, reason: documents.reason, assignments: 0, approvals: 0 }
+  }
 
   const atThisHead = assignments.filter((row) => String(row.headSha ?? '').toLowerCase() === String(headSha).toLowerCase())
   if (!atThisHead.length) throw new ApprovalCheckError(`no reviewer was ever assigned head ${headSha}; an assignment pinned to an earlier head does not carry forward to new commits`)
@@ -225,7 +257,8 @@ export function evaluateExactHeadApproval(input) {
   return { approved: true, head_sha: headSha, pr: Number(pr), assignments: pinned.length, approvals: approvals.length }
 }
 
-function gh(args) { try { return execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }) } catch (e) { throw new ApprovalCheckError(`GitHub read failed: ${e.stderr || e.message}`) } }
+// Issue #2342: shared transport, identical refusal.
+function gh(args) { return runGitHubCommand(args, { wrapError: (detail) => new ApprovalCheckError(`GitHub read failed: ${detail}`) }) }
 function json(args) { const raw = gh(args); try { return JSON.parse(raw) } catch { throw new ApprovalCheckError('GitHub returned malformed JSON') } }
 function pages(endpoint) { const result = json(['api', '--paginate', '--slurp', endpoint]); if (!Array.isArray(result) || result.some((x) => !Array.isArray(x))) throw new ApprovalCheckError(`GitHub pagination for ${endpoint} is malformed`); return result.flat() }
 
@@ -325,7 +358,13 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
     ...[...issueNumbers].flatMap((number) => readPages(`repos/${REPO}/issues/${number}/comments?per_page=100`)),
     ...readPages(`repos/${REPO}/pulls/${pr}/reviews?per_page=100`),
   ]
-  return { pr, headSha, evidence, assignments, returns, verdicts }
+  // The changed-file list for the documents-only lane (#2102). Read here rather
+  // than from the checkout because the gate must judge the PULL REQUEST's change
+  // against its base, not whatever the runner happens to have on disk. Renames
+  // carry their previous name too, so a migration renamed to a `.md` is still a
+  // migration change. Unreadable input yields a list the classifier refuses.
+  const changedFiles = changedPathsFromPullRequestFiles(readPages(`repos/${REPO}/pulls/${pr}/files?per_page=100`))
+  return { pr, headSha, evidence, assignments, returns, verdicts, changedFiles }
 }
 
 // A merge is authorized by create-only verdict artifacts, never by comment prose.
@@ -341,7 +380,8 @@ export function requireDurableVerdictInput(input) {
 export function main(env = process.env) {
   try {
     const result = evaluateExactHeadApproval(requireDurableVerdictInput(gatherApprovalInput(env)))
-    console.log(`Exact-head approval verified: PR #${result.pr} head ${result.head_sha} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
+    if (result.documents_only) console.log(`Documents-only pull request: PR #${result.pr} head ${result.head_sha} draws no database reviewer (${result.reason}). Every other check and the guarded merge lane still apply (#2102).`)
+    else console.log(`Exact-head approval verified: PR #${result.pr} head ${result.head_sha} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
     return 0
   } catch (e) { console.error(`REFUSED: ${e.message}`); return 2 }
 }

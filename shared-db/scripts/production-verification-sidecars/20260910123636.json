@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260910123636",
+  "migration_sha256": "469735d609e25ff8d9618f6c77db111e940ec282df30def877ac3d59ba710d73",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 236,
+      "line_end": 248,
+      "disposition": "checks",
+      "check_ids": [
+        "dcp_stable_identity_property_match"
+      ],
+      "reason": "Line 243 is a targeted in-place rewrite of api.db_data_admin_scraped_properties: the block reads the CURRENT body with pg_get_functiondef, refuses with an exception unless that body still contains the exact literal text this migration was derived from, executes the same definition with only that one block replaced, and raises again unless the new text is present afterwards. Nothing is interpolated: both the old and the new text are fixed dollar-quoted literals written in this file. Its durable post-apply outcome IS the new text of the routine in pg_proc, and a hash-bound sidecar CAN assert that: catalog contract dcp_stable_identity_property_match_v1 reads pg_get_functiondef of this exact signature back from the catalog after apply and requires the stable-identity grouping (identity_key, mapped_fingerprints, the dcpvault: namespace) to be present, exactly as single_creative_submission_resolution_ledger_v1 does for the same signature in 20260907200221. The contract is a strict superset of that earlier one, so every #2449 assertion is carried forward and nothing it proved stops being proved. Synthetic behaviour is covered additionally by supabase/tests/dcp_stable_identity_property_match_contracts.sql on every pull request."
+    },
+    {
+      "line_start": 614,
+      "line_end": 639,
+      "disposition": "checks",
+      "check_ids": [
+        "dcp_stable_identity_property_match"
+      ],
+      "reason": "Line 630 is the same targeted in-place rewrite pattern applied to api.db_data_admin_decide_property_match's return object: it reads the CURRENT body with pg_get_functiondef, ASSERTS FIRST that the identity marker it installs is absent (the replacement text ends with the same fragment, so an already-rewritten body still contains that fragment exactly once and a count alone cannot detect a re-run), then COUNTS exact-once occurrences of the return fragment it was derived from and refuses on anything but one, executes the same definition with only that fragment replaced, and raises again unless the identity payload is present afterwards. The absence assertion is what makes an isolated re-run fail closed; the count still refuses a body carrying an unexpected number of fragments. Both texts are fixed dollar-quoted literals; nothing is interpolated. Its durable post-apply outcome IS the new text of the routine in pg_proc, and catalog contract dcp_stable_identity_property_match_v1 reads pg_get_functiondef of this exact signature back from the catalog after apply and requires identity_decision_state and identity_copies to be present, the same mechanism 20260907200221 used on this signature."
+    },
+    {
+      "line_start": 728,
+      "line_end": 749,
+      "disposition": "checks",
+      "check_ids": [
+        "dcp_stable_identity_property_match"
+      ],
+      "reason": "Line 742 is the same targeted in-place rewrite pattern applied to api.db_data_admin_decide_property_match's write path: it reads the CURRENT body with pg_get_functiondef, ASSERTS FIRST that its own guard text is absent (the replacement ends with the same preamble, so a count alone cannot detect a re-run), then COUNTS exact-once occurrences of the append-only insert preamble and refuses on anything but one, executes the same definition with only that preamble replaced by the guard plus the preamble, and raises again unless the guard is present afterwards. Both texts are fixed dollar-quoted literals; nothing is interpolated, and the guard itself interpolates no identifier. Its durable post-apply outcome IS the new text of the routine in pg_proc, and catalog contract dcp_stable_identity_property_match_v1 reads pg_get_functiondef of this exact signature back from the catalog after apply and requires the guard's own refusal text to be present, so a production apply that silently lost the guard is caught by the independent verifier rather than only by the in-migration self-check."
+    }
+  ],
+  "checks": [
+    {
+      "id": "dcp_stable_identity_property_match",
+      "kind": "catalog_contract",
+      "contract": "dcp_stable_identity_property_match_v1",
+      "expected_count": 1
+    }
+  ]
+}

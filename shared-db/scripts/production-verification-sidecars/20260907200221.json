@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260907200221",
+  "migration_sha256": "b48a4b51c4ae12fa24725323d313cf71ebb5a935a4f0bd4b2aedba2e08d87da0",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 438,
+      "line_end": 438,
+      "disposition": "checks",
+      "check_ids": [
+        "single_creative_submission_resolution_ledger"
+      ],
+      "reason": "The exactly-once catalog edits redirect the reader and writer to the single operative source crosswalk. The catalog contract proves both signatures, member source columns, archived historical tables, explicit grants, private generic-decision policies, and deferred state/member invariants. Archived rows retain their original relation identities and cannot be written. Synthetic SQL contracts cover mapping/conflict/unmapped, one-to-many membership, approval API concurrency and role-denial parity."
+    },
+    {
+      "line_start": 469,
+      "line_end": 469,
+      "disposition": "checks",
+      "check_ids": [
+        "single_creative_submission_resolution_ledger"
+      ],
+      "reason": "The exactly-once catalog edits redirect the reader and writer to the single operative source crosswalk. The catalog contract proves both signatures, member source columns, archived historical tables, explicit grants, private generic-decision policies, and deferred state/member invariants. Archived rows retain their original relation identities and cannot be written. Synthetic SQL contracts cover mapping/conflict/unmapped, one-to-many membership, approval API concurrency and role-denial parity."
+    }
+  ],
+  "checks": [
+    {
+      "id": "single_creative_submission_resolution_ledger",
+      "kind": "catalog_contract",
+      "contract": "single_creative_submission_resolution_ledger_v1",
+      "expected_count": 1
+    }
+  ]
+}

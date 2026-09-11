@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "work_issue": 2715,
+  "outcome": "ready-for-merge",
+  "pr": 2737,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2715/4",
+  "contract_sha256": "ebd03a0ed9437413447d0382b41bbc36fa27294374110ba6b55b65854ba3f871",
+  "head_sha": "8f26ff60f0366f7ff76f323db769ba8d6094dc45",
+  "files_changed": [
+    ".github/workflows/documents-only-merge-authorization.yml",
+    "AGENTS.md",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
+    "scripts/check-documents-only-merge-authorization.mjs",
+    "scripts/check-documents-only-merge-authorization.test.mjs",
+    "scripts/check-documents-only-pull-request.mjs",
+    "scripts/documents-only-merge-authorization.test.mjs",
+    "scripts/lib/documents-only-change.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/repository-maintenance-authorization.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors on the exact rebased implementation diff."
+    },
+    {
+      "command": "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/check-documents-only-merge-authorization.test.mjs scripts/documents-only-merge-authorization.test.mjs scripts/repository-maintenance-authorization.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "562 tests passed with zero failures, cancellations, skips, or todos on main 84a1a1d7."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Truth audit passed with 275 semantically bound call sites."
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "All GitHub calls in 212 scanned files use the governed transport."
+    }
+  ],
+  "assumptions_resolved": [
+    "Live issue, pull request, branch, worktree, and Codex task inventory found no prior owner for issue 2715.",
+    "The implementation changes no migration and performs no database or production write.",
+    "The command uses only the global mutex, proves production absent, and cannot consume author, reviewer, preview, merge, or production capacity.",
+    "Plans and bounded declarative pointer hunks qualify; behavior-changing rulebooks and every executable or unreadable change fail closed.",
+    "Eight independent review rounds found and resolved permissions, grammar, race, retarget, trust-boundary, link-target, recovery, live-base, and stale-status defects.",
+    "The ninth review found that a truncated instruction-file patch could hide additional changed lines; the classifier now proves API line totals and every hunk count before accepting a pointer.",
+    "The final implementation was rebuilt as the identical net feature diff directly on current main 84a1a1d7, removing obsolete evidence-only history before this immutable evidence pair."
+  ],
+  "stop_conditions_hit": [],
+  "evidence_note": "Implementation is ready for final exact-head independent reviewer-safety review, required CI, guarded merge, and a live prose-only acceptance pull request."
+}

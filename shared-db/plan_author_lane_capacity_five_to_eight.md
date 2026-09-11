@@ -38,12 +38,11 @@ the same failure the 3 → 5 raise avoided by growing the roster in the same cha
 also that `ai-grok-review` holds a per-**repository** in-flight lock, so Grok contributes
 one concurrent review, not more.
 
-**Required before the cap moves:** either un-retire and prove a provider (`qwen-3.8-max`
-is retired, not deleted) or add a new rotation name, so the active rotation is **at least
-six**. Every added or un-retired name must be proven with a real `doctor` run on the
-wrapper and the output pasted into the PR — never assumed. Never delete a name from
-`REVIEWERS`; retired names must still resolve to a wrapper when read back out of
-permanent coordination refs.
+**Required before the cap moves:** prove an existing provider or add a new rotation
+name, so the active rotation is **at least six**. Every added or restored name must be
+proven with a real `doctor` run on the wrapper and the output pasted into the PR — never
+assumed. Never delete a name from `REVIEWERS`; every name must still resolve to a wrapper
+when read back out of permanent coordination refs.
 
 ### 2.2 GitHub ref-write rate
 
@@ -101,9 +100,10 @@ not raise the cap without the reviewer growth in §2.1 landing in the same chang
 - **Cap.** `MAX_AUTHOR_LANES = 8`, with the comment block rewritten to record both
   raises. Guards unchanged; preview, merge and production remain serial.
 - **Reviewers.** The rotation reached six by activating `codex-gpt-5.6-sol` and
-  DeepSeek as full rotation providers rather than by un-retiring Qwen. That is a
-  deliberate departure from §2.1: Qwen and Gemini stay outside the rotation while
-  ai-devops reviewer reliability is repaired (owner instruction, 2026-08-28).
+  DeepSeek as full rotation providers. That was a deliberate departure from §2.1 at the
+  time: Gemini stayed outside the rotation while ai-devops reviewer reliability was
+  repaired. Qwen's exclusion was lifted by owner instruction on 2026-09-04; it is
+  treated like any other reviewer and is gated only by its own preflight qualification.
 - **Overflow removed.** `OVERFLOW_REVIEWERS` is now empty. With six rotation
   providers there is no reviewer of last resort: when all six execution keys are
   occupied, assignment **fails closed** and the allocator records an ordered

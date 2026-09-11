@@ -1,5 +1,7 @@
 # Master Data Style Tracker
 
+Active loading-performance work is tracked in [`../plan_master_data_orderlist_loading_performance.md`](../plan_master_data_orderlist_loading_performance.md). Read its STATUS table first; do not re-derive or re-plan completed steps.
+
 This is the Master Data page at `https://dam.designflow.app/styles`. It mirrors
 the legacy Google Sheet style tracker while PLM is not yet fully hosted in the
 shared Supabase project.
@@ -39,7 +41,7 @@ Important RPCs:
 
 Rows are loaded newest-first, but the browser loads the full active tab so quick
 search, column filters, and saved filters always evaluate the complete list.
-Pagination still defaults to 500 visible rows. **Show All** sits beside the
+Pagination defaults to 1,500 visible rows. **Show All** sits beside the
 bottom pagination controls and expands the current filtered result set; it does
 not change which rows are searched or filtered.
 
@@ -80,6 +82,9 @@ canonical item links. A pre-refresh database backup was taken before replacement
 - `Match` column is the row-level Master Data cross-reference status.
 - `Sample Vendor` uses the active `core.factory` list as its cell picker in both Licensed and Generic tabs.
 - `Sample ETA` appears beside Sample Vendor in both tabs, saves a date in the flexible row data, and its heading tooltip reads `ETA From Factory`.
+- Licensed and Generic use the same grid and save logic; their column configurations only identify the different source-sheet positions and omit licensing-only fields from Generic.
+- `Ordered Proff Photos` remains a text field. `Professional Photos` is a Yes/No field in both tabs.
+- Google date columns use date editors and Google checkbox columns use Yes/No editors. The Generic `UPC Code` column is numeric. Mixed identifier columns such as Style #, BA#, UPC, and Customer SKU remain text so leading zeroes and nonnumeric legacy values are not damaged.
 - `Originally Designed For` (Licensed) and `Special Customer` (Generic) are canonical Customer relationships. Their dropdown reads `api.dam_customer_list`, displays `display_name` with `name` as the fallback, and saves `public.style_tracker_rows.customer_id` (`core.customer.id`). Customer names are not copied on selection, so later renames do not break or stale the relationship. Legacy imported customer text remains only on rows that could not be backfilled unambiguously and disappears when a user selects a canonical Customer.
 - `Designer` uses active `core.creative_designer` rows as its picker. Linked rows display and filter by `canonical_designer_name` from `public.style_tracker_rows_with_bridge`; unresolved imported designer text remains visible as a fallback. Saving a picker value keeps the audited sheet text in sync and refreshes `plm.style_tracker_item_bridge`, whose `creative_designer_id` is the canonical foreign key.
 - `Packaging Type` appears in both Licensed and Generic tabs and uses the active `core.packaging_type` list as its cell picker. The selected display name is stored in each row's flexible `row_data.packaging_type` field; this does not duplicate or modify the shared lookup table.
@@ -98,7 +103,17 @@ canonical item links. A pre-refresh database backup was taken before replacement
 - The controlled description sections are picker/autocomplete driven. `MG01`, `MG02`, and `MG03` use the MerchGroup schema in `src/lib/mg-lookup.ts`; MG02 is limited by MG01, and MG03 is limited by MG01 + MG02. `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
 - A nonblank description must have approved values for MG01, MG02, MG03, Licensor + Property, and Size before the grid accepts the edit.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
-- Grid pagination defaults to 500 rows per page, with 1,000 and 1,500 row options.
+- Grid pagination defaults to 1,500 rows per page, with 500 and 1,000 row options.
+- Master Data renders the first four 1,000-row ranges as soon as they arrive,
+  then appends later four-range pages in the background. Until the truthful
+  loading notice clears, Find and column filters cover the rows already loaded;
+  once complete they cover the full in-browser tab.
+- Ctrl+F focuses the grid's full-dataset Find box. Find keeps the full table
+  visible, moves to the first matching row, and highlights matching rows rather
+  than filtering every other row out.
+- Administrators can select rows and use **AI helper** to preview one bulk
+  field/value update before confirming it. The planner uses `gpt-5.6-luna`
+  with medium reasoning; existing picker and description rules still validate saves.
 - AG Grid Enterprise is installed without a license key for now, matching the PLM-style trial setup. Keep AG Grid packages pinned to the same exact version; a previous `35.3.1` Enterprise + `35.1.0` Community/React mismatch caused a blank page before React mounted.
 
 ## View Customization (Saved Views)

@@ -1,11 +1,16 @@
+import os
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 from collections import Counter
 
 import pandas as pd
 
 from hierarchical_item_taxonomy import (
     TaxonomyValidity, build_associations, choose_at_level, classify_axes,
-    classify_product_type, code_validity, parse_description, usable_description,
+    classify_product_type, code_validity, find_name, parse_description, usable_description,
+    _index_names,
 )
 from product_type_dictionary import SemanticSignature, classify_semantic_signature, validate_signature
 
@@ -212,6 +217,30 @@ class ThreeAxisRepairTests(unittest.TestCase):
     def test_23_thresholds_are_unchanged(self):
         self.assertIsNone(choose_at_level("x", 3, {"x": Counter({"A|A2|11": 3, "A|A2|21": 1})}))
         self.assertIsNotNone(choose_at_level("x", 3, {"x": Counter({"A|A2|11": 4, "A|A2|21": 1})}))
+
+    def test_24_equal_length_names_resolve_the_same_in_every_process(self):
+        # Two same-length one-word names anchored on the same word must always
+        # produce the same winner. Before this was fixed the choice came from
+        # set iteration order, which depends on PYTHONHASHSEED, so re-running
+        # the classifier on identical input produced different Licensor values.
+        # A same-process check cannot see that: the seed has to change.
+        script = (
+            "from hierarchical_item_taxonomy import find_name, _index_names;"
+            "print(find_name('MARVEL DISNEY 8x10', _index_names({'DISNEY', 'MARVEL'})))"
+        )
+        answers = set()
+        for seed in ("0", "1", "2", "3", "4", "5", "6", "7"):
+            env = dict(os.environ, PYTHONHASHSEED=seed)
+            result = subprocess.run(
+                [sys.executable, "-c", script], cwd=str(Path(__file__).parent),
+                env=env, capture_output=True, text=True, check=True,
+            )
+            answers.add(result.stdout.strip())
+        self.assertEqual(len(answers), 1, f"name matching is seed dependent: {sorted(answers)}")
+
+    def test_25_longer_name_still_beats_the_tie_break(self):
+        index = _index_names({"AAAAAA", "DISNEY PRINCESS"})
+        self.assertEqual(find_name("DISNEY PRINCESS AAAAAA", index), "DISNEY PRINCESS")
 
 
 if __name__ == "__main__":

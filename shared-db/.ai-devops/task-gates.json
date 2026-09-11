@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "_comment": "shared-db strengthens every Supabase surface as governed shared-database work and applies the repository branch-and-PR rule to ordinary changes.",
+  "paths": [
+    { "glob": "AGENTS.md", "class": "reviewer-safety" },
+    { "glob": "CLAUDE.md", "class": "reviewer-safety" },
+    { "glob": "plan_*.md", "class": "reviewer-safety" },
+    { "glob": "skills/**", "class": "reviewer-safety" },
+    { "glob": ".claude/skills/**", "class": "reviewer-safety" },
+    { "glob": ".claude/agents/**", "class": "reviewer-safety" },
+    { "glob": ".claude/commands/**", "class": "reviewer-safety" },
+    { "glob": "supabase/**", "class": "shared-db" },
+    { "glob": "config/atomic-migration-allowlist.json", "class": "shared-db" },
+    { "glob": "config/production-risk-policy-activation.json", "class": "shared-db" }
+  ],
+  "gates": {
+    "prose": {
+      "required": ["repository-branch-and-pr"],
+      "forbidden_actions": []
+    },
+    "code": {
+      "required": ["repository-branch-and-pr", "exact-head-independent-review"],
+      "forbidden_actions": []
+    },
+    "shared-db": {
+      "required": [
+        "repository-branch-and-pr",
+        "exact-head-independent-review",
+        "target-database-proof-before-write",
+        "production-promotion-authorization"
+      ],
+      "forbidden_actions": []
+    },
+    "reviewer-safety": {
+      "required": ["repository-branch-and-pr", "repository-rulebook-full-treatment"],
+      "forbidden_actions": []
+    }
+  }
+}

@@ -139,6 +139,25 @@ submit only when the returned envelope includes `lease_receipt_issued = true`
 and a non-empty receipt. A restart reloads the saved provider batch ID and checks
 that same job; it never treats a generic `ok` response as permission to submit.
 
+### Rebuild outcome history and alerts
+
+After a `rebuild-style-groups` run reaches a non-retryable failure or completes, the
+worker appends one immutable row to `public.bulk_operation_runs`. A later success has a
+new `run_id` and cannot overwrite the earlier failure. Transient interruptions remain
+resumable and are not terminal history rows.
+
+Failed terminal outcomes POST a safe operational payload (operation, run identifier,
+stage, error, reason, counters, and timestamps) to the Railway-only
+`BULK_OPERATION_ALERT_WEBHOOK_URL`. This must be an owner-selected existing monitored
+destination. When it is unset or rejects delivery, the worker logs an error rather than
+claiming an alert was sent. Cron remains an enqueue-only signal and is never used to
+decide whether the rebuild succeeded.
+
+GitHub Actions is the default monitored destination. `Monitor Nightly Style Group
+Rebuild` runs after the normal rebuild window and reads the worker's latest terminal row,
+not `cron.job_run_details`. It fails visibly when the worker reported failure or when no
+terminal outcome was recorded. The webhook remains an optional immediate second channel.
+
 OpenRouter phases are `prepared`, `submitting`, `pending`, `applying`,
 `completed`, and `ambiguous_submission`. Pending jobs are checked no faster than
 every 10 seconds. An expired submission lease without a saved provider ID is

@@ -1,5 +1,10 @@
 # Coldlion ERP customers + vendors → canonical hubs (2026-07-15)
 
+> **Customer codes are scrubbed (2026-09-02, issue #2103).** Every ColdLion customer/vendor master
+> code below is a synthetic placeholder (`CUSTnnn`), used consistently across the
+> ColdLion docs, and some ERP legal names and addresses are generalised. The real codes, ERP legal
+> names and addresses live in the ColdLion question register, not in this public repository.
+
 **Migrations:**
 - `supabase/migrations/20260715234500_erp_coldlion_customer_vendor_import.sql` — the import machinery + one-time backfill.
 - `supabase/migrations/20260716140000_erp_coldlion_status_app_owned.sql` — makes `status` app-owned so manual inactivation survives re-pulls (see "Status is app-owned" below).
@@ -54,7 +59,7 @@ guard, or backfill by name).
 | Active | 834 | 532 |
 | Promoted to canonical (created) | 790 | 523 |
 | Promoted to canonical (matched existing) | 44 | 8 |
-| Not promoted (inactive) | 2 (`EDP050`,`WIS030`) | 7 |
+| Not promoted (inactive) | 2 (`CUST034`,`CUST116`) | 7 |
 
 `core.customer`: 139 → 929 (848 active ERP-backed / `is_potential=false`, 81 still potential).
 `core.factory`: 6 → 529. `core.company_source_ref` gained 834 `coldlion` rows;

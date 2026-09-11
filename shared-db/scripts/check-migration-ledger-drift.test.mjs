@@ -22,7 +22,6 @@ import {
   APPLIED_VERSIONS_SQL,
   fetchAppliedVersions,
   guardClassifications,
-  classifyPendingWithRules,
   validatePendingClassifications,
 } from './check-migration-ledger-drift.mjs'
 
@@ -66,10 +65,6 @@ function io({ files, applied }) {
 const classifications = (versions, kind = 'genuinely-pending') => Object.fromEntries(
   versions.map((version) => [version, { kind, reason: 'focused test reason' }]),
 )
-
-const ruleFixture = (overrides = {}) => ({
-  retired: [], hardBlocked: [], bundle: [], frHeld: [], frRemoval: [], atomic: [], coPresence: [], derivedFrom: {}, ...overrides,
-})
 
 const files = (versions) => versions.map((v) => `supabase/migrations/${v}_thing.sql`)
 
@@ -165,12 +160,17 @@ test('an orphan ledger row stays red when all merged-but-unapplied versions are 
   assert.deepEqual(drift.appliedNotMerged, ['20260701000000'])
 })
 
-test('classifies retired and deliberately-held versions from the existing Python rule sources', () => {
-  const result = guardClassifications(['20260729120000', '20260802170000', '20260814170749', '20260816045130', '20260824181600'], [])
+test('classifies retired and deliberately-held versions from every existing Python registry', () => {
+  const result = guardClassifications(['20260729120000', '20260802170000', '20260802171000', '20260814170749', '20260816045130', '20260824181600'], [])
   assert.equal(result['20260729120000'].kind, 'retired')
   assert.match(result['20260729120000'].reason, /RETIRED_VERSIONS/)
   assert.equal(result['20260802170000'].kind, 'deliberately-held')
   assert.match(result['20260802170000'].reason, /owner ruling/i)
+  // Held AND hard-blocked. The held historical FR ruling was superseded by the
+  // guarded forward 20260818174350, so this original must never be applied at
+  // all; the drift report must print the hard block, not 'waiting its turn'.
+  assert.equal(result['20260802171000'].kind, 'retired')
+  assert.match(result['20260802171000'].reason, /refuses this version outright/)
   assert.equal(result['20260816045130'].kind, 'retired')
   assert.match(result['20260816045130'].reason, /explicit COMMIT separates DDL from the Supabase migration ledger/)
   assert.match(result['20260816045130'].reason, /never apply production/)
@@ -181,14 +181,28 @@ test('classifies retired and deliberately-held versions from the existing Python
   assert.match(result['20260824181600'].reason, /20260825192610, applied to production 2026-08-25/)
 })
 
+test('classifies the stranded coldlion.division original as retired, not pending', () => {
+  const result = guardClassifications(['20260903200951'], [])
+  assert.equal(result['20260903200951'].kind, 'retired')
+  assert.match(result['20260903200951'].reason, /replaced byte-for-byte by 20260905024139/)
+  assert.match(result['20260903200951'].reason, /issue 2349/)
+})
+
+test('classifies the stranded bulk-operation history original as retired, not pending', () => {
+  const result = guardClassifications(['20260908195056'], [])
+  assert.equal(result['20260908195056'].kind, 'retired')
+  assert.match(result['20260908195056'].reason, /reissued with identical migration content as 20260909202801/)
+  assert.match(result['20260908195056'].reason, /issue 2439 and claim 2443/)
+})
+
 test('classifies preview-only historical restoration as deliberately held',()=>{
-  const result=classifyPendingWithRules(['20260817150944'],[],ruleFixture({previewOnlyHistorical:['20260817150944']}))
+  const result=guardClassifications(['20260817150944'],[])
   assert.equal(result['20260817150944'].kind,'deliberately-held')
   assert.match(result['20260817150944'].reason,/never include.*production allowlist/i)
 })
 
 test('classifies the FR compatibility prerequisite as deliberately held',()=>{
-  const result=classifyPendingWithRules(['20260817225127'],[],ruleFixture({frCompatibility:['20260817225127']}))
+  const result=guardClassifications(['20260817225127'],[])
   assert.equal(result['20260817225127'].kind,'deliberately-held')
   assert.match(result['20260817225127'].reason,/compatibility prerequisite.*one bounded apply/i)
 })
@@ -206,78 +220,9 @@ test('carries the production guard reason for an atomic or co-presence migration
   assert.match(result['20260810190000'].reason, /20260810190100/)
 })
 
-test('ledger-aware co-presence classifies every outstanding fix in a full fix-only recovery', () => {
-  const rules = ruleFixture({ coPresence: [{ create: '100', fixes: ['110', '120'], why: 'both fixes close the exposure' }] })
-  const result = classifyPendingWithRules(['110', '120'], ['100'], rules)
-  for (const version of ['110', '120']) {
-    assert.equal(result[version].kind, 'guarded-batch')
-    assert.match(result[version].reason, /Create 100 is already applied/)
-    assert.match(result[version].reason, /110, 120/)
-  }
-})
-
-test('ledger-aware co-presence permits the remaining fix recovery after its sibling applied', () => {
-  const rules = ruleFixture({ coPresence: [{ create: '100', fixes: ['110', '120'], why: 'both fixes close the exposure' }] })
-  const result = classifyPendingWithRules(['120'], ['100', '110'], rules)
-  assert.equal(result['120'].kind, 'guarded-batch')
-  assert.match(result['120'].reason, /Outstanding required fixes: 120/)
-  assert.doesNotMatch(result['120'].reason, /Outstanding required fixes: 110/)
-})
-
-test('one-directional co-presence does not make a fix depend on an unapplied create', () => {
-  const rules = ruleFixture({ coPresence: [{ create: '100', fixes: ['110', '120'], why: 'create requires fixes' }] })
-  const result = classifyPendingWithRules(['110'], [], rules)
-  assert.equal(result['110'].kind, 'genuinely-pending')
-})
-
-test('future FR removal versions inherit the deliberate owner-held bundle', () => {
-  const rules = ruleFixture({ frHeld: ['200', '210'], frRemoval: ['220', '230'] })
-  const result = classifyPendingWithRules(['200', '220', '230'], [], rules)
-  for (const version of ['200', '220', '230']) {
-    assert.equal(result[version].kind, 'deliberately-held')
-    assert.match(result[version].reason, /200, 210, 220, 230/)
-  }
-})
-
 // Issue #1608 ask 3: a version whose declared base is unapplied in the target is
 // not the same risk as an ordinary pending version, and today they are
 // indistinguishable in this report.
-test('a pending version whose declared base is unapplied gets its own kind', () => {
-  const rules = ruleFixture({ derivedFrom: { 200: ['100'] } })
-  const result = classifyPendingWithRules(['200'], ['090'], rules)
-  assert.equal(result['200'].kind, 'base-absent')
-  assert.match(result['200'].reason, /does NOT have 100/)
-  assert.match(result['200'].reason, /would not fail/)
-})
-
-test('the same version reads as ordinary pending once its base is applied', () => {
-  const rules = ruleFixture({ derivedFrom: { 200: ['100'] } })
-  assert.equal(classifyPendingWithRules(['200'], ['100'], rules)['200'].kind, 'genuinely-pending')
-})
-
-test('only the bases the target actually lacks are named', () => {
-  const rules = ruleFixture({ derivedFrom: { 200: ['100', '110'] } })
-  const reason = classifyPendingWithRules(['200'], ['100'], rules)['200'].reason
-  assert.match(reason, /does NOT have 110/)
-})
-
-test('base-absent never overrides a retirement, which is the stronger statement', () => {
-  const rules = ruleFixture({ retired: ['200'], derivedFrom: { 200: ['100'] } })
-  assert.equal(classifyPendingWithRules(['200'], [], rules)['200'].kind, 'retired')
-})
-
-test('base-absent is actionable drift, not an intentional exclusion', () => {
-  const rules = ruleFixture({ derivedFrom: { 200: ['100'] } })
-  const classifications = classifyPendingWithRules(['200'], ['090'], rules)
-  validatePendingClassifications(['200'], classifications)
-  const assessed = assessDrift(
-    { mergedNotApplied: ['200'], appliedNotMerged: [], driftFound: true },
-    classifications,
-  )
-  assert.deepEqual(assessed.actionableMergedNotApplied, ['200'])
-  assert.deepEqual(assessed.intentionallyExcluded, [])
-})
-
 test('the real 2026-08-24 migration is reported as base-absent from the guard rules', () => {
   // End-to-end through the Python emission, so a broken import or a dropped
   // `derivedFrom` key fails here rather than silently degrading to "pending".

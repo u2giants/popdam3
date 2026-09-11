@@ -390,3 +390,75 @@ test('resolve: the target names the CURRENT marker and forbids history as a sour
   assert.match(out, /Do not route from a handoff, a closed marker, or conversation history/)
   assert.match(out, /Re-resolve before every delegation/)
 })
+
+// --- #2318: admission -- was this session ever allowed to hold the role? ----
+
+/**
+ * Marker #2312 passed every check here on 2026-09-04: it was the only open
+ * marker and its routing block was well-formed. Nothing asked on what grounds
+ * the role had been taken. These cases pin that the guard now does.
+ */
+const AUTHORIZED_MARKER = (authorization, createdAt = '2026-09-11T09:00:00Z') => [
+  {
+    number: 2312,
+    body: ROUTING(authorization === null ? {} : { authorization }),
+    createdAt,
+  },
+]
+
+test('#2318 a well-formed marker whose grounds are a `db-work` label FAILS the guard', () => {
+  const result = evaluateRouting(AUTHORIZED_MARKER('db-work'))
+  assert.equal(result.problems.length, 1)
+  assert.match(result.problems[0], /marker #2312: /)
+  assert.match(result.problems[0], /REFUSED/)
+  assert.equal(result.routing, null, 'an unauthorized marker names no delegation target')
+})
+
+test('#2318 delegated task traffic and a structural need each FAIL, so neither can create authority', () => {
+  for (const ground of ['delegated-task', 'task-traffic', 'structural-need', 'handoff']) {
+    const result = evaluateRouting(AUTHORIZED_MARKER(ground))
+    assert.equal(result.problems.length, 1, `${ground} must fail the guard`)
+    assert.equal(result.routing, null, `${ground} must resolve to no target`)
+  }
+})
+
+test('#2318 an unauthorized marker is INVALID, not NONE -- the default stays non-orchestrator Path A', () => {
+  const target = resolveTarget(
+    evaluate([issue(2312, [MARKER_LABEL], { created_at: '2026-09-11T09:00:00Z', body: ROUTING({ authorization: 'structural-need' }) })]).markers,
+  )
+  assert.equal(target.state, 'invalid')
+  assert.notEqual(target.state, 'none')
+})
+
+test('#2318 explicit owner authorization in the current chat PASSES and still resolves a target', () => {
+  const result = evaluateRouting(AUTHORIZED_MARKER('owner-current-chat 2026-09-11T08:55:00Z'))
+  assert.deepEqual(result.problems, [])
+  assert.deepEqual(result.warnings, [])
+  assert.equal(result.routing?.routeId, '00000000-0000-7000-8000-00000000a1a1')
+})
+
+test('#2318 the live marker predating admission is WARNED, not failed, and still routes', () => {
+  const result = evaluateRouting(AUTHORIZED_MARKER(null, '2026-09-09T11:44:47Z'))
+  assert.deepEqual(result.problems, [])
+  assert.equal(result.warnings.length, 1)
+  assert.match(result.warnings[0], /marker #2312: this marker opened 2026-09-09/)
+  assert.match(result.warnings[0], /does not fail the guard/)
+  assert.ok(result.routing, 'a grandfathered marker must keep its delegation target')
+})
+
+test('#2318 a marker that is BOTH unroutable and unauthorized reports both causes, not one', () => {
+  const result = evaluateRouting([
+    { number: 2312, body: ROUTING({ route_id: 'tbd', authorization: 'db-work' }), createdAt: '2026-09-11T09:00:00Z' },
+  ])
+  assert.ok(result.problems.some((p) => /route_id/.test(p)), 'the routing cause must survive')
+  assert.ok(result.problems.some((p) => /REFUSED/.test(p)), 'the admission cause must survive')
+})
+
+test('#2318 a routing-grandfathered marker still REPORTS its refused ground instead of dropping it', () => {
+  const result = evaluateRouting([
+    { number: 2312, body: ROUTING({ route_id: 'tbd', authorization: 'db-work' }), createdAt: '2026-08-20T09:00:00Z' },
+  ])
+  assert.deepEqual(result.problems, [], 'routing grandfathering still holds')
+  assert.ok(result.warnings.some((w) => /REFUSED/.test(w)), 'the refused ground must still be stated')
+  assert.equal(result.routing, null)
+})

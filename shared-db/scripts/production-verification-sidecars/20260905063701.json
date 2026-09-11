@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260905063701",
+  "migration_sha256": "950ebb5de48667b7dfec64f7216a54d0e9cda57ba7f1e5a413fdafdad11c587f",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 53,
+      "line_end": 53,
+      "disposition": "checks",
+      "check_ids": [
+        "style_tracker_rows_realtime_publication"
+      ],
+      "reason": "Line 53 is the migration's only dynamic execution: it adds public.style_tracker_rows to the supabase_realtime publication. The cited verifier-owned contract reads pg_publication_tables for exactly that membership row, together with the two preconditions the migration's own guards test, so the durable catalog outcome of this marker is checked directly rather than inferred; check IDs: style_tracker_rows_realtime_publication."
+    }
+  ],
+  "checks": [
+    {
+      "id": "style_tracker_rows_realtime_publication",
+      "kind": "catalog_contract",
+      "contract": "style_tracker_rows_realtime_publication_v1",
+      "expected_count": 1
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+name: Monitor Nightly Style Group Rebuild
+
+on:
+  schedule:
+    # The rebuild starts at 06:00 UTC and normally takes a little over two hours.
+    - cron: "30 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-worker-outcome:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the worker's latest terminal outcome
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          cutoff="$(date -u -d '27 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          response="$(curl --fail --silent --show-error --get \
+            "$SUPABASE_URL/rest/v1/bulk_operation_runs" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --data-urlencode "operation=eq.rebuild-style-groups" \
+            --data-urlencode "started_at=gte.$cutoff" \
+            --data-urlencode "select=run_id,status,succeeded,stage,error,reason_code,started_at,ended_at,progress" \
+            --data-urlencode "order=started_at.desc" \
+            --data-urlencode "limit=1")"
+
+          count="$(jq 'length' <<<"$response")"
+          if [[ "$count" != "1" ]]; then
+            echo "No terminal worker outcome was recorded in the last 27 hours."
+            exit 1
+          fi
+
+          jq -r '.[0] | "run_id=\(.run_id) status=\(.status) stage=\(.stage // "unknown") started_at=\(.started_at) ended_at=\(.ended_at // "unknown")"' <<<"$response"
+          if [[ "$(jq -r '.[0].succeeded' <<<"$response")" != "true" ]]; then
+            jq -r '.[0] | "Nightly rebuild failed: reason=\(.reason_code // "none") error=\(.error // "none") progress=\(.progress)"' <<<"$response"
+            exit 1
+          fi
+
+          echo "The latest nightly rebuild completed successfully."

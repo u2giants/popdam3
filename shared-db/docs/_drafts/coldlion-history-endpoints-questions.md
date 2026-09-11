@@ -9,7 +9,7 @@
 > the production-order line number (`prodLineSeq`), rate limits (7-day cap), `subUpc` (rare, keep
 > it), `ppkMerchGroup*` blanks (assortment vs component SKU), `lineInvoiceQty`/`lineOpenQty` (not
 > carried at component level), old unlinked lines (hard-linking began ~2022–2023; the link drops on
-> `INTRAN`/`REC`), **the stage list (exactly `ISS`, `INTRAN`, `REC`)**, and **the AMA030 lines
+> `INTRAN`/`REC`), **the stage list (exactly `ISS`, `INTRAN`, `REC`)**, and **the CUST003 lines
 > (Amazon is stock production, no customer PO)**.
 >
 > Register: [`coldlion-open-questions.md`](../coldlion-open-questions.md).
@@ -30,7 +30,7 @@ week of July 2024 and 7 rows for late July 2026. Clearly transient, which makes 
 mean anyone sampling a few quiet weeks could wrongly conclude the stage is dead. We now fetch all
 three stages for every window.
 
-**Amazon explains the group we could not place.** All ten of those AMA030 lines are unlinked with no
+**Amazon explains the group we could not place.** All ten of those CUST003 lines are unlinked with no
 customer PO, all `StockCa` into warehouse `AMACN` — exactly as you describe. One thing we noticed
 while checking: we cannot use the production type to identify stock production generally, because
 one non-Amazon customer has 120 `StockCa` lines that *are* linked to sales orders. So we are treating the

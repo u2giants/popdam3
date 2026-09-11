@@ -105,12 +105,18 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 > [`coldlion-answers-20260826.md`](coldlion-answers-20260826.md). Anything below about those
 > fields being absent or dead describes the API before that date.
 >
-> **⚠️ CORRECTED 2026-08-28 — `salesOrderLineNo` is NOT a key.** ColdLion (JamieLynn) confirmed the
+> **⚠️ CORRECTED 2026-08-28 — `salesOrderLineNo` is NOT a key by itself.** ColdLion (JamieLynn) confirmed the
 > feed assembles Sales Order, Prepack Detail, Pick Ticket and Invoice, and the line number is
 > **re-assigned at pick and at invoice**. `(salesOrderNo, salesOrderLineNo)` is therefore not
 > unique and never will be. Do not de-duplicate on it and do not sum split lines — both prices on a
 > split line are real. See
 > [`business-rules/erp-orders-and-source-meaning.md`](business-rules/erp-orders-and-source-meaning.md).
+>
+> **Superseded in part 2026-09-02 after the 2026-08-31 payload change:** the pair remains unsafe
+> as a unique row key, but the current component identity is `(salesOrderNo,
+> salesOrderLineNo,itemNo,subItemNo)`. A normalized parent version must additionally carry its
+> line-grain hash because the feed still does not expose the source-document type. See
+> `plan_coldlion_landing_schema_completion.md` §6 and §9 Step 4.
 
 > ### ⚠️⚠️ The default `prodHistory` response is INCOMPLETE — fetch every `stageCode`
 > **Without `stageCode`, `prodHistory` returns only the `ISS` (issued) lines.** Verified 2026-08-18:
@@ -123,20 +129,26 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 > `REC` loses every short shipment and every receipt date in the dataset.
 >
 > **There are exactly three stages: `ISS`, `INTRAN`, `REC`** — authoritative, ColdLion 2026-08-19.
-> Fetch all three and **record which stage each row came from**; the payload does not say. All three
+> Fetch all three and **record which stage each row came from**. **Updated 2026-08-26:** the payload
+> now returns `stageCode`; assert it equals the requested stage rather than stamping it. All three
 > carry real rows: `INTRAN` looked empty in early probing but returned 129 rows for 2024-07-01 (it
 > is a transient state, so it depends when you ask). Every `INTRAN` and `REC` row tested was
 > unlinked with no `custPONumber`. Business meaning:
 > [`business-rules-erp-data.md`](business-rules-erp-data.md) §4.
 
-> ### ⚠️ There is no paging on these two endpoints
-> Unlike `/items` and the other paged endpoints, these return a **plain JSON array**, not the
+> ### ❌ SUPERSEDED 2026-09-02 — both history endpoints are now paged
+> ColdLion changed both endpoints on 2026-08-31. They now return the standard paged envelope,
+> silently cap a page at 200 rows, and must be fetched until `last=true`. The historical text
+> below is retained only to explain old probes; **do not implement it**. Current contract:
+> `coldlion-erp-api-reference.md` §Paging and `plan_coldlion_landing_schema_completion.md` §6/§9.
+>
+> ~~Unlike `/items` and the other paged endpoints, these return a **plain JSON array**, not the
 > `content` / `last` / `totalElements` envelope. `page` and `size` are **silently ignored** —
 > sending `size=5` still returned 265 rows. The response schema in the spec confirms it:
 > `{"type":"array","items":{"$ref":"#/definitions/ProdHistory"}}`.
 >
 > **Consequence:** chunking must be done by **date window**, and a window is all-or-nothing.
-> Do not write a paging loop; it will silently re-fetch the same rows forever.
+> Do not write a paging loop; it will silently re-fetch the same rows forever.~~
 
 **Division scope is wider than it first looks.** `companyCode=EDGEHOME` returns **four**
 divisions — `CW001`, `EH001`, `EP001`, `SP001` — on both endpoints. A short window can show
@@ -145,7 +157,12 @@ can be narrowed with `divisionCode`; **`prodHistory` cannot** (no such parameter
 
 ## 3. Volume and timing
 
-**Current shape of the work, post-cap.** ColdLion's stated expectation: *"about 2 seconds to load
+> **SUPERSEDED VOLUME ARITHMETIC 2026-09-02:** any request/window total below that assumes one
+> response per window. Current work is pages per window, and `prodHistory` is pages for each of
+> ISS/INTRAN/REC. Size work from live `totalPages`; never use the historical ~740-request estimate
+> as a completeness target.
+
+**Historical shape of the work, before paging.** ColdLion's stated expectation: *"about 2 seconds to load
 7 days of data from our office."* Measured from al8960ofc across nine 7-day `prodHistory` windows
 spanning 2019–2026: **18 to 662 rows per window**, typically **0.1–1.4 seconds**, with one outlier
 at **6.4 seconds**. That matches their figure; our earlier 18s and 51s outliers were month-window
@@ -414,7 +431,7 @@ most of it, and there are **three distinct causes**:
    not carry down from `ISS`. Every `REC` row tested was unlinked with an empty `custPONumber`.
    Attribute a receipt via `prodOrderNo` back to its `ISS` line — rules §4.
 3. **`COS` sample production**, which legitimately has no customer order — rules §1.
-4. **Stock production for Amazon** (`AMA030`). Amazon goods are made to stock for their warehouse,
+4. **Stock production for Amazon** (`CUST003`). Amazon goods are made to stock for their warehouse,
    not presold, so there is no customer PO. Verified 10 of 10 unlinked. **This is what the 10
    "unexplained" 2026-08 rows were** — rules §8. Do **not** generalise it from `prodTypeCode`:
    `Stock*` types are 92% linked (one non-Amazon customer alone has 120 linked `Stock*` rows).
@@ -501,7 +518,7 @@ Drafted in [`_drafts/coldlion-history-endpoints-questions.md`](_drafts/coldlion-
 2. **The ~12–16% of component rows where `ppkMerchGroup*` is blank**, after the assortment-vs-
    component structure is accounted for (§5.7).
 3. **Recent non-`COS` unlinked lines.** ColdLion's historical explanation covers the old ones, but
-   10 rows in 2026-08 are `ISS`-stage, not `COS`, recent, and unlinked — all customer AMA030,
+   10 rows in 2026-08 are `ISS`-stage, not `COS`, recent, and unlinked — all customer CUST003,
    references D3568/D3569, ordered 2026-08-05 (§5.5).
 4. **How far back the history goes**, to size the one-time load (§7).
 

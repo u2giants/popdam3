@@ -1428,7 +1428,15 @@ $$;
 
 
 -- =====================================================================================
--- H. THIS LANDING WRITES NOTHING CANONICAL. No reconciliation column, no core/dam FK.
+-- H. THIS LANDING WRITES NOTHING CANONICAL, WITH ONE GOVERNED EXCEPTION.
+--
+-- The original release resolved nothing, so this section pinned zero canonical
+-- foreign keys and zero reconciliation columns across the whole wildbrain landing.
+-- Issue #2123 (routed out of #562) added the core.character promotion contract to
+-- plm.wildbrain_character -- and to that table only. The guard is therefore narrowed
+-- to that one named contract rather than relaxed: every other wildbrain landing table
+-- must still hold nothing canonical, and the exempted contract is itself asserted to
+-- exist in exactly the shape #2123 authorised.
 -- =====================================================================================
 do $$
 declare
@@ -1436,6 +1444,8 @@ declare
 begin
   raise notice '=== H. NOTHING CANONICAL ===';
 
+  -- H1. No canonical foreign key anywhere in the wildbrain landing, except the one
+  --     named #2123 promotion key on plm.wildbrain_character.
   select count(*) into v_n
     from pg_constraint c
     join pg_class t on t.oid = c.conrelid
@@ -1443,20 +1453,62 @@ begin
     join pg_class rt on rt.oid = c.confrelid
     join pg_namespace rn on rn.oid = rt.relnamespace
    where n.nspname = 'plm' and t.relname like 'wildbrain\_%' and c.contype = 'f'
-     and rn.nspname in ('core','dam','api','pim');
+     and rn.nspname in ('core','dam','api','pim')
+     and not (t.relname = 'wildbrain_character'
+              and c.conname = 'plm_wildbrain_character_core_character_fk'
+              and rn.nspname = 'core' and rt.relname = 'character');
   if v_n <> 0 then
-    raise exception 'H FAILED: % foreign key(s) from the wildbrain landing into a canonical schema', v_n;
+    raise exception 'H FAILED: % unauthorised foreign key(s) from the wildbrain landing into a canonical schema', v_n;
   end if;
 
+  -- H2. No reconciliation column anywhere in the landing, except the five columns of
+  --     the #2123 contract on plm.wildbrain_character.
   select count(*) into v_n from information_schema.columns
    where table_schema = 'plm' and table_name like 'wildbrain\_%'
      and (column_name like 'core\_%' or column_name like 'dam\_%'
-          or column_name in ('resolution_status','resolved_at','resolved_by'));
+          or column_name in ('resolution_status','resolution_reason','resolved_at','resolved_by'))
+     and not (table_name = 'wildbrain_character'
+              and column_name in ('core_character_id','resolution_status',
+                                  'resolution_reason','resolved_at','resolved_by'));
   if v_n <> 0 then
-    raise exception 'H FAILED: % reconciliation column(s) exist; this release resolves nothing', v_n;
+    raise exception 'H FAILED: % unauthorised reconciliation column(s) exist outside the #2123 contract', v_n;
   end if;
 
-  raise notice 'H: the landing is self-contained -- nothing canonical is referenced or written.';
+  -- H3. The exemption is not a hole: the #2123 contract must actually be present, with
+  --     its on-delete-restrict validated foreign key and its five columns.
+  select count(*) into v_n from information_schema.columns
+   where table_schema = 'plm' and table_name = 'wildbrain_character'
+     and (column_name, data_type, is_nullable) in (
+           ('core_character_id', 'uuid',                     'YES'),
+           ('resolution_status', 'text',                     'NO'),
+           ('resolution_reason', 'text',                     'YES'),
+           ('resolved_at',       'timestamp with time zone', 'YES'),
+           ('resolved_by',       'text',                     'YES'));
+  if v_n <> 5 then
+    raise exception 'H FAILED: the #2123 promotion contract on plm.wildbrain_character has % of 5 columns', v_n;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint c
+      join pg_class t on t.oid = c.conrelid
+      join pg_namespace n on n.oid = t.relnamespace
+      join pg_class rt on rt.oid = c.confrelid
+      join pg_namespace rn on rn.oid = rt.relnamespace
+     where n.nspname = 'plm' and t.relname = 'wildbrain_character'
+       and c.conname = 'plm_wildbrain_character_core_character_fk'
+       and c.contype = 'f' and c.confdeltype = 'r' and c.convalidated
+       and rn.nspname = 'core' and rt.relname = 'character') then
+    raise exception 'H FAILED: the #2123 core.character foreign key on plm.wildbrain_character is missing or not on-delete-restrict';
+  end if;
+
+  -- H4. Adding the column resolves nothing by itself: no landing row may arrive already
+  --     promoted, and an unaudited resolution must remain impossible.
+  if exists (select 1 from plm.wildbrain_character
+              where core_character_id is not null or resolution_status <> 'unresolved') then
+    raise exception 'H FAILED: a wildbrain landing row is already resolved; this contract records resolutions, it does not make them';
+  end if;
+
+  raise notice 'H: the landing is self-contained apart from the governed #2123 core.character promotion contract on plm.wildbrain_character, which is present, audited and unused.';
 end;
 $$;
 
@@ -1829,7 +1881,13 @@ declare
     ['peanuts\_%',   'peanuts'],
     ['wildbrain\_%', 'wildbrain'],
     ['sesame\_%',    'sesame'],
-    ['coke\_%',      'coca-cola']
+    ['coke\_%',      'coca-cola'],
+    -- 2026-09-10: added by the author of #2579 with migration 20260910155753,
+    -- which classified the plm.marvel_* and plm.wwe_* families that landed after
+    -- the inventory was written and were still reported as 'other'. Two rows, and
+    -- nothing else in this file changed.
+    ['marvel\_%',    'marvel'],
+    ['wwe\_%',       'wwe']
   ];
 begin
   raise notice '=== I. api.source_capture_inventory CLASSIFIES WILDBRAIN ===';

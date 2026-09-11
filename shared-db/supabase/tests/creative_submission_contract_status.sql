@@ -11,7 +11,7 @@ declare
 begin
   select pg_get_functiondef('api.db_data_admin_scraped_properties(text,text,integer)'::regprocedure) into v_definition;
   if position('app.require_licensing_manager_access()' in v_definition)=0
-     or position('creative_submission_property_resolution' in v_definition)=0
+     or position('plm.dcp_opa_property_resolution' in v_definition)=0
      or position('creative_submission_contract_resolution' in v_definition)=0
      or position('submission_source.source_property_name' in v_definition)=0 then
     raise exception '#1872 RPC, exact-label join, or Licensing Manager gate is missing'; end if;
@@ -55,28 +55,28 @@ begin
     (v_submission_capture,'zz1872-'||v_suffix||'-sub-no-evidence','ZZ Synthetic Submissions no evidence','https://invalid.example',repeat('7',64),'{}');
   perform plm.finalize_sega_submission_capture(v_submission_capture,'{"submission_properties":4}','[]');
 
-  insert into plm.creative_submission_property_resolution
-    (resolution_id,creative_source_system,creative_source_table,creative_source_id,decision_version,
-     decision_state,reviewed_batch_id,reviewed_batch_digest,approval_actor_id,approved_at)
+  insert into plm.dcp_opa_property_resolution
+    (resolution_id,source_system,source_table,source_property_id,decision_version,
+     creative_decision_state,approval_status,evidence_reference,evidence_sha256,decision_reason,approved_by,approved_at)
   select gen_random_uuid(),'disney_dcpvault','plm.dcp_property','zz1872-'||v_suffix||'-'||x.suffix,1,
-    x.state,gen_random_uuid(),'sha256:'||repeat('8',64),gen_random_uuid(),now()
+    x.state,'approved','synthetic test',repeat('8',64),'synthetic reviewed decision',gen_random_uuid()::text,now()
   from (values('mapped','mapped'),('many','mapped'),('conflict','conflict'),
     ('unmapped','unmapped'),('incomplete','mapped'),('no-evidence','mapped')) x(suffix,state);
-  insert into plm.creative_submission_property_resolution_member
-    (resolution_member_id,resolution_id,submission_source_system,submission_source_table,submission_source_id)
-  select gen_random_uuid(),r.resolution_id,'sega_product_approval','plm.sega_submission_property',
-    'zz1872-'||v_suffix||'-sub-'||case r.creative_source_id
+  insert into plm.dcp_opa_property_resolution_member
+    (resolution_id,member_ordinal,submission_source_system,submission_source_table,submission_source_id)
+  select r.resolution_id,1,'sega_product_approval','plm.sega_submission_property',
+    'zz1872-'||v_suffix||'-sub-'||case r.source_property_id
       when 'zz1872-'||v_suffix||'-mapped' then 'mapped'
       when 'zz1872-'||v_suffix||'-many' then 'mapped'
       when 'zz1872-'||v_suffix||'-incomplete' then 'incomplete'
       else 'no-evidence' end
-  from plm.creative_submission_property_resolution r
-  where r.creative_source_id like 'zz1872-'||v_suffix||'-%' and r.decision_state='mapped';
-  insert into plm.creative_submission_property_resolution_member
-    (resolution_member_id,resolution_id,submission_source_system,submission_source_table,submission_source_id)
-  select gen_random_uuid(),r.resolution_id,'sega_product_approval','plm.sega_submission_property',
-    'zz1872-'||v_suffix||'-sub-extra' from plm.creative_submission_property_resolution r
-  where r.creative_source_id='zz1872-'||v_suffix||'-many';
+  from plm.dcp_opa_property_resolution r
+  where r.source_property_id like 'zz1872-'||v_suffix||'-%' and r.creative_decision_state='mapped';
+  insert into plm.dcp_opa_property_resolution_member
+    (resolution_id,member_ordinal,submission_source_system,submission_source_table,submission_source_id)
+  select r.resolution_id,2,'sega_product_approval','plm.sega_submission_property',
+    'zz1872-'||v_suffix||'-sub-extra' from plm.dcp_opa_property_resolution r
+  where r.source_property_id='zz1872-'||v_suffix||'-many';
 
   select id into v_licensor from core.licensor order by id limit 1;
   if v_licensor is null then raise exception '#1872 fixture requires one licensor'; end if;

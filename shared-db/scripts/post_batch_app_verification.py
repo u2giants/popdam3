@@ -206,6 +206,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from production_migration_guard import HELD_VERSIONS, RETIRED_VERSION_REASONS, RETIRED_VERSIONS
+
 MANAGEMENT_API = "https://api.supabase.com"
 
 # Cloudflare in front of the Management API answers HTTP 403 "error 1010" to the
@@ -338,76 +340,6 @@ def _never_rest_by_batch() -> dict[str, tuple[str, ...]]:
             )
     return {b: tuple(v) for b, v in out.items()}
 
-
-# Contract §5: never applied at all, at any time, in any batch.
-RETIRED_VERSION_REASONS = {
-    "20260814170749": (
-        "stranded without qualifying preview evidence after the preview project "
-        "replacement; reissued with identical executable SQL as 20260825201330 "
-        "under issue 1517, applied to production 2026-08-25 "
-        "(PR 1541, run 32901820150)"
-    ),
-    "20260819011639": (
-        "unpromotable producer provenance; replaced byte-for-byte by "
-        "20260820142402, applied to production 2026-08-20 (issue 1171)"
-    ),
-    "20260819151536": (
-        "production verification times out and rolls the migration back; replaced "
-        "by 20260820004338, applied to production 2026-08-20 (issue 1280)"
-    ),
-    "20260824181600": (
-        "unpromotable producer provenance; replaced byte-for-byte by "
-        "20260825192610, applied to production 2026-08-25 (issue 1532, run 32892984889)"
-    ),
-    "20260814223552": (
-        "unpromotable byte binding (PR 1032 merged unrehearsed); replaced by "
-        "20260825124200, applied to production 2026-08-25 (issue 679)"
-    ),
-    "20260825094455": (
-        "unpromotable byte binding (only preview apply ran on a squash-orphaned "
-        "commit); replaced by 20260825130500, applied to production 2026-08-25"
-    ),
-    "20260729120000": (
-        "applying it would regress a live production security control whose "
-        "safe end state is already present"
-    ),
-    "20260816045130": (
-        "explicit COMMIT separates DDL from the Supabase migration ledger; "
-        "never apply production; use safe replacement 20260816110750"
-    ),
-    "20260814224937": (
-        "never applied; it would recreate an obsolete core.character foreign key "
-        "after issue 1374 retires the empty Universe A character tables"
-    ),
-    "20260814233423": (
-        "never applied; it cannot run without plm.source_resolution from the "
-        "retired 20260814224937, and no replacement can rescue it because every "
-        "replacement sorts above this version; a future source-resolution "
-        "workstream supersedes both"
-    ),
-    "20260814233342": (
-        "never applied and fully superseded; it replaces api.source_capture_inventory "
-        "wholesale with the 2026-08-14 body, which silently regresses the Sega, "
-        "Peanuts and WildBrain branches added by later applied migrations"
-    ),
-    "20260825010603": (
-        "preview-only historical #1427 contract; production timed out and rolled "
-        "back, and complete forward replacement 20260825031841 supersedes it"
-    ),
-    "20260825025154": (
-        "preview-only historical #1427 accelerator; its later version cannot precede "
-        "the earlier production-pending contract, and 20260825031841 supersedes both"
-    ),
-    "20260825031841": (
-        "preview-only historical #1471 forward; production timed out and rolled back "
-        "because its full reconciliation remained one statement; use prerequisite "
-        "20260825041343 and its governed dependent recovery"
-    ),
-}
-RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
-
-# Contract §6.5: held pending the FRIENDS TV removal work.
-HELD_VERSIONS = frozenset({"20260802170000", "20260802171000"})
 
 # Which batch each never-rest version belongs to. Built once, so the ledger can
 # detect a batch that is HALF applied -- see `judge_ledger`.

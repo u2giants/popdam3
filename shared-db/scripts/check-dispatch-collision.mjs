@@ -69,6 +69,8 @@
 // It needs no database credentials and must never be given any.
 
 import { execFileSync } from 'node:child_process'
+import { runGitHubCommand } from './lib/github-transport.mjs'
+import { createTreeReader } from './lib/github-tree.mjs'
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -476,13 +478,21 @@ export function bodyFromClaimCommand(command) {
 // I/O — GitHub and the working tree.
 // ---------------------------------------------------------------------------
 
+// Issue #2342: this used to be one of eight hand-rolled `gh` wrappers, none of
+// which retried. The refusal text is unchanged — only the transport moved.
 function gh(args) {
-  try {
-    return execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
-  } catch (error) {
-    throw new Unknown(`\`gh ${args.join(' ')}\` failed: ${error.shortMessage || error.message}`)
-  }
+  return runGitHubCommand(args, {
+    maxBuffer: 32 * 1024 * 1024,
+    wrapError: (detail, cause) =>
+      new Unknown(`\`gh ${args.join(' ')}\` failed: ${cause?.shortMessage || detail}`),
+  })
 }
+
+// Issue #2342: the one tree reader for this gate. One recursive tree read per
+// ref, blobs cached by SHA, so an object appearing at many heads is fetched once.
+const treeReader = createTreeReader({
+  wrapError: (detail) => new Unknown(detail),
+})
 
 function ghJson(args) {
   const paginated = args.includes('--paginate')
@@ -601,13 +611,19 @@ export const defaultIo = {
   getPull: (repo, number) => ghJson(['api', `repos/${repo}/pulls/${number}`]),
   listPullFiles: (repo, number) =>
     ghJson(['api', '--paginate', `repos/${repo}/pulls/${number}/files?per_page=100`]),
-  readFileAtRef: (repo, filename, ref) =>
-    gh([
-      'api',
-      '-H',
-      'Accept: application/vnd.github.raw',
-      `repos/${repo}/contents/${encodeRepoPath(filename)}?ref=${encodeURIComponent(ref)}`,
-    ]),
+  // Issue #2342: ONE recursive tree read per ref, then blobs by SHA, instead of
+  // a Contents call per file. Scanning every open pull request made up to 112
+  // sequential Contents calls and any single spurious one stopped production
+  // three runs running. A file identical across many heads now costs one blob
+  // read for all of them, and "not tracked at this ref" is answered off the tree
+  // rather than by interpreting a 404.
+  readFileAtRef: (repo, filename, ref) => {
+    const text = treeReader.readFileAtRef(repo, filename, ref)
+    if (text === null) {
+      throw new Unknown(`${filename} is not tracked at ${ref}; refusing rather than assuming it is empty`)
+    }
+    return text
+  },
 
   /** The commit a reservation ref points at. Never a purpose-built commit (plan step 6). */
   baseSha: (repo) => {
@@ -626,9 +642,11 @@ export const defaultIo = {
    */
   createRef: (repo, ref, sha) => {
     try {
-      execFileSync('gh', ['api', '-X', 'POST', `repos/${repo}/git/refs`, '-f', `ref=${ref}`, '-f', `sha=${sha}`], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
+      // Issue #2342: shared transport. A ref CREATE is a mutation, so it keeps
+      // exactly one attempt — a replayed POST could reserve a second version.
+      runGitHubCommand(['api', '-X', 'POST', `repos/${repo}/git/refs`, '-f', `ref=${ref}`, '-f', `sha=${sha}`], {
+        expectedFailure: /reference already exists/i,
+        wrapError: (_detail, cause) => cause,
       })
       return 'created'
     } catch (error) {

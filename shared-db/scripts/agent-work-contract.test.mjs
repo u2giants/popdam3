@@ -4,7 +4,7 @@ import {
   ContractError, CONTRACT_SCHEMA_VERSION, CONTRACT_REF_PREFIX,
   validateContract, assertSafePath, canonicalize, contractHash, contractRef,
   validateCompletionReport, reconcileReportWithContract, pathMatches,
-  publishContract, readPublishedContract, parseArgs, main,
+  validatePullRequestCompletion, publishContract, readPublishedContract, parseArgs, main,
 } from './agent-work-contract.mjs'
 import { validateCompletionRecord } from './lib/work-dependencies.mjs'
 
@@ -135,6 +135,14 @@ test('a complete report validates', () => {
   assert.doesNotThrow(() => validateCompletionReport(report(), { validateCompletionRecord }))
 })
 
+test('an open pull request uses a truthful ready-for-merge report bound to its PR number', () => {
+  const ready = report({ outcome: 'ready-for-merge', pr: 7, merge_sha: undefined, head_sha: 'a'.repeat(40) })
+  assert.doesNotThrow(() => validateCompletionReport(ready, { validateCompletionRecord }))
+  assert.doesNotThrow(() => validatePullRequestCompletion(ready, { pr: 7, headSha: 'a'.repeat(40) }))
+  assert.throws(() => validatePullRequestCompletion(ready, { pr: 8, headSha: 'a'.repeat(40) }), /running for PR #8/)
+  assert.throws(() => validatePullRequestCompletion(report(), { pr: 7, headSha: 'a'.repeat(40) }), /ready-for-merge/)
+})
+
 test('the report carries the Step 3 record, so its rules still apply', () => {
   assert.throws(() => validateCompletionReport(report({ pr: undefined }), { validateCompletionRecord }), /must name its pr number/)
   assert.throws(() => validateCompletionReport(report({ outcome: 'cancelled', reason: undefined }), { validateCompletionRecord }), /must give a reason/)
@@ -201,6 +209,12 @@ test('a report that hit a stop condition cannot also claim success', () => {
   const verdict = reconcileReportWithContract(report({ stop_conditions_hit: ['needed a second table'] }), contract())
   assert.equal(verdict.satisfied, false)
   assert.match(verdict.problems.join(' '), /but claims outcome merged/)
+})
+
+test('a ready-for-merge report cannot pass after hitting a stop condition', () => {
+  const verdict = reconcileReportWithContract(report({ outcome: 'ready-for-merge', merge_sha: undefined, stop_conditions_hit: ['needed a second table'] }), contract())
+  assert.equal(verdict.satisfied, false)
+  assert.match(verdict.problems.join(' '), /claims outcome ready-for-merge/)
 })
 
 test('a report that hit a stop condition and says so honestly is fine', () => {

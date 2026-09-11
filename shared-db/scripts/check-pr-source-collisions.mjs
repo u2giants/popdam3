@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process'
+import { runGitHubCommand } from './lib/github-transport.mjs'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
@@ -17,9 +18,9 @@ export function openProtectedCollisions(current,others){
 }
 
 class InputError extends Error{}
+// Issue #2342: shared transport, identical refusals.
 function ghJson(args){
-  let raw
-  try{raw=execFileSync('gh',args,{encoding:'utf8',maxBuffer:32*1024*1024,stdio:['ignore','pipe','pipe']})}catch(error){throw new InputError(`gh ${args.join(' ')} failed: ${error.message}`)}
+  const raw=runGitHubCommand(args,{maxBuffer:32*1024*1024,wrapError:(detail,cause)=>new InputError(`gh ${args.join(' ')} failed: ${cause?.message??detail}`)})
   try{return JSON.parse(raw)}catch{throw new InputError(`gh ${args.join(' ')} returned unreadable JSON`)}
 }
 export function filePaths(files){return [...new Set(files.flatMap((file)=>[file.filename,file.previous_filename].filter(Boolean)))]}

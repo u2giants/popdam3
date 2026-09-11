@@ -21,6 +21,10 @@ declare
   v_dcp_run uuid := gen_random_uuid();
   v_dcp_run_2 uuid := gen_random_uuid();
   v_dcp_guide uuid;
+  v_pending_after_approved uuid := gen_random_uuid();
+  v_pending_only uuid := gen_random_uuid();
+  v_pending_then_approved uuid := gen_random_uuid();
+  v_later_approved uuid := gen_random_uuid();
 begin
   v_search := 'Issue1589-' || v_suffix;
 
@@ -221,9 +225,10 @@ begin
   from issue1936_dcp_resolution_fixture f;
 
   insert into plm.dcp_opa_property_resolution_member (
-    resolution_id, licensed_property_id, member_ordinal
+    resolution_id, licensed_property_id, member_ordinal, submission_source_system, submission_source_table, submission_source_id
   )
-  select f.resolution_id, -800000000000 - f.ordinal, 1
+  select f.resolution_id, -800000000000 - f.ordinal, 1,
+    'disney_opa', 'plm.opa_property', (-800000000000 - f.ordinal)::text
   from issue1936_dcp_resolution_fixture f;
 
   -- Forward-4 regression: every synthetic OPA row on the early pages carries
@@ -237,55 +242,88 @@ begin
   insert into issue1936_creative_resolution_fixture
   select g, gen_random_uuid() from generate_series(1, 4000) g;
 
-  insert into plm.creative_submission_property_resolution (
-    resolution_id, creative_source_system, creative_source_table,
-    creative_source_id, decision_version, decision_state, reviewed_batch_id,
-    reviewed_batch_digest, approval_actor_id, approved_at
-  )
-  select f.resolution_id, 'disney_opa', 'plm.opa_property',
-    (-800000000000 - f.ordinal)::text, 1, 'mapped', gen_random_uuid(),
-    'sha256:' || repeat('6',64), gen_random_uuid(), clock_timestamp()
+  insert into plm.dcp_opa_property_resolution (
+    resolution_id,source_system,source_table,source_property_id,decision_version,
+    creative_decision_state,approval_status,evidence_reference,evidence_sha256,decision_reason,approved_by,approved_at)
+  select f.resolution_id,'disney_opa','plm.opa_property',(-800000000000-f.ordinal)::text,1,
+    'mapped','approved','synthetic',repeat('6',64),'synthetic',gen_random_uuid()::text,clock_timestamp()
   from issue1936_creative_resolution_fixture f;
-
-  insert into plm.creative_submission_property_resolution_member (
-    resolution_member_id, resolution_id, submission_source_system,
-    submission_source_table, submission_source_id
-  )
-  select gen_random_uuid(), f.resolution_id, 'disney_dcpvault',
-    'plm.dcp_property', v_search || '/DCP-' || lpad(f.ordinal::text, 4, '0')
+  insert into plm.dcp_opa_property_resolution_member (
+    resolution_id,member_ordinal,submission_source_system,submission_source_table,submission_source_id)
+  select f.resolution_id,1,'disney_dcpvault','plm.dcp_property',v_search||'/DCP-'||lpad(f.ordinal::text,4,'0')
   from issue1936_creative_resolution_fixture f;
 
   create temporary table issue1936_dcp_creative_resolution_fixture (
-    ordinal integer primary key,
-    resolution_id uuid not null
+    ordinal integer primary key,resolution_id uuid not null
   ) on commit drop;
-  insert into issue1936_dcp_creative_resolution_fixture
-  select g, gen_random_uuid() from generate_series(1, 4000) g;
-  insert into plm.creative_submission_property_resolution (
-    resolution_id, creative_source_system, creative_source_table,
-    creative_source_id, decision_version, decision_state, reviewed_batch_id,
-    reviewed_batch_digest, approval_actor_id, approved_at
-  )
-  select f.resolution_id, 'disney_dcpvault', 'plm.dcp_property',
-    v_search || '/DCP-' || lpad(f.ordinal::text, 4, '0'), 1, 'mapped',
-    gen_random_uuid(), 'sha256:' || repeat('5',64), gen_random_uuid(),
-    clock_timestamp()
+  insert into issue1936_dcp_creative_resolution_fixture select g,gen_random_uuid() from generate_series(1,4000) g;
+  insert into plm.dcp_opa_property_resolution (
+    resolution_id,source_system,source_table,source_property_id,decision_version,supersedes_resolution_id,
+    creative_decision_state,approval_status,evidence_reference,evidence_sha256,decision_reason,approved_by,approved_at)
+  select f.resolution_id,'disney_dcpvault','plm.dcp_property',v_search||'/DCP-'||lpad(f.ordinal::text,4,'0'),2,prior.resolution_id,
+    'mapped','approved','synthetic',repeat('5',64),'synthetic',gen_random_uuid()::text,clock_timestamp()
+  from issue1936_dcp_creative_resolution_fixture f join issue1936_dcp_resolution_fixture prior using(ordinal);
+  insert into plm.dcp_opa_property_resolution_member (
+    resolution_id,member_ordinal,submission_source_system,submission_source_table,submission_source_id,licensed_property_id)
+  select f.resolution_id,1,'disney_opa','plm.opa_property',(-800000000000-f.ordinal)::text,-800000000000-f.ordinal
   from issue1936_dcp_creative_resolution_fixture f;
-  insert into plm.creative_submission_property_resolution_member (
-    resolution_member_id, resolution_id, submission_source_system,
-    submission_source_table, submission_source_id
-  )
-  select gen_random_uuid(), f.resolution_id, 'disney_opa',
-    'plm.opa_property', (-800000000000 - f.ordinal)::text
-  from issue1936_dcp_creative_resolution_fixture f;
+
+  -- Reader precedence is terminal-decision precedence, not leaf precedence.
+  -- A later pending proposal remains queued but cannot hide the last approval.
+  insert into plm.dcp_opa_property_resolution (
+    resolution_id,source_system,source_table,source_property_id,decision_version,
+    approval_status,supersedes_resolution_id,evidence_reference,evidence_sha256,decision_reason)
+  select v_pending_after_approved,'disney_dcpvault','plm.dcp_property',
+    v_search||'/DCP-0001',3,'pending',f.resolution_id,
+    'synthetic-later-pending',repeat('4',64),'synthetic later proposal'
+  from issue1936_dcp_creative_resolution_fixture f where f.ordinal=1;
+  insert into plm.dcp_opa_property_resolution_member (
+    resolution_id,member_ordinal,submission_source_system,submission_source_table,
+    submission_source_id,licensed_property_id)
+  select v_pending_after_approved,g,'disney_opa','plm.opa_property',
+    (-800000000000-g)::text,-800000000000-g
+  from generate_series(1,3) g;
+
+  -- A newer rejection is terminal and must override an earlier approval.
+  insert into plm.dcp_opa_property_resolution (
+    source_system,source_table,source_property_id,decision_version,
+    approval_status,supersedes_resolution_id,evidence_reference,evidence_sha256,decision_reason)
+  select 'disney_dcpvault','plm.dcp_property',v_search||'/DCP-0002',3,
+    'rejected',f.resolution_id,'synthetic-later-rejection',repeat('3',64),
+    'synthetic terminal rejection'
+  from issue1936_dcp_creative_resolution_fixture f where f.ordinal=2;
 
   -- These source-preserving DCP groups must remain distinct from the new OPA groups.
   insert into plm.dcp_property (source_system, source_id, display_name)
-  values ('disney_dcpvault', v_search || '/disney-dcp', v_search || ' Disney DCP');
+  values
+    ('disney_dcpvault', v_search || '/disney-dcp', v_search || ' Disney DCP'),
+    ('disney_dcpvault', v_search || '/pending-only', v_search || ' Pending only'),
+    ('disney_dcpvault', v_search || '/pending-approved', v_search || ' Pending then approved');
   insert into plm.marvel_dcp_property (source_system, source_id, display_name)
   values ('marvel_dcpvault', v_search || '/marvel-dcp', v_search || ' Marvel DCP');
   insert into plm.lucasfilm_dcp_property (source_system, source_id, display_name)
   values ('lucasfilm_dcpvault', v_search || '/star-wars-dcp', v_search || ' Star Wars DCP');
+
+  insert into plm.dcp_opa_property_resolution (
+    resolution_id,source_system,source_table,source_property_id,decision_version,
+    approval_status,evidence_reference,evidence_sha256,decision_reason)
+  values
+    (v_pending_only,'disney_dcpvault','plm.dcp_property',v_search||'/pending-only',1,
+     'pending','synthetic-pending-only',repeat('2',64),'synthetic pending-only proposal'),
+    (v_pending_then_approved,'disney_dcpvault','plm.dcp_property',v_search||'/pending-approved',1,
+     'pending','synthetic-pending-approved',repeat('1',64),'synthetic proposal later approved');
+  insert into plm.dcp_opa_property_resolution (
+    resolution_id,source_system,source_table,source_property_id,decision_version,
+    creative_decision_state,approval_status,supersedes_resolution_id,
+    evidence_reference,evidence_sha256,decision_reason,approved_by,approved_at)
+  values (
+    v_later_approved,'disney_dcpvault','plm.dcp_property',v_search||'/pending-approved',2,
+    'mapped','approved',v_pending_then_approved,'synthetic-pending-approved',repeat('1',64),
+    'synthetic later approval','contract',clock_timestamp());
+  insert into plm.dcp_opa_property_resolution_member (
+    resolution_id,member_ordinal,submission_source_system,submission_source_table,
+    submission_source_id,licensed_property_id)
+  values (v_later_approved,1,'disney_opa','plm.opa_property',(-800000000003)::text,-800000000003);
 
   insert into plm.dcp_property_licensor_resolution (
     source_system, source_property_id, presentation_licensor_key,
@@ -363,8 +401,41 @@ begin
          where r ->> 'source_table'='plm.dcp_property'
            and (r ->> 'asset_count')::integer=0
            and (r ->> 'style_guide_count')::integer=0
-           and jsonb_array_length(r -> 'style_guide_names')=0) <> 3751 then
+           and jsonb_array_length(r -> 'style_guide_names')=0) <> 3753 then
     raise exception 'retained DCP asset/style context was lost or duplicated';
+  end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id'=v_search||'/DCP-0001'
+      and r ->> 'mapping_state'='mapped'
+      and jsonb_array_length(r -> 'submissions')=1
+  ) then
+    raise exception 'later pending proposal hid the newest terminal approval';
+  end if;
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id'=v_search||'/DCP-0002'
+      and r ->> 'mapping_state'='unmapped'
+      and jsonb_array_length(r -> 'submissions')=0
+  ) then
+    raise exception 'later terminal rejection did not supersede the earlier approval';
+  end if;
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id'=v_search||'/pending-only'
+      and r ->> 'mapping_state'='unmapped'
+      and jsonb_array_length(r -> 'submissions')=0
+  ) then
+    raise exception 'pending-only identity was reported as a terminal mapping';
+  end if;
+  if not exists (
+    select 1 from jsonb_array_elements(v_rows) r
+    where r ->> 'source_property_id'=v_search||'/pending-approved'
+      and r ->> 'mapping_state'='mapped'
+      and jsonb_array_length(r -> 'submissions')=1
+  ) then
+    raise exception 'later approved decision did not supersede the pending proposal';
   end if;
 
   if (select count(*) from jsonb_array_elements(v_rows) r

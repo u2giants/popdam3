@@ -19,7 +19,7 @@
  *   node scripts/report-stale-handoffs.mjs --publish  # also sync the tracking issue
  */
 
-import { execSync } from "node:child_process";
+import { runGitHubCommand } from "./lib/github-transport.mjs";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -130,8 +130,11 @@ export function classify(files, issueState, citedByOpenIssues = () => []) {
 
 // --------------------------------------------------------------------------
 
-function sh(cmd) {
-  return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+// Issue #2342: these were shell STRINGS through execSync. They are argv arrays
+// through the one shared transport now, which also removes the quoting hazard in
+// the --comment and --title values below.
+function gh(args, opts = {}) {
+  return runGitHubCommand(args, opts).trim();
 }
 
 function main() {
@@ -150,7 +153,7 @@ function main() {
       // API call. The pull-request guard is where a bad number fails loudly.
       let state = "OPEN";
       try {
-        state = sh(`gh issue view ${n} --repo ${repo} --json state -q .state`).toUpperCase();
+        state = gh(["issue", "view", String(n), "--repo", repo, "--json", "state", "-q", ".state"]).toUpperCase();
       } catch {
         console.error(`::warning::issue #${n} could not be read; treating it as OPEN for this report.`);
       }
@@ -165,7 +168,7 @@ function main() {
   let openIssues = [];
   try {
     openIssues = JSON.parse(
-      sh(`gh issue list --repo ${repo} --state open --limit 500 --json number,body`),
+      gh(["issue", "list", "--repo", repo, "--state", "open", "--limit", "500", "--json", "number,body"]),
     );
   } catch {
     console.error(
@@ -185,25 +188,22 @@ function main() {
   if (!publish) return;
 
   const existing = JSON.parse(
-    sh(`gh issue list --repo ${repo} --state open --label ${TRACKING_LABEL} --limit 200 --json number,title`),
+    gh(["issue", "list", "--repo", repo, "--state", "open", "--label", TRACKING_LABEL, "--limit", "200", "--json", "number,title"]),
   ).find((i) => i.title === TRACKING_TITLE);
 
   if (result.stale.length === 0 && result.cited.length === 0 && result.unlabelled.length === 0) {
     if (existing) {
-      sh(`gh issue close ${existing.number} --repo ${repo} --comment "Nothing stale — every handoff file points at an open issue."`);
+      gh(["issue", "close", String(existing.number), "--repo", repo, "--comment", "Nothing stale — every handoff file points at an open issue."]);
       console.log(`Closed tracking issue #${existing.number}: nothing stale.`);
     }
     return;
   }
 
   if (existing) {
-    execSync(`gh issue edit ${existing.number} --repo ${repo} --body-file -`, { input: body, stdio: ["pipe", "inherit", "inherit"] });
+    gh(["issue", "edit", String(existing.number), "--repo", repo, "--body-file", "-"], { input: body });
     console.log(`Updated tracking issue #${existing.number}.`);
   } else {
-    execSync(`gh issue create --repo ${repo} --label ${TRACKING_LABEL} --title "${TRACKING_TITLE}" --body-file -`, {
-      input: body,
-      stdio: ["pipe", "inherit", "inherit"],
-    });
+    gh(["issue", "create", "--repo", repo, "--label", TRACKING_LABEL, "--title", TRACKING_TITLE, "--body-file", "-"], { input: body });
   }
 }
 

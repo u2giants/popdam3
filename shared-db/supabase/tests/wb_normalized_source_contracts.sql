@@ -8,7 +8,12 @@ begin
  select count(*) into bad from pg_constraint c join pg_class r on r.oid=c.conrelid join pg_namespace n on n.oid=r.relnamespace
  where n.nspname='plm' and r.relname=any(expected) and c.contype='f' and c.confdeltype<>'r';
  if bad<>0 then raise exception 'normalized Warner foreign keys must use ON DELETE RESTRICT'; end if;
- if (select count(*) from pg_constraint c join pg_class r on r.oid=c.conrelid join pg_namespace n on n.oid=r.relnamespace where n.nspname='plm' and r.relname=any(expected) and c.contype='f')<>24 then raise exception 'normalized Warner FK inventory changed'; end if;
+ -- Issue #2123 added exactly one foreign key to this inventory: the governed
+ -- plm.wb_character_normalized.core_character_id -> core.character promotion
+ -- contract. The pinned total moves 24 -> 25, and the new key is asserted by name
+ -- below so the count cannot be satisfied by some other unreviewed key.
+ if (select count(*) from pg_constraint c join pg_class r on r.oid=c.conrelid join pg_namespace n on n.oid=r.relnamespace where n.nspname='plm' and r.relname=any(expected) and c.contype='f')<>25 then raise exception 'normalized Warner FK inventory changed'; end if;
+ if not exists(select 1 from pg_constraint c join pg_class r on r.oid=c.conrelid join pg_namespace n on n.oid=r.relnamespace join pg_class fr on fr.oid=c.confrelid join pg_namespace fn on fn.oid=fr.relnamespace where n.nspname='plm' and r.relname='wb_character_normalized' and c.contype='f' and c.conname='plm_wb_character_normalized_core_character_fk' and fn.nspname='core' and fr.relname='character' and c.confdeltype='r' and c.convalidated) then raise exception 'the #2123 core.character promotion foreign key is missing from plm.wb_character_normalized'; end if;
  if exists(select 1 from pg_indexes where schemaname='plm' and tablename in('wb_franchise','wb_property','wb_character_normalized','wb_style_guide_normalized') and indexdef~*'label') then raise exception 'label must not participate in normalized identity indexes'; end if;
  if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='plm' and p.proname=any(array(select 'sync_'||unnest(expected))))<>11 then raise exception 'normalized loader inventory must contain eleven exact targets'; end if;
  if not exists(select 1 from pg_constraint c where c.conrelid='plm.wb_capture'::regclass and pg_get_constraintdef(c.oid) like '%wb_franchise_property_evidence%') then raise exception 'capture target check lacks normalized routes'; end if;

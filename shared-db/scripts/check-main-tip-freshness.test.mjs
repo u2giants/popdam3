@@ -227,3 +227,74 @@ test('extension matching is case-insensitive but not substring-based', () => {
   assert.equal(isDocumentationPath('supabase/migrations/1.sql'), false)
   assert.equal(isDocumentationPath(''), false)
 })
+
+// ISSUE #2465 -- a merge commit must be classified by what MAIN gained, not by
+// the merged branch's own files. `git log -m` diffed the merge against BOTH
+// parents, so the second parent contributed every file main already had that the
+// branch did not, and the documentation exemption could never fire for a repo
+// that merges through pull requests. Both directions are proved: a
+// documentation-only advance through a merge is accepted, and a merge that
+// actually lands code is still refused.
+test('a documentation-only advance that lands through a merge commit is accepted (#2465)', () => {
+  const { repo, sha } = makeRepo()
+  try {
+    // The documentation branch forks FIRST, at the seed. Main then gains a code
+    // merge -- that merge is the dispatched commit. The documentation branch is
+    // merged afterwards, so its second parent is missing every code file main
+    // gained in the meantime, which is exactly what `-m` used to report.
+    git(repo, ['branch', 'docs-branch'])
+    git(repo, ['checkout', '-q', '-b', 'feature'])
+    commitFiles(repo, { 'scripts/feature.mjs': 'export const a = 1' }, 'feat: code')
+    git(repo, ['checkout', '-q', 'main'])
+    git(repo, ['merge', '-q', '--no-ff', '-m', 'Merge pull request: feature', 'feature'])
+    const dispatched = git(repo, ['rev-parse', 'HEAD']).trim()
+
+    git(repo, ['checkout', '-q', 'docs-branch'])
+    commitFiles(repo, { 'HANDOFF.d/2026-09-06T2213Z-note.md': '# note' }, 'docs: handover')
+    git(repo, ['checkout', '-q', 'main'])
+    git(repo, ['merge', '-q', '--no-ff', '-m', 'Merge pull request: docs', 'docs-branch'])
+    const tip = git(repo, ['rev-parse', 'HEAD']).trim()
+
+    const verdict = classify(repo, dispatched, tip)
+    assert.equal(verdict.ok, true, verdict.reason)
+    assert.deepEqual(verdict.movedBy, ['HANDOFF.d/2026-09-06T2213Z-note.md'])
+    assert.equal(sha.length, 40)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+test('POSITIVE CONTROL: a merge that lands code is still refused (#2465)', () => {
+  const { repo, sha } = makeRepo()
+  try {
+    git(repo, ['checkout', '-q', '-b', 'code-branch'])
+    commitFiles(repo, { 'scripts/landed.mjs': 'export const b = 2\n', 'AGENTS.md': 'rules\n' }, 'feat: code')
+    git(repo, ['checkout', '-q', 'main'])
+    git(repo, ['merge', '-q', '--no-ff', '-m', 'Merge pull request: code', 'code-branch'])
+    const tip = git(repo, ['rev-parse', 'HEAD']).trim()
+
+    const verdict = classify(repo, sha, tip)
+    assert.equal(verdict.ok, false)
+    assert.match(verdict.reason, /scripts\/landed\.mjs/)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+test('POSITIVE CONTROL: a rename from code to documentation is still refused (#2465)', () => {
+  const { repo, sha } = makeRepo()
+  try {
+    const base = commitFiles(repo, { 'scripts/moved.mjs': 'export const c = 3\n' }, 'feat: code')
+    mkdirSync(join(repo, 'docs'), { recursive: true })
+    git(repo, ['mv', 'scripts/moved.mjs', 'docs/moved.md'])
+    git(repo, ['commit', '-q', '-m', 'chore: move'])
+    const tip = git(repo, ['rev-parse', 'HEAD']).trim()
+
+    const verdict = classify(repo, base, tip)
+    assert.equal(verdict.ok, false)
+    assert.match(verdict.reason, /scripts\/moved\.mjs/)
+    assert.equal(sha.length, 40)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})

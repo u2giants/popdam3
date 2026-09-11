@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "args": [
+        "/c",
+        "C:\\Users\\ahazan\\.config\\ai-devops\\mcp-launch.cmd",
+        "cmd",
+        "/c",
+        "npx",
+        "-y",
+        "@supabase/mcp-server-supabase@0.11.0",
+        "--read-only",
+        "--project-ref",
+        "qsllyeztdwjgirsysgai"
+      ],
+      "command": "cmd"
+    }
+  }
+}

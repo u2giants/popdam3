@@ -9,6 +9,8 @@ interface SendEmailParams {
   to: string;
   subject: string;
   htmlContent: string;
+  /** Optional plain-text alternative for text-only clients. */
+  textContent?: string;
   senderName?: string;
   senderEmail?: string;
 }
@@ -36,12 +38,13 @@ export async function sendBrevoEmail(params: SendEmailParams): Promise<BrevoResu
     email: params.senderEmail ?? "noreply@designflow.app",
   };
 
-  const body = {
+  const body: Record<string, unknown> = {
     sender,
     to: [{ email: params.to }],
     subject: params.subject,
     htmlContent: params.htmlContent,
   };
+  if (params.textContent) body.textContent = params.textContent;
 
   console.log(`[brevo] Sending email to=${params.to} from=${sender.email} subject="${params.subject}"`);
 

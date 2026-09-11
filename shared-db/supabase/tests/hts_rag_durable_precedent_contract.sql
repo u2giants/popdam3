@@ -19,6 +19,16 @@ create function pg_temp.hts_rag_public_exposure() returns boolean language sql s
       cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
      where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'hts_rag\_%'
        and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))
+  ) or exists (
+    -- Column ACLs are a separate surface: `grant select (col) ... to public` lives on
+    -- pg_attribute.attacl and is invisible to the relation-level check above.
+    select 1
+      from pg_attribute att
+      join pg_class c on c.oid = att.attrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      cross join lateral aclexplode(att.attacl) a
+     where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'hts_rag\_%'
+       and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))
   );
 $fn$;
 
@@ -135,6 +145,21 @@ begin
   if pg_temp.hts_rag_public_exposure() then
     raise exception 'the injected PUBLIC grant did not roll back';
   end if;
+
+  -- The column-ACL branch needs its own proof; a table-level grant does not exercise it.
+  begin
+    execute 'grant select (proposed_hts) on public.hts_rag_precedents to public';
+    v_detected := pg_temp.hts_rag_public_exposure();
+    raise exception using errcode = '22000', message = 'hts_rag_public_probe_rollback';
+  exception when others then
+    if sqlerrm <> 'hts_rag_public_probe_rollback' then raise; end if;
+  end;
+  if not coalesce(v_detected, false) then
+    raise exception 'the PUBLIC exposure detector did not fire on an injected column grant';
+  end if;
+  if pg_temp.hts_rag_public_exposure() then
+    raise exception 'the injected PUBLIC column grant did not roll back';
+  end if;
 end $$;
 
 -- Behavioural rows. Every one of the seven tables is exercised, so a table that is
@@ -151,7 +176,9 @@ values ('33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-11111111
 -- The review queue must actually be workable; the index on comparison_review_state is
 -- meaningless if nothing can transition the column. Run it AS service_role: the owner
 -- bypasses every grant, so an owner update proves nothing about the column-scoped
--- UPDATE grant and the backend review policy actually working together.
+-- UPDATE grant. It proves the GRANT only, not the review POLICY: service_role carries
+-- BYPASSRLS, so no in-database session can exercise that policy. The policy shape is
+-- pinned by the catalog assertions above instead, and this comment must not claim more.
 do $$
 begin
   set local role service_role;
@@ -261,7 +288,9 @@ begin
     insert into public.hts_rag_precedents(product_family,fixture_version,prompt_version,classifier_model,verifier_model,extraction_version,fixture_hash,input_hash,raw_result_hash,classification_state,proposed_hts)
     values ('bad','f','p','c','v','e2',repeat('7',64),repeat('8',64),repeat('9',64),'needs_more_facts','6913105000');
     raise exception 'an unnotated HTS code was accepted';
-  exception when check_violation then null;
+  exception when check_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint <> 'hts_rag_precedents_proposed_hts_check' then raise exception 'wrong constraint rejected the unnotated HTS code: %', v_constraint; end if;
   end;
 end $$;
 

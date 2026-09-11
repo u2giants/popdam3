@@ -1,0 +1,229 @@
+{
+  "artifact": "step3-call-graph",
+  "captured_utc": "2026-09-04T21:35:00Z",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "access_class": "read-only",
+  "measurement_window": {
+    "pg_stat_statements_reset": "2026-08-28T21:01:00.960228-04:00",
+    "pg_postmaster_start_time": "2026-08-28T21:01:01.043332-04:00",
+    "pg_stat_database_stats_reset": null,
+    "elapsed": "6 days 20:27:55",
+    "elapsed_days": 6.853,
+    "note": "pg_stat_database.stats_reset is NULL; pg_stat_user_tables counters are bounded by postmaster start, which is within 0.1s of the pg_stat_statements reset. Both come from the same 2026-08-28 21:01 restart, independently confirmed by cron.job_run_details ('server restarted')."
+  },
+  "functions": [
+    {
+      "name": "public.rebuild_style_groups_batch(uuid,integer)",
+      "security": "definer",
+      "statement_timeout": "120s",
+      "lock_timeout": "0",
+      "callers": [
+        {
+          "repo": "popdam3",
+          "file": "apps/worker/src/handlers/style-groups.ts",
+          "line": 303,
+          "invocation": "postgrest_rpc",
+          "context": "bulk operation stage 3 rebuild_assets"
+        },
+        {
+          "repo": "shared-db",
+          "object": "cron.job id 7 nightly-rebuild-style-groups",
+          "schedule": "0 6 * * *",
+          "invocation": "scheduled_indirect",
+          "context": "calls queue_nightly_rebuild_style_groups(); the worker polls admin_config.BULK_OPERATIONS and executes"
+        }
+      ],
+      "batch_key": "p_last_asset_id keyset on assets.id",
+      "batch_size_default": 500,
+      "overlap_guard": "pg_advisory_xact_lock(hashtext('BULK_OPERATIONS')) plus status in (running,queued) early return",
+      "retry": "worker does not advance cursor on RPC error",
+      "can_run_concurrently": false,
+      "measured": {
+        "calls": 3973,
+        "calls_per_day": 579.7,
+        "mean_ms": 2982.48,
+        "max_ms": 27345.9,
+        "total_ms": 11849391.9,
+        "total_human": "3h17m"
+      },
+      "plan": "read side keyset-bounded; write side NOT MEASURED (EXPLAIN refused: permission denied for table assets)"
+    },
+    {
+      "name": "public.clear_style_group_batch(uuid,integer)",
+      "security": "definer",
+      "statement_timeout": "120s",
+      "lock_timeout": "0",
+      "callers": [
+        {
+          "repo": "popdam3",
+          "file": "apps/worker/src/handlers/style-groups.ts",
+          "line": 185,
+          "invocation": "postgrest_rpc",
+          "context": "bulk operation stage 1 clear_assets"
+        }
+      ],
+      "batch_key": "p_last_id keyset on assets.id",
+      "batch_size_default": 200,
+      "overlap_guard": "shares BULK_OPERATIONS advisory lock",
+      "retry": "adaptive batch halving on statement timeout down to clearMinBatch (style-groups.ts:220-232)",
+      "can_run_concurrently": false,
+      "measured": {
+        "calls": 287,
+        "calls_per_day": 41.9,
+        "mean_ms": 34617.3,
+        "max_ms": 62926.0,
+        "total_ms": 9935165.1,
+        "total_human": "2h46m"
+      },
+      "plan": "Index Only Scan using idx_assets_clear_style_cursor (partial index on id WHERE is_deleted=false AND style_group_id IS NOT NULL), LIMIT-capped, no Filter, no full scan",
+      "finding": "34.6s mean is trigger cascade time, not scan time"
+    },
+    {
+      "name": "public.refresh_style_group_counts_batch(uuid[])",
+      "security": "definer",
+      "language": "sql",
+      "statement_timeout": "30s",
+      "lock_timeout": "0",
+      "callers": [
+        {
+          "repo": "shared-db",
+          "object": "cron.job id 6 nightly-reconcile-sg-asset-counts",
+          "schedule": "45 3 * * *",
+          "invocation": "scheduled",
+          "context": "SELECT public.refresh_style_group_counts_batch(array_agg(id)) FROM public.style_groups -- passes ALL 10866 groups"
+        },
+        {
+          "object": "trigger refresh_style_group_counts_on_asset_change on public.assets",
+          "triggers": ["trg_refresh_sg_counts_on_insert", "trg_refresh_sg_counts_on_update", "trg_refresh_sg_counts_on_delete"],
+          "invocation": "statement_trigger",
+          "context": "FOR EACH STATEMENT with transition tables; correctly filters to rows where is_deleted or style_group_id actually changed"
+        },
+        {"repo": "popdam3", "file": "supabase/functions/_shared/admin-handlers/sibling-scan-handlers.ts", "line": 320, "invocation": "edge_function_rpc"},
+        {"repo": "popdam3", "file": "supabase/functions/_shared/admin-handlers/purge-handlers.ts", "line": 78, "invocation": "edge_function_rpc"},
+        {"repo": "popdam3", "file": "supabase/functions/_shared/admin-handlers/purge-handlers.ts", "line": 177, "invocation": "edge_function_rpc"},
+        {"repo": "popdam3", "file": "supabase/functions/_shared/admin-handlers/ai-duplicate-handlers.ts", "line": 98, "invocation": "edge_function_rpc"},
+        {"repo": "popdam3", "file": "apps/worker/src/handlers/style-groups.ts", "invocation": "postgrest_rpc", "context": "stage 4 finalize_stats"}
+      ],
+      "batch_key": "explicit uuid[] of group ids",
+      "overlap_guard": null,
+      "can_run_concurrently": true,
+      "concurrency_hazard": "lock_timeout=0 means unbounded wait when two callers pass overlapping group ids; UPDATE ... FROM agg applies rows in unspecified order",
+      "measured_cron_path_only": {
+        "calls": 7,
+        "mean_ms": 95637.54,
+        "max_ms": 116037.5,
+        "total_ms": 669462.8,
+        "total_human": "11m9s"
+      },
+      "measured_cron_long_window": {
+        "source": "cron.job_run_details since 2026-06-20",
+        "runs": 76,
+        "avg_s": 75.85,
+        "max_s": 120.01,
+        "not_succeeded": 1,
+        "failure": "2026-08-25 23:45 canceling statement due to statement timeout; CONTEXT: SQL statement \"insert into public.dam_search_documents(...)\""
+      },
+      "plan": "GroupAggregate over Index Only Scan on style_groups_pkey + Index Scan on assets_style_group_id_active_idx; no sequential scan",
+      "finding": "UPDATE has no comparison to stored values; writes unchanged rows and always sets updated_at=now(), which is a trigger key of trg_dam_search_style_groups_refresh, rebuilding all 10866 DAM search documents nightly"
+    },
+    {
+      "name": "public.refresh_style_guide_matviews()",
+      "security": "definer",
+      "callers": [
+        {
+          "repo": "shared-db",
+          "object": "cron.job id 9 refresh-style-guide-matviews",
+          "schedule": "*/15 * * * *",
+          "invocation": "scheduled"
+        },
+        {
+          "repo": "popdam3",
+          "file": "supabase/functions/agent-api/index.ts",
+          "line": 2945,
+          "invocation": "edge_function_rpc",
+          "context": "on demand after a style-guide crawl; 1 call in window"
+        }
+      ],
+      "batch_key": null,
+      "overlap_guard": null,
+      "overlap_observed": {"runs_examined": 7302, "overlapping_starts": 0, "method": "start_time < lag(end_time) over jobid"},
+      "can_run_concurrently": true,
+      "measured": {
+        "calls": 657,
+        "expected_from_schedule": 658,
+        "mean_ms": 8036.46,
+        "max_ms": 63889.2,
+        "total_ms": 5279954.3,
+        "total_human": "1h28m",
+        "duty_cycle_pct": 0.89
+      },
+      "measured_long_window": {"source": "cron.job_run_details since 2026-06-20", "runs": 7302, "avg_s": 8.54, "max_s": 109.63},
+      "blocking": {
+        "style_guide_file_groups": {"refresh": "CONCURRENTLY", "size": "14 MB", "unique_indexes": 1, "lock": "ExclusiveLock, readers not blocked"},
+        "style_guide_folders": {"refresh": "non-concurrent", "size": "48 kB", "unique_indexes": 0, "lock": "AccessExclusiveLock, readers blocked, 96x/day", "note": "CONCURRENTLY is not currently possible: PostgreSQL requires a unique index on the matview"}
+      },
+      "not_measured": [
+        "per-statement split of the 8.0s mean between the two REFRESH statements (pg_stat_statements.track is not 'all'; statements inside a plpgsql body are not tracked separately)",
+        "actual lock-wait time inflicted on readers of style_guide_folders (needs pg_locks sampling or log_lock_waits)"
+      ]
+    },
+    {
+      "name": "public.sync_asset_effective_tags()",
+      "security": "definer",
+      "kind": "trigger_function",
+      "callers": [
+        {"object": "trigger asset_tags_effective_tags_sync on public.asset_tags", "events": "AFTER INSERT OR DELETE OR UPDATE (all columns)"},
+        {"object": "trigger style_group_tags_effective_tags_sync on public.style_group_tags", "events": "AFTER INSERT OR DELETE OR UPDATE (all columns)", "note": "style_group_tags has 0 rows; this branch is currently dead code in production"},
+        {"object": "trigger assets_effective_tags_sync on public.assets", "events": "AFTER INSERT OR DELETE OR UPDATE OF style_group_id, is_deleted"}
+      ],
+      "scheduled_job": null,
+      "application_rpc": null,
+      "overlap_guard": "sorted pg_advisory_xact_lock on hashtextextended of aet_asset:/aet_group: keys; deadlock-safe by construction",
+      "can_run_concurrently": "serialized per asset and per style group",
+      "finding": "assets branch unconditionally deletes every effective tag for the asset and reinserts the full set, with no comparison of old set to new set"
+    }
+  ],
+  "one_off_backfill": {
+    "question": "Is the reported 181-second asset_effective_tags population recurring?",
+    "answer": "NO - one-off",
+    "evidence": {
+      "queryid": "2235628885664766616",
+      "statement_prefix": "insert into public.asset_effective_tags (asset_id, tag, scope) select a.id, t.tag, $1 from public.assets a join public.asset_tags t on t.asset_id = a....",
+      "calls": 1,
+      "total_ms": 181670.6,
+      "mean_ms": 181670.62,
+      "rows": 2045705
+    },
+    "but": "The recurring cost is far larger and comes from trigger churn, not from this statement. See table_churn."
+  },
+  "table_churn": [
+    {"table": "asset_effective_tags", "live": 2045705, "dead": 261433, "ins": 8808328, "upd": 0, "del": 6762623, "hot_upd": 0, "writes_per_live_row": 7.6, "size": "521 MB", "last_autovacuum": "2026-09-03T04:12:08-04:00"},
+    {"table": "assets", "live": 145746, "dead": 21248, "ins": 7023, "upd": 1478880, "del": 0, "hot_upd": 739983, "writes_per_live_row": 10.2, "size": "3248 MB"},
+    {"table": "style_groups", "live": 10866, "dead": 1535, "ins": 32563, "upd": 1392386, "del": 32520, "hot_upd": 852120, "writes_per_live_row": 128.1, "size": "41 MB"},
+    {"table": "dam_search_documents", "live": 146007, "dead": 28288, "ins": 39586, "upd": 3437857, "del": 32520, "hot_upd": 215191, "writes_per_live_row": 23.5, "size": "731 MB"},
+    {"table": "style_guide_files", "live": 296608, "dead": 5818, "ins": 2233, "upd": 1565455, "del": 0, "hot_upd": 0, "writes_per_live_row": 5.3, "size": "841 MB"},
+    {"table": "asset_tags", "live_tup_counter": 0, "direct_count": 2173392, "direct_count_active": 2173392, "ins": 0, "upd": 0, "del": 0, "size": "1180 MB", "note": "zero counters mean no writes in this window, NOT an empty table; direct count is authoritative"},
+    {"table": "style_group_tags", "live": 0, "direct_count": 0, "size": "32 kB", "note": "genuinely empty; asset_effective_tags rows with scope='style_group' also count 0"}
+  ],
+  "repositories_searched": [
+    {"repo": "shared-db", "path": "C:/tmp/sdb-step3", "runtime_callers": 0, "note": "migrations and docs only; the dedicated ripgrep run G5 timed out, but the combined sweep G6 covered this repository successfully"},
+    {"repo": "infrastructure", "path": "C:/repos/infrastructure", "runtime_callers": 0, "note": "no matches in the completed combined sweep G6"},
+    {"repo": "oracle", "path": "C:/repos/oracle", "runtime_callers": 0, "note": "no matches in the completed combined sweep G6"},
+    {"repo": "popdam3", "path": "C:/repos/popdam3", "runtime_callers": 8},
+    {"repo": "popcrm-web", "path": "C:/repos/popcrm-web", "runtime_callers": 0, "note": "10 matches, all inside vendored shared-db copy or generated types"},
+    {"repo": "poppim-web", "path": "C:/repos/poppim-web", "runtime_callers": 0, "note": "11 matches, all vendored copy or generated database.types.ts"},
+    {"repo": "dflow_plm", "path": "C:/repos/dflow_plm", "runtime_callers": 0, "note": "unfiltered run hit the 250-file cap and so proves nothing on its own; all 250 paths contained 'shared-db'; a second uncapped run excluding vendored copies returned no matches, exit 0"}
+  ],
+  "edge_functions_production": {
+    "count": 13,
+    "all_deployed_from": "popdam3",
+    "relevant": ["agent-api (calls refresh_style_guide_matviews)"]
+  },
+  "not_measured": [
+    {"item": "changed-row counts for rebuild_style_groups_batch, clear_style_group_batch, refresh_style_group_counts_batch, sync_asset_effective_tags", "why": "requires write-side instrumentation in preview; a read-only snapshot cannot distinguish a no-op write from a real one"},
+    {"item": "fraction of the 10866 nightly style_groups updates that are true no-ops", "why": "requires comparing stored counts to recomputed counts at one instant, or preview instrumentation; the function performs zero such comparisons, which IS measured"},
+    {"item": "query plans for the writing halves of all three batch functions", "why": "EXPLAIN refused with 42501 permission denied for table assets; PostgreSQL requires write permission to plan a write even under bare EXPLAIN. Safety boundary working as designed."},
+    {"item": "per-night attribution of asset_effective_tags churn", "why": "pg_stat_user_tables counters are cumulative and cannot be sliced by time without repeated sampling"},
+    {"item": "behaviour before 2026-08-28", "why": "statistics window begins at the server restart; cron.job_run_details reaches back to 2026-06-20 and is used where a longer view was possible"}
+  ]
+}

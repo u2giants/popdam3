@@ -932,6 +932,54 @@ export type Database = {
           },
         ]
       }
+      bulk_operation_runs: {
+        Row: {
+          ended_at: string | null
+          error: string | null
+          id: string
+          operation: string
+          progress: Json
+          reason_code: string | null
+          recorded_at: string
+          run_id: string
+          source_status: string | null
+          stage: string | null
+          started_at: string
+          status: string
+          succeeded: boolean
+        }
+        Insert: {
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          operation: string
+          progress?: Json
+          reason_code?: string | null
+          recorded_at?: string
+          run_id: string
+          source_status?: string | null
+          stage?: string | null
+          started_at: string
+          status: string
+          succeeded?: boolean
+        }
+        Update: {
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          operation?: string
+          progress?: Json
+          reason_code?: string | null
+          recorded_at?: string
+          run_id?: string
+          source_status?: string | null
+          stage?: string | null
+          started_at?: string
+          status?: string
+          succeeded?: boolean
+        }
+        Relationships: []
+      }
       characters: {
         Row: {
           created_at: string

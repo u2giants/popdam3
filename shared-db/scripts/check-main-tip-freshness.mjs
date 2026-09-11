@@ -142,9 +142,26 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git }) {
 
   let raw
   try {
-    // --name-only over the range, NUL-separated so a path containing a space or
-    // a quote cannot be mis-split. -m flattens merge commits so a merge that
-    // carried code cannot hide behind an empty diff.
+    // ISSUE #2465 -- CLASSIFY WHAT MAIN MOVED BY, AND NOTHING ELSE.
+    //
+    // This was `git log --name-only -m <mainSha>..<tipSha>`, and `-m` was the
+    // defect. For a merge commit M with parents P1 (main) and P2 (the merged
+    // branch), `-m` emits a diff against EACH parent: M-vs-P1 is the branch's
+    // own change, but M-vs-P2 is everything main had gained since that branch
+    // forked. Main advancing by two Markdown files therefore reported the
+    // unrelated code files of whatever pull request was merged, so the
+    // documentation exemption could never fire and every open pull request was
+    // forced into a new head and a fresh pair of reviewer slots.
+    //
+    // A two-point `git diff <mainSha> <tipSha>` is the movement the refusal
+    // message already describes: the net difference between the dispatched
+    // commit and the live tip. It also answers the concern `-m` was reaching
+    // for -- a plain `git log --name-only` shows NOTHING for a merge commit, so
+    // code could hide behind it, while a two-point diff cannot hide a file
+    // whose content differs between the two ends.
+    //
+    // --name-only, NUL-separated so a path containing a space or a quote cannot
+    // be mis-split.
     //
     // --no-renames is LOAD-BEARING (added after external review, GLM 2026-09-01).
     // `diff.renames` defaults to true, and with rename detection on, --name-only
@@ -152,7 +169,7 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git }) {
     // docs/foo.md` would therefore have reported one Markdown path and PASSED,
     // while deleting a code file. With --no-renames both sides are reported and
     // the `.mjs` side blocks. Do not remove this flag.
-    raw = gitRunner(['log', '--format=', '--name-only', '--no-renames', '-z', '-m', `${mainSha}..${tipSha}`], {
+    raw = gitRunner(['diff', '--name-only', '--no-renames', '-z', mainSha, tipSha], {
       cwd,
     })
   } catch {

@@ -1,5 +1,7 @@
 # OrderList (`/orders`)
 
+Active loading/Find-performance work is tracked in [`../plan_master_data_orderlist_loading_performance.md`](../plan_master_data_orderlist_loading_performance.md). Read its STATUS table first; do not re-derive or re-plan completed steps.
+
 PopDAM's replacement for the legacy Google Sheet `OrderList`. Signed-in PopDAM
 staff can view, search, filter, sort, edit and create order lines, with product
 facts read from PopDAM Master Data instead of copied onto every order row.
@@ -66,9 +68,17 @@ Date filters, plus the free-text search box, which searches
 The summary counts (total, linked, ambiguous, not linked) are read as count
 queries over the whole dataset, not derived from loaded rows.
 
-The default view is sorted by newest **Order Date** first and shows 250 rows per
+The default view is sorted by newest **Order Date** first and shows 1,500 rows per
 page. Users can change the sort or page size, and saved views can restore their
 own sort.
+
+The grid virtualizes cells, so the browser does not create DOM text for every
+off-screen row. Ctrl+F is therefore captured and focuses the page's database-backed
+OrderList Find box. Find locates the first match across the full result set,
+moves to and highlights that row, and leaves the surrounding rows visible.
+Administrators can select rows and use **AI helper** to preview one bulk field/value
+update before confirming it. The planner uses `gpt-5.6-luna` with medium reasoning;
+the existing OrderList write contract still validates every saved value.
 
 **The block's rows and its exact total are two separate requests** (fixed
 2026-08-26). Asking PostgREST for both in one call put the request that renders

@@ -235,10 +235,18 @@ export function reconcileReportWithContract(report, contract, { hash = contractH
 
   // A STOP CONDITION THAT FIRED CANNOT END IN SUCCESS. This is the "reported done
   // anyway" failure the whole contract exists to catch.
-  if (report.stop_conditions_hit.length && report.outcome === 'merged') {
-    problems.push(`report hit stop conditions [${report.stop_conditions_hit.join(', ')}] but claims outcome merged; a stop condition means the work stopped`)
+  if (report.stop_conditions_hit.length && ['ready-for-merge', 'merged'].includes(report.outcome)) {
+    problems.push(`report hit stop conditions [${report.stop_conditions_hit.join(', ')}] but claims outcome ${report.outcome}; a stop condition means the work stopped`)
   }
   return { satisfied: problems.length === 0, problems }
+}
+
+export function validatePullRequestCompletion(report, { pr, headSha }) {
+  if (!Number.isInteger(pr) || pr <= 0) throw new ContractError('pull request validation requires a positive PR number')
+  if (!/^[0-9a-f]{40}$/i.test(String(headSha ?? ''))) throw new ContractError('pull request validation requires the exact 40-character head SHA')
+  if (report.outcome !== 'ready-for-merge') throw new ContractError('an open pull request must report outcome ready-for-merge; merged is impossible before GitHub creates the merge commit')
+  if (report.pr !== pr) throw new ContractError(`completion report names PR #${report.pr}, but this check is running for PR #${pr}`)
+  return report
 }
 
 /** Glob matching for the small subset of patterns a contract may use. */
@@ -338,7 +346,7 @@ export function readPublishedContract(ref, io = contractIo) {
 export const USAGE = `Usage:
   node scripts/agent-work-contract.mjs --validate-contract --contract-file <path>
   node scripts/agent-work-contract.mjs --publish-contract  --contract-file <path>
-  node scripts/agent-work-contract.mjs --validate-completion --report-file <path> --contract-file <path>
+  node scripts/agent-work-contract.mjs --validate-completion --report-file <path> --contract-file <path> [--expected-pr <n> --expected-head-sha <sha>]
 
 Exit codes:
   0  valid, or published and read back
@@ -347,7 +355,7 @@ Exit codes:
 `
 
 export function parseArgs(argv) {
-  const options = { mode: null, contractFile: null, reportFile: null, help: false }
+  const options = { mode: null, contractFile: null, reportFile: null, expectedPr: null, expectedHeadSha: null, help: false }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--help' || arg === '-h') { options.help = true; continue }
@@ -358,6 +366,8 @@ export function parseArgs(argv) {
     const value = argv[i + 1]
     if (arg === '--contract-file') { if (!value || value.startsWith('--')) throw new ContractError('--contract-file requires a path'); options.contractFile = value; i++; continue }
     if (arg === '--report-file') { if (!value || value.startsWith('--')) throw new ContractError('--report-file requires a path'); options.reportFile = value; i++; continue }
+    if (arg === '--expected-pr') { if (!value || value.startsWith('--')) throw new ContractError('--expected-pr requires a value'); options.expectedPr = Number(value); i++; continue }
+    if (arg === '--expected-head-sha') { if (!value || value.startsWith('--')) throw new ContractError('--expected-head-sha requires a value'); options.expectedHeadSha = value; i++; continue }
     throw new ContractError(`unknown argument ${arg}`)
   }
   return options
@@ -393,6 +403,9 @@ export async function main(argv, io = {}) {
     const contract = readJson(options.contractFile, '--contract-file')
     const { validateCompletionRecord } = await import('./lib/work-dependencies.mjs')
     validateCompletionReport(report, { validateCompletionRecord })
+    if (options.expectedPr !== null || options.expectedHeadSha !== null) {
+      validatePullRequestCompletion(report, { pr: options.expectedPr, headSha: options.expectedHeadSha })
+    }
     const verdict = reconcileReportWithContract(report, validateContract(contract))
     if (!verdict.satisfied) {
       error('Completion report does NOT satisfy its contract:')
