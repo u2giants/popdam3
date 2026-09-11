@@ -170,6 +170,16 @@ Read and write follow the collaborative Master Data model: any signed-in PopDAM
 user can read and edit. There is no delete; corrections use status and void
 fields so history survives.
 
+## Find behavior
+
+OrderList Find keeps the grid's active filters and sort, then asks the shared
+database for the first matching row and its position in one bounded lookup. The
+grid loads the normal destination block and highlights the match with nearby
+rows still visible. It does not download the full list or scan IDs in the
+browser. A temporary fallback exists only if a just-deployed server genuinely
+does not yet expose the lookup; permission, validation, timeout, and database
+errors stay visible instead of being hidden.
+
 > **Settled by the owner, 2026-08-26.** Albert Hazan ruled that **everyone
 > signed in should be able to see OrderList data**. The four OrderList tables
 > carry `USING (true)` SELECT policies for `authenticated`, which already match

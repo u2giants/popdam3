@@ -11,8 +11,8 @@ Fresh sessions start at **Step 1**. Re-read the downstream phase before starting
 | 1. Record baselines and exact payload contract | 🟨 partial | 2026-09-10 | Sanitized Licensed baseline: `docs/verification/grid-loading-performance/2026-09-10T1514Z/README.md`; Generic/OrderList traces remain after test-session rotation. Explicit projection contract test added in Step 2–3 commit. |
 | 2. Render the first 4,000 Master Data rows immediately | ✅ complete — local verification | 2026-09-10 | `useInfiniteQuery` releases four 1,000-row ranges per page and appends later pages; focused tests and build passed. Production verification remains Step 6. |
 | 3. Stop downloading unused Master Data fields | ✅ complete — local verification | 2026-09-10 | Explicit select projection and contract test exclude verified unused view metadata; production byte measurement remains Step 6. |
-| 4. Add the governed OrderList Find-position RPC | ⬜ open — queued as shared-db #2665 | 2026-09-10 | Shared-db migration, SQL tests, preview evidence, PR and merge SHA. |
-| 5. Replace the OrderList multi-request scan with the RPC | ⬜ open — blocked by Step 4 | 2026-09-10 | App tests and browser/network evidence specified in Step 5. |
+| 4. Add the governed OrderList Find-position RPC | ✅ complete — production | 2026-09-11 | Canonical shared-db #2664, PR #2748 merged `9da98edefecc7104d709762e53fd1efb421cc9dc`; production migration `20260911081204` and signed-in RPC acceptance passed. #2665 was a duplicate. |
+| 5. Replace the OrderList multi-request scan with the RPC | ✅ complete — deployed | 2026-09-11 | PopDAM `dc7e4c0fcf4d31f5726bcdb0a4e33e3b29a31acb` calls the RPC once with normalized filters/sort and retains only missing-function deployment-skew fallback; focused tests pass. |
 | 6. Ship and verify production behavior and performance | 🟨 incident fix in progress; Find still blocked by Step 4 | 2026-09-11 | Yuchen's production row load timed out while exact counts ran concurrently. Visible block loading is being made count-free; Find integration and final measurements remain. |
 
 ## 1. The ultimate goal
