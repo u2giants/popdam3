@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildSgIngestCompletionUpdate, canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "./sg-crawl-state.ts";
+import {
+  buildSgIngestCompletionUpdate,
+  canCompleteSgCrawl,
+  countAcceptedExtensions,
+  evaluateSgDropGuard,
+  hasMoreSgSearchDocuments,
+  SG_RECONCILE_BATCH_SIZE,
+} from "./sg-crawl-state.ts";
 
 const config = { absoluteDrop: 1_000, percentageDrop: 0.01, minimumPriorCount: 10_000 };
 
