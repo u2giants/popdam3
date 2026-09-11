@@ -28,10 +28,31 @@ export async function canonicalItemIdMap(client: DB, items: CanonicalItemIdentit
     .eq("source_system", "coldlion")
     .in("item_number", sourceIds);
   if (error) throw new Error(`Failed to resolve canonical item IDs: ${error.message}`);
-  return new Map((data ?? []).map((item: any) => [
-    canonicalItemKey({ source_system: item.source_system, division_code: item.raw?.divisionCode ?? null, source_id: item.item_number }),
-    item.id,
-  ]));
+  return uniqueCanonicalItemIds(data ?? []);
+}
+
+/**
+ * Maps three-part identities to canonical item IDs. An identity matching more
+ * than one canonical item (for example the same number and division under two
+ * companies) is ambiguous and is left unresolved rather than guessed.
+ */
+export function uniqueCanonicalItemIds(
+  rows: Array<{ id: string; source_system: string; item_number: string; raw?: { divisionCode?: string | null } | null }>,
+): Map<string, string> {
+  const ids = new Map<string, string>();
+  const ambiguous = new Set<string>();
+  for (const row of rows) {
+    const key = canonicalItemKey({ source_system: row.source_system, division_code: row.raw?.divisionCode ?? null, source_id: row.item_number });
+    if (ambiguous.has(key)) continue;
+    const existing = ids.get(key);
+    if (existing !== undefined && existing !== row.id) {
+      ids.delete(key);
+      ambiguous.add(key);
+      continue;
+    }
+    ids.set(key, row.id);
+  }
+  return ids;
 }
 
 export function canonicalItemKey(item: CanonicalItemIdentity): string {

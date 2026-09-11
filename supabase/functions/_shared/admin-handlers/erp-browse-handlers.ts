@@ -270,10 +270,19 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const itemKeySql = canonicalItemKeySql("e");
-  const predJoin = `LEFT JOIN plm.item canonical_item
+  // Attach a canonical item only when exactly one matches; an ambiguous
+  // identity yields no row (never duplicates, never a guessed prediction).
+  const predJoin = `LEFT JOIN (
+    SELECT match.source_system, match.item_number,
+      coalesce(match.raw ->> 'divisionCode', '') AS division_key,
+      (array_agg(match.id))[1] AS id
+    FROM plm.item match
+    GROUP BY 1, 2, 3
+    HAVING count(*) = 1
+  ) canonical_item
     ON canonical_item.source_system = e.source_system
    AND canonical_item.item_number = e.source_id
-   AND coalesce(canonical_item.raw ->> 'divisionCode', '') = coalesce(e.division_code, '')
+   AND canonical_item.division_key = coalesce(e.division_code, '')
   LEFT JOIN LATERAL (
     SELECT id, external_id, predicted_category, confidence, rationale, status
     FROM product_category_predictions candidate

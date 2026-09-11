@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalItemKey, predictionSourceId, rawMgFieldsFromCanonical } from "./canonical-erp-items.ts";
+import { canonicalItemKey, predictionSourceId, rawMgFieldsFromCanonical, uniqueCanonicalItemIds } from "./canonical-erp-items.ts";
 
 describe("canonical ERP item helpers", () => {
   it("keeps same-number items distinct by source and division", () => {
@@ -7,6 +7,17 @@ describe("canonical ERP item helpers", () => {
       .toBe("coldlion|CW001|ABC123");
     expect(canonicalItemKey({ source_system: "coldlion", division_code: "SP001", source_id: "ABC123" }))
       .toBe("coldlion|SP001|ABC123");
+  });
+
+  it("leaves ambiguous same-division identities unresolved", () => {
+    const ids = uniqueCanonicalItemIds([
+      { id: "a", source_system: "coldlion", item_number: "ABC123", raw: { divisionCode: "CW001" } },
+      { id: "b", source_system: "coldlion", item_number: "ABC123", raw: { divisionCode: "CW001" } },
+      { id: "c", source_system: "coldlion", item_number: "ABC123", raw: { divisionCode: "CW001" } },
+      { id: "d", source_system: "coldlion", item_number: "ABC123", raw: { divisionCode: "SP001" } },
+    ]);
+    expect(ids.has("coldlion|CW001|ABC123")).toBe(false);
+    expect(ids.get("coldlion|SP001|ABC123")).toBe("d");
   });
 
   it("reads both canonical and legacy prediction identities", () => {

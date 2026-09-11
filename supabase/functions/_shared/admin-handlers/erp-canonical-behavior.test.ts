@@ -99,6 +99,8 @@ describe("canonical ERP handler behavior", () => {
     await handleErpItemsBrowse({ show_dismissed: false });
     for (const [, params] of fixture.rpc.mock.calls) {
       expect(params.query_text).toContain("candidate.plm_item_id = canonical_item.id");
+      expect(params.query_text).toContain("HAVING count(*) = 1");
+      expect(params.query_text).not.toContain("LEFT JOIN plm.item canonical_item");
       expect(params.query_text).toContain("e.dismissed = false");
     }
     fixture.rpc.mockClear();
