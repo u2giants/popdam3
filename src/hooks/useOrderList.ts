@@ -71,6 +71,25 @@ export type OrderListBlock = { rows: OrderListRow[]; totalRowCount: number | nul
 
 export type OrderListFindRequest = Pick<OrderListBlockRequest, "filterModel" | "sortModel" | "search">;
 
+export type OrderListFindPayload = {
+  p_search: string;
+  p_filters: ReturnType<typeof buildOrderListFilters>;
+  p_sort: ReturnType<typeof buildOrderListSort>;
+};
+
+export function buildOrderListFindPayload(request: OrderListFindRequest): OrderListFindPayload {
+  return {
+    p_search: request.search?.trim() ?? "",
+    p_filters: buildOrderListFilters(request.filterModel as Record<string, any> | null),
+    p_sort: buildOrderListSort(request.sortModel),
+  };
+}
+
+function isMissingOrderListFindRpc(error: { code?: string; message?: string } | null | undefined) {
+  // Deployment skew only: do not hide permissions, validation, timeout, or SQL errors.
+  return error?.code === "42883" || error?.code === "PGRST202";
+}
+
 /** Applies filters, search and sort identically to the row and count queries. */
 function applyOrderListShape<T>(query: T, request: OrderListBlockRequest, withSort: boolean): T {
   let q = query as any;
@@ -147,7 +166,7 @@ export async function fetchOrderListBlock(request: OrderListBlockRequest): Promi
  * list. This lets the grid scroll to a database-wide match without turning the
  * search box into another filter.
  */
-export async function findOrderListRow(request: OrderListFindRequest): Promise<{ row: OrderListRow; index: number } | null> {
+async function findOrderListRowWithLegacyScan(request: OrderListFindRequest): Promise<{ rowId: string; index: number } | null> {
   if (!request.search?.trim()) return null;
 
   const matchQuery = applyOrderListShape(
@@ -157,8 +176,8 @@ export async function findOrderListRow(request: OrderListFindRequest): Promise<{
   );
   const { data: matches, error: matchError } = await matchQuery.range(0, 0);
   if (matchError) throw matchError;
-  const row = (matches?.[0] ?? null) as OrderListRow | null;
-  if (!row) return null;
+  const rowId = ((matches?.[0] ?? null) as OrderListRow | null)?.order_line_id;
+  if (!rowId) return null;
 
   const baseRequest = { ...request, search: "", startRow: 0, endRow: 1 };
   const count = await fetchOrderListCount(baseRequest);
@@ -176,11 +195,32 @@ export async function findOrderListRow(request: OrderListFindRequest): Promise<{
       return { from: range.from, rows: data ?? [] };
     }));
     for (const page of pages) {
-      const offset = page.rows.findIndex((candidate: { order_line_id?: string }) => candidate.order_line_id === row.order_line_id);
-      if (offset >= 0) return { row, index: page.from + offset };
+      const offset = page.rows.findIndex((candidate: { order_line_id?: string }) => candidate.order_line_id === rowId);
+      if (offset >= 0) return { rowId, index: page.from + offset };
     }
   }
   return null;
+}
+
+/**
+ * Finds a database-wide match and its position without downloading every
+ * preceding OrderList ID. The legacy scan exists only during deployment skew
+ * where a client reaches a server that genuinely lacks the RPC.
+ */
+export async function findOrderListRow(request: OrderListFindRequest): Promise<{ rowId: string; index: number } | null> {
+  const payload = buildOrderListFindPayload(request);
+  if (!payload.p_search) return null;
+
+  const { data, error } = await (supabase.rpc as any)("find_dam_order_list_row", payload);
+  if (error) {
+    if (!isMissingOrderListFindRpc(error)) throw error;
+    console.warn("OrderList Find RPC is unavailable during deployment; using the temporary bounded fallback.", { code: error.code });
+    return findOrderListRowWithLegacyScan(request);
+  }
+
+  const match = (data?.[0] ?? null) as { order_line_id?: string; row_index?: number } | null;
+  if (!match?.order_line_id || typeof match.row_index !== "number") return null;
+  return { rowId: match.order_line_id, index: match.row_index };
 }
 
 export type OrderListStatusCounts = {

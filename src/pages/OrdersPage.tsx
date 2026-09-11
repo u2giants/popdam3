@@ -140,7 +140,7 @@ export default function OrdersPage() {
           toast.info(`No OrderList row contains "${term}"`);
           return;
         }
-        setHighlightedRowId(match.row.order_line_id);
+        setHighlightedRowId(match.rowId);
         const pageSize = api.paginationGetPageSize();
         api.paginationGoToPage(Math.floor(match.index / pageSize));
         window.requestAnimationFrame(() => api.ensureIndexVisible(match.index, "middle"));

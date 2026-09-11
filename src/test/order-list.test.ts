@@ -25,6 +25,7 @@ import {
   shouldFetchNextOrderListBatch,
   summarizeOrderListRows,
 } from "@/lib/order-list";
+import { buildOrderListFindPayload } from "@/hooks/useOrderList";
 import type { OrderListLinkCandidate, OrderListRow } from "@/types/order-list";
 
 function row(overrides: Partial<OrderListRow> = {}): OrderListRow {
@@ -328,6 +329,21 @@ describe("OrderList database query building", () => {
       { column: "order_date", ascending: false },
       { column: "order_line_id", ascending: true },
     ]);
+  });
+
+  it("normalizes Find RPC input with the same filter and sort rules as grid blocks", () => {
+    expect(buildOrderListFindPayload({
+      search: " D0644 ",
+      filterModel: { sku: { type: "contains", filter: "NCV3" } },
+      sortModel: [{ colId: "order_date", sort: "asc" }],
+    })).toEqual({
+      p_search: "D0644",
+      p_filters: [{ column: "sku", operator: "ilike", value: "%NCV3%" }],
+      p_sort: [
+        { column: "order_date", ascending: true },
+        { column: "order_line_id", ascending: true },
+      ],
+    });
   });
 
   it("keeps every page size aligned to whole fetched blocks", () => {
