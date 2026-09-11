@@ -49,13 +49,16 @@ describe("canonical ERP cutover", () => {
     expect(handler).toContain("item_identity");
   });
 
-  it("does not borrow an item description when a SKU spans divisions and the caller has no division", () => {
+  it("does not borrow an item description when a SKU is ambiguous, with or without a division", () => {
     for (const path of [
       "src/components/library/StyleGroupDetailPanel.tsx",
       "apps/worker/src/handlers/ai-tagging-shared.ts",
     ]) {
       const source = read(path);
-      expect(source, path).toMatch(/\.limit\([^?]+\? 1 : 2\)/);
+      // Same-division duplicates (two companies) must also be detected, so the
+      // lookup always fetches two rows and uses one only when it is unique.
+      expect(source, path).toMatch(/\.limit\(2\)/);
+      expect(source, path).not.toMatch(/\? 1 : 2\)/);
       expect(source, path).toMatch(/\.length === 1/);
     }
   });
