@@ -13,7 +13,7 @@ Fresh sessions start at **Step 1**. Re-read the downstream phase before starting
 | 3. Stop downloading unused Master Data fields | ✅ complete — local verification | 2026-09-10 | Explicit select projection and contract test exclude verified unused view metadata; production byte measurement remains Step 6. |
 | 4. Add the governed OrderList Find-position RPC | ✅ complete — production | 2026-09-11 | Canonical shared-db #2664, PR #2748 merged `9da98edefecc7104d709762e53fd1efb421cc9dc`; production migration `20260911081204` and signed-in RPC acceptance passed. #2665 was a duplicate. |
 | 5. Replace the OrderList multi-request scan with the RPC | ✅ complete — deployed | 2026-09-11 | PopDAM `dc7e4c0fcf4d31f5726bcdb0a4e33e3b29a31acb` calls the RPC once with normalized filters/sort and retains only missing-function deployment-skew fallback; focused tests pass. |
-| 6. Ship and verify production behavior and performance | 🟨 incident fix in progress; Find still blocked by Step 4 | 2026-09-11 | Yuchen's production row load timed out while exact counts ran concurrently. Visible block loading is being made count-free; Find integration and final measurements remain. |
+| 6. Ship and verify production behavior and performance | 🟨 final signed-in acceptance pending | 2026-09-11 | Visible OrderList rows are count-free in live code (`f6af7dd8`); summary counts begin later and run one at a time. Find is live at `dc7e4c0`. Remaining: safe signed-in customer QA and comparable Generic/OrderList measurements after test-session credential rotation. |
 
 ## 1. The ultimate goal
 
