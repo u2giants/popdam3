@@ -170,3 +170,66 @@ async function writeJobOrThrow(
     );
   }
 }
+
+// ── Exhausted jobs ──────────────────────────────────────────────────
+//
+// claim_sg_render_jobs only reclaims rows with attempts below the maximum, so a
+// job whose final attempt was claimed by an agent that then died stayed
+// "claimed" forever: never retried, never failed, and its file looked "not yet
+// rendered". Before each claim, such jobs are now marked failed and the reason
+// is recorded on the file, so they appear in the PopSG failures list and can be
+// retried from there.
+
+/** Must match the p_max_attempts the claim RPC is called with. */
+export const SG_RENDER_MAX_ATTEMPTS = 3;
+export const SG_EXHAUSTED_SWEEP_LIMIT = 50;
+
+export interface ExhaustedSgRenderJob {
+  id: string;
+  style_guide_file_id: string | null;
+  attempts: number;
+}
+
+export interface SgExhaustedJobWriter {
+  /** Claimed jobs whose lease expired before `now` and that have no attempts left. */
+  listExhausted(maxAttempts: number, now: string, limit: number): PromiseLike<{ data: ExhaustedSgRenderJob[] | null; error: DbWriteError | null }>;
+  /**
+   * Marks one job failed, only if it is still claimed with an expired lease, so a
+   * late completion from the agent is never overwritten. Should report the row count.
+   */
+  failIfStillExpired(jobId: string, fields: Record<string, unknown>, now: string): PromiseLike<DbWriteResult>;
+  /** Sets thumbnail_error only if the file has no thumbnail; matching no row is fine. */
+  recordFileError(fileId: string, message: string): PromiseLike<DbWriteResult>;
+}
+
+export function exhaustedJobMessage(attempts: number): string {
+  return `Render abandoned: the render agent stopped responding during attempt ${attempts} of ${SG_RENDER_MAX_ATTEMPTS} and no attempts remain`;
+}
+
+export async function failExhaustedSgRenderJobs(
+  writer: SgExhaustedJobWriter,
+  now: string,
+  options: { maxAttempts?: number; limit?: number } = {},
+): Promise<{ failed: string[]; error?: string }> {
+  const maxAttempts = options.maxAttempts ?? SG_RENDER_MAX_ATTEMPTS;
+  const { data, error } = await writer.listExhausted(maxAttempts, now, options.limit ?? SG_EXHAUSTED_SWEEP_LIMIT);
+  if (error) return { failed: [], error: `listing exhausted jobs failed: ${error.message}` };
+
+  const failed: string[] = [];
+  const problems: string[] = [];
+  for (const job of data ?? []) {
+    const message = exhaustedJobMessage(job.attempts);
+    const jobWrite = await writer.failIfStillExpired(job.id, { status: "failed", completed_at: now, error_message: message }, now);
+    if (jobWrite.error) {
+      problems.push(`job ${job.id}: ${jobWrite.error.message}`);
+      continue;
+    }
+    if (jobWrite.count === 0) continue; // completed or reclaimed meanwhile
+    failed.push(job.id);
+    if (job.style_guide_file_id) {
+      const fileWrite = await writer.recordFileError(job.style_guide_file_id, message);
+      if (fileWrite.error) problems.push(`file ${job.style_guide_file_id}: ${fileWrite.error.message}`);
+    }
+  }
+  return problems.length ? { failed, error: problems.join("; ") } : { failed };
+}

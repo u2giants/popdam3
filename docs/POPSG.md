@@ -156,7 +156,7 @@ The Windows Render Agent generates thumbnails for `style_guide_files`. The pipel
 
 1. Admin clicks "Queue Render Jobs" → calls `queue_sg_render_jobs_by_ids()` (or the queue-all variant) → inserts rows into `style_guide_render_queue`.
 2. Windows Agent polls `style_guide_render_queue` for `status = 'pending'` jobs, claims one, renders the file (Sharp / Ghostscript / ImageMagick / Inkscape / Poppler depending on extension), uploads the thumbnail to Supabase Storage, and updates `thumbnail_url` on the file row.
-3. Failures set `thumbnail_error` on the file row and the queue job to `status = 'failed'`.
+3. Failures set `thumbnail_error` on the file row and the queue job to `status = 'failed'`. A job is claimed at most 3 times; if the agent dies during the last attempt, `claim_sg_render_jobs` will never reclaim it, so `agent-api` `claim-sg-render` first marks such jobs (claimed, lease expired, attempts ≥ 3) failed with a "Render abandoned" reason and sets `thumbnail_error` on files that have no thumbnail (added 2026-09-11).
 4. Admin clicks "Retry All" on the "Files with Render Errors" tab → calls `retry_sg_render_errors()` in 500-file batches until it returns 0.
 
 **Extension allowlist** (in `queue_sg_render_jobs_by_ids` and `get_sg_preview_stats`): `pdf`, `ai`, `psd`, `jpg`, `jpeg`, `png`, `tif`, `tiff`, `svg`, `indd`, `eps`. Files with unlisted extensions get `thumbnail_error = 'unsupported_extension'` immediately on queue attempt. Note: EPS was added 2026-05-07 (migration `20260507173844`) — about 23,242 files need to be queued and rendered.

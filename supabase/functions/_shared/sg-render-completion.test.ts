@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   backoffDelayMs,
   type DbWriteResult,
+  exhaustedJobMessage,
+  failExhaustedSgRenderJobs,
   isTransientDbError,
+  type SgExhaustedJobWriter,
   persistSgRenderCompletion,
   type SgRenderCompletionWriter,
   writeWithRetry,
@@ -173,5 +176,89 @@ describe("persistSgRenderCompletion", () => {
     expect(calls.job).toEqual([{ status: "failed", completed_at: NOW, error_message: "Illustrator crashed" }]);
     expect(calls.file).toEqual([]);
     expect(file.thumbnail_error).toBe("Illustrator crashed");
+  });
+});
+
+describe("failExhaustedSgRenderJobs", () => {
+  type Job = { id: string; style_guide_file_id: string | null; status: string; attempts: number; lease_expires_at: string; error_message: string | null };
+  type File = { thumbnail_url: string | null; thumbnail_error: string | null };
+
+  // Mirrors the queries agent-api runs against the two tables.
+  function fakeDb(jobs: Job[], files: Record<string, File>, beforeFail?: (job: Job) => void) {
+    const writer: SgExhaustedJobWriter = {
+      listExhausted: (maxAttempts, now, limit) =>
+        Promise.resolve({
+          data: jobs
+            .filter((j) => j.status === "claimed" && j.lease_expires_at < now && j.attempts >= maxAttempts)
+            .slice(0, limit)
+            .map(({ id, style_guide_file_id, attempts }) => ({ id, style_guide_file_id, attempts })),
+          error: null,
+        }),
+      failIfStillExpired: (id, fields, now) => {
+        const job = jobs.find((j) => j.id === id)!;
+        beforeFail?.(job);
+        if (job.status !== "claimed" || !(job.lease_expires_at < now)) return Promise.resolve(noRows);
+        Object.assign(job, fields);
+        return Promise.resolve(ok);
+      },
+      recordFileError: (id, message) => {
+        const file = files[id];
+        if (!file || file.thumbnail_url) return Promise.resolve(noRows);
+        file.thumbnail_error = message;
+        return Promise.resolve(ok);
+      },
+    };
+    return writer;
+  }
+
+  const expired = "2026-07-29T22:43:00.000Z";
+  const future = "2026-09-11T12:05:00.000Z";
+
+  it("fails a claimed job whose final attempt's lease expired and records it on the file", async () => {
+    const jobs: Job[] = [
+      { id: "stuck", style_guide_file_id: "f1", status: "claimed", attempts: 3, lease_expires_at: expired, error_message: null },
+    ];
+    const files = { f1: { thumbnail_url: null, thumbnail_error: null } };
+    const result = await failExhaustedSgRenderJobs(fakeDb(jobs, files), NOW);
+    expect(result).toEqual({ failed: ["stuck"] });
+    expect(jobs[0].status).toBe("failed");
+    expect(jobs[0].error_message).toBe(exhaustedJobMessage(3));
+    expect(files.f1.thumbnail_error).toBe(exhaustedJobMessage(3));
+  });
+
+  it("leaves reclaimable, still-leased and finished jobs alone", async () => {
+    const jobs: Job[] = [
+      { id: "retryable", style_guide_file_id: "f1", status: "claimed", attempts: 2, lease_expires_at: expired, error_message: null },
+      { id: "rendering", style_guide_file_id: "f2", status: "claimed", attempts: 3, lease_expires_at: future, error_message: null },
+      { id: "done", style_guide_file_id: "f3", status: "completed", attempts: 3, lease_expires_at: expired, error_message: null },
+    ];
+    const files = { f1: { thumbnail_url: null, thumbnail_error: null } };
+    const result = await failExhaustedSgRenderJobs(fakeDb(jobs, files), NOW);
+    expect(result).toEqual({ failed: [] });
+    expect(jobs.map((j) => j.status)).toEqual(["claimed", "claimed", "completed"]);
+    expect(files.f1.thumbnail_error).toBeNull();
+  });
+
+  it("does not overwrite a job the agent completed after it was listed, nor a file that has a thumbnail", async () => {
+    const jobs: Job[] = [
+      { id: "late", style_guide_file_id: "f1", status: "claimed", attempts: 3, lease_expires_at: expired, error_message: null },
+      { id: "rendered", style_guide_file_id: "f2", status: "claimed", attempts: 3, lease_expires_at: expired, error_message: null },
+    ];
+    const files = { f1: { thumbnail_url: null, thumbnail_error: null }, f2: { thumbnail_url: "https://cdn/x.jpg", thumbnail_error: null } };
+    const db = fakeDb(jobs, files, (job) => { if (job.id === "late") job.status = "completed"; });
+    const result = await failExhaustedSgRenderJobs(db, NOW);
+    expect(result).toEqual({ failed: ["rendered"] });
+    expect(jobs[0].status).toBe("completed");
+    expect(files.f1.thumbnail_error).toBeNull();
+    expect(files.f2).toEqual({ thumbnail_url: "https://cdn/x.jpg", thumbnail_error: null });
+  });
+
+  it("reports a listing error without throwing, so claiming can continue", async () => {
+    const writer: SgExhaustedJobWriter = {
+      listExhausted: () => Promise.resolve({ data: null, error: { message: "timeout" } }),
+      failIfStillExpired: () => Promise.resolve(ok),
+      recordFileError: () => Promise.resolve(ok),
+    };
+    expect(await failExhaustedSgRenderJobs(writer, NOW)).toEqual({ failed: [], error: "listing exhausted jobs failed: timeout" });
   });
 });

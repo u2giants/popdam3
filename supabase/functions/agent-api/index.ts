@@ -46,7 +46,11 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "../_shared/sg-crawl-state.ts";
-import { persistSgRenderCompletion } from "../_shared/sg-render-completion.ts";
+import {
+  failExhaustedSgRenderJobs,
+  persistSgRenderCompletion,
+  SG_RENDER_MAX_ATTEMPTS,
+} from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
@@ -3155,7 +3159,35 @@ async function handleClaimSgRender(body: Record<string, unknown>) {
   const agentId = body.agent_id as string;
   if (!agentId) return err("agent_id is required");
 
-  const { data, error } = await db.rpc("claim_sg_render_jobs", { p_agent_id: agentId, p_batch_size: 1 });
+  // Jobs whose last attempt died with the agent are never reclaimed; fail them
+  // so they surface in PopSG. A sweep problem must not stop claiming.
+  const sweepNow = new Date().toISOString();
+  const sweep = await failExhaustedSgRenderJobs(
+    {
+      listExhausted: (maxAttempts, now, limit) =>
+        db.from("style_guide_render_queue")
+          .select("id, style_guide_file_id, attempts")
+          .eq("status", "claimed")
+          .lt("lease_expires_at", now)
+          .gte("attempts", maxAttempts)
+          .order("created_at")
+          .limit(limit),
+      failIfStillExpired: (id, fields, now) =>
+        db.from("style_guide_render_queue").update(fields, { count: "exact" })
+          .eq("id", id).eq("status", "claimed").lt("lease_expires_at", now),
+      recordFileError: (id, message) =>
+        db.from("style_guide_files").update({ thumbnail_error: message }, { count: "exact" }).eq("id", id).is("thumbnail_url", null),
+    },
+    sweepNow,
+  );
+  if (sweep.failed.length) console.warn(`[claim-sg-render] failed ${sweep.failed.length} exhausted job(s): ${sweep.failed.join(", ")}`);
+  if (sweep.error) console.error(`[claim-sg-render] exhausted-job sweep: ${sweep.error}`);
+
+  const { data, error } = await db.rpc("claim_sg_render_jobs", {
+    p_agent_id: agentId,
+    p_batch_size: 1,
+    p_max_attempts: SG_RENDER_MAX_ATTEMPTS,
+  });
   if (error) {
     console.error("[claim-sg-render] RPC error:", error);
     return err(`claim_sg_render_jobs failed: ${error.message}`, 500);
