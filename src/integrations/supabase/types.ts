@@ -4361,6 +4361,13 @@ export type Database = {
           thumbnail_url: string
         }[]
       }
+      find_dam_order_list_row: {
+        Args: { p_filters?: Json; p_search: string; p_sort?: Json }
+        Returns: {
+          order_line_id: string
+          row_index: number
+        }[]
+      }
       get_ai_sentinel_stats: { Args: never; Returns: Json }
       get_ai_tag_candidates: {
         Args: {
