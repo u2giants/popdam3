@@ -13,7 +13,7 @@ Fresh sessions start at **Step 1**. Re-read the downstream phase before starting
 | 3. Stop downloading unused Master Data fields | ✅ complete — local verification | 2026-09-10 | Explicit select projection and contract test exclude verified unused view metadata; production byte measurement remains Step 6. |
 | 4. Add the governed OrderList Find-position RPC | ⬜ open — queued as shared-db #2665 | 2026-09-10 | Shared-db migration, SQL tests, preview evidence, PR and merge SHA. |
 | 5. Replace the OrderList multi-request scan with the RPC | ⬜ open — blocked by Step 4 | 2026-09-10 | App tests and browser/network evidence specified in Step 5. |
-| 6. Ship and verify production behavior and performance | ⬜ open — blocked by Steps 2–5 | 2026-09-10 | CI run, deployed SHA, browser screenshots and before/after measurements. |
+| 6. Ship and verify production behavior and performance | 🟨 incident fix in progress; Find still blocked by Step 4 | 2026-09-11 | Yuchen's production row load timed out while exact counts ran concurrently. Visible block loading is being made count-free; Find integration and final measurements remain. |
 
 ## 1. The ultimate goal
 
@@ -60,7 +60,7 @@ The current symptom is perceived waiting, not missing or incorrect data. Reprodu
 - Converting Master Data to infinite/server-side row mode. The completed active tab must remain client-side so all rows participate in AG Grid Find and filters.
 - Loading all OrderList rows into the browser; the full view was measured at about 53 MB and roughly 25 seconds.
 - Adding Set filters to OrderList.
-- Combining OrderList row and exact-count requests, increasing statement timeouts, caching stale results, or hiding failures.
+- Putting an OrderList exact-count request on the visible row-loading path, increasing statement timeouts, caching stale results, or hiding failures.
 - Editing `src/integrations/supabase/types.ts`; it is generated.
 - Adding migrations under PopDAM's historical `supabase/migrations/` or editing PopDAM's read-only `shared-db/` mirror.
 - Any production database write without Albert's explicit approval for the exact migration after preview proof.
@@ -83,7 +83,7 @@ Everything described here is committed, pushed and deployed on PopDAM `main` at 
 
 - `src/components/orders/OrderListGrid.tsx` uses AG Grid's infinite row model and 500-row database blocks. Keep it.
 - `src/hooks/useOrderList.ts:74-96`, `applyOrderListShape`, applies allowlisted filter models, full-text Find clause, and stable sorting.
-- `src/hooks/useOrderList.ts:149-165`, `fetchOrderListBlock`, deliberately separates row data from the best-effort exact count. Keep that separation.
+- `src/hooks/useOrderList.ts`, `fetchOrderListBlock`, loads only bounded rows. The grid discovers its end from a short final block; summary counts start later and run sequentially.
 - `src/hooks/useOrderList.ts:172-205`, `findOrderListRow`, first fetches one matching full row, then scans the filtered-but-unsearched list's IDs in 1,000-row ranges, six requests at a time, until it discovers the matching row's index. At current volume this can issue roughly 25 ID-range requests.
 - `src/pages/OrdersPage.tsx`, the search effect, calls `findOrderListRow`, changes pagination, scrolls to the returned index and highlights the returned ID. Preserve that customer-visible behavior and race cancellation.
 - `src/lib/order-list.ts:33-43` is the locked list of searchable columns; `buildOrderListFilters` and `buildOrderListSort` define the filter/sort semantics the RPC must match.
@@ -107,7 +107,7 @@ Everything described here is committed, pushed and deployed on PopDAM `main` at 
 - **Rejected: use AG Grid's built-in Find for OrderList.** AG Grid Find supports only the client-side row model; OrderList intentionally uses the infinite model, whose browser cache contains only a subset.
 - **Rejected: retain the current parallel ID scan as the final design.** It works but transfers the full position prefix and creates up to 25 requests for one Find.
 - **Rejected: interpolate arbitrary AG Grid column names/operators into dynamic SQL.** The RPC must reject unknown columns, operators, sort directions and malformed shapes before building a query.
-- **Rejected: merge row and exact-count queries.** This previously made the visible rows fail when a count timed out; the split is a locked reliability decision.
+- **Rejected: put exact counting on the visible-row path.** Same-request counting caused the first outage; parallel separate counting still caused production contention on 2026-09-11. Blocks must remain count-free.
 - **Rejected: increase any timeout or hide a failed lookup.** A performance fix must reduce work while keeping errors truthful.
 
 ## 8. Design decisions already made
@@ -198,7 +198,7 @@ Dependencies: Step 1 baseline only. Runs independently of Steps 2–3, but must 
 2. Return `{ rowId, index }` or equivalent. The surrounding grid block will load through the existing datasource after `paginationGoToPage`/`ensureIndexVisible`; do not fetch the full matching row solely to identify it.
 3. Update `src/pages/OrdersPage.tsx` to highlight by returned row ID. Preserve 300 ms debounce, stale-request cancellation, no-match message, active filter/sort semantics, page navigation and centered surrounding rows.
 4. Keep the old `findOrderListRow` ID scan as a narrowly classified deployment-skew fallback only if the error proves the RPC is unavailable (`42883`/known missing-function schema-cache case). Never fall back for permission, malformed input, timeout or SQL errors. Emit one non-secret warning identifying fallback use. Remove the fallback after live production proof or create a dated cleanup issue with a short deadline.
-5. Do not change `fetchOrderListBlock`, `fetchOrderListCount`, datasource search `""`, infinite row model, count caching or summary counts.
+5. Preserve the count-free `fetchOrderListBlock`, datasource search `""`, infinite row model, and deferred sequential summary counts.
 
 Dependencies: Step 4 production contract.  
 **You'll know it worked when:** one debounced Find produces one RPC plus the ordinary destination grid-block request, no ID-range scan; a late match scrolls/highlights with surrounding rows; active filters/custom sorts produce the same ID/index as the database fixture; rapid typing cannot highlight a stale term; and no-match/permission failures are truthful.

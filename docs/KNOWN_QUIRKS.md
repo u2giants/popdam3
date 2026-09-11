@@ -1187,17 +1187,15 @@ shared-db #1966, not urgent, and it no longer affects `/orders`.
 buffer counts; "it must be RLS" cost a
 day here.**
 
-**Operator view**: the summary counts above the grid still populate (they come
-from a separate, cheap call) while the grid itself shows the timeout error. That
-split is the tell.
+**Operator view**: before the 2026-09-11 fix, the grid could show the timeout
+while summary counts were also running. That concurrency was the tell.
 
-**Do not change because**: rows and the total are now two requests
-(`src/hooks/useOrderList.ts`). The rows decide whether a block succeeds; the
-count is best-effort, cached per filter/search result set, and reported as
-**unknown — never 0** when it fails, which AG Grid renders as "of more".
-Re-merging them to "save a round trip" reintroduces the outage. The same trap
-applies to any large view in this app: measure the count separately as the
-`authenticated` role, not as `postgres`, which has no such timeout.
+**Do not change because**: visible blocks make no exact-count request
+(`src/hooks/useOrderList.ts`). Summary counts wait until rows render and run
+sequentially. Putting a count beside the row request, even as a separate HTTP
+call, reintroduces production contention. The same trap applies to any large
+view in this app: measure the count separately as the `authenticated` role, not
+as `postgres`, which has no such timeout.
 
 ---
 

@@ -45,11 +45,14 @@ export default function OrdersPage() {
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [filteredCount, setFilteredCount] = useState<number | null>(null);
   const [selectedRows, setSelectedRows] = useState<OrderListRow[]>([]);
+  const [hasLoadedRows, setHasLoadedRows] = useState(false);
+  const [summaryCountsEnabled, setSummaryCountsEnabled] = useState(false);
 
   const authReady = Boolean(user) && !authLoading;
   const savedViewsQuery = useOrderListSavedViews(user?.id);
   const candidatesQuery = useOrderListLinkCandidates(relinkRow);
-  const statusCountsQuery = useOrderListStatusCounts(authReady);
+  // Let the customer-visible block load before starting four whole-list counts.
+  const statusCountsQuery = useOrderListStatusCounts(authReady && summaryCountsEnabled);
   const customersQuery = useDamCustomers();
 
   /** Reloads the rows the grid is showing, without re-reading the whole list. */
@@ -87,10 +90,14 @@ export default function OrdersPage() {
             search: "",
           });
           setLoadError(null);
+          setHasLoadedRows(true);
           setFilteredCount(block.totalRowCount);
-          // undefined = "total not known yet"; the grid keeps paging instead of
-          // pretending the result set ends at the block it just received.
-          params.successCallback(block.rows, block.totalRowCount ?? undefined);
+          // A short block proves the exact end. Otherwise the grid keeps paging
+          // without making the visible rows wait for a whole-list exact count.
+          const lastRow = block.rows.length < params.endRow - params.startRow
+            ? params.startRow + block.rows.length
+            : undefined;
+          params.successCallback(block.rows, lastRow);
         } catch (error) {
           // Never fail silently: the grid shows nothing, so say why.
           setLoadError((error as Error)?.message ?? "unknown error");
@@ -104,6 +111,12 @@ export default function OrdersPage() {
   useEffect(() => {
     gridRef.current?.api?.setGridOption("datasource", datasource);
   }, [datasource]);
+
+  useEffect(() => {
+    if (!hasLoadedRows) return;
+    const timer = window.setTimeout(() => setSummaryCountsEnabled(true), 2_000);
+    return () => window.clearTimeout(timer);
+  }, [hasLoadedRows]);
 
   useEffect(() => {
     const term = search.trim();

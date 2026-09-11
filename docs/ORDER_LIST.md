@@ -65,8 +65,9 @@ one would silently filter against loaded rows only. Columns use Text, Number and
 Date filters, plus the free-text search box, which searches
 `ORDER_LIST_SEARCH_COLUMNS` in the database.
 
-The summary counts (total, linked, ambiguous, not linked) are read as count
-queries over the whole dataset, not derived from loaded rows.
+The summary counts (total, linked, ambiguous, not linked) are read as sequential
+count queries over the whole dataset, not derived from loaded rows. They start
+after visible rows have loaded so they cannot hold up the grid.
 
 The default view is sorted by newest **Order Date** first and shows 1,500 rows per
 page. Users can change the sort or page size, and saved views can restore their
@@ -80,14 +81,13 @@ Administrators can select rows and use **AI helper** to preview one bulk field/v
 update before confirming it. The planner uses `gpt-5.6-luna` with medium reasoning;
 the existing OrderList write contract still validates every saved value.
 
-**The block's rows and its exact total are two separate requests** (fixed
-2026-08-26). Asking PostgREST for both in one call put the request that renders
-the screen within reach of the 8-second `authenticated` statement timeout, and
-in production it exceeded it — the whole grid failed with `canceling statement
-due to statement timeout`. Rows cost ~50 ms; an exact count of the view costs
-~2.2 s under RLS. The count is now best-effort, cached per filter/search result
-set, and reported as **unknown, never 0**, when it fails — which the grid shows
-as "of more". See `docs/KNOWN_QUIRKS.md` #75. Do not re-merge them.
+**Visible blocks never request or wait for an exact total** (strengthened
+2026-09-11). The earlier row/count split still launched the exact count beside
+the row request, while the summary launched four more counts. Under production
+load those statements competed and the bounded row query could still fail with
+`canceling statement due to statement timeout`. The grid now renders each
+500-row block alone and discovers the exact end when the last block is shorter.
+See `docs/KNOWN_QUIRKS.md` #75. Do not put a count back on the row-loading path.
 
 **What the exact count actually costs** (re-measured on production as
 `authenticated`, 2026-08-27, issue #100). The original "~2.2 s under RLS"
@@ -106,8 +106,8 @@ RLS.**
 Both large tables are now Index Only Scans and the bridge does zero heap
 fetches: the exact total costs **107 ms cold / 52-76 ms warm**, reading **969
 buffers (~8 MB)** where it once read 24,835 (~194 MB). That is ~1.5% of the 8 s
-`authenticated` ceiling. The rows/count split stays regardless — it is what
-makes a slow count degrade honestly rather than kill the grid.
+`authenticated` ceiling. The visible-row path stays count-free regardless, so
+whole-list work cannot delay or kill a bounded block.
 
 ## Master Data rules
 

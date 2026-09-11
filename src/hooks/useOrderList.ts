@@ -95,18 +95,6 @@ function applyOrderListShape<T>(query: T, request: OrderListBlockRequest, withSo
   return q as T;
 }
 
-/** Identifies one result set, so its total is counted once and not per block. */
-function orderListCountKey(request: OrderListBlockRequest): string {
-  return JSON.stringify({ filter: request.filterModel ?? null, search: request.search ?? "" });
-}
-
-const orderListCountCache = new Map<string, number>();
-
-/** Exposed for tests; also called when a new search or filter is applied. */
-export function clearOrderListCountCache() {
-  orderListCountCache.clear();
-}
-
 /**
  * Exact row count for the current filter/search, as a SEPARATE request.
  *
@@ -121,10 +109,6 @@ export function clearOrderListCountCache() {
  * count can never stop the rows from rendering.
  */
 async function fetchOrderListCount(request: OrderListBlockRequest): Promise<number | null> {
-  const key = orderListCountKey(request);
-  const cached = orderListCountCache.get(key);
-  if (cached !== undefined) return cached;
-
   const query = applyOrderListShape(
     orderListTable().select(ORDER_LIST_COUNT_SELECT, { count: "exact", head: true }),
     request,
@@ -135,7 +119,6 @@ async function fetchOrderListCount(request: OrderListBlockRequest): Promise<numb
   // Best effort by design: an unknown total is a live grid, not a dead screen.
   if (error || count == null) return null;
 
-  orderListCountCache.set(key, count);
   return count;
 }
 
@@ -143,24 +126,19 @@ async function fetchOrderListCount(request: OrderListBlockRequest): Promise<numb
  * One bounded block of the view. Sorting, filtering and search all run in the
  * database, so results cover every matching row, not only the loaded ones.
  *
- * The rows and the total are two independent requests. The rows decide whether
- * this call succeeds; the total is best-effort and cached per result set.
+ * Do not count the whole view while loading a block. Production users can have
+ * several exact summary counts in flight already; adding another expensive
+ * count here made the visible 500-row request compete for the statement timeout.
+ * AG Grid discovers the exact end when a bounded block returns fewer rows.
  */
 export async function fetchOrderListBlock(request: OrderListBlockRequest): Promise<OrderListBlock> {
   const rowQuery = applyOrderListShape(orderListTable().select(ORDER_LIST_SELECT), request, true);
-
-  const [rowResult, countResult] = await Promise.allSettled([
-    rowQuery.range(request.startRow, Math.max(request.endRow - 1, request.startRow)),
-    fetchOrderListCount(request),
-  ]);
-
-  if (rowResult.status === "rejected") throw rowResult.reason;
-  const { data, error } = rowResult.value;
+  const { data, error } = await rowQuery.range(request.startRow, Math.max(request.endRow - 1, request.startRow));
   if (error) throw error;
 
   return {
     rows: (data ?? []) as OrderListRow[],
-    totalRowCount: countResult.status === "fulfilled" ? countResult.value : null,
+    totalRowCount: null,
   };
 }
 
@@ -220,15 +198,15 @@ async function countWhere(apply: (query: any) => any): Promise<number> {
 
 /** Whole-dataset link counts, read as counts rather than by loading rows. */
 export async function fetchOrderListStatusCounts(): Promise<OrderListStatusCounts> {
-  const [total, linked, ambiguous, unmatched] = await Promise.all([
-    countWhere((query) => query),
-    countWhere((query) => query.not("item_id", "is", null)),
-    countWhere((query) => query.eq("master_data_match_status", "ambiguous")),
+  // Keep these off the database's critical path. Four concurrent exact counts
+  // previously competed with the customer's bounded row requests.
+  const total = await countWhere((query) => query);
+  const linked = await countWhere((query) => query.not("item_id", "is", null));
+  const ambiguous = await countWhere((query) => query.eq("master_data_match_status", "ambiguous"));
+  const unmatched = await countWhere(
     // Ambiguous rows have their own count, so they are not also counted here.
-    countWhere((query) =>
-      query.is("item_id", null).not("master_data_match_status", "in", "(not_applicable,ambiguous)"),
-    ),
-  ]);
+    (query) => query.is("item_id", null).not("master_data_match_status", "in", "(not_applicable,ambiguous)"),
+  );
   return { total, linked, ambiguous, unmatched };
 }
 
