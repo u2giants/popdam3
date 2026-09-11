@@ -45,7 +45,7 @@ import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNu
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
-import { buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments } from "../_shared/sg-crawl-state.ts";
+import { buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "../_shared/sg-crawl-state.ts";
 import { persistSgRenderCompletion } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 
@@ -3000,7 +3000,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         const { data, error: reconcileErr } = await db.rpc("reconcile_stale_sg_files_batch", {
           p_root_label: rootLabel,
           p_run_id: runId,
-          p_batch_size: 5000,
+          p_batch_size: SG_RECONCILE_BATCH_SIZE,
           p_min_ratio: 0.5,
         });
         if (reconcileErr) {
@@ -3338,15 +3338,22 @@ async function handleCompleteStyleGuidePdfText(body: Record<string, unknown>) {
     const fileId = optionalString(result, "style_guide_file_id");
     const identity = optionalString(result, "content_identity");
     if (!fileId || !identity) return err("style_guide_file_id and content_identity are required", 400);
-    const errorMessage = optionalString(result, "extraction_error");
-    const { data, error } = await db.rpc("complete_style_guide_pdf_text", {
+    const status = optionalString(result, "status");
+    if (!status || !["extracted", "failed", "skipped"].includes(status)) {
+      return err("status must be extracted, failed, or skipped", 400);
+    }
+    const terminalReason = optionalString(result, "terminal_reason");
+    if (status !== "extracted" && !terminalReason) return err("terminal_reason is required for failed or skipped results", 400);
+    const { data, error } = await db.rpc("complete_style_guide_pdf_text_v2", {
       p_style_guide_file_id: fileId,
       p_content_identity: identity,
-      p_text: errorMessage ? undefined : optionalString(result, "extracted_text"),
+      p_status: status,
+      p_method: optionalString(result, "extraction_method"),
       p_page_count: typeof result.page_count === "number" ? result.page_count : undefined,
-      p_error: errorMessage,
+      p_text: status === "extracted" ? optionalString(result, "extracted_text") : undefined,
+      p_reason: terminalReason,
     });
-    if (error) return err(`complete_style_guide_pdf_text failed: ${error.message}`, 500);
+    if (error) return err(`complete_style_guide_pdf_text_v2 failed: ${error.message}`, 500);
     if (data === true) accepted++;
     else refused++;
   }

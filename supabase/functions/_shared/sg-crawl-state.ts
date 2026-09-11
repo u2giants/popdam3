@@ -75,3 +75,8 @@ export function canCompleteSgCrawl(stage: SgCrawlStage, counters: Pick<SgCrawlCo
 export function hasMoreSgSearchDocuments(synced: number, batchSize: number): boolean {
   return synced >= batchSize;
 }
+
+// 5,000-row reconciliation timed out in ordinary production runs even though
+// the contract is restart-safe. The smaller batch preserves the same guard and
+// continuation semantics without increasing the statement ceiling.
+export const SG_RECONCILE_BATCH_SIZE = 250;

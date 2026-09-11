@@ -17,6 +17,7 @@ import { safeFilesystemModifiedAt } from "./file-date-validation.js";
 import { isIngestableFile } from "./sg-ingest-filter.js";
 import { eligibilityContract } from "./sg-ingest-filter.js";
 import { boundedRetryDelay, completionDisposition, type StyleGuideCrawlCompletion } from "./sg-crawl-continuation.js";
+import { SG_CRAWL_INGEST_BATCH_SIZE } from "./sg-crawl-bounds.js";
 
 // ── Normalization ────────────────────────────────────────────────
 
@@ -162,7 +163,6 @@ async function* walkDirectory(
 
 // ── Main crawl function ──────────────────────────────────────────
 
-const BATCH_SIZE = 500;
 const MAX_COMPLETION_CONTINUATIONS = 120;
 
 const sleep = (milliseconds: number) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
@@ -239,7 +239,7 @@ export async function crawlStyleGuides(roots: string[]): Promise<void> {
         batch.push(file);
         totalFiles++;
 
-        if (batch.length >= BATCH_SIZE) {
+        if (batch.length >= SG_CRAWL_INGEST_BATCH_SIZE) {
           await api.completeStyleGuideCrawl(runId, batch, false);
           logger.info("Style guide crawl: batch sent", { totalSoFar: totalFiles });
           batch = [];

@@ -255,9 +255,11 @@ export interface StyleGuidePdfTextJob {
 export interface StyleGuidePdfTextResult {
   style_guide_file_id: string;
   content_identity: string;
+  status: "extracted" | "failed" | "skipped";
+  extraction_method: string | null;
   extracted_text: string | null;
   page_count: number | null;
-  extraction_error: string | null;
+  terminal_reason: string | null;
 }
 
 export async function claimStyleGuidePdfText(agentId: string): Promise<StyleGuidePdfTextJob[]> {

@@ -3,6 +3,7 @@ import { logger } from "./logger";
 import * as api from "./api-client";
 import { processOne } from "./pdf-backfill";
 import type { AiConfig } from "./pdf-text-sampler";
+import { toStyleGuidePdfOutcome } from "./style-guide-pdf-outcome";
 
 export async function runStyleGuidePdfBackfill(
   agentId: string,
@@ -38,20 +39,21 @@ export async function runStyleGuidePdfBackfill(
           aiConfig,
           false,
         );
+        const outcome = toStyleGuidePdfOutcome(extracted);
         results.push({
           style_guide_file_id: job.style_guide_file_id,
           content_identity: job.content_identity,
-          extracted_text: extracted.extracted_text,
-          page_count: extracted.page_count,
-          extraction_error: extracted.extraction_error,
+          ...outcome,
         });
       } catch (error) {
         results.push({
           style_guide_file_id: job.style_guide_file_id,
           content_identity: job.content_identity,
+          status: "failed",
+          extraction_method: null,
           extracted_text: null,
           page_count: null,
-          extraction_error: (error as Error).message.slice(0, 500),
+          terminal_reason: (error as Error).message.slice(0, 500) || "Unexpected extraction failure",
         });
       }
     }

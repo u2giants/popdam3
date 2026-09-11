@@ -3,6 +3,7 @@ import test from "node:test";
 import { safeFilesystemModifiedAt } from "./file-date-validation.js";
 import { isIngestableFile } from "./sg-ingest-filter.js";
 import { boundedRetryDelay, completionDisposition } from "./sg-crawl-continuation.js";
+import { SG_CRAWL_INGEST_BATCH_SIZE } from "./sg-crawl-bounds.js";
 
 const NOW = Date.parse("2026-08-02T12:00:00Z");
 
@@ -54,6 +55,10 @@ test("rejects files that cannot be thumbnailed", () => {
 
 test("does not treat a dotfile as an extension match", () => {
   assert.equal(isIngestableFile(".png"), false);
+});
+
+test("keeps each style-guide ingest write comfortably bounded", () => {
+  assert.equal(SG_CRAWL_INGEST_BATCH_SIZE, 100);
 });
 
 test("accepts the exact legacy additive completion response", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSgIngestCompletionUpdate, canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard, hasMoreSgSearchDocuments } from "./sg-crawl-state.ts";
+import { buildSgIngestCompletionUpdate, canCompleteSgCrawl, countAcceptedExtensions, evaluateSgDropGuard, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "./sg-crawl-state.ts";
 
 const config = { absoluteDrop: 1_000, percentageDrop: 0.01, minimumPriorCount: 10_000 };
 
@@ -57,5 +57,11 @@ describe("hasMoreSgSearchDocuments", () => {
     expect(hasMoreSgSearchDocuments(5_000, 5_000)).toBe(true);
     expect(hasMoreSgSearchDocuments(4_999, 5_000)).toBe(false);
     expect(hasMoreSgSearchDocuments(0, 5_000)).toBe(false);
+  });
+});
+
+describe("SG_RECONCILE_BATCH_SIZE", () => {
+  it("keeps each production reconciliation write bounded", () => {
+    expect(SG_RECONCILE_BATCH_SIZE).toBe(250);
   });
 });

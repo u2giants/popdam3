@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "tsx --test src/pdf-text-sampler.test.ts && vitest run --root ../.. apps/windows-agent/src/tiff-timestamps.vitest.ts",
+    "test": "tsx --test src/pdf-text-sampler.test.ts src/style-guide-pdf-outcome.test.ts && vitest run --root ../.. apps/windows-agent/src/tiff-timestamps.vitest.ts",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
