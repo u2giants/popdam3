@@ -68,10 +68,12 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     skusByDivision.set(key, [...(skusByDivision.get(key) ?? []), e.style_number]);
   }
   const byDivision = (q: any, division: string | null) => division === null ? q.is("division_code", null) : q.eq("division_code", division);
-  const divisionCounts = await Promise.all([...skusByDivision].map(([division, divisionSkus]) => Promise.all([
-    byDivision(db.from("assets").select("*", { count: "exact", head: true }).in("sku", divisionSkus).eq("is_deleted", false), division),
-    byDivision(db.from("style_groups").select("*", { count: "exact", head: true }).in("sku", divisionSkus), division),
-  ])));
+  const divisionCounts = await Promise.all([...skusByDivision].map(([division, divisionSkus]) =>
+    Promise.all([
+      byDivision(db.from("assets").select("*", { count: "exact", head: true }).in("sku", divisionSkus).eq("is_deleted", false), division),
+      byDivision(db.from("style_groups").select("*", { count: "exact", head: true }).in("sku", divisionSkus), division),
+    ])
+  ));
   const assetCountRes = { count: divisionCounts.reduce((sum, [a]) => sum + (a.count ?? 0), 0) };
   const groupCountRes = { count: divisionCounts.reduce((sum, [, g]) => sum + (g.count ?? 0), 0) };
 

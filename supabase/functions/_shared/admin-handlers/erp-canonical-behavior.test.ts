@@ -18,19 +18,36 @@ vi.mock("../service-client.ts", () => {
       select: () => query,
       eq: (column: string, value: unknown) => {
         fixture.calls.push({ table, column, value });
-        rows = rows.filter(row => row[column] === value); return query;
+        rows = rows.filter((row) => row[column] === value);
+        return query;
       },
       in: (column: string, values: unknown[]) => {
         fixture.calls.push({ table, column, value: values });
-        rows = rows.filter(row => values.includes(row[column])); return query;
+        rows = rows.filter((row) => values.includes(row[column]));
+        return query;
       },
-      not: (column: string, _operator: string, value: unknown) => { rows = rows.filter(row => row[column] !== value); return query; },
-      neq: (column: string, value: unknown) => { rows = rows.filter(row => row[column] !== value); return query; },
+      not: (column: string, _operator: string, value: unknown) => {
+        rows = rows.filter((row) => row[column] !== value);
+        return query;
+      },
+      neq: (column: string, value: unknown) => {
+        rows = rows.filter((row) => row[column] !== value);
+        return query;
+      },
       lt: () => query,
       order: () => query,
-      range: (from: number, to: number) => { rows = rows.slice(from, to + 1); return query; },
-      limit: (count: number) => { rows = rows.slice(0, count); return query; },
-      maybeSingle: () => { single = true; return query; },
+      range: (from: number, to: number) => {
+        rows = rows.slice(from, to + 1);
+        return query;
+      },
+      limit: (count: number) => {
+        rows = rows.slice(0, count);
+        return query;
+      },
+      maybeSingle: () => {
+        single = true;
+        return query;
+      },
       then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: single ? rows[0] ?? null : rows, count: rows.length, error: null }).then(resolve),
     };
     return query;
@@ -46,8 +63,24 @@ beforeEach(() => {
   fixture.rpc.mockReset();
   fixture.tables = {
     "api.plm_item_list": [
-      { id: "legacy-cw", source_id: "SAME", source_system: "coldlion", division_code: "CW001", style_number: "SAME", item_description: "CW description", mg_category: null },
-      { id: "canonical-sp", source_id: "SAME", source_system: "coldlion", division_code: "SP001", style_number: "SAME", item_description: "SP description", mg_category: null },
+      {
+        id: "legacy-cw",
+        source_id: "SAME",
+        source_system: "coldlion",
+        division_code: "CW001",
+        style_number: "SAME",
+        item_description: "CW description",
+        mg_category: null,
+      },
+      {
+        id: "canonical-sp",
+        source_id: "SAME",
+        source_system: "coldlion",
+        division_code: "SP001",
+        style_number: "SAME",
+        item_description: "SP description",
+        mg_category: null,
+      },
     ],
     "plm.item": [
       { id: "canonical-cw", source_system: "coldlion", item_number: "SAME", description: "CW description", raw: { divisionCode: "CW001" } },
@@ -78,14 +111,26 @@ describe("canonical ERP handler behavior", () => {
   });
 
   it("dry-run skips ambiguous same-division duplicates, matching the worker apply", async () => {
-    fixture.tables["plm.item"].push({ id: "canonical-cw-other-company", source_system: "coldlion", item_number: "SAME", description: "Other company", raw: { divisionCode: "CW001" } });
+    fixture.tables["plm.item"].push({
+      id: "canonical-cw-other-company",
+      source_system: "coldlion",
+      item_number: "SAME",
+      description: "Other company",
+      raw: { divisionCode: "CW001" },
+    });
     const body = await (await handleApplyErpEnrichment({ mode: "dry-run" })).json();
     expect(body.sample_updates ?? []).toHaveLength(0);
     expect(fixture.calls.filter((c) => c.table === "product_category_predictions")).toHaveLength(0);
   });
 
   it("shows the SKU, not the whole canonical identity, for unresolved new predictions", async () => {
-    fixture.tables.product_category_predictions.push({ id: "unresolved-canonical", plm_item_id: null, external_id: "coldlion|CW001|NEWSKU", predicted_category: "Other", status: "pending" });
+    fixture.tables.product_category_predictions.push({
+      id: "unresolved-canonical",
+      plm_item_id: null,
+      external_id: "coldlion|CW001|NEWSKU",
+      predicted_category: "Other",
+      status: "pending",
+    });
     const body = await (await handleErpReviewQueue({ status: "all" })).json();
     expect(body.items.find((row: any) => row.id === "unresolved-canonical").style_number).toBe("NEWSKU");
     expect(body.items.find((row: any) => row.id === "unresolved").style_number).toBe("SAME");
