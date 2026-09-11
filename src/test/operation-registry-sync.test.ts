@@ -19,7 +19,7 @@ import {
  * split map means the UI lets a user start a job the worker will refuse (or
  * worse, one the worker will run concurrently with a conflicting job).
  */
-const workerSource = readFileSync("apps/worker/src/operation-loop.ts", "utf8");
+const workerSource = readFileSync("apps/worker/src/operation-loop.ts", "utf8").replace(/\r\n/g, "\n");
 
 function parseWorkerMap(header: string): Record<string, string[] | string> {
   const start = workerSource.indexOf(header);

@@ -66,7 +66,7 @@ Copy the ENTIRE block below, paste it into the Console, and press Enter:
     'erp_sync_runs', 'style_groups', 'assets', 'asset_tags',
     'asset_characters', 'asset_path_history', 'processing_queue',
     'render_queue', 'tiff_optimization_queue', 'hygiene_findings',
-    'erp_items_current', 'erp_items_raw', 'erp_enrichment_log',
+    'plm_item_list', 'erp_enrichment_log',
     'product_category_predictions', 'invitations',
     'agent_registrations', 'agent_pairings'
   ];

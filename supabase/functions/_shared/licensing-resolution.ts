@@ -2,6 +2,7 @@
 
 import type { ServiceClient } from "./service-client.ts";
 import type { ParsedSku } from "./sku-parser.ts";
+import { canonicalItems } from "./canonical-erp-items.ts";
 
 interface ErpLicensing {
   division_code: string | null;
@@ -27,9 +28,13 @@ export interface LicensingResolution {
 }
 
 export interface LicensingMaps {
-  erpByStyleNumber: Map<string, ErpLicensing>;
+  erpByStyleAndDivision: Map<string, ErpLicensing>;
   licensorsBySourceId: Map<string, SourceIdentity>;
   propertiesBySourceId: Map<string, SourceIdentity & { licensor_id: string }>;
+}
+
+function itemKey(styleNumber: string, divisionCode: string | null): string {
+  return `${divisionCode ?? ""}|${styleNumber}`;
 }
 
 const emptyResolution = (reason: string | null, unresolved: boolean): LicensingResolution => ({
@@ -53,7 +58,7 @@ export async function loadAuthoritativeLicensingMaps(
   styleNumbers: string[],
 ): Promise<LicensingMaps> {
   const erpPromise = styleNumbers.length > 0
-    ? db.from("erp_items_current").select("style_number, division_code, licensor_code, property_code")
+    ? canonicalItems(db).select("style_number, division_code, licensor_code, property_code")
       .in("style_number", [...new Set(styleNumbers)])
     : Promise.resolve({ data: [], error: null });
   const [{ data: erpRows, error: erpError }, { data: refs, error: refError }, { data: properties, error: propertyError }] = await Promise.all([
@@ -69,7 +74,7 @@ export async function loadAuthoritativeLicensingMaps(
 
   const propertyParents = new Map((properties ?? []).map((row) => [row.id, row.licensor_id]));
   return {
-    erpByStyleNumber: new Map((erpRows ?? []).map((row) => [row.style_number, row])),
+    erpByStyleAndDivision: new Map((erpRows ?? []).map((row) => [itemKey(row.style_number, row.division_code), row])),
     licensorsBySourceId: new Map(
       (refs ?? []).filter((row) => row.entity_table === "licensor")
         .map((row) => [row.source_id, { id: row.entity_id, name: row.source_name }]),
@@ -94,10 +99,14 @@ export async function resolveAuthoritativeLicensing(
   if (!isLicensed) return emptyResolution(null, false);
   if (!parsed) return emptyResolution("licensed_asset_has_no_parseable_sku", true);
 
-  let erp: ErpLicensing | null = maps?.erpByStyleNumber.get(parsed.sku) ?? null;
+  let erp: ErpLicensing | null = maps?.erpByStyleAndDivision.get(itemKey(parsed.sku, parsed.division_code)) ?? null;
   if (!maps) {
-    const { data, error } = await db.from("erp_items_current")
-      .select("division_code, licensor_code, property_code").eq("style_number", parsed.sku).maybeSingle();
+    const { data, error } = await canonicalItems(db)
+      .select("division_code, licensor_code, property_code")
+      .eq("style_number", parsed.sku)
+      .eq("division_code", parsed.division_code)
+      .limit(1)
+      .maybeSingle();
     if (error) throw new Error(`Authoritative ColdLion item lookup failed: ${error.message}`);
     erp = data;
   }

@@ -12,6 +12,7 @@ import {
   isStyleGuideSourcePdf,
 } from "../../../../supabase/functions/_shared/tag-asset-contract.js";
 import { ASSET_TAG_CATEGORIES, normalizeMetadataTag } from "../tagging-metadata-policy.js";
+import { canonicalItems } from "../canonical-erp-items.js";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
 
@@ -32,6 +33,7 @@ export type TaggingPromptAsset = {
   licensor_id: string | null;
   property_id: string | null;
   sku: string | null;
+  division_code?: string | null;
   style_group_id?: string | null;
 };
 
@@ -271,11 +273,14 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
   let erpDescription: string | null = null;
   let itemDescription: string | null = null;
   if (asset.sku) {
-    const { data: erpItem } = await client
-      .from("erp_items_current")
+    let erpQuery = canonicalItems(client)
       .select("item_description")
       .eq("style_number", asset.sku)
-      .maybeSingle();
+      .order("division_code", { ascending: true })
+      .limit(2);
+    if (asset.division_code) erpQuery = erpQuery.eq("division_code", asset.division_code);
+    const { data: erpRows } = await erpQuery;
+    const erpItem = erpRows?.length === 1 ? erpRows[0] : null;
     erpDescription = erpItem?.item_description ?? null;
 
     const { data: humanDescription, error: humanDescriptionError } = await client
