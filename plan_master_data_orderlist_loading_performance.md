@@ -8,12 +8,12 @@ Fresh sessions start at **Step 1**. Re-read the downstream phase before starting
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
-| 1. Record baselines and exact payload contract | 🟨 partial | 2026-09-10 | Sanitized Licensed baseline: `docs/verification/grid-loading-performance/2026-09-10T1514Z/README.md`; Generic/OrderList traces remain after test-session rotation. Explicit projection contract test added in Step 2–3 commit. |
-| 2. Render the first 4,000 Master Data rows immediately | ✅ complete — local verification | 2026-09-10 | `useInfiniteQuery` releases four 1,000-row ranges per page and appends later pages; focused tests and build passed. Production verification remains Step 6. |
-| 3. Stop downloading unused Master Data fields | ✅ complete — local verification | 2026-09-10 | Explicit select projection and contract test exclude verified unused view metadata; production byte measurement remains Step 6. |
+| 1. Record baselines and exact payload contract | ✅ complete — production acceptance | 2026-09-11 | Signed-in production evidence: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`; Generic and Licensed bounded waves and final counts recorded, with the one retried transient Licensed request retained. |
+| 2. Render the first 4,000 Master Data rows immediately | ✅ complete — production acceptance | 2026-09-11 | `useInfiniteQuery` releases four 1,000-row ranges per page and appends later pages; signed-in production wave evidence and final counts: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`. |
+| 3. Stop downloading unused Master Data fields | ✅ complete — production acceptance | 2026-09-11 | Explicit projection is visible in the signed-in production request shape and excludes the confirmed-unused view metadata; evidence: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`. |
 | 4. Add the governed OrderList Find-position RPC | ✅ complete — production | 2026-09-11 | Canonical shared-db #2664, PR #2748 merged `9da98edefecc7104d709762e53fd1efb421cc9dc`; production migration `20260911081204` and signed-in RPC acceptance passed. #2665 was a duplicate. |
 | 5. Replace the OrderList multi-request scan with the RPC | ✅ complete — deployed | 2026-09-11 | PopDAM `dc7e4c0fcf4d31f5726bcdb0a4e33e3b29a31acb` calls the RPC once with normalized filters/sort and retains only missing-function deployment-skew fallback; focused tests pass. |
-| 6. Ship and verify production behavior and performance | 🟨 final signed-in acceptance pending | 2026-09-11 | Visible OrderList rows are count-free in live code (`f6af7dd8`); summary counts begin later and run one at a time. Find is live at `dc7e4c0`. Albert confirmed the released pages load faster. Remaining: safe signed-in customer QA and comparable Generic/OrderList measurements after test-session credential rotation. |
+| 6. Ship and verify production behavior and performance | ✅ complete — production acceptance | 2026-09-11 | Signed-in production acceptance: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md` and screenshots. Licensed 12,527 rows, Generic 3,215 rows, OrderList 24,486 lines; live Find returned HTTP 200 through one governed lookup with bounded destination loading. |
 
 ## 1. The ultimate goal
 
