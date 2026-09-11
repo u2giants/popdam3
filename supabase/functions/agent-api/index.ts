@@ -3224,8 +3224,10 @@ async function handleCompleteSgRender(body: Record<string, unknown>) {
 
   const outcome = await persistSgRenderCompletion(
     {
-      updateFile: (id, fields) => db.from("style_guide_files").update(fields).eq("id", id),
-      updateJob: (id, fields) => db.from("style_guide_render_queue").update(fields).eq("id", id),
+      updateFile: (id, fields) => db.from("style_guide_files").update(fields, { count: "exact" }).eq("id", id),
+      updateJob: (id, fields) => db.from("style_guide_render_queue").update(fields, { count: "exact" }).eq("id", id),
+      recordFileError: (id, message) =>
+        db.from("style_guide_files").update({ thumbnail_error: message }, { count: "exact" }).eq("id", id).is("thumbnail_url", null),
     },
     { jobId, fileId: resolvedFileId || null, success, thumbnailUrl, errorMsg, now },
     {
