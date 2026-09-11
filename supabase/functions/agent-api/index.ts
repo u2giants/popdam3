@@ -46,6 +46,7 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments } from "../_shared/sg-crawl-state.ts";
+import { persistSgRenderCompletion } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
@@ -3221,24 +3222,24 @@ async function handleCompleteSgRender(body: Record<string, unknown>) {
 
   const resolvedFileId = (fileId || jobRow.style_guide_file_id) as string;
 
-  await db.from("style_guide_render_queue").update({
-    status: success ? "completed" : "failed",
-    completed_at: now,
-    error_message: errorMsg || null,
-  }).eq("id", jobId);
+  const outcome = await persistSgRenderCompletion(
+    {
+      updateFile: (id, fields) => db.from("style_guide_files").update(fields).eq("id", id),
+      updateJob: (id, fields) => db.from("style_guide_render_queue").update(fields).eq("id", id),
+    },
+    { jobId, fileId: resolvedFileId || null, success, thumbnailUrl, errorMsg, now },
+    {
+      onRetry: (attempt, error, delayMs) =>
+        console.warn(`[complete-sg-render] job=${jobId} write attempt ${attempt} failed, retrying in ${delayMs}ms:`, error.message),
+    },
+  );
 
-  if (success && thumbnailUrl && resolvedFileId) {
-    await db.from("style_guide_files").update({
-      thumbnail_url: thumbnailUrl,
-      thumbnail_error: null,
-    }).eq("id", resolvedFileId);
-  } else if (!success && errorMsg && resolvedFileId) {
-    await db.from("style_guide_files").update({
-      thumbnail_error: errorMsg,
-    }).eq("id", resolvedFileId);
+  if (!outcome.ok) {
+    console.error(`[complete-sg-render] job=${jobId} fileId=${resolvedFileId} ${outcome.error}`);
+    return err(outcome.error, 500);
   }
 
-  console.log(`[complete-sg-render] job=${jobId} success=${success} fileId=${resolvedFileId}`);
+  console.log(`[complete-sg-render] job=${jobId} status=${outcome.status} fileId=${resolvedFileId}`);
   return json({ ok: true });
 }
 
