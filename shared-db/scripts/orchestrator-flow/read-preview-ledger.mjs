@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from 'node:child_process'
+import { runGitHubCommand } from '../lib/github-transport.mjs'
 
 export const PROJECT_REFS=Object.freeze({production:'qsllyeztdwjgirsysgai',preview:'mvpkijzfmfcxhnzqogzs'})
 export const APPLIED_VERSIONS_SQL='select version from supabase_migrations.schema_migrations order by version'
@@ -15,8 +15,8 @@ export async function fetchAppliedVersions(projectRef,token=process.env.SUPABASE
   return rows.map((row)=>{if(!row||row.version===undefined||row.version===null)throw new Unknown('a ledger row came back without a `version` column');return String(row.version)})
 }
 
-export function readRepoVariable(name,{executor=execFileSync}={}){
-  try{return executor('gh',['variable','get',name,'--repo','u2giants/shared-db'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()}catch(error){throw new Unknown(`repository variable ${name} is unavailable: ${error.message}`)}
+export function readRepoVariable(name,{run=runGitHubCommand}={}){
+  try{return run(['variable','get',name,'--repo','u2giants/shared-db'],{wrapError:(detail)=>new Unknown(`repository variable ${name} is unavailable: ${detail}`)}).trim()}catch(error){throw error instanceof Unknown?error:new Unknown(`repository variable ${name} is unavailable: ${error.message}`)}
 }
 
 export async function readPreviewLedger({readRepoVariable:readVariable=readRepoVariable,fetchAppliedVersions:fetchVersions=fetchAppliedVersions}={}){

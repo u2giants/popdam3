@@ -1,5 +1,10 @@
 # DAM customer free-text → hub reconciliation (2026-07-22)
 
+> **Customer identifiers are scrubbed (2026-09-02, issue #2103).** ERP legal names and addresses
+> in this file are generalised, and any ColdLion master code is a synthetic placeholder used
+> consistently across the ColdLion docs. The real codes, ERP legal names and addresses live in the
+> ColdLion question register, not in this public repository.
+
 Purpose: move every DAM customer list onto `api.dam_customer_list` (the curated
 `core.customer` hub). Today DAM stores customer as **free text** in
 `public.style_groups.customer`, `public.assets.customer`, and
@@ -25,26 +30,26 @@ strings. The canonical `dam.style_group` / `dam.asset` tables (which have a real
 ### B. Obvious typos/variants (mechanical: seed as core.customer_alias → active hub)
 | Free text | → Hub customer |
 |---|---|
-| Kohl's | KOHLS |
+| Kohl's | Kohl's (hub) |
 | Books-a-Million / Books-A-Million / BAM | Books A Million |
 | Sams Club | Sam's Club |
 | Hobby Lobbby (typo) | Hobby Lobby |
 | Barnes and Noble | Barnes & Noble |
-| Beall's Outlets | BEALL'S OUTLET STORES INC |
+| Beall's Outlets | Bealls Outlet |
 | 5 Below | Five Below |
 | DD's / dd's / DD | DD's Discounts |
 | Ollie's | Ollies |
-| Christmas Tree Shops | CHRISTMAS TREE SHOPS INC |
+| Christmas Tree Shops | Christmas Tree Shops (hub) |
 | Spirit of Halloween / Spirit Halloween Christmas | Spirit Halloween |
 | Spirit of Christmas | (confirm — Spirit Halloween? or Christmas Tree Shops?) |
 | Gabriel Bros | Gabes |
-| Shoppers Worlds | SW GROUP-SHOPPERS WORLD |
+| Shoppers Worlds | Shoppers World (hub) |
 | IKONICK | IKONICK.COM |
 | Rooms 2 Go | Rooms to Go |
 | TJMaxx / TJX Giftables | TJX |
 | BCF | Burlington (Burlington Coat Factory) — CONFIRM |
-| Ltd Commodities | LTD COMMODITIES LLC (inactive) |
-| Bed Bath and Beyond | BED BATH & BEYOND (inactive) |
+| Ltd Commodities | Ltd Commodities (inactive) |
+| Bed Bath and Beyond | Bed Bath & Beyond (inactive) |
 
 ### C. Comma multi-customer cells (single FK can't represent — leave unlinked)
 `Burlington, Ross` · `TJX, HomeGoods` · `HomeGoods, TJX, Burlington` ·
@@ -63,20 +68,19 @@ strings. The canonical `dam.style_group` / `dam.asset` tables (which have a real
 | **CVS** | 115 | **ADD to hub as `potential`**, link rows. |
 | **Costco** | 95 | **ADD to hub as `potential`**, link rows. |
 | **Meijer** | 38 | **ADD to hub as `potential`**, link rows. |
-| **Four Seasons** | 67 | **→ 4SGM** (alias to active FOUR SEASONS GENERAL MERCH). |
+| **Four Seasons** | 67 | **→ 4SGM** (alias to the active Four Seasons hub customer). |
 | **Nissan** | 10 | Licensor/property, not a customer → **leave unlinked**. |
 | **NONE** | 1 | Sentinel → **leave unlinked**. |
 
 Proceeding on the doc's proposed defaults (reversible aliases) for the smaller items:
 Goldenlink → Golden Link Inc. (active) · Desperate Signs → Desperate Enterprises
-(active) · BCF → Burlington · Jon Scheerz → leave unlinked (hub JONATHAN SHEERZ is
+(active) · BCF → Burlington · Jon Scheerz → leave unlinked (the matching hub record is
 inactive; 33 rows, revisit later) · comma multi-customer cells with two *different*
 customers → leave unlinked.
 
 ### Hub display_name fixes (active + in picker but ugly ERP name)
-`HOBBY LOBBY LLC` → "Hobby Lobby" · `HOT TOPIC MERCHANDISCING INC` → "Hot Topic" ·
-`Golden Link Inc. DBA Only In Theatres` → "Goldenlink" · `KOHLS` → "Kohl's" ·
-`AT HOME STORES LLC`/display "AT HOME STORES" → "At Home".
+The hub row carries the ERP legal name, which reads badly in a picker. Set `display_name` to the
+short brand label for: Hobby Lobby · Hot Topic · Goldenlink · Kohl's · At Home.
 (Ross, Ollies, BoxLunch, Walmart, 4SGM, Desperate Enterprises already have display_name.)
 
 Note: HomeGoods, Marshalls, TJ Maxx are already merged into one **TJX** hub customer
@@ -85,7 +89,7 @@ Note: HomeGoods, Marshalls, TJ Maxx are already merged into one **TJX** hub cust
 ## Downstream once reconciled
 1. shared-db migration: add `customer_id` FK to `public.style_groups` +
    `public.assets`; backfill A+B (+ approved D); set hub `display_name` where the
-   matched name is an ugly ERP string (ROSS STORES INC SUPPLIERS → "Ross", etc.);
+   matched name is an ugly ERP string (e.g. the Ross ERP legal name → "Ross", etc.);
    expose `customer_id` + canonical name in the DAM reads; add a curated
    customers-with-assets facet source.
 2. popdam3: single `useDamCustomers()` hook → `api.dam_customer_list`; Styles

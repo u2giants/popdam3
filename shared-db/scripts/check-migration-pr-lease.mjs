@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process'
+import { runGitHubCommand } from './lib/github-transport.mjs'
+import { createTreeReader } from './lib/github-tree.mjs'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
@@ -66,11 +68,15 @@ export function validateMigrationLease({ claims, branch, files, now = new Date()
   return { relevant:true, claim:holder.number, version:historical?versions.values().next().value:holder.lease.version, reservationVersion:holder.lease.version, historical:Boolean(historical), objects:[...actual].sort() }
 }
 
-function gh(args){try{return execFileSync('gh',args,{encoding:'utf8',maxBuffer:64*1024*1024})}catch(e){throw new LeaseCheckError(`GitHub read failed: ${e.stderr||e.message}`)}}
+// Issue #2342: shared transport, identical refusal.
+function gh(args){return runGitHubCommand(args,{wrapError:(detail)=>new LeaseCheckError(`GitHub read failed: ${detail}`)})}
 function json(args){const raw=gh(args);try{return JSON.parse(raw)}catch{throw new LeaseCheckError('GitHub returned malformed JSON')}}
 export function flattenPages(result, endpoint='GitHub API'){if(!Array.isArray(result)||result.some(x=>!Array.isArray(x)))throw new LeaseCheckError(`GitHub pagination for ${endpoint} is malformed`);return result.flat()}
 function pages(endpoint){return flattenPages(json(['api','--paginate','--slurp',endpoint]),endpoint)}
-function rawFile(filename,ref){return gh(['api','-H','Accept: application/vnd.github.raw',`repos/${REPO}/contents/${filename.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}`])}
+// Issue #2342: one recursive tree read per ref, then blobs by SHA. A Contents
+// call per file is what made a single spurious 404 stop three production runs.
+const treeReader=createTreeReader({wrapError:(detail)=>new LeaseCheckError(`GitHub read failed: ${detail}`)})
+function rawFile(filename,ref){const text=treeReader.readFileAtRef(REPO,filename,ref);if(text===null)throw new LeaseCheckError(`${filename} is not tracked at ${ref}; refusing rather than treating it as empty`);return text}
 
 export function gatherPrInput(env=process.env){
   let event={};if(env.GITHUB_EVENT_PATH)event=JSON.parse(readFileSync(env.GITHUB_EVENT_PATH,'utf8'))

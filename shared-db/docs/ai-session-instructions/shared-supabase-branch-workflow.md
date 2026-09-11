@@ -33,12 +33,25 @@ Preview branch for CRM/PM rewrite work:
 
 ```text
 Branch name: shared-db-schema-rehearsal
-Preview project ref: rjyboqwcdzcocqgmsyel
-URL: https://rjyboqwcdzcocqgmsyel.supabase.co
+Preview project ref: read the repository variable PREVIEW_PROJECT_REF — never a literal
 Created with data: true
 Persistent: true
 Purpose: shared integration target for schema/app rewrite testing.
 ```
+
+⚠️ **Do not hardcode a preview project ref anywhere in this doc, a script, or an
+app's config.** Preview is rebuilt from time to time and its ref changes when it
+is — `rjyboqwcdzcocqgmsyel` was deleted 2026-08-18, its replacement was itself
+rebuilt again, and the current ref is `mvpkijzfmfcxhnzqogzs` as of 2026-09-03
+(verify with `gh variable get PREVIEW_PROJECT_REF -R u2giants/shared-db` before
+trusting even that). This doc previously hardcoded the dead ref in five places;
+that staleness is exactly what broke `data-dev.designflow.app`'s Coolify env
+vars and a preview-branch 1Password credential item on 2026-09-03 — both had
+been pointed at `rjyboqwcdzcocqgmsyel` and nobody updated them when the branch
+was rebuilt, so calls returned 401 until fixed that day. See
+[`docs/db-data-admin-deployment.md`](../db-data-admin-deployment.md) and
+[`AGENTS.md` §4 rule 2 / §8](../../AGENTS.md) for the same rule applied
+elsewhere in this repo.
 
 ## Current Baseline On The Preview Branch
 
@@ -80,7 +93,8 @@ Baseline result:
 
    ```bash
    PREVIEW_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)/password')"
-   supabase link --project-ref rjyboqwcdzcocqgmsyel --password "$PREVIEW_DB_PASSWORD"
+   PREVIEW_PROJECT_REF="$(gh variable get PREVIEW_PROJECT_REF -R u2giants/shared-db)"
+   supabase link --project-ref "$PREVIEW_PROJECT_REF" --password "$PREVIEW_DB_PASSWORD"
    ```
 
 4. Create new migration files in `supabase/migrations`.
@@ -165,7 +179,8 @@ to manual SQL or dashboard edits:
 
 ```bash
 PREVIEW_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)/password')"
-supabase link --project-ref rjyboqwcdzcocqgmsyel --password "$PREVIEW_DB_PASSWORD"
+PREVIEW_PROJECT_REF="$(gh variable get PREVIEW_PROJECT_REF -R u2giants/shared-db)"
+supabase link --project-ref "$PREVIEW_PROJECT_REF" --password "$PREVIEW_DB_PASSWORD"
 supabase db push --dry-run
 ```
 
@@ -231,7 +246,8 @@ Do not copy objects manually from the preview branch in the Supabase dashboard.
 
 The promotion path is migration-file based:
 
-1. Confirm the app rewrite works against preview project `rjyboqwcdzcocqgmsyel`.
+1. Confirm the app rewrite works against the current preview project — read
+   `PREVIEW_PROJECT_REF`, never a hardcoded ref.
 2. Commit and push the migration files to `u2giants/shared-db`.
 3. Review schema diff, RLS exposure, and frontend behavior.
 4. Authenticate the installed Supabase CLI with the canonical 1Password PAT:
@@ -295,5 +311,6 @@ Each app migration session must leave:
 
 - Migration files committed in `shared-db`.
 - A short doc under `docs/app-migration-notes/` describing frontend env vars, tested screens, table/view/RPC usage, and remaining gaps.
-- Confirmation that the app was tested against `https://rjyboqwcdzcocqgmsyel.supabase.co`.
+- Confirmation that the app was tested against the current preview project
+  (`https://$PREVIEW_PROJECT_REF.supabase.co` — read the ref, never hardcode it).
 - A production promotion checklist naming exactly which migrations should be applied.

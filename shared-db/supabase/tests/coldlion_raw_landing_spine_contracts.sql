@@ -308,13 +308,13 @@ begin
   values ('/prodHistory', 'ZZTEST', 'ZZTEST', date '2026-02-03', date '2026-02-09')
   returning id into v_run;
 
-  insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
-  values ('/prodHistory', 'ZZTEST', date '2026-02-03', date '2026-02-09');
+  insert into coldlion.window_ledger (endpoint, company_code, stage_code, window_from, window_to)
+  values ('/prodHistory', 'ZZTEST', 'ISS', date '2026-02-03', date '2026-02-09');
 
   -- Exactly seven days, not "at most".
   begin
-    insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
-    values ('/prodHistory', 'ZZTEST', date '2026-03-03', date '2026-03-06');
+    insert into coldlion.window_ledger (endpoint, company_code, stage_code, window_from, window_to)
+    values ('/prodHistory', 'ZZTEST', 'ISS', date '2026-03-03', date '2026-03-06');
     raise exception 'H FAILED: a short window was accepted; a gap either side would be invisible';
   exception when check_violation then null;
   end;
@@ -329,8 +329,8 @@ begin
 
   -- One row per (endpoint, company, start).
   begin
-    insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
-    values ('/prodHistory', 'ZZTEST', date '2026-02-03', date '2026-02-09');
+    insert into coldlion.window_ledger (endpoint, company_code, stage_code, window_from, window_to)
+    values ('/prodHistory', 'ZZTEST', 'ISS', date '2026-02-03', date '2026-02-09');
     raise exception 'H FAILED: the same window was recorded twice';
   exception when unique_violation then null;
   end;
@@ -338,8 +338,8 @@ begin
   -- A shifted seven-day window would overlap the fixed backfill grid even though
   -- its start differs, so the anchor constraint must reject it.
   begin
-    insert into coldlion.window_ledger (endpoint, company_code, window_from, window_to)
-    values ('/prodHistory', 'ZZTEST', date '2026-02-05', date '2026-02-11');
+    insert into coldlion.window_ledger (endpoint, company_code, stage_code, window_from, window_to)
+    values ('/prodHistory', 'ZZTEST', 'ISS', date '2026-02-05', date '2026-02-11');
     raise exception 'H FAILED: a shifted overlapping seven-day grid was accepted';
   exception when check_violation then null;
   end;
@@ -372,9 +372,30 @@ begin
   select updated_at into v_updated_before from coldlion.window_ledger
    where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
 
+
+  -- Since 20260905105038 a window may become loaded only on page evidence, so record
+  -- the single page this 265-row window actually returned before completing it.
+  insert into coldlion.history_page_ledger (
+    window_id, endpoint, company_code, stage_code, window_from, page_number,
+    requested_page_size, returned_page_size, page_row_count, is_last_page,
+    state, run_id, loaded_at)
+  select id, '/prodHistory', 'ZZTEST', 'ISS', date '2026-02-03', 0,
+         2000, 200, 200, false, 'loaded', v_run, now()
+    from coldlion.window_ledger
+   where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
+
+  insert into coldlion.history_page_ledger (
+    window_id, endpoint, company_code, stage_code, window_from, page_number,
+    requested_page_size, returned_page_size, page_row_count, is_last_page,
+    state, run_id, loaded_at)
+  select id, '/prodHistory', 'ZZTEST', 'ISS', date '2026-02-03', 1,
+         2000, 200, 65, true, 'loaded', v_run, now()
+    from coldlion.window_ledger
+   where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
+
   update coldlion.window_ledger
-     set state = 'loaded', row_count = 265, loaded_at = now(), last_run_id = v_run,
-         attempt_count = 1, updated_at = timestamptz '2000-01-01Z'
+     set state = 'loaded', row_count = 265, last_page_number = 1, loaded_at = now(), last_run_id = v_run,
+         reported_total_elements = 265, attempt_count = 1, updated_at = timestamptz '2000-01-01Z'
    where endpoint = '/prodHistory' and company_code = 'ZZTEST' and window_from = date '2026-02-03';
 
   select updated_at into v_updated_after from coldlion.window_ledger

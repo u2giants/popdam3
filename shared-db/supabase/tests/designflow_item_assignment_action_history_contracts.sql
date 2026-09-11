@@ -14,6 +14,8 @@ declare
   v_close bigint;
   v_active bigint;
   v_closed_at timestamptz;
+  v_legacy_prior_step integer;
+  v_legacy_notification_count bigint;
   v_unpinned text;
 begin
   insert into dflow.users(name,email) values
@@ -22,13 +24,25 @@ begin
   select id into v_sales from dflow.users where email = 'issue-1987-sales@example.test';
   select id into v_sourcing from dflow.users where email = 'issue-1987-sourcing@example.test';
 
-  insert into dflow."RFQStep"("RFQStep_title") values
+  insert into plm."RFQStep"("RFQStep_title") values
     ('issue-1987-old'), ('@sourcing'), ('px sent to sales');
-  select "RFQStep_id" into v_step_old from dflow."RFQStep" where "RFQStep_title" = 'issue-1987-old';
-  select "RFQStep_id" into v_step_sourcing from dflow."RFQStep" where "RFQStep_title" = '@sourcing';
-  select "RFQStep_id" into v_step_sales from dflow."RFQStep" where "RFQStep_title" = 'px sent to sales';
+  select "RFQStep_id" into v_step_old from plm."RFQStep" where "RFQStep_title" = 'issue-1987-old';
+  select "RFQStep_id" into v_step_sourcing from plm."RFQStep" where "RFQStep_title" = '@sourcing';
+  select "RFQStep_id" into v_step_sales from plm."RFQStep" where "RFQStep_title" = 'px sent to sales';
 
-  insert into dflow."RFQItem"("rfqItem_step") values (v_step_old) returning "rfqItem_id" into v_item;
+  insert into plm."RFQItem"("rfqItem_step") values (v_step_old) returning "rfqItem_id" into v_item;
+
+  -- Establish a same-id legacy copy before invoking the new path, then prove
+  -- that its value remains exactly unchanged.
+  insert into dflow."RFQStep"("RFQStep_id", "RFQStep_title")
+  overriding system value values (v_step_old, 'issue-2202-legacy-old')
+  on conflict ("RFQStep_id") do nothing;
+  insert into dflow."RFQItem"("rfqItem_id", "rfqItem_step")
+  overriding system value values (v_item, v_step_old)
+  on conflict ("rfqItem_id") do nothing;
+  select "rfqItem_step" into v_legacy_prior_step
+    from dflow."RFQItem" where "rfqItem_id" = v_item;
+  select count(*) into v_legacy_notification_count from dflow.user_notification;
 
   perform set_config('request.jwt.claims', jsonb_build_object(
     'role','authenticated','sub','11111111-1111-4111-8111-111111111111',
@@ -46,10 +60,10 @@ begin
     'sales','sourcing',false
   );
   if v_retry <> v_first then raise exception 'idempotent retry returned a new action'; end if;
-  if (select count(*) from dflow.user_notification where workflow_action_id = v_first) <> 1 then
+  if (select count(*) from app.user_notification where workflow_action_id = v_first) <> 1 then
     raise exception 'sourcing action did not notify exactly the assigned sourcing user';
   end if;
-  if (select user_id_fk from dflow.user_notification where workflow_action_id = v_first) <> v_sourcing then
+  if (select user_id_fk from app.user_notification where workflow_action_id = v_first) <> v_sourcing then
     raise exception 'sourcing action notified the wrong user';
   end if;
 
@@ -62,8 +76,55 @@ begin
     v_item,v_step_sales,'return_to_sales','22222222-2222-4222-8222-222222222223',
     'sourcing','sales',true
   );
-  if (select user_id_fk from dflow.user_notification where workflow_action_id = v_return) <> v_sales then
+  if (select user_id_fk from app.user_notification where workflow_action_id = v_return) <> v_sales then
     raise exception 'return action did not preserve the original sales sender';
+  end if;
+
+  if (select "rfqItem_step" from plm."RFQItem" where "rfqItem_id" = v_item) <> v_step_sales then
+    raise exception 'canonical RFQ item did not receive the workflow transition';
+  end if;
+  if (select count(*) from dflow.user_notification) <> v_legacy_notification_count then
+    raise exception 'new workflow path wrote a legacy dflow notification';
+  end if;
+
+  if (select "rfqItem_step" from dflow."RFQItem" where "rfqItem_id" = v_item)
+       is distinct from v_legacy_prior_step then
+    raise exception 'new workflow path changed the legacy dflow RFQ item';
+  end if;
+
+  if not exists (
+    select 1
+      from pg_catalog.pg_constraint c
+      join pg_catalog.pg_class t on t.oid = c.conrelid
+      join pg_catalog.pg_namespace tn on tn.oid = t.relnamespace
+      join pg_catalog.pg_class r on r.oid = c.confrelid
+      join pg_catalog.pg_namespace rn on rn.oid = r.relnamespace
+     where tn.nspname = 'dflow'
+       and t.relname = 'item_user_assignment'
+       and c.conname = 'item_user_assignment_rfq_item_id_fkey'
+       and rn.nspname = 'plm'
+       and r.relname = 'RFQItem'
+       and not c.convalidated
+  ) then
+    raise exception 'assignment history is not guarded by the canonical plm RFQ item FK';
+  end if;
+  if (select count(*)
+        from pg_catalog.pg_constraint c
+        join pg_catalog.pg_class t on t.oid = c.conrelid
+        join pg_catalog.pg_namespace tn on tn.oid = t.relnamespace
+        join pg_catalog.pg_class r on r.oid = c.confrelid
+        join pg_catalog.pg_namespace rn on rn.oid = r.relnamespace
+       where tn.nspname = 'dflow'
+         and t.relname = 'item_workflow_action'
+         and c.conname in (
+           'item_workflow_action_rfq_item_id_fkey',
+           'item_workflow_action_prior_step_id_fkey',
+           'item_workflow_action_new_step_id_fkey'
+         )
+         and rn.nspname = 'plm'
+         and r.relname in ('RFQItem', 'RFQStep')
+         and not c.convalidated) <> 3 then
+    raise exception 'workflow history foreign keys do not exclusively target canonical plm RFQ tables';
   end if;
 
   -- Trigger wiring proof. Each block below drives REAL DML against the table the

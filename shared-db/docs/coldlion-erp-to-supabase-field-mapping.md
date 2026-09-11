@@ -77,6 +77,7 @@ Direct Coldlion pull unlocks fields the dflow path drops:
 - **Identifiers** — `upc`, `ean`, `gtin`, `isbn`, `warehouseSKU`, `variantSKU` (`/itemDetails`).
 - **Physical** — dimensions, weight, carton pack data (`/itemDetails`).
 - **Vendor** — `vendorCode` per item.
+- **Non-inventory flag** — the item record's single-character non-inventory field, landed as `coldlion.item_header.non_inventory_item`. Present in the feed, absent from `erp_items_current`. Worth carrying, but see the warning below: as measured 2026-09-07 it is set on only 15 of ~19,600 item records and blank on ~4,700, so it cannot be used on its own to separate products from fee codes and materials. Business definition: *Non-inventory items* in [`business-rules/product-items-and-identifiers.md`](business-rules/product-items-and-identifiers.md).
 - **Images** — `/itemImages` returns `resourceContent` (base64) + `thumbnail128`; dflow's `pic{}` was empty in sampled rows.
 
 ## Image coverage (Albert's question)

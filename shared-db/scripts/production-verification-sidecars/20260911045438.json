@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260911045438",
+  "migration_sha256": "7cff10dcf68d2ba8993201790e8c276d517fd2410efa049e3e2026504abf6c50",
+  "checks": [],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 32,
+      "line_end": 32,
+      "disposition": "no_durable_target",
+      "reason": "Fixed-literal read-only existence probe against core.property. It interpolates nothing and creates, alters or drops no durable catalog object."
+    },
+    {
+      "line_start": 36,
+      "line_end": 36,
+      "disposition": "no_durable_target",
+      "reason": "Fixed-literal read-only existence probe against core.character. It interpolates nothing and creates, alters or drops no durable catalog object."
+    },
+    {
+      "line_start": 40,
+      "line_end": 40,
+      "disposition": "no_durable_target",
+      "reason": "Fixed-literal read-only existence probe against core.style_guide. It interpolates nothing and creates, alters or drops no durable catalog object."
+    },
+    {
+      "line_start": 44,
+      "line_end": 44,
+      "disposition": "no_durable_target",
+      "reason": "Fixed-literal read-only existence probe against dam.asset. It interpolates nothing and creates, alters or drops no durable catalog object."
+    },
+    {
+      "line_start": 48,
+      "line_end": 48,
+      "disposition": "no_durable_target",
+      "reason": "Fixed-literal read-only existence probe against core.licensor. It interpolates nothing and creates, alters or drops no durable catalog object."
+    },
+    {
+      "line_start": 52,
+      "line_end": 52,
+      "disposition": "no_durable_target",
+      "reason": "Fixed-literal read-only existence probe against core.franchise. It interpolates nothing and creates, alters or drops no durable catalog object."
+    }
+  ]
+}

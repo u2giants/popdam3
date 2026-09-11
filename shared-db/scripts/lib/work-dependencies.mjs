@@ -45,7 +45,12 @@ export const COMPLETION_SCHEMA_VERSION = 1
 // downstream work.
 export const SUCCESS_OUTCOMES = Object.freeze(['merged', 'owner-ruling-recorded'])
 export const UNSUCCESSFUL_OUTCOMES = Object.freeze(['returned', 'cancelled', 'superseded', 'failed'])
-export const COMPLETION_OUTCOMES = Object.freeze([...SUCCESS_OUTCOMES, ...UNSUCCESSFUL_OUTCOMES])
+// `ready-for-merge` is deliberately not a dependency success. It exists so an
+// open pull request can truthfully report completed implementation evidence
+// before GitHub has created the merge commit. Only the post-merge `merged`
+// record releases downstream work.
+export const PREMERGE_OUTCOMES = Object.freeze(['ready-for-merge'])
+export const COMPLETION_OUTCOMES = Object.freeze([...SUCCESS_OUTCOMES, ...PREMERGE_OUTCOMES, ...UNSUCCESSFUL_OUTCOMES])
 
 const SHA_PATTERN = /^[0-9a-f]{7,40}$/
 const VERSION_PATTERN = /^\d{14}$/
@@ -79,6 +84,14 @@ export function validateCompletionRecord(record) {
       throw new DependencyError('a merged completion must name the merge_sha GitHub actually created')
     }
     if (!Array.isArray(record.migration_versions)) throw new DependencyError('a merged completion must list migration_versions (use [] when it added none)')
+    for (const version of record.migration_versions) {
+      if (typeof version !== 'string' || !VERSION_PATTERN.test(version)) throw new DependencyError(`migration_versions must be 14-digit versions: ${String(version)}`)
+    }
+  }
+  if (record.outcome === 'ready-for-merge') {
+    if (!Number.isInteger(record.pr) || record.pr <= 0) throw new DependencyError('a ready-for-merge completion must name its pr number')
+    if (record.merge_sha !== undefined) throw new DependencyError('a ready-for-merge completion cannot name a merge_sha before GitHub has created it')
+    if (!Array.isArray(record.migration_versions)) throw new DependencyError('a ready-for-merge completion must list migration_versions (use [] when it added none)')
     for (const version of record.migration_versions) {
       if (typeof version !== 'string' || !VERSION_PATTERN.test(version)) throw new DependencyError(`migration_versions must be 14-digit versions: ${String(version)}`)
     }

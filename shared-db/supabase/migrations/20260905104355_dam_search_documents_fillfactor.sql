@@ -1,0 +1,42 @@
+-- #2196: reserve one row-width of free space per heap page on
+-- public.dam_search_documents so its lease/retry/error updates can go HOT.
+--
+-- Metadata-only. `set (fillfactor = ...)` takes no rewrite and affects only
+-- pages written after it lands. It does not shrink the existing heap bloat and
+-- it touches no index and no statistics counter (the #1966 observation window
+-- runs until 2026-09-17).
+--
+-- Measured live on production 2026-09-03, read-only:
+--   heap        34,651 pages / 271 MB, 145,636 rows, reloptions null (default 100)
+--   occupancy   4.20 rows per page overall; sampled bands 4.87 / 4.08 / 3.31
+--   stored row  ~1,943 bytes on page, including its line-pointer share
+--               (8,168 usable bytes per page / 4.20 rows)
+--
+-- Why 75 and not the usual 85-90. Fillfactor reserves BYTES, and a reserve is
+-- only useful if it is at least one whole row wide: a HOT update needs room for
+-- a complete new tuple version on the same page. The reserve at fillfactor N is
+-- 81.92 * (100 - N) bytes. A typical ~1,943-byte stored row therefore fits
+-- within fillfactor 76's ~1,966-byte target reserve; 75 intentionally rounds
+-- down one more point to a 2,048-byte reserve and about 105 bytes of margin.
+--   fillfactor 90 -> 819 bytes reserved  -> less than half a row. On every page
+--                    whose leftover space already exceeds 819 bytes the packing
+--                    does not change at all and no slot is created.
+--   fillfactor 85 -> 1,228 bytes         -> still under one row width.
+--   fillfactor 75 -> 2,048 bytes         -> about one typical stored row.
+-- 75 is therefore a measured one-row target with a small margin, not a claim
+-- that every variable-width row is at or below the mean.
+--
+-- What it buys and what it costs. Pages written after this change hold ~3.16
+-- rows instead of ~4.20 and carry one row-width of free space, which is one HOT
+-- slot per page, recycled by HOT pruning on each page access. Implied heap
+-- growth is ~33% as pages are rewritten (271 MB -> ~360 MB), incurred
+-- gradually, never as a one-off rewrite.
+--
+-- Limits of the claim, stated honestly: a tuple version wider than the
+-- 2,048-byte target reserve is not guaranteed a HOT slot by fillfactor alone.
+-- Wider rows can still gain room when packing drops from three rows to two,
+-- but the post-change workload must prove the realized HOT-rate improvement.
+--
+-- Reversible: alter table public.dam_search_documents reset (fillfactor);
+
+alter table public.dam_search_documents set (fillfactor = 75);

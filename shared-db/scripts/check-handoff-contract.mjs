@@ -52,6 +52,7 @@
  */
 
 import { execSync } from "node:child_process";
+import { runGitHubCommand } from "./lib/github-transport.mjs";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -230,7 +231,7 @@ function sh(cmd) {
 function readIssueStates(repo, numbers) {
   const states = new Map();
   for (const n of numbers) {
-    const raw = sh(`gh issue view ${n} --repo ${repo} --json state -q .state`);
+    const raw = runGitHubCommand(["issue", "view", String(n), "--repo", repo, "--json", "state", "-q", ".state"]).trim();
     const state = raw.toUpperCase();
     if (state !== "OPEN" && state !== "CLOSED") {
       throw new Error(`unexpected state "${raw}" for issue #${n}`);

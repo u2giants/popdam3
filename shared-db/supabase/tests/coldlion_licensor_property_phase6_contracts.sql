@@ -34,6 +34,7 @@ declare
   v_has_exec_auth boolean;
   v_has_exec_anon boolean;
   v_def text;
+  v_baseline_key text;
   v_day date := (timezone('utc', now()))::date;
 begin
   select count(*) into v_lic_before from core.licensor;
@@ -73,7 +74,7 @@ begin
     raise exception 'observation table must have UUID primary key on id';
   end if;
 
-  -- Function source: append-only, no ON CONFLICT, Phase 4 pins, is_drill.
+  -- Function source: append-only, no ON CONFLICT, table-driven pins, is_drill.
   select pg_get_functiondef('plm.record_taxonomy_parallel_observation(date,jsonb)'::regprocedure)
     into v_def;
   -- Ignore SQL comments: the function's safety comment deliberately names the
@@ -82,18 +83,36 @@ begin
   if v_def ~* 'on conflict' or v_def ~* 'do update' then
     raise exception 'observation function must not UPDATE/upsert';
   end if;
-  if v_def not like '%590ea83ea6df1487fcfc1e18b3ef6a0d%'
-     or v_def not like '%d9b07759bf80ff227e2fa9bd635d2138%'
-     or v_def not like '%f436d4acd79761fedbfc9b5796ac7bce%'
-     or v_def not like '%7459f6826cc59468779e7ead33ec0edc%'
-     or v_def not like '%1047%'
-  then
-    raise exception 'phase4 baseline pins missing from observation function';
+  -- The Phase 4 baseline values were compiled into this function body until
+  -- 20260804120000 made the baseline TABLE-DRIVEN. Asserting the literals are
+  -- still in the source has raised unconditionally ever since -- which is the
+  -- error string this file is quarantined for, and which aborted the script
+  -- under ON_ERROR_STOP before anything below could run. The property is
+  -- preserved, not dropped: the source must resolve the baseline from the pin
+  -- table, and the pin values themselves are proved as DATA where they now live.
+  if v_def not like '%taxonomy_baseline_pin_set%' then
+    raise exception 'observation function does not resolve the baseline from plm.taxonomy_baseline_pin';
   end if;
   if v_def not like '%is_drill%' then
     raise exception 'is_drill missing from observation function';
   end if;
 
+  -- Pin VALUES are per-database deployment state, so they are only asserted
+  -- where a baseline is actually activated. No activation means nothing to
+  -- prove here, not a failure.
+  v_baseline_key := plm.active_taxonomy_baseline_key();
+  if v_baseline_key is not null then
+    if (select count(*) from plm.taxonomy_baseline_pin p
+        where p.baseline_key = v_baseline_key
+          and p.superseded_at is null
+          and (   (p.metric_key = 'licensor_uuid_hash'         and p.expected_text = '590ea83ea6df1487fcfc1e18b3ef6a0d')
+               or (p.metric_key = 'property_status_hash'       and p.expected_text = 'f436d4acd79761fedbfc9b5796ac7bce')
+               or (p.metric_key = 'parent_edge_hash'           and p.expected_text = '7459f6826cc59468779e7ead33ec0edc')
+               or (p.metric_key = 'taxonomy_source_ref_count'  and p.expected_int  = 1047))) <> 4
+    then
+      raise exception 'phase4 baseline pins missing from plm.taxonomy_baseline_pin for baseline %', v_baseline_key;
+    end if;
+  end if;
   -- Grants.
   select has_function_privilege('service_role',
     'public.record_taxonomy_parallel_observation(date,jsonb)', 'execute')
@@ -256,3 +275,28 @@ end;
 $$;
 
 rollback;
+
+-- Issue #552: replacing the detector bodies must retain the established
+-- service-role-only execution surface on both implementation and wrappers.
+do $$
+declare
+  v_signature text;
+begin
+  foreach v_signature in array array[
+    'plm.check_taxonomy_sync_health(interval,jsonb)',
+    'plm.record_taxonomy_parallel_observation(date,jsonb)',
+    'public.check_taxonomy_sync_health(interval,jsonb)',
+    'public.record_taxonomy_parallel_observation(date,jsonb)'
+  ] loop
+    if not has_function_privilege('service_role', v_signature, 'execute') then
+      raise exception 'service_role must execute %', v_signature;
+    end if;
+    if has_function_privilege('authenticated', v_signature, 'execute')
+       or has_function_privilege('anon', v_signature, 'execute') then
+      raise exception 'browser roles must not execute %', v_signature;
+    end if;
+  end loop;
+
+  raise notice 'OK: taxonomy health implementation and wrapper grants remain service-role-only';
+end;
+$$;

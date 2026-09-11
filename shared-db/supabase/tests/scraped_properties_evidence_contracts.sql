@@ -111,8 +111,8 @@ begin
     'lucasfilm', 'private-contract-assertion', repeat('1',64), now(), 'contract'
   ) returning resolution_id into v_current;
   insert into plm.dcp_opa_property_resolution_member (
-    resolution_id, licensed_property_id, member_ordinal
-  ) values (v_current, v_property_id, 1);
+    resolution_id, licensed_property_id, member_ordinal, submission_source_system, submission_source_table, submission_source_id
+  ) values (v_current, v_property_id, 1, 'disney_opa', 'plm.opa_property', v_property_id::text);
 
   select api.db_data_admin_scraped_properties(v_search, null, 100) into v_page;
   select r into v_row from jsonb_array_elements(v_page -> 'rows') r
@@ -168,8 +168,8 @@ begin
     'lucasfilm', 'private-conflict-contract', repeat('4',64), now(), 'contract'
   ) returning resolution_id into v_conflict;
   insert into plm.dcp_opa_property_resolution_member (
-    resolution_id, licensed_property_id, member_ordinal
-  ) values (v_conflict, v_conflict_property_id, 1);
+    resolution_id, licensed_property_id, member_ordinal, submission_source_system, submission_source_table, submission_source_id
+  ) values (v_conflict, v_conflict_property_id, 1, 'disney_opa', 'plm.opa_property', v_conflict_property_id::text);
 
   select api.db_data_admin_scraped_properties(v_search || ' conflict', null, 100)
     into v_page;

@@ -2,6 +2,42 @@
 
 Issue: #1767. Scope: repository coordination only; no database, preview, production, or application data changes.
 
+> **Queue and capacity budgets, 2026-09-04 (issue #2345).** The 25-request
+> ceiling still governs the assignment transaction itself. When FIFO admission
+> is enabled, the complete public command has one honest 75-request ceiling
+> covering ticket admission, assignment, and ticket release; it no longer
+> resets the counter between those phases. The read-only capacity census has a
+> separate 64-request ceiling so a fully occupied reviewer pool remains
+> observable. Queue reads remain bounded to 32 tickets, and an unchanged ticket
+> expires after two hours so an abandoned caller cannot block every successor.
+
+> **Replacement-chain repair, 2026-09-07 (issue #2550).** The 25-request
+> ceiling is unchanged. A released slot-2 chain could exceed the pre-mutex gate
+> because every predecessor replacement reread its immutable failure ref and a
+> failed reviewer already covered by the lease snapshot was read again. Suffixed
+> replacement refs now pull their corresponding failure refs into the same
+> GraphQL record snapshot. The one bounded lease query also carries every name
+> in the static historical reviewer catalog, so a retired failed reviewer's
+> exact lease presence or absence is reused without making that reviewer
+> drawable again; unknown legacy names retain the strict direct-read fallback.
+> A production-cost fixture covers slot-1 durable approval, a retired slot-2
+> predecessor with an unrelated live lease, reviewer reinstatement, independent
+> selection, exact assignment readback and idempotent retry within 25 requests.
+> Immutable-evidence, exact-head, verdict,
+> independence, fresh mutex recheck, atomic transition and cleanup refusals are
+> unchanged.
+
+> **Silent-reclaim budget, 2026-09-10 (issue #2697).** The 25-request ceiling
+> here is unchanged and still governs assignment and replacement. It never
+> governed `--reclaim-silent-reviewer`, which was added later and whose request
+> count was never derived; charged against 25 it refused at request 24 every
+> time, so a dead reviewer lease could not be released. That path is now
+> initially measured at 28 on the current-key path (14 pre-mutex plus a
+> 14-request mutex-held section), with one duplicate fresh PR read removed;
+> the later legacy fallback measurement is 30 (15 plus 15) and controls the ceiling
+> rather than paid for, in
+> `docs/verification/reviewer-silent-reclaim-api-budget-2026-09-10.md`.
+
 > **Superseded ceiling, 2026-08-29 (issue #1812, PR #1813).** Everything below
 > was verified against a **19**-request ceiling, which was correct for a single
 > reviewer slot only. The mandatory second independent reviewer
@@ -72,6 +108,8 @@ Measured, by the wire-attempt fixtures in `scripts/manage-migration-author-lanes
 | Slot-2 replacement, complete | 18 | 20 |
 | First replacement, pre-mutex | 8 | 9 |
 | First replacement, post-mutex section | 10 | 11 |
-| Idempotent replacement retry, pre-mutex | 9 | 10 |
+| Idempotent replacement retry, pre-mutex | 9 | 10 (reduced back to 9 by #2550 batching) |
 
 The mutex entry gate still refuses to acquire the mutex unless the whole mutex-held section fits, and the behavioural test that adds one extra counted pre-mutex call and requires a refusal BEFORE the mutex exists is unchanged and still passes.
+
+Successor verification (2026-09-11, #2697): the current lease-key path remains 28 requests; legacy fallback under parallel mode costs 30 (15 pre-mutex plus 15 held). The silent-reclaim ceiling is derived as 30, with mutex reserve 15. See the successor section of `reviewer-silent-reclaim-api-budget-2026-09-10.md`; the shared ceiling remains 25.

@@ -15,6 +15,7 @@ from migration_derivation import (
     DerivationError,
     DerivationRefusal,
     assert_derivation_bases,
+    declared_bases,
     parse_overrides,
 )
 
@@ -64,6 +65,14 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #2439 merged-stranded original. Preview applied this version, but its
+    # producer checked out 53937748ee2b8fdba2ada40a79219f4d62d02f77 and used
+    # different lane-manager bytes than current main, so the production
+    # business-risk gate correctly refuses its evidence. Preview already holds
+    # the version, making a fresh qualifying ledger delta impossible.
+    # 20260909202801 carries the exact same Git blob under the atomic claim
+    # reissue for #2443. Never apply this original.
+    "20260908195056",
     # #505 merged-stranded original. Its first preview apply refused and rolled
     # back transactionally after live app drift invalidated an over-broad
     # licensor_id-is-null assumption. 20260830204711 carries the preserved
@@ -93,6 +102,16 @@ HARD_BLOCKED = {
     # state with catalogue-only verification. Applying either original is forbidden.
     "20260819011639",
     "20260819151536",
+    # #2171 / #2349 merged-stranded original. Its only preview apply (run
+    # 33754529571) was a pre-merge branch rehearsal carrying a different
+    # scripts/production_migration_guard.py than the authoring PR #2199 merge
+    # commit 477ef03cd516c79188d81b6c21260575a43a9239, so the production
+    # business-risk gate refuses its byte binding (measured, run 33926573085).
+    # Preview already holds the version after the orphan-reconciliation rename
+    # in run 33821298999, so no fresh preview ledger delta can ever exist for
+    # it. 20260905024139 carries byte-identical executable SQL (git blob
+    # adc49fb5a103a70e03d9a98afc5be4b6518ac92a). Never apply this original.
+    "20260903200951",
     # #1532 original Universe B contract. The original is byte-identical to
     # 20260825192610, which was rehearsed under current producer machinery and
     # applied alone to production in run 32892984889. Never apply both versions.
@@ -198,6 +217,30 @@ HARD_BLOCKED = {
     # prerequisite 20260825041343.
     "20260825031841",
 }
+
+# One authority for versions that must never be applied. The post-batch
+# verifier imports these names from here; pending-status policy must not import
+# that application verifier back into the production guard's execution closure.
+RETIRED_VERSION_REASONS = {
+    "20260908195056": "unpromotable producer provenance (preview apply run 34273765771 checked out 53937748ee2b8fdba2ada40a79219f4d62d02f77 with lane-manager bytes different from current main) and preview already holds the version, so no fresh qualifying ledger delta can be produced; reissued with identical migration content as 20260909202801 under issue 2439 and claim 2443",
+    "20260814170749": "stranded without qualifying preview evidence after the preview project replacement; reissued with identical executable SQL as 20260825201330 under issue 1517, applied to production 2026-08-25 (PR 1541, run 32901820150)",
+    "20260819011639": "unpromotable producer provenance; replaced byte-for-byte by 20260820142402, applied to production 2026-08-20 (issue 1171)",
+    "20260819151536": "production verification times out and rolls the migration back; replaced by 20260820004338, applied to production 2026-08-20 (issue 1280)",
+    "20260824181600": "unpromotable producer provenance; replaced byte-for-byte by 20260825192610, applied to production 2026-08-25 (issue 1532, run 32892984889)",
+    "20260814223552": "unpromotable byte binding (PR 1032 merged unrehearsed); replaced by 20260825124200, applied to production 2026-08-25 (issue 679)",
+    "20260825094455": "unpromotable byte binding (only preview apply ran on a squash-orphaned commit); replaced by 20260825130500, applied to production 2026-08-25",
+    "20260729120000": "applying it would regress a live production security control whose safe end state is already present",
+    "20260816045130": "explicit COMMIT separates DDL from the Supabase migration ledger; never apply production; use safe replacement 20260816110750",
+    "20260814224937": "never applied; it would recreate an obsolete core.character foreign key after issue 1374 retires the empty Universe A character tables",
+    "20260814233423": "never applied; it cannot run without plm.source_resolution from the retired 20260814224937, and no replacement can rescue it because every replacement sorts above this version; a future source-resolution workstream supersedes both",
+    "20260814233342": "never applied and fully superseded; it replaces api.source_capture_inventory wholesale with the 2026-08-14 body, which silently regresses the Sega, Peanuts and WildBrain branches added by later applied migrations",
+    "20260825010603": "preview-only historical #1427 contract; production timed out and rolled back, and complete forward replacement 20260825031841 supersedes it",
+    "20260825025154": "preview-only historical #1427 accelerator; its later version cannot precede the earlier production-pending contract, and 20260825031841 supersedes both",
+    "20260903200951": "unpromotable producer provenance (original apply run 33754529571 was a pre-merge branch rehearsal whose producer files differ from PR 2199 merge commit 477ef03cd516c79188d81b6c21260575a43a9239) and preview already holds the version after orphan reconciliation run 33821298999, so no qualifying evidence can ever be produced; replaced byte-for-byte by 20260905024139 under issue 2349",
+    "20260825031841": "preview-only historical #1471 forward; production timed out and rolled back because its full reconciliation remained one statement; use prerequisite 20260825041343 and its governed dependent recovery",
+}
+RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
+HELD_VERSIONS = frozenset({"20260802170000", "20260802171000"})
 
 # Preview contains this authenticated historical migration, but production does
 # not. The repository file exists only to keep source truth aligned with the
@@ -849,10 +892,28 @@ def assert_atomic_batches(allowlist: list[str], remote: set[str]) -> None:
     """
     chosen = set(allowlist)
     for name, basis, why, members in ATOMIC_BATCHES:
+        already = members & remote
+        remote_is_partial = bool(already) and already != members
+        remaining = members - already
+        if remote_is_partial and not remaining.issubset(chosen):
+            missing_recovery = sorted(remaining - chosen)
+            raise GuardError(
+                f"production is already resting inside batch {name}; "
+                f"batch {name} is {basis}. "
+                f"The allowlist must include every remaining batch member before "
+                f"anything else may be promoted.\n"
+                f"  Excluded because production already has them "
+                f"({len(already)}): {', '.join(sorted(already))}\n"
+                f"  recovery still required ({len(missing_recovery)}): "
+                f"{', '.join(missing_recovery)}\n"
+                f"Promote every remaining {name} version together before any "
+                f"unrelated migration. This fail-closed recovery rule prevents "
+                f"production from silently remaining in a state the contract "
+                f"forbids."
+            )
         present = chosen & members
         if not present:
             continue
-        already = members & remote
         missing = sorted((members - already) - chosen)
         if not missing:
             continue
@@ -1095,6 +1156,90 @@ def local_migrations(repo: Path) -> dict[str, Path]:
             raise GuardError(f"duplicate migration version: {version}")
         migrations[version] = path
     return migrations
+
+
+def classify_pending_version(
+    version: str,
+    applied_versions: set[str] | frozenset[str],
+    repo: Path,
+    migration_paths: dict[str, Path] | None = None,
+) -> dict[str, str]:
+    """Return the one authoritative pending-status classification.
+
+    Keep every registry behind this function. Callers in other languages must
+    consume its answer rather than importing the sets and rebuilding policy.
+    """
+    applied = set(applied_versions)
+    if version in RETIRED_VERSIONS:
+        reason = RETIRED_VERSION_REASONS.get(
+            version,
+            "never apply this version; its safe replacement or end state is already present",
+        )
+        return {"kind": "retired", "reason": f"RETIRED_VERSIONS: {reason}."}
+    # HARD_BLOCKED is tested BEFORE the owner-hold branch on purpose. A version can
+    # sit in both registries -- 20260802171000 is held AND hard-blocked, because the
+    # held historical FR ruling was superseded by the guarded forward 20260818174350
+    # and the original must never be applied at all. Reporting it as "held for one
+    # bounded apply" would tell a reader it is merely waiting its turn, which is the
+    # opposite of what the production lane does with it. The strictest true statement
+    # wins; both kinds are intentionally-excluded, so the actionable drift count is
+    # unchanged either way and only the sentence a human reads differs.
+    if version in HARD_BLOCKED:
+        return {
+            "kind": "retired",
+            "reason": "production_migration_guard.HARD_BLOCKED: the general production lane refuses this version outright. Do not apply it.",
+        }
+    if version in HELD_VERSIONS or version in FR_SHIP_SET_HOLD or version in FR_REMOVAL_VERSIONS:
+        suffix = (
+            "The required FR removal migration set is not yet defined."
+            if not FR_REMOVAL_VERSIONS
+            else f"Full held bundle: {', '.join(sorted(FR_SHIP_SET_HOLD | FR_REMOVAL_VERSIONS))}."
+        )
+        return {
+            "kind": "deliberately-held",
+            "reason": (
+                "AGENTS.md 6.5 owner ruling holds the compatibility prerequisite, both FR versions, "
+                f"and every FR removal member for one bounded apply. {suffix}"
+            ),
+        }
+    if version in PREVIEW_ONLY_HISTORICAL_RESTORATIONS:
+        return {
+            "kind": "deliberately-held",
+            "reason": "Preview-only historical restoration: retain truthful preview history and never include this version in a production allowlist.",
+        }
+
+    migration = (migration_paths if migration_paths is not None else local_migrations(repo)).get(version)
+    bases = sorted(declared_bases(version, path=migration) or ()) if migration else []
+    absent = [base for base in bases if base not in applied]
+    if absent:
+        return {
+            "kind": "base-absent",
+            "reason": (
+                f"Declares `-- derived-from: {', '.join(bases)}` and this database does NOT have {', '.join(absent)}. "
+                "It re-derives a whole object body, so applying it here would not fail — it would replace the object "
+                "with a body written against a base this database never got (issue #1608). Apply the missing base(s) "
+                "in the same bounded window, or promote with a recorded --derivation-override naming the resulting state."
+            ),
+        }
+
+    matches: list[str] = []
+    if version in BUNDLE_20260804:
+        matches.append("AGENTS.md 6.8 requires the complete four-version ColdLion bundle, never a subset.")
+    for name, basis, why, members in ATOMIC_BATCHES:
+        if version in members:
+            outstanding = ", ".join(sorted(member for member in members if member not in applied))
+            matches.append(f"{name} {basis} batch: {why} Outstanding set: {outstanding}.")
+    for create, fixes, why in CO_PRESENCE_RULES:
+        outstanding = sorted(fix for fix in fixes if fix not in applied)
+        if version == create or (create in applied and version in outstanding):
+            create_note = f"Create {create} is already applied; fix-only recovery must carry every outstanding fix. " if create in applied else ""
+            matches.append(f"{why} {create_note}Outstanding required fixes: {', '.join(outstanding)}.")
+    if matches:
+        return {"kind": "guarded-batch", "reason": " ".join(matches)}
+    return {
+        "kind": "genuinely-pending",
+        "reason": "No retirement, owner-hold, atomic-batch, bundle, or ledger-aware co-presence rule names this version. It is still unapproved until the normal bounded promotion workflow passes.",
+    }
 
 
 # ---------------------------------------------------------------------------

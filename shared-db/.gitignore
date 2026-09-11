@@ -98,6 +98,21 @@ __pycache__/
 .ai/runs/
 .ai/tmp/
 .ai/governed-review-evidence/
+.ai/deepseek-sessions/
+.ai/run-*/
+.ai/*.json
+.ai/*.md
+!.ai/brief-1818-codex.md
+.ai/*.ps1
+.ai/*.mjs
+.ai/*.sql
+.ai/orch-*/
+
+# Per-issue Codex claim scratch files written at the repository root.
+.codex-issue-*.json
+
+# Local scratch working directory. Never tracked.
+tmp/
 
 # Local confidential business-data audits. Never commit licensed item descriptions.
 .private/

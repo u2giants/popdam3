@@ -530,3 +530,32 @@ vendors,glCode,ignore,0,,,ALWAYS EMPTY in sample
 vendors,separateCheck,ignore,100,,,
 vendors,femaExpDate,ingest,68.4,yes,NO - ColdLion has no write endpoint,we can overwrite and send back to Coldlion
 vendors,nbcExpDate,ingest,16.3,yes,NO - ColdLion has no write endpoint,we can overwrite and send back to Coldlion
+items,merchGroup01Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup02Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup03Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup04Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup05Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup06Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup07Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup08Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup09Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup10Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup11Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup12Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup13Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+items,merchGroup14Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup01Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup02Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup03Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup04Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup05Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup06Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup07Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup08Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup09Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup10Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup11Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup12Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup13Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,merchGroup14Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemDetails,labelDesc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15

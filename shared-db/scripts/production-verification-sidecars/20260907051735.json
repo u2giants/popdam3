@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260907051735",
+  "migration_sha256": "26dc4166c8355735f5dbc7bcf2542dad0401d8ea0eee9022b31a3b2959001481",
+  "checks": [],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 282,
+      "line_end": 282,
+      "disposition": "no_durable_target",
+      "reason": "Runtime existence-and-lock probe against core.property inside plm.set_source_resolution. The statement text is a fixed literal with no interpolation, it is a SELECT with FOR KEY SHARE, and it creates, alters or drops nothing. There is no durable catalog object for production verification to assert."
+    },
+    {
+      "line_start": 287,
+      "line_end": 287,
+      "disposition": "no_durable_target",
+      "reason": "Runtime existence-and-lock probe against core.character inside plm.set_source_resolution. The statement text is a fixed literal with no interpolation, it is a SELECT with FOR KEY SHARE, and it creates, alters or drops nothing. There is no durable catalog object for production verification to assert."
+    },
+    {
+      "line_start": 292,
+      "line_end": 292,
+      "disposition": "no_durable_target",
+      "reason": "Runtime existence-and-lock probe against core.style_guide inside plm.set_source_resolution. The statement text is a fixed literal with no interpolation, it is a SELECT with FOR KEY SHARE, and it creates, alters or drops nothing. There is no durable catalog object for production verification to assert."
+    },
+    {
+      "line_start": 297,
+      "line_end": 297,
+      "disposition": "no_durable_target",
+      "reason": "Runtime existence-and-lock probe against dam.asset inside plm.set_source_resolution. The statement text is a fixed literal with no interpolation, it is a SELECT with FOR KEY SHARE, and it creates, alters or drops nothing. There is no durable catalog object for production verification to assert."
+    },
+    {
+      "line_start": 302,
+      "line_end": 302,
+      "disposition": "no_durable_target",
+      "reason": "Runtime existence-and-lock probe against core.licensor inside plm.set_source_resolution. The statement text is a fixed literal with no interpolation, it is a SELECT with FOR KEY SHARE, and it creates, alters or drops nothing. There is no durable catalog object for production verification to assert."
+    },
+    {
+      "line_start": 307,
+      "line_end": 307,
+      "disposition": "no_durable_target",
+      "reason": "Runtime existence-and-lock probe against core.franchise inside plm.set_source_resolution. The statement text is a fixed literal with no interpolation, it is a SELECT with FOR KEY SHARE, and it creates, alters or drops nothing. There is no durable catalog object for production verification to assert."
+    }
+  ]
+}

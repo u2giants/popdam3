@@ -266,14 +266,14 @@ a sample is not absence in the data.
 
 > **ColdLion (JamieLynn), relayed by Albert, 2026-08-19:**
 >
-> "customer code AMA030 is Amazon. Amazon orders are stock (not presold, for inventory) and do not
+> "customer code CUST003 is Amazon. Amazon orders are stock (not presold, for inventory) and do not
 > have customer POs. They're stock to Amazon's warehouse."
 
 **What it means.** Goods for Amazon are produced **to stock, not against a customer order**. We
 manufacture, ship into Amazon's warehouse, and the sale happens later. There is no customer PO to
 record, so `salesOrderNo = 0` and `custPONumber` empty are **correct**, not a broken link.
 
-**Verified 2026-08-19:** across four sampled weeks, **10 of 10** `AMA030` production lines were
+**Verified 2026-08-19:** across four sampled weeks, **10 of 10** `CUST003` production lines were
 unlinked, none had a `custPONumber`, all were `prodTypeCode = StockCa` into warehouse `AMACN`.
 Every other major customer in the same sample was at 0% unlinked (the four next-largest customers
 contributed 120, 94, 16 and 10 rows — all linked).

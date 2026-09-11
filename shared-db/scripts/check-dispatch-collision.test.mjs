@@ -426,7 +426,15 @@ test('extractOperations reports action and kind separately, dispatch keys drop t
   )
 })
 
-test('the MERGE guard parser is deliberately unchanged by this work', () => {
+test('temporary table creation and cleanup are both session-local, not shared claims', () => {
+  assert.deepEqual(dispatchObjectKeys('create temporary table probe (id int); drop table probe;'), [])
+  assert.deepEqual(dispatchObjectKeys('create temp table probe (id int); drop table if exists probe;'), [])
+  assert.deepEqual(dispatchObjectKeys('drop table probe; create temporary table probe (id int);'), ['table probe'])
+  assert.deepEqual(dispatchObjectKeys('create temp table probe (id int); drop table probe; drop table if exists probe;'), ['table probe'])
+  assert.deepEqual(dispatchObjectKeys('create temp table probe (id int); drop table probe; create temp table probe (id int); drop table probe;'), [])
+})
+
+test('the narrow whole-object parser is deliberately unchanged by this work', () => {
   // The load-bearing safety property of #563. `check-pr-object-collisions.mjs`
   // is a REQUIRED check on main; widening it would make its own failure
   // messages ("one of these bodies would be silently overwritten") false and
@@ -437,6 +445,8 @@ test('the MERGE guard parser is deliberately unchanged by this work', () => {
   assert.deepEqual(extractObjects('create table core.widget (id int);'), [])
   assert.deepEqual(extractObjects('grant select on core.licensor to anon;'), [])
   assert.deepEqual(describeCoverage().alterModelled, false)
+  // The live collision check also consumes the broader dispatch keys below;
+  // this assertion protects only the narrow whole-object parser boundary.
   // …while the dispatch policy DOES model alter.
   assert.equal(describeDispatchCoverage().alterModelled, true)
 })

@@ -1,330 +1,130 @@
--- Synthetic contract tests for issue #1713. All identities below are invented.
-BEGIN;
-
-DO $$
-DECLARE
-  v_unmapped uuid := '00000000-0000-4000-8000-000000000001';
-  v_conflict uuid := '00000000-0000-4000-8000-000000000002';
-  v_mapped_v1 uuid := '00000000-0000-4000-8000-000000000003';
-  v_mapped_v2 uuid := '00000000-0000-4000-8000-000000000004';
-  v_latest uuid;
-  v_rejected boolean;
-  v_trigger_count integer;
-  v_digest text := 'sha256:' || repeat('0', 64);
-BEGIN
-  INSERT INTO plm.creative_submission_property_resolution (
-    resolution_id, creative_source_system, creative_source_table, creative_source_id,
-    decision_version, decision_state, reviewed_batch_id, reviewed_batch_digest,
-    approval_actor_id, approved_at
-  ) VALUES
-    (v_unmapped, 'synthetic_creative', 'synthetic_property', 'creative-a', 1, 'unmapped',
-     '10000000-0000-4000-8000-000000000001', v_digest,
-     '20000000-0000-4000-8000-000000000001', now()),
-    (v_conflict, 'synthetic_creative', 'synthetic_property', 'creative-b', 1, 'conflict',
-     '10000000-0000-4000-8000-000000000002', v_digest,
-     '20000000-0000-4000-8000-000000000002', now()),
-    (v_mapped_v1, 'synthetic_creative', 'synthetic_property', 'creative-c', 1, 'mapped',
-     '10000000-0000-4000-8000-000000000003', v_digest,
-     '20000000-0000-4000-8000-000000000003', now());
-
-  INSERT INTO plm.creative_submission_property_resolution_member (
-    resolution_member_id, resolution_id, submission_source_system,
-    submission_source_table, submission_source_id
-  ) VALUES (
-    '30000000-0000-4000-8000-000000000001', v_mapped_v1,
-    'synthetic_submission', 'synthetic_property', 'submission-a'
-  );
-
-  INSERT INTO plm.creative_submission_property_resolution (
-    resolution_id, creative_source_system, creative_source_table, creative_source_id,
-    decision_version, decision_state, supersedes_resolution_id, reviewed_batch_id,
-    reviewed_batch_digest, approval_actor_id, approved_at
-  ) VALUES (
-    v_mapped_v2, 'synthetic_creative', 'synthetic_property', 'creative-c', 2, 'mapped',
-    v_mapped_v1, '10000000-0000-4000-8000-000000000004', v_digest,
-    '20000000-0000-4000-8000-000000000004', now()
-  );
-
-  INSERT INTO plm.creative_submission_property_resolution_member (
-    resolution_member_id, resolution_id, submission_source_system,
-    submission_source_table, submission_source_id
-  ) VALUES (
-    '30000000-0000-4000-8000-000000000002', v_mapped_v2,
-    'synthetic_submission', 'synthetic_property', 'submission-b'
-  );
-
-  SET CONSTRAINTS ALL IMMEDIATE;
-  SET CONSTRAINTS ALL DEFERRED;
-
-  SELECT resolution_id INTO v_latest
-  FROM plm.creative_submission_property_resolution
-  WHERE creative_source_system = 'synthetic_creative'
-    AND creative_source_table = 'synthetic_property'
-    AND creative_source_id = 'creative-c'
-  ORDER BY decision_version DESC, resolution_id DESC
-  LIMIT 1;
-  IF v_latest IS DISTINCT FROM v_mapped_v2 THEN
-    RAISE EXCEPTION 'latest-decision lookup was not deterministic';
-  END IF;
-
-  v_rejected := false;
-  BEGIN
-    INSERT INTO plm.creative_submission_property_resolution (
-      resolution_id, creative_source_system, creative_source_table, creative_source_id,
-      decision_version, decision_state, reviewed_batch_id, reviewed_batch_digest,
-      approval_actor_id, approved_at
-    ) VALUES (
-      '00000000-0000-4000-8000-000000000005', 'synthetic_creative', 'synthetic_property',
-      'creative-d', 1, 'mapped', '10000000-0000-4000-8000-000000000005', v_digest,
-      '20000000-0000-4000-8000-000000000005', now()
-    );
-    SET CONSTRAINTS ALL IMMEDIATE;
-  EXCEPTION WHEN check_violation THEN
-    v_rejected := true;
-  END;
-  SET CONSTRAINTS ALL DEFERRED;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'memberless mapped decision was accepted'; END IF;
-
-  v_rejected := false;
-  BEGIN
-    INSERT INTO plm.creative_submission_property_resolution_member (
-      resolution_member_id, resolution_id, submission_source_system,
-      submission_source_table, submission_source_id
-    ) VALUES (
-      '30000000-0000-4000-8000-000000000003', v_unmapped,
-      'synthetic_submission', 'synthetic_property', 'submission-c'
-    );
-    SET CONSTRAINTS ALL IMMEDIATE;
-  EXCEPTION WHEN check_violation THEN
-    v_rejected := true;
-  END;
-  SET CONSTRAINTS ALL DEFERRED;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'member-bearing unmapped decision was accepted'; END IF;
-
-  INSERT INTO plm.creative_submission_property_resolution_member (
-    resolution_member_id, resolution_id, submission_source_system,
-    submission_source_table, submission_source_id
-  ) VALUES (
-    '30000000-0000-4000-8000-000000000005', v_conflict,
-    'synthetic_submission', 'synthetic_property', 'submission-conflict-candidate'
-  );
-  SET CONSTRAINTS ALL IMMEDIATE;
-  SET CONSTRAINTS ALL DEFERRED;
-
-  v_rejected := false;
-  BEGIN
-    INSERT INTO plm.creative_submission_property_resolution (
-      resolution_id, creative_source_system, creative_source_table, creative_source_id,
-      decision_version, decision_state, reviewed_batch_id, reviewed_batch_digest,
-      approval_actor_id, approved_at
-    ) VALUES (
-      '00000000-0000-4000-8000-000000000009', 'synthetic_creative', 'synthetic_property',
-      'creative-c', 2, 'conflict', '10000000-0000-4000-8000-000000000009', v_digest,
-      '20000000-0000-4000-8000-000000000009', now()
-    );
-  EXCEPTION WHEN unique_violation THEN
-    v_rejected := true;
-  END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'duplicate decision version was accepted'; END IF;
-
-  v_rejected := false;
-  BEGIN
-    INSERT INTO plm.creative_submission_property_resolution_member (
-      resolution_member_id, resolution_id, submission_source_system,
-      submission_source_table, submission_source_id
-    ) VALUES (
-      '30000000-0000-4000-8000-000000000004', v_mapped_v2,
-      'synthetic_submission', 'synthetic_property', 'submission-b'
-    );
-  EXCEPTION WHEN unique_violation THEN
-    v_rejected := true;
-  END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'duplicate exact member was accepted'; END IF;
-
-  v_rejected := false;
-  BEGIN
-    INSERT INTO plm.creative_submission_property_resolution (
-      resolution_id, creative_source_system, creative_source_table, creative_source_id,
-      decision_version, decision_state, supersedes_resolution_id, reviewed_batch_id,
-      reviewed_batch_digest, approval_actor_id, approved_at
-    ) VALUES (
-      '00000000-0000-4000-8000-000000000006', 'synthetic_creative', 'synthetic_property',
-      'creative-other', 3, 'conflict', v_mapped_v2,
-      '10000000-0000-4000-8000-000000000006', v_digest,
-      '20000000-0000-4000-8000-000000000006', now()
-    );
-    SET CONSTRAINTS ALL IMMEDIATE;
-  EXCEPTION WHEN check_violation THEN
-    v_rejected := true;
-  END;
-  SET CONSTRAINTS ALL DEFERRED;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'cross-identity supersession was accepted'; END IF;
-
-  v_rejected := false;
-  BEGIN
-    INSERT INTO plm.creative_submission_property_resolution (
-      resolution_id, creative_source_system, creative_source_table, creative_source_id,
-      decision_version, decision_state, supersedes_resolution_id, reviewed_batch_id,
-      reviewed_batch_digest, approval_actor_id, approved_at
-    ) VALUES (
-      '00000000-0000-4000-8000-000000000007', 'synthetic_creative', 'synthetic_property',
-      'creative-c', 3, 'conflict', v_mapped_v1,
-      '10000000-0000-4000-8000-000000000007', v_digest,
-      '20000000-0000-4000-8000-000000000007', now()
-    );
-  EXCEPTION WHEN unique_violation THEN
-    v_rejected := true;
-  END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'a second direct successor was accepted'; END IF;
-
-  v_rejected := false;
-  BEGIN
-    UPDATE plm.creative_submission_property_resolution
-    SET decision_state = 'conflict' WHERE resolution_id = v_conflict;
-  EXCEPTION WHEN object_not_in_prerequisite_state THEN
-    v_rejected := true;
-  END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'owner-path header update was accepted'; END IF;
-
-  v_rejected := false;
-  BEGIN
-    DELETE FROM plm.creative_submission_property_resolution_member
-    WHERE resolution_id = v_mapped_v1;
-  EXCEPTION WHEN object_not_in_prerequisite_state THEN
-    v_rejected := true;
-  END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'owner-path member delete was accepted'; END IF;
-
-  v_rejected := false;
-  BEGIN
-    TRUNCATE TABLE plm.creative_submission_property_resolution_member;
-  EXCEPTION WHEN object_not_in_prerequisite_state THEN
-    v_rejected := true;
-  END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'owner-path member truncate was accepted'; END IF;
-
-  v_rejected := false;
-  BEGIN
-    TRUNCATE TABLE plm.creative_submission_property_resolution;
-  EXCEPTION WHEN object_not_in_prerequisite_state OR feature_not_supported THEN
-    v_rejected := true;
-  END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'owner-path header truncate was accepted'; END IF;
-
-  SELECT count(*) INTO v_trigger_count
-    FROM pg_trigger t
-    JOIN pg_class c ON c.oid = t.tgrelid
-    JOIN pg_namespace n ON n.oid = c.relnamespace
-    JOIN pg_proc p ON p.oid = t.tgfoid
-    JOIN pg_namespace pn ON pn.oid = p.pronamespace
-    WHERE n.nspname = 'plm'
-      AND t.tgname IN (
-        'creative_submission_property_resolution_no_truncate',
-        'creative_submission_property_resolution_member_no_truncate'
-      )
-      AND NOT t.tgisinternal
-      AND t.tgenabled = 'O'
-      AND (t.tgtype & 32) = 32
-      AND (t.tgtype & 1) = 0
-      AND pn.nspname = 'plm'
-      AND p.proname = 'reject_creative_submission_property_resolution_mutation';
-  IF v_trigger_count <> 2 THEN
-    RAISE EXCEPTION 'both statement-level truncate rejection triggers are required';
-  END IF;
-
-  IF NOT has_table_privilege('service_role', 'plm.creative_submission_property_resolution', 'SELECT')
-     OR NOT has_table_privilege('service_role', 'plm.creative_submission_property_resolution', 'INSERT')
-     OR has_table_privilege('service_role', 'plm.creative_submission_property_resolution', 'UPDATE')
-     OR has_table_privilege('service_role', 'plm.creative_submission_property_resolution', 'DELETE')
-     OR has_table_privilege('service_role', 'plm.creative_submission_property_resolution', 'TRUNCATE')
-     OR NOT has_table_privilege('service_role', 'plm.creative_submission_property_resolution_member', 'SELECT')
-     OR NOT has_table_privilege('service_role', 'plm.creative_submission_property_resolution_member', 'INSERT')
-     OR has_table_privilege('service_role', 'plm.creative_submission_property_resolution_member', 'UPDATE')
-     OR has_table_privilege('service_role', 'plm.creative_submission_property_resolution_member', 'DELETE')
-     OR has_table_privilege('service_role', 'plm.creative_submission_property_resolution_member', 'TRUNCATE') THEN
-    RAISE EXCEPTION 'service_role privileges are not exactly SELECT and INSERT';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-    FROM information_schema.role_table_grants
-    WHERE table_schema = 'plm'
-      AND table_name IN (
-        'creative_submission_property_resolution',
-        'creative_submission_property_resolution_member'
-      )
-      AND grantee IN ('PUBLIC', 'anon', 'authenticated')
-  ) THEN
-    RAISE EXCEPTION 'an untrusted role retained table privileges';
-  END IF;
-
-  IF EXISTS (
-    SELECT table_name
-    FROM information_schema.role_table_grants
-    WHERE table_schema = 'plm'
-      AND table_name IN (
-        'creative_submission_property_resolution',
-        'creative_submission_property_resolution_member'
-      )
-      AND grantee = 'service_role'
-    GROUP BY table_name
-    HAVING array_agg(privilege_type::text ORDER BY privilege_type::text)
-      IS DISTINCT FROM ARRAY['INSERT', 'SELECT']::text[]
-  ) OR (
-    SELECT count(*)
-    FROM information_schema.role_table_grants
-    WHERE table_schema = 'plm'
-      AND table_name IN (
-        'creative_submission_property_resolution',
-        'creative_submission_property_resolution_member'
-      )
-      AND grantee = 'service_role'
-  ) <> 4 THEN
-    RAISE EXCEPTION 'service_role grant rows are not exactly SELECT and INSERT per table';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'plm'
-      AND c.relname IN (
-        'creative_submission_property_resolution',
-        'creative_submission_property_resolution_member'
-      )
-      AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity)
-  ) THEN
-    RAISE EXCEPTION 'RLS is not enabled and forced on both tables';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'plm'
-      AND tablename IN (
-        'creative_submission_property_resolution',
-        'creative_submission_property_resolution_member'
-      )
-  ) THEN
-    RAISE EXCEPTION 'these forced-RLS tables must not have policies';
-  END IF;
-END;
+-- Synthetic rollback-only regression for the single operative source crosswalk.
+-- Canonical UUID resolution remains a distinct, untouched contract.
+begin;
+create function pg_temp.crosswalk_header(p_id uuid,p_key text,p_version bigint,p_state text,p_previous uuid default null)
+returns void language sql as $$
+  insert into plm.dcp_opa_property_resolution(resolution_id,source_system,source_table,source_property_id,
+    decision_version,approval_status,supersedes_resolution_id,evidence_reference,evidence_sha256,
+    decision_reason,approved_at,approved_by,creative_decision_state)
+  values(p_id,'synthetic_creative','plm.synthetic_property',p_key,p_version,'approved',p_previous,
+    'synthetic reviewed decision',repeat('a',64),'synthetic audit',now(),'synthetic reviewer',p_state);
 $$;
-
-SET LOCAL ROLE service_role;
-
-SELECT count(*)
-FROM plm.creative_submission_property_resolution
-WHERE creative_source_system = 'synthetic_creative';
-
-INSERT INTO plm.creative_submission_property_resolution (
-  resolution_id, creative_source_system, creative_source_table, creative_source_id,
-  decision_version, decision_state, reviewed_batch_id, reviewed_batch_digest,
-  approval_actor_id, approved_at
-) VALUES (
-  '00000000-0000-4000-8000-000000000008', 'synthetic_creative', 'synthetic_property',
-  'creative-service', 1, 'conflict', '10000000-0000-4000-8000-000000000008',
-  'sha256:' || repeat('0', 64), '20000000-0000-4000-8000-000000000008', now()
-);
-
-SET CONSTRAINTS ALL IMMEDIATE;
-RESET ROLE;
-
-ROLLBACK;
+create function pg_temp.crosswalk_member(p_id uuid,p_key text,p_ordinal integer default 1)
+returns void language sql as $$
+  insert into plm.dcp_opa_property_resolution_member(resolution_id,submission_source_system,
+    submission_source_table,submission_source_id,member_ordinal)
+  values(p_id,'synthetic_submission','plm.synthetic_property',p_key,p_ordinal);
+$$;
+do $$
+declare
+  unmapped uuid:=gen_random_uuid(); conflict uuid:=gen_random_uuid(); first_map uuid:=gen_random_uuid();
+  second_map uuid:=gen_random_uuid(); key_prefix text:=gen_random_uuid()::text;
+  legacy uuid:=gen_random_uuid(); profile_id uuid; auth_id uuid;
+  failed boolean; table_name text; privilege_name text; current_count bigint;
+begin
+  perform pg_temp.crosswalk_header(unmapped,key_prefix||'-unmapped',1,'unmapped');
+  perform pg_temp.crosswalk_header(conflict,key_prefix||'-conflict',1,'conflict');
+  perform pg_temp.crosswalk_member(conflict,'candidate');
+  perform pg_temp.crosswalk_header(first_map,key_prefix||'-mapped',1,'mapped');
+  perform pg_temp.crosswalk_member(first_map,'member-a');
+  perform pg_temp.crosswalk_member(first_map,'member-b',2);
+  perform pg_temp.crosswalk_header(second_map,key_prefix||'-mapped',2,'mapped',first_map);
+  perform pg_temp.crosswalk_member(second_map,'member-c');
+  set constraints all immediate; set constraints all deferred;
+  if (select count(*) from plm.dcp_opa_property_resolution_member where resolution_id=first_map)<>2 then
+    raise exception 'one-to-many mapping was collapsed'; end if;
+  if (select creative_decision_state from plm.dcp_opa_property_resolution where resolution_id=conflict)<>'conflict' then
+    raise exception 'conflict disposition was lost'; end if;
+  failed:=false;
+  begin
+    perform pg_temp.crosswalk_header(gen_random_uuid(),key_prefix||'-memberless',1,'mapped');
+    set constraints all immediate;
+  exception when check_violation then failed:=true; end;
+  set constraints all deferred;
+  if not failed then raise exception 'memberless mapped decision accepted'; end if;
+  failed:=false;
+  begin perform pg_temp.crosswalk_member(unmapped,'forbidden'); set constraints all immediate;
+  exception when check_violation then failed:=true; end;
+  set constraints all deferred;
+  if not failed then raise exception 'member-bearing unmapped decision accepted'; end if;
+  failed:=false;
+  begin perform pg_temp.crosswalk_header(gen_random_uuid(),key_prefix||'-mapped',2,'conflict');
+  exception when unique_violation or check_violation then failed:=true; end;
+  if not failed then raise exception 'duplicate decision version accepted'; end if;
+  failed:=false;
+  begin perform pg_temp.crosswalk_member(first_map,'member-a',3);
+  exception when unique_violation then failed:=true; end;
+  if not failed then raise exception 'duplicate exact member accepted'; end if;
+  failed:=false;
+  begin perform pg_temp.crosswalk_header(gen_random_uuid(),key_prefix||'-other',3,'conflict',second_map);
+  exception when foreign_key_violation or check_violation then failed:=true; end;
+  if not failed then raise exception 'cross-identity supersession accepted'; end if;
+  failed:=false;
+  begin perform pg_temp.crosswalk_header(gen_random_uuid(),key_prefix||'-mapped',3,'conflict',first_map);
+  exception when unique_violation then failed:=true; end;
+  if not failed then raise exception 'second direct successor accepted'; end if;
+  failed:=false;
+  begin update plm.dcp_opa_property_resolution set decision_reason='rewrite' where resolution_id=first_map;
+  exception when object_not_in_prerequisite_state or restrict_violation then failed:=true; end;
+  if not failed then raise exception 'header rewrite accepted'; end if;
+  failed:=false;
+  begin delete from plm.dcp_opa_property_resolution_member where resolution_id=first_map;
+  exception when object_not_in_prerequisite_state or restrict_violation then failed:=true; end;
+  if not failed then raise exception 'member deletion accepted'; end if;
+  foreach table_name in array array['dcp_opa_property_resolution','dcp_opa_property_resolution_member'] loop
+    foreach privilege_name in array array['SELECT','INSERT'] loop
+      if not has_table_privilege('service_role','plm.'||table_name,privilege_name) then
+        raise exception 'service read/append capability lost'; end if;
+    end loop;
+    if has_table_privilege('service_role','plm.'||table_name,'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER,MAINTAIN') then
+      raise exception 'service mutation privilege widened'; end if;
+    failed:=false;
+    begin execute format('truncate table plm.%I',table_name);
+    exception when object_not_in_prerequisite_state or restrict_violation or feature_not_supported then failed:=true; end;
+    if not failed then raise exception 'owner-path truncate accepted'; end if;
+  end loop;
+  foreach table_name in array array['creative_submission_property_resolution_archive','creative_submission_property_resolution_member_archive'] loop
+    if not has_table_privilege('service_role','plm.'||table_name,'SELECT')
+       or has_table_privilege('service_role','plm.'||table_name,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER,MAINTAIN')
+       or has_table_privilege('authenticated','plm.'||table_name,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
+       or has_table_privilege('anon','plm.'||table_name,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then
+      raise exception 'archive access is not private read-only'; end if;
+    failed:=false;
+    begin execute format('insert into plm.%I default values',table_name);
+    exception when object_not_in_prerequisite_state or restrict_violation then failed:=true; end;
+    if not failed then raise exception 'archive insertion accepted'; end if;
+    failed:=false;
+    begin execute format('truncate table plm.%I',table_name);
+    exception when object_not_in_prerequisite_state or restrict_violation or feature_not_supported then failed:=true; end;
+    if not failed then raise exception 'archive truncate accepted'; end if;
+  end loop;
+  set constraints all immediate;
+  insert into plm.dcp_opa_property_resolution(resolution_id,source_system,source_table,source_property_id,
+    decision_version,approval_status,evidence_reference,evidence_sha256,decision_reason)
+    values(legacy,'synthetic_creative','plm.dcp_property',key_prefix||'-legacy',1,'pending','synthetic',repeat('b',64),'synthetic');
+  perform pg_temp.crosswalk_member(legacy,'legacy-member');
+  select p.id,p.auth_user_id into strict profile_id,auth_id from app.profile p
+    where p.status='active' and p.auth_user_id is not null order by p.created_at,p.id limit 1;
+  insert into app.user_role(profile_id,role_id)
+    select profile_id,r.id from app.role r where r.slug='licensing'::app.app_role
+    on conflict do nothing;
+  perform set_config('request.jwt.claim.sub',auth_id::text,true);
+  set local role authenticated;
+  if not exists(select 1 from plm.dcp_opa_property_resolution where resolution_id=legacy) then
+    raise exception 'positive control: original authorized DCP read was lost'; end if;
+  if not exists(select 1 from plm.dcp_opa_property_resolution_member where resolution_id=legacy) then
+    raise exception 'positive control: original authorized DCP member read was lost'; end if;
+  select count(*) into current_count from plm.dcp_opa_property_resolution where resolution_id in (unmapped,conflict,first_map,second_map);
+  if current_count<>0 then raise exception 'generic decisions leaked through DCP table grant'; end if;
+  select count(*) into current_count from plm.dcp_opa_property_resolution_member where resolution_id in (unmapped,conflict,first_map,second_map);
+  if current_count<>0 then raise exception 'generic members leaked through DCP table grant'; end if;
+  reset role;
+  perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+  set local role authenticated;
+  if exists(select 1 from plm.dcp_opa_property_resolution where resolution_id=legacy)
+     or exists(select 1 from plm.dcp_opa_property_resolution_member where resolution_id=legacy) then
+    raise exception 'unentitled signed-in account gained legacy DCP access'; end if;
+  reset role;
+end;
+$$;
+rollback;

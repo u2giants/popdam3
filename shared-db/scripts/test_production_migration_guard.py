@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import production_migration_guard  # noqa: E402
 from production_migration_guard import (  # noqa: E402
     HARD_BLOCKED,
+    HELD_VERSIONS,
     PREVIEW_ONLY_HISTORICAL_RESTORATIONS,
     BUNDLE_20260804,
     FR_HELD_20260803,
@@ -25,6 +26,7 @@ from production_migration_guard import (  # noqa: E402
     GuardError,
     assert_bounded,
     compute_content_manifest,
+    classify_pending_version,
     created_objects,
     local_migrations,
     manifest_path,
@@ -213,6 +215,21 @@ class GuardTests(unittest.TestCase):
         with self.assertRaisesRegex(GuardError, "preview-only historical restoration"):
             parse_allowlist("20260824150630")
 
+    def test_issue_2509_historical_restoration_remains_production_eligible(self):
+        self.assertEqual(parse_allowlist("20260907131728"), ["20260907131728"])
+
+    def test_issue_2356_historical_restoration_remains_production_eligible(self):
+        self.assertEqual(parse_allowlist("20260907152838"), ["20260907152838"])
+
+    def test_issue_2543_historical_restoration_remains_production_eligible(self):
+        self.assertEqual(parse_allowlist("20260909115140"), ["20260909115140"])
+
+    def test_issue_2622_historical_restoration_remains_production_eligible(self):
+        self.assertEqual(parse_allowlist("20260909194231"), ["20260909194231"])
+
+    def test_issue_2580_historical_restoration_remains_production_eligible(self):
+        self.assertEqual(parse_allowlist("20260909084253"), ["20260909084253"])
+
     def test_bad_allowlists_are_blocked(self) -> None:
         values = [
             "",
@@ -261,8 +278,55 @@ class GuardTests(unittest.TestCase):
                 "20260827183011",
                 "20260828052706",
                 "20260830195655",
+                "20260903200951",
+                "20260908195056",
             },
         )
+
+    def test_stranded_coldlion_division_original_is_blocked_but_reissue_is_allowed(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(GuardError, "20260903200951"):
+            parse_allowlist("20260903200951")
+        with self.assertRaisesRegex(GuardError, "20260903200951"):
+            parse_allowlist("20260903200951,20260905024139")
+        self.assertEqual(parse_allowlist("20260905024139"), ["20260905024139"])
+    def test_stranded_coldlion_division_reissue_is_byte_identical(self) -> None:
+        """The reissue is only safe because it is the SAME executable SQL.
+
+        Nothing else in the suite pins that. If a later edit touches either
+        file, the hard block on 20260903200951 would be retiring a version
+        whose replacement no longer matches it.
+        """
+        migrations = REPO / "supabase" / "migrations"
+        original = (
+            migrations / "20260903200951_coldlion_division_reference_table.sql"
+        ).read_bytes()
+        reissue = (
+            migrations
+            / "20260905024139_reissue_coldlion_division_reference_table.sql"
+        ).read_bytes()
+        self.assertEqual(original, reissue)
+
+    def test_stranded_bulk_operation_history_original_is_blocked_but_reissue_is_allowed(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(GuardError, "20260908195056"):
+            parse_allowlist("20260908195056")
+        with self.assertRaisesRegex(GuardError, "20260908195056"):
+            parse_allowlist("20260908195056,20260909202801")
+        self.assertEqual(parse_allowlist("20260909202801"), ["20260909202801"])
+
+    def test_stranded_bulk_operation_history_reissue_is_content_identical(self) -> None:
+        """The replacement must preserve every SQL and comment byte after EOL normalization."""
+        migrations = REPO / "supabase" / "migrations"
+        original = (
+            migrations / "20260908195056_bulk_operation_runs_history.sql"
+        ).read_text(encoding="utf-8")
+        reissue = (
+            migrations / "20260909202801_bulk_operation_runs_history_reissue.sql"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(original, reissue)
 
     def test_stranded_issue_505_original_is_permanently_blocked(self) -> None:
         with self.assertRaisesRegex(GuardError, "20260830195655"):
@@ -2015,6 +2079,28 @@ class ApplyLaneTests(unittest.TestCase):
             "needs: [validate, production-apply-review]", _job("production-apply")
         )
 
+    def test_issue_1689_locks_production_before_verifying_live_main(self) -> None:
+        steps = _steps(_job("production-apply"))
+        acquire = next(
+            i
+            for i, step in enumerate(steps)
+            if "Acquire the exclusive production lane" in step
+        )
+        verify = next(
+            i
+            for i, step in enumerate(steps)
+            if "Verify exact main commit while holding the production lane" in step
+        )
+        release = next(
+            i
+            for i, step in enumerate(steps)
+            if "Release the exclusive production lane with ownership proof" in step
+        )
+        self.assertLess(acquire, verify)
+        self.assertLess(verify, release)
+        self.assertIn("if: always()", steps[release])
+        self.assertIn("steps.production_lock.outputs.owner_sha", steps[release])
+
     def test_the_typed_confirmation_is_APPLY_plus_sha(self) -> None:
         for name in ("production-apply-review", "production-apply"):
             with self.subTest(job=name):
@@ -3162,6 +3248,31 @@ class AtomicBatchTests(unittest.TestCase):
     def test_a_fully_applied_batch_does_not_block_anything(self) -> None:
         assert_atomic_batches(sorted(BATCHES["B5"]), set(BATCHES["B9"]))
 
+    def test_unrelated_promotion_is_refused_while_production_rests_mid_batch(self) -> None:
+        """Issue #870: an unrelated allowlist must not hide an illegal rest."""
+        applied = {min(BATCHES["B9"])}
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(["20260811030000"], applied)
+        message = str(ctx.exception)
+        self.assertIn("already resting inside batch B9", message)
+        self.assertIn("must include every remaining batch member", message)
+        for version in sorted(BATCHES["B9"] - applied):
+            self.assertIn(version, message)
+
+    def test_mid_batch_recovery_remains_allowed(self) -> None:
+        """Fail closed without wedging the only safe forward recovery."""
+        applied = {min(BATCHES["B9"])}
+        assert_atomic_batches(sorted(BATCHES["B9"] - applied), applied)
+
+    def test_unrelated_promotion_is_refused_for_a_never_rest_batch_too(self) -> None:
+        """The fail-closed scan covers contract-derived NEVER-REST batches."""
+        applied = {min(BATCHES["B2"])}
+        with self.assertRaises(GuardError) as ctx:
+            assert_atomic_batches(["20260811030000"], applied)
+        self.assertIn("already resting inside batch B2", str(ctx.exception))
+        self.assertIn("batch B2 is NEVER-REST", str(ctx.exception))
+        assert_atomic_batches(sorted(BATCHES["B2"] - applied), applied)
+
     # -- the choke points --------------------------------------------------
 
     def test_validate_candidates_enforces_atomicity(self) -> None:
@@ -3324,6 +3435,42 @@ class B3TruncateFixCoPresenceTest(unittest.TestCase):
         self.assertIn("revoke truncate, references, trigger, maintain", lowered)
         # ...and asserts the outcome via has_table_privilege (the behaviour probe).
         self.assertIn("has_table_privilege", lowered)
+
+
+class PendingVersionClassifierTest(unittest.TestCase):
+    def test_every_registry_flows_through_one_classifier(self) -> None:
+        paths = local_migrations(REPO)
+        self.assertEqual(classify_pending_version("20260814170749", set(), REPO, paths)["kind"], "retired")
+        self.assertEqual(classify_pending_version("20260802170000", set(), REPO, paths)["kind"], "deliberately-held")
+        self.assertEqual(classify_pending_version("20260817150944", set(), REPO, paths)["kind"], "deliberately-held")
+        self.assertEqual(classify_pending_version("20260828052706", set(), REPO, paths)["kind"], "retired")
+        self.assertEqual(classify_pending_version("20260810190000", set(), REPO, paths)["kind"], "guarded-batch")
+
+    def test_a_version_that_is_both_held_and_hard_blocked_reports_the_hard_block(self) -> None:
+        """20260802171000 sits in HELD_VERSIONS and in HARD_BLOCKED.
+
+        The held historical FR ruling was superseded by the guarded forward
+        20260818174350, so this original must never be applied at all. Calling it
+        "held for one bounded apply" would read as "waiting its turn" in the
+        migration-ledger drift report, which is the opposite of the truth. Both
+        kinds are intentionally excluded, so the actionable drift COUNT is the
+        same either way -- only the sentence a human reads changes, and it must
+        be the strict one.
+        """
+        paths = local_migrations(REPO)
+        self.assertIn("20260802171000", HELD_VERSIONS)
+        self.assertIn("20260802171000", HARD_BLOCKED)
+        row = classify_pending_version("20260802171000", set(), REPO, paths)
+        self.assertEqual(row["kind"], "retired")
+        self.assertIn("refuses this version outright", row["reason"])
+        for version in sorted((set(HELD_VERSIONS) | set(FR_SHIP_SET_HOLD) | set(FR_REMOVAL_VERSIONS)) - set(HARD_BLOCKED)):
+            self.assertEqual(classify_pending_version(version, set(), REPO, paths)["kind"], "deliberately-held")
+
+    def test_missing_declared_base_is_sharper_than_ordinary_pending(self) -> None:
+        paths = local_migrations(REPO)
+        row = classify_pending_version("20260824135515", {"20260811030000"}, REPO, paths)
+        self.assertEqual(row["kind"], "base-absent")
+        self.assertIn("20260814223552", row["reason"])
 
 
 if __name__ == "__main__":

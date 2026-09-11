@@ -1,9 +1,9 @@
 {
   "detector_schema_version": 1,
-  "detector_source_sha256": "107078d8aa484f39986dea31643562cbe600e6ee9fd85aef42cba3844a5ca258",
+  "detector_source_sha256": "db4323fcae9bf8ad9bdfdf93c4cb70b770e5dd995774a84ebbc3d4d9a8a9ea8b",
   "command": "node scripts/check-production-verification-sidecars.mjs",
-  "total_migration_files": 595,
-  "matched_count": 88,
+  "total_migration_files": 639,
+  "matched_count": 96,
   "matched_paths": [
     {
       "version": "20260621150815",
@@ -444,6 +444,46 @@
       "version": "20260831021656",
       "path": "supabase/migrations/20260831021656_scraped_properties_set_based_retained_context.sql",
       "marker_count": 1
+    },
+    {
+      "version": "20260902024541",
+      "path": "supabase/migrations/20260902024541_source_resolution_supported_home.sql",
+      "marker_count": 10
+    },
+    {
+      "version": "20260902035909",
+      "path": "supabase/migrations/20260902035909_marvel_contract_over_disney_opa_scope.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260903083204",
+      "path": "supabase/migrations/20260903083204_sample_workflow_factory_customer_direct_path.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20260905063701",
+      "path": "supabase/migrations/20260905063701_style_tracker_rows_realtime_publication.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20260905105038",
+      "path": "supabase/migrations/20260905105038_coldlion_sales_history_and_page_ledger.sql",
+      "marker_count": 4
+    },
+    {
+      "version": "20260905142150",
+      "path": "supabase/migrations/20260905142150_coldlion_prod_history_stage_agreement_and_retention.sql",
+      "marker_count": 6
+    },
+    {
+      "version": "20260907030418",
+      "path": "supabase/migrations/20260907030418_canonical_licensing_relationship_bridges.sql",
+      "marker_count": 4
+    },
+    {
+      "version": "20260907051735",
+      "path": "supabase/migrations/20260907051735_licensing_source_authority_and_relationship_decisions.sql",
+      "marker_count": 6
     }
   ],
   "enforced_versions": [

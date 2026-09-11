@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "work_issue": 2715,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add a fail-closed lightweight required-status path for prose-only pull requests without dispatching or acquiring any database orchestrator lane or stage.",
+  "base_sha": "84a1a1d76a79d1d3d9f45c106c6722cec9eeed5c",
+  "dispatcher": "Codex issue 401 programme repo-maintenance owner",
+  "worker": "Codex prereq_2715",
+  "branch": "codex/issue-2715-docs-status-v4",
+  "worktree": "C:/repos/shared-db-worktrees/issue-2715-docs-status-v4",
+  "allowed_paths": [
+    ".agent/contract.json",
+    ".agent/completion.json",
+    ".github/workflows/documents-only-merge-authorization.yml",
+    "AGENTS.md",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
+    "scripts/check-documents-only-merge-authorization.mjs",
+    "scripts/check-documents-only-merge-authorization.test.mjs",
+    "scripts/check-documents-only-pull-request.mjs",
+    "scripts/documents-only-merge-authorization.test.mjs",
+    "scripts/lib/documents-only-change.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/repository-maintenance-authorization.test.mjs"
+  ],
+  "file_writes": [
+    ".agent/contract.json",
+    ".agent/completion.json",
+    ".github/workflows/documents-only-merge-authorization.yml",
+    "AGENTS.md",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
+    "scripts/check-documents-only-merge-authorization.mjs",
+    "scripts/check-documents-only-merge-authorization.test.mjs",
+    "scripts/check-documents-only-pull-request.mjs",
+    "scripts/documents-only-merge-authorization.test.mjs",
+    "scripts/lib/documents-only-change.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/repository-maintenance-authorization.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not modify a migration or any database state.",
+    "Do not authorize an unreadable, mixed, executable, workflow, script, test, configuration, migration, or behavior-changing rulebook diff.",
+    "Do not execute pull-request head code in the privileged status workflow.",
+    "Do not claim an author or reviewer lane, acquire preview, merge, or production, or emit a structural lifecycle event."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/check-documents-only-merge-authorization.test.mjs scripts/documents-only-merge-authorization.test.mjs scripts/repository-maintenance-authorization.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-github-transport-conformance.mjs"
+  ],
+  "assumptions": [
+    "Issue 2715 is repo-maintenance outside the shared-db structure orchestrator.",
+    "Plans and bounded declarative routing pointers are lightweight prose; behavior-changing instruction edits retain the full guarded path.",
+    "The narrow authorization command may serialize on the existing global coordination mutex only while proving production absent.",
+    "Independent exact-head review, required CI, guarded merge, and live acceptance remain repository delivery gates after worker completion."
+  ],
+  "stop_conditions": [
+    "Stop if implementation requires a database or production write.",
+    "Stop if the pull-request head must be checked out or executed by pull_request_target.",
+    "Stop if an unknown diff can receive success."
+  ],
+  "generation": 4
+}

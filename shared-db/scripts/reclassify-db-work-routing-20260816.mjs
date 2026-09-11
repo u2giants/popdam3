@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
+import { runGitHubCommand } from './lib/github-transport.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { parseQueueScope } from './manage-migration-author-lanes.mjs'
 
 const REPO='u2giants/shared-db'
 const apply=process.argv.includes('--apply')
-const gh=(args)=>execFileSync('gh',args,{encoding:'utf8',maxBuffer:64*1024*1024})
+// Issue #2342: shared transport.
+const gh=(args)=>runGitHubCommand(args)
 const json=(args)=>JSON.parse(gh(args))
 const issues=json(['issue','list','--repo',REPO,'--state','open','--label','db-work','--limit','1000','--json','number,title,body,labels'])
 

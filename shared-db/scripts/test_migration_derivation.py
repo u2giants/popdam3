@@ -27,6 +27,7 @@ import production_migration_guard  # noqa: E402
 from migration_derivation import (  # noqa: E402
     DECLARATION_MANDATE_FROM,
     LEGACY_DECLARATIONS,
+    IMMUTABLE_NON_LEDGER_DERIVATIONS,
     DerivationError,
     DerivationRefusal,
     assert_declarations_present,
@@ -137,6 +138,24 @@ class LegacyOverlay(unittest.TestCase):
     def test_the_overlay_never_silently_overrides_a_files_own_line(self):
         raw = "-- derived-from: 20260101000000\n"
         self.assertEqual(declared_bases(REAL_DERIVED, raw=raw), frozenset({"20260101000000"}))
+
+    def test_immutable_non_ledger_history_resolves_only_the_pinned_source(self):
+        version = "20260909005945"
+        source, _why = IMMUTABLE_NON_LEDGER_DERIVATIONS[version]
+        self.assertEqual(declared_bases(version, raw=source), frozenset())
+        self.assertEqual(
+            assert_derivation_bases([version], {version: REPO / "supabase" / "migrations" / "20260909005945_chain_style_group_counts_to_rebuild_completion.sql"}, remote=set()),
+            [],
+        )
+
+    def test_immutable_non_ledger_history_refuses_altered_or_future_prose(self):
+        version = "20260909005945"
+        source, _why = IMMUTABLE_NON_LEDGER_DERIVATIONS[version]
+        with self.assertRaises(DerivationError) as altered:
+            declared_bases(version, raw=source.replace("the baseline body", "a baseline body"))
+        self.assertIn("immutable historical non-ledger", str(altered.exception))
+        with self.assertRaises(DerivationError):
+            declared_bases("20270101000000", raw=source)
 
     def test_the_chain_is_enforced_through_the_overlay_not_just_one_hop(self):
         # 20260824135515 -> 20260814223552 -> 20260814213043. Promoting the first

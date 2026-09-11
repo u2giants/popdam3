@@ -222,8 +222,9 @@ $$;
 -- `using (true)` IS THE DEFECT THIS SECTION EXISTS FOR. It shipped live on the Disney OPA
 -- extract and made confidential licensor data readable by EVERY signed-in account. This is
 -- the same licensor's data from a second portal, so the check is explicit: the predicate
--- must not be `true`, and it must be BYTE-IDENTICAL across all ten tables, so one table
--- cannot quietly carry a weaker gate than its neighbours.
+-- must not be `true`. Ordinary DCP tables retain the identical role gate; the two
+-- resolution tables additionally restrict reads to legacy rows. Assert their complete
+-- stricter predicates, not a waiver, so neither role access nor row privacy can weaken.
 -- =====================================================================================
 do $$
 declare
@@ -231,6 +232,7 @@ declare
   v_tables text[];
   v_qual text;
   v_first text;
+  v_expected text;
   v_n int;
   v_cmd char;
   v_roles name[];
@@ -284,11 +286,19 @@ begin
       continue;
     end if;
 
-    if v_first is null then
-      v_first := v_qual;
-    elsif v_qual <> v_first then
-      raise warning 'C: plm.% predicate differs from the others -- one table carries a '
-        'different read gate than its neighbours', t;
+    -- Anchor the common gate to the ordinary asset policy, independent of iteration order.
+    select pg_get_expr(pol.polqual,pol.polrelid) into strict v_first
+      from pg_policy pol where pol.polrelid='plm.dcp_asset'::regclass;
+    v_expected := v_first;
+    if t='dcp_opa_property_resolution' then
+      v_expected := '((creative_decision_state IS NULL) AND ' || v_first || ')';
+    elsif t='dcp_opa_property_resolution_member' then
+      v_expected := '((EXISTS ( SELECT 1 FROM plm.dcp_opa_property_resolution h '
+        || 'WHERE ((h.resolution_id = dcp_opa_property_resolution_member.resolution_id) '
+        || 'AND (h.creative_decision_state IS NULL)))) AND ' || v_first || ')';
+    end if;
+    if regexp_replace(v_qual,'\s+',' ','g') <> regexp_replace(v_expected,'\s+',' ','g') then
+      raise warning 'C: plm.% does not preserve its complete role and legacy-row read gate', t;
       v_bad := v_bad + 1;
     end if;
   end loop;
@@ -296,7 +306,7 @@ begin
   if v_bad > 0 then
     raise exception 'C FAILED: % RLS violation(s).', v_bad;
   end if;
-  raise notice 'C PASSED: % tables, RLS on, one non-permissive identical SELECT policy each.',
+  raise notice 'C PASSED: % tables, RLS on, one exact non-permissive SELECT policy each; private ledger rows excluded.',
     array_length(v_tables, 1);
 end;
 $$;

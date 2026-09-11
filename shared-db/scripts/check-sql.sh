@@ -483,6 +483,7 @@ if [[ "$guard_b2_ran" -eq 0 && "$guard_b2_failed" -eq 0 ]]; then
 fi
 
 node "$root_dir/scripts/check-expected-count-patterns.mjs" "$migration_dir" "$added_versions_file"
+node "$root_dir/scripts/check-migration-verify-cost.mjs" "$migration_dir" "$added_versions_file"
 
 rm -f "$added_versions_file" "$migration_names_file"
 

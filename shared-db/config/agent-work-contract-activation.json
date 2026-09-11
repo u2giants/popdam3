@@ -1,9 +1,25 @@
 {
   "schema_version": 1,
-  "mode": "report-only",
-  "activated_at": null,
-  "grandfathered_prs": [],
-  "why": "Step 8A ran the compatibility audit on 2026-08-23 and the gate is NOT met, so enforcement is deliberately not switched on. Enforcing now would fail every open pull request that predates contracts, which is how a guard gets disabled instead of adopted. Report-only still FAILS on a malformed contract or a report that contradicts its contract; it only tolerates their absence.",
+  "mode": "enforced",
+  "activated_at": "2026-09-07",
+  "grandfathered_prs": [
+    { "number": 2527, "head_sha": "aeb8720a00fa4829c388bcc04e4de23205a1ef95" },
+    { "number": 2526, "head_sha": "d34c2824c5621c41a3afcd0c4bba5760f08079c0" },
+    { "number": 2523, "head_sha": "a4991c3da4a18d87c9808655075a41d7fc6c9b88" },
+    { "number": 2513, "head_sha": "122ff6dd76686f1399588378f422e18105760d00" },
+    { "number": 2452, "head_sha": "947c6bb044187644a374a8fb9b2effe496900627" },
+    { "number": 2447, "head_sha": "6fe8de0934f96a731f8e4ff56145fc6fdd4aec00" },
+    { "number": 2425, "head_sha": "367c98e5d2c2b1a3e04068356b384a39b5cb02c7" },
+    { "number": 2264, "head_sha": "850d293a80247cfb4ef3a19930db774a9b03ebf6" },
+    { "number": 2260, "head_sha": "fdd7e2d32eabb261343979878aded0303a483fac" },
+    { "number": 2205, "head_sha": "1be8a83d805dc1198816e07e20ed311e496911b8" }
+  ],
+  "why": "Activated after the 2026-09-07 live compatibility census. Every pre-contract open pull request is grandfathered only at its exact current head; any later push invalidates that exemption and must carry a valid contract and completion pair. This activation does not retire the legacy objects alias or change branch protection.",
+  "audit_2026_09_07": {
+    "open_pull_requests_before_activation_pr": 10,
+    "open_pull_requests_carrying_a_contract_and_completion_pair": 0,
+    "open_pull_requests_grandfathered_at_exact_head": 10
+  },
   "audit_2026_08_23": {
     "open_pull_requests": 4,
     "open_pull_requests_carrying_a_contract": 0,
@@ -14,7 +30,7 @@
     "open_work_issues_unparseable": 2
   },
   "activation_gate": [
-    "Every open pull request either carries a valid contract and report, or is listed by exact number in grandfathered_prs.",
+    "Every open pull request either carries a valid contract and report, or is listed by exact number and head SHA in grandfathered_prs.",
     "Then set mode to 'enforced' and activated_at to that date, in the same pull request.",
     "Making 'Agent work contract' a required context on main is a SEPARATE action, taken only after enforced mode has run green for a full day."
   ],

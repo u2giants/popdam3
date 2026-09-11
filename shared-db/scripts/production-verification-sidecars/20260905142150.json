@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260905142150",
+  "migration_sha256": "11e5a80200f658a67b239aa6bf36e6f01b63945a7d5ff639f960180bd57ad1fd",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 98,
+      "line_end": 105,
+      "disposition": "no_durable_target",
+      "reason": "These three dynamic statements are the pre-replacement emptiness refusal for the three obsolete ColdLion production-history tables prod_history_line, prod_history_component and prod_history_last_lookup, executed as one atomic step. The LOCK TABLE ... IN ACCESS EXCLUSIVE MODE takes the same lock the DROP would take anyway, so no concurrent writer can insert between the emptiness proof and the drop; the SELECT only reads whether each surviving table holds a row; the DROP removes a table proven empty while that lock is still held. If any of them is non-empty the migration raises and stops before any replacement statement runs. The post-apply state is the three REBUILT tables created later in this same migration by static DDL, so these statements leave no additional post-apply catalog or row state that a hash-bound durable check could read back."
+    },
+    {
+      "line_start": 676,
+      "line_end": 678,
+      "disposition": "no_durable_target",
+      "reason": "These three dynamic statements only set access posture on the rebuilt ColdLion production-history tables: enable row level security, revoke every privilege from public, anon and authenticated, and grant to service_role. They insert, update and delete no rows, so there is no row, key or typed count a row-count check could observe, and the sidecar check kinds available here cannot read pg_class.relrowsecurity or a grant. The posture they produce is asserted instead by the repository contract test supabase/tests/coldlion_prod_history_contracts.sql, which fails if any of prod_history_line, prod_history_component or prod_history_last_lookup lacks row security or still carries an application-role grant."
+    }
+  ],
+  "checks": []
+}

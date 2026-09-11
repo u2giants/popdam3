@@ -92,9 +92,14 @@ class PreviewProducerMismatch(RiskGateError):
 
 
 def gh_json(endpoint: str, *, runner=subprocess.run, sleep=time.sleep, attempts=4) -> Any:
-    # Only the live owner-comment read receives transport retries. All other
+    # The live owner-comment read and the recursive tree read receive transport
+    # retries. The tree read carries the producer pin for a whole promotion
+    # (issue #2191), so one spurious 500/504 there would stop production for a
+    # reason that has nothing to do with the evidence. Retries are granted ONLY
+    # for transient transport markers and the read still fails closed once the
+    # attempts are spent -- nothing the gate verifies is relaxed. All other
     # governed evidence reads preserve their existing single-attempt behavior.
-    retry_transport = "/issues/comments/" in endpoint
+    retry_transport = "/issues/comments/" in endpoint or "/git/trees/" in endpoint
     effective_attempts = attempts if retry_transport else 1
     for attempt in range(effective_attempts):
         result = runner(
@@ -261,7 +266,12 @@ def preview_applied_commit(
             f"expected exactly one {expected_name} artifact on run {run_id}, found {len(matches)}"
         )
     artifact, match = matches[0]
-    if artifact.get("expired") is not False or artifact.get("workflow_run", {}).get("id") != run_id:
+    workflow_run = artifact.get("workflow_run")
+    if (
+        artifact.get("expired") is not False
+        or not isinstance(workflow_run, dict)
+        or workflow_run.get("id") != run_id
+    ):
         raise RiskGateError("preview artifact is expired or belongs to another run")
     return artifact, match.group(1)
 
@@ -517,6 +527,18 @@ PREVIEW_PRODUCER_PATHS = (
     # differ from exact main, the applied commit and the preview project ref in
     # the evidence would be whatever a doctored checkout chose to write.
     "scripts/preview_instance_binding.py",
+    # Issue #2342. The preview job's `gh api` evidence reads now go through this
+    # thin CLI, and it and the transport beneath it decide what may be retried,
+    # what may never be replayed, and when a read fails closed. A doctored copy
+    # could turn a failed evidence read into a silent empty success, so both are
+    # pinned exactly like the entry points above.
+    "scripts/gh-read.mjs",
+    "scripts/lib/github-transport.mjs",
+    # Imported by the pinned collision and lane tools. It is the only permitted
+    # reader of file CONTENT at a ref, so an unpinned copy could hand a gate
+    # different SQL than the commit actually holds -- the same one-level-down
+    # door the .mjs entries above were pinned to close.
+    "scripts/lib/github-tree.mjs",
     # Data, not code, but it routes which apply mechanism the rehearsal
     # exercises. Pinned for rehearsal fidelity.
     "config/atomic-migration-allowlist.json",
@@ -664,19 +686,45 @@ PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
 }
 
 
-def blob_sha(path: str, ref: str, api: Callable[[str], Any]) -> str:
-    try:
-        entry = api(f"repos/{REPOSITORY}/contents/{path}?ref={ref}")
-    except Exception as exc:  # noqa: BLE001 - unreadable producer file must fail closed
-        raise RiskGateError(f"preview producer file {path} is unreadable at {ref}") from exc
-    sha = entry.get("sha") if isinstance(entry, dict) else None
+def blob_sha_from_tree(path: str, ref: str, entries: dict[str, dict[str, Any]]) -> str:
+    """Resolve a producer file's blob SHA from the ALREADY-READ tree of `ref`.
+
+    ONE ATOMIC READ, NOT FORTY RACING ONES. This used to issue a Contents API
+    call per producer file -- roughly forty rapid sequential requests per
+    comparison -- and `gh_json` grants transport retries only to the live
+    owner-comment read, so each of those got exactly one attempt. A single
+    spurious 500/504/404 anywhere in that sequence failed the whole promotion,
+    naming a DIFFERENT file each run (issue #2191: runs 33920952504,
+    33921168245 and 33921406952 each rejected a different, genuinely present
+    sidecar at f462a411). The recursive tree of the same ref is already read by
+    `tracked_paths_at` for the membership proof, and every entry in it carries
+    that blob's SHA -- the identical bytes the Contents API reports. Resolving
+    from it is STRICTLY STRONGER: same ref, same data, one read, and both the
+    membership fact and the content fact now come from a single consistent
+    snapshot rather than forty independently-racing ones.
+
+    NOTHING IS RELAXED. A path with no tree entry, an entry that is not a blob
+    (a directory can never be a producer file), or an entry carrying no SHA
+    string still refuses by name -- the same conditions the per-file Contents
+    read refused on, plus the blob-type check it could not make. The caller has already proved the path is
+    present in this tree, so reaching any of these means the listing contradicts
+    itself and the gate must fail closed.
+    """
+    entry = entries.get(path)
+    if not isinstance(entry, dict):
+        raise RiskGateError(f"preview producer file {path} is unreadable at {ref}")
+    if entry.get("type") != "blob":
+        raise RiskGateError(
+            f"preview producer file {path} is not a file at {ref}"
+        )
+    sha = entry.get("sha")
     if not isinstance(sha, str) or not sha:
         raise RiskGateError(f"preview producer file {path} is unreadable at {ref}")
     return sha
 
 
-def tracked_paths_at(ref: str, api: Callable[[str], Any]) -> frozenset:
-    """Every file path a commit's tree contains, as a POSITIVE fact.
+def tracked_tree_at(ref: str, api: Callable[[str], Any]) -> dict[str, dict[str, Any]]:
+    """Every entry a commit's tree contains, keyed by path, as a POSITIVE fact.
 
     ABSENCE MUST BE PROVED, NOT INFERRED FROM AN ERROR. The producer list grows
     over time, so a producer file added this year does not exist at a merge
@@ -707,10 +755,15 @@ def tracked_paths_at(ref: str, api: Callable[[str], Any]) -> frozenset:
         raise RiskGateError(
             f"the file tree of {ref} is truncated; producer absence cannot be proved from it"
         )
-    return frozenset(
-        entry["path"] for entry in tree["tree"]
+    return {
+        entry["path"]: entry for entry in tree["tree"]
         if isinstance(entry, dict) and isinstance(entry.get("path"), str)
-    )
+    }
+
+
+def tracked_paths_at(ref: str, api: Callable[[str], Any]) -> frozenset:
+    """Every file path a commit's tree contains. See `tracked_tree_at`."""
+    return frozenset(tracked_tree_at(ref, api))
 
 
 # A comparison target this gate has proved for itself, never a bare flag.
@@ -804,8 +857,9 @@ def prove_preview_producer_matches_main(
         prove_applied_commit_is_main_line(target.sha, main_sha, api)
     if ref == target.sha:
         return
-    present_at_ref = tracked_paths_at(ref, api)
-    present_at_target = tracked_paths_at(target.sha, api)
+    entries_at_ref = tracked_tree_at(ref, api)
+    entries_at_target = tracked_tree_at(target.sha, api)
+    present_at_ref, present_at_target = entries_at_ref.keys(), entries_at_target.keys()
     compared = 0
     for path in PREVIEW_PRODUCER_PATHS:
         at_ref, at_target = path in present_at_ref, path in present_at_target
@@ -817,7 +871,10 @@ def prove_preview_producer_matches_main(
                 f"{'present' if at_ref else 'absent'} where {against} has it "
                 f"{'present' if at_target else 'absent'}"
             )
-        if blob_sha(path, ref, api) != blob_sha(path, target.sha, api):
+        if (
+            blob_sha_from_tree(path, ref, entries_at_ref)
+            != blob_sha_from_tree(path, target.sha, entries_at_target)
+        ):
             raise PreviewProducerMismatch(
                 f"{what} produced evidence with a different {path} than {against}"
             )
@@ -1043,7 +1100,16 @@ def prove_bound_mainline_post_merge_original(
     applied commit and complete per-run allowlist, both execution commits are the
     same main-line commit, and the source merge is its ancestor.
     """
-    raw = texts.get("preview-instance.json")
+    # ONE BINDING PER AUTHORING PULL REQUEST (#2140). A batch rehearsed from a
+    # merged_preview_source_pr_map files `preview-instance.json` under the map's
+    # LAST pull request only, while this proof compares the binding against the
+    # pull request that authored THIS version. Those disagree for every version
+    # in the batch except the last, so per-version historical recovery could
+    # never pass. The rehearsal now also writes `preview-instance-<pr>.json` for
+    # every proven pull request in the map. Prefer this version's own file; the
+    # comparison below is unchanged and still strict, so a file naming the wrong
+    # pull request, run, commit or allowlist is refused exactly as before.
+    raw = preview_instance_text(texts, source_pr)
     try:
         binding = json.loads(raw) if raw else None
     except (json.JSONDecodeError, TypeError) as exc:
@@ -1074,6 +1140,82 @@ def prove_bound_mainline_post_merge_original(
     ancestry = api_object(api, f"repos/{REPOSITORY}/compare/{merge_sha}...{run_head}")
     if ancestry.get("status") not in {"ahead", "identical"} or ancestry.get("behind_by") != 0:
         raise producer_error
+
+
+def preview_instance_text(texts: dict, source_pr) -> str | None:
+    """The binding this pull request filed, else the shared last-PR file.
+
+    ONE BINDING PER AUTHORING PULL REQUEST (#2140). A batch rehearsed from a
+    `merged_preview_source_pr_map` used to file `preview-instance.json` under the
+    map's LAST pull request only, so every earlier pull request in the batch had
+    no recoverable binding of its own. The rehearsal now also writes
+    `preview-instance-<pr>.json` for every proven pull request.
+
+    Every reader must resolve the binding the SAME way, or a promotion of a
+    non-last pull request reads the stale shared file at one gate and its own
+    file at another. That is why this is one function and not three call sites.
+    The shared file remains the fallback so an old artifact, written before the
+    per-pull-request files existed, still recovers. Nothing here relaxes a check:
+    the caller still verifies the body names the right pull request, run, commit
+    and allowlist, so a file naming the wrong one is refused exactly as before.
+    """
+    if isinstance(source_pr, int) and not isinstance(source_pr, bool):
+        own = texts.get(f"preview-instance-{source_pr}.json")
+        if own:
+            return own
+    return texts.get("preview-instance.json")
+
+
+def prove_registered_historical_restoration_provenance(
+    *, version: str, run_id: int, run_head: str, original_commit: str, source_pr: int,
+    merge_sha: str, texts: dict[str, str], repo_root: Path,
+    runner: Callable[..., Any] = subprocess.run,
+) -> None:
+    """Accept producer drift only for one exact, byte-pinned restoration record.
+
+    The JavaScript registry remains the single authority used by the migration
+    guards.  This adapter asks it to validate the current migration bytes and
+    binds that answer to the original artifact digest, run, commit, source PR,
+    and source merge.  Any absent or mismatched field refuses here, leaving the
+    caller's ordinary producer-mismatch path unchanged.
+    """
+    matches = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
+    if len(matches) != 1:
+        raise RiskGateError(
+            f"registered historical restoration {version} is absent or ambiguous on exact main"
+        )
+    recorded = preview_content_manifest(texts).get(version)
+    evidence = {
+        "version": version,
+        "previewApplyRun": str(run_id),
+        "previewDispatchCommit": run_head,
+        "previewAppliedCommit": original_commit,
+        "sourcePr": source_pr,
+        "sourceMergeCommit": merge_sha,
+        "artifactFileSha256": recorded,
+    }
+    relative = matches[0].relative_to(repo_root).as_posix()
+    try:
+        result = runner(
+            [
+                "node", "scripts/historical-migration-restorations.mjs",
+                "--production-provenance", relative,
+                json.dumps(evidence, separators=(",", ":"), sort_keys=True),
+            ],
+            cwd=repo_root, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise RiskGateError("historical restoration registry could not be executed") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or "historical restoration registry refused the evidence").strip()
+        raise RiskGateError(detail)
+    try:
+        answer = json.loads(result.stdout)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise RiskGateError("historical restoration registry returned unreadable evidence") from exc
+    if answer != {"version": version, "fileSha256": recorded}:
+        raise RiskGateError("historical restoration registry returned mismatched evidence")
 
 
 def prove_historical_original_apply_runs(
@@ -1257,13 +1399,21 @@ def prove_historical_original_apply_runs(
                 )
             except PreviewProducerMismatch as producer_error:
                 texts = texts or artifact_texts(artifact, downloader)
-                prove_bound_mainline_post_merge_original(
-                    texts=texts, run=run, run_id=run_id, run_head=run_head,
-                    original_commit=original_commit,
-                    run_versions=sorted(v for v in allowlist if runs.get(v) == run_id),
-                    source_pr=source_pr, merge_sha=merge_sha, main_sha=main_sha, api=api,
-                    producer_error=producer_error,
-                )
+                try:
+                    prove_registered_historical_restoration_provenance(
+                        version=version, run_id=run_id, run_head=run_head,
+                        original_commit=original_commit,
+                        source_pr=source_pr, merge_sha=merge_sha, texts=texts,
+                        repo_root=repo_root,
+                    )
+                except RiskGateError:
+                    prove_bound_mainline_post_merge_original(
+                        texts=texts, run=run, run_id=run_id, run_head=run_head,
+                        original_commit=original_commit,
+                        run_versions=sorted(v for v in allowlist if runs.get(v) == run_id),
+                        source_pr=source_pr, merge_sha=merge_sha, main_sha=main_sha, api=api,
+                        producer_error=producer_error,
+                    )
         texts = texts or artifact_texts(artifact, downloader)
         if texts.get("historical-preview-source.json"):
             raise RiskGateError(
@@ -1304,7 +1454,7 @@ def prove_historical_original_apply_runs(
         # by another. The byte half is still pinned to exact main, so production
         # cannot be handed bytes nobody rehearsed; what is not proved is that the
         # CURRENT preview ran them.
-        instance = texts.get("preview-instance.json")
+        instance = preview_instance_text(texts, source_pr)
         if instance:
             try:
                 binding = json.loads(instance)
@@ -1501,7 +1651,7 @@ def prove_preview(
     # deleted and rebuilt on 2026-08-18; without this, its proof would still be
     # good for a production write today.
     verify_preview_instance_binding(
-        texts.get("preview-instance.json"),
+        preview_instance_text(texts, source_pr),
         applied_commit=applied_commit, preview_project_ref=preview_project_ref,
         production_project_ref=PRODUCTION_PROJECT_REF, run_id=run_id, allowlist=allowlist,
         source_pr=source_pr, merge_commit_sha=merge_commit_sha,
@@ -1747,6 +1897,15 @@ def main() -> int:
     return 0 if result.get("productionPromotionAllowed", result["automaticPromotionAllowed"]) else 3
 
 PREVIEW_PRODUCER_PATHS += (
+    # Issue #2579. The sidecar binds migration 20260910155753, and the coverage
+    # manifest is repository source read by an offline CI validator. Both are
+    # pinned rather than exempted: the test's own instruction is to pin anything
+    # a tool in the preview job could read, and pinning is the stricter answer.
+    "scripts/production-verification-sidecars/20260910155753.json",
+    "config/db-data-admin-property-source-coverage.json",
+    "scripts/production-verification-sidecars/20260908214749.json",
+    "scripts/production-verification-sidecars/20260909084253.json",
+    "scripts/production-verification-sidecars/20260910123636.json",
     "scripts/production-verification-sidecars/20260830013942.json",
     "scripts/production-verification-sidecars/20260830130345.json",
     "scripts/production-verification-sidecars/20260830172356.json",
@@ -1768,9 +1927,18 @@ PREVIEW_PRODUCER_PATHS += (
     "scripts/production-verification-sidecars/20260831212757.json",
     "scripts/production-verification-sidecars/20260831221607.json",
     "scripts/production-verification-sidecars/20260901142825.json",
+    "scripts/production-verification-sidecars/20260905105038.json",
+    "scripts/production-verification-sidecars/20260903083204.json",
+    "scripts/production-verification-sidecars/20260905063701.json",
+    "scripts/production-verification-sidecars/20260905142150.json",
+    "scripts/production-verification-sidecars/20260907200221.json",
+    "scripts/production-verification-sidecars/20260907030418.json",
+    "scripts/production-verification-sidecars/20260907051735.json",
+    "scripts/production-verification-sidecars/20260911045438.json",
     # Invoked by check-sql.sh during preview; pin the reviewed parser so the
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",
+    "scripts/check-migration-verify-cost.mjs",
 )
 
 

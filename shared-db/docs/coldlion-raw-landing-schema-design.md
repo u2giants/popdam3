@@ -153,15 +153,27 @@ exactly 7 days (`toDate = fromDate + 6`); overlap duplicates rows.
 | `/customers` | `coldlion.customer` | company_code, customer_code |
 | `/vendors` | `coldlion.vendor` | company_code, vendor_code |
 | `/merchGroupHeaders` | `coldlion.merch_group_header` | company_code, division_code, mg_type_code |
-| `/merchGroupDetails` | `coldlion.merch_group_detail` | company_code, division_code, mg_type_code, mg_code |
+| `/merchGroupDetails` | `coldlion.merch_group_detail` | company_code, division_code, mg_type_code, mg_category, mg_code |
 | `/seasons` | `coldlion.season` | company_code, division_code, season_code |
 | `/salespersons` | `coldlion.salesperson` | company_code, salesperson_code |
 
 `merch_group_detail` holds licensors, properties, sizes, style guides, artists and every other
 merch-group value in **one** table, because Coldlion serves them from one endpoint and the
-meaning of `mg_type_code` is division-dependent. The four-part key is mandatory: `mgCode`
-collides across types inside one division (`1P` is both a licensor and a property in CW001).
+meaning of `mg_type_code` is division-dependent. The legacy four-part projection was not
+enough for the current feed: a 2026-09-09 live read returned 1,384 rows but only 1,038
+distinct `(company, division, type, code)` combinations. Adding `mg_category` produced
+1,384 distinct combinations. The forward migration for issue #2622 changes the landing
+identity to five parts, and JamieLynn confirmed on 2026-09-10 that `mgCategory` must be
+included: category-specific rows are separate Coldlion records, not duplicates to merge.
+The five-part identity is therefore the business and landing grain. Preserve every
+returned row. `mgCode` still collides across types inside one division (`1P` is both a
+licensor and a property in CW001), so the full five-part key remains required.
 `/merchGroupDetails` returns a plain array, not the paged envelope.
+
+The earlier 2026-09-10 read of production found zero rows and the legacy four-part key;
+that was a pre-promotion snapshot, not the current state. Issue #2622 / PR #2651 later
+applied the five-part-key migration to production on 2026-09-10. No landing rows are
+discarded or reconciled by that change; the loader must retain all category-specific rows.
 
 ### 3.2 Items — a header plus two child grains
 

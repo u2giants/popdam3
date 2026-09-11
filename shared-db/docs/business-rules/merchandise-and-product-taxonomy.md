@@ -51,6 +51,23 @@ So licensed-versus-generic is decided by the division, and the two licensed
 divisions split the categories between them with no overlap: POP takes the
 three wall/tabletop/clock categories, Spruce Licensed takes the rest.
 
+### A non-licensed division with no Licensor is not a data gap
+
+**Settled — owner ruling by Albert Hazan, 2026-09-06:** "EH001 and EP001 have no
+licensed product, correct".
+
+Divisions `EH001` and `EP001` contain no licensed product. Being 100%
+unresolved for Licensor and Property is their **expected state**, not a failure,
+and blank is the correct final answer for them. Any population being assessed
+for a missing Licensor or Property must exclude them.
+
+**Break the population by division before counting it.** A whole-company count
+mixes non-licensed divisions into what is supposed to be a licensed-item
+measurement. On 2026-09-06 this single mistake turned a real gap of 2,016 items
+into a reported 6,350: `EH001` contributed 3,883 rows and `EP001` 451, all of
+them correctly blank. The worked example is in
+[`unmapped-licensor-population.md`](unmapped-licensor-population.md).
+
 **Conflict flagged, not resolved.** "Division scope of a Product Type" below
 records that the nineteen workbook Product Types each exist once in **all
 three** current divisions. That is a statement about which taxonomy rows exist
@@ -91,9 +108,24 @@ not the identity, and nothing new depends on them.
 - In Spruce non-licensed division `EH001`, those same slots mean Big Theme and Little Theme.
 - In retired book and education division `EP001`, those same slots mean Product Line and Product Type.
 
+A merchandise-group slot carries a code and a separate display name. The code is the fact; the name is a convenience label that may be absent even when the code is present. An item whose Licensor code is filled has a Licensor, regardless of whether the Licensor name is populated. Never test a slot's display name to decide whether the underlying fact is missing, and never report an item as unlicensed on that basis.
+
 `EP001` is a real retired division, not a mistaken spelling of `EH001`. DesignFlow also has older numeric division identifiers. Most historical item headers are in numeric division `2`; that history must not be silently reassigned to a current ColdLion division.
 
-Merchandise-group codes are unique only inside their Division and merchandise-group type. `FR`, for example, has represented different kinds of object in different contexts and must never be resolved from the letters alone.
+**Read the field this page already names.** The 2026-09-06/07 unmapped-Licensor
+analysis was invalidated twice over, and both times the correct field was
+already written down here and had simply not been read. The first run read
+`royaltyCode` as the Licensor; the second read `merchGroup05Desc`, the display
+name, instead of `merchGroup05`, the code. Before measuring a Licensor or
+Property population, check which field this rule names, then read that one. See
+[`unmapped-licensor-population.md`](unmapped-licensor-population.md).
+
+For general merchandise-group entity resolution, codes are scoped by Division and
+merchandise-group type. `FR`, for example, has represented different kinds of object in
+different contexts and must never be resolved from the letters alone. **For the newer
+MG01–MG03 product hierarchy, JamieLynn confirmed 2026-09-10 that `mgCategory` is an
+additional scope:** values may recur across categories, but should be unique within the
+applicable division/category branch.
 
 MG10 means Demographic, also called Age Group, in the three current divisions. It is a flat attribute, not a level in the Product Type hierarchy. This library does not yet define the approved Age Group vocabulary; that vocabulary is **Unknown** until confirmed.
 
@@ -122,6 +154,39 @@ completion. Categories are resolved at read time and are not written onto item r
 | Garden | W Garden |
 
 Seven categories cover **twenty** MG01 Product Types. Category constrains dependent choices such as valid sizes. A Product Type may not belong to two categories unless the business explicitly changes this rule.
+
+### ColdLion merchandise-group detail identity — Settled vendor rule
+
+The settled POP rule above defines how POP resolves an item's `mgCategory`. JamieLynn
+confirmed on 2026-09-10 that the same category dimension is also part of ColdLion's
+`/merchGroupDetails` record identity. **`mgCategory` must be included.** Rows that share
+company, division, merchandise-group type and code but differ by category are separate
+ColdLion records; they are not rows for POP to merge or choose between. The business
+grain is therefore `(company, division, mgType, mgCategory, mgCode)`.
+
+JamieLynn also explained the business meaning: MG01–MG03 are the new codes and standards
+POP had ColdLion implement in early 2025. Some code values intentionally recur across
+categories, but they should be unique within the applicable division and category. The
+division and `mgCategory`, with the MG01 choice, determine which MG02 and MG03 values are
+valid. In plain terms, the same-looking code can mean different things in different
+category branches; category is a scope for the hierarchy, not a cosmetic label.
+
+This explains the live shape measured 2026-09-09/10: explicit `active=Y` and `active=N`
+requests for `companyCode=EDGEHOME` returned 1,384 rows (1,376 active and 8 inactive),
+while the old four-field projection produced only 1,038 combinations. Adding
+`mgCategory` produced 1,384 distinct five-field identities. No source payload is stored
+in this public repository.
+
+**Still Unknown:** JamieLynn asked for clarification on the exact `mgCode` reuse question,
+and said the possible placeholder rows came from a sheet provided to Brian but she does
+not believe they are used. That recollection does not establish a current loader rule.
+Her note that Uma helped make DesignFlow and ColdLion consistent confirms shared
+cross-system standards and reduced redundancy, but does not authorize collapsing any
+category-specific ColdLion rows or settle blank-description/placeholder semantics.
+
+**Historical evidence:** an older 2026-07-23 sample found `mgCategory` empty on the
+sampled detail rows. That observation is retained as historical and does not override the
+current live result.
 
 The category names shown above are migration-authoritative display labels. A governed
 rewording ships in a new `shared-db` migration; replay intentionally restores the declared

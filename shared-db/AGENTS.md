@@ -8,6 +8,16 @@
 
 # AGENTS.md — cross-app coordination playbook
 
+## Task declaration
+
+Before starting work, run `ai-task-gates start --class <class>` from the
+installed [`popcre/ai-devops` toolkit](https://github.com/popcre/ai-devops/blob/main/docs/deployment.md).
+If the command is absent, stop and use that supported installation route; do
+not copy or bypass the gate. The command rechecks the real change set before
+review, waiting, shipping, or deployment. If scope reaches a protected class,
+redeclare at that class and satisfy its proofs because acknowledgement or
+owner-request flags cannot bypass it.
+
 ## Companywide business rules
 
 Business logic is organized by business topic, not by application. Before
@@ -23,20 +33,25 @@ and dissemination process is
 
 Before interpreting `full_item_master.csv`, changing item-description parsing, or reporting historical MG match counts, read [`docs/item-description-mg-classification-process.md`](docs/item-description-mg-classification-process.md) and the completed [`plan_mg_taxonomy_three_axis_repair.md`](plan_mg_taxonomy_three_axis_repair.md). The implemented method separates MG01 physical form, MG02's family-specific subtype or material, and MG03 explicit embellishment. It validates newer codes independently at each depth, builds three independent post-May-13 maps, and matches historical items from three axes to two to one. Missing embellishment is unreadable, not plain; invalid child evidence never erases a valid parent; and a failed full-key match is never an MG01 failure. The older `plan_item_description_mg_taxonomy_repair.md` is retained as superseded history.
 
-The guarded row-application work is planned in [`plan_historical_mg_reclassification_apply.md`](plan_historical_mg_reclassification_apply.md). Read its STATUS table first. It permits no preview or production write without a new explicit authorization, applies only complete live-qualified triplets in its first batch, keeps private artifacts out of this public repo, and leaves the May 14 cutoff in place until its exhaustive live-population gate passes.
+The guarded row-application work is planned in [`plan_historical_mg_reclassification_apply.md`](plan_historical_mg_reclassification_apply.md). Read its STATUS table first, then §9.1 and §9.2: §9.1 records the completed 2026-09-02 read-only Phase 0 re-run and its live counts, and §9.2 records an independent 2026-09-03 live re-verification that confirmed every gate-bearing count and flagged two §9.1 figures (the null-`div_code` historical count and the non-unique-item-number count) that did not reproduce and must be re-derived in Phase 1. It permits no preview or production write without a new explicit authorization, applies only complete live-qualified triplets in its first batch, keeps private artifacts out of this public repo, and leaves the May 14 cutoff in place until its exhaustive live-population gate passes.
 
 ## Active contracts and implementation plans
 
+- **Transfer `shared-db` to `popcre` and activate GitHub's native merge queue (issue #2530):** [`plan_shared_db_popcre_transfer_merge_queue.md`](plan_shared_db_popcre_transfer_merge_queue.md). Read its STATUS table first. This is repository-maintenance work outside the structure/schema orchestrator. It separates transfer compatibility, the owner-authorized repository move, settings/credential reconciliation, and queue activation so direct guarded merging remains available throughout. Do not cherry-pick closed PR #1950, weaken required checks, assume transfer-back is available, or invent a migration for acceptance proof.
+- **Author-lane abandonment lifecycle (issue #2301):** [`plan_author_lane_abandonment_lifecycle.md`](plan_author_lane_abandonment_lifecycle.md). Read its STATUS table first. Repository-maintenance work outside the structure/schema orchestrator. It preserves every object/version claim while allowing evidence-backed capacity relinquishment, adds recovery-gated resume and immutable retirement tombstones, and forbids expiry-only release, ref deletion, automatic PR closure, or worktree mutation.
+- **Database efficiency and Data API security program (issue #2209):** [`plan_database_efficiency_and_api_security.md`](plan_database_efficiency_and_api_security.md). Read its STATUS table first. It is the evidence-gated umbrella plan for Supabase advisor findings, expensive rebuilds, effective-tag churn, foreign-key/index review, RLS and privileged-API validation, maintenance statistics, and replication attribution. It authorizes no bulk fix: each structural change must be split into its own orchestrator issue, while application scheduling/batching changes remain with the owning application repo. The unused-index decision for four high-churn tables remains frozen under issue #1966 until its 2026-09-17 delta reading.
 - PopDAM OrderList linked to Master Data: [`plan_popdam_order_list.md`](plan_popdam_order_list.md). Read its STATUS table first. Do not re-derive or re-plan completed steps.
 - **Companywide business rules (read before interpreting business meaning):** start at [`docs/business-rules/application-map.md`](docs/business-rules/application-map.md). Licensing Master Data starts at [`docs/business-rules/licensing-master-data.md`](docs/business-rules/licensing-master-data.md); its detailed architecture remains in [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md).
 - **Licensing Master Data implementation:** [`plan_licensing_master_data_implementation.md`](plan_licensing_master_data_implementation.md). Read its STATUS table first and start at the named fresh-session step. It supersedes conflicting execution assumptions in older Character/Style Guide and ColdLion plans without deleting their historical evidence.
 - **ColdLion — anything at all:** start at [`docs/coldlion.md`](docs/coldlion.md). It is a map, not a source. **Before asking ColdLion a question, or concluding a field is broken or unknown, read [`docs/coldlion-open-questions.md`](docs/coldlion-open-questions.md)** — twelve questions are already answered there, and on 2026-08-19 a session wasted an afternoon re-deriving one of them.
-- **ColdLion raw landing layer (issue #1184), phases 2-6:** [`docs/plan_coldlion-landing-phases-2-6.md`](docs/plan_coldlion-landing-phases-2-6.md). Read its STATUS table first — do not re-derive its measurements or re-plan its steps. Phase 1 (the spine) is merged; phases 2-6 build the feed tables and loaders. The owner's per-field ingest/ignore decisions are [`docs/coldlion-field-decisions-20260819.csv`](docs/coldlion-field-decisions-20260819.csv) and are authority, not a suggestion. Step 4 is blocked until the `orderHistory` line key is resolved from a live pull; there is no `lineNo` in the payload and every obvious substitute silently merges sales lines.
+- **ColdLion `/vendors` field dispositions are SETTLED — never re-open them.** All 29 `/vendors` fields were ruled by the owner on 2026-08-19 in [`docs/coldlion-field-decisions-20260819.csv`](docs/coldlion-field-decisions-20260819.csv) (10 ingest, 19 **DECLINED**), and the ruling was **re-verified against the live feed on 2026-09-03** — the live field-name set is identical to the CSV's 29 rows. Vendor **addresses, `zipCode`, `state`, `email` and `phoneNo` are DECLINED**: not pending, not undisposed, and not an open owner decision. Issues #2180 and #2081 were written as though no vendors ruling existed and are wrong on that point. **`/seasons` is now ALSO SETTLED (owner ruling 2026-09-03): all eight currently-unstored fields — `seasonDesc`, `startDate`, `endDate`, `shipStartDate`, `shipEndDate`, `active`, `createdUser`, `modUser` — are DECLINED.** Nothing new goes into `coldlion.season`; the five stored columns (`company_code`, `division_code`, `season_code`, `created_time`, `mod_time`) are the complete approved projection. Not pending, not undisposed — **DECLINED**. Revisit only if ColdLion begins populating them.
+- **⛔ ColdLion `/seasons` VENDOR DEFECT — NEVER use the unfiltered `/seasons` call. The other divisions' records are MISSING, not mislabelled.** A company-wide (unfiltered) `/seasons` query returns the **CW001 record in place of every other division's record entirely** — division code, description and all four audit stamps come from the CW001 row. **All 13 non-CW001 records (4 SP001, 1 EP001, 8 EH001) are ABSENT from the response.** The row *count* is right (21) but the row *content* is duplicated from CW001, byte-identical, as though the lookup were keyed on `seasonCode` alone and ignored division. **There is no workaround: you cannot re-derive the division code from elsewhere, because the data is not in the response at all.** Per-division queries return the correct records (CW001 = 8, SP001 = 4, EP001 = 1, EH001 = 8). **Any `/seasons` loader MUST query per division.** Nothing in the response envelope signals this, and paging is not involved (single page, 21 of 21, size 50). Confirmed against the live feed on 2026-09-03, re-verified three times, with a positive control that fires. This is a `/seasons` fault, not the API's general behaviour: unfiltered `/merchGroupHeaders` returns 37 rows correctly spanning all four division codes.
+- **ColdLion landing-schema completion (issue #2081):** [`plan_coldlion_landing_schema_completion.md`](plan_coldlion_landing_schema_completion.md). Read its STATUS table first. It is the current execution plan after the 2026-09-02 production/API audit. The older [`docs/plan_coldlion-landing-phases-2-6.md`](docs/plan_coldlion-landing-phases-2-6.md) remains the owner-decision and historical evidence record, but its STATUS, history key, paging and field-count instructions are superseded. The owner's per-field decisions remain authority, supplemented by D14-D17 and a fresh live census where the API added fields.
 - **Multi-agent database coordination hardening (issue #1366):** [`plan_multi_agent_database_coordination_hardening.md`](plan_multi_agent_database_coordination_hardening.md). Read its STATUS table first. This is repository-maintenance work outside the structure/schema orchestrator; do not route its implementation to that orchestrator or re-derive the completed research.
 - **Reviewer-assignment GitHub API budget (issue #1767, complete):** [`plan_reviewer_assignment_api_budget.md`](plan_reviewer_assignment_api_budget.md). Read its STATUS table and verification link before investigating regressions; do not reimplement it or test scale by scanning live historical assignment refs. Slot 1 is capped at 19 requests, while mandatory slot 2 has a documented 22-request normal-path ceiling after PR #1813.
 - **Reviewer lease capacity truth (issues #2058 and #1851):** [`plan_reviewer_lease_capacity_truth.md`](plan_reviewer_lease_capacity_truth.md). Read its STATUS table first — do not re-derive its root cause or re-plan its steps. Repository-maintenance work that authorizes **no** database change; implement it in a fresh isolated session outside the structure/schema orchestrator. It releases terminally failed reviewer slots without requiring a replacement draw, timestamps leases, adds a read-only capacity report, and makes the exhaustion refusal name its true cause. Never hand-delete a `refs/db-review-active/*` ref and never post a synthetic verdict to free capacity — both were considered and rejected, and both silently un-review a database change.
 - **Orchestrator throughput Phase 2 (issue #1738):** [`plan_orchestrator_throughput_phase_2.md`](plan_orchestrator_throughput_phase_2.md). Read its STATUS table first. It uses the completed `shared-db.orch` transcript to separate protected claims from worker capacity, preserve content-addressed evidence across unrelated `main` movement, schedule shared-preview dependencies, and qualify routes before expensive gates. This is repository-maintenance work outside the structure/schema orchestrator.
-  Phase 2 is active: protected claims never disappear when author capacity is relinquished; preview dependencies are waits, not successful checks. Before manual preview dispatch resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and use only the matching instruction. Historical recovery is apply-only; historical dry-run proves nothing. `--repair-preview-ready <ready-id> --issue <n>` may repair only a v2-bound stale wrong digest; a corrupt live digest stops for owner decision without mutation. Reviewer reservations serialize approved provider/wrapper execution keys and create durable ordered waits when all eligible reviewers are busy. The live orchestrator engine is always excluded: Codex cannot review a Codex-orchestrated change, and Claude cannot review a Claude-orchestrated change. Qwen and Gemini remain outside the active rotation while ai-devops reliability is repaired.
+  Phase 2 is active: protected claims never disappear when author capacity is relinquished; preview dependencies are waits, not successful checks. Before manual preview dispatch resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and use only the matching instruction. Historical recovery is apply-only; historical dry-run proves nothing. `--repair-preview-ready <ready-id> --issue <n>` may repair only a v2-bound stale wrong digest; a corrupt live digest stops for owner decision without mutation. Reviewer reservations serialize approved provider/wrapper execution keys and create durable ordered waits when all eligible reviewers are busy. The live orchestrator engine is always excluded: Codex cannot review a Codex-orchestrated change, and Claude cannot review a Claude-orchestrated change. Gemini 3.8 Flash High re-entered the active rotation on 2026-09-06 (PR #2438) after a recorded live re-qualification; Kimi K3 was unpaused on 2026-09-07 (PR #2483) and is drawable again; Codex GPT-5.6 Sol was retired from the rotation on 2026-09-06 (issue #2485) by owner instruction and is not drawable. The gate this repo enforces before any reviewer runs is `reviewerExecutionPreflight`, which runs the wrapper's own `doctor` and refuses rather than report ready on a probe it never ran.
 - **Making throughput guards tell the truth (hash-bound verification sidecars, typed catalog truth, regression corpus and causal blocker measures):** [`plan_orchestrator_throughput_guard_truth.md`](plan_orchestrator_throughput_guard_truth.md). Read its STATUS table first — do not re-derive its analysis or re-plan its steps. Repository-maintenance work that authorizes **no** database change; do not route it to the structure/schema orchestrator. It preserves every refusal while separating migration-file, ledger and live-catalog evidence so “not derivable” is never reported as “absent.”
 - **Paramount capture validation after the 2026-08-24 preview rehearsal:** [`fix_Paramount_capture_against_preview.md`](fix_Paramount_capture_against_preview.md). **Complete — do not re-run it to make the document current.** The three required migrations and the JSON-null repair are on preview, and the full Paramount capture succeeded and was verified there. The JSON-null structural repair alone was later promoted to production under separate owner authorization (issue #1418). No production Paramount *data capture* has been authorized or performed; that remains a separate owner decision.
 - OrderList source contract: [`docs/app-migration-notes/popdam-order-list.md`](docs/app-migration-notes/popdam-order-list.md), with formula detail in [`docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md`](docs/app-migration-notes/popdam-order-list-formula-audit-20260807.md). Owner ruling: Google OrderList and future Coldlion rows are the same orders; `plm.item` is the ultimate item list. One canonical order/line must retain separate Google and Coldlion source refs.
@@ -676,8 +691,10 @@ preview rehearsal and its recovery lane:
 Read it in full before you claim a lane, author a migration, or rehearse on preview.** The five
 rules below are the operative summary.
 
-1. **Up to three unrelated migrations may be authored at once. Preview, merges, and production
-   promotion remain one at a time** (owner ruling, 2026-08-14). A fourth author is refused.
+1. **Up to eight unrelated migrations may hold active-author capacity at once. Preview, merges,
+   and production promotion remain one at a time** (owner ruling implemented 2026-08-28 under
+   issue #1738). A ninth active author is refused. Protected relinquished claims remain outside
+   that capacity count but continue blocking every object/version collision.
 
    **Do not open a migration file first.** Acquire an author lane, an exact object claim, and a
    centrally reserved 14-digit version as one dispatch operation:
@@ -726,9 +743,19 @@ rules below are the operative summary.
      only when there is no verdict and no progress, or a concrete transport, coverage, or
      truncated-output failure. Never replace `REVISE` or reduce coverage: exhaust active providers
     not failed on the exact head, then fail closed with the exact blocker. The configured rotation is
-    Grok 4.6, GLM 5.3, Kimi K3, Muse Spark 1.2 Contributor, and Codex GPT-5.6 Sol,
-    minus the live orchestrator's own engine. Qwen, Gemini and DeepSeek are inactive; DeepSeek
-    was RETIRED on 2026-09-01 (issue #2078) and is not drawable.
+    Grok 4.6, GLM 5.3, Kimi K3, Qwen 3.8 Max, Muse Spark 1.3 Contributor, and
+    Gemini 3.8 Flash High, minus the live orchestrator's own engine — exactly
+    `ACTIVE_REVIEWERS` in `scripts/manage-migration-author-lanes.mjs`. Gemini
+    re-entered on 2026-09-06 (PR #2438) after a live re-qualification. Kimi K3
+    was unpaused on 2026-09-07 (PR #2483) after a passing wrapper doctor and is
+    drawable again. Qwen 3.8 Max was unquarantined on 2026-09-07 by owner
+    instruction (ai-devops PR #316, merge `795902d8`) and is drawable again.
+    DeepSeek is inactive: it was RETIRED on 2026-09-01 (issue #2078) and is not drawable.
+    **Codex GPT-5.6 Sol is NOT in the rotation:** the owner retired it
+    permanently on 2026-09-06 (issue #2485) once the other providers were
+    working, so it sits in `RETIRED_REVIEWERS` and is not drawable. Its
+    `REVIEWERS` row stays, so every durable verdict it already recorded still
+    authorizes a merge.
 
    The `Cross-PR object collision` CI check is only the backstop. By the time it fires, somebody's
    session is already wasted — on 2026-07-31, three of four were.
@@ -743,7 +770,7 @@ rules below are the operative summary.
    `scripts/check-workflow-preview-ref.test.mjs` fails the guard job if any workflow pins a literal
    again.
 
-   ⚠️ **Merging requires an APPROVE pinned to the EXACT head being merged, and the merge gate now enforces it (#1816, 2026-08-29).** A reviewer assignment is not an approval, and an approval of an earlier head is not an approval of these bytes: answering a `REJECT` with a new commit requires a fresh exact-head review before that commit can merge. Enforced by `scripts/check-exact-head-approval.mjs`, run twice in `guarded-migration-merge` (up front, then re-proven under the merge lock). Before this it was convention only, and PR #1809 merged unapproved bytes onto `main`. Free-text verdicts are unauthorized by default and count only from GitHub's OWNER, MEMBER or COLLABORATOR associations. The gate still does **not** prove the assigned provider is the commenter, because assignment refs do not carry an identity that can be bound to GitHub authorship. Do not cite a pass as proof of who reviewed. Full limits in `docs/agents/section-4-anti-collision-rules.md`.
+   ⚠️ **Merging requires an APPROVE pinned to the EXACT head being merged, and the merge gate now enforces it (#1816, 2026-08-29).** A reviewer assignment is not an approval, and an approval of an earlier head is not an approval of these bytes: answering a `REJECT` with a new commit requires a fresh exact-head review before that commit can merge. Enforced by `scripts/check-exact-head-approval.mjs`, run twice in `guarded-migration-merge` (up front, then re-proven under the merge lock). Before this it was convention only, and PR #1809 merged unapproved bytes onto `main`. Free-text verdicts are unauthorized by default and count only from GitHub's OWNER, MEMBER or COLLABORATOR associations. The gate still does **not** prove the assigned provider is the commenter, because assignment refs do not carry an identity that can be bound to GitHub authorship. Do not cite a pass as proof of who reviewed. Full limits in `docs/agents/section-4-anti-collision-rules.md`. ⚠️ **One exemption, added 2026-09-02 (#2102): a documents-only pull request draws no reviewer and the gate requires no verdict for it — see rule 18. Rulebook files are not documents.**
 
    **Merge first, then rehearse on preview from merged `main`, then promote.** A rehearsal runs
    **once** — an applied version can never be applied again, so a re-dispatch and a GitHub
@@ -766,7 +793,10 @@ rules below are the operative summary.
 
 4. **New timestamped migration files only.** Each change is a new `YYYYMMDDHHMMSS_*.sql` file.
    **Never edit a migration that has already been applied anywhere** — that is how two sessions
-   silently clobber each other.
+   silently clobber each other. Since issue #2037 this is ENFORCED, not merely written down:
+   `scripts/check-applied-migration-edit.mjs` runs in the `SQL migration guards` job and refuses
+   any pull request that modifies, deletes or renames a migration file whose version is present
+   in the preview or production ledger. Fix forward at a new version instead.
 
 5. **Never reuse a timestamp — a duplicate SILENTLY SKIPS a migration.** The ledger
    (`supabase_migrations.schema_migrations`) keys on the **version alone, not the filename**. If
@@ -884,7 +914,12 @@ which is recorded verbatim in the run log. The drift report shows such a version
 as `[BASE-ABSENT]`, not as ordinary pending work.
 
 Do **not** add the line to an already-merged migration — that changes its bytes.
-Merged files that need a declaration get one in `LEGACY_DECLARATIONS`.
+Merged files that have a real earlier migration base get a pinned entry in
+`LEGACY_DECLARATIONS`. A merged file whose source is provably pre-ledger rather
+than another migration uses an exact-version, exact-source-text entry in
+`IMMUTABLE_NON_LEDGER_DERIVATIONS`; this narrow path was added for
+`20260909005945` on 2026-09-10. Never use either registry to excuse unknown or
+unproved ancestry, and never broaden the normal parser to accept prose.
 
 ### 5.0-E Declare a pure-data migration before it merges — `-- catalog-verification: no-op`
 
@@ -1112,6 +1147,56 @@ named it as current until 2026-08-20. See §4 rule 2.
 
 Never commit anon keys, service-role keys, database passwords, or `.env` files.
 
+### 5.2-B Every governed gate reaches GitHub the same way (added 2026-09-04, issue #2342)
+
+Three consecutive production-apply runs (`33920952504`, `33921168245`, `33921406952`)
+each refused promotion while naming a **different** file that demonstrably existed. That
+is the signature of a spurious read, not a real fault. The survey that followed found
+**eight** independently hand-rolled `gh` wrappers under `scripts/`, of which exactly two
+retried anything, plus workflow steps making bare `gh api` calls under `set -euo pipefail`
+— two of them while holding the merge lock. Nothing caught that: there was no lint rule,
+no conformance test, and no written rule anywhere in this file, `docs/`, or any `plan_*.md`.
+
+**The primary fix is batching, not retrying.** Read §5.2-A above before proposing a retry:
+a retry wrapper there turned a fast failure into a slower, identically-named failure. Each
+collision and lease gate resolved file content with a per-file Contents call
+(`repos/:repo/contents/:path?ref=:sha`), so comparing every open pull request cost up to
+112 sequential calls and **any one** of them could refuse promotion. Retrying a read you
+should not be making 112 times is §5.2-A's mistake with a longer wall clock. The exposure
+is removed by asking GitHub once per ref.
+
+The rule, in four parts:
+
+1. **One governed transport.** Node gates under `scripts/` reach GitHub through
+   `scripts/lib/github-transport.mjs`. Retry policy, the transient/semantic classifier and
+   the never-replay-a-write rule are decided in one place. Pass `wrapError` to keep your
+   gate's own named refusal. Local maintenance utilities that do not produce or validate
+   governed evidence are outside this rule and must not be mistaken for gate transport.
+2. **One tree read per ref.** File content comes from `scripts/lib/github-tree.mjs`:
+   `git/trees/<ref>?recursive=1` once, then blobs **by SHA**. A file identical across
+   twelve pull-request heads has one blob SHA and is fetched once; path existence is
+   answered from the tree already in hand and costs nothing. **No gate may build a
+   per-file Contents URL.** A truncated tree is refused outright — it would make present
+   files look absent, which in a gate whose job is to refuse is a silent false clear.
+3. **Workflows call a script, not `gh api`.** A read in a `run:` block goes through
+   `node scripts/gh-read.mjs api …`. A **write** stays a direct `gh api` call and that is
+   deliberate: neither `gh` nor any wrapper can tell "the request never landed" from "it
+   landed and the response was lost", so a write gets exactly one attempt whichever door
+   it goes through, and `gh-read.mjs` refuses mutations outright.
+4. **404 is not transient, and must not be made one.** It is tempting to widen the
+   classifier because the spurious failures were 404s. Across this repository a 404 is an
+   *answer* ("does this ref exist yet?"), and a gate that concludes "absent" only after
+   exhausting a retry budget has made its absence proof depend on a timeout — fail-open,
+   which is worse than fail-closed. Retries are for HTTP 5xx and connection or TLS failures
+   only; rate-limit responses remain semantic failures and are not retried.
+
+**This is enforced, not advised.** `scripts/check-github-transport-conformance.mjs` fails
+the build on direct Node `gh` process calls, literal shell-wrapped governed `gh` calls, a
+bare workflow `gh api` read, or a per-file Contents URL, and runs in
+`tools-offline-tests.yml`. Its own tests feed it a known-dirty tree containing each
+forbidden shape and assert it refuses, *before* asserting anything about the real tree —
+a green run on clean input proves nothing.
+
 ### 8.1 API-exposed schemas (PostgREST) — `dam` is NOT exposed (2026-07-15)
 
 `pgrst.db_schemas` on prod = `public, graphql_public, api, crm, pim, core, app`.
@@ -1270,8 +1355,13 @@ machine: EDGE-DEV
 started: 2026-08-26T14:39:25Z
 handover_issue: 1579
 briefing: HANDOFF.d/2026-08-26T1409Z-edge-dev-codex-orchestrator-1579-fresh-session.md
+authorization: owner-current-chat 2026-08-26T14:38:00Z
 ```
 ````
+
+`authorization:` was added 2026-09-10 by issue #2318 and is covered in section 11d. It is the
+only field that is not part of routing: it states **on what grounds this session holds the
+role**, not where to send work.
 
 `route_id` is the **declared address**, and its shape depends on the engine. The guard validates
 that shape and nothing else — see the "what this does NOT do" note at the end of this section:
@@ -1281,8 +1371,10 @@ that shape and nothing else — see the "what this does NOT do" note at the end 
 | `codex` | the Codex thread UUID from the session rollout `session_id` | `codex-reply` with that `threadId` |
 | `claude` | the Claude `sessionId`, e.g. `local_<uuid>` | a Claude cross-session message to that session |
 
-`handover_issue` is the predecessor marker, or `none` for a cold start. Every field is
-required; **blank is never a default** — state a value or `none`.
+`handover_issue` is the predecessor marker, or `none` for a cold start. Every ROUTING field is
+required; **blank is never a default** — state a value or `none`. `authorization` is not a routing
+field and has its own vocabulary (§11d): never write `none` there — a session with no grounds does
+not open a marker at all.
 
 ### Resolve the destination this way, and only this way
 
@@ -1313,7 +1405,9 @@ contract exists to prevent. If `--resolve` will not give you an address, you do 
 
 ### Starting as the orchestrator
 
-Open the marker with a complete, valid routing block **recording your own new `route_id`**.
+Open the marker with a complete, valid routing block **recording your own new `route_id`** and
+an admissible `authorization:` (section 11d). If you cannot state admissible grounds, do not
+open a marker at all — run as an ordinary session and queue the structural work.
 A successor that copies its predecessor's id is rejected by the guard — that copy is exactly
 how delegations kept arriving at a closed session.
 
@@ -1347,6 +1441,58 @@ never "it was received".**
 ⚠️ **Markers opened before 2026-08-27 are grandfathered by the PR guard only** — they could
 not carry a block that did not exist. `--resolve` **never** grandfathers: such a marker still
 carries no address and still cannot be routed to. Edit it to add the block, or close it.
+
+### 11d. ADMISSION — on what grounds you hold the role
+
+**Added 2026-09-10, issue #2318.** Routing answers "where do I send work". Nothing answered the
+earlier question: **was this session ever allowed to hold the role?**
+
+On 2026-09-04 a DesignFlow application session hit a shared-db constraint defect, opened
+orchestrator marker #2312, and ran a structural repair. Albert had never authorized it. The
+marker guard could not have caught it: #2312 was the only open marker and its routing block was
+well-formed, so every check passed. The finding recorded in the closeout is exact — **structural
+work need does not confer orchestrator authority; the marker itself was evidence of an
+unauthorized assumption, not evidence that authority existed.**
+
+#### The only two admissible grounds
+
+| Value | Meaning |
+|---|---|
+| `owner-current-chat <ISO-8601 instant>` | Albert authorized **this** session to hold the orchestrator, in the conversation this session is running in. Not a past chat, not another session's chat, not a standing document. |
+| `owner-authorized-handover #<marker issue>` | Direct succession from the named predecessor marker. It must be the **same** issue this marker declares as `handover_issue:`. That agreement is all the guard can check: like `handover_issue` itself (§11c), it does not prove the cited marker exists or that this session really succeeds it. |
+
+#### What is refused, by name, and why
+
+- **a `db-work` label** — it routes work *to* an orchestrator; it never creates one.
+- **being delegated to / task traffic** — a delegating session cannot grant a role it does not
+  own. This is the exact inference that produced #2312.
+- **a structural need, a needed migration, being blocked on schema** — that is the reason to
+  QUEUE work for an orchestrator, not grounds to become one.
+- **a handoff document** — it records what a predecessor did; it cannot confer a role.
+- **working in this repository, no marker being open, your own judgement, blank** — none of
+  these is authorization. Blank is never a default: it reads as answered and grants nothing.
+
+An **unrecognised** value fails closed. Free text is how "the task needed it" would have passed.
+
+#### What it does and does not do
+
+It cannot PREVENT a session opening a marker issue — markers are claimed outside any pull
+request, exactly as marker collisions are. It cannot prove Albert said the words; no repository
+check can. What it does is make the grounds a **required, typed, published** field, so a silent
+assumption becomes a written, refutable assertion — and so the inferences that actually happened
+are impossible to write down as valid.
+
+A marker that cannot state admissible grounds is **`invalid`**, which per the table above is not
+`none`: do not route to it, and do not take the role yourself. **Path A either way** — run as a
+non-orchestrator session and queue the work.
+
+⚠️ **Markers opened before 2026-09-10 are grandfathered for a MISSING field only, with a
+warning** — a live orchestrator must not be failed for a field that did not exist when it
+started. A pre-existing marker that writes a refused ground still fails admission — except where the
+marker also predates the 2026-08-27 routing contract and its routing block is invalid, in which
+case the whole marker is already unroutable and the refusal is reported as a warning rather than
+a failure. An unreadable creation
+date is treated as in force, never as grandfathered.
 
 ---
 
@@ -1408,8 +1554,9 @@ have already happened in this repo, more than once.
    code can exist as separate property rows under many different licensors at
    once. The schema enforces exactly this:
    `core.property … unique nulls not distinct (licensor_id, code)`
-   (`supabase/migrations/20260621150815_app_core.sql:200`). **`core.licensor` is
-   different** — it *is* `unique nulls not distinct (code)` (`:188`), so
+   (the `core.property` constraint in
+   `supabase/migrations/20260621150815_app_core.sql`). **`core.licensor` is
+   different** — its constraint is `unique nulls not distinct (code)`, so
    **licensor** codes are global. The two are routinely confused, and confusing
    them produces instructions like *"re-parent code `CC` under Disney"* that are
    not meaningful. Owner-confirmed by Albert Hazan, **2026-08-06**. See also
@@ -1506,9 +1653,11 @@ have already happened in this repo, more than once.
     `.github/workflows/guarded-migration-merge.yml`, whose required context
     `Migration guarded merge authorization` re-runs collision, exact-head review, and—when the
     pull request changes a migration—lease validation on a head that contains current `main`,
-    while holding the merge lock. **Every pull request, including documentation-only and other
-    non-migration changes, uses that guarded merge lane.** A non-migration pull request needs no
-    migration-author claim, but it is never auto-authorized by the lease workflow. When production
+    while holding the merge lock. **Every executable, rulebook, configuration, workflow, test,
+    migration, and mixed pull request uses that guarded merge lane.** A non-migration pull request
+    needs no migration-author claim, but it is never auto-authorized by the lease workflow. A
+    proven documents-only pull request instead receives the same required status from the
+    base-only lightweight path described in rule 18. When production
     acquires its lock, it revokes every open pull request's earlier merge authorization before
     releasing that lock, so a stale green result cannot bypass the production freeze.
 
@@ -1516,5 +1665,55 @@ have already happened in this repo, more than once.
     `plan_orchestrator-workflow-gaps.md` — describe the earlier `strict: true` state. That history
     is real and is preserved; it is **superseded** as a current instruction. Only issue #1286
     governs whether strict mode is ever reconsidered.
+
+18. **A DOCUMENTS-ONLY PULL REQUEST DRAWS NO DATABASE REVIEWER (owner decision, 2026-09-02, issue
+    #2102; lightweight status path #2715).** A pull request whose changed files are **all** prose
+    documents still runs **every** automated check. It receives the required
+    `Migration guarded merge authorization` status from
+    `.github/workflows/documents-only-merge-authorization.yml` without dispatching the database
+    guarded-merge workflow or consuming a slot from the small external **database reviewer pool**
+    that exists for migrations.
+    PR #2034 — a two-file documentation change — spent two reviewer draws, two dead-reviewer
+    replacements and three full review runs, and PR #2070 repeated the shape. That capacity belongs
+    to migrations.
+
+    **Rulebook files are NOT documents for this purpose and keep the full treatment:** `AGENTS.md`
+    (and `CLAUDE.md`), anything under `.claude/skills/` or `skills/`, and plan files
+    (`plan_*.md`). They instruct every later session, so a bad edit to one of them is as dangerous
+    as a bad migration. One non-document file of any kind — a `.sql`, a script, a workflow, a test,
+    a config file — removes the exemption from the whole pull request.
+
+    **Review is not removed, and this is not a merge exemption.** The review of PR #2034 caught a
+    real customer order number heading into this **public** repository, so the content risk is
+    real; what changed is only which pool answers for it. The automated checks and the guarded
+    merge lane still answer, and a refusal already recorded at the exact head still blocks it — the
+    exemption is from *drawing* a reviewer and dispatching the database merge workflow, never from
+    *answering* a review already recorded for the exact head or from running automated checks.
+
+    Enforced, not documented: `scripts/lib/documents-only-change.mjs` is the single deterministic
+    classifier, listing the rulebook exclusions explicitly and failing closed whenever the
+    changed-file list is empty, unreadable or absent. The required-status adapter
+    `scripts/check-documents-only-merge-authorization.mjs` separately permits plan files and
+    declarative routing pointers in AGENTS, task-router, and skill files. It inspects the actual
+    changed hunks and accepts only link-only list/table rows whose labels literally name the local
+    Markdown target; free-form or behavior-changing instructions stay on the guarded code path. A
+    fail-closed refusal posts a separate visible diagnostic that directs the pull request to guarded
+    code checks without competing for the required context. Ordinary mixed/code pull requests write
+    only that diagnostic; if the same commit already carries this workflow's lightweight success, or
+    if its base is retargeted, the command explicitly revokes that required status before guarded
+    checks re-authorize the new comparison. Thus an unreadable,
+    over-ceiling, retargeted, or non-prose comparison cannot strand an absent or stale-green result. The
+    lightweight workflow is restricted to `main`, independently proves the protected base repository
+    and branch before checkout, checks out only that trusted base, classifies the complete pull-request
+    file list, then reclassifies an immutable
+    exact base-to-head comparison (refusing GitHub's file ceiling) and rechecks the live PR
+    while holding only the global coordination mutex and proving the production ref absent before
+    it writes success. This repository-maintenance command never claims an author or reviewer lane,
+    never acquires preview, merge, or production, and emits no structural lifecycle event. Unknown or
+    non-document changes receive no status from that path. `scripts/check-exact-head-approval.mjs`
+    — the gate the guarded merge waits on — uses the classifier to skip the reviewer requirement, and
+    `--assign-reviewer` in `scripts/manage-migration-author-lanes.mjs` refuses to draw for such a
+    pull request. `scripts/lib/documents-only-change.test.mjs` fails if the classifier exempts a
+    rulebook file or a mixed change.
 
 ---

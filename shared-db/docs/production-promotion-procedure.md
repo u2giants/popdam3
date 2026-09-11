@@ -138,6 +138,16 @@ literal). Do not send Disney, Paramount, NBCU or Warner through untested write m
 
 > ## ⚠️ A MIGRATION CAN BE MERGED, CORRECT, REHEARSED — AND STILL UNPROMOTABLE FOREVER
 >
+> **2026-09-07 clarification (#2509, transfer #2552):** The warning below concerns a
+> rehearsal whose source provenance can no longer be proved. While the original
+> source PR is still open, a normal merge retaining its actual tested commit can
+> restore membership in that same PR without changing migration bytes. PR #2513
+> demonstrated that prerequisite: GitHub again listed its original tested commit,
+> and both producer closures matched current main. This is not permission to graft
+> ancestry, replay an applied version, or relax a gate; fresh exact-head review,
+> producer/artifact checks, and the complete production gate remain mandatory.
+>
+>
 > **Learned the expensive way on 2026-08-25 (issue #679). Two migrations died of this in one
 > afternoon.** The production business-risk gate byte-binds a rehearsal to the run that actually
 > applied the bytes (`prove_historical_original_apply_runs`). That run's commits must belong to

@@ -29,11 +29,17 @@ retired by implementation PR #2064.
 | 3 | `--reviewer-capacity` report: who holds what, since when, alive or dead | ✅ implemented | `capacity report classifies free, live, stale, verdict, aged, and unknown leases without mutation`; live six-row read succeeded |
 | 4 | Refusal message names the true cause and the blocking holders | ✅ implemented | all-six saturation and release-then-replacement regressions; 337-test suite |
 | 5 | `ai-reviewer-issue`: never advertise evidence that was not captured | ✅ done | `popcre/ai-devops` `113839d39f0179b66bda86f79ef5761ee8eb70ca`; 52 tests; exact-head APPROVE |
-| 6 | Tests green, PR merged, `#2058` closed and `#1851` updated | 🟨 in progress | PR #2064 open; 337 tests green; live governed replacement proof follows merge |
+| 6 | Tests green, PR merged, `#2058` closed and `#1851` updated | ✅ done | PR #2064 merged as `9c5973bbff1d2c6ce38a8ef6e3fe65e7d694fee7`; Guarded Merge run `33550813754`; #1999 sequence 809 replaced by Muse sequence 844 |
 
-**Do not restart implementation.** Steps 1–5 are complete. The current session
-owns Step 6: merge PR #2064 after its gates pass, prove one governed replacement,
-close #2058, and update #1851.
+**Owner clarification, 2026-09-10:** reviewers have no concurrent-job cap. The
+one-active-lease-per-reviewer model documented below is historical; issue #2694
+replaces it with assignment-keyed concurrent leases while preserving exact-head,
+independent-review, and durable-verdict requirements.
+
+**Complete — do not restart implementation.** PR #2064 is merged, #2058 is
+closed, #1851 records the two deliberately remaining defects, and the live
+replacement proof succeeded without a manual ref edit. The later #2694 policy
+change is separate repository-maintenance work, not a reopening of #2058.
 
 ---
 
@@ -228,7 +234,7 @@ part of this plan has been started. There is no half-done work anywhere.
 | Its tests | `scripts/manage-migration-author-lanes.test.mjs` (2,579 lines) | on `main`, untouched |
 | Reviewer-issue logger | `ai-devops` `bin/ai-reviewer-issue` (392 lines) | on `main`, untouched |
 | Its tests | `ai-devops` `tests/test-ai-reviewer-issue.sh` | on `main`, untouched |
-| Governed issue | `u2giants/shared-db` #2058 | **open**, `db-work`, `work_type: repo-maintenance`, `route: repo-maintenance` |
+| Governed issue | `u2giants/shared-db` #2058 | **closed 2026-09-01**, `db-work`, `work_type: repo-maintenance`, `route: repo-maintenance`; completion comment cites merge and live replacement proof |
 | Earlier related issue | `u2giants/shared-db` #1851 | **open** — same pool, wider scope |
 
 Key landmarks in `scripts/manage-migration-author-lanes.mjs`:
@@ -565,7 +571,11 @@ Add `reviewerCapacityReport(io)` near `findBusyReviewers` (line 1741) and a
 (`JSON.stringify(..., null, 2)`, matching how `--reviewer-preflight` prints at line
 2944). One row per reviewer in `ACTIVE_REVIEWERS`, each with:
 
-`reviewer, held (bool), issue, pr, headSha, sequence, heldSinceIso, ageHours (or null), prState, headMatches (bool), verdictPresent (bool), classification`
+`reviewer, held (bool), issue, pr, headSha, sequence, heldSinceIso, ageHours (or null), prState, headMatches (bool), verdictPresent (bool or null), verdictReadError (string or null), classification`
+
+`verdictPresent: null` plus a non-null `verdictReadError` means the durable
+verdict namespace could not be read.  That row is classified `unknown`; it must
+never be presented as a confident no-verdict lease.
 
 where `classification` is one of `free`, `live`, `stale-reclaimable` (the existing
 `busy.stale` conditions), `suspect-aged` (held longer than the advisory threshold
@@ -778,29 +788,30 @@ this is a **code** change, so none of them may be skipped.
 
 ### Done means all of these
 
-- [ ] Steps 1–4 implemented in `scripts/manage-migration-author-lanes.mjs`.
-- [ ] Every test in §10 written, each observed **red first**, then green.
-- [ ] `node --test scripts/manage-migration-author-lanes.test.mjs` passes locally.
-- [ ] Branch pushed; PR opened against `u2giants/shared-db` `main`, body citing
+- [x] Steps 1–4 implemented in `scripts/manage-migration-author-lanes.mjs`.
+- [x] Every test in §10 written, each observed **red first**, then green.
+- [x] `node --test scripts/manage-migration-author-lanes.test.mjs` passes locally.
+- [x] Branch pushed; PR opened against `u2giants/shared-db` `main`, body citing
       issues #2058 and #1851 and quoting the 2026-09-01 census.
-- [ ] All required checks green on the PR (nine merge-gate checks; none skipped —
+- [x] All required checks green on the PR (nine merge-gate checks; none skipped —
       this is code).
-- [ ] PR **merged by this session**, merge commit SHA recorded.
-- [ ] `--reviewer-capacity` run once against live state after merge; its six-row
+- [x] PR **merged by this session**, merge commit SHA recorded.
+- [x] `--reviewer-capacity` run once against live state after merge; its six-row
       output pasted into issue #2058 as proof.
-- [ ] Step 5 implemented in `ai-devops`, its test suite green, its own PR merged.
-- [ ] Issue #2058 closed with the evidence below, and issue #1851 updated with a comment stating which of its defects are now
+- [x] Step 5 implemented in `ai-devops`, its test suite green, its own PR merged.
+- [x] Issue #2058 closed with the evidence below, and issue #1851 updated with a comment stating which of its defects are now
       closed (the third — no reclaim command) and which remain open (defect 1, the
       per-PR ceiling; defect 2, the missing queue).
-- [ ] This file's STATUS table updated: every row marked with a citable artifact
+- [x] This file's STATUS table updated: every row marked with a citable artifact
       (commit SHA / test name / command), never a bare number.
-- [ ] The handoff file listed at the top updated to point at the merge, or deleted
+- [x] The handoff file listed at the top updated to point at the merge, or deleted
       if nothing remains.
-- [ ] `AGENTS.md` carries a link to this plan under "Active contracts and
+- [x] `AGENTS.md` carries a link to this plan under "Active contracts and
       implementation plans", worded like the #1767 entry ("read its STATUS table
       first; repository-maintenance work outside the structure/schema orchestrator").
 - [ ] A memory entry exists saying to read this plan's STATUS table first rather
-      than re-deriving it.
+      than re-deriving it. This repository task did not authorize a memory write;
+      the checked-in plan and `AGENTS.md` remain the durable routing sources.
 
 ### Risks and rollback
 

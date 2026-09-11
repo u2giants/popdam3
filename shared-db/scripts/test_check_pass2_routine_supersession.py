@@ -4,9 +4,11 @@ from pathlib import Path
 
 from check_pass2_routine_supersession import (
     broad_routine_revoke_schemas,
+    classify_collisions,
     declared_routines,
     later_collisions,
     later_only_routines,
+    read_applied_migrations,
     snapshot_query,
 )
 
@@ -54,6 +56,12 @@ class Pass2RoutineSupersessionTests(unittest.TestCase):
         self.assertIn("'public.f'", query)
         self.assertIn("'plm.g'", query)
         self.assertIn("pg_get_function_identity_arguments", query)
+        self.assertIn("reset all", query)
+        self.assertIn("security %s", query)
+        self.assertIn("p.prosecdef", query)
+        self.assertIn("p.prokind", query)
+        self.assertIn("to_regprocedure", query)
+        self.assertIn("oidvectortypes", query)
 
 
 class Pass2PrivilegeSupersessionTests(unittest.TestCase):
@@ -140,6 +148,161 @@ class Pass2PrivilegeSupersessionTests(unittest.TestCase):
 
     def test_nothing_to_repair_yields_no_query(self):
         self.assertEqual(snapshot_query({}, set()), "")
+
+
+class Pass2ProvenanceTests(unittest.TestCase):
+    """Issue #2537. A later FILENAME is not evidence of a later DEFINITION.
+
+    Run 34142055022: 20260901142825_popdam_effective_count_performance.sql
+    applied in pass 2 and installed its replacement helpers. Two later
+    migrations, 20260902042548 and 20260904121037, ALSO declare those helpers --
+    and both rolled back. The catalog therefore still held the BASELINE bodies,
+    which the repair snapshotted and put back, silently reverting the pass-2
+    file's forward repair. Two effective-count contracts then failed with a plan
+    shape that nothing in the diff explained.
+    """
+
+    ROUTINE = (
+        "create or replace function popdam.effective_count(p text)"
+        " returns bigint language sql as $$ select 1::bigint $$;\n"
+    )
+
+    def _replay(self, temp):
+        root = Path(temp)
+        (root / "20260901142825_popdam_effective_count_performance.sql").write_text(
+            self.ROUTINE, encoding="utf-8"
+        )
+        (root / "20260902042548_popdam_unfiltered_facet_count_index_only_path.sql").write_text(
+            self.ROUTINE, encoding="utf-8"
+        )
+        (root / "20260904121037_popdam_tag_facet_count_index_leading_arm.sql").write_text(
+            self.ROUTINE, encoding="utf-8"
+        )
+        return root, root / "20260901142825_popdam_effective_count_performance.sql"
+
+    def test_case1_failed_later_migration_does_not_resurrect_obsolete_routine(self):
+        """Later migration failed; the baseline body must NOT be restored."""
+        with tempfile.TemporaryDirectory() as temp:
+            root, old = self._replay(temp)
+            collisions = later_collisions(old, root)
+            # Both later files really do collide -- the old code stopped here and
+            # restored whatever the catalog happened to hold.
+            self.assertEqual(len(collisions["popdam.effective_count"]), 2)
+            proven, unproven = classify_collisions(collisions, set())
+            self.assertEqual(proven, {})
+            self.assertEqual(
+                sorted(unproven["popdam.effective_count"]),
+                [
+                    "20260902042548_popdam_unfiltered_facet_count_index_only_path.sql",
+                    "20260904121037_popdam_tag_facet_count_index_leading_arm.sql",
+                ],
+            )
+            # Nothing to restore means no query at all, so the pass-2 file's own
+            # forward repair is what survives.
+            self.assertEqual(snapshot_query(proven, set()), "")
+            # ...whereas restoring on filename alone -- the pre-#2537 behaviour --
+            # would have snapshotted and put back the obsolete body. This line is
+            # the defect, kept as the control that proves the fix is doing work.
+            self.assertIn("'popdam.effective_count'", snapshot_query(collisions, set()))
+
+    def test_case2_successful_later_migration_is_still_preserved(self):
+        """The repair this script exists for must keep working."""
+        with tempfile.TemporaryDirectory() as temp:
+            root, old = self._replay(temp)
+            applied = {"20260904121037_popdam_tag_facet_count_index_leading_arm.sql"}
+            proven, unproven = classify_collisions(later_collisions(old, root), applied)
+            self.assertEqual(
+                proven,
+                {
+                    "popdam.effective_count": [
+                        "20260904121037_popdam_tag_facet_count_index_leading_arm.sql"
+                    ]
+                },
+            )
+            self.assertEqual(unproven, {})
+            query = snapshot_query(proven, set())
+            self.assertIn("'popdam.effective_count'", query)
+            # Body, SET settings and security label all travel with it.
+            self.assertIn("pg_get_functiondef", query)
+            self.assertIn("reset all", query)
+            self.assertIn("security %s", query)
+
+    def test_case3_overlapping_outcomes_are_classified_one_routine_at_a_time(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            old = root / "20260901142825_old.sql"
+            old.write_text(
+                "create or replace function popdam.landed(p text) returns void language sql as $$ select $$;\n"
+                "create or replace function popdam.rolled_back(p text) returns void language sql as $$ select $$;\n",
+                encoding="utf-8",
+            )
+            (root / "20260902000000_landed.sql").write_text(
+                "create or replace function popdam.landed(p text) returns void language sql as $$ select $$;\n",
+                encoding="utf-8",
+            )
+            (root / "20260903000000_rolled_back.sql").write_text(
+                "create or replace function popdam.rolled_back(p text) returns void language sql as $$ select $$;\n",
+                encoding="utf-8",
+            )
+            proven, unproven = classify_collisions(
+                later_collisions(old, root), {"20260902000000_landed.sql"}
+            )
+            self.assertEqual(proven, {"popdam.landed": ["20260902000000_landed.sql"]})
+            self.assertEqual(
+                unproven, {"popdam.rolled_back": ["20260903000000_rolled_back.sql"]}
+            )
+            query = snapshot_query(proven, set())
+            self.assertIn("'popdam.landed'", query)
+            self.assertNotIn("'popdam.rolled_back'", query)
+
+    def test_case3_no_record_of_any_later_migration_refuses_everything(self):
+        """Absent provenance is not permission. Nothing is claimed as newer."""
+        with tempfile.TemporaryDirectory() as temp:
+            root, old = self._replay(temp)
+            proven, unproven = classify_collisions(later_collisions(old, root), set())
+            self.assertFalse(proven)
+            self.assertTrue(unproven)
+
+    def test_case4_grant_restoration_survives_without_resurrecting_definitions(self):
+        """A schema-wide revoke still has its grants repaired, bodies untouched."""
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            old = root / "20260710135985_reconcile_permission_parity.sql"
+            old.write_text(
+                "revoke execute on all functions in schema api from service_role;\n"
+                "create or replace function api.shared(p text) returns void language sql as $$ select $$;\n",
+                encoding="utf-8",
+            )
+            (root / "20260902031743_later.sql").write_text(
+                "create or replace function api.set_source_resolution(a text)"
+                " returns void language sql as $$ select $$;\n"
+                "create or replace function api.shared(p text) returns void language sql as $$ select $$;\n",
+                encoding="utf-8",
+            )
+            schemas = broad_routine_revoke_schemas(old)
+            privilege_routines = later_only_routines(old, root, schemas)
+            self.assertEqual(privilege_routines, {"api.set_source_resolution"})
+            # 20260902031743 did NOT apply, so api.shared's catalog body is unproven.
+            proven, unproven = classify_collisions(later_collisions(old, root), set())
+            self.assertEqual(proven, {})
+            self.assertIn("api.shared", unproven)
+            query = snapshot_query(proven, privilege_routines)
+            self.assertIn("grant execute on function", query)
+            self.assertIn("'api.set_source_resolution'", query)
+            self.assertIn("aclexplode", query)
+            # The grant half writes no bodies, so it cannot resurrect one.
+            self.assertNotIn("pg_get_functiondef", query)
+
+    def test_applied_record_is_read_line_by_line(self):
+        with tempfile.TemporaryDirectory() as temp:
+            record = Path(temp) / "applied-migrations.txt"
+            record.write_text("a.sql\n\n  b.sql  \n", encoding="utf-8")
+            self.assertEqual(read_applied_migrations(record), {"a.sql", "b.sql"})
+
+    def test_missing_applied_record_raises_rather_than_assuming_success(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaises(FileNotFoundError):
+                read_applied_migrations(Path(temp) / "nope.txt")
 
 
 if __name__ == "__main__":

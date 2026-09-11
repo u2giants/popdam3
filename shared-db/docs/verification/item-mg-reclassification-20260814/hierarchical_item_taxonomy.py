@@ -159,7 +159,11 @@ def _index_names(names: set[str]) -> dict[str, list[tuple[str, str]]]:
             anchor = max(normalized.split(), key=lambda word: (len(word), word))
             index[anchor].append((display, normalized))
     for values in index.values():
-        values.sort(key=lambda value: (-len(value[1].split()), -len(value[1])))
+        # The display name is the final key on purpose. Without it the order of
+        # equally long names came from set iteration, which varies per process,
+        # so two runs of the same input produced different Licensor/Property
+        # values. Nothing downstream may depend on PYTHONHASHSEED.
+        values.sort(key=lambda value: (-len(value[1].split()), -len(value[1]), value[0]))
     return dict(index)
 
 
@@ -178,7 +182,7 @@ def find_name(description: str, names: dict[str, list[tuple[str, str]]]) -> str:
     haystack = normalize(description)
     words = set(haystack.split())
     candidates = [candidate for word in words for candidate in names.get(word, [])]
-    candidates.sort(key=lambda value: (-len(value[1].split()), -len(value[1])))
+    candidates.sort(key=lambda value: (-len(value[1].split()), -len(value[1]), value[0]))
     for display, needle in candidates:
         if re.search(rf"\b{re.escape(needle)}\b", haystack):
             return display

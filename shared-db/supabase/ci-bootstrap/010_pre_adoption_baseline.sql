@@ -84,6 +84,56 @@ create schema if not exists api;
 -- The DAM search migrations need pgvector; the CLI's local stack does not enable it.
 create extension if not exists vector with schema extensions;
 
+-- Issue #1258 replay exception. This table IS authored by historical migrations,
+-- but both of those migrations correctly refuse when the real FR/FK taxonomy
+-- rows are absent. Because each file is atomic, that refusal rolls its earlier
+-- CREATE TABLE back too, leaving the from-empty catalogue unable to test the
+-- durable ruling contract. Preserve only the deployed SCHEMA here; never seed
+-- the real ruling rows or weaken the historical refusal.
+create table if not exists core.taxonomy_owner_ruling (
+  id uuid primary key default gen_random_uuid(),
+  entity_schema text not null default 'core',
+  entity_table text not null,
+  entity_id uuid,
+  entity_code text,
+  entity_name text,
+  ruling text not null,
+  ruled_by text not null,
+  ruled_at timestamptz not null,
+  ruling_evidence text not null,
+  action_taken text not null,
+  open_questions text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint taxonomy_owner_ruling_entity_table_not_blank check (length(btrim(entity_table)) > 0),
+  constraint taxonomy_owner_ruling_ruling_not_blank check (length(btrim(ruling)) > 0),
+  constraint taxonomy_owner_ruling_ruled_by_not_blank check (length(btrim(ruled_by)) > 0),
+  constraint taxonomy_owner_ruling_evidence_not_blank check (length(btrim(ruling_evidence)) > 0),
+  constraint taxonomy_owner_ruling_action_not_blank check (length(btrim(action_taken)) > 0),
+  constraint taxonomy_owner_ruling_has_a_subject check (
+    entity_id is not null
+    or (entity_code is not null and length(btrim(entity_code)) > 0)
+    or (entity_name is not null and length(btrim(entity_name)) > 0)
+  )
+);
+
+create index if not exists taxonomy_owner_ruling_entity_idx
+  on core.taxonomy_owner_ruling (entity_schema, entity_table, entity_id);
+create index if not exists taxonomy_owner_ruling_ruled_at_idx
+  on core.taxonomy_owner_ruling (ruled_at desc);
+drop trigger if exists set_updated_at on core.taxonomy_owner_ruling;
+create trigger set_updated_at before update on core.taxonomy_owner_ruling
+for each row execute function app.set_updated_at();
+
+alter table core.taxonomy_owner_ruling enable row level security;
+drop policy if exists shared_read on core.taxonomy_owner_ruling;
+create policy shared_read on core.taxonomy_owner_ruling
+for select to authenticated
+using (app.has_any_role(array['administrator','sales','licensing','designer','viewer','vendor']::app.app_role[]));
+revoke all on core.taxonomy_owner_ruling from public, anon, authenticated;
+grant select on core.taxonomy_owner_ruling to authenticated;
+grant all on core.taxonomy_owner_ruling to service_role;
+
 do $bootstrap$ begin
   CREATE TYPE public.app_name AS ENUM ('popdam', 'styleguides');
 exception when duplicate_object then null; end $bootstrap$;
@@ -3483,54 +3533,6 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.queue_nightly_rebuild_style_groups()
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE
-  v_current jsonb;
-  v_status  text;
-  v_now     timestamptz := now();
-  v_state   jsonb;
-BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext('BULK_OPERATIONS'));
-
-  SELECT value INTO v_current
-  FROM admin_config
-  WHERE key = 'BULK_OPERATIONS';
-
-  v_current := COALESCE(v_current, '{}'::jsonb);
-  v_status  := v_current->'rebuild-style-groups'->>'status';
-
-  -- Skip if already running or queued
-  IF v_status IN ('running', 'queued') THEN
-    RETURN;
-  END IF;
-
-  v_state := jsonb_build_object(
-    'status',         'queued',
-    'cursor',         0,
-    'params',         jsonb_build_object('force_restart', true),
-    'started_at',     v_now::text,
-    'updated_at',     v_now::text,
-    'progress',       '{}'::jsonb,
-    'run_id',         gen_random_uuid()::text,
-    'queue_position', (EXTRACT(EPOCH FROM v_now) * 1000)::bigint,
-    'requested_by',   'pg_cron'
-  );
-
-  v_current := jsonb_set(v_current, ARRAY['rebuild-style-groups'], v_state);
-
-  INSERT INTO admin_config (key, value, updated_at)
-  VALUES ('BULK_OPERATIONS', v_current, v_now)
-  ON CONFLICT (key) DO UPDATE
-    SET value      = EXCLUDED.value,
-        updated_at = EXCLUDED.updated_at;
-END;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.queue_sg_render_jobs_by_ids(p_file_ids uuid[])
  RETURNS integer
  LANGUAGE sql
@@ -5436,54 +5438,6 @@ BEGIN
     v_total_propagated,
     0::int,
     (v_group_count < p_batch_size);
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.queue_nightly_rebuild_style_groups()
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE
-  v_current jsonb;
-  v_status  text;
-  v_now     timestamptz := now();
-  v_state   jsonb;
-BEGIN
-  PERFORM pg_advisory_xact_lock(hashtext('BULK_OPERATIONS'));
-
-  SELECT value INTO v_current
-  FROM admin_config
-  WHERE key = 'BULK_OPERATIONS';
-
-  v_current := COALESCE(v_current, '{}'::jsonb);
-  v_status  := v_current->'rebuild-style-groups'->>'status';
-
-  -- Skip if already running or queued
-  IF v_status IN ('running', 'queued') THEN
-    RETURN;
-  END IF;
-
-  v_state := jsonb_build_object(
-    'status',         'queued',
-    'cursor',         0,
-    'params',         jsonb_build_object('force_restart', true),
-    'started_at',     v_now::text,
-    'updated_at',     v_now::text,
-    'progress',       '{}'::jsonb,
-    'run_id',         gen_random_uuid()::text,
-    'queue_position', (EXTRACT(EPOCH FROM v_now) * 1000)::bigint,
-    'requested_by',   'pg_cron'
-  );
-
-  v_current := jsonb_set(v_current, ARRAY['rebuild-style-groups'], v_state);
-
-  INSERT INTO admin_config (key, value, updated_at)
-  VALUES ('BULK_OPERATIONS', v_current, v_now)
-  ON CONFLICT (key) DO UPDATE
-    SET value      = EXCLUDED.value,
-        updated_at = EXCLUDED.updated_at;
 END;
 $function$;
 

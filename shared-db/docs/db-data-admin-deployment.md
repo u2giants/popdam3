@@ -21,6 +21,34 @@ Coolify stores `DB_DATA_ADMIN_SUPABASE_URL`, `DB_DATA_ADMIN_SUPABASE_ANON_KEY`, 
 `DB_DATA_ADMIN_AUTH_REDIRECT_URL`. The container exposes those values to the static app at
 startup through a non-cached `/config.js`; they are not baked into the image.
 
+**Incident, 2026-09-03: dev site pointed at a deleted project.** The `popdam`
+production project (`qsllyeztdwjgirsysgai`) has two persistent child branches:
+`shared-db-schema-rehearsal` (the current `PREVIEW_PROJECT_REF`, rebuilt more
+than once — see `docs/ai-session-instructions/shared-supabase-branch-workflow.md`)
+and `develop`. Both `DB_DATA_ADMIN_SUPABASE_URL` /
+`DB_DATA_ADMIN_SUPABASE_ANON_KEY` on this app, and the anon/service-role keys in
+the 1Password item "Supabase Preview Branch Credentials - shared POP database
+(shared-db-schema-rehearsal)", were still pointed at `rjyboqwcdzcocqgmsyel` — a
+project deleted 2026-08-18 — because nobody updated them when the rehearsal
+branch was rebuilt under its current ref `mvpkijzfmfcxhnzqogzs`. This broke
+`data-dev.designflow.app` (401s from Supabase) with no code change. Fixed by
+repointing both Coolify env vars and refreshing both 1Password key fields with
+values fetched live from the Supabase Management API
+(`/v1/projects/mvpkijzfmfcxhnzqogzs/api-keys?reveal=true`) and verified to
+authenticate before applying. The `develop` branch was separately paused (its
+`persistent` flag cleared, then the project paused) rather than deleted — it
+still holds a persistent copy of real production data and nothing in the repo
+depends on it, but deletion is irreversible so it was left recoverable pending
+Albert's decision.
+
+One casualty of the rebuild: the auth user behind 1Password item "DB Data
+Admin AI tester login (data-dev.designflow.app) - non-SSO"
+(`0a55652c-260e-41ac-aa8a-18636bcfab6b`) no longer exists on the rebuilt
+branch (confirmed via a 404 from the Supabase Auth Admin API) — that login is
+unusable until a fresh account is created and granted the `administrator`
+role, which needs an owner decision (invitation record, role grant) and was
+not done unprompted.
+
 ## Production runtime
 
 - Coolify project: `DB Data Admin` (`x433rsji7hlmgpysautjpa1e`)
@@ -138,7 +166,15 @@ the password check applied to the DesignFlow login incident, not this admin scre
 The Azure app registration `POP CRM — Supabase Auth` uses the Supabase callback,
 not the application domain, as its OAuth redirect URI. Both callbacks are registered:
 
-- Preview: `https://rjyboqwcdzcocqgmsyel.supabase.co/auth/v1/callback`
+- Preview: `https://<PREVIEW_PROJECT_REF>.supabase.co/auth/v1/callback` — registered
+  as `https://rjyboqwcdzcocqgmsyel.supabase.co/auth/v1/callback` when this was
+  written, but that project was deleted 2026-08-18 and its replacement was
+  itself rebuilt again since. **Not reverified in this Azure app registration as
+  of 2026-09-03** — the same day the app's own Coolify env vars and a 1Password
+  credential item were both found still pointing at the dead ref (see
+  `docs/ai-session-instructions/shared-supabase-branch-workflow.md`). If
+  Microsoft SSO on `data-dev.designflow.app` fails after this date, check this
+  Azure redirect URI against the current `PREVIEW_PROJECT_REF` first.
 - Production: `https://qsllyeztdwjgirsysgai.supabase.co/auth/v1/callback`
 
 Preview Supabase then redirects the completed login to `https://data-dev.designflow.app`.

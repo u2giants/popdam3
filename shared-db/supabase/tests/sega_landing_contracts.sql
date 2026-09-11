@@ -1676,7 +1676,13 @@ declare
     ['peanuts\_%',   'peanuts'],
     ['wildbrain\_%', 'wildbrain'],
     ['sesame\_%',    'sesame'],
-    ['coke\_%',      'coca-cola']
+    ['coke\_%',      'coca-cola'],
+    -- 2026-09-10: added by the author of #2579 with migration 20260910155753,
+    -- which classified the plm.marvel_* and plm.wwe_* families that landed after
+    -- the inventory was written and were still reported as 'other'. Two rows, and
+    -- nothing else in this file changed.
+    ['marvel\_%',    'marvel'],
+    ['wwe\_%',       'wwe']
   ];
 begin
   for r in

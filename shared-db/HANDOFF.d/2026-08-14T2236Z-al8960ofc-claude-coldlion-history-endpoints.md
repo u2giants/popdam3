@@ -18,7 +18,7 @@ ColdLion answered the last two open questions. Both verified.
    windows) but returned **129 rows for 2024-07-01**; it is transient, so a few quiet weeks are not
    evidence of an unused stage. **The historical pull is 3 stages × ~370 windows for `prodHistory`
    plus ~370 for `orderHistory` — about 1,480 requests, not 740.**
-2. **`AMA030` is Amazon, and Amazon production is stock**, made for their warehouse rather than
+2. **The Amazon 1P customer code (`CUST003` in the scrubbed docs) is Amazon, and Amazon production is stock**, made for their warehouse rather than
    presold, so it has no customer PO. That was the last unexplained group of unlinked rows
    (10 of 10 unlinked, verified). Rules §8.
 

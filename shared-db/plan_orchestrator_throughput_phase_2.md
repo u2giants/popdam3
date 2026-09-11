@@ -250,7 +250,7 @@ Selecting a reviewer needs atomic roster/cursor updates, but remote review execu
 
 ### Owner decision required before Step 10 cap activation
 
-Albert's 2026-08-27 instruction authorizes the five-to-eight goal and requires at least six active rotation reviewers first. The live roster has four. Before Step 10 activates eight, Albert must approve the exact two providers after real wrapper qualification evidence is available. They must be distinct provider/wrapper identities; retired `glm-5.2` is the same `ai-glm` provider family as active `glm-5.3` and cannot count as another independent slot. At least one genuinely new qualified provider is therefore required even if Qwen is safely un-retired. This does not block Phases A–D, the safety architecture, or shadow implementation; it blocks only roster mutation and cap activation.
+Albert's 2026-08-27 instruction authorizes the five-to-eight goal and requires at least six active rotation reviewers first. The live roster has four. Before Step 10 activates eight, Albert must approve the exact two providers after real wrapper qualification evidence is available. They must be distinct provider/wrapper identities; retired `glm-5.2` is the same `ai-glm` provider family as active `glm-5.3` and cannot count as another independent slot. At least one genuinely new qualified provider is therefore required even if Qwen qualifies. This does not block Phases A–D, the safety architecture, or shadow implementation; it blocks only roster mutation and cap activation.
 
 ### Implementer judgment
 

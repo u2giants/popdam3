@@ -1,5 +1,87 @@
 begin;
 
+-- #2138: the effective list function returns whole rows from an append relation
+-- so PostgREST's outer LIMIT can stop it early. Comments are stripped and
+-- whitespace folded first, so each pin is contiguous syntax in its real
+-- position: a predicate that survives only inside a comment is not a predicate.
+do $$
+declare
+  v_def text := pg_get_functiondef('public.filter_effective_assets(jsonb)'::regprocedure);
+  v_body text := regexp_replace(regexp_replace(v_def, E'--[^\n]*', '', 'g'), '\s+', ' ', 'g');
+  v_lower text := lower(v_body);
+  v_pin text;
+  v_arms int;
+  v_gate int;
+  v_language name;
+  v_volatility "char";
+  v_secdef boolean;
+  v_config text[];
+begin
+  select l.lanname, p.provolatile, p.prosecdef, p.proconfig
+    into v_language, v_volatility, v_secdef, v_config
+  from pg_proc p
+  join pg_language l on l.oid = p.prolang
+  where p.oid = 'public.filter_effective_assets(jsonb)'::regprocedure;
+
+  -- Only a STABLE SQL invoker function with no per-function SET is inlined; a
+  -- PL/pgSQL RETURN QUERY of the same SELECT is not, and reproduces #1945.
+  if v_language <> 'sql' or v_volatility <> 's' or v_secdef or v_config is not null then
+    raise exception 'effective list function is not an inlinable stable invoker SQL function: language %, volatility %, security definer %, config %',
+      v_language, v_volatility, v_secdef, v_config;
+  end if;
+
+  -- No CTE barrier, and no id self-join under any alias pair.
+  if position('identity_asset_ids' in v_lower) > 0
+     or position('as materialized' in v_lower) > 0
+     or position('left join public.style_groups' in v_lower) > 0
+     or position('filter_effective_assets_unchecked_1703' in v_lower) > 0
+     or v_lower ~ '\m[a-z_][a-z0-9_]*\.id = [a-z_][a-z0-9_]*\.id\M' then
+    raise exception 'effective list function reintroduced the materialised id set or its self-join';
+  end if;
+
+  -- Entitlement is invoked once, as the Var-free outer WHERE conjunct.
+  v_gate := (length(v_lower) - length(replace(v_lower, 'public.require_dam_access()', '')))
+              / length('public.require_dam_access()');
+  if v_gate <> 1 then
+    raise exception 'effective list function must invoke public.require_dam_access() exactly once, found %', v_gate;
+  end if;
+  if position(') a where public.require_dam_access()' in v_lower) = 0 then
+    raise exception 'effective list function must gate on DAM entitlement in its outer WHERE clause';
+  end if;
+
+  -- Eight preserved fallback arms plus two exclusive narrow tag arms, each pinned by its leading guard.
+  -- The bare equality tokens also occur as optional conjuncts on the licensor
+  -- pair, so counting arms and pinning guards is what stops a deleted
+  -- property- or customer-leading arm from passing while the DAM property and
+  -- customer libraries silently return nothing.
+  v_arms := (length(v_lower) - length(replace(v_lower, 'union all', ''))) / length('union all');
+  if v_arms <> 9 then
+    raise exception 'effective predicates must keep ten UNION arms, found % UNION ALLs', v_arms;
+  end if;
+  foreach v_pin in array array[
+    'from public.assets a where nullif(p_filters ->> ''licensorid'', '''') is null and nullif(p_filters ->> ''propertyid'', '''') is null and nullif(p_filters ->> ''customerid'', '''') is null and nullif(p_filters ->> ''tagfilter'', '''') is null union all',
+    'select distinct e.asset_id from public.asset_effective_tags e where nullif(p_filters ->> ''tagfilter'', '''') is not null and e.tag = p_filters ->> ''tagfilter''',
+    'where nullif(p_filters ->> ''licensorid'', '''') is not null and a.style_group_id is null and a.licensor_id = (p_filters ->> ''licensorid'')::uuid',
+    'from public.style_groups sg join public.assets a on a.style_group_id = sg.id where nullif(p_filters ->> ''licensorid'', '''') is not null and sg.licensor_id = (p_filters ->> ''licensorid'')::uuid',
+    'and nullif(p_filters ->> ''propertyid'', '''') is not null and a.style_group_id is null and a.property_id = (p_filters ->> ''propertyid'')::uuid',
+    'and nullif(p_filters ->> ''propertyid'', '''') is not null and sg.property_id = (p_filters ->> ''propertyid'')::uuid',
+    'and nullif(p_filters ->> ''customerid'', '''') is not null and a.style_group_id is null and a.customer_id = (p_filters ->> ''customerid'')::uuid',
+    'and nullif(p_filters ->> ''customerid'', '''') is not null and sg.customer_id = (p_filters ->> ''customerid'')::uuid'
+  ] loop
+    if position(v_pin in v_lower) = 0 then
+      raise exception 'effective identity predicates lost an index-leading UNION arm: %', v_pin;
+    end if;
+  end loop;
+
+  -- The three identity keys the DAM client sends, case-sensitively.
+  foreach v_pin in array array['''licensorId''', '''propertyId''', '''customerId'''] loop
+    if position(v_pin in v_body) = 0 then
+      raise exception 'effective list function no longer reads the DAM identity key %', v_pin;
+    end if;
+  end loop;
+end;
+$$;
+
 do $$
 declare
   v_definition text;
@@ -77,25 +159,6 @@ begin
     raise exception 'style-group rollup must use one ranked-search pass';
   end if;
 
-  select pg_get_functiondef('public.filter_effective_assets(jsonb)'::regprocedure)
-    into v_definition;
-  if position('require_dam_access' in v_definition) = 0
-     or (length(v_definition) - length(replace(v_definition, 'require_dam_access', '')))
-          / length('require_dam_access') <> 1
-     or position('authorized as materialized' in v_definition) = 0
-     or position('from authorized' in v_definition) = 0
-     or position('identity_asset_ids as' in v_definition) = 0
-     or position('cross join identity_asset_ids i' in v_definition) = 0
-     or position('join public.assets a on a.id = i.id' in v_definition) = 0
-     or position('filter_effective_assets_unchecked_1703' in v_definition) > 0
-     or not exists (
-       select 1 from pg_proc
-       where oid = 'public.filter_effective_assets(jsonb)'::regprocedure
-         and not prosecdef
-         and proconfig is null
-     ) then
-    raise exception 'effective filter must authorize once in its inlinable invoker body';
-  end if;
   if has_function_privilege('authenticated',
        'public.filter_effective_assets_unchecked_1703(jsonb)', 'EXECUTE')
      or has_function_privilege('authenticated',
@@ -211,6 +274,12 @@ insert into public.assets (
   'zz1703-auth-gate.ai', 'zz1703-auth-gate.ai', 'ai',
   'zz1703-auth-gate', now(), false
 );
+insert into public.assets(id,filename,relative_path,file_type,quick_hash,modified_at,thumbnail_url,is_deleted)
+values('17030000-0000-4000-8000-000000000004','zz1703-tag-visible.ai',
+  'zz1703-tag-visible.ai','ai','zz1703-tag-visible',now(),'https://example.invalid/tag.png',false);
+insert into public.asset_effective_tags(asset_id,tag,scope) values
+  ('17030000-0000-4000-8000-000000000003','zz1703-auth-tag','asset'),
+  ('17030000-0000-4000-8000-000000000004','zz1703-auth-tag','asset');
 
 do $$
 declare v_n bigint;
@@ -220,6 +289,12 @@ begin
     '{"sub":"17030000-0000-4000-8000-000000000001","role":"authenticated"}',true);
   if not app.has_app_access('dam'::app.app_name) then
     raise exception 'authorized control user did not receive DAM access';
+  end if;
+  perform set_config('plan_cache_mode','force_generic_plan',true);
+  select count(*) into v_n from public.filter_effective_assets('{"tagFilter":"zz1703-auth-tag"}'::jsonb);
+  if v_n<>2 then raise exception 'authenticated prepared tag path lost thumbnail partition parity'; end if;
+  if (public.get_filter_counts('{"tagFilter":"zz1703-auth-tag"}'::jsonb)->>'total')::bigint<>2 then
+    raise exception 'authenticated tag facet/list parity changed';
   end if;
   perform 1 from public.filter_effective_assets('{}'::jsonb) limit 1;
   perform public.get_filter_counts('{}'::jsonb);
@@ -235,6 +310,11 @@ begin
   if app.has_app_access('dam'::app.app_name) then
     raise exception 'non-DAM control user unexpectedly received DAM access';
   end if;
+  begin
+    perform 1 from public.filter_effective_assets('{"tagFilter":"zz1703-auth-tag"}'::jsonb) limit 1;
+    raise exception 'non-DAM user reached narrow tag assets';
+  exception when insufficient_privilege then null;
+  end;
   begin
     perform 1 from public.filter_effective_assets('{}'::jsonb) limit 1;
     raise exception 'non-DAM user reached effective assets';

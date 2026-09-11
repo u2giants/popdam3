@@ -41,14 +41,28 @@ begin
   ) then
     raise exception 'plm.opa_character.core_character_id must remain nullable';
   end if;
-  if exists (
+  -- Issue #2146: the retirement in #1374 dropped this foreign key so core.character
+  -- could be dropped. #1684 recreated core.character and 20260903072252 restored the
+  -- contract, so the assertion is now that the foreign key IS present in exactly the
+  -- shape the surviving Character tables carry.
+  if not exists (
     select 1 from pg_constraint c
+    join pg_attribute ra
+      on ra.attrelid = c.confrelid and ra.attnum = c.confkey[1] and not ra.attisdropped
     where c.conrelid = 'plm.opa_character'::regclass
+      and c.conname = 'opa_character_core_character_id_fkey'
       and c.contype = 'f'
       and c.conkey = array[(select attnum from pg_attribute
         where attrelid = 'plm.opa_character'::regclass and attname = 'core_character_id')]::smallint[]
+      and c.confrelid = 'core.character'::regclass
+      and array_length(c.confkey, 1) = 1
+      and ra.attname = 'id'
+      and c.confupdtype = 'c'
+      and c.confdeltype = 'r'
+      and c.confmatchtype = 's'
+      and c.convalidated
   ) then
-    raise exception 'plm.opa_character.core_character_id still has a foreign key to retired core.character';
+    raise exception 'plm.opa_character.core_character_id must carry opa_character_core_character_id_fkey as (core_character_id) references core.character(id) on update cascade on delete restrict';
   end if;
 
   -- Seed one entity pair, record its decisions in the durable home, and add one legacy

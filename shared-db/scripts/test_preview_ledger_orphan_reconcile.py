@@ -9,7 +9,46 @@ class Tests(unittest.TestCase):
         workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
         self.assertIn('config/preview-ledger-orphan-reconciliations.json',workflow)
         self.assertNotIn('case "$ISSUE:$CLAIM:$SOURCE_PR:$ORPHAN:$REPLACEMENT"',workflow)
-        self.assertEqual(len(M.SUPPORTED_CASES),9)
+        self.assertEqual(len(M.SUPPORTED_CASES),11)
+
+    def test_issue_2506_rehearsal_reset_is_narrowly_evidence_bound(self):
+        case=M.SUPPORTED_CASES[(2506,2510,2512,'20260907131610','20260907131610')]
+        self.assertEqual(case,{
+            'mode':'rehearsal_reset',
+            'original_run_head':'dff809bc476b64480e0761d21012dde2ba39ac8c',
+            'preview_run_id':34141000463,
+            'preview_artifact_id':10025929311,
+            'preview_artifact_digest':'sha256:d3b8c802a66088b074e3cef9bd0049f8434d22646860cb523aaa31a712bb966e',
+            'issue_state':'open',
+            'claim_state':'open',
+        })
+
+    def test_issue_2171_byte_identical_rename_tuple_is_narrowly_supported(self):
+        case=M.SUPPORTED_CASES[(2171,2194,2199)]
+        self.assertEqual(case,{
+            'mode':'byte_identical_rename',
+            'orphan_version':'20260903115927',
+            'replacement_version':'20260903200951',
+            'orphan_run_head':'63d8441b37bf41fa7dd798ba313a58d666e2ea53',
+            'preview_run_id':33754529571,
+            'preview_artifact_id':9892966452,
+            'preview_artifact_digest':'sha256:285a9b78a370bb015a9a818a42cbe81f273d3600c9bd400c1b2449f05e09961c',
+            'merged_source':True,
+            'issue_state':'closed',
+            'claim_state':'closed',
+        })
+
+    def test_issue_2171_evidence_pins_refuse_substitution(self):
+        case=M.SUPPORTED_CASES[(2171,2194,2199)]
+        args=type('A',(),{
+            'preview_run_id':33754529571,
+            'preview_artifact_id':9892966452,
+            'preview_artifact_digest':'sha256:285a9b78a370bb015a9a818a42cbe81f273d3600c9bd400c1b2449f05e09961c',
+        })()
+        M.validate_pinned_evidence(case,args)
+        args.preview_artifact_id=1
+        with self.assertRaises(M.Refusal):
+            M.validate_pinned_evidence(case,args)
 
     def test_version_is_exact(self):
         self.assertEqual(M.version('20260817150944'),'20260817150944')

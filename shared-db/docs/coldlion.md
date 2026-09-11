@@ -4,7 +4,7 @@
 except by a broken link. Everything ColdLion lives in the documents below. Read this page
 first, then go to the one you need.
 
-**Last reviewed: 2026-09-01.**
+**Last reviewed: 2026-09-03.**
 
 ---
 
@@ -31,6 +31,17 @@ administer. Questions go **from Albert**, never sent by an AI session:
 | API behaviour, fields, data meaning | **JamieLynn** |
 | Division and company codes | **Uma** |
 | Whether we even want to ask | **Albert** (some register entries are owner decisions, not ColdLion questions) |
+
+---
+
+## Field dispositions and the `/seasons` defect — where the rulings live
+
+**`/vendors` and `/seasons` field dispositions are both SETTLED owner rulings (2026-08-19
+and 2026-09-03) and must never be re-opened, and the unfiltered `/seasons` call must never
+be used.** This page is a map, so it does not restate them: read
+[`coldlion-open-questions.md`](coldlion-open-questions.md) §5, which carries both rulings in
+full and the `/seasons` vendor defect that silently drops 13 of 21 records. Do not ask about,
+re-derive, or re-open any of it before reading that section.
 
 ---
 
@@ -71,7 +82,8 @@ Owner ruling 2026-08-09.
 ### What we are building
 | Document | What it answers |
 |---|---|
-| [`plan_coldlion-landing-phases-2-6.md`](plan_coldlion-landing-phases-2-6.md) | The current build plan (issue #1184 phases 2-6). **Read its STATUS table first** |
+| [`plan_coldlion-landing-phases-2-6.md`](plan_coldlion-landing-phases-2-6.md) | Historical phase plan and owner-decision record; execution assumptions are superseded by the completion plan below. |
+| [`../plan_coldlion_landing_schema_completion.md`](../plan_coldlion_landing_schema_completion.md) | Current completion/correction plan after the 2026-09-02 live-schema and current-API audit. **Read its STATUS table first** |
 | [`coldlion-field-decisions-20260819.csv`](coldlion-field-decisions-20260819.csv) | Albert's per-field ingest/ignore decision for all eight feeds. **Owner authority, not a suggestion** |
 | [`coldlion-raw-landing-schema-design.md`](coldlion-raw-landing-schema-design.md) | The landing-layer design, grain by grain. Carries dated supersession notes — read them |
 | [`coldlion-source-of-truth-plan.md`](coldlion-source-of-truth-plan.md) | Making ColdLion authoritative for the `core.*` master tables |
@@ -87,7 +99,7 @@ Owner ruling 2026-08-09.
 
 ---
 
-## The five traps that have already cost us
+## The six traps that have already cost us
 
 Each of these was learned the expensive way. They are stated in full in the documents
 above; this list exists so you recognise one before it costs you the same afternoon.
@@ -107,6 +119,19 @@ above; this list exists so you recognise one before it costs you the same aftern
    populated is not necessarily dead — `subUpc` is empty by business practice and one real
    value would be meaningful.
 
+
+6. **The item master is not a product catalogue, and its non-inventory flag will not
+   tell you so.** Item rows include fee and charge codes, raw materials, sample
+   placeholders and ~450 junk records. The non-inventory flag that should separate them
+   is set on 15 of ~19,600 records and blank on ~4,700 (measured 2026-09-07), so any
+   population taken straight from `/items` overstates the catalogue. See *Non-inventory
+   items* in [`business-rules/product-items-and-identifiers.md`](business-rules/product-items-and-identifiers.md).
+   Non-inventory entries must be excluded from the item data we publish for
+   applications, but must stay in the raw landing copy: production order lines
+   reference charge and material entries and those references have to resolve.
+   Subtracting prepacks and non-inventory entries still does not leave a
+   catalogue - there is no prepack marker on the item row, and the junk records
+   are untouched by either exclusion.
 ---
 
 ## Adding to this page

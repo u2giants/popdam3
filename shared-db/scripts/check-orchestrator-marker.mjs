@@ -74,7 +74,9 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { runGitHubCommand } from './lib/github-transport.mjs'
 import { parseRoutingBlock, validateRouting } from './lib/orchestrator-routing.mjs'
+import { validateAdmission } from './lib/orchestrator-admission.mjs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -201,7 +203,21 @@ export function evaluateRouting(markers, predecessorRouteIdOf = () => null) {
     handover && /^\d+$/.test(handover) ? predecessorRouteIdOf(Number(handover)) : null
 
   const { valid, problems, routing } = validateRouting(fields, { predecessorRouteId })
-  if (valid) return { problems: [], warnings: [], routing }
+
+  // #2318. Routing answers "where do I send work". Admission answers the
+  // earlier question nothing asked: was this session ever allowed to hold the
+  // role? Unauthorized marker #2312 passed every routing check because its
+  // block was well-formed. A marker that cannot state admissible grounds is
+  // INVALID, which is not "no orchestrator" -- it means do not route to it and
+  // do not take the role yourself. Path A either way.
+  const admission = validateAdmission(fields, { createdAt: marker.createdAt })
+  const admissionProblems = admission.problems.map((p) => `marker #${marker.number}: ${p}`)
+  const admissionWarnings = admission.warnings.map((w) => `marker #${marker.number}: ${w}`)
+
+  if (valid && admission.required && !admission.admissible) {
+    return { problems: admissionProblems, warnings: admissionWarnings, routing: null }
+  }
+  if (valid) return { problems: [], warnings: admissionWarnings, routing }
 
   const grandfathered =
     marker.createdAt && marker.createdAt.slice(0, 10) < CONTRACT_EFFECTIVE_DATE
@@ -212,6 +228,10 @@ export function evaluateRouting(markers, predecessorRouteIdOf = () => null) {
       problems: [],
       warnings: [
         ...prefixed,
+        // #2318. Routing grandfathering must not swallow an admission refusal:
+        // the marker still fails routing, but the stated grounds are why the
+        // role was never held, and a dropped refusal is an unaudited one.
+        ...admissionProblems,
         `marker #${marker.number} opened ${marker.createdAt.slice(0, 10)}, before the routing ` +
           `contract took effect on ${CONTRACT_EFFECTIVE_DATE}, so this does not fail the guard. ` +
           `It DOES mean the marker names no delegation target: \`--resolve\` reports it INVALID ` +
@@ -220,7 +240,7 @@ export function evaluateRouting(markers, predecessorRouteIdOf = () => null) {
       routing: null,
     }
   }
-  return { problems: prefixed, warnings: [], routing: null }
+  return { problems: [...prefixed, ...admissionProblems], warnings: admissionWarnings, routing: null }
 }
 
 /**
@@ -352,14 +372,14 @@ export function formatTarget({ routing, marker }) {
 // ---------------------------------------------------------------------------
 
 function gh(args) {
-  let raw
-  try {
-    raw = execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
-  } catch (error) {
-    // A failed gh call is UNKNOWN. This is the whole point of B1: the previous
-    // behaviour was to treat any non-answer as "none open".
-    throw new Unknown(`\`gh ${args.join(' ')}\` failed: ${error.shortMessage || error.message}`)
-  }
+  // A failed gh call is UNKNOWN. This is the whole point of B1: the previous
+  // behaviour was to treat any non-answer as "none open". Issue #2342 moved the
+  // transport into the shared module; the refusal is unchanged.
+  const raw = runGitHubCommand(args, {
+    maxBuffer: 32 * 1024 * 1024,
+    wrapError: (detail, cause) =>
+      new Unknown(`\`gh ${args.join(' ')}\` failed: ${cause?.shortMessage || detail}`),
+  })
   if (raw === undefined || raw === null || raw.trim() === '') {
     // Observed 2026-08-09: gh printed EMPTY OUTPUT while the marker existed.
     // An empty body where a JSON array was required is not an empty array.

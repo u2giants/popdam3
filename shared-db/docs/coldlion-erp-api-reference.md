@@ -50,6 +50,27 @@ re-pulled the same day (see the division matrix below).
 - **Company scope:** `companyCode=EDGEHOME` is the tenant. `divisionCode` (e.g. `EP001`,
   `SP001`) narrows further.
 
+> ### ✅ Re-verified 2026-09-10 — September API repairs are live
+>
+> ColdLion's response to the 2026-09-06 nine-section report was checked against the
+> running API, not accepted on email alone. `/inventory` now returns `companyCode` and
+> accepts working company/division filters. Unknown query names and invalid enum values
+> return HTTP 400. Omitted or empty `active` returns all master rows; omitted or empty
+> `stageCode` returns all production stages. `/pickticket` returns populated results, and
+> `/merchGroupDetails` again returns division-qualified dictionary rows.
+>
+> `createdTo` is inclusive on `/pickticket`: a one-day window returns a record created on
+> that day. `/receiving` has no rows in the available history, so it offers no comparable
+> direct proof and is not an active ingestion population. The live OpenAPI document now
+> attaches typed 200-response schemas to every GET operation, including the paged history
+> definitions. `/order` remains write-only and is outside POP's read integration.
+>
+> **Company/division guardrail.** The current tenant directory makes `EDGEHOME`/`SP001`
+> the Spruce Licensed source identity; its taxonomy, items and inventory agree. A small,
+> older `SPRUCE`/`SP001` item population has no inventory. Do not use it to change the
+> settled identity or infer a new company-to-division mapping. `active=Y` is not proof that
+> such an old catalogue row remains sellable.
+
 > ### ⚠️ Merch groups: read the taxonomy doc first
 > `mgTypeCode` has **no fixed meaning** — `05` is Licensor in CW001/SP001 but "Big Theme" in
 > EH001 and "Product Line" in EP001. Coldlion has **no licensor→property relationship**.
@@ -100,6 +121,21 @@ List endpoints are Spring-paged:
 - Response envelope: `{ content: [...], totalElements, totalPages, number, size, first, last }`
 - Most masters accept **`modifiedFrom` / `modifiedTo`** (some also `createdFrom`/`createdTo`)
   → use for nightly delta pulls instead of full reloads.
+
+> ### ⚠️ Always pull `/items` one division at a time
+> **Verified live 2026-09-07.** `/items?companyCode=EDGEHOME` without a `divisionCode`
+> returns rows whose `merchGroupNNDesc` display names are blank even though the matching
+> `merchGroupNN` code is populated. Measured on the licensed divisions: **4,448 of 15,049**
+> rows came back with a licensor code and no licensor name. Adding
+> `&divisionCode=CW001` (or `SP001`) to the same query, same key, same page size, returns
+> the names in full — the real count of licensed items whose licensor name is genuinely
+> missing is **16**, all in `CW001`.
+>
+> This is deterministic and reproducible, and it is a query-shape trap, not a ColdLion
+> data fault. A whole-company pull was on the point of being reported to ColdLion as an
+> API defect. **Loop over divisions; never pull `/items` company-wide.** Independently of
+> this, never judge a missing Licensor or Property from the display name — read the code
+> (see `docs/business-rules/merchandise-and-product-taxonomy.md`).
 
 Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,711**
 (items table is large too).
@@ -175,10 +211,10 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 | `/itemImages` | Item image content (base64 + thumbnail128). **PUT** to update | itemNo *(req)*, companyCode, divisionCode |
 | `/inventory` | On-hand qty by SKU/warehouse | itemNo, warehouseSku, paging |
 | `/merchGroupHeaders` | Merch group headers — **the dictionary of what each `mgTypeCode` means, per division** | companyCode, divisionCode, mgTypeCode |
-| `/merchGroupDetails` | Merch group values (returns a **plain array**, not a paged envelope). **This is where licensors and properties live** — `mgTypeCode=05`/`06` in CW001/SP001; 22 licensors and 258 properties verified live 2026-07-23. See [`master-data-cutover-scoreboard.md`](master-data-cutover-scoreboard.md) §4. | companyCode, divisionCode, mgTypeCode, mgCode |
+| `/merchGroupDetails` | Merch group values (returns a **plain array**, not a paged envelope). **This is where licensors and properties live** — `mgTypeCode=05`/`06` in CW001/SP001; 22 licensors and 258 properties verified live 2026-07-23. See [`master-data-cutover-scoreboard.md`](master-data-cutover-scoreboard.md) §4. | companyCode, divisionCode, mgTypeCode, mgCode, active |
 | `/prepackDetail` | Prepack breakdowns | prepackCode *(req)*, companyCode |
 | `/salespersons` | Sales reps | companyCode, salesPersonCode, lastName |
-| `/seasons` | Season codes | companyCode, divisionCode, seasonCode |
+| `/seasons` | Season codes. **⛔ NEVER call this unfiltered — send `divisionCode` every time.** A company-wide call is a confirmed vendor defect: it returns the CW001 record in place of every other division's, so all 13 non-CW001 records (4 SP001, 1 EP001, 8 EH001) are ABSENT while the count still reads 21 of 21. Silent, nothing signals it, and there is no workaround — the data is not in the response at all. Per division: CW001 = 8, SP001 = 4, EP001 = 1, EH001 = 8. Confirmed live 2026-09-03; see [`coldlion-open-questions.md`](coldlion-open-questions.md) §5. | companyCode, **divisionCode (always send it)**, seasonCode |
 | `/pickticket` | Outbound pick transactions | createdFrom/To, transactionDate, minTransactionNo |
 | `/receiving` | Inbound receipts | createdFrom/To, transactionDate, minTransactionNo |
 | `/proddetails` | Production order detail | companyCode *(req)*, prodOrderNo *(req)* |
@@ -186,6 +222,14 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 | `/order` | **POST** — insert a sales order | body = `OrderHeader` (with `OrderDetail[]`) |
 | `/prodHistory` | **Purchase history** — orders we placed with factories, one row per production-order line × prepack component (133 fields incl. `prodLineSeq`). **Not paged; 7-day window cap.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, prodOrderNo, stageCode |
 | `/orderHistory` | **Sales history** — orders customers placed with us, one row per sales-order line × prepack component (59 fields). **Not paged; 7-day window cap.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, divisionCode, salesOrderNo |
+
+> **There is no Licensor or Property list endpoint.** Verified live 2026-09-07:
+> `/licensors`, `/properties`, `/royalty` and similar all return **404**. Licensors and
+> Properties are merchandise-group values and come from `/merchGroupDetails` with
+> `mgTypeCode=05`/`06` in `CW001`/`SP001`, as the row above says. Reaching for a
+> non-existent licensor endpoint is what led one analysis to read `royaltyCode` as the
+> Licensor and invalidate a whole population count — see
+> [`business-rules/unmapped-licensor-population.md`](business-rules/unmapped-licensor-population.md).
 
 **Read vs write:** all pulls are read-only GET **except** `PUT /itemDetails`, `PUT /itemImages`,
 `PUT /items`, and `POST /order`. The import only needs GETs. Any write path (pushing data
@@ -266,6 +310,33 @@ and `active`. The field was observed live on 2026-08-20 and Albert confirmed on 
 that active/inactive values are functioning and exposed by the API. It feeds typed
 `source_active` in `plm.erp_licensor` and `plm.erp_property` (PR #1432).
 
+### Current identity rule — vendor-confirmed 2026-09-10
+
+An explicit read of `active=Y` and `active=N` for `companyCode=EDGEHOME` returned 1,384
+rows: 1,376 active and 8 inactive. The legacy four-field projection
+`(companyCode, divisionCode, mgTypeCode, mgCode)` yielded 1,038 distinct combinations,
+with 181 combinations containing multiple `mgCategory` values and 346 additional rows
+that would not fit that projection. Including `mgCategory` yielded 1,384 distinct
+five-field combinations.
+
+JamieLynn confirmed that `mgCategory` must be included: rows that share the old four
+fields but differ by category are separate ColdLion records. The current five-field
+identity is therefore `(companyCode, divisionCode, mgTypeCode, mgCategory, mgCode)`;
+the old four-field interpretation is historical and must not be used to merge or discard
+rows. The 346 extra rows are not duplicate payloads: they are category-scoped records
+that the old identity could not address separately.
+
+She also explained that MG01–MG03 are the new codes and standards implemented in early
+2025. Code values may recur across categories, but should be unique within the applicable
+division/category. Division and `mgCategory`, together with MG01, constrain which MG02
+and MG03 values are valid. This is why a code that looks repeated is not automatically a
+duplicate: its category branch gives it business meaning.
+
+The exact `mgCode` reuse rule still needs clarification. JamieLynn also only believes the
+placeholder rows came from a sheet provided to Brian and does not believe they are used;
+that is not enough evidence to filter them from a loader. The public repository records
+only aggregate evidence; raw licensed values remain private.
+
 Live counts and samples, CW001 (2026-07-23):
 
 | Query | Count | Samples |
@@ -276,8 +347,10 @@ Live counts and samples, CW001 (2026-07-23):
 Three structural limits, all confirmed by field inspection rather than assumed:
 
 - **No parent-child link.** A property row carries *no* licensor reference of any kind.
-  `mgCategory` was **empty on every row sampled**, and `mgCode2` merely repeats `mgCode`.
-  The licensor→property relationship exists **only in dflow**.
+  In the historical 2026-07-23 sample, `mgCategory` was empty and `mgCode2` merely
+  repeated `mgCode`. The current 2026-09-09/10 read shows populated category values on
+  many detail rows, so the older emptiness finding is historical rather than current
+  proof. The licensor→property relationship exists **only in dflow**.
 - **Lifecycle is explicit.** `active` is the normal ColdLion lifecycle input for licensors and
   properties. Synchronization abstains where division copies conflict, identity is ambiguous, or
   a signed entitlement schedule / explicit owner ruling has higher authority.

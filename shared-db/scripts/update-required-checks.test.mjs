@@ -2,8 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   parseArgs, planUnion, renderPlan, validateLiveDocument, readLive, applyUnion,
-  verifyReadback, main, RequiredChecksError, DEFAULT_REPO, DEFAULT_BRANCH, ghSpawnOptions,
-} from './update-required-checks.mjs'
+  verifyReadback, main, RequiredChecksError, DEFAULT_REPO, DEFAULT_BRANCH, ghSpawnOptions, mirrorDocument, writeMirror, MIRROR_PATH } from './update-required-checks.mjs'
 
 const LIVE = Object.freeze({
   strict: false,
@@ -18,9 +17,17 @@ const THE_TWO = ['Orchestrator marker guard', 'Cancelled work guard']
 
 function io(sequence) {
   const calls = []
+  // NEVER let a test reach the real filesystem. `main --apply` rewrites the committed
+  // mirror, and an unstubbed write here overwrote the repository's own
+  // `docs/verification/main-required-status-checks.json` with this file's fixture --
+  // which made the committed mirror evidence of a test run, not of a live readback.
+  const written = []
   let index = 0
   return {
     calls,
+    written,
+    root: '/nowhere',
+    write: (path, body) => written.push([String(path), body]),
     run(args, options) {
       calls.push({ args, input: options?.input })
       const next = sequence[Math.min(index, sequence.length - 1)]
@@ -182,6 +189,18 @@ test('main with --apply writes once, reads back, and exits 0', async () => {
   assert.equal(code, 0)
   assert.equal(transport.calls.length, 3, 'read, write, readback')
   assert.match(transport.calls[1].args.join(' '), /-X PATCH/)
+  // The mirror must be rewritten, and rewritten from the READBACK. Removing the
+  // writeMirror call, or feeding it the requested plan instead, fails here.
+  assert.equal(transport.written.length, 1, 'a successful --apply must rewrite the committed mirror')
+  const doc = JSON.parse(transport.written[0][1])
+  assert.deepEqual([...doc.contexts].sort(), [...after.contexts].sort())
+  assert.equal(doc.strict, after.strict)
+})
+
+test('a failed readback does not rewrite the mirror', async () => {
+  const transport = io([LIVE, '{}', LIVE])
+  assert.equal(await main(['--add', THE_TWO[0], '--apply'], transport), 1)
+  assert.equal(transport.written.length, 0, 'a mirror written on a failed write is a lie about main')
 })
 
 test('main exits 1 when the readback proves the write did not take effect', async () => {
@@ -223,4 +242,28 @@ test('--help exits 0 without touching GitHub', async () => {
 test('RequiredChecksError is the single error type callers can catch', () => {
   assert.throws(() => validateLiveDocument(null), RequiredChecksError)
   assert.throws(() => parseArgs(['--nope']), RequiredChecksError)
+})
+
+
+// The pre-flight falls back to the committed mirror, so a mirror that does not match
+// what was actually written is a stale guard. It is built from the READBACK, never
+// from the requested change.
+test('the mirror is written from the readback and is sorted, stable and complete', () => {
+  const written = []
+  writeMirror({ contexts: ['Zed', 'Alpha'], strict: false }, { repo: 'u2giants/shared-db', branch: 'main' },
+    { root: '/repo', write: (path, body) => written.push([path, body]), now: new Date('2026-09-04T00:00:00Z') })
+  assert.equal(written.length, 1)
+  assert.ok(written[0][0].endsWith('main-required-status-checks.json'.replace(/\//g, '')) || written[0][0].includes('main-required-status-checks.json'))
+  const doc = JSON.parse(written[0][1])
+  assert.deepEqual(doc.contexts, ['Alpha', 'Zed'])
+  assert.equal(doc.strict, false)
+  assert.equal(doc.branch, 'main')
+  assert.equal(doc.capturedIso, '2026-09-04T00:00:00.000Z')
+  assert.ok(doc._why.includes('MIRROR'))
+})
+
+test('the mirror records strict exactly as read back, not as requested', () => {
+  const doc = JSON.parse(mirrorDocument({ contexts: ['A'], strict: true }, 'u2giants/shared-db', 'main', new Date(0)))
+  assert.equal(doc.strict, true)
+  assert.equal(MIRROR_PATH, 'docs/verification/main-required-status-checks.json')
 })
