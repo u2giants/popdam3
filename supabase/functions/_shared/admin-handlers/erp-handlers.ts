@@ -91,8 +91,9 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       const { data: predictionRow } = await db
         .from("product_category_predictions")
         .select("predicted_category, confidence, classification_source, status")
-        .eq("erp_item_id", erpItem.id)
+        .eq("plm_item_id", erpItem.id)
         .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
       if (predictionRow) {
         predictedCategory = predictionRow.predicted_category;

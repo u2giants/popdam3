@@ -105,14 +105,13 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
       new Date(erpItem.erp_updated_at) >= new Date("2025-05-10");
 
     if (!mgCategoryReliable) {
-      const predictionKeys = [canonicalItemKey(erpItem), erpItem.source_id];
-      const { data: predictionRows } = await client
+      const { data: predictionRow } = await client
         .from("product_category_predictions")
-        .select("external_id, predicted_category, confidence, classification_source, status, created_at")
-        .in("external_id", predictionKeys)
+        .select("predicted_category, confidence, classification_source, status, created_at")
+        .eq("plm_item_id", erpItem.id)
         .order("created_at", { ascending: false })
-        .limit(10);
-      const predictionRow = predictionRows?.find((row) => row.external_id === predictionKeys[0]) ?? predictionRows?.[0] ?? null;
+        .limit(1)
+        .maybeSingle();
 
       if (predictionRow && ["approved", "auto_applied"].includes(predictionRow.status)) {
         productCategory = predictionRow.predicted_category;
@@ -307,7 +306,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
     scanOffset += rows.length;
 
     const styleNumbers = [...new Set(rows.map((r) => r.style_number).filter((v): v is string => !!v))];
-    const predictionKeys = rows.flatMap((row) => [canonicalItemKey(row), row.source_id]);
+    const predictionItemIds = rows.map((row) => row.id);
 
     const [assetMatchRes, groupMatchRes, existingPredictionsRes] = await Promise.all([
       styleNumbers.length
@@ -316,8 +315,8 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
       styleNumbers.length
         ? client.from("style_groups").select("sku, division_code").in("sku", styleNumbers)
         : Promise.resolve({ data: [], error: null }),
-      predictionKeys.length
-        ? client.from("product_category_predictions").select("external_id,status").in("external_id", predictionKeys)
+      predictionItemIds.length
+        ? client.from("product_category_predictions").select("plm_item_id,status").in("plm_item_id", predictionItemIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -329,7 +328,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
     const terminalPredictionIds = new Set<string>(
       (existingPredictionsRes.data ?? [])
         .filter((r) => ["auto_applied", "approved", "unclassifiable"].includes(r.status))
-        .map((r) => r.external_id)
+        .map((r) => r.plm_item_id)
         .filter((v): v is string => !!v),
     );
 
@@ -337,7 +336,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
       if (candidates.length >= batchSize) break;
       if (!row.style_number) continue;
       if (!matchedSkuSet.has(canonicalItemMatchKey(row.style_number, row.division_code))) continue;
-      if (terminalPredictionIds.has(canonicalItemKey(row)) || terminalPredictionIds.has(row.source_id)) continue;
+      if (terminalPredictionIds.has(row.id)) continue;
       candidates.push(row);
     }
 

@@ -5,7 +5,7 @@
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { optionalString, requireString } from "../validators.ts";
-import { canonicalItemKey, canonicalItemKeySql, canonicalItems, predictionSourceId } from "../canonical-erp-items.ts";
+import { canonicalItemKeySql, canonicalItems } from "../canonical-erp-items.ts";
 
 // ── erp-enrichment-stats ────────────────────────────────────────────
 
@@ -103,7 +103,7 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   statusCounts["low_confidence"] = lowConfRes.count ?? 0;
 
   let query = db.from("product_category_predictions")
-    .select("id, external_id, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at");
+    .select("id, external_id, plm_item_id, item_identity_status, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at");
   if (effectiveStatus !== "all") query = query.eq("status", effectiveStatus);
   if (isLowConfidenceFilter) query = query.lt("confidence", 0.5);
   query = query.order("confidence", { ascending: true }).range(offset, offset + pageSize - 1);
@@ -112,12 +112,11 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   if (error) return err(error.message, 500);
 
   // Enrich with item descriptions
-  const externalIds = (data || []).map((d: any) => d.external_id as string);
-  const sourceIds = [...new Set(externalIds.map(predictionSourceId))];
-  const { data: erpItems } = await canonicalItems(db)
-    .select("source_id, source_system, division_code, item_description, style_number")
-    .in("source_id", sourceIds.length > 0 ? sourceIds : ["__none__"])
-    .order("division_code", { ascending: true });
+  const itemIds = [...new Set((data || []).map((d: any) => d.plm_item_id).filter(Boolean))];
+  const { data: erpItems, error: itemError } = itemIds.length
+    ? await canonicalItems(db).select("id, item_description, style_number").in("id", itemIds)
+    : { data: [], error: null };
+  if (itemError) return err(itemError.message, 500);
 
   const descMap: Record<string, { description: string; style_number: string }> = {};
   for (const item of erpItems || []) {
@@ -125,14 +124,13 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
       description: item.item_description || "",
       style_number: item.style_number || "",
     };
-    descMap[canonicalItemKey(item)] = value;
-    if (!descMap[item.source_id]) descMap[item.source_id] = value;
+    descMap[item.id] = value;
   }
 
   const items = (data || []).map((d: any) => ({
     ...d,
-    description: descMap[d.external_id]?.description || null,
-    style_number: descMap[d.external_id]?.style_number || d.external_id,
+    description: descMap[d.plm_item_id]?.description || null,
+    style_number: descMap[d.plm_item_id]?.style_number || d.external_id,
   }));
 
   return json({
@@ -276,8 +274,8 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
     SELECT id, external_id, predicted_category, confidence, rationale, status
     FROM product_category_predictions candidate
     WHERE candidate.status = 'pending'
-      AND candidate.external_id IN (${itemKeySql}, e.source_id)
-    ORDER BY CASE WHEN candidate.external_id = ${itemKeySql} THEN 0 ELSE 1 END, candidate.created_at DESC
+      AND candidate.plm_item_id = e.id
+    ORDER BY candidate.created_at DESC, candidate.id
     LIMIT 1
   ) p ON true`;
 
