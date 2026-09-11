@@ -2129,6 +2129,42 @@ export type Database = {
           },
         ]
       }
+      popdam_item_state: {
+        Row: {
+          created_at: string
+          created_by: string
+          dismissed: boolean
+          division_code: string
+          item_id: string
+          source_id: string
+          source_system: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          dismissed?: boolean
+          division_code: string
+          item_id: string
+          source_id: string
+          source_system: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          dismissed?: boolean
+          division_code?: string
+          item_id?: string
+          source_id?: string
+          source_system?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
       processing_queue: {
         Row: {
           agent_id: string | null
@@ -2341,6 +2377,8 @@ export type Database = {
           external_id: string
           id: string
           input_context: Json | null
+          item_identity_status: string
+          plm_item_id: string | null
           predicted_category: string
           rationale: string | null
           reviewed_at: string | null
@@ -2357,6 +2395,8 @@ export type Database = {
           external_id: string
           id?: string
           input_context?: Json | null
+          item_identity_status?: string
+          plm_item_id?: string | null
           predicted_category: string
           rationale?: string | null
           reviewed_at?: string | null
@@ -2373,21 +2413,15 @@ export type Database = {
           external_id?: string
           id?: string
           input_context?: Json | null
+          item_identity_status?: string
+          plm_item_id?: string | null
           predicted_category?: string
           rationale?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "product_category_predictions_erp_item_id_fkey"
-            columns: ["erp_item_id"]
-            isOneToOne: false
-            referencedRelation: "erp_items_current"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       product_subtypes: {
         Row: {
@@ -3134,9 +3168,11 @@ export type Database = {
           error_message: string | null
           extracted_at: string | null
           extracted_text: string | null
+          extraction_method: string | null
           page_count: number | null
           status: string
           style_guide_file_id: string
+          terminal_reason: string | null
           text_length: number | null
           updated_at: string
         }
@@ -3150,9 +3186,11 @@ export type Database = {
           error_message?: string | null
           extracted_at?: string | null
           extracted_text?: string | null
+          extraction_method?: string | null
           page_count?: number | null
           status?: string
           style_guide_file_id: string
+          terminal_reason?: string | null
           text_length?: number | null
           updated_at?: string
         }
@@ -3166,9 +3204,11 @@ export type Database = {
           error_message?: string | null
           extracted_at?: string | null
           extracted_text?: string | null
+          extraction_method?: string | null
           page_count?: number | null
           status?: string
           style_guide_file_id?: string
+          terminal_reason?: string | null
           text_length?: number | null
           updated_at?: string
         }
@@ -4124,6 +4164,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      complete_style_guide_pdf_text_v2: {
+        Args: {
+          p_content_identity: string
+          p_method?: string
+          p_page_count?: number
+          p_reason?: string
+          p_status: string
+          p_style_guide_file_id: string
+          p_text?: string
+        }
+        Returns: boolean
+      }
       count_pdf_backfill_remaining: { Args: never; Returns: number }
       create_dam_order: {
         Args: { p_lines?: Json; p_order: Json }
@@ -4565,6 +4617,25 @@ export type Database = {
           remaining: number
         }[]
       }
+      reconcile_style_group_drift: {
+        Args: { p_effective_tag_sample?: number }
+        Returns: {
+          assets_missing_or_wrong_group: number
+          assets_with_unexpected_group: number
+          effective_tag_drift_rate: number
+          effective_tag_drifted_assets: number
+          effective_tag_extra_rows: number
+          effective_tag_missing_rows: number
+          effective_tag_rows: number
+          effective_tag_sample_assets: number
+          grouped_assets: number
+          live_assets: number
+          observed_at: string
+          orphan_group_references: number
+          style_group_rows: number
+          ungrouped_assets: number
+        }[]
+      }
       reconcile_style_group_stats_batch: {
         Args: { p_batch_size?: number; p_cursor?: string; p_sub?: string }
         Returns: {
@@ -4795,6 +4866,26 @@ export type Database = {
         }
         Returns: Json
       }
+      search_style_guide_library_v2: {
+        Args: {
+          p_extensions?: string[]
+          p_licensors?: string[]
+          p_limit?: number
+          p_modified_after?: string
+          p_modified_before?: string
+          p_offset?: number
+          p_pdf_content_states?: string[]
+          p_preview_states?: string[]
+          p_properties?: string[]
+          p_query?: string
+          p_render_exception_states?: string[]
+          p_result_mode?: string
+          p_sort?: string
+          p_style_guides?: string[]
+          p_tags?: string[]
+        }
+        Returns: Json
+      }
       search_style_tracker_link_candidates: {
         Args: {
           p_field_key: string
@@ -4809,6 +4900,10 @@ export type Database = {
           target_schema: string
           target_table: string
         }[]
+      }
+      set_popdam_item_dismissed: {
+        Args: { dismissed: boolean; item_keys: string[] }
+        Returns: number
       }
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
