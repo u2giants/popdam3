@@ -163,6 +163,23 @@ describe("active grouped library requests", () => {
     await expect(options.queryFn({ signal: new AbortController().signal })).rejects.toBeTruthy();
   });
 
+  it("surfaces a failed page without starting the exact count", async () => {
+    const methods: string[] = [];
+    const fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      methods.push(init?.method ?? "GET");
+      return new Response(JSON.stringify({ message: "canceling statement due to statement timeout", code: "57014" }), {
+        status: 500, headers: { "Content-Type": "application/json" },
+      });
+    });
+    const client = createClient("https://example.supabase.co", "test-key", {
+      global: { fetch }, auth: { persistSession: false, autoRefreshToken: false },
+    });
+    rpc.mockImplementation((...args) => (client.rpc as any)(...args));
+    const options = useAssets(filters({ tagFilter: "blue" }), "modified_at", "desc", 0) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<any> };
+    await expect(options.queryFn({ signal: new AbortController().signal })).rejects.toBeTruthy();
+    expect(methods).toEqual(["POST"]); // no HEAD count after the page failed
+  });
+
   it("uses the same narrow count for standalone library totals", async () => {
     const fetch = installClient();
     const options = useAssetCount(filters({ tagFilter: "blue" })) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<number> };
