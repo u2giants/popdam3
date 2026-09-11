@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260911081204",
+  "migration_sha256": "4d9a78b85fabeab4740a45ad92da86daecaa1465ba97f5bcdbea863e2c1feafa",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_end": 96,
+      "reason": "The runtime RETURN QUERY EXECUTE builds only a SELECT over api.dam_order_list, using allowlisted quoted identifiers, fixed SQL operators, quoted literals and a bound search pattern. It ranks and returns existing rows without creating, altering or deleting a catalog object or application data. The function creation and authenticated-only grants are static statements, covered by the ordinary catalog/privilege verifier and SQL contract tests; this runtime SELECT introduces no additional durable catalog target.",
+      "line_start": 96,
+      "disposition": "no_durable_target"
+    }
+  ],
+  "checks": []
+}

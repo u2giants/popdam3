@@ -44,7 +44,8 @@ import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './hi
 
 export const REPO = 'u2giants/shared-db'
 // AUTHOR LANE CAP. Raised from three to five on 2026-08-25 and from five to
-// eight on 2026-08-28 (owner instructions).
+// eight on 2026-08-28, and from eight to twenty-four on 2026-09-11 (owner
+// instructions relayed on marker #2758: ignore concurrency limits).
 //
 // WHAT THE NUMBER DOES AND DOES NOT DO. It is a throughput dial, not a safety
 // dial. Collision safety comes from four mechanisms that do not read this
@@ -52,17 +53,17 @@ export const REPO = 'u2giants/shared-db'
 // acquisition mutex (`MUTEX_REF`), permanent per-version refs
 // (`refs/db-claims/<version>`), and the exclusive single-holder stage refs in
 // `EXCLUSIVE_REFS`. Preview, guarded merge and production stay strictly serial
-// at eight lanes exactly as they were at three -- more authors never means more
-// sessions touching a live database.
+// at twenty-four lanes exactly as they were at three -- more authors never means
+// more sessions touching a live database.
 //
-// WHAT THE RAISE ACTUALLY COSTS. Downstream capacity, not correctness. Eight
-// authors finishing together queue in front of the single preview stage. The
+// WHAT THE RAISE ACTUALLY COSTS. Downstream capacity, not correctness. Up to
+// twenty-four authors finishing together queue in front of the single preview stage. The
 // owner approved six active reviewers, including Codex GPT-5.6 Sol and DeepSeek,
 // before this cap was activated. DeepSeek was retired on 2026-09-01 (#2078),
-// leaving five; the cap is unaffected -- it bounds authors, not reviewers. Ref writes are ~6/hour per lane, so eight lanes
+// leaving five; the cap is unaffected -- it bounds authors, not reviewers. Ref writes are ~6/hour per lane, so twenty-four lanes
 // stay far inside GitHub's limits and the rate-limit caveat recorded in
 // plan_multi_agent_database_coordination_hardening.md is satisfied at this cap.
-export const MAX_AUTHOR_LANES = 8
+export const MAX_AUTHOR_LANES = 24
 export const AUTHOR_CAPACITY_STATES = Object.freeze(['active', 'relinquished', 'expired-unconfirmed'])
 export const DEFAULT_LEASE_HOURS = 12
 export const MUTEX_STALE_AFTER_MS = 2 * 60 * 1000
@@ -1337,7 +1338,10 @@ function requireClaimCloseReason(reason) {
 }
 
 export const githubIo = {
-  enableReviewerQueue:true,
+  // Owner ruling 2026-09-11 (marker #2758): no global FIFO for reviewer draws. Any PR
+  // draws any free usable provider immediately; the per-provider lease, engine
+  // exclusions, and exact-head binding in assignNextReviewerOperation still apply.
+  enableReviewerQueue:false,
   enableReviewerSilence:true,
   requiresExactReviewHeadSha: true,
   // The changed-file list a documents-only classification is made from (#2102).
@@ -4332,6 +4336,22 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
   }finally{finalizeReviewMutex(ownerSha,io)}
 }
 
+// The review mutex is shared with author acquisition and is held only for seconds.
+// "is occupied" is thrown by createRef before any write, so the whole draw is safe
+// to repeat; everything else propagates unchanged. Owner rate-limit rule
+// (2026-09-11, marker #2758): lock-contention retries wait at least five minutes,
+// so the default is one retry after five minutes plus jitter.
+export const MUTEX_RETRY_WAIT_MS = 300000
+export function assignWithMutexRetry(request,io=githubIo,{attempts=2,wait=(ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms)}={}){
+  for(let attempt=1;;attempt++){
+    try{return assignNextReviewer(request,io)}
+    catch(error){
+      if(attempt>=attempts||error?.message!==`${MUTEX_REF} is occupied`)throw error
+      wait(MUTEX_RETRY_WAIT_MS+Math.floor(Math.random()*30000))
+    }
+  }
+}
+
 export function assignNextReviewer(request,io=githubIo){
   const normalized={...request,issue:Number(request.issue),pr:Number(request.pr),slot:Number(request.slot??1),headSha:String(request.headSha??'')}
   if(!io.enableReviewerQueue)return withReviewRequestBudget(()=>assignNextReviewerOperation(normalized,reviewOperationIo(io)))
@@ -6274,7 +6294,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.excludeReviewer){console.log(JSON.stringify(excludeReviewerForPr(o,io),null,2));return 0}
     if(o.reinstateReviewerExclusion){console.log(JSON.stringify(reinstateReviewerExclusion(o,io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}
-    if(o.assignReviewer){assertReviewerDrawIsWarranted(o.pr,io);console.log(JSON.stringify(assignNextReviewer({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
+    if(o.assignReviewer){assertReviewerDrawIsWarranted(o.pr,io);console.log(JSON.stringify(assignWithMutexRetry({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
     if(o.activateReviewCutover){console.log(JSON.stringify(activateReviewCutover(io),null,2));return 0}
     if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions, versionPrMap:o.versionPrMap }, io), null, 2)); return 0 }
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }

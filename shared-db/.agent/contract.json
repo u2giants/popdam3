@@ -1,68 +1,62 @@
 {
   "schema_version": 1,
-  "work_issue": 2715,
-  "work_type": "repo-maintenance",
-  "route": "repo-maintenance",
-  "goal": "Add a fail-closed lightweight required-status path for prose-only pull requests without dispatching or acquiring any database orchestrator lane or stage.",
-  "base_sha": "84a1a1d76a79d1d3d9f45c106c6722cec9eeed5c",
-  "dispatcher": "Codex issue 401 programme repo-maintenance owner",
-  "worker": "Codex prereq_2715",
-  "branch": "codex/issue-2715-docs-status-v4",
-  "worktree": "C:/repos/shared-db-worktrees/issue-2715-docs-status-v4",
+  "work_issue": 2662,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Close cross-application reads through CRM definer-semantics views (issue 2662 batch 1) while keeping identical rows for every CRM, PopDAM, PIM, DesignFlow and Data Admin caller.",
+  "base_sha": "9b02ad489d09427fc0556248c0a85b7cc78807ff",
+  "dispatcher": "claude orchestrator marker2758",
+  "worker": "claude-2758-2662-definer-views",
+  "branch": "claude/issue-2662-definer-views",
+  "worktree": "C:/Users/ahazan/AppData/Local/Temp/claude/C--repos-shared-db--claude-worktrees-recursing-poincare-85d3a9/ceb221ac-1746-4836-9306-6839c18dbced/scratchpad/wt-2662",
   "allowed_paths": [
+    "supabase/migrations/20260911124746_crm_definer_views_caller_gate.sql",
+    "supabase/tests/crm_definer_views_caller_gate_contracts.sql",
     ".agent/contract.json",
-    ".agent/completion.json",
-    ".github/workflows/documents-only-merge-authorization.yml",
-    "AGENTS.md",
-    "docs/verification/throughput-guard-truth-audit-20260828.json",
-    "scripts/check-documents-only-merge-authorization.mjs",
-    "scripts/check-documents-only-merge-authorization.test.mjs",
-    "scripts/check-documents-only-pull-request.mjs",
-    "scripts/documents-only-merge-authorization.test.mjs",
-    "scripts/lib/documents-only-change.mjs",
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "scripts/repository-maintenance-authorization.test.mjs"
+    ".agent/completion.json"
   ],
   "file_writes": [
-    ".agent/contract.json",
-    ".agent/completion.json",
-    ".github/workflows/documents-only-merge-authorization.yml",
-    "AGENTS.md",
-    "docs/verification/throughput-guard-truth-audit-20260828.json",
-    "scripts/check-documents-only-merge-authorization.mjs",
-    "scripts/check-documents-only-merge-authorization.test.mjs",
-    "scripts/check-documents-only-pull-request.mjs",
-    "scripts/documents-only-merge-authorization.test.mjs",
-    "scripts/lib/documents-only-change.mjs",
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "scripts/repository-maintenance-authorization.test.mjs"
+    "supabase/migrations/20260911124746_crm_definer_views_caller_gate.sql",
+    "supabase/tests/crm_definer_views_caller_gate_contracts.sql"
   ],
-  "db_reads": [],
-  "db_writes": [],
+  "db_reads": [
+    "table core.customer",
+    "table crm.ingested_domain",
+    "table plm.customer_import",
+    "table app.app_access",
+    "table app.profile",
+    "view api.crm_contact_list",
+    "table core.contact",
+    "table public.sku_files_used",
+    "table public.style_guide_files",
+    "table public.style_groups"
+  ],
+  "db_writes": [
+    "view api.crm_customer_list",
+    "view api.crm_account_list",
+    "view api.crm_ingested_domain_list",
+    "view api.crm_contact_segment_list",
+    "view api.crm_contact_segment_counts",
+    "view public.sg_archive_usage"
+  ],
   "prohibited_actions": [
-    "Do not modify a migration or any database state.",
-    "Do not authorize an unreadable, mixed, executable, workflow, script, test, configuration, migration, or behavior-changing rulebook diff.",
-    "Do not execute pull-request head code in the privileged status workflow.",
-    "Do not claim an author or reviewer lane, acquire preview, merge, or production, or emit a structural lifecycle event."
+    "No direct production DDL; production only through the governed workflow.",
+    "Do not change view columns, grants or comments.",
+    "Do not touch views owned by other active claims (api.db_data_admin_scraped_properties, api.pim_item_picker, api.plm_item_list)."
   ],
   "required_checks": [
     "git diff --check",
-    "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/check-documents-only-merge-authorization.test.mjs scripts/documents-only-merge-authorization.test.mjs scripts/repository-maintenance-authorization.test.mjs scripts/manage-migration-author-lanes.test.mjs",
-    "node scripts/check-throughput-truth-audit.mjs",
-    "node scripts/check-github-transport-conformance.mjs"
+    "bash scripts/check-sql.sh",
+    "hosted ephemeral migration regression suite"
   ],
   "assumptions": [
-    "Issue 2715 is repo-maintenance outside the shared-db structure orchestrator.",
-    "Plans and bounded declarative routing pointers are lightweight prose; behavior-changing instruction edits retain the full guarded path.",
-    "The narrow authorization command may serialize on the existing global coordination mutex only while proving production absent.",
-    "Independent exact-head review, required CI, guarded merge, and live acceptance remain repository delivery gates after worker completion."
+    "All app consumers of the changed views read as the authenticated role from popcrm-web; no service-role consumer exists.",
+    "Parent owns preview, merge, production and live acceptance.",
+    "Preview authenticated-role parity per identity runs after merge through the orchestrator-held preview dispatch; the pre-apply preview baseline is recorded in PR 2764."
   ],
   "stop_conditions": [
-    "Stop if implementation requires a database or production write.",
-    "Stop if the pull-request head must be checked out or executed by pull_request_target.",
-    "Stop if an unknown diff can receive success."
+    "Stop if any CRM-access caller's row count changes on preview.",
+    "Stop if a PopDAM, PIM, DesignFlow or Data Admin consumer of a changed view is found."
   ],
-  "generation": 4
+  "generation": 6
 }

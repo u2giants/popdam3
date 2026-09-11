@@ -82,6 +82,20 @@ No refresh hard-deletes licensing Master Data.
 
 ### OPA submissions presence is authority for entitlement
 
+**Current-rights refinement (owner issue #2703, 2026-09-10):** OPA's paired
+`Show Compliant Only` and `Show All` observations distinguish current selection
+rights for the exact Property, route and authenticated account scope. Only the
+newest approved complete explicit `compliant` observation permits new styles or
+new introduction into ColdLion. An explicit `non_compliant` observation blocks
+those new uses, while retaining historical styles, existing ColdLion identities
+and source records. OPA does not distinguish formerly-held from never-held rights.
+Legacy observations without two-view evidence are `unknown`, not current-rights
+proof. A later explicit compliant observation may reactivate selection; omission
+from a newer Show All never deletes or deactivates a Property. Evidence review
+approval and compliance are separate facts. Studio placement and historical
+Creative/Submissions mapping remain governed by their independent authority rules.
+See [the structural and private-loader contract](../app-migration-notes/opa-route-compliance-loader-contract.md).
+
 **Status: Settled. Authority: Albert Hazan, 2026-09-05.**
 
 - Ruling: "If they appear in the OPA submissions system we have rights, regardless of the contract and we'll go by the submissions system." A Disney-family Property present in the captured OPA submissions system is licensed to POP, whether or not a signed contract clause names it.

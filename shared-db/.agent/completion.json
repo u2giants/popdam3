@@ -1,58 +1,59 @@
 {
   "schema_version": 1,
-  "work_issue": 2715,
+  "work_issue": 2662,
   "outcome": "ready-for-merge",
-  "pr": 2737,
-  "migration_versions": [],
-  "contract_ref": "refs/db-contracts/2715/4",
-  "contract_sha256": "ebd03a0ed9437413447d0382b41bbc36fa27294374110ba6b55b65854ba3f871",
-  "head_sha": "8f26ff60f0366f7ff76f323db769ba8d6094dc45",
-  "files_changed": [
-    ".github/workflows/documents-only-merge-authorization.yml",
-    "AGENTS.md",
-    "docs/verification/throughput-guard-truth-audit-20260828.json",
-    "scripts/check-documents-only-merge-authorization.mjs",
-    "scripts/check-documents-only-merge-authorization.test.mjs",
-    "scripts/check-documents-only-pull-request.mjs",
-    "scripts/documents-only-merge-authorization.test.mjs",
-    "scripts/lib/documents-only-change.mjs",
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "scripts/repository-maintenance-authorization.test.mjs"
+  "pr": 2764,
+  "migration_versions": [
+    "20260911124746"
   ],
-  "db_reads": [],
-  "db_writes": [],
+  "contract_ref": "refs/db-contracts/2662/6",
+  "contract_sha256": "d147d233f14733d214884880d2bbe10fac7dcc0703b00ba75a080a43ec6dcde4",
+  "head_sha": "439cc01bc1f07a5b5a2fa8fb4073e663c364ef23",
+  "files_changed": [
+    "supabase/migrations/20260911124746_crm_definer_views_caller_gate.sql",
+    "supabase/tests/crm_definer_views_caller_gate_contracts.sql"
+  ],
+  "db_reads": [
+    "table core.customer",
+    "table crm.ingested_domain",
+    "table plm.customer_import",
+    "table app.app_access",
+    "table app.profile",
+    "view api.crm_contact_list",
+    "table core.contact",
+    "table public.sku_files_used",
+    "table public.style_guide_files",
+    "table public.style_groups"
+  ],
+  "db_writes": [
+    "view api.crm_customer_list",
+    "view api.crm_account_list",
+    "view api.crm_ingested_domain_list",
+    "view api.crm_contact_segment_list",
+    "view api.crm_contact_segment_counts",
+    "view public.sg_archive_usage"
+  ],
   "checks": [
     {
       "command": "git diff --check",
       "exit_code": 0,
-      "evidence": "No whitespace errors on the exact rebased implementation diff."
+      "evidence": "No whitespace errors on 9b02ad48..439cc01b."
     },
     {
-      "command": "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/check-documents-only-merge-authorization.test.mjs scripts/documents-only-merge-authorization.test.mjs scripts/repository-maintenance-authorization.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "command": "bash scripts/check-sql.sh",
       "exit_code": 0,
-      "evidence": "562 tests passed with zero failures, cancellations, skips, or todos on main 84a1a1d7."
+      "evidence": "Static checks passed on 439cc01b."
     },
     {
-      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "command": "hosted ephemeral migration regression suite",
       "exit_code": 0,
-      "evidence": "Truth audit passed with 275 semantically bound call sites."
-    },
-    {
-      "command": "node scripts/check-github-transport-conformance.mjs",
-      "exit_code": 0,
-      "evidence": "All GitHub calls in 212 scanned files use the governed transport."
+      "evidence": "GitHub Actions job \"supabase/tests against an ephemeral database\" passed on commit a4848fde (run 34617412771, job 103322678124), whose supabase files are byte-identical to implementation commit 439cc01b; it applied every migration, including the base-table policy and contact-gate assertions, and ran supabase/tests/crm_definer_views_caller_gate_contracts.sql with non-zero contact and archive fixtures as the authenticated role."
     }
   ],
   "assumptions_resolved": [
-    "Live issue, pull request, branch, worktree, and Codex task inventory found no prior owner for issue 2715.",
-    "The implementation changes no migration and performs no database or production write.",
-    "The command uses only the global mutex, proves production absent, and cannot consume author, reviewer, preview, merge, or production capacity.",
-    "Plans and bounded declarative pointer hunks qualify; behavior-changing rulebooks and every executable or unreadable change fail closed.",
-    "Eight independent review rounds found and resolved permissions, grammar, race, retarget, trust-boundary, link-target, recovery, live-base, and stale-status defects.",
-    "The ninth review found that a truncated instruction-file patch could hide additional changed lines; the classifier now proves API line totals and every hunk count before accepting a pointer.",
-    "The final implementation was rebuilt as the identical net feature diff directly on current main 84a1a1d7, removing obsolete evidence-only history before this immutable evidence pair."
+    "App consumer search across popcrm-web, popdam3, poppim-web, dflow_plm and edge functions found only popcrm-web authenticated browser reads of the changed views; no service-role consumer.",
+    "Read-only preview baseline: CRM callers with and without a role read 862/862/96 customer/account/domain rows; a DAM-only caller also read 862/862/96, which is the leak closed here."
   ],
   "stop_conditions_hit": [],
-  "evidence_note": "Implementation is ready for final exact-head independent reviewer-safety review, required CI, guarded merge, and a live prose-only acceptance pull request."
+  "evidence_note": "Implementation 439cc01b on main 9b02ad48 (supabase files identical to a4848fde) addresses the REVISE on 4a262c06 (refs/db-review-verdicts/2662-2764-4a262c06b52ea83e9912e4a8edf8db4464aec7ca): base-table grant and open-policy guard for sg_archive_usage, definer and gate guard on api.crm_contact_list, OR rejection on gated view text, non-vacuous contact and archive fixtures. Contract generation 6 declares the added reads. Diff check, static SQL checks and the hosted ephemeral suite all exit 0."
 }

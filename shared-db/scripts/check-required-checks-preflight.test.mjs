@@ -283,6 +283,21 @@ test('optional skipped jobs and the running merge job cannot deadlock the prefli
   assert.equal(result.mode, 'committed-mirror')
 })
 
+test('the documents-only routing diagnostic failing on a code PR does not block the guarded merge (#2759)', () => {
+  const result = evaluateWithoutRequiredList({
+    reason: REASON, mirrorContexts: MIRROR,
+    statuses: [{ context: 'Documents-only merge authorization', state: 'failure' }],
+    checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
+      { name: 'Documents-only merge authorization', status: 'completed', conclusion: 'failure' }],
+  })
+  assert.equal(result.mode, 'committed-mirror')
+  assert.throws(() => evaluateWithoutRequiredList({
+    reason: REASON, mirrorContexts: MIRROR, statuses: [],
+    checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
+      { name: 'Some other guard', status: 'completed', conclusion: 'failure' }],
+  }), /Some other guard/)
+})
+
 test('the head cannot inject a context into the trusted list', () => {
   const contexts = readRequiredChecksMirror('/x', mirrorRun({
     'origin/main': doc(...PINNED_REQUIRED_CONTEXTS),

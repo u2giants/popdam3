@@ -17,6 +17,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 from production_business_risk_gate import preview_instance_text, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
 
 
+def disable_background_git_maintenance(root):
+    """Git 2.47+ ends every commit by launching a DETACHED `git maintenance run
+    --auto` that keeps writing .git/objects after the commit returns. Removing
+    the temp repo then races it and fails with "Directory not empty" (production
+    apply run 34615626046 lost its guards job this way)."""
+    for key, value in (("gc.auto", "0"), ("maintenance.auto", "false")):
+        subprocess.run(["git", "config", key, value], cwd=root, check=True)
+
+
 def tree_ref(endpoint):
     """The commit a `/git/trees/` endpoint asks about -- AFTER checking the query.
 
@@ -2159,6 +2168,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             for version in versions:
                 (root / f"supabase/migrations/{version}_release_a.sql").write_text("select 1;", encoding="utf-8")
             subprocess.run(["git", "init"], cwd=root, check=True, stdout=subprocess.DEVNULL)
+            disable_background_git_maintenance(root)
             subprocess.run(["git", "config", "user.email", "x@y"], cwd=root)
             subprocess.run(["git", "config", "user.name", "x"], cwd=root)
             subprocess.run(["git", "add", "."], cwd=root)
@@ -2216,6 +2226,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         # Git needs SOMETHING to commit when the migration is absent.
         (root / "README.md").write_text("fixture\n", encoding="utf-8")
         subprocess.run(["git", "init"], cwd=root, check=True, stdout=subprocess.DEVNULL)
+        disable_background_git_maintenance(root)
         subprocess.run(["git", "config", "user.email", "x@y"], cwd=root)
         subprocess.run(["git", "config", "user.name", "x"], cwd=root)
         subprocess.run(["git", "add", "."], cwd=root)

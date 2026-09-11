@@ -1592,6 +1592,9 @@ class ReviewedCommitTests(unittest.TestCase):
             ).stdout.strip()
 
         git("init", "-q")
+        # No detached background maintenance racing the temp-dir removal.
+        git("config", "gc.auto", "0")
+        git("config", "maintenance.auto", "false")
         git("config", "user.email", "t@example.com")
         git("config", "user.name", "T")
         (root / "a.txt").write_text("one", encoding="utf-8")

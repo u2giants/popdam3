@@ -3,6 +3,7 @@ import test from 'node:test'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { REVIEW_VERDICT_REF_PREFIX } from './lib/review-verdict-artifact.mjs'
+import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
 import { readyRecord } from './orchestrator-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -488,7 +489,7 @@ test('legacy claims count toward the author-lane cap and always protect objects'
   // Asserted against the constant, not a literal, so the cap can move without
   // this test quietly checking the wrong number -- but the constant itself is
   // pinned, so a change to it is a deliberate edit here.
-  assert.equal(MAX_AUTHOR_LANES, 8)
+  assert.equal(MAX_AUTHOR_LANES, 24)
   const full = Array.from({length:MAX_AUTHOR_LANES},(_,i)=>legacy(i+1,`table core.t${i}`))
   assert.doesNotThrow(() => assertLaneAvailable(full.slice(0,MAX_AUTHOR_LANES-1), ['table core.d'], NOW))
   assert.throws(() => assertLaneAvailable(full, ['table core.d'], NOW), new RegExp(`all ${MAX_AUTHOR_LANES}`))
@@ -2379,6 +2380,33 @@ test('an unreadable reviewer queue does not invent a FIFO refusal',()=>{
   io.enableReviewerQueue=true;io.getPr=()=>({number:304,state:'open',head:{sha:request.headSha}})
   const list=io.listRefs;io.listRefs=(prefix)=>{if(prefix===REVIEW_QUEUE_REF_PREFIX)throw new Error('unreadable queue');return list(prefix)}
   assert.ok(assignNextReviewer(request,io).reviewer)
+})
+
+test('live reviewer draws have no global FIFO: a later PR draws a free provider past an older ticket (marker #2758)',()=>{
+  assert.equal(githubIo.enableReviewerQueue,false)
+  const io=reviewIo(),heads=new Map([[311,'a'.repeat(40)],[312,'b'.repeat(40)]])
+  io.enableReviewerQueue=githubIo.enableReviewerQueue;io.getPr=(pr)=>({number:Number(pr),state:'open',head:{sha:heads.get(Number(pr))}})
+  const olderSha=io.makeOwnerCommit(`db-coordination reviewer-queue-ticket issue=211 pr=311 slot=1 head=${'a'.repeat(40)} requested-at=${new Date(Date.now()-3600000).toISOString()}`)
+  io.refs.set(`${REVIEW_QUEUE_REF_PREFIX}/211-311-1`,olderSha)
+  const second=assignNextReviewer({issue:212,pr:312,headSha:'b'.repeat(40)},io)
+  const first=assignNextReviewer({issue:211,pr:311,headSha:'a'.repeat(40)},io)
+  assert.ok(second.reviewer&&first.reviewer);assert.notEqual(second.reviewer,first.reviewer)
+})
+
+test('a reviewer draw retries only a briefly occupied review mutex',()=>{
+  const io=reviewIo(),request={issue:213,pr:313,headSha:'c'.repeat(40)},waits=[]
+  io.enableReviewerQueue=false;io.getPr=()=>({number:313,state:'open',head:{sha:request.headSha}})
+  const create=io.createRef.bind(io);let blocked=1
+  io.createRef=(ref,sha)=>{if(ref===MUTEX_REF&&blocked>0){blocked--;return false}return create(ref,sha)}
+  assert.ok(assignWithMutexRetry(request,io,{wait:(ms)=>waits.push(ms)}).reviewer)
+  assert.equal(waits.length,1)
+  assert.ok(waits[0]>=300000,'lock-contention retry waits at least five minutes')
+  const io2=reviewIo();io2.enableReviewerQueue=false;io2.getPr=()=>({number:313,state:'open',head:{sha:request.headSha}});io2.createRef=(ref,sha)=>ref===MUTEX_REF?false:true
+  assert.throws(()=>assignWithMutexRetry(request,io2,{attempts:3,wait:()=>{}}),/is occupied/)
+  const io3=reviewIo();io3.enableReviewerQueue=false
+  const waits3=[]
+  assert.throws(()=>assignWithMutexRetry({...request,headSha:'not-a-sha'},io3,{attempts:3,wait:(ms)=>waits3.push(ms)}),(error)=>!/is occupied/.test(error.message))
+  assert.equal(waits3.length,0,'a failure other than mutex occupation is never retried')
 })
 
 test('capacity report distinguishes an unreadable verdict from no verdict and keeps the other rows visible (issue #2157)',()=>{

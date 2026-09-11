@@ -22,6 +22,12 @@ export class PreflightError extends Error {}
 export { SELF_CONTEXT }
 export const SELF_CHECK_RUN = 'merge'
 
+// Routing diagnostic from documents-only-merge-authorization.yml (#2715). It fails
+// on every code PR by design ("guarded code checks required"), so requiring it here
+// made every code PR unmergeable through the guarded lane (#2759). It is never a
+// required context; the mirrored required contexts are still enforced in full.
+export const ADVISORY_CONTEXTS = ['Documents-only merge authorization']
+
 // A skipped or neutral required check can still be refused by the merge API.
 // Accept only explicit success so that refusal happens before the merge lock.
 const REQUIRED_SUCCESS = new Set(['success'])
@@ -155,7 +161,7 @@ export function evaluateWithoutRequiredList({ statuses, checkRuns, reason, mirro
   requireContexts(mirrorContexts.filter((c) => c !== SELF_CONTEXT), states, `main's required list is unreadable (${reason}), so the committed mirror ${REQUIRED_CHECKS_MIRROR} was used`)
   // Half two: everything else that reported must also be green, so a context added
   // live but not yet mirrored cannot slip through once it starts reporting.
-  const bad = [...states].filter(([name, state]) => ![SELF_CONTEXT, SELF_CHECK_RUN].includes(name) && !REPORTED_SUCCESS.has(state))
+  const bad = [...states].filter(([name, state]) => ![SELF_CONTEXT, SELF_CHECK_RUN, ...ADVISORY_CONTEXTS.filter((c) => !mirrorContexts.includes(c))].includes(name) && !REPORTED_SUCCESS.has(state))
   if (bad.length) throw new PreflightError(`${describe(bad)} on the reviewed head. The required list came from the committed mirror, so EVERY reported check must pass. No retry can clear this, so the merge lane was not taken.`)
   return { required: mirrorContexts.filter((c) => c !== SELF_CONTEXT).length, mode: 'committed-mirror' }
 }

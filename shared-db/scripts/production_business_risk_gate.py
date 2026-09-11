@@ -1902,6 +1902,7 @@ PREVIEW_PRODUCER_PATHS += (
     # pinned rather than exempted: the test's own instruction is to pin anything
     # a tool in the preview job could read, and pinning is the stricter answer.
     "scripts/production-verification-sidecars/20260910155753.json",
+    "scripts/production-verification-sidecars/20260911081204.json",
     "config/db-data-admin-property-source-coverage.json",
     "scripts/production-verification-sidecars/20260908214749.json",
     "scripts/production-verification-sidecars/20260909084253.json",

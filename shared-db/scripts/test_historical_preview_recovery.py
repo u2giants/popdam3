@@ -10,10 +10,20 @@ from historical_preview_recovery import (
 # equality entirely. Every call below therefore supplies one.
 RUNS = {"20260813210000": "20260813210000:5001"}
 
+
+def disable_background_git_maintenance(root):
+    """Git 2.47+ ends every commit by launching a DETACHED `git maintenance run
+    --auto` that keeps writing .git/objects after the commit returns. Removing
+    the temp repo then races it and fails with "Directory not empty"."""
+    for key, value in (("gc.auto", "0"), ("maintenance.auto", "false")):
+        subprocess.run(["git", "config", key, value], cwd=root, check=True)
+
+
 class Tests(unittest.TestCase):
     def test_source_pr_must_contain_every_exact_migration(self):
         with tempfile.TemporaryDirectory() as t:
             root=Path(t); subprocess.run(["git","init"],cwd=root,check=True,stdout=subprocess.DEVNULL)
+            disable_background_git_maintenance(root)
             subprocess.run(["git","config","user.email","x@y"],cwd=root);subprocess.run(["git","config","user.name","x"],cwd=root)
             p=root/"supabase/migrations";p.mkdir(parents=True);(p/"20260813210000_a.sql").write_text("select 1;")
             subprocess.run(["git","add","."],cwd=root);subprocess.run(["git","commit","-m","x"],cwd=root,check=True,stdout=subprocess.DEVNULL)
@@ -48,6 +58,7 @@ class PerVersionSourceMapTests(unittest.TestCase):
         t = tempfile.TemporaryDirectory()
         root = Path(t.name)
         subprocess.run(["git","init"],cwd=root,check=True,stdout=subprocess.DEVNULL)
+        disable_background_git_maintenance(root)
         subprocess.run(["git","config","user.email","x@y"],cwd=root)
         subprocess.run(["git","config","user.name","x"],cwd=root)
         migrations = root/"supabase/migrations"; migrations.mkdir(parents=True)
