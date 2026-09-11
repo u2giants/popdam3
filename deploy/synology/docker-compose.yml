@@ -11,6 +11,9 @@ services:
       # Canonical container name — anchors the self-update path so it never
       # inherits a mutated name from a previous update cycle.
       POPDAM_CONTAINER_NAME: popdam-bridge
+      # Keep the project definition visible inside the container so the
+      # fail-safe updater can recreate this Compose-owned service.
+      POPDAM_COMPOSE_PATH: /app/compose/docker-compose.yml
     volumes:
       # PopDAM uses short-lived marker writes and check-in verification on its
       # primary mount. Keep only the independent Style Guides crawl read-only.
@@ -20,5 +23,6 @@ services:
       # Without this, the agent re-pairs on every container recreate, invalidating the old
       # key mid-flight and causing 401 errors on any in-progress API calls.
       - /volume1/docker/popdam/data:/data
+      - /volume1/docker/popdam:/app/compose:ro
       # Docker socket: required for remote updates from PopDAM UI
       - /var/run/docker.sock:/var/run/docker.sock

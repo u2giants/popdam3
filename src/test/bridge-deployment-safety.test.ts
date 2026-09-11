@@ -31,4 +31,10 @@ describe("bridge deployment safety", () => {
     expect(entrypoint).not.toContain("recreateViaDockerRun");
     expect(entrypoint).toContain("No Compose file found; self-update stopped without replacing the running container");
   });
+
+  it("keeps the Compose definition visible to the fail-safe updater", () => {
+    const compose = read("deploy/synology/docker-compose.yml");
+    expect(compose).toContain("POPDAM_COMPOSE_PATH: /app/compose/docker-compose.yml");
+    expect(compose).toContain("/volume1/docker/popdam:/app/compose:ro");
+  });
 });
