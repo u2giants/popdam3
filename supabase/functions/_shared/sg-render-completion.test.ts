@@ -5,8 +5,8 @@ import {
   exhaustedJobMessage,
   failExhaustedSgRenderJobs,
   isTransientDbError,
-  type SgExhaustedJobWriter,
   persistSgRenderCompletion,
+  type SgExhaustedJobWriter,
   type SgRenderCompletionWriter,
   writeWithRetry,
 } from "./sg-render-completion.ts";
@@ -245,7 +245,9 @@ describe("failExhaustedSgRenderJobs", () => {
       { id: "rendered", style_guide_file_id: "f2", status: "claimed", attempts: 3, lease_expires_at: expired, error_message: null },
     ];
     const files = { f1: { thumbnail_url: null, thumbnail_error: null }, f2: { thumbnail_url: "https://cdn/x.jpg", thumbnail_error: null } };
-    const db = fakeDb(jobs, files, (job) => { if (job.id === "late") job.status = "completed"; });
+    const db = fakeDb(jobs, files, (job) => {
+      if (job.id === "late") job.status = "completed";
+    });
     const result = await failExhaustedSgRenderJobs(db, NOW);
     expect(result).toEqual({ failed: ["rendered"] });
     expect(jobs[0].status).toBe("completed");
