@@ -1,6 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canonicalItemKey, canonicalItemMatchKey, rawMgFieldsFromCanonical, uniqueCanonicalItemIds } from "./canonical-erp-items.js";
+import { canonicalItemKey, canonicalItemMatchKey, rawMgFieldsFromCanonical, selectClassificationCandidates, uniqueCanonicalItemIds } from "./canonical-erp-items.js";
+
+test("unresolved or ambiguous identities never reach AI classification", () => {
+  const rows = [
+    { source_system: "coldlion", division_code: "CW001", source_id: "AMBIG", style_number: "AMBIG" },
+    { source_system: "coldlion", division_code: "CW001", source_id: "DONE", style_number: "DONE" },
+    { source_system: "coldlion", division_code: "CW001", source_id: "OK1", style_number: "OK1" },
+    { source_system: "coldlion", division_code: "CW001", source_id: "OK2", style_number: "OK2" },
+  ];
+  const selected = selectClassificationCandidates(rows, {
+    matchedSkuSet: new Set(rows.map((r) => canonicalItemMatchKey(r.style_number, r.division_code))),
+    canonicalIds: uniqueCanonicalItemIds([
+      { id: "x", source_system: "coldlion", item_number: "AMBIG", raw: { divisionCode: "CW001" } },
+      { id: "y", source_system: "coldlion", item_number: "AMBIG", raw: { divisionCode: "CW001" } },
+      { id: "done", source_system: "coldlion", item_number: "DONE", raw: { divisionCode: "CW001" } },
+      { id: "ok1", source_system: "coldlion", item_number: "OK1", raw: { divisionCode: "CW001" } },
+      { id: "ok2", source_system: "coldlion", item_number: "OK2", raw: { divisionCode: "CW001" } },
+    ]),
+    terminalPredictionIds: new Set(["done"]),
+    limit: 1,
+  });
+  assert.deepEqual(selected.map((r) => r.source_id), ["OK1"]);
+});
 
 test("ambiguous same-division identities stay unresolved instead of borrowing another company's item", () => {
   const ids = uniqueCanonicalItemIds([

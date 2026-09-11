@@ -17,6 +17,7 @@ import type { BatchResult, OpState } from "../types.js";
 import {
   canonicalItemIdMap,
   canonicalItemKey,
+  selectClassificationCandidates,
   canonicalItemMatchKey,
   canonicalItems,
   rawMgFieldsFromCanonical,
@@ -335,13 +336,12 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
         .filter((v): v is string => !!v),
     );
 
-    for (const row of rows) {
-      if (candidates.length >= batchSize) break;
-      if (!row.style_number) continue;
-      if (!matchedSkuSet.has(canonicalItemMatchKey(row.style_number, row.division_code))) continue;
-      if (terminalPredictionIds.has(canonicalIds.get(canonicalItemKey(row)) ?? "")) continue;
-      candidates.push(row);
-    }
+    candidates.push(...selectClassificationCandidates(rows, {
+      matchedSkuSet,
+      canonicalIds,
+      terminalPredictionIds,
+      limit: batchSize - candidates.length,
+    }));
 
     if (rows.length < scanWindow) { exhausted = true; break; }
   }

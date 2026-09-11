@@ -55,6 +55,28 @@ export function uniqueCanonicalItemIds(
   return ids;
 }
 
+/**
+ * Picks rows eligible for AI classification. A row whose three-part identity
+ * does not resolve to exactly one canonical item is skipped before any AI
+ * call: the database would refuse its prediction insert anyway.
+ */
+export function selectClassificationCandidates<T extends CanonicalItemIdentity & { style_number: string | null }>(
+  rows: T[],
+  options: { matchedSkuSet: Set<string>; canonicalIds: Map<string, string>; terminalPredictionIds: Set<string>; limit: number },
+): T[] {
+  const selected: T[] = [];
+  for (const row of rows) {
+    if (selected.length >= options.limit) break;
+    if (!row.style_number) continue;
+    if (!options.matchedSkuSet.has(canonicalItemMatchKey(row.style_number, row.division_code))) continue;
+    const itemId = options.canonicalIds.get(canonicalItemKey(row));
+    if (!itemId) continue;
+    if (options.terminalPredictionIds.has(itemId)) continue;
+    selected.push(row);
+  }
+  return selected;
+}
+
 export function canonicalItemKey(item: CanonicalItemIdentity): string {
   return `${item.source_system}|${item.division_code ?? ""}|${item.source_id}`;
 }
