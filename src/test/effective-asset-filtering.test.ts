@@ -24,6 +24,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import {
+  runEffectiveScopeQuery,
   buildEffectiveFilterPayload,
   buildAssetCountQuery,
   needsEffectiveScope,
@@ -81,8 +82,8 @@ describe("active grouped library requests", () => {
 
   it("retains full page rows and exact totals while separating the requests", async () => {
     const fetch = installClient();
-    const options = useAssets(filters({ tagFilter: "blue", stage: ["dev"], productCategory: ["Wall"] }), "modified_at", "desc", 1) as unknown as { queryFn: () => Promise<any> };
-    const result = await options.queryFn();
+    const options = useAssets(filters({ tagFilter: "blue", stage: ["dev"], productCategory: ["Wall"] }), "modified_at", "desc", 1) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<any> };
+    const result = await options.queryFn({ signal: new AbortController().signal });
     expect(result).toEqual({ assets: [{ id: "a1", filename: "full.psd", relative_path: "art/full.psd", file_size: 123 }], totalCount: 401, pageSize: 200, page: 1 });
     const page = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
     const head = fetch.mock.calls.find(([, init]) => init?.method === "HEAD")!;
@@ -117,8 +118,8 @@ describe("active grouped library requests", () => {
       global: { fetch }, auth: { persistSession: false, autoRefreshToken: false },
     });
     rpc.mockImplementation((...args) => (client.rpc as any)(...args));
-    const options = useAssets(filters({ tagFilter: "blue" }), "modified_at", "desc", 0) as unknown as { queryFn: () => Promise<any> };
-    const result = options.queryFn();
+    const options = useAssets(filters({ tagFilter: "blue" }), "modified_at", "desc", 0) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<any> };
+    const result = options.queryFn({ signal: new AbortController().signal });
     await vi.waitFor(() => expect(methods).toEqual(["POST"]));
     releasePage();
     await expect(result).resolves.toMatchObject({ totalCount: 401 });
@@ -144,9 +145,9 @@ describe("active grouped library requests", () => {
       global: { fetch }, auth: { persistSession: false, autoRefreshToken: false },
     });
     rpc.mockImplementation((...args) => (client.rpc as any)(...args));
-    const page = useAssets(filters({ tagFilter: "blue" }), "modified_at", "desc", 0) as unknown as { queryFn: () => Promise<any> };
-    const facets = useFilterCounts(filters({ tagFilter: "blue" })) as unknown as { queryFn: () => Promise<any> };
-    const [pageResult, facetResult] = await Promise.all([page.queryFn(), facets.queryFn()]);
+    const page = useAssets(filters({ tagFilter: "blue" }), "modified_at", "desc", 0) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<any> };
+    const facets = useFilterCounts(filters({ tagFilter: "blue" })) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<any> };
+    const [pageResult, facetResult] = await Promise.all([page.queryFn({ signal: new AbortController().signal }), facets.queryFn({ signal: new AbortController().signal })]);
     expect(pageResult.totalCount).toBe(401);
     expect(facetResult.total).toBe(401);
     expect(requests.filter((entry) => entry.endsWith(":start"))).toHaveLength(3);
@@ -158,22 +159,23 @@ describe("active grouped library requests", () => {
 
   it("surfaces a failed total instead of reporting a false empty library", async () => {
     installClient(true);
-    const options = useAssets(filters({ tagFilter: "blue" }), "modified_at", "desc", 0) as unknown as { queryFn: () => Promise<any> };
-    await expect(options.queryFn()).rejects.toBeTruthy();
+    const options = useAssets(filters({ tagFilter: "blue" }), "modified_at", "desc", 0) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<any> };
+    await expect(options.queryFn({ signal: new AbortController().signal })).rejects.toBeTruthy();
   });
 
   it("uses the same narrow count for standalone library totals", async () => {
     const fetch = installClient();
-    const options = useAssetCount(filters({ tagFilter: "blue" })) as unknown as { queryFn: () => Promise<number> };
-    expect(await options.queryFn()).toBe(401);
+    const options = useAssetCount(filters({ tagFilter: "blue" })) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<number> };
+    expect(await options.queryFn({ signal: new AbortController().signal })).toBe(401);
     expect(fetch.mock.calls).toHaveLength(1);
     expect(fetch.mock.calls[0][1]?.method).toBe("HEAD");
   });
 
   it("forwards category and file-status choices to facet counts", async () => {
-    rpc.mockResolvedValue({ data: { total: 0 }, error: null });
-    const options = useFilterCounts(filters({ tagFilter: "blue", productCategory: [" Wall ", "invalid"], fileStatus: ["has_preview"] })) as unknown as { queryFn: () => Promise<any> };
-    await options.queryFn();
+    const response = Promise.resolve({ data: { total: 0 }, error: null });
+    rpc.mockReturnValue(Object.assign(response, { abortSignal: () => response }));
+    const options = useFilterCounts(filters({ tagFilter: "blue", productCategory: [" Wall ", "invalid"], fileStatus: ["has_preview"] })) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<any> };
+    await options.queryFn({ signal: new AbortController().signal });
     expect(rpc).toHaveBeenCalledWith("get_filter_counts", { p_filters: { tagFilter: "blue", productCategory: ["Wall"], fileStatus: ["has_preview"] } });
   });
 });
@@ -348,5 +350,41 @@ describe("the source of truth is not re-imposed after the contract resolves it",
     // second client-side branch here would be a parity risk, not a fix.
     expect(source).toMatch(/supabase\.rpc\("get_filter_counts"/);
     expect(source).not.toMatch(/rpc\("get_effective_filter_counts"/);
+  });
+});
+
+describe("successive filter changes do not queue obsolete effective-scope work", () => {
+  it("skips a superseded query still waiting in the queue and runs the current one", async () => {
+    let finishFirst!: () => void;
+    const first = runEffectiveScopeQuery(() => new Promise<string>((resolve) => { finishFirst = () => resolve("first"); }));
+    const staleController = new AbortController();
+    const staleQuery = vi.fn(async () => "stale");
+    const stale = runEffectiveScopeQuery(staleQuery, staleController.signal);
+    const current = runEffectiveScopeQuery(async () => "current", new AbortController().signal);
+
+    staleController.abort(); // React Query cancels the obsolete filter's query
+    await vi.waitFor(() => expect(finishFirst).toBeTypeOf("function"));
+    finishFirst();
+
+    await expect(first).resolves.toBe("first");
+    await expect(stale).rejects.toMatchObject({ name: "AbortError" });
+    await expect(current).resolves.toBe("current");
+    expect(staleQuery).not.toHaveBeenCalled();
+  });
+
+  it("never starts a query whose signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const query = vi.fn(async () => "never");
+    await expect(runEffectiveScopeQuery(query, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(query).not.toHaveBeenCalled();
+    await expect(runEffectiveScopeQuery(async () => "next")).resolves.toBe("next");
+  });
+
+  it("passes the cancellation signal into every queued page, count, and facet request", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("src/hooks/useAssets.ts", "utf8");
+    expect(source.match(/runEffectiveScopeQuery\(/g)?.length).toBe(4); // page, count, standalone count, facets
+    expect(source.match(/\.abortSignal\(signal\)/g)?.length).toBe(4);
   });
 });

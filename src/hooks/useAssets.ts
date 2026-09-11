@@ -168,12 +168,29 @@ const EFFECTIVE_SCOPE_CONTRACT_READY = true;
 // queries remain concurrent.
 let effectiveScopeQueryTail: Promise<void> = Promise.resolve();
 
-async function runEffectiveScopeQuery<T>(query: () => PromiseLike<T>): Promise<T> {
+function abortError(): Error {
+  const error = new Error("Effective-scope query was superseded");
+  error.name = "AbortError";
+  return error;
+}
+
+/**
+ * Serializes effective-scope RPCs. When React Query cancels an obsolete query
+ * (for example after a filter change), its signal both aborts the in-flight
+ * request and skips work still waiting in the queue, so stale filters never
+ * hold the slot ahead of the current one.
+ */
+export async function runEffectiveScopeQuery<T>(
+  query: () => PromiseLike<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (signal?.aborted) throw abortError();
   const previous = effectiveScopeQueryTail.catch(() => undefined);
   let release!: () => void;
   effectiveScopeQueryTail = new Promise<void>((resolve) => { release = resolve; });
-  await previous;
   try {
+    await previous;
+    if (signal?.aborted) throw abortError();
     return await query();
   } finally {
     release();
@@ -348,7 +365,7 @@ export function useAssets(
   return useQuery({
     queryKey: ["assets", filters, sortField, sortDirection, page, visibilityDate, effectivePageSize],
     enabled,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
       const minDate = visibilityDate ?? "2020-01-01";
@@ -411,10 +428,13 @@ export function useAssets(
       // the useful first unit of work, and the narrow count follows once it has
       // released its database work.
       const pageResult = effectiveScope
-        ? await runEffectiveScopeQuery(() => query)
+        ? await runEffectiveScopeQuery(() => query.abortSignal(signal), signal)
         : await query;
       const countResult = effectiveScope
-        ? await runEffectiveScopeQuery(() => buildAssetCountQuery(filters, minDate, fullTextAssetIds, fallbackSearchFilter, true))
+        ? await runEffectiveScopeQuery(
+            () => buildAssetCountQuery(filters, minDate, fullTextAssetIds, fallbackSearchFilter, true).abortSignal(signal),
+            signal,
+          )
         : null;
       const { data, error } = pageResult;
       if (error) throw error;
@@ -437,7 +457,7 @@ export function useAssets(
 export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
   return useQuery({
     queryKey: ["asset-count", filters, visibilityDate],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {
         try {
@@ -457,7 +477,7 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
 
       const query = buildAssetCountQuery(filters, minDate, fullTextAssetIds, fallbackSearchFilter);
       const { count, error } = needsEffectiveScope(filters)
-        ? await runEffectiveScopeQuery(() => query)
+        ? await runEffectiveScopeQuery(() => query.abortSignal(signal), signal)
         : await query;
       if (error) throw error;
       return count ?? 0;
@@ -475,7 +495,7 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
 export function useFilterCounts(filters: AssetFilters) {
   return useQuery({
     queryKey: ["filter-counts", filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {
         try {
@@ -514,7 +534,7 @@ export function useFilterCounts(filters: AssetFilters) {
         p_filters: filterPayload as unknown as Json,
       });
       const { data, error } = needsEffectiveScope(filters)
-        ? await runEffectiveScopeQuery(() => facetQuery)
+        ? await runEffectiveScopeQuery(() => facetQuery.abortSignal(signal), signal)
         : await facetQuery;
       if (error) throw error;
       return (data ?? {}) as unknown as FacetCounts;
