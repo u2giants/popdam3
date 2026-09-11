@@ -130,7 +130,7 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   const items = (data || []).map((d: any) => ({
     ...d,
     description: descMap[d.plm_item_id]?.description || null,
-    style_number: descMap[d.plm_item_id]?.style_number || d.external_id,
+    style_number: descMap[d.plm_item_id]?.style_number || skuFromExternalId(d.external_id),
   }));
 
   return json({
@@ -142,6 +142,17 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
     total_pages: Math.ceil((totalCount ?? 0) / pageSize),
     status_counts: statusCounts,
   });
+}
+
+/**
+ * Predictions written after the canonical cutover store the three-part
+ * identity (`source_system|division_code|source_id`) as `external_id`; older
+ * rows store the bare SKU. Show the SKU either way.
+ */
+export function skuFromExternalId(externalId: string | null | undefined): string | null {
+  if (!externalId) return null;
+  const parts = externalId.split("|");
+  return parts.length >= 3 ? parts.slice(2).join("|") : externalId;
 }
 
 // ── erp-review-action ───────────────────────────────────────────────

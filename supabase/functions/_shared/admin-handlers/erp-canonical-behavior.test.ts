@@ -39,7 +39,7 @@ vi.mock("../service-client.ts", () => {
 });
 
 import { handleApplyErpEnrichment } from "./erp-handlers.ts";
-import { handleErpItemsBrowse, handleErpItemsDismiss, handleErpReviewQueue } from "./erp-browse-handlers.ts";
+import { handleErpItemsBrowse, handleErpItemsDismiss, handleErpReviewQueue, skuFromExternalId } from "./erp-browse-handlers.ts";
 
 beforeEach(() => {
   fixture.calls.length = 0;
@@ -69,6 +69,21 @@ describe("canonical ERP handler behavior", () => {
     expect(body.sample_updates).toHaveLength(1);
     expect(body.sample_updates[0]).toMatchObject({ predicted_category: "Wall", matching_asset_count: 1 });
     expect(fixture.calls).toContainEqual({ table: "product_category_predictions", column: "plm_item_id", value: "canonical-cw" });
+  });
+
+  it("dry-run skips ambiguous same-division duplicates, matching the worker apply", async () => {
+    fixture.tables["plm.item"].push({ id: "canonical-cw-other-company", source_system: "coldlion", item_number: "SAME", description: "Other company", raw: { divisionCode: "CW001" } });
+    const body = await (await handleApplyErpEnrichment({ mode: "dry-run" })).json();
+    expect(body.sample_updates ?? []).toHaveLength(0);
+    expect(fixture.calls.filter((c) => c.table === "product_category_predictions")).toHaveLength(0);
+  });
+
+  it("shows the SKU, not the whole canonical identity, for unresolved new predictions", async () => {
+    fixture.tables.product_category_predictions.push({ id: "unresolved-canonical", plm_item_id: null, external_id: "coldlion|CW001|NEWSKU", predicted_category: "Other", status: "pending" });
+    const body = await (await handleErpReviewQueue({ status: "all" })).json();
+    expect(body.items.find((row: any) => row.id === "unresolved-canonical").style_number).toBe("NEWSKU");
+    expect(body.items.find((row: any) => row.id === "unresolved").style_number).toBe("SAME");
+    expect(skuFromExternalId("coldlion||A|B")).toBe("A|B");
   });
 
   it("keeps unresolved history visible without borrowing another division's description", async () => {

@@ -45,12 +45,17 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     .in("sku", candidateSkus.length > 0 ? candidateSkus : ["__none__"])
     .eq("is_deleted", false);
   const matchedSkuSet = new Set((matchedAssets ?? []).map((a) => canonicalItemMatchKey(a.sku, a.division_code)));
-  const erpItems = (candidates ?? []).filter((c) => c.style_number && matchedSkuSet.has(canonicalItemMatchKey(c.style_number, c.division_code))).slice(0, 50);
+  const matchedItems = (candidates ?? []).filter((c) => c.style_number && matchedSkuSet.has(canonicalItemMatchKey(c.style_number, c.division_code)));
+  const canonicalIds = await canonicalItemIdMap(db, matchedItems.map((c) => ({ ...c, source_system: "coldlion" })));
+  // Mirror the worker: ambiguous identities are skipped by apply, so the
+  // preview must not count or sample them either.
+  const erpItems = matchedItems
+    .filter((c) => canonicalIds.has(canonicalItemKey({ ...c, source_system: "coldlion" })))
+    .slice(0, 50);
 
   if (erpItems.length === 0) {
     return json({ ok: true, done: true, assets_to_update: 0, groups_to_update: 0, sample_updates: [] });
   }
-  const canonicalIds = await canonicalItemIdMap(db, erpItems);
 
   const skus = erpItems.map((e) => e.style_number).filter(Boolean) as string[];
 
