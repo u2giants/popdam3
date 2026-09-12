@@ -1,59 +1,42 @@
 {
   "schema_version": 1,
-  "work_issue": 2662,
+  "work_issue": 2809,
   "outcome": "ready-for-merge",
-  "pr": 2764,
-  "migration_versions": [
-    "20260911124746"
-  ],
-  "contract_ref": "refs/db-contracts/2662/6",
-  "contract_sha256": "d147d233f14733d214884880d2bbe10fac7dcc0703b00ba75a080a43ec6dcde4",
-  "head_sha": "439cc01bc1f07a5b5a2fa8fb4073e663c364ef23",
+  "pr": 2810,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2809/4",
+  "contract_sha256": "0dd3e6769f48f080f9b318bc95a2ab44e0ca38410a3ef01929109a53db05b80a",
+  "head_sha": "a091c63c319067ececd2a5a74d8a69f667a885ac",
   "files_changed": [
-    "supabase/migrations/20260911124746_crm_definer_views_caller_gate.sql",
-    "supabase/tests/crm_definer_views_caller_gate_contracts.sql"
+    ".agent/completion.json",
+    ".agent/contract.json",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py"
   ],
-  "db_reads": [
-    "table core.customer",
-    "table crm.ingested_domain",
-    "table plm.customer_import",
-    "table app.app_access",
-    "table app.profile",
-    "view api.crm_contact_list",
-    "table core.contact",
-    "table public.sku_files_used",
-    "table public.style_guide_files",
-    "table public.style_groups"
-  ],
-  "db_writes": [
-    "view api.crm_customer_list",
-    "view api.crm_account_list",
-    "view api.crm_ingested_domain_list",
-    "view api.crm_contact_segment_list",
-    "view api.crm_contact_segment_counts",
-    "view public.sg_archive_usage"
-  ],
+  "db_reads": [],
+  "db_writes": [],
   "checks": [
+    {
+      "command": "python -m unittest scripts.test_production_migration_guard",
+      "exit_code": 0,
+      "evidence": "Ran 250 tests in 29.412s, OK, 0 failures, on the tree merged with main c7465a75 (implementation commit a091c63c). The suite grew 243 to 250 purely from cases main added while this branch waited; this lane's own two cases are still present and still pass, namely the archive-a-table case that now passes preflight and the negative control proving the OLD name after a move is still refused with 'DROPPED (or renamed away) by 20260102000000'. The capability was repaired, not removed."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=283 on the tree merged with main c7465a75. Resolved as a union, not a side pick: main's 282 reviewed dispositions were kept verbatim and exactly ONE entry was re-added, the only one this branch itself authored, verified against the true merge base 485a0ba5 rather than against main. Its site moved from scripts/production_migration_guard.py:1969 to :2093 because main edited the same file, so the line number was recomputed from the merged tree; line_sha256 50799e3f is unchanged because the line content is unchanged. call_site_count and call_site_sha256 were regenerated from the checker's own discover() inventory, giving 283 and 014700ca17452ac219a56c6e7f7c044426eacd1262a30a9888a3baf61c6cab78. The checker reports 0 missing dispositions and 0 stale sites. schema_version remains 3. Main c7465a75 touched none of this lane's three paths, so this union is unchanged from the 4da62786 pass."
+    },
     {
       "command": "git diff --check",
       "exit_code": 0,
-      "evidence": "No whitespace errors on 9b02ad48..439cc01b."
-    },
-    {
-      "command": "bash scripts/check-sql.sh",
-      "exit_code": 0,
-      "evidence": "Static checks passed on 439cc01b."
-    },
-    {
-      "command": "hosted ephemeral migration regression suite",
-      "exit_code": 0,
-      "evidence": "GitHub Actions job \"supabase/tests against an ephemeral database\" passed on commit a4848fde (run 34617412771, job 103322678124), whose supabase files are byte-identical to implementation commit 439cc01b; it applied every migration, including the base-table policy and contact-gate assertions, and ran supabase/tests/crm_definer_views_caller_gate_contracts.sql with non-zero contact and archive fixtures as the authenticated role."
+      "evidence": "No whitespace errors on the tree merged with main c7465a75."
     }
   ],
   "assumptions_resolved": [
-    "App consumer search across popcrm-web, popdam3, poppim-web, dflow_plm and edge functions found only popcrm-web authenticated browser reads of the changed views; no service-role consumer.",
-    "Read-only preview baseline: CRM callers with and without a role read 862/862/96 customer/account/domain rows; a DAM-only caller also read 862/862/96, which is the leak closed here."
+    "The identical self-flag shape in `alter table ... rename to ...` was confirmed present and deliberately left out of scope; it is recorded in the pull request body as deserving its own issue.",
+    "A second entry in the branch's previous registry copy, scripts/check-migration-ledger-drift.mjs:247, was checked against the true base 485a0ba5 and was NOT authored by this branch; main has since changed that line away, so it was dropped rather than resurrected.",
+    "Main moved twice during this refresh. Each step was re-derived with git merge-tree against the real new tip rather than trusted from a prior prediction; on the second step only the shared .agent evidence pair conflicted."
   ],
-  "stop_conditions_hit": [],
-  "evidence_note": "Implementation 439cc01b on main 9b02ad48 (supabase files identical to a4848fde) addresses the REVISE on 4a262c06 (refs/db-review-verdicts/2662-2764-4a262c06b52ea83e9912e4a8edf8db4464aec7ca): base-table grant and open-policy guard for sg_archive_usage, definer and gate guard on api.crm_contact_list, OR rejection on gated view text, non-vacuous contact and archive fixtures. Contract generation 6 declares the added reads. Diff check, static SQL checks and the hosted ephemeral suite all exit 0."
+  "stop_conditions_hit": []
 }

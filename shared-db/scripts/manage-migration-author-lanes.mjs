@@ -4,14 +4,15 @@ import { execFileSync } from 'node:child_process'
 import { runGitHubCommand as sharedRunGitHubCommand, isTransientGitHubTransport } from './lib/github-transport.mjs'
 import { createTreeReader } from './lib/github-tree.mjs'
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-dispatch-collision.mjs'
 import { classifyDependencies, findCompletionRecord, findDependencyCycles, validateCompletionRecord, validateDependencyDeclaration, COMPLETION_FENCE, DependencyError } from './lib/work-dependencies.mjs'
 import { assertLease, evaluateRecovery, formatLeaseMessage, parseLeaseMessage, recoveredLeaseMetadata, LeaseError } from './lib/exclusive-lease.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment, auditTimeline, renderTimeline } from './db-coordination-events.mjs'
-import { reconcileFlow, persistInitialReady, preparePreviewDispatch, repairPreviewReady, terminalizeReady, readyRecord } from './orchestrator-flow/reconcile.mjs'
+import { reconcileFlow, persistInitialReady, preparePreviewDispatch, repairPreviewReady, terminalizeReady, readyRecord, MODE_SEQUENCE } from './orchestrator-flow/reconcile.mjs'
 import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
 
 // `Migration guarded merge authorization` is posted by the guarded merge ITSELF,
@@ -41,29 +42,25 @@ import { PROJECT_REFS } from './orchestrator-flow/read-preview-ledger.mjs'; impo
 import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, REVIEW_VERDICTS, assertFindingsRefForPr, findingsDigest, formatVerdictMessage, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact, verdictRef } from './lib/review-verdict-artifact.mjs'
 import { changedPathsFromPullRequestFiles, classifyChangedPaths, classifyLightweightMergePullRequestFiles } from './lib/documents-only-change.mjs'
 import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
+import { AdmissionError, SERVICE_CLASSES, CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, parseImpactBlock, evaluateAdmission, inspectPrStructuralChange } from './orchestrator-flow/admission.mjs'
+import { OUTCOME_STATES, OutcomeError, advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory } from './orchestrator-flow/outcome-lifecycle.mjs'
+import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
 
 export const REPO = 'u2giants/shared-db'
-// AUTHOR LANE CAP. Raised from three to five on 2026-08-25 and from five to
-// eight on 2026-08-28, and from eight to twenty-four on 2026-09-11 (owner
-// instructions relayed on marker #2758: ignore concurrency limits).
+// NO AUTHOR LANE CAP. The cap was three (2026-08-14), five (2026-08-25), eight
+// (2026-08-28) and twenty-four (2026-09-11, #2766). On 2026-09-11 Albert ruled
+// there must be no limit on migration author lanes at all, ever (marker #2758,
+// issue #2775), so the constant and every capacity refusal are gone. Do not
+// reintroduce a number here.
 //
-// WHAT THE NUMBER DOES AND DOES NOT DO. It is a throughput dial, not a safety
-// dial. Collision safety comes from four mechanisms that do not read this
-// constant: exact per-object claims (`assertLaneAvailable`), the global
-// acquisition mutex (`MUTEX_REF`), permanent per-version refs
-// (`refs/db-claims/<version>`), and the exclusive single-holder stage refs in
-// `EXCLUSIVE_REFS`. Preview, guarded merge and production stay strictly serial
-// at twenty-four lanes exactly as they were at three -- more authors never means
-// more sessions touching a live database.
-//
-// WHAT THE RAISE ACTUALLY COSTS. Downstream capacity, not correctness. Up to
-// twenty-four authors finishing together queue in front of the single preview stage. The
-// owner approved six active reviewers, including Codex GPT-5.6 Sol and DeepSeek,
-// before this cap was activated. DeepSeek was retired on 2026-09-01 (#2078),
-// leaving five; the cap is unaffected -- it bounds authors, not reviewers. Ref writes are ~6/hour per lane, so twenty-four lanes
-// stay far inside GitHub's limits and the rate-limit caveat recorded in
-// plan_multi_agent_database_coordination_hardening.md is satisfied at this cap.
-export const MAX_AUTHOR_LANES = 24
+// The cap was a throughput dial, never a safety dial. Collision safety comes from
+// mechanisms that never read it and remain in force: exact per-object claims
+// (`assertLaneAvailable`), the global acquisition mutex (`MUTEX_REF`), permanent
+// per-version refs (`refs/db-claims/<version>`), and the exclusive single-holder
+// stage refs in `EXCLUSIVE_REFS`. Preview, guarded merge and production stay
+// strictly serial -- more authors never means more sessions touching a live
+// database. Ref writes are ~6/hour per active lease; that caveat in
+// plan_multi_agent_database_coordination_hardening.md now scales with real work.
 export const AUTHOR_CAPACITY_STATES = Object.freeze(['active', 'relinquished', 'expired-unconfirmed'])
 export const DEFAULT_LEASE_HOURS = 12
 export const MUTEX_STALE_AFTER_MS = 2 * 60 * 1000
@@ -707,11 +704,23 @@ export function parseQueueScope(body = '') {
   // make every other open issue unauditable.
   const returnTo = fields.get('return_to') ?? null
   if (returnTo !== null && !RETURN_ADDRESS_PATTERN.test(returnTo)) throw new LaneError('db-work-scope return_to must be an owner/repo slug')
-  if (returnTo !== null && workType === 'structural') throw new LaneError('structural db-work-scope must not carry a return_to address')
+  if (returnTo !== null && workType === 'structural') throw new LaneError('structural db-work-scope must not carry a return_to address; use application_return_to')
+  const serviceClass = fields.get('service_class') ?? (workType === 'structural' ? 'standard-application' : 'maintenance')
+  if (!SERVICE_CLASSES.includes(serviceClass)) throw new LaneError(`db-work-scope service_class must be one of ${SERVICE_CLASSES.join(', ')}`)
+  if (workType !== 'structural' && serviceClass !== 'maintenance') throw new LaneError(`${workType} work cannot self-promote to application service class`)
+  const changeType = fields.get('change_type') ?? null
+  if (changeType !== null && !CHANGE_TYPES.includes(changeType)) throw new LaneError(`db-work-scope change_type must be one of ${CHANGE_TYPES.join(', ')}`)
+  const applicationReturnTo = fields.get('application_return_to') ?? null
+  if (applicationReturnTo !== null && !RETURN_ADDRESS_PATTERN.test(applicationReturnTo)) throw new LaneError('db-work-scope application_return_to must be an owner/repo slug')
+  if (applicationReturnTo !== null && workType !== 'structural') throw new LaneError('application_return_to is only valid for structural outcomes')
+  const liveAssertion = fields.get('live_assertion') ?? null
+  const generatedTypes = fields.get('generated_types') ?? null
+  const outcomeStage = fields.get('outcome_stage') ?? 'entered'
+  if (!OUTCOME_STATES.includes(outcomeStage)) throw new LaneError(`db-work-scope outcome_stage must be one of ${OUTCOME_STATES.join(', ')}`)
   // `objects` stays as an alias for `writes` so every existing caller keeps working
   // during the compatibility window. Step 8A removes it once the queue audit finds
   // zero open legacy claims.
-  return { status, workType, route, priority, dependencies, returnTo, writes, reads, legacyObjects, objects: writes }
+  return { status, workType, route, priority, dependencies, returnTo, writes, reads, legacyObjects, objects: writes, serviceClass, changeType, applicationReturnTo, liveAssertion, generatedTypes, outcomeStage }
 }
 
 export const COORDINATION_LABELS = new Set(['db-claim','orchestrator-marker'])
@@ -761,12 +770,16 @@ function downstreamBlockerCounts(dependencyEdges) {
 }
 
 function queueOrder(a,b) {
-  return b.blockedIssueCount-a.blockedIssueCount
+  const serviceRank = { 'urgent-application': 0, 'standard-application': 1, maintenance: 2 }
+  const stageRank = Object.fromEntries(OUTCOME_STATES.map((state,index)=>[state,index]))
+  return serviceRank[a.serviceClass]-serviceRank[b.serviceClass]
+    || (stageRank[b.outcomeStage]??0)-(stageRank[a.outcomeStage]??0)
+    || b.blockedIssueCount-a.blockedIssueCount
     || a.createdAt-b.createdAt
     || a.issue-b.issue
 }
 
-export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null, claimPullStates = new Map(), authoredOnMain = new Set()) {
+export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null, claimPullStates = new Map(), authoredOnMain = new Set(), outcomeStates = new Map()) {
   const openNumbers = new Set(allOpenIssueNumbers.map(Number))
   const skipped = [], unclassified = [], malformed = [], unlabelled = [], candidates = [], notOrchestratorWork = []
   const dependencyEdges = {}
@@ -833,7 +846,11 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
       if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
     }
     const createdAt = Date.parse(issue.createdAt ?? issue.created_at ?? '')
-    candidates.push({ issue:issue.number, title:issue.title, createdAt:Number.isFinite(createdAt)?createdAt:Number(issue.number), ...scope })
+    if(scope.changeType===null){skipped.push({issue:issue.number,reason:'missing-required-admission-fields'});continue}
+    try { evaluateAdmission(issue, scope, parseImpactBlock(issue.body)) }
+    catch (error) { malformed.push({ issue: issue.number, reason: error.message }); continue }
+    const authoritativeOutcome=outcomeStates.get(Number(issue.number)) ?? 'entered'
+    candidates.push({ issue:issue.number, title:issue.title, createdAt:Number.isFinite(createdAt)?createdAt:Number(issue.number), ...scope, outcomeStage:authoritativeOutcome })
   }
   const blockerCounts = downstreamBlockerCounts(dependencyEdges)
   for (const candidate of candidates) candidate.blockedIssueCount = blockerCounts.get(candidate.issue) ?? 0
@@ -845,19 +862,16 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
   for (let i=0;i<components.length;i++) for (let j=i+1;j<components.length;) {
     if (components[i].some((a)=>components[j].some((b)=>conflicts(a,b)))) components[i].push(...components.splice(j,1)[0]); else j++
   }
-  const queues = Array.from({length:MAX_AUTHOR_LANES},(_,index)=>({ lane:index+1, active:null, activeLeaseState:null, activeExpiresAt:null, activePrState:null, protected:[], queued:[], objects:[], reads:[] }))
+  // Uncapped: every collision component gets its own lane, numbered in order.
+  const queues = []
   const componentRank = (component) => component.filter((item)=>item.issue).sort(queueOrder)[0]
   const ordered = components.sort((a,b)=>Number(Boolean(b.some(x=>x.claim)))-Number(Boolean(a.some(x=>x.claim))) || (componentRank(a)&&componentRank(b)?queueOrder(componentRank(a),componentRank(b)):0))
   for (const component of ordered) {
     const protectedItems = component.filter((x)=>x.claim)
     const activeItem = protectedItems.find((x)=>x.capacityActive)
-    const free=queues.filter((q)=>!q.active)
-    // Protected claims may outnumber active capacity. They remain visible in a
-    // collision component without indexing a non-existent author lane.
-    let lane = activeItem ? free[0] : [...(free.length?free:queues)].sort((a,b)=>a.queued.length-b.queued.length)[0]
-    if (!lane) lane = { lane:null, active:null, protected:[], queued:[], objects:[], reads:[] }, queues.push(lane)
+    const lane = { lane:queues.length+1, active:null, activeLeaseState:null, activeExpiresAt:null, activePrState:null, protected:[], queued:[], objects:[], reads:[] }
+    queues.push(lane)
     if (activeItem) {
-      if (!free.length) throw new LaneError(`active author capacity exceeds ${MAX_AUTHOR_LANES}`)
       lane.active = activeItem.claim
       lane.activeLeaseState = activeItem.leaseState
       lane.activeExpiresAt = activeItem.expiresAt
@@ -868,14 +882,17 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
     lane.objects.push(...new Set(component.flatMap((x)=>x.writes ?? x.objects ?? [])))
     lane.reads.push(...new Set(component.flatMap((x)=>x.reads ?? [])))
   }
-  const authorQueues = queues.filter((q)=>q.lane !== null)
+  const authorQueues = queues
   const emptyLanes = authorQueues.filter((q)=>!q.active).length
   const dispatchable = authorQueues.filter((q)=>!q.active && !q.protected.length && q.queued.length).map((q)=>q.queued[0])
+  const urgentWaitingCapacity = candidates.filter((candidate)=>candidate.serviceClass==='urgent-application'&&!dispatchable.includes(candidate.issue)).filter((candidate)=>{
+    const queue=authorQueues.find((row)=>row.queued.includes(candidate.issue));return Boolean(queue?.active)||Boolean(queue?.protected?.length)
+  }).map((candidate)=>candidate.issue)
   const expiredClaims = authorQueues.filter((q)=>q.active && q.activeLeaseState === 'expired-unconfirmed').map((q)=>({ claim:q.active, lane:q.lane, expires_at:q.activeExpiresAt, pr_state:q.activePrState, queued:[...q.queued] }))
   // A CYCLE IS NEVER STARTABLE and is invisible to an open/closed test, so it is
   // reported as its own finding rather than as N tasks that merely look blocked.
   const dependencyCycles = findDependencyCycles(dependencyEdges)
-  return { queues, expiredClaims, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dependencyCycles, grandfatheredDependencies, blockerCounts:Object.fromEntries(blockerCounts), dispatchable, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length&&!dependencyCycles.length }
+  return { queues, expiredClaims, skipped, unclassified, malformed, unlabelled, notOrchestratorWork, dependencyCycles, grandfatheredDependencies, blockerCounts:Object.fromEntries(blockerCounts), dispatchable, urgentWaitingCapacity, emptyLanes, fullyAudited:!unclassified.length&&!malformed.length&&!unlabelled.length&&!dependencyCycles.length }
 }
 
 // RETURN PATH (AGENTS.md 0.0-C). A rejected task is forwarded to the repository
@@ -979,15 +996,15 @@ export function parseAuthorLease(body, now = new Date()) {
   return { ...claim, legacy: false, owner: fields.get('owner'), branch: fields.get('branch'), worktree: fields.get('worktree'), expiresAt, active, capacityState, declaredCapacityState, capacityActive, blockedOn }
 }
 
-export function assertLaneAvailable(claims, proposedObjects, now = new Date(), { ignoreCapacity = false, prSources = [] } = {}) {
+export function assertLaneAvailable(claims, proposedObjects, now = new Date(), { prSources = [] } = {}) {
   const parsed = claims.map((claim) => {
     try { return { ...claim, lease: parseAuthorLease(claim.body, now) } }
     catch (error) { throw new LaneError(`claim #${claim.number} is unreadable: ${error.message}`) }
   })
-  // Legacy claims consume capacity. An expiry never releases object protection;
-  // cleanup must close the issue explicitly before another author can touch it.
+  // No capacity refusal: author lanes are unlimited (issue #2775). An expiry never
+  // releases object protection; cleanup must close the issue explicitly before
+  // another author can touch its objects.
   const occupied = parsed.filter((claim)=>claim.lease.capacityActive)
-  if (!ignoreCapacity && occupied.length >= MAX_AUTHOR_LANES) throw new LaneError(`all ${MAX_AUTHOR_LANES} active-author leases are occupied`)
   const wanted = new Set(proposedObjects.map(normalizeObject))
   for (const holder of [...parsed.map((c) => ({ label: `claim #${c.number}`, objects: c.lease.objects })), ...prSources]) {
     const overlap = (holder.objects ?? []).map(normalizeObject).filter((object) => wanted.has(object))
@@ -1055,6 +1072,43 @@ export function withReviewRequestBudget(fn,limit=REVIEW_OPERATION_REQUEST_LIMIT,
   reviewWireBudget={count:0,limit,operation}
   try{return fn(reviewWireBudget)}finally{reviewWireBudget=null;reviewCommitBase=null;freshDurableVerdictRefs=null}
 }
+// Issue #2802: the structural-admission gate (scripts/orchestrator-flow/admission.mjs,
+// landed in e7bec2fe on 2026-09-11) is NOT reviewer work, but its GitHub reads -- the
+// pull request, the linked work issue, the complete file list, file contents at the
+// exact head, the closing-issue link, the outcome history -- were charged to the
+// reviewer operation's request ceiling. That ceiling is DERIVED in
+// docs/verification/reviewer-assignment-api-budget-2026-08-28.md for a draw that had NO
+// admission step: it predates this gate entirely. Charged against it, a structural draw
+// exhausted the budget at request 24 (2 held back as the mutex-release reserve). That
+// refusal came out of consumeReviewWireRequest from INSIDE the held mutex section, not
+// as a cheap fail-fast before the mutex was taken: the mutex-release reserve is only
+// subtracted once acquireReviewMutex has set `locked` (see the cleanupReserve assignment
+// there), and requirePrOperationRoute -> requireAdmission runs after acquireReviewMutex
+// in assignNextReviewerOperation. So the lane had already taken the reviewer mutex and
+// made admission's reads under it, and then had to unwind and release it. Every
+// migration author lane in the fleet was blocked.
+//
+// The ceiling is NOT widened and the mutex-release reserve is NOT touched -- issue #2075
+// exists precisely to stop that shortcut. Admission still runs, still refuses exactly as
+// it did, and still runs under the SAME held mutex before the draw proceeds:
+// requireAdmission and requirePrOperationRoute prove continued mutex ownership while
+// they run, and that proof is what stops the route or the admission answer changing
+// between the check and the draw. Only the ACCOUNTING moves. Admission is charged to a
+// reviewer budget nowhere else it is called from either -- acquireAuthorLane, the
+// guarded merge gate and preview preparation all call it with no reviewer budget
+// installed at all -- so this makes the reviewer path consistent with every other
+// admission call site rather than inventing a new exemption for it.
+//
+// A budget object is still installed rather than `null`, so ghPaginated keeps its
+// reviewer-operation refusal of possible pagination, and `locked` is carried through so
+// the single-attempt policy for requests made while a mutex is held is unchanged. The
+// reviewer operation's own count, caches and reserve are restored untouched.
+function withoutReviewRequestBudget(fn){
+  if(!reviewWireBudget)return fn()
+  const suspended=reviewWireBudget
+  reviewWireBudget={count:0,limit:Number.MAX_SAFE_INTEGER,operation:`${suspended.operation??'reviewer-operation'}-admission-gate`,locked:suspended.locked,cleanup:suspended.cleanup}
+  try{return fn()}finally{reviewWireBudget=suspended}
+}
 // Issue #2342: the retry loop, the classifier and the stderr policy now live in
 // scripts/lib/github-transport.mjs, which is the ONE transport every governed
 // gate uses. What stays here is the part that is specific to this file: the
@@ -1062,7 +1116,7 @@ export function withReviewRequestBudget(fn,limit=REVIEW_OPERATION_REQUEST_LIMIT,
 // so it is charged inside the executor the shared transport calls, not around
 // it. Writes default to one attempt. Only the ref helpers below opt into replay,
 // because they prove the requested end state with an owner-bound readback.
-export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms),attempts=4,expectedFailure=null,reportStderr=(text)=>process.stderr.write(text),idempotentWrite=false}={}) {
+export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms),attempts=4,expectedFailure=null,reportStderr=(text)=>process.stderr.write(text),idempotentWrite=false,maxBuffer,encoding,input}={}) {
   return sharedRunGitHubCommand(args,{
     executor:(bin,cmdArgs,options)=>{consumeReviewWireRequest();return executor(bin,cmdArgs,options)},
     wait,
@@ -1070,6 +1124,9 @@ export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.
     idempotentWrite,
     expectedFailure,
     reportStderr,
+    maxBuffer,
+    encoding,
+    input,
     wrapError:(detail)=>new LaneError(`GitHub command failed: ${detail}`),
   })
 }
@@ -1337,7 +1394,15 @@ function requireClaimCloseReason(reason) {
   return reason
 }
 
+export function matchesLiveProof(proof,evidence){
+  return proof?.schema_version===1&&proof.work_issue===evidence.work_issue&&proof.application_commit_sha===evidence.application_commit_sha&&proof.live_assertion===evidence.live_assertion&&proof.environment===evidence.environment&&proof.result==='passed'&&proof.observed_at===evidence.verified_at&&!Number.isNaN(Date.parse(proof.observed_at))
+}
+export function matchesGeneratedTypesProof(proof,evidence){
+  return proof?.schema_version===1&&proof.work_issue===evidence.work_issue&&proof.application_commit_sha===evidence.application_commit_sha&&proof.result==='passed'&&proof.generated_types_sha256===evidence.generated_types_output_digest
+}
+
 export const githubIo = {
+  enforceAdmission:true,
   // Owner ruling 2026-09-11 (marker #2758): no global FIFO for reviewer draws. Any PR
   // draws any free usable provider immediately; the per-provider lease, engine
   // exclusions, and exact-head binding in assignNextReviewerOperation still apply.
@@ -1354,6 +1419,11 @@ export const githubIo = {
   // raises, and `assertReviewerDrawIsWarranted` catches it and draws as before:
   // "we could not tell" costs a review, it never grants an exemption.
   pullRequestFiles(pr){return ghPaginated(`repos/${REPO}/pulls/${Number(pr)}/files?per_page=100`)},
+  readReviewerOperationRoute(pr){
+    const query=`query($owner:String!,$name:String!,$pr:Int!){repository(owner:$owner,name:$name){pullRequest(number:$pr){state merged mergedAt headRefOid files(first:100){pageInfo{hasNextPage} nodes{path changeType}} closingIssuesReferences(first:2){pageInfo{hasNextPage} nodes{... on Issue{number state body createdAt}}}}}}`
+    const data=ghJson(['api','graphql','-f',`query=${query}`,'-F','owner=u2giants','-F','name=shared-db','-F',`pr=${Number(pr)}`])
+    return projectReviewerOperationRouteSnapshot(data)
+  },
   countLogicalReviewRequests:true,
   getRateLimit(){
     const rest=ghJson(['api','rate_limit'])?.resources?.core
@@ -1525,7 +1595,7 @@ export const githubIo = {
       const state = { exists: true, open: issue.state === 'open', closedAt: issue.closed_at ?? null, comments: [] }
       if (!state.open) {
         try {
-          state.comments = ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body: c.body }))
+          state.comments = ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body:c.body, author_association:c.author_association, author:c.user?.login }))
         } catch (error) {
           states[number] = { exists: true, unreadable: `comments unreadable: ${String(error?.message ?? error)}` }
           continue
@@ -1558,6 +1628,18 @@ export const githubIo = {
   },
   getCommitStatus(headSha,context) {
     return selectNewestCommitStatus(ghPaginated(`repos/${REPO}/commits/${headSha}/statuses?per_page=100`),context)
+  },
+  closingIssuesForPr(number) {
+    const query=`query{repository(owner:"u2giants",name:"shared-db"){pullRequest(number:${Number(number)}){closingIssuesReferences(first:10){nodes{number state} pageInfo{hasNextPage}}}}}`
+    const data=ghJson(['api','graphql','-f',`query=${query}`])
+    const connection=data?.data?.repository?.pullRequest?.closingIssuesReferences
+    if(!connection||!Array.isArray(connection.nodes)||connection.pageInfo?.hasNextPage!==false)throw new LaneError('pull request closing-issue linkage is unreadable or paginated')
+    return connection.nodes
+  },
+  prStructuralObjects(number,headSha){
+    const files=this.getPrFiles(Number(number)).map((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(String(file?.filename??file?.path??''))&&file?.status!=='removed'
+      ?{...file,content:this.getFileAt(file.filename??file.path,headSha)}:file)
+    return inspectPrStructuralChange(files).objects
   },
   // Issue #2342: the caller reads a whole SET of files at one ref, which used to
   // be a Contents call each. One recursive tree read now answers every path, and
@@ -1606,6 +1688,15 @@ export const githubIo = {
     return ghJson(args)
   },
   mainSha() { return ghJson(['api', `repos/${REPO}/git/ref/heads/main`])?.object?.sha ?? null },
+  // Fetches the exact commits it compares, so a stale local checkout cannot answer.
+  // Any failure answers "not equivalent" and the exact-head rule stands.
+  contentPreservingRefresh(approvedHead,head){
+    try{
+      const main=this.mainSha();if(!/^[0-9a-f]{40}$/.test(String(main)))return{ok:false,reason:'main tip unreadable'}
+      execFileSync('git',['fetch','--no-tags','-q','origin',String(head),main],{stdio:['ignore','pipe','pipe']})
+      return isContentPreservingRefresh({approvedHead,head,mainRef:main})
+    }catch(error){return{ok:false,reason:`could not fetch the heads to compare: ${String(error?.message??error).split('\n')[0]}`}}
+  },
   getCommit(sha) { return ghJson(['api', `repos/${REPO}/git/commits/${sha}`]) },
   // ARGUMENT ORDER IS THE WHOLE CHECK. GitHub's compare endpoint is
   // `compare/{base}...{head}` and reports how HEAD relates to BASE. Passing the
@@ -1746,7 +1837,85 @@ export const githubIo = {
   createClaim(title, body) { return gh(['issue', 'create', '--repo', REPO, '--label', 'db-claim', '--title', `CLAIM: ${title}`, '--body', body]).trim() },
   createIssueIn(repo, title, body) { return gh(['issue','create','--repo',repo,'--title',title,'--body',body]).trim() },
   commentIssue(number, body) { gh(['issue','comment',String(number),'--repo',REPO,'--body',body]) },
-  issueComments(number) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body: c.body })) },
+  issueComments(number) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body:c.body, author_association:c.author_association, author:c.user?.login })) },
+  readOutcomeEvidence(ref) {
+    const match=/^https:\/\/github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/\d+#issuecomment-(\d+)$/.exec(String(ref??''))
+    if(!match)throw new LaneError('outcome evidence must be an exact GitHub issue or pull-request comment URL')
+    return ghJson(['api',`repos/${match[1]}/issues/comments/${match[2]}`])?.body??''
+  },
+  applicationCommitInDefaultBranch(repository,sha) {
+    const repo=ghJson(['api',`repos/${repository}`]),branch=repo?.default_branch
+    if(!branch)return false
+    const comparison=ghJson(['api',`repos/${repository}/compare/${sha}...${encodeURIComponent(branch)}`])
+    return comparison?.behind_by===0&&['identical','ahead'].includes(comparison?.status)
+  },
+  verifyProductionApply(evidence){
+    const match=/^https:\/\/github\.com\/(u2giants\/shared-db)\/actions\/runs\/(\d+)$/.exec(String(evidence?.production_evidence??''))
+    if(!match)return false
+    const run=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}`])
+    if(run?.conclusion!=='success'||run?.event!=='workflow_dispatch'||run?.path!=='.github/workflows/shared-supabase-migrations.yml'||String(run?.head_sha??'').toLowerCase()!==String(evidence.production_commit_sha).toLowerCase())return false
+    const ancestry=ghJson(['api',`repos/${REPO}/compare/${evidence.merge_sha}...${evidence.production_commit_sha}`])
+    if(!['identical','ahead'].includes(ancestry?.status)||Number(ancestry?.behind_by)!==0)return false
+    const artifacts=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}/artifacts`])?.artifacts
+    const artifact=Array.isArray(artifacts)?artifacts.find((row)=>Number(row.id)===Number(evidence.production_artifact_id)):null
+    if(!(artifact?.name===`production-migration-apply-${String(evidence.production_commit_sha).toLowerCase()}`&&artifact.expired===false&&String(artifact.digest??'').toLowerCase()===String(evidence.production_artifact_digest).toLowerCase()))return false
+    const files=this.readArtifactFiles(match[1],artifact.id,['production-apply.txt','production-ledger-after.txt','migration-content-manifest.json','production-catalog-verification.json'])
+    if(!files.get('production-apply.txt')?.trim())return false
+    try{JSON.parse(files.get('production-catalog-verification.json'));JSON.parse(files.get('migration-content-manifest.json'))}catch{return false}
+    const versions=this.getPrFiles(Number(evidence.merge_pr)).map((file)=>/^supabase\/migrations\/(\d{14})_[^/]+\.sql$/.exec(String(file?.filename??''))?.[1]).filter(Boolean)
+    return versions.length>0&&versions.every((version)=>files.get('production-ledger-after.txt').includes(version)&&files.get('migration-content-manifest.json').includes(version))
+  },
+  verifyLiveAssertion(evidence) {
+    const match=/^https:\/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)$/.exec(String(evidence?.live_evidence??''))
+    if(!match||match[1].toLowerCase()!==String(evidence.application_repository).toLowerCase())return false
+    const run=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}`])
+    if(run?.conclusion!=='success'||String(run?.head_sha??'').toLowerCase()!==String(evidence.application_commit_sha).toLowerCase())return false
+    const artifacts=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}/artifacts`])?.artifacts
+    if(!Array.isArray(artifacts))return false
+    const artifact=artifacts.find((row)=>Number(row.id)===Number(evidence.live_artifact_id))
+    const expectedName=`shared-db-live-proof-${evidence.work_issue}-${String(evidence.application_commit_sha).toLowerCase()}`
+    if(!(artifact?.name===expectedName&&artifact.expired===false&&String(artifact.digest??'').toLowerCase()===String(evidence.live_artifact_digest).toLowerCase()))return false
+    const proof=this.readArtifactJson(match[1],artifact.id,'db-live-proof.json')
+    return matchesLiveProof(proof,evidence)
+  },
+  verifyGeneratedTypes(evidence){
+    const match=/^https:\/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)$/.exec(String(evidence?.generated_types_evidence??''))
+    if(!match||match[1].toLowerCase()!==String(evidence.application_repository).toLowerCase())return false
+    const run=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}`])
+    if(run?.conclusion!=='success'||String(run?.head_sha??'').toLowerCase()!==String(evidence.application_commit_sha).toLowerCase())return false
+    const artifacts=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}/artifacts`])?.artifacts
+    const artifact=Array.isArray(artifacts)?artifacts.find((row)=>Number(row.id)===Number(evidence.generated_types_artifact_id)):null
+    const expectedName=`shared-db-generated-types-${evidence.work_issue}-${String(evidence.application_commit_sha).toLowerCase()}`
+    if(!(artifact?.name===expectedName&&artifact.expired===false&&String(artifact.digest??'').toLowerCase()===String(evidence.generated_types_artifact_digest).toLowerCase()))return false
+    const proof=this.readArtifactJson(match[1],artifact.id,'db-generated-types-proof.json')
+    return matchesGeneratedTypesProof(proof,evidence)
+  },
+  readArtifactJson(repository,id,expectedFile){
+    const directory=mkdtempSync(path.join(tmpdir(),'shared-db-proof-')),archive=path.join(directory,'proof.zip')
+    try{
+      const bytes=gh(['api',`repos/${repository}/actions/artifacts/${Number(id)}/zip`],{encoding:null,maxBuffer:20*1024*1024})
+      writeFileSync(archive,bytes)
+      const entries=execFileSync('tar',['-tf',archive],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).split(/\r?\n/).filter(Boolean)
+      if(entries.length!==1||entries[0]!==expectedFile)throw new LaneError(`proof artifact must contain exactly ${expectedFile}`)
+      execFileSync('tar',['-xf',archive,'-C',directory],{stdio:'ignore'})
+      return JSON.parse(readFileSync(path.join(directory,expectedFile),'utf8'))
+    }finally{rmSync(directory,{recursive:true,force:true})}
+  },
+  readArtifactFiles(repository,id,expectedFiles){
+    const directory=mkdtempSync(path.join(tmpdir(),'shared-db-production-proof-')),archive=path.join(directory,'proof.zip')
+    try{
+      const bytes=gh(['api',`repos/${repository}/actions/artifacts/${Number(id)}/zip`],{encoding:null,maxBuffer:20*1024*1024})
+      writeFileSync(archive,bytes)
+      const entries=execFileSync('tar',['-tf',archive],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).split(/\r?\n/).filter(Boolean)
+      const result=new Map()
+      for(const expected of expectedFiles){
+        const entry=entries.find((value)=>value===expected||value.endsWith(`/${expected}`))
+        if(!entry)throw new LaneError(`production proof artifact is missing ${expected}`)
+        result.set(expected,execFileSync('tar',['-xOf',archive,entry],{encoding:'utf8',stdio:['ignore','pipe','pipe']}))
+      }
+      return result
+    }finally{rmSync(directory,{recursive:true,force:true})}
+  },
   closeIssue(number) { gh(['issue','close',String(number),'--repo',REPO]) },
   closeClaim(number, reason) { gh(['issue', 'close', String(number), '--repo', REPO, '--comment', requireClaimCloseReason(reason)]) },
   reversionFiles(worktree,oldVersion) {
@@ -1848,13 +2017,13 @@ export const githubIo = {
   resolveOrchestratorEngine(){
     return orchestratorEngineFromResolution(readOrchestratorResolution(()=>runOrchestratorResolver()))
   },
-  orchestratorFlowAdapter(claimNumber){ return githubFlowAdapter(this,claimNumber) },
+  orchestratorFlowAdapter(claimNumber,admissionOptions=null){ return githubFlowAdapter(this,claimNumber,admissionOptions) },
   flowSnapshot(){
     return {issues:this.openClaims().map((claim)=>{const lease=parseAuthorLease(claim.body),issue=claimWorkIssue(claim),work=this.getIssue(issue),declared=/^blocked_on:\s*(issue:#\d+|artifact:[^\s]+)\s*$/m.exec(work?.body??'')?.[1]??null,reference=declared??lease.blockedOn,resolved=reference?.startsWith('issue:#')?this.getIssue(Number(reference.slice(7)))?.state==='closed':false;let preview_edge_satisfied=false,preview_error=null;try{deriveLivePreviewCandidate(issue,this);preview_edge_satisfied=true}catch(error){preview_error=error.message}return{issue,claim:claim.number,owner:lease.owner,capacity_state:lease.capacityState,blocker:reference?{durable:true,resolved,reference}:null,preview_edge_satisfied,preview_error}})}
   },
 }
 
-function githubFlowAdapter(io,claimNumber=null){
+function githubFlowAdapter(io,claimNumber=null,admissionOptions=null){
   const payload=(sha)=>{const message=io.getCommit(sha)?.message??'';const match=/^db-preview-(?:ready|outcome) ([\s\S]+)$/.exec(message);if(!match)throw new LaneError('preview coordination ref does not point to a recognized immutable payload');return JSON.parse(match[1])}
   return {
     // Same defect as `resolveOrchestratorEngine` (issue #2127): every non-zero
@@ -1873,11 +2042,11 @@ function githubFlowAdapter(io,claimNumber=null){
     createRef(ref,digest,record){const kind=ref.startsWith('refs/db-preview-ready-outcomes/')?'outcome':'ready',sha=io.makeOwnerCommit(`db-preview-${kind} ${JSON.stringify({digest,record})}`);return io.createRef(ref,sha)},
     readRef(ref){const sha=io.refreshRef?.(ref)??io.readRef(ref);return sha?payload(sha):null},
     listReady(issue){return io.listRefs('refs/db-preview-ready/').map((row)=>payload(row.sha)).filter((row)=>Number(row.record?.issue)===Number(issue))},
-    selectCurrent(issue){return deriveLivePreviewCandidate(Number(issue),io,{claimNumber})},
+    selectCurrent(issue){const candidate=deriveLivePreviewCandidate(Number(issue),io,{claimNumber});if(admissionOptions&&(Number(candidate.issue)!==Number(admissionOptions.admitIssue)||Number(candidate.pr)!==Number(admissionOptions.pr)))throw new LaneError(`preview candidate issue #${candidate.issue} pull request #${candidate.pr} is not the admitted issue #${admissionOptions.admitIssue} pull request #${admissionOptions.pr}`);return candidate},
     relinquishCapacity(row){return relinquishAuthorLease({claim:row.claim,owner:row.owner,blockedOn:row.blocker.reference},new Date(),io)},
     resumeCapacity(row){return resumeAuthorLease({claim:row.claim,owner:row.owner,leaseHours:DEFAULT_LEASE_HOURS},new Date(),io)},
     persistReady(row){return persistInitialReady(deriveLivePreviewCandidate(Number(row.issue),io),this)},
-    withMutex(fn){const ownerSha=io.makeOwnerCommit(`db-coordination preview-ready-preparation issue=0`);acquireMutex(ownerSha,io);try{return fn()}finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}},
+    withMutex(fn){const ownerSha=io.makeOwnerCommit(`db-coordination preview-ready-preparation issue=0`);acquireMutex(ownerSha,io);try{if(admissionOptions)requireAdmission(admissionOptions,io,{pr:admissionOptions.pr??null,mutexOwner:ownerSha});return fn()}finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}},
     events(issue){return (io.issueComments(issue)??[]).flatMap((comment)=>parseEventComment(comment.body??comment))},
   }
 }
@@ -1904,12 +2073,15 @@ export function deriveLivePreviewCandidate(issue,io,{claimNumber=null}={}){
     if(!io.mergeCommitInMain(mergeCommit))throw new LaneError(`merged claim #${claim.number} merge commit ${mergeCommit} is not in main history`)
   }
   else throw new LaneError(`claim #${claim.number} must have exactly one live pull request`)
-  const head=pr.head.sha,changed=io.getPrFiles(pr.number).filter((file)=>file.status!=='removed').map((file)=>file.filename)
+  const head=pr.head.sha,prFiles=io.getPrFiles(pr.number),changed=prFiles.filter((file)=>file.status!=='removed').map((file)=>file.filename)
   const migrations=changed.filter((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(file)),versions=migrations.map((file)=>path.basename(file).slice(0,14))
   if(!migrations.length)throw new LaneError('pull request has no added migration to prepare')
   for(const row of claims)if(claimTitleWorkIssue(row.claim)===null&&versions.includes(row.lease.version))throw new LaneError(`open claim #${row.claim.number} with an invalid title protects recovery version ${row.lease.version}`)
   const inventory=JSON.parse(io.getFileAt('config/orchestrator-global-invalidators-v1.json',head)),allFiles=new Set([...migrations,...changed.filter((file)=>/^(?:supabase\/tests\/|scripts\/production-verification-sidecars\/)/.test(file)),...inventory.files,'config/orchestrator-global-invalidators-v1.json'])
   const contents=new Map([...allFiles].map((file)=>[file,io.getFileAt(file,head)])),headTree=io.treeFiles(head),order=headTree.filter((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(file)).sort()
+  // Preview readiness is structural evidence: classify the migration SQL itself, never its filename, and bind it to the claim's writes.
+  const structural=inspectPrStructuralChange(prFiles.filter((file)=>migrations.includes(file.filename)).map((file)=>({...file,content:contents.get(file.filename)}))),leaseWrites=[...(lease.writes??[])].sort()
+  if(structural.objects.length!==leaseWrites.length||structural.objects.some((value,index)=>value!==leaseWrites[index]))throw new LaneError(`pull request #${pr.number} structural objects do not exactly match claim #${claim.number} writes; preview preparation refused`)
   const bundle=buildEvidenceBundle({migrations,focusedFiles:changed.filter((file)=>file.startsWith('supabase/tests/')),verificationFiles:changed.filter((file)=>file.startsWith('scripts/production-verification-sidecars/')),writes:lease.writes,reads:lease.reads,migrationOrderDigest:sha256(canonicalJson(order)),issue,pr:pr.number,claim:claim.number,baseMainSha:pr.base.sha,integrationSha:head},{isClean:()=>true,fileExists:(file)=>contents.has(file),readFile:(file)=>contents.get(file)})
   const work=io.getIssue(issue),scope=parseQueueScope(work?.body??''),gate=io.previewGateProof(issue,pr.number,head,bundle.bundle_id,scope.dependencies)
   const main=io.mainSha(),mainVersions=io.treeFiles(main).filter((file)=>/^supabase\/migrations\/\d{14}_/.test(file)).map((file)=>path.basename(file).slice(0,14)),preview=io.previewLedger?.()??livePreviewLedger(),originalApplyEvidence=versions.every((version)=>preview.versions.includes(version))?validateOriginalPreviewApplyEvidence({issue,pr:pr.number,versions,mergeCommitSha:merged?pr.merge_commit_sha:null},io):null
@@ -1927,7 +2099,26 @@ export function deriveLivePreviewCandidate(issue,io,{claimNumber=null}={}){
   // A merged pull request has no live author claim; do not name both."
   const claimFields=routeName==='merged_rehearsal'?{}:{claim_pr:String(pr.number),claim_head_sha:head}
   const manifest={target:'preview',preview_allowlist:versions.join(','),...claimFields,...(routeName==='merged_rehearsal'?{commit_sha:main,merged_preview_source_pr:String(pr.number)}:{}),...(routeName==='historical_rebind'?{commit_sha:main,historical_preview_source_pr:String(pr.number),historical_preview_original_run_map:versions.map((version)=>`${version}:${originalApplyEvidence.run_id}`).join(',')}:{})}
-  return {issue,pr:pr.number,head_sha:head,bundle_id:bundle.bundle_id,route:routeName,route_context:routeContext,manifest}
+  // THE STORED INSTRUCTION MUST NAME ITS OWN MODES (#2796). The workflow's `mode`
+  // input defaults to dry-run, so an instruction that says nothing about mode gets
+  // dispatched verbatim and DRY-RUNS: it succeeds, uploads only
+  // `preview-migration-dry-run-<sha>`, applies nothing, and every downstream lane
+  // then reads that green run as preview proof. Run 34633793571 is exactly that.
+  //
+  // The mode is emitted BESIDE the manifest, never inside it. Phase 2 is explicit
+  // that "`mode` is a per-run phase, not part of ready identity or frozen-manifest
+  // equality", so folding it into the manifest would change manifest_digest and
+  // ready_id and freeze a phase into immutable identity.
+  //
+  // The sequence is route-specific, matching the existing workflow: ordinary and
+  // merged rehearsals "run `mode=dry-run` then `mode=apply`", while historical
+  // rebind "runs the existing recovery `mode=apply` only and must never dispatch a
+  // historical-input dry-run". A historical dry-run is refused outright by the
+  // workflow; the ordinary/merged dry-run is a REQUIRED first phase and stays legal.
+  // One source of truth, shared with the reconciler that re-derives it from the
+  // route when the record is read back, so the two layers cannot drift.
+  const modeSequence=MODE_SEQUENCE[routeName]
+  return {issue,pr:pr.number,head_sha:head,bundle_id:bundle.bundle_id,route:routeName,route_context:routeContext,mode_sequence:modeSequence,manifest}
 }
 
 export function terminalizeHistoricalPreviewReady({readyId,issue,runId,artifactId,artifactDigest,manifestDigest},io=githubIo){
@@ -2148,7 +2339,7 @@ export function recoverStaleAuthorMutex({ expectedSha, confirmStale, serializedR
     const message=commit?.message ?? commit?.commit?.message ?? ''
     const dateText=commit?.committer?.date ?? commit?.commit?.committer?.date
     const acquiredAt=new Date(dateText)
-    if(!/^db-coordination (?:author-acquisition|author-capacity-relinquish|author-capacity-resume|preview|merge|production|repository-maintenance-authorization|claim-release|duplicate-claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-lease-renewal|expired-claim-recovery|reviewer-assignment-lock|reviewer-replacement-lock|reviewer-queue-lock|reviewer-silence-release-lock|reviewer-failure(?:-replacement)?|reviewer-index-cutover-activation-audit)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
+    if(!/^db-coordination (?:admission(?:-operation)?|outcome-(?:advance|complete)|author-acquisition|author-capacity-relinquish|author-capacity-resume|preview|merge|production|repository-maintenance-authorization|claim-release|duplicate-claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-lease-renewal|expired-claim-recovery|reviewer-assignment-lock|reviewer-replacement-lock|reviewer-queue-lock|reviewer-silence-release-lock|reviewer-failure(?:-replacement)?|reviewer-index-cutover-activation-audit)\b/.test(message))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
     if(Number.isNaN(acquiredAt.valueOf()))throw new LaneError('refusing recovery: mutex owner time is unreadable')
     const age=now-acquiredAt
     if(age<minAgeMs)throw new LaneError(`refusing recovery: mutex is only ${Math.max(0,Math.floor(age/1000))} seconds old`)
@@ -3529,7 +3720,39 @@ export function headVerdictBlocksReplacement(issue,pr,headSha,io,options={}){
   })
 }
 
+// A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (orchestrator marker #2758). The
+// same rule `evaluateApprovalWithRefresh` applies at the merge gate: an APPROVE
+// that fully satisfies an earlier head A stands for head B when A is an ancestor
+// of B and the pull request's own diff is identical at both (`.agent/` aside).
+// A refusal at B, or at any content-identical earlier head, still blocks. With no
+// `io.contentPreservingRefresh` nothing is carried.
 export function assertDurableReviewApproval(issue,pr,headSha,io=githubIo){
+  const head=String(headSha).toLowerCase()
+  try{return assertExactDurableReviewApproval(issue,pr,head,io)}catch(exactError){
+    if(!(exactError instanceof LaneError)||typeof io.contentPreservingRefresh!=='function')throw exactError
+    if(/durable reviewer refusal/.test(exactError.message))throw exactError
+    // A head with reviewer records of its own (assignment, replacement, return or
+    // verdict) is judged on those alone: carrying a prior head's sign-off past
+    // them would bypass a slot returned or newly drawn here (muse review, #2780).
+    const own=[REVIEW_ASSIGNMENT_REF_PREFIX,REVIEW_REPLACEMENT_REF_PREFIX,REVIEW_RETURN_REF_PREFIX,REVIEW_VERDICT_REF_PREFIX,REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((p)=>io.listRefs(`${p}/${Number(issue)}-${Number(pr)}-${head}`)??[])
+    if(own.length)throw new LaneError(`${exactError.message}; an APPROVE cannot be carried forward because this head has reviewer records of its own (assignment, return or verdict), so it is judged on those alone`)
+    const prefix=(p)=>`${p}/${Number(issue)}-${Number(pr)}-`
+    // Prior heads come from verdicts and returns too, not only live assignments:
+    // an exclusion clears a refused head's assignment and leaves its verdict,
+    // and that refusal must still block (grok review of PR #2780).
+    const priors=[...new Set([REVIEW_ASSIGNMENT_REF_PREFIX,REVIEW_REPLACEMENT_REF_PREFIX,REVIEW_RETURN_REF_PREFIX,REVIEW_VERDICT_REF_PREFIX,REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((p)=>(io.listRefs(prefix(p))??[]).map(({ref})=>new RegExp(`^${Number(issue)}-${Number(pr)}-([0-9a-f]{40})`).exec(String(ref).slice(p.length+1))?.[1])).filter(Boolean))].filter((sha)=>sha!==head)
+    const equivalent=priors.filter((sha)=>io.contentPreservingRefresh(sha,head)?.ok===true)
+    for(const sha of equivalent){
+      let rows
+      try{rows=readReviewVerdicts(issue,pr,sha,io)}catch(error){throw new LaneError(`${exactError.message}; an APPROVE cannot be carried forward because the reviewer records at head ${sha}, whose pull request diff is identical to this head, could not be read: ${error?.message??error}`)}
+      if(rows.some((row)=>row.verdict!=='APPROVE'))throw new LaneError(`${exactError.message}; an APPROVE cannot be carried forward because head ${sha}, whose pull request diff is identical to this head, carries a durable reviewer refusal`)
+    }
+    for(const sha of equivalent){try{return assertExactDurableReviewApproval(issue,pr,sha,io)}catch(error){if(!(error instanceof LaneError))throw error}}
+    throw exactError
+  }
+}
+
+function assertExactDurableReviewApproval(issue,pr,headSha,io){
   const head=String(headSha).toLowerCase(),allVerdicts=readReviewVerdicts(issue,pr,head,io,{includeDisregarded:true})
   const disregarded=allVerdicts.filter((row)=>row.disregarded),verdicts=allVerdicts.filter((row)=>!row.disregarded)
   // #2079. A verdict recorded before the write-side guard existed, by a reviewer
@@ -3961,6 +4184,17 @@ export function projectReviewPr(pr){
   return {state:String(pr?.state??'').toLowerCase(),merged:pr?.merged===true,merge_commit_sha:pr?.mergeCommit?.oid??'',head:{sha:pr?.headRefOid}}
 }
 
+export function projectReviewerOperationRouteSnapshot(data){
+  if(data?.errors?.length||!data?.data?.repository?.pullRequest)throw new LaneError('reviewer operation routing snapshot returned GraphQL errors or no pull request')
+  const row=data.data.repository.pullRequest,files=row.files,linked=row.closingIssuesReferences
+  if(!Array.isArray(files?.nodes)||files.pageInfo?.hasNextPage!==false||!Array.isArray(linked?.nodes)||linked.pageInfo?.hasNextPage!==false)throw new LaneError('reviewer operation routing snapshot is incomplete or paginated')
+  return {
+    pr:{state:String(row.state??'').toLowerCase(),merged_at:row.merged===true?row.mergedAt:null,head:{sha:row.headRefOid}},
+    files:files.nodes.map((file)=>({filename:file?.path,status:String(file?.changeType??'').toLowerCase()})),
+    linkedIssues:linked.nodes.map((item)=>({number:item?.number,state:String(item?.state??'').toLowerCase(),body:item?.body,createdAt:item?.createdAt})),
+  }
+}
+
 // GitHub does not include repository association unless it is requested. The
 // verdict predicate refuses association-less prose, so omitting this field here
 // makes a genuine OWNER verdict invisible to normal reviewer-lease cleanup.
@@ -4095,7 +4329,7 @@ function finishReviewerQueueTurn(ticket,io){
   if(io.readRef(ticket.ref)!==null)throw new LaneError('reviewer assignment succeeded but its queue ticket could not be cleared')
 }
 
-function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
+function assignNextReviewerOperation({issue,pr,headSha,slot=1,admissionOptions=null},io){
   const headPattern=io?.requiresExactReviewHeadSha?/^[0-9a-f]{40}$/i:/^[0-9a-f]{7,40}$/i
   if(!Number.isInteger(Number(issue))||!Number.isInteger(Number(pr))||!headPattern.test(String(headSha??'')))throw new LaneError('review assignment requires issue, PR, and exact 40-character head SHA')
   if(!Number.isInteger(Number(slot))||Number(slot)<1)throw new LaneError('review assignment slot must be a positive integer (1 = first reviewer, 2 = second independent reviewer)')
@@ -4120,6 +4354,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1},io){
   requireReviewWireCapacity(REVIEW_MUTEX_SECTION_RESERVE)
   acquireReviewMutex(ownerSha,io)
   try{
+    if(admissionOptions)requirePrOperationRoute(admissionOptions,io,{pr,headSha,issue,mutexOwner:ownerSha,allowMerged:true,reviewSnapshot:true})
     const exclusions=reviewerExclusions(request.issue,request.pr,io,{fresh:true})
     // Slot 1 keeps the original, unsuffixed ref namespace so every existing
     // caller and every already-recorded assignment/replacement is untouched.
@@ -4646,7 +4881,7 @@ export function releaseFailedReviewer(options,io=githubIo){
   })
 }
 
-function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failureCode,failingCheck,confirmLocalDependencyUnfixable,confirmNoVerdict,confirmNoArtifact,slot=1},io){
+function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failureCode,failingCheck,confirmLocalDependencyUnfixable,confirmNoVerdict,confirmNoArtifact,slot=1,admissionOptions=null},io){
   io=reviewOperationIo(io)
   const silenceReplacement=String(failureCode)==='silent_worker_observed'
   const request=silenceReplacement
@@ -4704,6 +4939,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       if(liveReplacement&&liveReplacement.sha!==priorReplacement&&!staleReplacement)throw new LaneError(`reviewer ${parsed.reviewer} has an unrelated live lease; idempotent replacement repair refused`)
       ownerSha=io.makeOwnerCommit(`db-coordination reviewer-replacement-lock issue=${request.issue} pr=${request.pr} head=${request.headSha}${request.slot!==1?` slot=${request.slot}`:''}`)
       requireReviewWireCapacity(11);acquireReviewMutex(ownerSha,io);mutexAcquired=true
+      if(admissionOptions)requirePrOperationRoute(admissionOptions,io,{pr,headSha,issue,mutexOwner:ownerSha,allowMerged:true,reviewSnapshot:true})
       const freshStates=io.readReviewStates?.([parsed,...(staleReplacement?[staleReplacement.assignment]:[])])
       const freshExclusions=reviewerExclusions(request.issue,request.pr,io,{fresh:true})
       // Same deliberate refusal as the assignment paths: only --exclude-reviewer
@@ -4893,6 +5129,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     let failureCreated=false, cursorUpdated=false,failedLeaseReleased=false,replacementStaleReleased=false,replacementLeaseCreated=false
     requireReviewWireCapacity(12);acquireReviewMutex(ownerSha,io);mutexAcquired=true
     try{
+      if(admissionOptions)requirePrOperationRoute(admissionOptions,io,{pr,headSha,issue,mutexOwner:ownerSha,allowMerged:true,reviewSnapshot:true})
       const freshExclusions=reviewerExclusions(request.issue,request.pr,io,{fresh:true})
       if(freshExclusions.has(reviewer.name))throw new LaneError(`selected replacement reviewer ${reviewer.name} became excluded for this PR before mutex acquisition; retry to select from the fresh roster`)
       if(io.atomicReviewRefs){
@@ -5282,12 +5519,233 @@ function activateReviewCutoverOperation(io) {
 
 export function activateReviewCutover(io=githubIo){return withReviewRequestBudget(()=>activateReviewCutoverOperation(reviewOperationIo(io)))}
 
+// Issues created at or after this instant must carry change_type and the other
+// admission fields; only earlier in-flight work may use the legacy path.
+export const ADMISSION_LEGACY_CUTOVER = '2026-09-11T18:00:00Z'
+
+function trustedCompletionComments(comments=[]){return comments.filter((comment)=>{
+  const association=String(comment?.author_association??comment?.authorAssociation??'').toUpperCase()
+  const author=String(comment?.author??comment?.author_login??'').toLowerCase()
+  return association==='OWNER'&&author==='u2giants'
+})}
+
+export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-migration-author-lanes', allowLegacy = false, timestamp } = {}) {
+  let issue = io.getIssue(Number(number))
+  let livePr=null
+  let scope=null
+  let reopenAfterValidation=false
+  let completedClosedOutcome=false
+  try {
+    if(pr!==null){
+      livePr=io.getPr(Number(pr))
+      const linked=io.closingIssuesForPr(Number(pr))
+      if(!Array.isArray(linked)||linked.length!==1||Number(linked[0]?.number)!==Number(number))throw new AdmissionError(`pull request #${pr} must close exactly admitted issue #${number}`)
+      if(String(issue?.state??'').toLowerCase()==='closed'){
+        if(!livePr?.merged_at||typeof io.updateIssue!=='function')throw new AdmissionError(`issue #${number} is closed and cannot be admitted`)
+        const completion=typeof io.issueComments==='function'
+          ?findCompletionRecord(trustedCompletionComments(io.issueComments(Number(number))))
+          :null
+        if(completion?.outcome==='live_verified'){
+          if(completion.work_issue!==Number(number)||completion.pr!==Number(pr)||completion.merge_sha!==livePr.merge_commit_sha)throw new AdmissionError(`issue #${number} completed outcome does not match merged pull request #${pr}`)
+          completedClosedOutcome=true
+        }else reopenAfterValidation=true
+        issue={...issue,state:'open'}
+      }
+    }
+    scope = parseQueueScope(issue?.body ?? '')
+    let admitted
+    if(allowLegacy&&scope?.changeType===null){
+      const created=Date.parse(String(issue?.created_at??issue?.createdAt??''))
+      if(!Number.isFinite(created)||created>=Date.parse(ADMISSION_LEGACY_CUTOVER))throw new AdmissionError(`legacy admission without change_type is limited to issues created before ${ADMISSION_LEGACY_CUTOVER}; issue #${number} must declare the admission fields`)
+      if(issue?.state!=='open'||scope.workType!=='structural'||scope.route!=='shared-db-orchestrator'||scope.status!=='ready'||!scope.writes.length)throw new AdmissionError('legacy in-flight work is not an open ready structural issue with exact writes')
+      admitted={admitted:true,issue:Number(number),legacy:true,service_class:'standard-application'}
+    }else admitted = evaluateAdmission(issue, scope, parseImpactBlock(issue?.body ?? ''))
+    if (pr !== null) {
+      const head=livePr?.head?.sha
+      if(!head)throw new AdmissionError('pull request exact head is unreadable')
+      const files=io.getPrFiles(Number(pr)).map((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(String(file?.filename??file?.path??''))&&file?.status!=='removed'
+        ?{...file,content:io.getFileAt(file.filename??file.path,head)}:file)
+      const inspection=inspectPrStructuralChange(files)
+      const declared=[...scope.writes].sort()
+      if(inspection.objects.length!==declared.length||inspection.objects.some((value,index)=>value!==declared[index]))throw new AdmissionError(`pull request #${pr} structural objects must exactly match admitted issue #${number} writes`)
+      admitted={...admitted,actual_objects:inspection.objects,migrations:inspection.migrations}
+    }
+    if(reopenAfterValidation){
+      io.updateIssue(Number(number),{state:'open'})
+      issue=io.getIssue(Number(number))
+      if(String(issue?.state??'').toLowerCase()!=='open')throw new AdmissionError(`issue #${number} did not reopen after its linked merge`)
+    }
+    if(!admitted.legacy&&!completedClosedOutcome&&io.issueComments&&io.commentIssue){
+      let history=outcomeHistory(io.issueComments(Number(number)),number)
+      if(!history.valid)throw new OutcomeError(`outcome history is invalid: ${history.problems.join('; ')}`)
+      for(const state of ['entered','classified']){
+        if((history.state?OUTCOME_STATES.indexOf(history.state):-1)>=OUTCOME_STATES.indexOf(state))continue
+        advanceOutcome({issue:Number(number),state,actor,...(timestamp?{timestamp:new Date(timestamp).toISOString()}:{})},io)
+        history=outcomeHistory(io.issueComments(Number(number)),number)
+      }
+    }
+    return admitted
+  } catch (error) {
+    if(error instanceof AdmissionError&&!error.result&&/(contains no added or modified migration|(?:content|patch) is unreadable|contain no statement-leading schema DDL|contains unmodelled DDL)/.test(error.message)){
+      error.result={reason:error.message,return_to:scope?.applicationReturnTo??'u2giants/shared-db',evidence_required:['readable pull request content containing acknowledged statement-leading schema DDL for the proposed structural change']}
+    }
+    if (error instanceof AdmissionError && error.result && io.commentIssue) {
+      const refusal={event_type:'rejected_non_structural',work_issue:Number(number),actor,result:'refused',detail:error.result.reason,return_to:error.result.return_to,evidence_required:error.result.evidence_required}
+      const event = coordinationEvent({
+        eventType:refusal.event_type, workIssue:refusal.work_issue, actor:refusal.actor,
+        timestamp:new Date().toISOString(), result:refusal.result, detail:refusal.detail,
+        return_to:refusal.return_to, evidence_required:refusal.evidence_required,
+      })
+      io.commentIssue(Number(number), formatEventComment(event))
+    }
+    throw error
+  }
+}
+
+function withAuthorMutex(label, io, options, operation) {
+  const requestId = options.requestId ?? randomUUID()
+  const ownerSha = io.makeOwnerCommit(`db-coordination ${label} ${requestId}`)
+  acquireMutex(ownerSha, io, options.mutexAttempts ?? 100)
+  try {
+    requireOwnedRef(MUTEX_REF, ownerSha, io)
+    return operation(ownerSha)
+  } finally {
+    if (io.readRef(MUTEX_REF) === ownerSha) releaseOwnedRef(MUTEX_REF, ownerSha, io)
+  }
+}
+
+function admitIssueSerialized(number, io = githubIo, options = {}) {
+  return withAuthorMutex('admission',io,options,()=>admitIssue(number,io,options))
+}
+
+export function resolveAdmittedIssueForPr(pr, io = githubIo) {
+  if (!Number.isInteger(Number(pr)) || Number(pr) < 1) throw new LaneError('--resolve-admitted-issue-for-pr requires a pull request number')
+  const linked = io.closingIssuesForPr(Number(pr))
+  if (!Array.isArray(linked)) throw new LaneError('pull request closing-issue linkage is unreadable')
+  if (linked.length !== 1) throw new LaneError(`pull request must close exactly one structural work issue; found ${linked.length}`)
+  const result = admitIssueSerialized(Number(linked[0].number), io, { pr:Number(pr), allowLegacy:true })
+  return { issue:Number(linked[0].number), pr:Number(pr), admission:result.admitted ? 'admitted' : 'refused' }
+}
+
+const MIGRATION_PATH = /^supabase\/migrations\/[^/]+\.sql$/
+const REPOSITORY_MAINTENANCE_CHANGE_TYPES = new Set(['documentation','ci','reviewer-tooling','workflow','repo-maintenance'])
+
+// Merge and reviewer machinery serves both database migrations and ordinary
+// repository code. Derive that boundary from the live PR while the operation's
+// mutex is held: a caller-provided bypass would turn a routing choice into an
+// authority grant. Any migration path, including the old side of a rename,
+// stays structural; unreadable inventory stays unknown and refuses. This result
+// answers only whether DDL/object admission applies to review and guarded merge.
+// It is not NO_DATABASE_PREVIEW evidence: the separate Step 2A impact classifier
+// still decides whether executable code can affect database behavior, data, or
+// permissions and must enter preview. Repository maintenance keeps every natural
+// code gate here; it receives no structural claim or database-stage exemption.
+export function derivePrOperationRoute(pr, io = githubIo, { headSha = null, issue = null, allowMerged = false, snapshot = null } = {}) {
+  if (!Number.isInteger(Number(pr)) || Number(pr) < 1) throw new LaneError('operation routing requires a pull request number')
+  if(snapshot!==null&&(!snapshot||typeof snapshot!=='object'||!Array.isArray(snapshot.files)||!Array.isArray(snapshot.linkedIssues)))throw new LaneError('operation routing snapshot is unreadable')
+  const livePr=snapshot?.pr??io.getPr(Number(pr))
+  const prState=String(livePr?.state??'open').toLowerCase(),eligibleState=prState==='open'||(allowMerged&&['closed','merged'].includes(prState)&&Boolean(livePr?.merged_at))
+  if(!livePr||!eligibleState||!/^[0-9a-f]{40}$/i.test(String(livePr?.head?.sha??'')))throw new LaneError(`pull request #${pr} live head is unreadable or not eligible`)
+  if(headSha!==null&&String(livePr.head.sha).toLowerCase()!==String(headSha).toLowerCase())throw new LaneError(`pull request #${pr} exact head changed before operation routing`)
+  const files=snapshot?.files??io.getPrFiles(Number(pr))
+  if(!Array.isArray(files)||!files.length)throw new LaneError(`pull request #${pr} complete file inventory is empty or unreadable`)
+  const paths=[]
+  for(const file of files){
+    if(!file||typeof file.filename!=='string'||!file.filename.trim()||typeof file.status!=='string'||!file.status.trim())throw new LaneError(`pull request #${pr} complete file inventory contains an unreadable entry`)
+    paths.push(file.filename)
+    if(file.previous_filename!==undefined){
+      if(typeof file.previous_filename!=='string'||!file.previous_filename.trim())throw new LaneError(`pull request #${pr} prior filename is unreadable`)
+      paths.push(file.previous_filename)
+    }
+  }
+  const linked=snapshot?.linkedIssues??io.closingIssuesForPr(Number(pr))
+  if(!Array.isArray(linked)||linked.length!==1)throw new LaneError(`pull request must close exactly one work issue; found ${Array.isArray(linked)?linked.length:'an unreadable set'}`)
+  const linkedNumber=Number(linked[0]?.number)
+  if(!Number.isInteger(linkedNumber)||linkedNumber<1)throw new LaneError('pull request linked work issue identity is unreadable')
+  if(issue!==null&&Number(issue)!==linkedNumber)throw new LaneError(`operation issue #${issue} does not match pull request #${pr} linked issue #${linkedNumber}`)
+  // GraphQL exposes no prior filename. Only the statuses whose current path is
+  // a complete description can enter repository-maintenance routing; copies,
+  // renames, CHANGED/UNCHANGED, and future enum values stay structural so the
+  // DDL admission check either proves them or refuses them.
+  const completeCurrentPathStatuses=new Set(['added','modified','removed','deleted'])
+  const structural=files.some((file)=>file.previous_filename!==undefined||!completeCurrentPathStatuses.has(String(file.status).toLowerCase()))||paths.some((value)=>MIGRATION_PATH.test(String(value).replace(/\\/g,'/')))
+  if(structural)return {route:'structural',issue:linkedNumber,pr:Number(pr),headSha:livePr.head.sha}
+
+  const work=snapshot?.linkedIssues?.[0]??io.getIssue(linkedNumber),scope=parseQueueScope(work?.body??'')
+  if(String(work?.state??'open').toLowerCase()!=='open'||scope?.status!=='ready'||scope?.workType!=='repo-maintenance'||scope?.route!=='repo-maintenance'||scope?.writes?.length)throw new LaneError(`pull request #${pr} is not deterministic ready repository-maintenance work with no database objects`)
+  let changeType=scope.changeType,legacy=false
+  if(changeType===null){
+    const created=Date.parse(String(work?.created_at??work?.createdAt??''))
+    if(!Number.isFinite(created)||created>=Date.parse(ADMISSION_LEGACY_CUTOVER))throw new LaneError(`repository-maintenance issue #${linkedNumber} must declare a recognized non-structural change_type`)
+    changeType='repo-maintenance';legacy=true
+  }
+  if(!NON_STRUCTURAL_CHANGE_TYPES.includes(changeType)||!REPOSITORY_MAINTENANCE_CHANGE_TYPES.has(changeType))throw new LaneError(`repository-maintenance issue #${linkedNumber} must declare a recognized repository-maintenance change_type`)
+  return {route:'repo-maintenance',issue:linkedNumber,pr:Number(pr),headSha:livePr.head.sha,changeType,legacy}
+}
+
+// Issue #2802: routing and admission are one gate, and neither half is reviewer work.
+// The whole body runs outside the reviewer operation's request accounting; the mutex
+// ownership proof below is unchanged, so this still runs under the caller's held mutex.
+function requirePrOperationRoute(options,io,args){
+  if(io.enforceAdmission!==true)return null
+  return withoutReviewRequestBudget(()=>requirePrOperationRouteGate(options,io,args))
+}
+function requirePrOperationRouteGate(options,io,{pr,headSha,issue,mutexOwner,allowMerged=false,reviewSnapshot=false,resolveStructuralIssue=false}){
+  if(mutexOwner)requireOwnedRef(MUTEX_REF,mutexOwner,io)
+  const snapshot=reviewSnapshot&&typeof io.readReviewerOperationRoute==='function'?io.readReviewerOperationRoute(pr):null
+  const route=derivePrOperationRoute(pr,io,{headSha,issue,allowMerged,snapshot})
+  if(route.route==='repo-maintenance')return route
+  const admissionOptions=resolveStructuralIssue?{...options,admitIssue:route.issue}:options
+  if(!Number.isInteger(Number(admissionOptions?.admitIssue))||Number(admissionOptions.admitIssue)!==route.issue)throw new LaneError(`structural pull request #${pr} requires --admit-issue ${route.issue}`)
+  requireAdmission(admissionOptions,io,{pr,mutexOwner})
+  return route
+}
+
+function requireAdmissionArguments(options,io,{pr=null}={}){
+  if (io.enforceAdmission !== true) return null
+  if (!Number.isInteger(Number(options.admitIssue)) || Number(options.admitIssue) <= 0) {
+    throw new LaneError('--admit-issue <work issue> is required before claim, reviewer assignment, or shared-stage acquisition')
+  }
+  if (options.issue !== undefined && Number(options.issue) !== Number(options.admitIssue)) {
+    throw new LaneError(`--admit-issue #${options.admitIssue} does not match --issue #${options.issue}`)
+  }
+  if(options.preparePreviewDispatch!==undefined&&Number(options.preparePreviewDispatch)!==Number(options.admitIssue))throw new LaneError(`--admit-issue #${options.admitIssue} does not match --prepare-preview-dispatch #${options.preparePreviewDispatch}`)
+  if(pr===null&&(options.acquireExclusive||options.preparePreviewDispatch!==undefined))throw new LaneError('--pr <source pull request> is required so admission can inspect the actual shared-stage change')
+}
+
+// Issue #2802: see withoutReviewRequestBudget. Admission's requests are not reviewer
+// requests, so they are not charged to a reviewer operation's derived ceiling. Argument
+// validation stays outside because it makes no GitHub request at all.
+function requireAdmission(options, io, args = {}) {
+  requireAdmissionArguments(options,io,{pr:args.pr??null})
+  if (io.enforceAdmission !== true) return null
+  return withoutReviewRequestBudget(()=>requireAdmissionGate(options,io,args))
+}
+function requireAdmissionGate(options, io, { pr = null, timestamp, mutexOwner = null } = {}) {
+  if(mutexOwner)requireOwnedRef(MUTEX_REF,mutexOwner,io)
+  const admitted=mutexOwner
+    ? admitIssue(Number(options.admitIssue), io, { pr, allowLegacy:pr!==null, timestamp })
+    : admitIssueSerialized(Number(options.admitIssue), io, { pr, allowLegacy:pr!==null, timestamp })
+  if(options.claim){
+    const requested=validateClaimObjects(options.objects??[]).sort()
+    const authorized=[...(admitted.writes??[])].sort()
+    if(requested.length!==authorized.length||requested.some((value,index)=>value!==authorized[index]))throw new LaneError(`--claim objects must exactly match admitted issue #${options.admitIssue} writes`)
+  }
+  return admitted
+}
+
 export function acquireAuthorLane(options, now = new Date(), io = githubIo) {
   options = { ...options, objects: validateClaimObjects(options.objects) }
+  if(io.enforceAdmission===true&&(!Number.isInteger(Number(options.admitIssue))||Number(options.admitIssue)<=0))throw new LaneError('--admit-issue <work issue> is required before claim, reviewer assignment, or shared-stage acquisition')
   const requestId = options.requestId ?? randomUUID()
   const ownerSha = io.makeOwnerCommit(`db-coordination author-acquisition ${requestId}`)
   acquireMutex(ownerSha, io, options.mutexAttempts ?? 100)
   try {
+    const admitted=requireAdmission(options,io,{timestamp:now,mutexOwner:ownerSha})
+    if(io.enforceAdmission===true){
+      const authorized=[...(admitted?.writes??[])].sort()
+      if(options.objects.length!==authorized.length||options.objects.some((value,index)=>value!==authorized[index]))throw new LaneError(`--claim objects must exactly match admitted issue #${options.admitIssue} writes`)
+    }
     const claims = io.openClaims()
     const prSources = io.prSources()
     assertLaneAvailable(claims, options.objects, now, { prSources })
@@ -5297,12 +5755,26 @@ export function acquireAuthorLane(options, now = new Date(), io = githubIo) {
     const body = claimBody({ ...options, version: reservation.version, expiresAt })
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     const url = io.createClaim(options.task, body)
-    try { requireOwnedRef(MUTEX_REF,ownerSha,io) }
+    const dispatchArgs={issue:Number(options.admitIssue),state:'dispatched',actor:options.owner,timestamp:now.toISOString(),evidenceUrls:[url]}
+    const expectedDispatch=io.enforceAdmission===true?outcomeEvent(dispatchArgs):null
+    try {
+      requireOwnedRef(MUTEX_REF,ownerSha,io)
+      if(io.enforceAdmission===true)advanceOutcome(dispatchArgs,io)
+    }
     catch(error) {
-      const number=/\/(\d+)\/?$/.exec(String(url))?.[1]
-      if(!number)throw new LaneError(`lost mutex ownership after claim creation and could not identify the claim to close: ${error.message}`)
-      io.closeClaim(number, CLAIM_CLOSE_REASONS.acquisitionRollback)
-      throw error
+      if(io.readRef(MUTEX_REF)!==ownerSha)throw new LaneError(`lost mutex ownership after claim creation; claim ${url} remains protected for explicit recovery: ${error.message}`)
+      if(expectedDispatch){
+        const delays=[0,250,500,1000,1500,2000]
+        for(const delay of delays){
+          if(delay)(io.wait??((ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms)))(delay)
+          requireOwnedRef(MUTEX_REF,ownerSha,io)
+          const history=outcomeHistory(io.issueComments(Number(options.admitIssue)),Number(options.admitIssue))
+          if(!history.valid)throw new LaneError(`dispatch readback is invalid; claim ${url} remains protected for explicit recovery: ${history.problems.join('; ')}`)
+          if(history.events.some((event)=>event.event_id===expectedDispatch.event_id))return { version:reservation.version,claim:url,expiresAt:expiresAt.toISOString(),requestId }
+        }
+        throw new LaneError(`dispatch readback remained ambiguous after bounded retries; claim ${url} remains protected for explicit recovery: ${error.message}`)
+      }
+      throw new LaneError(`claim ${url} remains protected for explicit recovery: ${error.message}`)
     }
     return { version: reservation.version, claim: url, expiresAt: expiresAt.toISOString(), requestId }
   } finally {
@@ -5529,7 +6001,7 @@ export function renewExpiredClaim(options, now = new Date(), io = githubIo) {
       if(unsupported.length)throw new LaneError(`claim carries objects unsupported by its issue or pull request: ${unsupported.join(', ')}`)
     }
     const others=claims.filter((claim)=>String(claim.number)!==String(options.claim)),otherPrs=sources.filter((source)=>source!==target[0])
-    assertLaneAvailable(others,lease.objects,now,{ignoreCapacity:true,prSources:otherPrs})
+    assertLaneAvailable(others,lease.objects,now,{prSources:otherPrs})
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     const freshWorkIssue=io.getIssue(options.issue)
     if(freshWorkIssue?.state!==workIssue.state||freshWorkIssue?.body!==workIssue.body)throw new LaneError('renewal issue changed concurrently')
@@ -5600,7 +6072,7 @@ export function recoverExpiredClaimFromPr(options, now = new Date(), io = github
     if(!uncovered.length)throw new LaneError('pull request has no uncovered objects to recover')
     const expanded=[...lease.objects.map(normalizeObject),...uncovered]
     const others=claims.filter((claim)=>String(claim.number)!==String(options.claim)),otherPrs=sources.filter((source)=>source!==target)
-    assertLaneAvailable(others,expanded,now,{ignoreCapacity:true,prSources:otherPrs})
+    assertLaneAvailable(others,expanded,now,{prSources:otherPrs})
     const expectedBody=replaceLeaseExpiry(appendClaimObjects(before.body,lease.version,uncovered),desiredExpiry)
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     const freshWorkIssue=io.getIssue(options.issue),freshClaim=io.getIssue(options.claim),freshPr=io.getPr(options.pr)
@@ -5655,7 +6127,7 @@ export function expandActiveClaimFromPr(options, now = new Date(), io = githubIo
     const claims=io.openClaims()
     if(claims.filter((claim)=>String(claim.number)===String(options.claim)).length!==1)throw new LaneError('active claim set is ambiguous')
     const others=claims.filter((claim)=>String(claim.number)!==String(options.claim)),otherPrs=sources.filter((source)=>source!==target)
-    assertLaneAvailable(others,uncovered,now,{ignoreCapacity:true,prSources:otherPrs})
+    assertLaneAvailable(others,uncovered,now,{prSources:otherPrs})
     const expanded=[...lease.objects.map(normalizeObject),...uncovered]
     const updatedBody=replaceClaimObjects(before.body,lease.version,expanded)
     requireOwnedRef(MUTEX_REF,ownerSha,io)
@@ -5695,7 +6167,7 @@ export function expandActiveClaimFromIssue(options,now=new Date(),io=githubIo){
     const claims=io.openClaims()
     if(claims.filter((claim)=>String(claim.number)===String(options.claim)).length!==1)throw new LaneError('active claim set is ambiguous')
     const others=claims.filter((claim)=>String(claim.number)!==String(options.claim)),sources=io.prSources()
-    assertLaneAvailable(others,uncovered,now,{ignoreCapacity:true,prSources:sources})
+    assertLaneAvailable(others,uncovered,now,{prSources:sources})
     const expanded=[...lease.objects.map(normalizeObject),...uncovered],updatedBody=replaceClaimObjects(before.body,lease.version,expanded)
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     possiblyChanged=true;io.updateIssue(options.claim,{body:updatedBody})
@@ -5751,8 +6223,6 @@ export function recoverSameOwnerSplit(options, now = new Date(), io = githubIo) 
     const versionCollision=thirdPartyPrs.find((pr)=>(pr.versions??[]).some((version)=>reservedVersions.has(String(version))))
     if(versionCollision)throw new LaneError(`migration version collision with ${versionCollision.label}`)
     assertLaneAvailable(thirdParty,[...combined],now,{prSources:thirdPartyPrs})
-    const activeThirdParty=thirdParty.filter((claim)=>parseAuthorLease(claim.body,now).capacityActive)
-    if(activeThirdParty.length+2>MAX_AUTHOR_LANES)throw new LaneError('split recovery would exceed active-author capacity')
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     const activeBody=replaceLeaseLocation(activeBefore.body,options.targetBranch,options.targetWorktree)
     activeChanged=true;io.updateIssue(options.activeClaim,{body:activeBody})
@@ -5846,6 +6316,11 @@ export function completeWork({ issue, report }, io = githubIo) {
   const record = validateCompletionRecord(report)
   if (record.work_issue !== Number(issue)) {
     throw new DependencyError(`report is for issue #${record.work_issue} but --issue said #${issue}`)
+  }
+  const workIssue=io.getIssue?.(Number(issue))
+  const scope=workIssue?parseQueueScope(workIssue.body??''):null
+  if(record.outcome==='merged'&&scope&&scope.changeType!==null){
+    throw new DependencyError(`issue #${issue} uses the authoritative outcome lifecycle; merge is a stage, not completion. Keep it open through --complete-outcome and live application proof.`)
   }
 
   const existing = findCompletionRecord(io.issueComments(issue))
@@ -6030,6 +6505,10 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
   }))
   acquireMutex(ownerSha, io)
   try {
+    if(metadata.admissionOptions){
+      if(kind==='merge')requirePrOperationRoute(metadata.admissionOptions,io,{pr:metadata.pr,headSha:metadata.headSha,issue:metadata.admissionOptions.issue??null,mutexOwner:ownerSha,resolveStructuralIssue:true})
+      else requireAdmission(metadata.admissionOptions,io,{pr:metadata.pr??null,mutexOwner:ownerSha})
+    }
     if (kind === 'production') {
       if (metadata.headSha !== io.mainSha?.()) throw new LaneError('production lane requires the exact current main SHA')
       if (io.readRef(EXCLUSIVE_REFS.merge)) throw new LaneError('a guarded merge is active; production promotion must wait')
@@ -6191,6 +6670,11 @@ function parseArgs(argv) {
     if (a === '--claim') out.claim = true
     else if (a === '--authorize-repository-maintenance-status') out.authorizeRepositoryMaintenanceStatus = true
     else if (a === '--revoke-required-status') out.revokeRequiredStatus = true
+    else if (a === '--admit-issue') out.admitIssue = Number(next(i++))
+    else if (a === '--resolve-admitted-issue-for-pr') out.resolveAdmittedIssueForPr = Number(next(i++))
+    else if (a === '--outcome-status') out.outcomeStatus = Number(next(i++))
+    else if (a === '--advance-outcome') out.advanceOutcome = next(i++)
+    else if (a === '--complete-outcome') out.completeOutcome = Number(next(i++))
     else if (a === '--audit') out.audit = true
     else if (a === '--queue-audit') out.queueAudit = true
     else if (a === '--complete-work') out.completeWork = true
@@ -6236,7 +6720,7 @@ function parseArgs(argv) {
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if(a==='--confirm-local-dependency-unfixable')out.confirmLocalDependencyUnfixable=true
     else if(a==='--skip-doctor')out.skipDoctor=true
     else if(a==='--confirm-no-verdict')out.confirmNoVerdict=true
@@ -6252,7 +6736,38 @@ function parseArgs(argv) {
 export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
+    const primaryKeys=['authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','completeOutcome','recoverMutex','reconcileFlow','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','reissueMergedClaim','reversionClaim','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reviewerCapacity','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','releaseClaim','releaseDuplicateClaim','cleanup','audit']
+    const selectedPrimary=primaryKeys.filter((key)=>Object.prototype.hasOwnProperty.call(o,key))
+    const hasAdmission=Object.prototype.hasOwnProperty.call(o,'admitIssue')
+    if(selectedPrimary.length>1)throw new LaneError(`choose exactly one primary operation; received ${selectedPrimary.join(', ')}`)
+    if(hasAdmission&&(!Number.isInteger(o.admitIssue)||o.admitIssue<=0))throw new LaneError('--admit-issue requires a positive issue number')
+    const numericPrimary=new Set(['resolveAdmittedIssueForPr','outcomeStatus','completeOutcome','preparePreviewDispatch','returnIssue'])
+    if(selectedPrimary.length===1&&numericPrimary.has(selectedPrimary[0])&&(!Number.isInteger(o[selectedPrimary[0]])||o[selectedPrimary[0]]<=0))throw new LaneError(`--${selectedPrimary[0].replace(/[A-Z]/g,(value)=>`-${value.toLowerCase()}`)} requires a positive number`)
+    const admissionCombined=new Set(['claim','assignReviewer','replaceFailedReviewer','preparePreviewDispatch','acquireExclusive','advanceOutcome'])
+    if(hasAdmission&&selectedPrimary.length===1&&!admissionCombined.has(selectedPrimary[0]))throw new LaneError(`--admit-issue cannot be combined with --${selectedPrimary[0].replace(/[A-Z]/g,(value)=>`-${value.toLowerCase()}`)}`)
     if(o.authorizeRepositoryMaintenanceStatus){console.log(JSON.stringify(authorizeRepositoryMaintenanceStatus(o,io),null,2));return 0}
+    if(o.resolveAdmittedIssueForPr){console.log(JSON.stringify(resolveAdmittedIssueForPr(o.resolveAdmittedIssueForPr,io),null,2));return 0}
+    const admissionOnly=hasAdmission&&selectedPrimary.length===0
+    if(admissionOnly){console.log(JSON.stringify(admitIssueSerialized(o.admitIssue,io,{pr:o.pr??null,allowLegacy:o.pr!==undefined&&o.pr!==null}),null,2));return 0}
+    if(o.outcomeStatus){console.log(JSON.stringify(outcomeHistory(io.issueComments(o.outcomeStatus),Number(o.outcomeStatus)),null,2));return 0}
+    if(o.advanceOutcome){
+      if(!o.issue)throw new LaneError('--advance-outcome requires --issue <n>')
+      if(!o.evidence)throw new LaneError('--advance-outcome requires --evidence <durable URL>')
+      const result=withAuthorMutex('outcome-advance',io,o,(ownerSha)=>{
+        requireAdmission(o,io,{pr:o.pr??null,mutexOwner:ownerSha})
+        requireOwnedRef(MUTEX_REF,ownerSha,io)
+        return advanceOutcome({issue:Number(o.issue),state:o.advanceOutcome,actor:o.owner??'manage-migration-author-lanes',timestamp:now.toISOString(),evidenceUrls:[o.evidence]},io)
+      })
+      console.log(JSON.stringify(result,null,2));return 0
+    }
+    if(o.completeOutcome){
+      if(!o.evidence)throw new LaneError('--complete-outcome requires --evidence <durable comment URL>')
+      const result=withAuthorMutex('outcome-complete',io,o,(ownerSha)=>completeOutcome({issue:o.completeOutcome,evidenceRef:o.evidence,actor:o.owner??'manage-migration-author-lanes',timestamp:now.toISOString()},{...io,parseScope:parseQueueScope,
+        commentIssue:(...args)=>{requireOwnedRef(MUTEX_REF,ownerSha,io);return io.commentIssue(...args)},
+        updateIssue:(...args)=>{requireOwnedRef(MUTEX_REF,ownerSha,io);return io.updateIssue(...args)},
+      }))
+      console.log(JSON.stringify(result,null,2));return 0
+    }
     if(o.recoverMutex){console.log(JSON.stringify(recoverStaleAuthorMutex({expectedSha:o.expectedSha,confirmStale:o.confirmStale,serializedRecovery:process.env.GITHUB_ACTIONS==='true'&&process.env.AUTHOR_MUTEX_RECOVERY_SERIALIZED==='true',now},io),null,2));return 0}
     if(o.reconcileFlow){
       if(typeof io.orchestratorFlowAdapter!=='function')throw new LaneError('reconcile runtime adapter is unavailable')
@@ -6260,7 +6775,9 @@ export function main(argv, now = new Date(), io = githubIo) {
     }
     if(o.preparePreviewDispatch){
       if(typeof io.orchestratorFlowAdapter!=='function')throw new LaneError('preview preparation runtime adapter is unavailable')
-      console.log(JSON.stringify(preparePreviewDispatch(o.preparePreviewDispatch,io.orchestratorFlowAdapter(o.claimNumber)),null,2));return 0
+      requireAdmissionArguments(o,io,{pr:o.pr})
+      const result=preparePreviewDispatch(o.preparePreviewDispatch,io.orchestratorFlowAdapter(o.claimNumber,io.enforceAdmission===true?o:null))
+      console.log(JSON.stringify(result,null,2));return 0
     }
     if(o.repairPreviewReady){
       if(!o.issue)throw new LaneError('--repair-preview-ready requires --issue <n>')
@@ -6286,7 +6803,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.resumeAuthorLease){console.log(JSON.stringify(resumeAuthorLease({...o,claim:o.claimNumber??o.claim},now,io),null,2));return 0}
     if(o.reissueMergedClaim){console.log(JSON.stringify(reissueMergedStrandedClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.reversionClaim){console.log(JSON.stringify(reversionActiveClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
-    if(o.replaceFailedReviewer){console.log(JSON.stringify(replaceFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
+    if(o.replaceFailedReviewer){const result=replaceFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1,admissionOptions:io.enforceAdmission===true?o:null},io);console.log(JSON.stringify(result,null,2));return 0}
     if(o.releaseFailedReviewer){console.log(JSON.stringify(releaseFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
     if(o.probeSilentReviewer){console.log(JSON.stringify(probeSilentReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},now,io),null,2));return 0}
     if(o.reclaimSilentReviewer){console.log(JSON.stringify(reclaimSilentReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},now,io),null,2));return 0}
@@ -6294,14 +6811,31 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.excludeReviewer){console.log(JSON.stringify(excludeReviewerForPr(o,io),null,2));return 0}
     if(o.reinstateReviewerExclusion){console.log(JSON.stringify(reinstateReviewerExclusion(o,io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}
-    if(o.assignReviewer){assertReviewerDrawIsWarranted(o.pr,io);console.log(JSON.stringify(assignWithMutexRetry({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
+    if(o.assignReviewer){assertReviewerDrawIsWarranted(o.pr,io);console.log(JSON.stringify(assignWithMutexRetry({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1,admissionOptions:io.enforceAdmission===true?o:null},io),null,2));return 0}
     if(o.activateReviewCutover){console.log(JSON.stringify(activateReviewCutover(io),null,2));return 0}
-    if (o.acquireExclusive) { console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions, versionPrMap:o.versionPrMap }, io), null, 2)); return 0 }
+    if (o.acquireExclusive) { if(o.acquireExclusive!=='merge')requireAdmissionArguments(o,io,{pr:o.pr??null});console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions, versionPrMap:o.versionPrMap, admissionOptions:o }, io), null, 2)); return 0 }
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }
+    if(o.claim){
+      for (const k of ['task','owner','branch','worktree']) if (!o[k]) throw new LaneError(`--${k} is required`)
+      if (!o.objects.length) throw new LaneError('--objects must name every database object exactly')
+      o.leaseHours ??= DEFAULT_LEASE_HOURS
+      if (!Number.isFinite(o.leaseHours) || o.leaseHours <= 0 || o.leaseHours > 24) throw new LaneError('--lease-hours must be greater than 0 and no more than 24')
+      const claimed=acquireAuthorLane(o, now, io)
+      console.log(JSON.stringify(claimed, null, 2));return 0
+    }
     const claims = io.openClaims()
     if (o.returnIssue) { console.log(JSON.stringify(returnIssueToOwner(o.returnIssue, io), null, 2)); return 0 }
     if (o.queueAudit) {
       const issues = io.openWorkIssues()
+      const outcomeStates=new Map()
+      for(const issue of issues){
+        let scope=null
+        try{scope=parseQueueScope(issue.body)}catch{continue}
+        if(scope?.workType!=='structural'||scope.route!=='shared-db-orchestrator')continue
+        const history=outcomeHistory(io.issueComments(issue.number),Number(issue.number))
+        if(!history.valid)throw new LaneError(`issue #${issue.number} has invalid authoritative outcome history: ${history.problems.join('; ')}`)
+        outcomeStates.set(Number(issue.number),history.state??'entered')
+      }
       // Gather dependency state before building the queue so the pure function
       // stays pure. Referenced numbers come from the scope blocks themselves.
       const referenced = new Set()
@@ -6317,7 +6851,7 @@ export function main(argv, now = new Date(), io = githubIo) {
           if (state.open || state.unreadable || state.exists === false) continue
           let record = null
           try { record = findCompletionRecord(state.comments) } catch { continue }
-          if (record?.outcome === 'merged') state.mergeInMain = io.mergeCommitInMain(record.merge_sha)
+          if (['merged','live_verified'].includes(record?.outcome)) state.mergeInMain = io.mergeCommitInMain(record.merge_sha)
         }
       }
       const openPulls = io.openPulls?.() ?? []
@@ -6332,7 +6866,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       // Resolve historical authoring only for the bounded set that would be
       // dispatched. This catches merged work without scanning all historical
       // claim refs or spending an unbounded GitHub API budget.
-      let result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates, claimPullStates)
+      let result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates, claimPullStates,new Set(),outcomeStates)
       const authoredOnMain = new Set()
       if (result.dispatchable.length && io.closedClaimsForWork && io.branchPulls && io.treeFiles && io.mainSha && io.mergeCommitInMain) {
         const main = io.mainSha()
@@ -6355,7 +6889,14 @@ export function main(argv, now = new Date(), io = githubIo) {
             if (completed) authoredOnMain.add(issue)
           }
           if (!fresh.some((issue)=>authoredOnMain.has(issue))) break
-          result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates, claimPullStates, authoredOnMain)
+          result = buildDynamicQueues(issues, claims, now, io.openIssueNumbers(), dependencyStates, claimPullStates, authoredOnMain,outcomeStates)
+        }
+      }
+      for (const issue of result.urgentWaitingCapacity ?? []) {
+        const exists=(io.issueComments?.(issue)??[]).flatMap((comment)=>{try{return parseEventComment(comment?.body??'')}catch{return[]}})
+          .some((event)=>event.event_type==='urgent_waiting_capacity'&&event.result==='succeeded')
+        if(!exists&&io.commentIssue){
+          io.commentIssue(issue,formatEventComment(coordinationEvent({eventType:'urgent_waiting_capacity',workIssue:issue,actor:'queue-audit',timestamp:now.toISOString(),service_class:'urgent-application',detail:'all safe author capacity is occupied or object-protected; no active work was preempted'})))
         }
       }
       console.log(JSON.stringify(result,null,2))
@@ -6414,7 +6955,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       }
       if (result.dispatchable.length) { console.error(`REFILL REQUIRED NOW: dispatch issue(s) ${result.dispatchable.map((n)=>`#${n}`).join(', ')}`); return 2 }
       if (result.unlabelled.length) console.error(`UNLABELLED ISSUES: add the \`${WORK_LABEL}\` label to ${result.unlabelled.map((n)=>`#${n}`).join(', ')} — an unlabelled issue is invisible to every label-filtered query`)
-      if (result.emptyLanes && !result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify and label every open issue before claiming no eligible work exists'); return 2 }
+      if (!result.fullyAudited) { console.error('EMPTY LANE NOT PROVEN: classify and label every open issue before claiming no eligible work exists'); return 2 }
       return result.malformed.length || result.unlabelled.length || result.dependencyCycles.length || result.expiredClaims.some((row)=>row.queued.length) || result.notOrchestratorWork.some((item)=>item.needsReturnAddress) ? 2 : 0
     }
     if (o.assertExclusive) {
@@ -6518,22 +7059,17 @@ export function main(argv, now = new Date(), io = githubIo) {
       return 0
     }
     if (o.cleanup) {
-      const { stale } = assertLaneAvailable(claims, [], now, { ignoreCapacity: true })
+      const { stale } = assertLaneAvailable(claims, [], now)
       console.log(`${stale.length} expired claim(s) remain locked. Release each explicitly with --release-claim, exact --owner, and --confirm-finished.`); return stale.length ? 2 : 0
     }
     if (o.audit) {
       const malformed=[];let protectedCount=0,occupied=0,relinquished=0,expired=0
       for(const claim of claims){try{const lease=parseAuthorLease(claim.body,now);protectedCount++;if(lease.capacityActive)occupied++;else relinquished++;if(!lease.legacy&&!lease.active)expired++}catch(e){malformed.push(`#${claim.number}: ${e.message}`)}}
-      console.log(`${occupied}/${MAX_AUTHOR_LANES} active-author leases occupied; ${protectedCount} protected claim(s); ${relinquished} relinquished; ${expired} expired lease(s) remain locked.`)
+      console.log(`${occupied} active-author lease(s) (no cap); ${protectedCount} protected claim(s); ${relinquished} relinquished; ${expired} expired lease(s) remain locked.`)
       for(const problem of malformed)console.error(`MALFORMED ${problem}`)
-      return malformed.length || occupied>MAX_AUTHOR_LANES ? 2 : 0
+      return malformed.length ? 2 : 0
     }
-    if (!o.claim) throw new LaneError('choose --claim, --audit, --queue-audit, --return-issue, --cleanup-stale, --activate-review-cutover, or an exclusive-lane command')
-    for (const k of ['task','owner','branch','worktree']) if (!o[k]) throw new LaneError(`--${k} is required`)
-    if (!o.objects.length) throw new LaneError('--objects must name every database object exactly')
-    o.leaseHours ??= DEFAULT_LEASE_HOURS
-    if (!Number.isFinite(o.leaseHours) || o.leaseHours <= 0 || o.leaseHours > 24) throw new LaneError('--lease-hours must be greater than 0 and no more than 24')
-    console.log(JSON.stringify(acquireAuthorLane(o, now, io), null, 2)); return 0
+    throw new LaneError('choose --admit-issue, --claim, --audit, --queue-audit, --outcome-status, --complete-outcome, --return-issue, --cleanup-stale, --activate-review-cutover, or an exclusive-lane command')
   } catch (error) { console.error(`REFUSED: ${error.message}`); return 2 }
 }
 

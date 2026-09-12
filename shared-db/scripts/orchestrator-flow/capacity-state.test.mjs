@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  MAX_AUTHOR_LANES, assertLaneAvailable, buildDynamicQueues, claimBody,
+  assertLaneAvailable, buildDynamicQueues, claimBody,
   parseAuthorLease, relinquishAuthorLease, resumeAuthorLease,
 } from '../manage-migration-author-lanes.mjs'
 
@@ -20,17 +20,19 @@ test('relinquished claims protect objects without consuming active capacity',()=
   assert.throws(()=>assertLaneAvailable(claims,['table test.t_8'],NOW),/collision/)
 })
 
-test('clock expiry blocks merge readiness but frees zero capacity',()=>{
-  const expired=Array.from({length:MAX_AUTHOR_LANES},(_,index)=>({number:index+1,body:body(index+1,{expiresAt:new Date('2026-08-28T11:00:00Z')})}))
+test('clock expiry keeps object protection and never refuses unrelated work (no lane cap)',()=>{
+  const expired=Array.from({length:60},(_,index)=>({number:index+1,body:body(index+1,{expiresAt:new Date('2026-08-28T11:00:00Z')})}))
   assert.equal(parseAuthorLease(expired[0].body,NOW).capacityState,'expired-unconfirmed')
-  assert.throws(()=>assertLaneAvailable(expired,['table test.new'],NOW),/active-author leases are occupied/)
+  assert.equal(assertLaneAvailable(expired,['table test.new'],NOW).active.length,60)
+  assert.throws(()=>assertLaneAvailable(expired,['table test.t_7'],NOW),/collision/)
 })
 
-test('more protected claims than the active cap remain representable in queues',()=>{
+test('protected relinquished claims each keep their own visible lane',()=>{
   const claims=Array.from({length:8},(_,index)=>({number:index+1,body:body(index+1,{capacityState:'relinquished',blockedOn:'issue:#900'})}))
   const result=buildDynamicQueues([],claims,NOW)
   assert.equal(result.queues.flatMap((queue)=>queue.protected).length,8)
-  assert.equal(result.emptyLanes,MAX_AUTHOR_LANES)
+  assert.equal(result.queues.length,8)
+  assert.equal(result.emptyLanes,8)
 })
 
 function memoryIo(){

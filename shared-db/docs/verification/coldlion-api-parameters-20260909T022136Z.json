@@ -1,0 +1,18 @@
+{
+  "captured_at": "2026-09-09T02:21:36.9316186Z",
+  "source": "http://x5.coldlion.com/EhpApi/v2/api-docs",
+  "api_title": "CLAPIServerEhp API",
+  "api_version": "1.5.1",
+  "note": "Parameter declarations only. No ColdLion response payload or business value is retained.",
+  "endpoints": {
+    "/customers": ["header:X-API-Key(required)", "query:active(default=Y)", "query:companyCode", "query:customerCode", "query:modifiedFrom", "query:modifiedTo", "query:page(default=0)", "query:size(default=50)", "query:sort"],
+    "/vendors": ["header:X-API-Key(required)", "query:active(default=Y)", "query:companyCode", "query:modifiedFrom", "query:modifiedTo", "query:page(default=0)", "query:size(default=50)", "query:sort", "query:vendorCode"],
+    "/divisions": ["header:X-API-Key(required)", "query:active(default=Y)", "query:companyCode", "query:divisionCode", "query:page(default=0)", "query:size(default=50)", "query:sort"],
+    "/salespersons": ["header:X-API-Key(required)", "query:active(default=Y)", "query:companyCode", "query:lastName", "query:page(default=0)", "query:salesPersonCode", "query:size(default=50)", "query:sort"],
+    "/seasons": ["header:X-API-Key(required)", "query:active(default=Y)", "query:companyCode", "query:divisionCode", "query:page(default=0)", "query:seasonCode", "query:size(default=50)", "query:sort"],
+    "/merchGroupHeaders": ["header:X-API-Key(required)", "query:companyCode", "query:divisionCode", "query:mgTypeCode", "query:page(default=0)", "query:size(default=50)", "query:sort"],
+    "/merchGroupDetails": ["header:X-API-Key(required)", "query:active(default=Y)", "query:companyCode", "query:divisionCode", "query:mgCode", "query:mgTypeCode"],
+    "/items": ["header:X-API-Key(required)", "query:companyCode", "query:createdFrom", "query:createdTo", "query:divisionCode", "query:itemNo", "query:merchGroup01", "query:merchGroup02", "query:merchGroup03", "query:merchGroup04", "query:merchGroup05", "query:merchGroup06", "query:modifiedFrom", "query:modifiedTo", "query:page(default=0)", "query:size(default=50)", "query:sort"],
+    "/itemDetails": ["header:X-API-Key(required)", "query:companyCode", "query:divisionCode", "query:itemNo", "query:itemPkey"]
+  }
+}

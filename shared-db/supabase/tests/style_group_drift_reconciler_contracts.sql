@@ -15,11 +15,10 @@
 --      authenticated hold none.
 --   4. THE SKU RULE IS THE SAME RULE THE REBUILD USES. #2419 says in terms that a
 --      reconciler deriving the SKU differently from rebuild_style_groups_batch reports
---      drift that is really a rule mismatch. The two bodies cannot share a function on
---      this branch (the object claim covers one object), so the agreement is enforced
---      here instead: every one of the five derivation tokens is required to be present
---      in the LIVE pg_get_functiondef of BOTH routines. Losing one on either side
---      fails this file.
+--      drift that is really a rule mismatch. Issue #2478 extracts the helper: both
+--      live bodies must call it and contain no duplicate derivation, while the helper
+--      must retain every original predicate. Behavior and security tests below are
+--      unchanged; separate parity contracts compare the old expression to the helper.
 --   5. Behaviour, measured as DELTAS around a fixture rather than as absolute counts.
 --      The reconciler reads the whole live asset population, so an absolute assertion
 --      would depend on whatever else the database happens to hold. Deltas hold on an
@@ -186,19 +185,20 @@ begin
 end $grants$;
 
 -- ---------------------------------------------------------------------------------
--- 4. THE SKU DERIVATION RULE MATCHES THE REBUILD, TOKEN FOR TOKEN
+-- 4. BOTH CONSUMERS USE THE SHARED SKU DERIVATION
 -- ---------------------------------------------------------------------------------
 do $skurule$
 declare
   v_recon text;
   v_rebuild text;
+  v_helper text;
   v_token text;
   v_tokens text[] := array[
     'seg ~ ''^[A-Za-z0-9]+$''',
     'seg ~ ''[A-Za-z]''',
     'seg ~ ''[0-9]''',
-    'length(seg) >= 7',
-    'ord < array_length(string_to_array('
+    'pg_catalog.length(seg) >= 7',
+    'ord < pg_catalog.array_length(pg_catalog.string_to_array('
   ];
 begin
   select pg_get_functiondef(p.oid) into v_recon
@@ -218,16 +218,21 @@ begin
     raise exception 'CONTRACT: public.rebuild_style_groups_batch(uuid, integer) is missing, so the shared SKU rule cannot be compared. The reconciler exists to agree with it; without it there is no rule to agree with.';
   end if;
 
+  select pg_get_functiondef('public.style_group_key_for_sku(text)'::regprocedure)
+    into v_helper;
+  if position('public.style_group_key_for_sku(ab.relative_path)' in v_rebuild) = 0
+    or position('public.style_group_key_for_sku(a.relative_path)' in v_recon) = 0 then
+    raise exception 'CONTRACT: rebuild and detector must delegate their path to the shared SKU helper.';
+  end if;
   foreach v_token in array v_tokens loop
-    if position(v_token in v_rebuild) = 0 then
-      raise exception 'CONTRACT: the SKU derivation token "%" is absent from the LIVE body of rebuild_style_groups_batch. The rule changed there without the reconciler following it, so every drift number the reconciler reports from now on is a rule mismatch, not drift (issue #2419).', v_token;
+    if position(v_token in v_helper) = 0 then
+      raise exception 'CONTRACT: shared SKU helper lost derivation token "%".', v_token;
     end if;
-    if position(v_token in v_recon) = 0 then
-      raise exception 'CONTRACT: the SKU derivation token "%" is absent from the LIVE body of reconcile_style_group_drift. It must derive the SKU with the rebuild''s rule, character for character.', v_token;
+    if position(v_token in v_rebuild) <> 0 or position(v_token in v_recon) <> 0 then
+      raise exception 'CONTRACT: consumer duplicated shared SKU derivation token "%".', v_token;
     end if;
   end loop;
-
-  raise notice 'OK: all five SKU derivation tokens are present in both live bodies.';
+  raise notice 'OK: both consumers use the one shared SKU derivation.';
 end $skurule$;
 
 -- ---------------------------------------------------------------------------------

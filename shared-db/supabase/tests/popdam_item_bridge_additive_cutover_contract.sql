@@ -16,14 +16,22 @@ begin
     raise exception 'plm_item_id must use ON DELETE RESTRICT; found %', delete_action;
   end if;
 
+  -- #2482: the legacy table was retired to the archive schema; the FK is gone but the
+  -- erp_item_id column and its values remain, resolved through the frozen crosswalk.
   select c.confdeltype
   into legacy_delete_action
   from pg_constraint c
   where c.conname = 'style_tracker_item_bridge_erp_item_id_fkey'
     and c.conrelid = 'plm.style_tracker_item_bridge'::regclass;
 
-  if legacy_delete_action is distinct from 'r' then
-    raise exception 'erp_item_id must use ON DELETE RESTRICT; found %', legacy_delete_action;
+  if legacy_delete_action is not null then
+    raise exception '#2482: erp_item_id FK to the retired legacy table still exists';
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'plm' and table_name = 'style_tracker_item_bridge' and column_name = 'erp_item_id'
+  ) then
+    raise exception '#2482: erp_item_id column was dropped; it must be kept';
   end if;
 
   select pg_get_functiondef('plm.refresh_style_tracker_item_bridge()'::regprocedure)
@@ -52,10 +60,10 @@ declare
   zero_style_row_id uuid;
   violation_constraint text;
 begin
-  insert into public.erp_items_current(
-    external_id, style_number, item_description, mg01_code, source_system
+  insert into plm.legacy_erp_item_identity(
+    id, external_id, style_number, item_description, mg01_code
   ) values (
-    test_sku, test_sku, 'MATCHING CONTRACT DESCRIPTION', 'MATCHING-CODE', 'contract-test'
+    gen_random_uuid(), test_sku, test_sku, 'MATCHING CONTRACT DESCRIPTION', 'MATCHING-CODE'
   ) returning id into legacy_item_id;
 
   insert into public.style_tracker_rows(source_sheet, tracker_type, sku)
@@ -107,8 +115,8 @@ begin
     raise exception 'refresh erased a preserved legacy or canonical link';
   end if;
 
-  insert into public.erp_items_current(external_id, style_number, item_description, mg01_code, source_system)
-  values (tie_sku, tie_sku, 'TIED DESCRIPTION', 'TIED-CODE', 'contract-test');
+  insert into plm.legacy_erp_item_identity(id, external_id, style_number, item_description, mg01_code)
+  values (gen_random_uuid(), tie_sku, tie_sku, 'TIED DESCRIPTION', 'TIED-CODE');
   insert into public.style_tracker_rows(source_sheet, tracker_type, sku)
   values ('License.Style', 'licensed', tie_sku) returning id into tie_style_row_id;
   insert into plm.item(item_number, description, source_system, source_id, raw)
@@ -116,8 +124,8 @@ begin
     (tie_sku, 'TIED DESCRIPTION', 'contract-test', tie_sku || '|a', jsonb_build_object('merchGroup01', 'TIED-CODE')),
     (tie_sku, 'TIED DESCRIPTION', 'contract-test', tie_sku || '|b', jsonb_build_object('merchGroup01', 'TIED-CODE'));
 
-  insert into public.erp_items_current(external_id, style_number, item_description, mg01_code, source_system)
-  values (zero_sku, zero_sku, 'LEGACY-ONLY DESCRIPTION', 'LEGACY-ONLY-CODE', 'contract-test');
+  insert into plm.legacy_erp_item_identity(id, external_id, style_number, item_description, mg01_code)
+  values (gen_random_uuid(), zero_sku, zero_sku, 'LEGACY-ONLY DESCRIPTION', 'LEGACY-ONLY-CODE');
   insert into public.style_tracker_rows(source_sheet, tracker_type, sku)
   values ('License.Style', 'licensed', zero_sku) returning id into zero_style_row_id;
   insert into plm.item(item_number, description, source_system, source_id, raw)
@@ -139,16 +147,17 @@ begin
     raise exception 'tie or zero-evidence candidates were guessed instead of left for review';
   end if;
 
-  begin
-    delete from public.erp_items_current where id = legacy_item_id;
-    raise exception 'ON DELETE RESTRICT did not block a linked legacy ERP item deletion';
-  exception
-    when foreign_key_violation then
-      get stacked diagnostics violation_constraint = constraint_name;
-      if violation_constraint <> 'style_tracker_item_bridge_erp_item_id_fkey' then
-        raise exception 'unexpected legacy deletion constraint: %', violation_constraint;
-      end if;
-  end;
+  -- #2482: with the legacy FK retired, losing a crosswalk row must not erase the stored link.
+  delete from plm.legacy_erp_item_identity where id = legacy_item_id;
+  perform plm.refresh_style_tracker_item_bridge();
+  if not exists (
+    select 1 from plm.style_tracker_item_bridge
+    where style_tracker_row_id = style_row_id
+      and erp_item_id = legacy_item_id
+      and plm_item_id = expected_item_id
+  ) then
+    raise exception '#2482: removing a crosswalk row erased a preserved bridge link';
+  end if;
 
   begin
     delete from plm.item where id = expected_item_id;

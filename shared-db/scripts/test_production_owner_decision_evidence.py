@@ -70,11 +70,11 @@ class Tests(unittest.TestCase):
             block=workflow.split(f"  {job}:\n",1)[1]
             if next_job: block=block.split(f"  {next_job}:\n",1)[0]
             raw=block.split("    permissions:\n",1)[1].split("    env:\n",1)[0]
-            return dict(re.findall(r"^      ([a-z-]+): (read|write)$",raw,re.M))
+            return dict(re.findall(r"^      ([a-z-]+): (read|write)(?:\s+#.*)?$",raw,re.M))
         self.assertEqual(permissions("production-apply-review","production-apply"),{
             "contents":"read","actions":"read","checks":"read","issues":"read","pull-requests":"read"})
         self.assertEqual(permissions("production-apply"),{
-            "contents":"write","actions":"read","checks":"read","issues":"read","pull-requests":"read",
+            "contents":"write","actions":"read","checks":"read","issues":"write","pull-requests":"read",
             "statuses":"write"})
 
 if __name__=="__main__": unittest.main()

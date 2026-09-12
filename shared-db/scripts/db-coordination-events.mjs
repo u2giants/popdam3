@@ -32,7 +32,11 @@ export class EventError extends Error {}
 
 export const EVENT_TYPES = Object.freeze([
   'contract_published', 'contract_superseded',
+  'entered', 'classified',
   'dispatched',
+  'implementation_complete', 'review_ready', 'preview_verified', 'merged',
+  'production_authorized', 'production_applied', 'live_verified', 'blocked', 'yielded',
+  'rejected_non_structural', 'urgent_waiting_capacity',
   'claim_acquired', 'claim_renewed', 'claim_expanded', 'claim_released',
   'author_capacity_relinquished', 'author_capacity_resumed',
   'issue_blocked', 'issue_unblocked',
@@ -76,13 +80,17 @@ export function validateEvent(event) {
   if (!EVENT_RESULTS.includes(event.result)) throw new EventError(`event result must be one of ${EVENT_RESULTS.join(', ')}`)
 
   const v1 = ['schema_version', 'event_id', 'event_type', 'timestamp', 'work_issue', 'claim_issue', 'pr', 'head_sha', 'actor', 'provider', 'holder_id', 'generation', 'db_reads', 'db_writes', 'result', 'evidence_urls', 'detail']
-  const v2 = ['ready_id', 'bundle_id', 'route', 'route_context', 'manifest_digest', 'invalidation_class', 'review_bundle_id', 'integration_sha']
+  const v2 = ['ready_id', 'bundle_id', 'route', 'route_context', 'manifest_digest', 'invalidation_class', 'review_bundle_id', 'integration_sha', 'return_to', 'evidence_required', 'service_class', 'impact']
   const known = new Set(event.schema_version === 1 ? v1 : [...v1, ...v2])
   for (const key of Object.keys(event)) {
     if (!known.has(key)) throw new EventError(`event has unknown field ${key}`)
   }
   for (const field of ['db_reads', 'db_writes', 'evidence_urls']) {
     if (event[field] !== undefined && !Array.isArray(event[field])) throw new EventError(`event ${field} must be an array when present`)
+  }
+  if(event.event_type==='rejected_non_structural'){
+    if(typeof event.return_to!=='string'||!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(event.return_to))throw new EventError('rejected_non_structural must name return_to as owner/repo')
+    if(!Array.isArray(event.evidence_required)||!event.evidence_required.length||event.evidence_required.some((item)=>typeof item!=='string'||!item.trim()))throw new EventError('rejected_non_structural must name reopening evidence_required')
   }
   if (event.generation !== undefined && (!Number.isInteger(event.generation) || event.generation <= 0)) {
     throw new EventError('event generation must be a positive integer when present')

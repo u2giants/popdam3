@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import { execFileSync } from 'node:child_process'
 import { runGitHubCommand } from './lib/github-transport.mjs'
-import { readFileSync } from 'node:fs'
+import { currentPullNumber, loadOpenPullFiles } from './lib/open-pr-files.mjs'
 import { pathToFileURL } from 'node:url'
 
 export const PROTECTED_SOURCE_PATHS=new Set(['scripts/manage-migration-author-lanes.mjs'])
@@ -24,28 +23,40 @@ function ghJson(args){
   try{return JSON.parse(raw)}catch{throw new InputError(`gh ${args.join(' ')} returned unreadable JSON`)}
 }
 export function filePaths(files){return [...new Set(files.flatMap((file)=>[file.filename,file.previous_filename].filter(Boolean)))]}
-function prFiles(repo,number){
-  const pr=ghJson(['api',`repos/${repo}/pulls/${number}`]),files=ghJson(['api','--paginate','--slurp',`repos/${repo}/pulls/${number}/files?per_page=100`]).flat()
-  if(!Number.isInteger(pr.changed_files)||pr.changed_files>=3000||files.length!==pr.changed_files)throw new InputError(`PR #${number} file list is incomplete`)
-  return filePaths(files)
-}
 export function activationDate(pr,timeline){
   const dates=[pr.created_at,...timeline.filter((row)=>['ready_for_review','reopened'].includes(row.event)).map((row)=>row.created_at)]
   const stamps=dates.map((date)=>Date.parse(date??''))
   if(stamps.some((stamp)=>!Number.isFinite(stamp)))throw new InputError(`activation history for PR #${pr.number} is unreadable`)
   return new Date(Math.max(...stamps)).toISOString()
 }
-function activatedAt(repo,pr){
-  const timeline=ghJson(['api','--paginate','--slurp',`repos/${repo}/issues/${pr.number}/timeline?per_page=100`]).flat()
-  return activationDate(pr,timeline)
+function readTimeline(repo,number){
+  return ghJson(['api','--paginate','--slurp',`repos/${repo}/issues/${number}/timeline?per_page=100`]).flat()
 }
-export function gather(env=process.env){
+/**
+ * The open pull request files come from the ONE shared snapshot
+ * (scripts/lib/open-pr-files.mjs) the object check also reads.
+ *
+ * Timelines are read only where they can change the answer. Activation order
+ * decides nothing unless another ready pull request edits a protected file this
+ * pull request also edits: openProtectedCollisions emits rows only for those
+ * overlapping files, so a non-overlapping pull request produces no row whatever
+ * its activation date. Reading its timeline was pure quota spend. The current
+ * pull request's own timeline is read only when at least one overlap exists.
+ */
+export function gather(env=process.env,{load=loadOpenPullFiles,timeline=readTimeline}={}){
   const repo=env.GITHUB_REPOSITORY;if(!repo)throw new InputError('GITHUB_REPOSITORY is not set')
-  let number=Number(env.PR_NUMBER)
-  if(!number&&env.GITHUB_EVENT_PATH){try{number=Number(JSON.parse(readFileSync(env.GITHUB_EVENT_PATH,'utf8')).pull_request?.number)}catch{}}
+  const number=currentPullNumber(env)
   if(!number)throw new InputError('pull request number is unavailable')
-  const current=ghJson(['api',`repos/${repo}/pulls/${number}`]),open=ghJson(['api','--paginate','--slurp',`repos/${repo}/pulls?state=open&per_page=100`]).flat()
-  return {current:{number,title:current.title,draft:current.draft,activatedAt:activatedAt(repo,current),files:prFiles(repo,number)},others:open.filter((pr)=>pr.number!==number&&!pr.draft).map((pr)=>({number:pr.number,title:pr.title,draft:pr.draft,activatedAt:activatedAt(repo,pr),files:prFiles(repo,pr.number)}))}
+  const snapshot=load(repo,number,{env})
+  const current={number,title:snapshot.current.title,draft:snapshot.current.draft,created_at:snapshot.current.created_at,files:filePaths(snapshot.current.files)}
+  const mine=new Set(current.files.filter((file)=>PROTECTED_SOURCE_PATHS.has(file)))
+  const others=snapshot.others.filter((pr)=>Number(pr.number)!==number&&!pr.listed.draft).map((pr)=>({number:pr.number,title:pr.listed.title,draft:pr.listed.draft,created_at:pr.listed.created_at,files:filePaths(pr.files)}))
+  const overlapping=others.filter((pr)=>pr.files.some((file)=>mine.has(file)))
+  const activate=(pr)=>({number:pr.number,title:pr.title,draft:pr.draft,activatedAt:activationDate(pr,timeline(repo,pr.number)),files:pr.files})
+  return {
+    current:overlapping.length?activate(current):{number,title:current.title,draft:current.draft,activatedAt:null,files:current.files},
+    others:overlapping.map(activate),
+  }
 }
 export function main(env=process.env){
   let input;try{input=gather(env)}catch(error){console.error(`ERROR: protected source collision audit is unavailable: ${error.message}`);return 2}

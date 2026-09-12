@@ -2,6 +2,30 @@
 
 Issue: #1767. Scope: repository coordination only; no database, preview, production, or application data changes.
 
+> **The admission gate is not reviewer work, 2026-09-11 (issue #2802).** The
+> 25-request ceiling below is UNCHANGED and the mutex-release reserve is
+> untouched. What changed is what the ceiling is charged for. Everything
+> measured in this document was measured for a draw with NO structural-admission
+> step; that gate (`scripts/orchestrator-flow/admission.mjs`) landed later, in
+> e7bec2fe on 2026-09-11, and its GitHub reads — the pull request, the linked
+> work issue, the complete file list, file contents at the exact head, the
+> closing-issue link and the outcome history — were being billed against this
+> ceiling. Charged against it, a structural draw exhausted the budget at request
+> 24 (2 held back as the mutex-release reserve). That refusal fired from INSIDE
+> the held mutex section — it was not a cheap fail-fast before the mutex was
+> taken. The mutex-release reserve is only subtracted once `acquireReviewMutex`
+> has marked the budget locked, and the admission step runs after that, so the
+> lane had already acquired the reviewer mutex and made admission's reads under
+> it before the refusal, and then had to unwind and release. Every migration
+> author lane in the fleet was blocked.
+> Admission now runs outside the reviewer operation's request accounting
+> (`withoutReviewRequestBudget`), which is how it is already accounted for at
+> every other call site — `acquireAuthorLane`, the guarded merge gate and
+> preview preparation all invoke it with no reviewer budget installed. It still
+> runs, still refuses identically, and still runs under the same held mutex
+> before the draw proceeds. Nothing below is re-derived, because nothing below
+> changed: the reviewer half of the operation costs exactly what it did.
+
 > **Queue and capacity budgets, 2026-09-04 (issue #2345).** The 25-request
 > ceiling still governs the assignment transaction itself. When FIFO admission
 > is enabled, the complete public command has one honest 75-request ceiling

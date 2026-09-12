@@ -43,8 +43,20 @@ export function runSql(sql, { url = databaseUrl() } = {}) {
     killSignal: "SIGKILL",
   });
   if (psql.error) throw clientSpawnFaultError("psql", psql.error);
-  if (psql.status !== 0) throw new Error(psql.stderr || "psql failed");
+  if (psql.status !== 0) {
+    const error = new Error(redactPsqlError(psql.stderr));
+    error.code = "DATABASE_COMMAND_FAILED";
+    throw error;
+  }
   return psql.stdout;
+}
+
+export function redactPsqlError(stderr) {
+  const first=String(stderr??"").split(/\r?\n/).find((line)=>/ERROR:|FATAL:|PANIC:/.test(line)) ?? "Database command failed";
+  return first.replace(/postgres(?:ql)?:\/\/\S+/gi,"[redacted-url]")
+    .replace(/'[^'\r\n]*'/g,"[redacted-value]")
+    .replace(/"[^"\r\n]*"/g,(match,offset,line)=>/(relation|column|constraint|table|schema|function|type)\s*$/i.test(line.slice(0,offset))?match:"[redacted-value]")
+    .slice(0,1000);
 }
 
 /** A single scalar-or-tabular read, returned as rows of trimmed strings. */
@@ -87,19 +99,21 @@ export function assertExpectedTarget({
   }
   const url = String(databaseUrl ?? "").trim();
   if (!url) throw new Error("DATABASE_URL is not set; refusing to write");
-  let host;
+  let parsed;
   try {
-    host = new URL(url).host;
+    parsed = new URL(url);
   } catch {
     throw new Error("DATABASE_URL is not a parseable connection URL; refusing to write");
   }
   // The project ref appears in the host of a direct connection and in the user of a
   // pooled one, so both spellings are accepted -- and nothing else is. The URL is
   // never printed; only the ref that was expected.
-  if (!url.includes(ref)) {
+  const hostParts = parsed.hostname.split(".");
+  const userParts = decodeURIComponent(parsed.username).split(/[.:]/);
+  if (!hostParts.includes(ref) && !userParts.includes(ref)) {
     throw new Error(`the connection does not name project ${ref}; refusing to write`);
   }
-  return { expectedProjectRef: ref, host };
+  return { expectedProjectRef: ref, host: parsed.host };
 }
 
 export function proveTarget(options = {}) {
@@ -155,6 +169,28 @@ select pg_notify('coldlion_sync_alert', ${literal(
     `${scope.endpoint}${scope.stage ? ` ${scope.stage}` : ""} window ${window.from}: ${message}`.slice(0, 7000),
   )});
 commit;`;
+  runSql(sql, options);
+  return true;
+}
+
+/** Record and alert a terminal current-state master failure. Dry runs never call this. */
+export function masterFailureSql({ endpoint, companyCode, requestedBy, error }) {
+  if (isClientSpawnFault(error)) return false;
+  const message = String(error?.message ?? error).slice(0, 4000);
+  return `begin;
+insert into coldlion.sync_run
+  (endpoint, company_code, request_params, status, requested_by, started_at, finished_at,
+   http_status, body_status, error_message)
+values
+  (${literal(endpoint)}, ${literal(companyCode)}, ${literal(JSON.stringify({companyCode,fullSnapshot:true,...(error?.requestParams ? {request:error.requestParams} : {})}))}::jsonb,
+   'failed', ${literal(requestedBy)}, now(), now(), ${error?.httpStatus ?? "null"}, ${error?.bodyStatus ?? "null"}, ${literal(message)});
+select pg_notify('coldlion_sync_alert', ${literal(`${endpoint} master snapshot failed: ${message}`.slice(0, 7000))});
+commit;`;
+}
+
+export function recordMasterFailure({ endpoint, companyCode, requestedBy, error, options = {} }) {
+  const sql = masterFailureSql({ endpoint, companyCode, requestedBy, error });
+  if (sql === false) return false;
   runSql(sql, options);
   return true;
 }

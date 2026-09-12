@@ -92,10 +92,26 @@ now has an `apply` mode that does the whole bounded-temp-checkout recipe for you
 Before 2026-08-10 that job opened with a step called `Refuse production apply`, so the lane could
 never run at all — which is why four licensor features queued up behind it.
 
-**To promote, dispatch the workflow with:** `target: production`, `mode: apply`, the exact
-`origin/main` SHA, the comma-separated allowlist, `confirmation: APPLY <sha>`, and
-the successful review-evidence workflow run ID plus its `sha256:` artifact digest (see gate 2).
-A wrong confirmation string fails on the first step, before any credential is used.
+**Normal path (issue #2716): do not manually reconstruct or dispatch these inputs.** After the
+guarded merge, dispatch only the governed merged-main preview rehearsal. When that rehearsal
+succeeds for one source pull request, its final qualification job re-proves the exact-head durable
+verdict, latest guarded-merge authorization, current `main`, activated policy, and unique preview
+artifact. It also resolves exactly one open structural work issue from GitHub's source-PR linkage,
+then independently re-admits that issue against its current scope and the PR's actual migration
+files. It writes immutable automatic review evidence and dispatches this same workflow with the
+exact production allowlist, `APPLY <sha>` confirmation, source PR, admitted work issue, and both
+artifact digests.
+
+The automatic dispatch queues behind this workflow's single global concurrency group. The
+production job then acquires the exclusive production lock and repeats the governed evidence
+checks. Automatic v2 evidence also fails to an engineer if any of the five derived risk classes
+is present: permanent data loss/rewrite, expected downtime, material access change, unproven
+recovery, or unresolved material objection. Missing or ambiguous qualification evidence stops
+before dispatch; any failed recheck after dispatch still stops before a database write with
+`ENGINEER ACTION REQUIRED`. It never falls back to asking Albert to name versions. Manual
+production dispatch is a recovery/engineering path only and is not authorized by the automatic
+policy. That recovery path still requires the successful review-evidence workflow run ID and its
+exact `sha256:` artifact digest; #2716 removes transcription only from the ordinary automatic path.
 
 **Three gates, and NONE of them is sufficient alone:**
 

@@ -1,0 +1,18 @@
+{
+  "captured_at": "2026-09-09T02:24:00Z",
+  "endpoint": "/merchGroupDetails",
+  "api_version": "1.5.1",
+  "declared_parameters": ["active", "companyCode", "divisionCode", "mgCode", "mgTypeCode"],
+  "response_shape": "plain array",
+  "queries_run": 61,
+  "nonempty_queries": 29,
+  "company_only_count": 1376,
+  "division_counts": {
+    "CW001": 483,
+    "SP001": 493,
+    "EP001": 0,
+    "EH001": 400
+  },
+  "conclusion": "The endpoint is operational. Loader construction may rely on it, while preserving a zero-row result as a valid current-state response.",
+  "privacy": "Counts and declared parameter names only; no ColdLion payload values are retained."
+}

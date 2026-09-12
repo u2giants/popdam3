@@ -22,7 +22,7 @@ import { contractHash, reconcileReportWithContract, validateContract } from './a
 import { auditTimeline } from './db-coordination-events.mjs'
 
 const NOW = new Date('2026-08-23T12:00:00Z')
-const scope = (body) => ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: shared-db-orchestrator', 'priority: 5', 'depends_on:', body, '```'].join('\n')
+const scope = (body) => ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: shared-db-orchestrator', 'service_class: standard-application', 'change_type: migration', 'application_return_to: u2giants/example-app', 'live_assertion: authenticated create-and-read succeeds', 'generated_types: not-applicable', 'priority: 5', 'depends_on:', body, '```'].join('\n')
 
 // --- CONFLICT SCENARIOS ----------------------------------------------------
 
@@ -138,7 +138,7 @@ const DEPENDENCY_SCENARIOS = [
 
 function completion(over) {
   const record = { schema_version: 1, work_issue: 10, ...over }
-  return { body: '```db-work-completion\n' + JSON.stringify(record) + '\n```' }
+  return { body: '```db-work-completion\n' + JSON.stringify(record) + '\n```', author_association:'OWNER', author:'u2giants' }
 }
 
 for (const row of DEPENDENCY_SCENARIOS) {

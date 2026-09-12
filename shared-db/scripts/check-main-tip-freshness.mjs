@@ -51,6 +51,7 @@
 // permissive direction is worse than the bare `test` it replaces.
 
 import { execFileSync } from 'node:child_process'
+import { diffDigest } from './lib/pr-content-equivalence.mjs'
 
 // Prose only. Deliberately short, deliberately not directory-based -- see above.
 // `.txt` was here and was REMOVED after external review (GLM, 2026-09-01):
@@ -218,6 +219,76 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git }) {
   }
 }
 
+const MIGRATION_PATH = /^supabase\/migrations\/(\d{14})_[^/]+\.sql$/
+const REGENERATED_EVIDENCE_PREFIX = '.agent/'
+
+function nulPaths(raw) {
+  return [...new Set(String(raw).split('\0').filter((entry) => entry.length > 0))]
+}
+
+/**
+ * The `--contains` question: may this pull request head merge although main has
+ * moved past its merge base with changes that are not documentation?
+ *
+ * MAIN MOVING IS NOT A REFUSAL BY ITSELF (orchestrator marker #2758, 2026-09-11).
+ * A guarded merge round takes ~25 minutes and main moves faster, so PR #2761 lost
+ * the race twice while nothing it touched had changed. Main may have moved when
+ * ALL of these hold, each proven from git:
+ *   - no file the pull request changed was also changed on main since the merge
+ *     base (`.agent/` evidence aside -- every pull request regenerates it);
+ *   - no migration version the pull request adds or edits exists on the main tip
+ *     under a different file name;
+ *   - git can merge the main tip and the head with no conflict at all, `.agent/`
+ *     included (`git merge-tree`, exactly what the merge button will produce); and
+ *   - the pull request's own diff is unchanged by that merge: the diff from the
+ *     main tip to the merged tree is identical to the diff from the merge base to
+ *     the head (`.agent/` evidence aside).
+ * Every other case, and every git error, refuses exactly as before.
+ */
+export function classifyBranchFreshness({ headSha, tipSha, cwd, gitRunner = git }) {
+  if (!/^[0-9a-f]{40}$/.test(headSha ?? '')) return { ok: false, reason: 'REFUSED: the pull request head is not a full 40-character commit SHA.' }
+  if (!/^[0-9a-f]{40}$/.test(tipSha ?? '')) return { ok: false, reason: 'REFUSED: the live origin/main tip could not be resolved.' }
+  let base
+  try { base = String(gitRunner(['merge-base', headSha, tipSha], { cwd })).trim() } catch { base = '' }
+  if (!/^[0-9a-f]{40}$/.test(base)) return { ok: false, reason: 'REFUSED: could not compute the merge base of HEAD and origin/main.' }
+  const documentation = classifyMainTip({ mainSha: base, tipSha, cwd, gitRunner })
+  if (documentation.ok || !Array.isArray(documentation.movedBy)) return documentation
+  const refuse = (detail) => ({ ok: false, reason: `${documentation.reason} It cannot merge without an update from main: ${detail}`, movedBy: documentation.movedBy })
+  let prPaths, tipMigrations, mergedTree
+  try {
+    prPaths = nulPaths(gitRunner(['diff', '--name-only', '--no-renames', '-z', base, headSha], { cwd }))
+    tipMigrations = nulPaths(gitRunner(['ls-tree', '-r', '-z', '--name-only', tipSha, '--', 'supabase/migrations'], { cwd }))
+  } catch { return refuse('the pull request change or the main migration list could not be read.') }
+  const mainPaths = new Set(documentation.movedBy)
+  const overlap = prPaths.filter((path) => mainPaths.has(path) && !path.startsWith(REGENERATED_EVIDENCE_PREFIX)).sort()
+  if (overlap.length) return refuse(`main also changed ${overlap.slice(0, 10).join(', ')}${overlap.length > 10 ? `, and ${overlap.length - 10} more` : ''}.`)
+  const collisions = []
+  for (const path of prPaths) {
+    const version = MIGRATION_PATH.exec(path)?.[1]
+    if (!version) continue
+    for (const other of tipMigrations) if (other !== path && MIGRATION_PATH.exec(other)?.[1] === version) collisions.push(`${path} and ${other}`)
+  }
+  if (collisions.length) return refuse(`migration version collision on main: ${collisions.join('; ')}.`)
+  try {
+    mergedTree = String(gitRunner(['merge-tree', '--write-tree', '--no-messages', tipSha, headSha], { cwd })).trim().split('\n')[0]
+  } catch (error) {
+    return refuse(error?.status === 1 ? 'merging origin/main into the head conflicts.' : 'git could not trial-merge origin/main into the head.')
+  }
+  if (!/^[0-9a-f]{40}$/.test(mergedTree)) return refuse('git could not trial-merge origin/main into the head.')
+  let before, after
+  try {
+    before = diffDigest(base, headSha, { gitRunner: (args) => gitRunner(args, { cwd }) })
+    after = diffDigest(tipSha, mergedTree, { gitRunner: (args) => gitRunner(args, { cwd }) })
+  } catch { return refuse('the pull request diff could not be compared across the trial merge.') }
+  if (before !== after) return refuse("the trial merge changes the pull request's own diff.")
+  return {
+    ok: true,
+    reason: `origin/main has advanced to ${tipSha} with non-documentation changes, but none touches a file or migration version this pull request changes, the head merges into it cleanly, and the pull request's own diff is unchanged by that merge.`,
+    movedBy: documentation.movedBy,
+    independent: true,
+  }
+}
+
 function resolveTip() {
   // `origin/main` is what every one of the twelve replaced sites resolved, so
   // resolve exactly that and nothing cleverer. A fallback chain here would be a
@@ -238,16 +309,22 @@ function main() {
 
   let mainSha
   if (contains) {
-    // "Is this branch up to date with main?" -- the question
-    // guarded-migration-merge asks. The commits that matter are the ones on main
-    // that the branch does NOT already contain, so the range starts at the merge
-    // base rather than at a dispatched SHA.
-    try {
-      mainSha = git(['merge-base', 'HEAD', 'origin/main']).trim()
-    } catch {
-      console.error('REFUSED: could not compute the merge base of HEAD and origin/main.')
+    // "May this branch merge into the current main?" -- the question
+    // guarded-migration-merge asks. See `classifyBranchFreshness`.
+    let headSha
+    try { headSha = git(['rev-parse', 'HEAD']).trim() } catch {
+      console.error('REFUSED: could not resolve HEAD.')
       process.exit(1)
     }
+    const verdict = classifyBranchFreshness({ headSha, tipSha })
+    if (!verdict.ok) {
+      console.error(verdict.reason)
+      console.error('This branch must be updated from origin/main before it can merge.')
+      process.exit(1)
+    }
+    console.log(`OK -- ${verdict.reason}`)
+    for (const path of verdict.movedBy ?? []) console.log(`  ${verdict.independent ? 'moved on main' : 'documentation'}: ${path}`)
+    return
   } else {
     mainSha = (process.env.MAIN_SHA ?? '').trim()
     if (!mainSha) {

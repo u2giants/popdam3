@@ -583,6 +583,18 @@ test('open PR gathering fails closed when detail hydration is unreadable', () =>
   assert.throws(()=>gatherOpenPrObjects('o/r',io),/unreadable detail metadata/)
 })
 
+test('every open PR file list is proved complete, including a short non-migration list', () => {
+  let hydrated = 0
+  const docs = Array.from({ length: 30 }, (_, i) => FILE(`docs/${i}.md`))
+  const io = fakeIo([PR(10), PR(11)], { 10: docs, 11: [FILE('README.md')] })
+  const counting = { ...io, getPull: (...args) => (hydrated += 1, io.getPull(...args)) }
+  assert.deepEqual(gatherOpenPrObjects('o/r', counting), [])
+  assert.equal(hydrated, 2, 'no pull request skips the changed_files proof')
+  // A short list GitHub truncated (a lost page could hold a migration) is refused.
+  const truncated = fakeIo([PR(12, { changed_files: 31 })], { 12: docs })
+  assert.throws(() => gatherOpenPrObjects('o/r', truncated), /returned 30 of 31/)
+})
+
 test('a DRAFT pull request counts as in flight at dispatch time', () => {
   // Defect: `if (pr.draft) continue`. Correct for the merge guard (a draft is
   // not competing to merge) and a false clear at dispatch, where a draft is

@@ -87,8 +87,8 @@ begin
     '2026-09-09T12:00:00Z'
   ) returning id into v_item;
 
-  insert into public.erp_items_current (external_id, dismissed)
-  values ('ZZ2466ITEM', true) returning id into v_legacy;
+  insert into plm.legacy_erp_item_identity (id, external_id)
+  values (gen_random_uuid(), 'ZZ2466ITEM') returning id into v_legacy;
 
   insert into coldlion.sync_run (endpoint, company_code, requested_by)
   values ('/itemDetails', 'ZZCO', 'ZZ2466') returning id into v_run;

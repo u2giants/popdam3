@@ -3,7 +3,8 @@
 -- What is being pinned:
 --   1. Catalog posture of public.queue_nightly_rebuild_style_groups(): zero arguments,
 --      RETURNS void, LANGUAGE plpgsql, SECURITY DEFINER, search_path=public, and EXECUTE
---      granted to authenticated, service_role and postgres.
+--      granted to service_role and postgres. (#2769 revoked authenticated; the full client-role
+--      restriction is pinned by queue_nightly_rebuild_style_groups_execute_grants.sql.)
 --   2. Cron state. The clock-driven reconcile job is GONE - `nightly-reconcile-sg-asset-counts`
 --      must not exist - and `nightly-rebuild-style-groups` runs on `*/10 * * * *` with its
 --      command unchanged. This is the whole point of #2440 and the one thing a later
@@ -91,7 +92,7 @@ begin
 
   select string_agg(r.rolname, ', ' order by r.rolname)
     into v_missing
-  from (values ('authenticated'), ('service_role'), ('postgres')) as r(rolname)
+  from (values ('service_role'), ('postgres')) as r(rolname)
   where not has_function_privilege(r.rolname, v_oid, 'EXECUTE');
 
   if v_missing is not null then

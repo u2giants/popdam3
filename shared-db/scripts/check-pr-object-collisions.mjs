@@ -101,6 +101,7 @@
 import { execFileSync } from 'node:child_process'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { createTreeReader } from './lib/github-tree.mjs'
+import { loadOpenPullFiles, OpenPullFilesError } from './lib/open-pr-files.mjs'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -405,10 +406,10 @@ const DISPATCH_PATTERNS = [
   {
     kinds: ['table'],
     re: new RegExp(
-      String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${QUALIFIED})`,
+      String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${QUALIFIED}(?:\s*,\s*${QUALIFIED})*)`,
       'gi',
     ),
-    map: (m) => [{ action: 'drop', kind: 'table', target: canonical(m[1]) }],
+    map: (m) => [...m[1].matchAll(new RegExp(QUALIFIED,'g'))].map((target) => ({ action:'drop', kind:'table', target:canonical(target[0]) })),
   },
   {
     // `alter table` in ALL its forms. Per plan D9 this is TABLE-level: every
@@ -701,9 +702,11 @@ export function extractOperations(sql) {
   while ((temporaryMatch = temporaryCreate.exec(text)) !== null) {
     temporaryEvents.push({ offset: temporaryMatch.index, action: 'create', target: canonical(temporaryMatch[1]) })
   }
-  const tableDrop = new RegExp(String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${QUALIFIED})`, 'gi')
+  const tableDrop = new RegExp(String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${QUALIFIED}(?:\s*,\s*${QUALIFIED})*)`, 'gi')
   while ((temporaryMatch = tableDrop.exec(text)) !== null) {
-    temporaryEvents.push({ offset: temporaryMatch.index, action: 'drop', target: canonical(temporaryMatch[1]) })
+    for(const target of temporaryMatch[1].matchAll(new RegExp(QUALIFIED,'g'))){
+      temporaryEvents.push({ offset:temporaryMatch.index, action:'drop', target:canonical(target[0]) })
+    }
   }
   temporaryEvents.sort((a,b)=>a.offset-b.offset)
   const liveTemporaryTables=new Set(),temporaryCleanupOffsets=new Set()
@@ -741,6 +744,29 @@ export function extractOperations(sql) {
       } else {
         add({ action: 'replace', kind, target: canonical(m[1]) })
       }
+    }
+  }
+
+  const multiDrop = new RegExp(String.raw`\bdrop\s+(materialized\s+view|function|procedure|view|index|type|domain|schema|sequence)\s+(?:concurrently\s+)?(?:if\s+exists\s+)?([^;]+)`, 'gi')
+  const splitTargets = (value) => {
+    const targets=[];let start=0,depth=0,quoted=false
+    for(let index=0;index<value.length;index++){
+      const char=value[index]
+      if(char==='"')quoted=!quoted
+      else if(!quoted&&char==='(')depth++
+      else if(!quoted&&char===')')depth=Math.max(0,depth-1)
+      else if(!quoted&&depth===0&&char===','){targets.push(value.slice(start,index));start=index+1}
+    }
+    targets.push(value.slice(start));return targets
+  }
+  let multiMatch
+  while((multiMatch=multiDrop.exec(text))!==null){
+    const parts=splitTargets(multiMatch[2].replace(/\s+(?:cascade|restrict)\s*$/i,''))
+    if(parts.length<2)continue
+    const rawKind=multiMatch[1].toLowerCase().replace(/\s+/g,' '),kind=rawKind==='domain'?'type':rawKind
+    for(const part of parts){
+      const target=new RegExp(String.raw`^\s*(${QUALIFIED})`,'i').exec(part)
+      if(target)add({action:'drop',kind,target:canonical(target[1])},multiMatch.index)
     }
   }
 
@@ -1111,21 +1137,23 @@ function isMigration(file) {
   )
 }
 
-function fetchFiles(repo, number, ref) {
-  const pr = ghJson(['api', `repos/${repo}/pulls/${number}`])
-  const allFiles = ghJson([
-    'api',
-    '--paginate',
-    `repos/${repo}/pulls/${number}/files?per_page=100`,
-  ])
-  if (!Number.isInteger(pr?.changed_files)) throw new Skip(`PR #${number} has no trustworthy changed_files count`)
-  if (pr.changed_files >= 3000) throw new Skip(`PR #${number} reaches GitHub's 3000-file limit`)
-  if (allFiles.length !== pr.changed_files) throw new Skip(`PR #${number} returned ${allFiles.length} of ${pr.changed_files} changed files`)
-  const files = allFiles.filter(isMigration)
-  return files.map((file) => ({
+// The file list comes from the shared open pull request snapshot, which proved
+// it complete against changed_files and refused the 3000-file cap when it was
+// gathered (scripts/lib/open-pr-files.mjs).
+function migrationFiles(repo, files, ref, readSql) {
+  return files.filter(isMigration).map((file) => ({
     path: file.filename,
-    sql: sqlAtRef(repo, file.filename, ref),
+    sql: readSql(repo, file.filename, ref),
   }))
+}
+
+function asSkip(fn) {
+  try {
+    return fn()
+  } catch (error) {
+    if (error instanceof OpenPullFilesError) throw new Skip(error.message)
+    throw error
+  }
 }
 
 /**
@@ -1169,7 +1197,10 @@ function baseBranchSource(repo, number, baseRef, headSha) {
   }
 }
 
-export function gatherSources(env = process.env) {
+export function gatherSources(
+  env = process.env,
+  { load = loadOpenPullFiles, readSql = sqlAtRef, baseSource = baseBranchSource, readPull = (repo, number) => ghJson(['api', `repos/${repo}/pulls/${number}`]) } = {},
+) {
   const repo = env.GITHUB_REPOSITORY
   if (!repo) throw new Skip('GITHUB_REPOSITORY is not set')
 
@@ -1193,32 +1224,29 @@ export function gatherSources(env = process.env) {
   if (!number) throw new Skip('not running on a pull request (no PR number)')
 
   if (!baseRef || !baseSha || !headSha) {
-    const pr = ghJson(['api', `repos/${repo}/pulls/${number}`])
+    const pr = readPull(repo, number)
     baseRef ??= pr.base?.ref
     baseSha ??= pr.base?.sha
     headSha ??= pr.head?.sha
   }
 
+  const snapshot = asSkip(() => load(repo, Number(number), { env }))
+
   const sources = [
-    { label: `PR #${number} (this PR)`, files: fetchFiles(repo, number, headSha) },
+    { label: `PR #${number} (this PR)`, files: migrationFiles(repo, snapshot.current.files, headSha, readSql) },
   ]
 
-  const open = ghJson([
-    'api',
-    '--paginate',
-    `repos/${repo}/pulls?state=open&per_page=100`,
-  ])
-  for (const pr of open) {
-    if (pr.number === Number(number)) continue
-    if (pr.draft) continue // a draft is not competing to merge yet
+  for (const pr of snapshot.others) {
+    if (Number(pr.number) === Number(number)) continue
+    if (pr.listed.draft) continue // a draft is not competing to merge yet
     sources.push({
-      label: `PR #${pr.number} "${pr.title}"`,
-      files: fetchFiles(repo, pr.number, pr.head?.sha ?? pr.head?.ref),
+      label: `PR #${pr.number} "${pr.listed.title}"`,
+      files: migrationFiles(repo, pr.files, pr.listed.headSha, readSql),
     })
   }
 
   if (baseRef && headSha) {
-    const base = baseBranchSource(repo, number, baseRef, headSha)
+    const base = baseSource(repo, number, baseRef, headSha)
     if (base) sources.push(base)
   }
 

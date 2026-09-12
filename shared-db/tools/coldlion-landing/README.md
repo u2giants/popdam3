@@ -1,11 +1,12 @@
-# ColdLion history landing loader
+# ColdLion landing loaders
 
-Fills `coldlion.order_history_*` and `coldlion.prod_history_*` from the ColdLion
-ERP API. The landing tables and their guards shipped on 2026-09-05; this is the
-loader that puts rows in them.
+Fills the existing ColdLion master, item, sales-history and production-history
+landing tables from the ColdLion ERP API.
 
-Sales-order history and production-order history only. The masters half of plan
-Step 7 (`sync-masters.mjs`) is **not** built here.
+`sync-masters.mjs` takes a complete current-state snapshot and upserts it. It
+does not use history windows or the window ledger. It fetches seasons per
+division, excludes EP001, and reconciles cleared item merchandise-group slots
+without truncating any item table.
 
 ## What it does
 
@@ -64,6 +65,12 @@ Ongoing sync — re-reads the most recent windows, skipping any already loaded:
 node tools/coldlion-landing/sync-history.mjs --windows 3
 ```
 
+Current-state masters — safe to re-run at any time:
+
+```bash
+node tools/coldlion-landing/sync-masters.mjs
+```
+
 Backfill — resumable from the ledger, so re-running after an interruption
 continues where the evidence stops:
 
@@ -120,6 +127,11 @@ the two workflows themselves: their triggers, the declared target beside every
 credential, the missing-secret refusals, the offline tests running before any
 write, and the serialisation. It runs offline with no secrets and no database,
 as part of the tools offline suite.
+
+`tools/coldlion-landing-masters.test.mjs` covers declared parameters, both
+master response shapes, unknown-field refusal, settled projections, five-part
+merchandise-group identity, item-slot clearing, re-runnable upserts, and the
+workflow target guard.
 
 No real ColdLion values appear in this directory. The fixtures are synthetic and
 the loaders print counts, scopes and window dates only — this repository is

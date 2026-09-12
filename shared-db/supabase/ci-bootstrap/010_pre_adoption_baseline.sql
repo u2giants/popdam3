@@ -6958,9 +6958,6 @@ grant EXECUTE on function public.parse_pdf_files_used(p_asset_id uuid) to public
 grant EXECUTE on function public.propagate_group_tags_batch(p_cursor uuid, p_batch_size integer) to service_role;
 grant EXECUTE on function public.propagate_group_tags_batch(p_cursor uuid, p_batch_size integer) to authenticated;
 grant EXECUTE on function public.propagate_group_tags_batch(p_cursor uuid, p_batch_size integer) to postgres;
-grant EXECUTE on function public.queue_nightly_rebuild_style_groups() to service_role;
-grant EXECUTE on function public.queue_nightly_rebuild_style_groups() to authenticated;
-grant EXECUTE on function public.queue_nightly_rebuild_style_groups() to postgres;
 grant EXECUTE on function public.queue_sg_render_jobs_by_ids(p_file_ids uuid[]) to postgres;
 grant EXECUTE on function public.queue_sg_render_jobs_by_ids(p_file_ids uuid[]) to authenticated;
 grant EXECUTE on function public.queue_sg_render_jobs_by_ids(p_file_ids uuid[]) to anon;

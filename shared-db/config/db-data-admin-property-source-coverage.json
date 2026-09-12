@@ -192,6 +192,14 @@
       "reason": "ColdLion is our own operational system, not a licensor portal Property scrape."
     },
     {
+      "family": "legacy_erp_item_identity",
+      "licensor": "POP Creations operational data (retired DesignFlow item feed)",
+      "business_purpose": "Frozen legacy ERP item UUID crosswalk kept after retiring public.erp_items_current (#2482)",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_prefixes": ["legacy_erp_"],
+      "reason": "Identity and matching columns copied once from our own retired item feed; no licensor portal Property vocabulary."
+    },
+    {
       "family": "coldlion_promotion_governance",
       "licensor": "ColdLion (POP Creations operational data)",
       "business_purpose": "Promotion governance and quarantine",
@@ -344,6 +352,14 @@
       "disposition": "not_applicable_no_source_property_vocabulary",
       "table_names": ["deployment_environment", "grid_cell_notes", "reference_value"],
       "reason": "Application and platform data."
+    },
+    {
+      "family": "production_tracking_lead_time_templates",
+      "licensor": "POP Creations application data",
+      "business_purpose": "DesignFlow Production Tracking lead-time template assignment",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["product_type_factory_time"],
+      "reason": "Application data (#2724): assigns a FactoryTime lead-time template to each product type; not a licensor portal Property vocabulary."
     }
   ]
 }

@@ -1,62 +1,51 @@
 {
   "schema_version": 1,
-  "work_issue": 2662,
-  "work_type": "structural",
+  "work_issue": 2809,
+  "work_type": "repo-maintenance",
   "route": "shared-db-orchestrator",
-  "goal": "Close cross-application reads through CRM definer-semantics views (issue 2662 batch 1) while keeping identical rows for every CRM, PopDAM, PIM, DesignFlow and Data Admin caller.",
-  "base_sha": "9b02ad489d09427fc0556248c0a85b7cc78807ff",
-  "dispatcher": "claude orchestrator marker2758",
-  "worker": "claude-2758-2662-definer-views",
-  "branch": "claude/issue-2662-definer-views",
-  "worktree": "C:/Users/ahazan/AppData/Local/Temp/claude/C--repos-shared-db--claude-worktrees-recursing-poincare-85d3a9/ceb221ac-1746-4836-9306-6839c18dbced/scratchpad/wt-2662",
+  "goal": "Book an `alter table ... set schema ...` removal at the END of its own statement so archiving a table stops self-flagging as a missing reference, without weakening the guard's genuine missing-reference detection.",
+  "base_sha": "c7465a7598fb2191e2df549ec63ba255360c484a",
+  "dispatcher": "Claude orchestrator #2758",
+  "worker": "claude-2758-2809",
+  "branch": "claude/issue-2809-guard-set-schema-ordering",
+  "worktree": "C:/repos/shared-db-worktrees/pr2810-refresh",
   "allowed_paths": [
-    "supabase/migrations/20260911124746_crm_definer_views_caller_gate.sql",
-    "supabase/tests/crm_definer_views_caller_gate_contracts.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "file_writes": [
-    "supabase/migrations/20260911124746_crm_definer_views_caller_gate.sql",
-    "supabase/tests/crm_definer_views_caller_gate_contracts.sql"
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
+    ".agent/contract.json",
+    ".agent/completion.json"
   ],
-  "db_reads": [
-    "table core.customer",
-    "table crm.ingested_domain",
-    "table plm.customer_import",
-    "table app.app_access",
-    "table app.profile",
-    "view api.crm_contact_list",
-    "table core.contact",
-    "table public.sku_files_used",
-    "table public.style_guide_files",
-    "table public.style_groups"
-  ],
-  "db_writes": [
-    "view api.crm_customer_list",
-    "view api.crm_account_list",
-    "view api.crm_ingested_domain_list",
-    "view api.crm_contact_segment_list",
-    "view api.crm_contact_segment_counts",
-    "view public.sg_archive_usage"
-  ],
+  "db_reads": [],
+  "db_writes": [],
   "prohibited_actions": [
-    "No direct production DDL; production only through the governed workflow.",
-    "Do not change view columns, grants or comments.",
-    "Do not touch views owned by other active claims (api.db_data_admin_scraped_properties, api.pim_item_picker, api.plm_item_list)."
+    "No weakening, bypassing, deleting or allowlisting around the preflight guard; its missing-reference detection must still refuse after this change.",
+    "No shared database reads or writes by this worker.",
+    "No migration file and no reserved migration version; this work ships none.",
+    "No edits to issue 2482's claim, branch, worktree or migration."
   ],
   "required_checks": [
-    "git diff --check",
-    "bash scripts/check-sql.sh",
-    "hosted ephemeral migration regression suite"
+    "python -m unittest scripts.test_production_migration_guard",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
   ],
   "assumptions": [
-    "All app consumers of the changed views read as the authenticated role from popcrm-web; no service-role consumer exists.",
-    "Parent owns preview, merge, production and live acceptance.",
-    "Preview authenticated-role parity per identity runs after merge through the orchestrator-held preview dispatch; the pre-apply preview baseline is recorded in PR 2764."
+    "The identical self-flag shape in `alter table ... rename to ...` is deliberately out of scope and is recorded in the pull request body as deserving its own issue.",
+    "Generation 4 records base c7465a75. Main moved twice while this branch waited, 485a0ba5 to 4da62786 to c7465a75. On the first step three paths conflicted: the two .agent evidence files, which every lane writes at the repo root and which were resolved wholesale to this lane's own evidence rather than hand-merged between lanes, and the throughput truth audit, an append-style registry resolved as a union of main's 282 dispositions plus the single entry this branch authored. On the second step only the .agent pair conflicted; main c7465a75 touched none of this lane's three paths, so the registry union stands unchanged at 283 sites.",
+    "This branch's registered call site moved from scripts/production_migration_guard.py:1969 to :2093 because main changed the same file. The site was recomputed from the merged tree; its line_sha256 is unchanged because the line content is unchanged. call_site_count 283 and call_site_sha256 were regenerated from the checker's own discover() inventory rather than hand-edited.",
+    "One entry present in the branch's previous copy of the registry, scripts/check-migration-ledger-drift.mjs:247, was not authored by this branch; it came from the superseded base 485a0ba5 and main has since changed that line away. It is dropped rather than resurrected."
   ],
   "stop_conditions": [
-    "Stop if any CRM-access caller's row count changes on preview.",
-    "Stop if a PopDAM, PIM, DesignFlow or Data Admin consumer of a changed view is found."
+    "Stop if the one-line ordering change cannot be made without altering any other guard behaviour.",
+    "Stop if either negative control stops refusing, since that would mean the capability was lost rather than repaired.",
+    "Stop and report the exact refusal if a required tool refuses, rather than working around it."
   ],
-  "generation": 6
+  "generation": 4
 }

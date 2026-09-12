@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import preview_instance_text, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
+from production_business_risk_gate import preview_instance_text, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
 
 
 def disable_background_git_maintenance(root):
@@ -242,6 +242,85 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             gh_json("repos/u2giants/shared-db/issues/comments/7",runner=runner,
                 sleep=lambda _: self.fail("permanent absence slept"))
         self.assertEqual(len(calls),1)
+
+    RATE_LIMITED = "gh: API rate limit exceeded for installation ID 1234. (HTTP 403)"
+
+    def rate_limit_runner(self, calls, *, reset_in, failures=1, stderr=None, probe_ok=True):
+        now = 1_800_000_000.0
+        state = {"failed": 0}
+        def runner(argv, **kwargs):
+            calls.append(argv[2])
+            if argv[2] == "rate_limit":
+                if not probe_ok:
+                    return subprocess.CompletedProcess([], 1, "", "HTTP 502")
+                return subprocess.CompletedProcess([], 0, json.dumps(
+                    {"resources": {"core": {"limit": 5000, "remaining": 0, "reset": int(now + reset_in)}}}), "")
+            if state["failed"] < failures:
+                state["failed"] += 1
+                return subprocess.CompletedProcess([], 1, "", stderr or self.RATE_LIMITED)
+            return subprocess.CompletedProcess([], 0, '{"ok": true}', "")
+        return runner, (lambda: now)
+
+    def test_pre_lane_rate_limit_403_waits_for_the_reset_then_succeeds(self):
+        calls, sleeps = [], []
+        runner, clock = self.rate_limit_runner(calls, reset_in=300)
+        result = gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner, sleep=sleeps.append,
+                         rate_limit_wait_seconds=900, clock=clock)
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(calls, ["repos/u2giants/shared-db/pulls/1108", "rate_limit", "repos/u2giants/shared-db/pulls/1108"])
+        self.assertEqual(sleeps, [301])
+
+    def test_lane_held_default_fails_fast_on_a_rate_limit(self):
+        calls = []
+        runner, clock = self.rate_limit_runner(calls, reset_in=60)
+        with self.assertRaisesRegex(RiskGateError, "rate limit exceeded"):
+            gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner,
+                    sleep=lambda _: self.fail("the lane-held invocation waited"), clock=clock)
+        self.assertEqual(calls, ["repos/u2giants/shared-db/pulls/1108"])
+
+    def test_rate_limit_wait_is_bounded_and_never_applies_to_other_403s(self):
+        # A reset past 15 minutes fails closed even with a larger budget.
+        calls = []
+        runner, clock = self.rate_limit_runner(calls, reset_in=16 * 60)
+        with self.assertRaisesRegex(RiskGateError, "rate limit exceeded"):
+            gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner,
+                    sleep=lambda _: self.fail("waited past the cap"), rate_limit_wait_seconds=3600, clock=clock)
+        # Any other 403, including a SECONDARY limit, costs one call and no probe.
+        for stderr in ("HTTP 403: Forbidden", "HTTP 403: Resource not accessible by integration",
+                       "You have exceeded a secondary rate limit (HTTP 403)"):
+            with self.subTest(stderr=stderr):
+                calls = []
+                runner, clock = self.rate_limit_runner(calls, reset_in=60, failures=5, stderr=stderr)
+                with self.assertRaises(RiskGateError):
+                    gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner,
+                            sleep=lambda _: self.fail(f"{stderr} slept"), rate_limit_wait_seconds=900, clock=clock)
+                self.assertEqual(calls, ["repos/u2giants/shared-db/pulls/1108"])
+        # An unreadable reset is never guessed; a second exhaustion is not waited on again.
+        calls = []
+        runner, clock = self.rate_limit_runner(calls, reset_in=60, probe_ok=False)
+        with self.assertRaises(RiskGateError):
+            gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner,
+                    sleep=lambda _: self.fail("guessed a reset"), rate_limit_wait_seconds=900, clock=clock)
+        calls, sleeps = [], []
+        runner, clock = self.rate_limit_runner(calls, reset_in=60, failures=2)
+        with self.assertRaises(RiskGateError):
+            gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner, sleep=sleeps.append,
+                    rate_limit_wait_seconds=900, clock=clock)
+        self.assertEqual(sleeps, [61])
+
+    def test_only_the_pre_lane_workflow_invocation_may_wait(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/shared-supabase-migrations.yml").read_text(encoding="utf-8")
+        invocations = []
+        for chunk in workflow.split("python scripts/production_business_risk_gate.py")[1:]:
+            block = []
+            for line in chunk.splitlines():
+                block.append(line)
+                if not line.rstrip().endswith("\\"):
+                    break
+            invocations.append("\n".join(block))
+        self.assertEqual(len(invocations), 2)
+        self.assertEqual(["--rate-limit-wait-seconds 900" in block for block in invocations], [True, False],
+                         "the lane-held invocation must fail fast")
 
     def atomic_preview_fixture(self):
         temp = tempfile.TemporaryDirectory()
@@ -670,6 +749,41 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                          "head": {"sha": head}}, {"check_runs": []}), root,
             )
 
+    def test_production_rechecks_the_latest_guarded_merge_authorization(self):
+        head = "1" * 40
+        temp, root, main, merge_sha = self.historical_repo()
+        checks = {"check_runs": [
+            {"name": name, "conclusion": "success"} for name in REQUIRED_CHECKS
+        ]}
+        pr = {"merged": True, "merge_commit_sha": merge_sha, "head": {"sha": head}}
+
+        def api_with(state):
+            def api(endpoint):
+                if "check-runs" in endpoint:
+                    return checks
+                if endpoint.endswith("/status"):
+                    statuses = [] if state is None else [{
+                        "context": "Migration guarded merge authorization", "state": state,
+                    }]
+                    return {"statuses": statuses}
+                return pr
+            return api
+
+        with temp:
+            self.assertEqual(
+                prove_pr_and_checks(
+                    1, main, ["20260814000000"], api_with("success"), root,
+                ),
+                (head, merge_sha),
+            )
+            for state in (None, "failure", "pending"):
+                with self.subTest(state=state), self.assertRaisesRegex(
+                    RiskGateError, "latest Migration guarded merge authorization"
+                ):
+                    prove_pr_and_checks(
+                        1, main, ["20260814000000"], api_with(state), root,
+                    )
+
     # ------------------------------------------------------------------
     # Issue #1218: a well-formed GitHub response of an unexpected SHAPE must
     # produce a NAMED ::error:: refusal, not a raw traceback.
@@ -918,6 +1032,65 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 RiskGateError, f"preview producer file {re.escape(victim)} is (unreadable|not a file) at"
             ):
                 prove_preview_producer_matches_main(ref, exact_main(main), main, api)
+
+    def test_a_later_unrelated_sidecar_on_main_keeps_the_preview_proof(self):
+        """#2758: #2703 was refused twice because #2748 merged its own sidecar.
+
+        The later sidecar belongs to another version whose migration touches
+        different objects, so the preview proof stays valid. POSITIVE CONTROLS:
+        the same drift refuses when that migration shares an object with the
+        promotion, when the drifting sidecar is the promoted version's own, and
+        when no promotion context is supplied.
+        """
+        from production_business_risk_gate import SIDECAR_PATH
+        ref, main = "1" * 40, "3" * 40
+        sidecars = [p for p in PREVIEW_PRODUCER_PATHS if SIDECAR_PATH.fullmatch(p)]
+        later, promoted_sidecar = sidecars[-1], sidecars[0]
+        later_v = SIDECAR_PATH.fullmatch(later).group(1)
+        promoted_v = SIDECAR_PATH.fullmatch(promoted_sidecar).group(1)
+
+        def absent_at_ref(victim):
+            def api(endpoint):
+                r = tree_ref(endpoint)
+                return {"truncated": False, "tree": [
+                    {"path": p, "type": "blob", "sha": "same-blob"}
+                    for p in PREVIEW_PRODUCER_PATHS if not (r == ref and p == victim)
+                ]}
+            return api
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            migrations = root / "supabase/migrations"; migrations.mkdir(parents=True)
+            (migrations / f"{promoted_v}_promoted.sql").write_text(
+                "create table catalog.widget (id int);\n", encoding="utf-8")
+            later_sql = migrations / f"{later_v}_later.sql"
+
+            later_sql.write_text("create table orders.list (id int); -- catalog.widget\n", encoding="utf-8")
+            prove_preview_producer_matches_main(
+                ref, exact_main(main), main, absent_at_ref(later),
+                promoted_versions=[promoted_v], repo_root=root)
+
+            later_sql.write_text("alter table catalog.widget add column x int;\n", encoding="utf-8")
+            with self.assertRaisesRegex(RiskGateError, "absent where exact main has it present"):
+                prove_preview_producer_matches_main(
+                    ref, exact_main(main), main, absent_at_ref(later),
+                    promoted_versions=[promoted_v], repo_root=root)
+
+            later_sql.write_text("create table orders.list (id int);\n", encoding="utf-8")
+            with self.assertRaisesRegex(RiskGateError, "absent where exact main has it present"):
+                prove_preview_producer_matches_main(
+                    ref, exact_main(main), main, absent_at_ref(promoted_sidecar),
+                    promoted_versions=[promoted_v], repo_root=root)
+            with self.assertRaisesRegex(RiskGateError, "absent where exact main has it present"):
+                prove_preview_producer_matches_main(ref, exact_main(main), main, absent_at_ref(later))
+
+    def test_migration_objects_reads_quoted_identifiers(self):
+        """#2758 review: a quoted name outside [a-z0-9_$] must still count as an overlap."""
+        from production_business_risk_gate import migration_objects
+        found = migration_objects('alter table "Sales-Data"."Order ""Line""" add x int; create table catalog.widget ();')
+        self.assertIn('sales-data.order "line"', found)
+        self.assertIn("catalog.widget", found)
+        self.assertEqual(migration_objects('select 1 from pg_catalog."pg class";'), set())
 
     def test_the_tree_read_receives_transport_retries(self):
         """The tree read now carries the producer pin for a whole promotion.
@@ -2029,6 +2202,19 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 result = decide_business_risk(sql_reasons, recovery_proven=recovery, review_approved=review)
                 self.assertFalse(result["automaticPromotionAllowed"])
                 self.assertEqual(len(result["ownerDecisionReasons"]), 1)
+
+    def test_automatic_v2_blocks_every_derived_risk_but_legacy_recovery_is_unchanged(self):
+        automatic = {"schema_version": "shared-db-production-apply-review/v2"}
+        legacy = {"schema_version": "shared-db-production-apply-review/v1"}
+        clear = decide_business_risk([], recovery_proven=True, review_approved=True)
+        enforce_automatic_risk_decision(automatic, clear)
+        for reason in RISK_TEXT.values():
+            decision = {"automaticPromotionAllowed": False, "ownerDecisionReasons": [reason]}
+            with self.subTest(reason=reason), self.assertRaisesRegex(
+                RiskGateError, "ENGINEER ACTION REQUIRED"
+            ):
+                enforce_automatic_risk_decision(automatic, decision)
+            enforce_automatic_risk_decision(legacy, decision)
 
     def test_forged_preview_claim_is_rejected_before_download(self):
         forged = "b" * 40

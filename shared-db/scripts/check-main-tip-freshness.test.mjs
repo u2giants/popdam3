@@ -13,7 +13,79 @@ import { join, dirname } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { classifyMainTip, isDocumentationPath } from './check-main-tip-freshness.mjs'
+import { classifyBranchFreshness, classifyMainTip, isDocumentationPath } from './check-main-tip-freshness.mjs'
+
+// #2758: a main that moved is not a refusal when the PR is independent of it.
+// Fixture: dispatched main D; PR branch off D adds a migration + .agent evidence.
+function branchFixture() {
+  const { repo, sha: dispatched } = makeRepo()
+  commitFiles(repo, { '.agent/contract.json': '{"h":"d"}\n', 'shared.mjs': 'export const a = 1\n' }, 'dispatched main')
+  git(repo, ['switch', '-q', '-c', 'pr'])
+  const head = commitFiles(repo, { 'supabase/migrations/20260911120000_pr.sql': 'create table pr_t (id int);\n', '.agent/contract.json': '{"h":"pr"}\n' }, 'pr')
+  git(repo, ['switch', '-q', 'main'])
+  return { repo, dispatched, head }
+}
+const branch = (repo, headSha, tipSha) => classifyBranchFreshness({ headSha, tipSha, gitRunner: (args) => git(repo, args) })
+
+test('#2758: main moved by unrelated code, PR merges cleanly and touches none of it: accepted', () => {
+  const { repo, head } = branchFixture()
+  try {
+    const tip = commitFiles(repo, { 'scripts/other.mjs': 'export const x = 1\n', 'supabase/migrations/20260911110000_other.sql': 'select 2;\n' }, 'main moves')
+    const result = branch(repo, head, tip)
+    assert.equal(result.ok, true, result.reason); assert.equal(result.independent, true)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('#2758: a branch that already merged main, with its own diff unchanged, is accepted', () => {
+  const { repo, head } = branchFixture()
+  try {
+    commitFiles(repo, { 'scripts/other.mjs': 'export const x = 1\n' }, 'main moves')
+    git(repo, ['switch', '-q', 'pr']); git(repo, ['merge', '-q', '--no-edit', 'main'])
+    const refreshed = git(repo, ['rev-parse', 'HEAD']).trim()
+    git(repo, ['switch', '-q', 'main'])
+    const tip = commitFiles(repo, { 'scripts/third.mjs': 'export const y = 1\n' }, 'main moves again')
+    const result = branch(repo, refreshed, tip)
+    assert.equal(result.ok, true, result.reason)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('#2758: an .agent-only overlap that merges cleanly is accepted', () => {
+  const { repo, head } = branchFixture()
+  try {
+    const tip = commitFiles(repo, { '.agent/completion.json': '{}\n', 'scripts/other.mjs': 'x\n' }, 'main moves with evidence')
+    assert.equal(branch(repo, head, tip).ok, true)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('POSITIVE CONTROL #2758: main changed a file the PR also changes: refused', () => {
+  const { repo } = branchFixture()
+  try {
+    git(repo, ['switch', '-q', 'pr'])
+    const head = commitFiles(repo, { 'shared.mjs': 'export const a = 2\n' }, 'pr edits shared')
+    git(repo, ['switch', '-q', 'main'])
+    const tip = commitFiles(repo, { 'shared.mjs': 'export const a = 1\nexport const b = 3\n' }, 'main edits shared')
+    const result = branch(repo, head, tip)
+    assert.equal(result.ok, false); assert.match(result.reason, /REFUSED/)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('POSITIVE CONTROL #2758: main took the same migration version: refused', () => {
+  const { repo, head } = branchFixture()
+  try {
+    const tip = commitFiles(repo, { 'supabase/migrations/20260911120000_other.sql': 'select 3;\n' }, 'main takes the version')
+    const result = branch(repo, head, tip)
+    assert.equal(result.ok, false); assert.match(result.reason, /20260911120000/)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('POSITIVE CONTROL #2758: an .agent overlap that conflicts is refused', () => {
+  const { repo, head } = branchFixture()
+  try {
+    const tip = commitFiles(repo, { '.agent/contract.json': '{"h":"main-later"}\n', 'scripts/other.mjs': 'x\n' }, 'main rewrites evidence')
+    const result = branch(repo, head, tip)
+    assert.equal(result.ok, false); assert.match(result.reason, /conflict/i)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
 
 function git(repo, args) {
   return execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })

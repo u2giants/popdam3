@@ -5,6 +5,19 @@ export class ReconcileError extends Error {}
 export const READY_PREFIX='refs/db-preview-ready'
 export const OUTCOME_PREFIX='refs/db-preview-ready-outcomes'
 export const ROUTES=new Set(['ordinary_preview_apply','merged_rehearsal','historical_rebind'])
+// THE MODE A STORED INSTRUCTION MUST BE DISPATCHED WITH (#2796). The workflow's
+// `mode` input defaults to dry-run, so an instruction silent about mode gets
+// dispatched verbatim, DRY-RUNS, uploads only `preview-migration-dry-run-<sha>`,
+// applies nothing, and still reports SUCCESS -- which downstream lanes then read
+// as preview proof (run 34633793571). Naming the phases is what makes the two
+// runs distinguishable before the fact instead of after.
+//
+// Route-specific, matching the existing workflow exactly: ordinary and merged
+// "run `mode=dry-run` then `mode=apply`"; historical rebind "runs the existing
+// recovery `mode=apply` only and must never dispatch a historical-input dry-run".
+// Derived from the route here rather than taken from the caller, so a candidate
+// cannot name a mode sequence its route does not permit.
+export const MODE_SEQUENCE=Object.freeze({ordinary_preview_apply:Object.freeze(['dry-run','apply']),merged_rehearsal:Object.freeze(['dry-run','apply']),historical_rebind:Object.freeze(['apply'])})
 
 export function readyRecord(input){
   const record={schema_version:1,issue:Number(input.issue),pr:Number(input.pr),head_sha:String(input.head_sha),bundle_id:String(input.bundle_id),route:String(input.route),route_context:String(input.route_context??''),manifest:input.manifest}
@@ -28,24 +41,41 @@ export function readyRecord(input){
   }
   record.manifest_digest=sha256(canonicalJson(record.manifest))
   const ready_id=sha256(canonicalJson(record))
-  return {...record,ready_id}
+  // mode_sequence is attached AFTER both digests are taken, deliberately. Phase 2:
+  // "`mode` is a per-run phase, not part of ready identity or frozen-manifest
+  // equality." Folding it into the manifest would change manifest_digest and
+  // ready_id and freeze a per-run phase into immutable identity; leaving it off the
+  // record entirely would drop it before the operator ever sees the instruction.
+  return {...record,ready_id,mode_sequence:MODE_SEQUENCE[record.route]}
 }
 
 function assertMarker(io){const marker=io.resolveMarker();if(!marker?.live||marker.calling_task!==marker.task)throw new ReconcileError('matching live sole-orchestrator marker is required')}
+// Ready IDENTITY, with the per-run phase removed. Refs written before mode_sequence
+// existed hash a record without it, so identity is the only comparison under which a
+// pre-change ref and a freshly prepared one for the SAME ready_id agree.
+function readyIdentityDigest(record){const {mode_sequence:_modeSequence,...identity}=record??{};return sha256(canonicalJson(identity))}
 function outcomeRef(id){return `${OUTCOME_PREFIX}/${id}`}
 function readyRef(id){return `${READY_PREFIX}/${id}`}
 
 export function persistInitialReady(input,io){
-  assertMarker(io);const record=readyRecord(input),ref=readyRef(record.ready_id),digest=sha256(canonicalJson(record))
+  assertMarker(io);const record=readyRecord(input),ref=readyRef(record.ready_id)
+  // The STORED digest must stay sha256(canonicalJson(<whole stored record>)): readers
+  // recompute it from the record they read back, so any narrower convention here makes
+  // every newly written ref unreadable to them (manage-migration-author-lanes.mjs:2094).
+  const digest=sha256(canonicalJson(record))
   const event=previewReadyEvent({workIssue:record.issue,actor:io.actor(),timestamp:io.now(),pr:record.pr,head_sha:record.head_sha,ready_id:record.ready_id,bundle_id:record.bundle_id,route:record.route,route_context:record.route_context,manifest_digest:record.manifest_digest})
   io.appendEvent(event)
-  if(!io.createRef(ref,digest,record)&&io.readRef(ref)?.digest!==digest)throw new ReconcileError('preview-ready ref is occupied by inconsistent data')
+  // Occupancy is judged on IDENTITY, not on the stored bytes. A ref written before
+  // mode_sequence existed holds the same identity under a different digest, and
+  // re-preparing that identity must converge rather than fail closed.
+  if(!io.createRef(ref,digest,record)&&readyIdentityDigest(io.readRef(ref)?.record)!==readyIdentityDigest(record))throw new ReconcileError('preview-ready ref is occupied by inconsistent data')
   return {status:'PREVIEW_READY',ref,record}
 }
 
 export function preparePreviewDispatch(issue,io){
   assertMarker(io)
   return io.withMutex(()=>{
+    assertMarker(io)
     const snapshot=readyRecord(io.selectCurrent(Number(issue)))
     const current=persistInitialReady(snapshot,io)
     for(const old of io.listReady(Number(issue))){

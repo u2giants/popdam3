@@ -24,6 +24,10 @@ B9_ALLOWLIST = (
 )
 RUN_ID = 123456789
 ACTOR = "reviewer-login"
+SOURCE_PR = 2716
+SOURCE_HEAD = "1" * 40
+WORK_ISSUE = 2493
+PREVIEW_DIGEST = "sha256:" + "b" * 64
 
 
 def evidence(**changes):
@@ -49,6 +53,24 @@ def zip_bytes(data=None, filename=gate.EVIDENCE_FILE):
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(filename, gate.canonical_json(data or evidence()))
     return buffer.getvalue()
+
+
+def governed_evidence(**changes):
+    data = gate.automatic_evidence(
+        run_id=RUN_ID,
+        run_attempt=1,
+        sha=SHA,
+        allowlist=[ALLOWLIST],
+        actor=ACTOR,
+        source_pr=SOURCE_PR,
+        source_pr_head=SOURCE_HEAD,
+        work_issue=WORK_ISSUE,
+        preview_run_id=RUN_ID,
+        preview_artifact_digest=PREVIEW_DIGEST,
+        created_at="2026-09-11T05:30:00Z",
+    )
+    data.update(changes)
+    return data
 
 
 class EvidenceTests(unittest.TestCase):
@@ -122,7 +144,7 @@ class EvidenceTests(unittest.TestCase):
             "repository": {"full_name": gate.REPOSITORY}, "actor": {"login": ACTOR},
         }
         run["run_attempt"] = 1
-        self.assertEqual(gate.validate_run(run, RUN_ID, SHA), (ACTOR, 1))
+        self.assertEqual(gate.validate_run(run, RUN_ID, SHA), (ACTOR, 1, gate.WORKFLOW_PATH))
         for field, value in (("conclusion", "failure"), ("head_sha", "1" * 40), ("path", "wrong.yml")):
             changed = copy.deepcopy(run); changed[field] = value
             with self.assertRaises(gate.EvidenceError): gate.validate_run(changed, RUN_ID, SHA)
@@ -166,6 +188,59 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaises(gate.EvidenceError):
                 gate.read_evidence(extra)
 
+    def test_automatic_evidence_is_strict_and_bound_to_preview(self):
+        gate.validate_automatic_evidence(
+            governed_evidence(), run_id=RUN_ID, run_attempt=1, sha=SHA,
+            allowlist=[ALLOWLIST], workflow_actor=ACTOR,
+        )
+        for changes in (
+            {"source_pr": 0},
+            {"work_issue": 0},
+            {"source_pr_head": "short"},
+            {"preview_run_id": RUN_ID + 1},
+            {"preview_artifact_digest": "not-a-digest"},
+            {"evidence_kind": "caller-asserted"},
+            {"extra": "forged"},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(gate.EvidenceError):
+                gate.validate_automatic_evidence(
+                    governed_evidence(**changes), run_id=RUN_ID, run_attempt=1,
+                    sha=SHA, allowlist=[ALLOWLIST], workflow_actor=ACTOR,
+                )
+
+    def test_automatic_run_uses_its_exact_artifact_and_schema(self):
+        blob = zip_bytes(
+            governed_evidence(), filename=gate.AUTOMATIC_EVIDENCE_FILE
+        )
+        digest = "sha256:" + hashlib.sha256(blob).hexdigest()
+        run = {
+            "id": RUN_ID, "status": "completed", "conclusion": "success",
+            "event": "workflow_dispatch", "head_sha": SHA,
+            "path": gate.AUTOMATIC_WORKFLOW_PATH,
+            "repository": {"full_name": gate.REPOSITORY},
+            "actor": {"login": ACTOR}, "run_attempt": 1,
+        }
+        def api(endpoint):
+            if "artifacts" in endpoint:
+                return {"artifacts": [{
+                    "name": gate.AUTOMATIC_ARTIFACT_NAME, "id": 88,
+                    "expired": False, "digest": digest,
+                    "workflow_run": {"id": RUN_ID},
+                }]}
+            return run
+        with tempfile.TemporaryDirectory() as temp:
+            output = gate.verify(
+                run_id_text=str(RUN_ID), expected_digest=digest, sha=SHA,
+                allowlist_raw=ALLOWLIST, api=api,
+                downloader=lambda _id, path: path.write_bytes(blob),
+                output_dir=Path(temp),
+            )
+            self.assertEqual(output.name, gate.AUTOMATIC_EVIDENCE_FILE)
+            self.assertEqual(
+                output.read_text(encoding="utf-8"),
+                gate.canonical_json(governed_evidence()),
+            )
+
 
 class WorkflowWiringTests(unittest.TestCase):
     @classmethod
@@ -197,6 +272,21 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_production_lane_keeps_ledger_aware_guard(self):
         self.assertIn("production_migration_guard.py preflight", self.apply)
         self.assertIn("--remote-ledger", self.apply)
+
+    def test_automatic_path_dispatches_only_after_governed_preview_evidence(self):
+        self.assertIn("automatic-production-promotion:", self.apply)
+        self.assertIn("needs: [validate, preview]", self.apply)
+        self.assertIn("check-exact-head-approval.mjs", self.apply)
+        self.assertIn("Migration guarded merge authorization", self.apply)
+        self.assertIn("steps.preview_evidence.outputs.digest", self.apply)
+        self.assertIn("automatic-production-apply-review-evidence", self.apply)
+        self.assertIn("--resolve-admitted-issue-for-pr", self.apply)
+        self.assertIn("work_issue:$work_issue", self.apply)
+        self.assertIn('--admit-issue "$ADMITTED_ISSUE" --pr "$SOURCE_PR"', self.apply)
+        self.assertIn('confirmation:("APPLY " + $sha)', self.apply)
+        self.assertIn("ENGINEER ACTION REQUIRED", self.apply)
+        self.assertIn("HISTORICAL_SOURCE_MAP", self.apply.split("automatic-production-promotion:", 1)[1].split("production-dry-run:", 1)[0])
+        self.assertNotIn("--include-all", self.apply.split("automatic-production-promotion:", 1)[1].split("production-dry-run:", 1)[0])
 
 
 if __name__ == "__main__":

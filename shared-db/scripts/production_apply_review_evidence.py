@@ -19,9 +19,13 @@ from production_review_allowlist import ReviewAllowlistError, normalize_review_a
 
 REPOSITORY = "u2giants/shared-db"
 WORKFLOW_PATH = ".github/workflows/production-apply-review-evidence.yml"
+AUTOMATIC_WORKFLOW_PATH = ".github/workflows/shared-supabase-migrations.yml"
 ARTIFACT_NAME = "production-apply-review-evidence"
 EVIDENCE_FILE = "production-apply-review-evidence.json"
 SCHEMA_VERSION = "shared-db-production-apply-review/v1"
+AUTOMATIC_ARTIFACT_NAME = "automatic-production-apply-review-evidence"
+AUTOMATIC_EVIDENCE_FILE = "automatic-production-apply-review-evidence.json"
+AUTOMATIC_SCHEMA_VERSION = "shared-db-production-apply-review/v2"
 FIELDS = {
     "schema_version",
     "repository",
@@ -33,6 +37,24 @@ FIELDS = {
     "verdict",
     "reviewer_actor",
     "reviewer_label",
+    "created_at",
+}
+AUTOMATIC_FIELDS = {
+    "schema_version",
+    "repository",
+    "workflow_file",
+    "workflow_run_id",
+    "workflow_run_attempt",
+    "reviewed_main_sha",
+    "ordered_allowlist",
+    "verdict",
+    "workflow_actor",
+    "source_pr",
+    "source_pr_head",
+    "work_issue",
+    "preview_run_id",
+    "preview_artifact_digest",
+    "evidence_kind",
     "created_at",
 }
 SHA_RE = re.compile(r"[0-9a-f]{40}")
@@ -84,7 +106,7 @@ def validate_request(run_id: str, digest: str, sha: str, allowlist: str) -> list
         raise EvidenceError(f"invalid production allowlist: {exc}") from exc
 
 
-def validate_run(run: Any, run_id: int, sha: str) -> tuple[str, int]:
+def validate_run(run: Any, run_id: int, sha: str) -> tuple[str, int, str]:
     if not isinstance(run, dict):
         raise EvidenceError("GitHub run response is not an object")
     expected = {
@@ -93,7 +115,6 @@ def validate_run(run: Any, run_id: int, sha: str) -> tuple[str, int]:
         "conclusion": "success",
         "event": "workflow_dispatch",
         "head_sha": sha,
-        "path": WORKFLOW_PATH,
     }
     for field, value in expected.items():
         if run.get(field) != value:
@@ -108,16 +129,19 @@ def validate_run(run: Any, run_id: int, sha: str) -> tuple[str, int]:
     run_attempt = run.get("run_attempt")
     if type(run_attempt) is not int or run_attempt < 1:
         raise EvidenceError("review run has no valid run attempt")
-    return reviewer_actor, run_attempt
+    workflow_path = run.get("path")
+    if workflow_path not in {WORKFLOW_PATH, AUTOMATIC_WORKFLOW_PATH}:
+        raise EvidenceError(f"review run has wrong path: {workflow_path!r}")
+    return reviewer_actor, run_attempt, workflow_path
 
 
-def select_artifact(payload: Any, run_id: int) -> dict[str, Any]:
+def select_artifact(payload: Any, run_id: int, artifact_name: str = ARTIFACT_NAME) -> dict[str, Any]:
     artifacts = payload.get("artifacts") if isinstance(payload, dict) else None
     if not isinstance(artifacts, list):
         raise EvidenceError("GitHub artifacts response is malformed")
-    matches = [item for item in artifacts if isinstance(item, dict) and item.get("name") == ARTIFACT_NAME]
+    matches = [item for item in artifacts if isinstance(item, dict) and item.get("name") == artifact_name]
     if len(matches) != 1:
-        raise EvidenceError(f"expected exactly one {ARTIFACT_NAME!r} artifact, found {len(matches)}")
+        raise EvidenceError(f"expected exactly one {artifact_name!r} artifact, found {len(matches)}")
     artifact = matches[0]
     if artifact.get("expired") is not False:
         raise EvidenceError("review evidence artifact is expired or has unknown expiry state")
@@ -129,12 +153,12 @@ def select_artifact(payload: Any, run_id: int) -> dict[str, Any]:
     return artifact
 
 
-def read_evidence(zip_path: Path) -> dict[str, Any]:
+def read_evidence(zip_path: Path, evidence_file: str = EVIDENCE_FILE) -> dict[str, Any]:
     with zipfile.ZipFile(zip_path) as archive:
         files = [name for name in archive.namelist() if not name.endswith("/")]
-        if files != [EVIDENCE_FILE]:
-            raise EvidenceError(f"artifact must contain only {EVIDENCE_FILE!r}")
-        raw = archive.read(EVIDENCE_FILE)
+        if files != [evidence_file]:
+            raise EvidenceError(f"artifact must contain only {evidence_file!r}")
+        raw = archive.read(evidence_file)
     try:
         text = raw.decode("utf-8")
         def no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -186,6 +210,71 @@ def validate_evidence(
         raise EvidenceError("created_at must be canonical UTC YYYY-MM-DDTHH:MM:SSZ")
 
 
+def automatic_evidence(
+    *, run_id: int, run_attempt: int, sha: str, allowlist: list[str], actor: str,
+    source_pr: int, source_pr_head: str, work_issue: int, preview_run_id: int,
+    preview_artifact_digest: str, created_at: str,
+) -> dict[str, Any]:
+    """Build the immutable record emitted only after exact-head qualification."""
+    return {
+        "schema_version": AUTOMATIC_SCHEMA_VERSION,
+        "repository": REPOSITORY,
+        "workflow_file": AUTOMATIC_WORKFLOW_PATH,
+        "workflow_run_id": run_id,
+        "workflow_run_attempt": run_attempt,
+        "reviewed_main_sha": sha,
+        "ordered_allowlist": allowlist,
+        "verdict": "APPROVE",
+        "workflow_actor": actor,
+        "source_pr": source_pr,
+        "source_pr_head": source_pr_head,
+        "work_issue": work_issue,
+        "preview_run_id": preview_run_id,
+        "preview_artifact_digest": preview_artifact_digest,
+        "evidence_kind": "governed-exact-head-verdict",
+        "created_at": created_at,
+    }
+
+
+def validate_automatic_evidence(
+    data: dict[str, Any], *, run_id: int, run_attempt: int, sha: str,
+    allowlist: list[str], workflow_actor: str,
+) -> None:
+    if set(data) != AUTOMATIC_FIELDS:
+        absent = sorted(AUTOMATIC_FIELDS - set(data))
+        unknown = sorted(set(data) - AUTOMATIC_FIELDS)
+        raise EvidenceError(
+            f"strict automatic evidence schema mismatch; absent={absent}, unknown={unknown}"
+        )
+    expected = {
+        "schema_version": AUTOMATIC_SCHEMA_VERSION,
+        "repository": REPOSITORY,
+        "workflow_file": AUTOMATIC_WORKFLOW_PATH,
+        "workflow_run_id": run_id,
+        "workflow_run_attempt": run_attempt,
+        "reviewed_main_sha": sha,
+        "ordered_allowlist": allowlist,
+        "verdict": "APPROVE",
+        "workflow_actor": workflow_actor,
+        "preview_run_id": run_id,
+        "evidence_kind": "governed-exact-head-verdict",
+    }
+    for field, value in expected.items():
+        if data.get(field) != value:
+            raise EvidenceError(f"automatic review evidence has wrong {field}: expected {value!r}")
+    if type(data.get("source_pr")) is not int or data["source_pr"] < 1:
+        raise EvidenceError("automatic review evidence source_pr must be a positive integer")
+    if type(data.get("work_issue")) is not int or data["work_issue"] < 1:
+        raise EvidenceError("automatic review evidence work_issue must be a positive integer")
+    if not SHA_RE.fullmatch(str(data.get("source_pr_head") or "")):
+        raise EvidenceError("automatic review evidence source_pr_head is not an exact commit")
+    if not DIGEST_RE.fullmatch(str(data.get("preview_artifact_digest") or "")):
+        raise EvidenceError("automatic review evidence preview artifact digest is invalid")
+    created_at = data.get("created_at")
+    if not isinstance(created_at, str) or not CREATED_AT_RE.fullmatch(created_at):
+        raise EvidenceError("created_at must be canonical UTC YYYY-MM-DDTHH:MM:SSZ")
+
+
 def verify(
     *, run_id_text: str, expected_digest: str, sha: str, allowlist_raw: str,
     api: Callable[[str], Any] = gh_json,
@@ -195,8 +284,15 @@ def verify(
     allowlist = validate_request(run_id_text, expected_digest, sha, allowlist_raw)
     run_id = int(run_id_text)
     run = api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
-    reviewer_actor, run_attempt = validate_run(run, run_id, sha)
-    artifact = select_artifact(api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id)
+    reviewer_actor, run_attempt, workflow_path = validate_run(run, run_id, sha)
+    automatic = workflow_path == AUTOMATIC_WORKFLOW_PATH
+    artifact_name = AUTOMATIC_ARTIFACT_NAME if automatic else ARTIFACT_NAME
+    evidence_file = AUTOMATIC_EVIDENCE_FILE if automatic else EVIDENCE_FILE
+    artifact = select_artifact(
+        api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"),
+        run_id,
+        artifact_name,
+    )
     if artifact.get("digest") != expected_digest:
         raise EvidenceError("GitHub artifact digest does not match the pinned expected digest")
     with tempfile.TemporaryDirectory(prefix="production-review-") as temp:
@@ -205,13 +301,19 @@ def verify(
         actual_digest = "sha256:" + hashlib.sha256(zip_path.read_bytes()).hexdigest()
         if actual_digest != expected_digest:
             raise EvidenceError("downloaded artifact bytes do not match the pinned digest")
-        data = read_evidence(zip_path)
-    validate_evidence(
-        data, run_id=run_id, run_attempt=run_attempt, sha=sha,
-        allowlist=allowlist, reviewer_actor=reviewer_actor,
-    )
+        data = read_evidence(zip_path, evidence_file)
+    if automatic:
+        validate_automatic_evidence(
+            data, run_id=run_id, run_attempt=run_attempt, sha=sha,
+            allowlist=allowlist, workflow_actor=reviewer_actor,
+        )
+    else:
+        validate_evidence(
+            data, run_id=run_id, run_attempt=run_attempt, sha=sha,
+            allowlist=allowlist, reviewer_actor=reviewer_actor,
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
-    output = output_dir / EVIDENCE_FILE
+    output = output_dir / evidence_file
     output.write_text(canonical_json(data), encoding="utf-8", newline="\n")
     return output
 

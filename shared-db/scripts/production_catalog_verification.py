@@ -996,6 +996,7 @@ POPDAM_FORWARD_RECOVERY_CONTRACT = _shape_contract(
 )
 CATALOG_CONTRACTS = {
     "popsg_search_v2_bounded_paging_v1": """exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') and p.prorettype='jsonb'::regtype and p.prosecdef and p.provolatile='s' and p.proconfig=array['search_path=pg_catalog, auth']::text[] and md5(p.prosrc)='4fdbef747897eb7d834b3b23858902ac' and not has_function_privilege('anon',p.oid,'EXECUTE') and has_function_privilege('authenticated',p.oid,'EXECUTE') and has_function_privilege('service_role',p.oid,'EXECUTE'))""",
+    "popsg_search_v2_production_performance_v1": """exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') and p.prorettype='jsonb'::regtype and p.prosecdef and p.provolatile='s' and p.proconfig=array['search_path=pg_catalog, auth']::text[] and md5(p.prosrc)='83b8190bca2ff2b7e08a5e87651785b3' and not has_function_privilege('anon',p.oid,'EXECUTE') and has_function_privilege('authenticated',p.oid,'EXECUTE') and has_function_privilege('service_role',p.oid,'EXECUTE'))""",
     "api_rls_realtime_v1": API_RLS_REALTIME_CONTRACT,
     "core_person_role_lookups_v1": """
       not exists (

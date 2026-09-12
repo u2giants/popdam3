@@ -319,3 +319,93 @@ test('the ledger statement is a constant SELECT — no write path exists', () =>
   assert.match(APPLIED_VERSIONS_SQL, /^select version from supabase_migrations\.schema_migrations/)
   assert.doesNotMatch(APPLIED_VERSIONS_SQL, /insert|update|delete|alter|create|drop/i)
 })
+
+// ---------------------------------------------------------------------------
+// Issue #2820 — migrations authored for a DIFFERENT database.
+//
+// The hazard being guarded is double-sided. Reporting an out-of-scope migration
+// as promotable invites applying schema to a database it was never reviewed
+// against; excluding it INVISIBLY hides real work from the promotion queue,
+// which is worse. So every test that proves an exclusion is paired with a probe
+// proving an in-scope migration is STILL reported as promotable.
+// ---------------------------------------------------------------------------
+
+const FOREIGN = '20260909121403'
+const IN_SCOPE = '20260911210844'
+
+function scopedClassifications() {
+  return {
+    [FOREIGN]: {
+      kind: 'foreign-target',
+      reason: 'NOT IN SCOPE FOR PRODUCTION. This migration targets the DesignFlow non-production Supabase project. Recorded under issue #2403.',
+    },
+    [IN_SCOPE]: {
+      kind: 'genuinely-pending',
+      reason: 'No rule names this version; the normal bounded promotion workflow remains required.',
+    },
+  }
+}
+
+test('a migration targeting another database is not counted as actionable drift', () => {
+  const drift = assessDrift(computeDrift([FOREIGN, '20260810180000'], ['20260810180000']), {
+    [FOREIGN]: scopedClassifications()[FOREIGN],
+  })
+  assert.deepEqual(drift.foreignTarget, [FOREIGN])
+  assert.deepEqual(drift.actionableMergedNotApplied, [])
+  assert.equal(drift.driftFound, false)
+})
+
+test('POSITIVE CONTROL: an in-scope migration is STILL reported as promotable', () => {
+  const drift = assessDrift(computeDrift([FOREIGN, IN_SCOPE, '20260810180000'], ['20260810180000']), scopedClassifications())
+  assert.deepEqual(drift.foreignTarget, [FOREIGN])
+  assert.deepEqual(drift.actionableMergedNotApplied, [IN_SCOPE],
+    'the exclusion mechanism must not swallow ordinary pending work')
+  assert.equal(drift.driftFound, true)
+})
+
+test('out-of-scope migrations are reported in their own section, never silently omitted', () => {
+  const drift = assessDrift(computeDrift([FOREIGN, IN_SCOPE, '20260810180000'], ['20260810180000']), scopedClassifications())
+  const report = formatReport({
+    target: 'production',
+    projectRef: 'qsllyeztdwjgirsysgai',
+    baseRef: 'origin/main',
+    drift,
+    fileByVersion: {},
+    pendingClassifications: scopedClassifications(),
+  })
+
+  assert.match(report, /NOT IN SCOPE FOR THIS DATABASE — 1 version\(s\)/)
+  assert.match(report, /DesignFlow/)
+  assert.match(report, /#2403/)
+
+  // It must NOT appear in the promotable list, and the in-scope one must.
+  const promotable = report.slice(report.indexOf('MERGED BUT NOT APPLIED'), report.indexOf('NOT IN SCOPE FOR THIS DATABASE'))
+  assert.ok(!promotable.includes(FOREIGN), 'an out-of-scope migration must not be listed as promotable')
+  assert.ok(promotable.includes(IN_SCOPE), 'in-scope work must remain in the promotable list')
+  assert.match(report, /MERGED BUT NOT APPLIED — 1 version\(s\)/)
+})
+
+test('the drift checker passes the target through, so scope is decided per database', async () => {
+  const seen = []
+  const result = await runDriftCheck({
+    target: 'preview',
+    baseRef: 'abc123',
+    io: {
+      mainMigrationFiles: async () => [`supabase/migrations/${IN_SCOPE}_x.sql`],
+      fetchAppliedVersions: async () => ['20260810180000'],
+      guardClassifications: async (versions, _applied, target) => {
+        seen.push(target)
+        return Object.fromEntries(versions.map((v) => [v, scopedClassifications()[IN_SCOPE]]))
+      },
+    },
+  })
+  assert.deepEqual(seen, ['preview'], 'the target being checked must reach the one policy engine')
+  assert.deepEqual(result.drift.actionableMergedNotApplied, [IN_SCOPE])
+})
+
+test('a foreign-target classification with no reason is still REFUSED', () => {
+  assert.throws(
+    () => validatePendingClassifications([FOREIGN], { [FOREIGN]: { kind: 'foreign-target', reason: '   ' } }),
+    /unknown or reasonless classification/,
+  )
+})

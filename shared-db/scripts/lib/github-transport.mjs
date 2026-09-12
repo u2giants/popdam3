@@ -48,6 +48,20 @@
 // RESPONSE was lost, so a retry here cannot tell "did nothing" from "already
 // did it". Mutating calls therefore get exactly one attempt unless a caller
 // proves idempotency by passing `idempotentWrite: true`.
+//
+// WHY A QUOTA EXHAUSTION GETS ONE BOUNDED WAIT, AND NOTHING ELSE DOES
+// -------------------------------------------------------------------
+// The Actions installation token shares one hourly budget across every run.
+// Around ten active pull requests it ran out, and production applies failed on
+// "API rate limit exceeded" -- a condition with a known end time, unlike a 404.
+// A READ that hits a primary exhaustion (that text with HTTP 403/429) asks the
+// free `rate_limit` endpoint when the quota resets and waits ONCE if that is 15
+// minutes away or less -- but ONLY for a caller that opted in by setting
+// GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS (capped at 900). The default is no wait, so
+// no step holding a lock can sit on it, including steps nobody edited. A further reset, an
+// unreadable reset, a second exhaustion, a write, a secondary rate limit, or any
+// other 403 fails closed exactly as before. The wait never changes what a gate
+// reads or how it judges it.
 
 import { execFileSync } from 'node:child_process'
 
@@ -61,6 +75,81 @@ export const TRANSIENT_TRANSPORT =
 
 export function isTransientGitHubTransport(error) {
   return TRANSIENT_TRANSPORT.test(String(error?.stderr ?? error?.message ?? error ?? ''))
+}
+
+// PRIMARY RATE-LIMIT EXHAUSTION IS NOT TRANSIENT, BUT IT HAS A KNOWN END.
+// ----------------------------------------------------------------------
+// With about ten active pull requests the Actions installation token ran out of
+// quota and production applies failed with "API rate limit exceeded for
+// installation". That refusal is neither a fault to back off from (retrying in
+// 1-2-4 seconds only burns attempts) nor a permanent answer: GitHub states the
+// exact moment the quota refills. So it gets exactly one bounded wait for that
+// moment, and only when the moment is close.
+//
+// Deliberately narrow:
+//   * only HTTP 403/429 whose text says "rate limit exceeded" -- every other 403
+//     (permissions, "Resource not accessible by integration") still fails once;
+//   * the "secondary rate limit" wording does not match and is unchanged;
+//   * reads only -- a mutation still gets exactly one attempt;
+//   * the reset time is READ (`gh api -i rate_limit`: its `retry-after` header if
+//     present, else the exhausted resource's `reset`, else `x-ratelimit-reset`).
+//     `gh` does not surface the failed response's headers, and GitHub documents
+//     that the rate_limit endpoint does not count against the quota;
+//   * a reset further away than the cap, an unreadable reset, or a second
+//     exhaustion after the wait all fail CLOSED with the original refusal.
+export const RATE_LIMIT_EXHAUSTED = /rate limit exceeded/i
+const RATE_LIMIT_STATUS = /HTTP (?:403|429)\b/
+export const DEFAULT_RATE_LIMIT_MAX_WAIT_MS = 15 * 60 * 1000
+
+export function isRateLimitExhausted(error) {
+  const text = String(error?.stderr ?? error?.message ?? error ?? '')
+  return RATE_LIMIT_EXHAUSTED.test(text) && RATE_LIMIT_STATUS.test(text)
+}
+
+// OPT-IN. Unset means 0: fail fast, exactly as before this wait existed. Only a
+// step that holds no lock sets GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS (e.g. 900). A
+// lock-holding step therefore never waits, whether or not anyone remembered to
+// say so on that step.
+export function rateLimitMaxWaitMs(env = process.env) {
+  const raw = env?.GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS
+  if (raw === undefined || String(raw).trim() === '') return 0
+  const seconds = Number(raw)
+  if (!Number.isFinite(seconds) || seconds < 0) return 0
+  return Math.min(seconds * 1000, DEFAULT_RATE_LIMIT_MAX_WAIT_MS)
+}
+
+function usesGraphqlQuota(args) {
+  const list = (args ?? []).map(String)
+  return list[0] !== 'api' || list[1] === 'graphql'
+}
+
+/**
+ * Milliseconds until the exhausted quota refills, from a `gh api -i rate_limit`
+ * response, or null when no trustworthy reset can be read.
+ */
+export function rateLimitResetDelayMs(raw, args, nowMs) {
+  const text = String(raw ?? '').replace(/\r\n/g, '\n')
+  const boundary = text.indexOf('\n\n')
+  if (boundary < 0) return null
+  const headers = new Map()
+  for (const line of text.slice(0, boundary).split('\n').slice(1)) {
+    const at = line.indexOf(':')
+    if (at > 0) headers.set(line.slice(0, at).trim().toLowerCase(), line.slice(at + 1).trim())
+  }
+  const retryAfter = headers.get('retry-after')
+  if (retryAfter !== undefined && /^\d+$/.test(retryAfter)) return Number(retryAfter) * 1000
+  let body = null
+  try { body = JSON.parse(text.slice(boundary + 2)) } catch { body = null }
+  const resource = body?.resources?.[usesGraphqlQuota(args) ? 'graphql' : 'core']
+  let resetSeconds = null
+  if (resource && Number.isFinite(resource.reset) && Number.isFinite(resource.remaining)) {
+    if (resource.remaining > 0) return 0
+    resetSeconds = resource.reset
+  } else if (/^\d+$/.test(headers.get('x-ratelimit-reset') ?? '')) {
+    resetSeconds = Number(headers.get('x-ratelimit-reset'))
+  }
+  if (resetSeconds === null) return null
+  return Math.max(0, resetSeconds * 1000 - nowMs)
 }
 
 const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
@@ -114,6 +203,11 @@ export function runGitHubCommand(args, {
   maxBuffer = 64 * 1024 * 1024,
   input,
   encoding = 'utf8',
+  // A caller that asked for exactly ONE attempt asked never to be replayed --
+  // a locked reviewer wire budget counts every request, and a quota wait costs
+  // an uncounted probe plus a replay. It therefore fails fast by default.
+  maxRateLimitWaitMs = attempts <= 1 ? 0 : rateLimitMaxWaitMs(),
+  now = Date.now,
 } = {}) {
   const mutating = isMutatingCall(args) || input !== undefined
   const allowed = mutating && !idempotentWrite ? 1 : Math.max(1, attempts)
@@ -127,11 +221,31 @@ export function runGitHubCommand(args, {
     ? { encoding, maxBuffer, stdio: ['ignore', 'pipe', 'pipe'] }
     : { encoding, maxBuffer, input }
   let attempt = 0
+  let rateLimitWaited = false
   for (;;) {
     try {
       return executor('gh', args, spawnOptions)
     } catch (error) {
       const transient = isTransientGitHubTransport(error)
+      const exhausted = isRateLimitExhausted(error)
+      if (exhausted && !mutating && !rateLimitWaited && maxRateLimitWaitMs > 0) {
+        let delay = null
+        try {
+          delay = rateLimitResetDelayMs(
+            executor('gh', ['api', '-i', 'rate_limit'], { encoding: 'utf8', maxBuffer, stdio: ['ignore', 'pipe', 'pipe'] }),
+            args,
+            now(),
+          )
+        } catch {
+          delay = null // an unreadable reset is refused below, never guessed
+        }
+        if (delay !== null && delay <= maxRateLimitWaitMs) {
+          rateLimitWaited = true
+          reportStderr(`gh ${args.join(' ')}\nGitHub API rate limit exhausted; waiting ${Math.ceil(delay / 1000) + 1}s for the stated reset, then retrying once\n`)
+          wait(delay + 1000)
+          continue
+        }
+      }
       if (!transient || attempt >= allowed - 1) {
         const captured = String(error?.stderr ?? '').trim()
         const detail = captured || String(error?.message ?? '').trim()
@@ -139,6 +253,7 @@ export function runGitHubCommand(args, {
           ? wrapError(detail, error)
           : new GitHubTransportError(`GitHub command failed: ${detail}`)
         wrapped.transientTransport = transient
+        wrapped.rateLimitExhausted = exhausted
         wrapped.stderr = captured
         // Quieter for the expected answers, LOUDER for real faults.
         if (captured && !(expectedFailure && expectedFailure.test(detail))) {

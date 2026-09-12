@@ -43,7 +43,7 @@ export const COMPLETION_SCHEMA_VERSION = 1
 // Outcomes that end a piece of work. Only `merged` and `owner-ruling-recorded`
 // are SUCCESSES; the rest are real, legitimate endings that must never release
 // downstream work.
-export const SUCCESS_OUTCOMES = Object.freeze(['merged', 'owner-ruling-recorded'])
+export const SUCCESS_OUTCOMES = Object.freeze(['merged', 'live_verified', 'owner-ruling-recorded'])
 export const UNSUCCESSFUL_OUTCOMES = Object.freeze(['returned', 'cancelled', 'superseded', 'failed'])
 // `ready-for-merge` is deliberately not a dependency success. It exists so an
 // open pull request can truthfully report completed implementation evidence
@@ -87,6 +87,13 @@ export function validateCompletionRecord(record) {
     for (const version of record.migration_versions) {
       if (typeof version !== 'string' || !VERSION_PATTERN.test(version)) throw new DependencyError(`migration_versions must be 14-digit versions: ${String(version)}`)
     }
+  }
+  if (record.outcome === 'live_verified') {
+    if (!Number.isInteger(record.pr) || record.pr <= 0) throw new DependencyError('a live_verified completion must name its pr number')
+    if (typeof record.merge_sha !== 'string' || !SHA_PATTERN.test(record.merge_sha)) throw new DependencyError('a live_verified completion must name merge_sha')
+    if (typeof record.application_repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(record.application_repository)) throw new DependencyError('a live_verified completion must name application_repository')
+    if (typeof record.application_commit_sha !== 'string' || !SHA_PATTERN.test(record.application_commit_sha)) throw new DependencyError('a live_verified completion must name application_commit_sha')
+    if (typeof record.live_evidence !== 'string' || !record.live_evidence.trim()) throw new DependencyError('a live_verified completion must link live_evidence')
   }
   if (record.outcome === 'ready-for-merge') {
     if (!Number.isInteger(record.pr) || record.pr <= 0) throw new DependencyError('a ready-for-merge completion must name its pr number')
@@ -147,11 +154,16 @@ export function parseCompletionComment(body) {
  * second record means either a mistake or an attempt to overwrite history, and
  * quietly preferring one would hide both.
  */
-export function findCompletionRecord(comments) {
+export function findCompletionRecord(comments,{requireTrustedAuthor=false}={}) {
   const found = []
   for (const comment of comments ?? []) {
     const record = parseCompletionComment(comment?.body)
-    if (record) found.push(record)
+    if (record) {
+      const association=String(comment?.author_association??comment?.authorAssociation??'').toUpperCase()
+      const author=String(comment?.author??comment?.author_login??'').toLowerCase()
+      if(requireTrustedAuthor&&(association!=='OWNER'||author!=='u2giants'))throw new DependencyError('db-work-completion must be authored by repository owner u2giants with explicit OWNER association')
+      found.push(record)
+    }
   }
   if (found.length > 1) throw new DependencyError(`issue carries ${found.length} completion records; completion is immutable and there must be exactly one`)
   return found[0] ?? null
@@ -236,7 +248,7 @@ export function classifyDependency(number, state) {
   }
   let record
   try {
-    record = findCompletionRecord(state.comments)
+    record = findCompletionRecord(state.comments,{requireTrustedAuthor:true})
   } catch (error) {
     return { satisfied: false, status: 'unknown', reason: `dependency #${number} has an unusable completion record: ${error.message}` }
   }
@@ -266,7 +278,7 @@ export function classifyDependency(number, state) {
       outcome: record.outcome,
     }
   }
-  if (record.outcome === 'merged' && state.mergeInMain === false) {
+  if (['merged','live_verified'].includes(record.outcome) && state.mergeInMain === false) {
     return { satisfied: false, status: 'unknown', reason: `dependency #${number} claims merge ${record.merge_sha} but that commit is not in main's history` }
   }
   return { satisfied: true, status: 'satisfied', reason: `dependency #${number} completed as ${record.outcome}`, record }

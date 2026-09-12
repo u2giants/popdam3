@@ -54,6 +54,7 @@ import { REPO, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX, REVI
 import { approvalLine, evidenceTiedToHead, refusalLine, trustedVerdictEvidence, unambiguouslyTiedToHead } from './lib/review-verdict.mjs'
 import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, isValidatedVerdictArtifact, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact } from './lib/review-verdict-artifact.mjs'
 import { changedPathsFromPullRequestFiles, classifyChangedPaths } from './lib/documents-only-change.mjs'
+import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
 
 export class ApprovalCheckError extends Error {}
 
@@ -318,7 +319,14 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
   // when this pull request has no returns -- but the ref name only SELECTS. What
   // is trusted is the commit, checked back against the name it is stored under,
   // because a ref name is a label and this answer decides whether bytes merge.
-  const returnRows = (() => { const rows = readJson(['api', `repos/${REPO}/git/matching-refs/${REVIEW_RETURN_REF_PREFIX.replace(/^refs\//, '')}/`]); return Array.isArray(rows) ? rows : [] })()
+  const allReturnRows = (() => { const rows = readJson(['api', `repos/${REPO}/git/matching-refs/${REVIEW_RETURN_REF_PREFIX.replace(/^refs\//, '')}/`]); return Array.isArray(rows) ? rows : [] })()
+  const allVerdictRows = [REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((prefix) => {
+    const rows = readJson(['api', `repos/${REPO}/git/matching-refs/${prefix.replace(/^refs\//, '')}/`])
+    return Array.isArray(rows) ? rows : []
+  })
+  const recordsAt = (recordHead) => {
+  const headSha = recordHead
+  const returnRows = allReturnRows
     .filter((row) => new RegExp('^' + REVIEW_RETURN_REF_PREFIX + '/\\d+-' + pr + '-' + headSha.toLowerCase() + '(?:-slot\\d+)?-[0-9a-f]{40}$').test(String(row.ref ?? '')))
   const returns = returnRows.map((row) => {
     let parsed
@@ -334,10 +342,7 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
   // for it, so the per-assignment commit reads are spent only when there is a
   // return to order against.
   if (returns.length) for (const assignment of assignments) assignment.sequence = Number(parseReviewCursor(commitOf(assignment.sha))?.sequence)
-  const verdictRows = [REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((prefix) => {
-    const rows = readJson(['api', `repos/${REPO}/git/matching-refs/${prefix.replace(/^refs\//, '')}/`])
-    return Array.isArray(rows) ? rows : []
-  }).filter((row)=>{const parsed=parseVerdictRef(row.ref);return parsed?.pr===pr&&parsed.headSha===headSha.toLowerCase()})
+  const verdictRows = allVerdictRows.filter((row)=>{const parsed=parseVerdictRef(row.ref);return parsed?.pr===pr&&parsed.headSha===headSha.toLowerCase()})
   const verdicts=verdictRows.map((row)=>{
     const named=parseVerdictRef(row.ref),sha=row.object?.sha
     const commit=readJson(['api',`repos/${REPO}/git/commits/${sha}`]),record=parseVerdictCommit(commit)
@@ -354,6 +359,26 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
     try{return validateVerdictArtifact({ref:row.ref,sha,commit,findingsBody,assignment:{sha:assignment.sha,reviewer:cursor.reviewer}})}
     catch(error){throw new ApprovalCheckError(`verdict ${row.ref} is invalid: ${error.message}`)}
   })
+  return { returns, verdicts }
+  }
+  const { returns, verdicts } = recordsAt(headSha)
+  // Earlier heads of this pull request that a reviewer was assigned to. Their
+  // records are read so a merge-from-main refresh can carry an APPROVE forward
+  // (see `evaluateApprovalWithRefresh`); whether any of them may is decided there,
+  // against git, never here.
+  // Discovered from verdicts and returns as well as assignments: an exclusion
+  // clears a refused head's assignment but leaves its verdict, and that refusal
+  // must still be found (grok review of PR #2780). A head whose records cannot be
+  // read is kept, marked unreadable, so the carry step refuses rather than skips.
+  const returnHeadPattern = new RegExp('^' + REVIEW_RETURN_REF_PREFIX + '/\\d+-' + pr + '-([0-9a-f]{40})')
+  const recordHeads = [
+    ...assignments.map((row) => row.headSha),
+    ...allVerdictRows.map((row) => { const parsed = parseVerdictRef(row.ref); return parsed?.pr === pr ? parsed.headSha : null }),
+    ...allReturnRows.map((row) => returnHeadPattern.exec(String(row.ref ?? ''))?.[1]),
+  ]
+  const priorHeads = [...new Set(recordHeads.map((sha) => String(sha ?? '').toLowerCase()))]
+    .filter((sha) => /^[0-9a-f]{40}$/.test(sha) && sha !== headSha.toLowerCase())
+    .map((sha) => { try { return { headSha: sha, ...recordsAt(sha) } } catch (error) { if (!(error instanceof ApprovalCheckError)) throw error; return { headSha: sha, unreadable: error.message } } })
   const evidence = [
     ...[...issueNumbers].flatMap((number) => readPages(`repos/${REPO}/issues/${number}/comments?per_page=100`)),
     ...readPages(`repos/${REPO}/pulls/${pr}/reviews?per_page=100`),
@@ -364,7 +389,56 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
   // carry their previous name too, so a migration renamed to a `.md` is still a
   // migration change. Unreadable input yields a list the classifier refuses.
   const changedFiles = changedPathsFromPullRequestFiles(readPages(`repos/${REPO}/pulls/${pr}/files?per_page=100`))
-  return { pr, headSha, evidence, assignments, returns, verdicts, changedFiles }
+  return { pr, headSha, evidence, assignments, returns, verdicts, changedFiles, priorHeads }
+}
+
+// A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (orchestrator marker #2758, 2026-09-11).
+//
+// Every merge to main forced every other open pull request to merge main, and the
+// new head voided its APPROVE, so each needed a fresh draw and review after every
+// refresh. An APPROVE recorded for an earlier head A now satisfies this gate at
+// head B when A is an ancestor of B and the pull request's own diff against its
+// merge base with main is IDENTICAL at A and B (`.agent/` evidence aside). Any
+// change of the author's own -- one migration line -- still needs a new review.
+// A refusal is never carried past: a durable refusal at B, or at ANY earlier head
+// whose content is identical to B, still blocks. Head A must pass the full
+// exact-head evaluation on its own records (every slot, returns, non-reading
+// reviewers), so nothing is weaker than approving A was.
+function durableRefusalsAt(records, pr, head) {
+  return (records ?? []).filter((row) => Number(row.pr) === Number(pr) && String(row.head_sha).toLowerCase() === String(head).toLowerCase() && reviewerReadsRepository(row.reviewer) && row.verdict !== 'APPROVE')
+}
+
+export function evaluateApprovalWithRefresh(input, { contentPreservingRefresh }) {
+  let exactError
+  try { return evaluateExactHeadApproval(input) } catch (error) { if (!(error instanceof ApprovalCheckError)) throw error; exactError = error }
+  if (!Array.isArray(input?.verdicts) || typeof contentPreservingRefresh !== 'function') throw exactError
+  if (input.verdicts.some((row) => !isValidatedVerdictArtifact(row))) throw exactError
+  if (durableRefusalsAt(input.verdicts, input.pr, input.headSha).length) throw exactError
+  // A head with reviewer records of its own -- an assignment, a replacement, a
+  // return or any verdict -- is judged on those records alone. Carrying a prior
+  // head's sign-off past them would bypass a slot returned or newly drawn at this
+  // head (muse review of PR #2780).
+  const head = String(input.headSha).toLowerCase()
+  const ownAssignments = (input.assignments ?? []).filter((row) => String(row.headSha ?? '').toLowerCase() === head)
+  if (ownAssignments.length || (input.returns ?? []).length || input.verdicts.length) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because this head has reviewer records of its own (assignment, return or verdict), so it is judged on those alone`)
+  const equivalent = []
+  for (const prior of input.priorHeads ?? []) {
+    const proof = contentPreservingRefresh(prior?.headSha, input.headSha)
+    if (proof?.ok !== true) continue
+    // An equivalent head whose records cannot be trusted may hide a refusal.
+    if (prior.unreadable || !Array.isArray(prior.verdicts) || prior.verdicts.some((row) => !isValidatedVerdictArtifact(row))) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because the reviewer records at head ${prior.headSha}, whose pull request diff is identical to this head, could not be read${prior.unreadable ? `: ${prior.unreadable}` : ''}`)
+    equivalent.push(prior)
+  }
+  const refusedPrior = equivalent.find((prior) => durableRefusalsAt(prior.verdicts, input.pr, prior.headSha).length)
+  if (refusedPrior) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because head ${refusedPrior.headSha}, whose pull request diff is identical to this head, carries a durable reviewer refusal`)
+  for (const prior of equivalent) {
+    try {
+      const result = evaluateExactHeadApproval({ ...input, headSha: prior.headSha, returns: prior.returns ?? [], verdicts: prior.verdicts })
+      if (result.documents_only) continue
+      return { ...result, head_sha: input.headSha, carried_from: prior.headSha }
+    } catch (error) { if (!(error instanceof ApprovalCheckError)) throw error }
+  }
+  throw exactError
 }
 
 // A merge is authorized by create-only verdict artifacts, never by comment prose.
@@ -379,8 +453,11 @@ export function requireDurableVerdictInput(input) {
 
 export function main(env = process.env) {
   try {
-    const result = evaluateExactHeadApproval(requireDurableVerdictInput(gatherApprovalInput(env)))
-    if (result.documents_only) console.log(`Documents-only pull request: PR #${result.pr} head ${result.head_sha} draws no database reviewer (${result.reason}). Every other check and the guarded merge lane still apply (#2102).`)
+    const input = requireDurableVerdictInput(gatherApprovalInput(env))
+    const mainRef = env.APPROVAL_MAIN_REF || 'origin/main'
+    const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (approvedHead, head) => isContentPreservingRefresh({ approvedHead, head, mainRef }) })
+    if (result.carried_from) console.log(`Exact-head approval carried forward: PR #${result.pr} head ${result.head_sha} has the same pull request diff as approved head ${result.carried_from}, so its merge-from-main refresh needs no new review (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
+    else if (result.documents_only) console.log(`Documents-only pull request: PR #${result.pr} head ${result.head_sha} draws no database reviewer (${result.reason}). Every other check and the guarded merge lane still apply (#2102).`)
     else console.log(`Exact-head approval verified: PR #${result.pr} head ${result.head_sha} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
     return 0
   } catch (e) { console.error(`REFUSED: ${e.message}`); return 2 }

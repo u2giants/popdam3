@@ -134,21 +134,21 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/database-contract-tests.yml:487",
+      "site": ".github/workflows/database-contract-tests.yml:506",
       "semantic_key": ".github/workflows/database-contract-tests.yml:055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7:1",
       "line_sha256": "055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/database-contract-tests.yml:359",
+      "site": ".github/workflows/database-contract-tests.yml:366",
       "semantic_key": ".github/workflows/database-contract-tests.yml:86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f:1",
       "line_sha256": "86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/database-contract-tests.yml:322",
+      "site": ".github/workflows/database-contract-tests.yml:329",
       "semantic_key": ".github/workflows/database-contract-tests.yml:bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b:1",
       "line_sha256": "bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b",
       "disposition": "excluded",
@@ -156,13 +156,13 @@
     },
     {
       "site": ".github/workflows/historical-item-mg-reclassification-tests.yml:76",
-      "disposition": "excluded",
-      "reason": "This line is the offline CI assertion that the locked May 14, 2025 historical cutoff is still present in constants.mjs; it reports a missing constant and makes no throughput derivability claim.",
       "semantic_key": ".github/workflows/historical-item-mg-reclassification-tests.yml:f59e1294c8137b9ddd86ef3b198be6c3b0645e321ee827ce3d00b50ca8c4597a:1",
-      "line_sha256": "f59e1294c8137b9ddd86ef3b198be6c3b0645e321ee827ce3d00b50ca8c4597a"
+      "line_sha256": "f59e1294c8137b9ddd86ef3b198be6c3b0645e321ee827ce3d00b50ca8c4597a",
+      "disposition": "excluded",
+      "reason": "This line is the offline CI assertion that the locked May 14, 2025 historical cutoff is still present in constants.mjs; it reports a missing constant and makes no throughput derivability claim."
     },
     {
-      "site": ".github/workflows/migration-author-lease.yml:38",
+      "site": ".github/workflows/migration-author-lease.yml:44",
       "semantic_key": ".github/workflows/migration-author-lease.yml:5d027dd51abeaa7641677b41ece3751aef1e82b8b35fe8fbdc0d5ddd811fec55:1",
       "line_sha256": "5d027dd51abeaa7641677b41ece3751aef1e82b8b35fe8fbdc0d5ddd811fec55",
       "disposition": "excluded",
@@ -190,56 +190,77 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:204",
+      "site": ".github/workflows/shared-supabase-migrations.yml:233",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca:1",
       "line_sha256": "12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:313",
+      "site": ".github/workflows/shared-supabase-migrations.yml:342",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9:1",
       "line_sha256": "5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:1535",
+      "site": ".github/workflows/shared-supabase-migrations.yml:1182",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:5fd92e821d3c2ec01d3a92482d4bca5354e6cd62f4dd1acd2f488a1c127ab9a4:1",
+      "line_sha256": "5fd92e821d3c2ec01d3a92482d4bca5354e6cd62f4dd1acd2f488a1c127ab9a4",
+      "disposition": "excluded",
+      "reason": "Issue 2789 early refusal: with the automatic risk policy active, a production apply review dispatched without a numeric source_pr is refused by name before any credential is used. It adds a refusal and changes no existing check."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:1316",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14:1",
+      "line_sha256": "6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14",
+      "disposition": "excluded",
+      "reason": "Issue 2796 refusal naming: the production gate previously used bare test -n calls that died with only \"exit code 1\", which is indistinguishable from a rehearsal that silently dry-ran. This comment introduces a named refusal for an absent preview input and changes no existing check."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:1501",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14:2",
+      "line_sha256": "6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14",
+      "disposition": "excluded",
+      "reason": "Issue 2796 refusal naming: the production gate previously used bare test -n calls that died with only \"exit code 1\", which is indistinguishable from a rehearsal that silently dry-ran. This comment introduces a named refusal for an absent preview input and changes no existing check."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:1677",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45:1",
       "line_sha256": "a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:781",
+      "site": ".github/workflows/shared-supabase-migrations.yml:835",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c:1",
       "line_sha256": "ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:780",
+      "site": ".github/workflows/shared-supabase-migrations.yml:834",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1:1",
       "line_sha256": "c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:192",
+      "site": ".github/workflows/shared-supabase-migrations.yml:221",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2:1",
       "line_sha256": "d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:779",
+      "site": ".github/workflows/shared-supabase-migrations.yml:833",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637:1",
       "line_sha256": "e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:467",
+      "site": ".github/workflows/shared-supabase-migrations.yml:518",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7:1",
       "line_sha256": "e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7",
       "disposition": "excluded",
@@ -253,7 +274,7 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:115",
+      "site": ".github/workflows/tools-offline-tests.yml:130",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f:1",
       "line_sha256": "3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f",
       "disposition": "excluded",
@@ -267,7 +288,7 @@
       "reason": "CI presence check for the main-tip freshness test file (#2047). The word \"Missing\" here reports an absent TEST FILE in the workflow checkout, not an absent database object, so it carries no truth claim about catalog state and must never be enriched."
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:145",
+      "site": ".github/workflows/tools-offline-tests.yml:160",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5:1",
       "line_sha256": "bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5",
       "disposition": "excluded",
@@ -344,6 +365,13 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
+      "site": "scripts/benchmark_popsg_search_v2_production.py:14",
+      "semantic_key": "scripts/benchmark_popsg_search_v2_production.py:692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc:1",
+      "line_sha256": "692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc",
+      "disposition": "excluded",
+      "reason": "Synthetic disposable benchmark fixture uses the missing preview-state enum as an input; it makes no claim that a live schema object or source capture is absent."
+    },
+    {
       "site": "scripts/benchmark_popsg_search_v2.py:13",
       "semantic_key": "scripts/benchmark_popsg_search_v2.py:692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc:1",
       "line_sha256": "692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc",
@@ -354,6 +382,27 @@
       "site": "scripts/catalog-truth.mjs:14",
       "semantic_key": "scripts/catalog-truth.mjs:dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa:1",
       "line_sha256": "dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa",
+      "disposition": "enriched",
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+    },
+    {
+      "site": "scripts/check_pass2_routine_supersession.py:23",
+      "semantic_key": "scripts/check_pass2_routine_supersession.py:655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198:1",
+      "line_sha256": "655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198",
+      "disposition": "excluded",
+      "reason": "Explanatory docstring prose describing why a contract test reports a function missing its intended grants; it is narrative documentation, not a code path that diagnoses or reports a missing object."
+    },
+    {
+      "site": "scripts/check_production_verification_sidecars.py:41",
+      "semantic_key": "scripts/check_production_verification_sidecars.py:6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876:1",
+      "line_sha256": "6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876",
+      "disposition": "enriched",
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+    },
+    {
+      "site": "scripts/check_production_verification_sidecars.py:34",
+      "semantic_key": "scripts/check_production_verification_sidecars.py:e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97:1",
+      "line_sha256": "e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97",
       "disposition": "enriched",
       "reason": "This call site reports independent evidence and preserves the existing refusal exit."
     },
@@ -393,14 +442,21 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-handoff-contract.mjs:300",
+      "site": "scripts/check-db-data-admin-property-source-coverage.mjs:210",
+      "semantic_key": "scripts/check-db-data-admin-property-source-coverage.mjs:ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b:1",
+      "line_sha256": "ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b",
+      "disposition": "excluded",
+      "reason": "Reviewed 2026-09-10 for #2579: this line reports the reserved migration file as missing only after a direct fs.existsSync test on that exact path, so the absence is measured rather than inferred; there is nothing to enrich and no not-derivable case can reach it."
+    },
+    {
+      "site": "scripts/check-handoff-contract.mjs:301",
       "semantic_key": "scripts/check-handoff-contract.mjs:1e0cb5682394075f96baa50ff758aab4f7dbd9fa8e7dc084cfdef0033e0e780a:1",
       "line_sha256": "1e0cb5682394075f96baa50ff758aab4f7dbd9fa8e7dc084cfdef0033e0e780a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-handoff-contract.mjs:172",
+      "site": "scripts/check-handoff-contract.mjs:173",
       "semantic_key": "scripts/check-handoff-contract.mjs:60977caa9f39cfb886e3f4d2de2a4ce7527c0f10753601d1a16f27b94991f37e:1",
       "line_sha256": "60977caa9f39cfb886e3f4d2de2a4ce7527c0f10753601d1a16f27b94991f37e",
       "disposition": "excluded",
@@ -428,13 +484,6 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-migration-ledger-drift.mjs:247",
-      "semantic_key": "scripts/check-migration-ledger-drift.mjs:10cdacb1f5aa4bb7115edf89810b0ff86865a4ef1850efa37a4b3160aaac3c04:1",
-      "line_sha256": "10cdacb1f5aa4bb7115edf89810b0ff86865a4ef1850efa37a4b3160aaac3c04",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
-    },
-    {
       "site": "scripts/check-migration-ledger-drift.mjs:26",
       "semantic_key": "scripts/check-migration-ledger-drift.mjs:8f8882f7ffbab0e536ca9cab5ff090dbec60ffede1b7498e92f1a1e721bafceb:1",
       "line_sha256": "8f8882f7ffbab0e536ca9cab5ff090dbec60ffede1b7498e92f1a1e721bafceb",
@@ -442,14 +491,21 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-migration-pr-lease.mjs:57",
+      "site": "scripts/check-migration-ledger-drift.mjs:266",
+      "semantic_key": "scripts/check-migration-ledger-drift.mjs:b6eb5e5e2dccbc82f9e7f21de952814cdef2773c9da1eeb462fca246c00becb9:1",
+      "line_sha256": "b6eb5e5e2dccbc82f9e7f21de952814cdef2773c9da1eeb462fca246c00becb9",
+      "disposition": "excluded",
+      "reason": "Re-reviewed for issue #2820: this MERGED BUT NOT APPLIED header now counts the promotable slice rather than every merged-not-applied version, because foreign-target migrations are reported in their own clearly-labelled section instead. It still reports presence and is never a derivability claim, so it stays excluded."
+    },
+    {
+      "site": "scripts/check-migration-pr-lease.mjs:59",
       "semantic_key": "scripts/check-migration-pr-lease.mjs:73d7c325096b7eb2b1e3485fa8463e0d5394ed36d6fd15412b1f2adbb9801f6c:1",
       "line_sha256": "73d7c325096b7eb2b1e3485fa8463e0d5394ed36d6fd15412b1f2adbb9801f6c",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-migration-pr-lease.mjs:61",
+      "site": "scripts/check-migration-pr-lease.mjs:63",
       "semantic_key": "scripts/check-migration-pr-lease.mjs:f3fb62b3fc4b23ff0b6e6ab6d6692b9d6e04118df8f780c4b41503c79d7d41ac:1",
       "line_sha256": "f3fb62b3fc4b23ff0b6e6ab6d6692b9d6e04118df8f780c4b41503c79d7d41ac",
       "disposition": "excluded",
@@ -477,42 +533,42 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:153",
+      "site": "scripts/check-required-checks-preflight.mjs:197",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978:1",
       "line_sha256": "0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978",
       "disposition": "excluded",
       "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:236",
+      "site": "scripts/check-required-checks-preflight.mjs:282",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:24c3c0ab70095b05c8c27076eedee14fc9f7ef9edaf6a02f199e1ecf00b43773:1",
       "line_sha256": "24c3c0ab70095b05c8c27076eedee14fc9f7ef9edaf6a02f199e1ecf00b43773",
       "disposition": "excluded",
       "reason": "Reviewed for issue 2282: this comment explains why the required-checks pre-flight refuses when GitHub does not report how many status checks or check runs exist on a reviewed head. It is about the completeness of a GitHub API read, not about a migration, an applied object, or dynamic DDL, so it carries no throughput truth claim to enrich."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:143",
+      "site": "scripts/check-required-checks-preflight.mjs:187",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:29652be90fbcc2eec5eb9f25bf44c1c18331319f9ee021f4cd9b6c274f323233:1",
       "line_sha256": "29652be90fbcc2eec5eb9f25bf44c1c18331319f9ee021f4cd9b6c274f323233",
       "disposition": "excluded",
       "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:165",
+      "site": "scripts/check-required-checks-preflight.mjs:209",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd:1",
       "line_sha256": "2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd",
       "disposition": "excluded",
       "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:156",
+      "site": "scripts/check-required-checks-preflight.mjs:200",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:2e3c133d668757bf510f45c8234cf7b2b196353f3460adadfc5ab9f5fcce392b:1",
       "line_sha256": "2e3c133d668757bf510f45c8234cf7b2b196353f3460adadfc5ab9f5fcce392b",
       "disposition": "excluded",
       "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:161",
+      "site": "scripts/check-required-checks-preflight.mjs:205",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6:1",
       "line_sha256": "4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6",
       "disposition": "excluded",
@@ -526,56 +582,56 @@
       "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:137",
+      "site": "scripts/check-required-checks-preflight.mjs:181",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:a5c77fa0f468d5583e09bca38394e0787568ff230ed257b9c4061f315e10b1ec:1",
       "line_sha256": "a5c77fa0f468d5583e09bca38394e0787568ff230ed257b9c4061f315e10b1ec",
       "disposition": "excluded",
       "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:109",
+      "site": "scripts/check-required-checks-preflight.mjs:153",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:ae42c3fa7107cafbec1a45ca6c9819483e07b222a0ea0a66d569287d76088751:1",
       "line_sha256": "ae42c3fa7107cafbec1a45ca6c9819483e07b222a0ea0a66d569287d76088751",
       "disposition": "excluded",
       "reason": "Reviewed for issue 2274: this line refuses a stale required-status-check mirror. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:61",
+      "site": "scripts/check-required-checks-preflight.mjs:69",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:b65134d98e50a3e578da4927db4b15921f1db0e3db0bf57e073e1effbd43fa40:1",
       "line_sha256": "b65134d98e50a3e578da4927db4b15921f1db0e3db0bf57e073e1effbd43fa40",
       "disposition": "excluded",
       "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:141",
+      "site": "scripts/check-required-checks-preflight.mjs:185",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:baafb62dbb21385ffc4ae5d682fbd346ad32e3b1203332e5942b8d7faafcda90:1",
       "line_sha256": "baafb62dbb21385ffc4ae5d682fbd346ad32e3b1203332e5942b8d7faafcda90",
       "disposition": "excluded",
       "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:109",
+      "site": "scripts/check-required-checks-preflight.mjs:115",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:c5d54e7fa56d7d31627f29752aefcede778aadb2df4ea5b570a886c7001e4b2f:1",
       "line_sha256": "c5d54e7fa56d7d31627f29752aefcede778aadb2df4ea5b570a886c7001e4b2f",
       "disposition": "excluded",
       "reason": "This is the refusal raised when the trusted origin/main copy of the pre-flight source cannot be read, so the pinned floor is unknown. It reports the pre-flight's own missing input and has nothing to do with a database object that was never created, which is what the throughput truth audit enriches."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:68",
+      "site": "scripts/check-required-checks-preflight.mjs:76",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:c741c6200efcc2bf28b7c20e44ae8a68be4eef0e80ea9262d44cf9193ddaf065:1",
       "line_sha256": "c741c6200efcc2bf28b7c20e44ae8a68be4eef0e80ea9262d44cf9193ddaf065",
       "disposition": "excluded",
       "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:135",
+      "site": "scripts/check-required-checks-preflight.mjs:179",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:f2678a5e3f2f88032a4500f6592894f87ac27e141ec33e7db2c4b866b070a392:1",
       "line_sha256": "f2678a5e3f2f88032a4500f6592894f87ac27e141ec33e7db2c4b866b070a392",
       "disposition": "excluded",
       "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:100",
+      "site": "scripts/check-required-checks-preflight.mjs:144",
       "semantic_key": "scripts/check-required-checks-preflight.mjs:ff3afcf6c7d2681f3a02c901ae3b0ead1e5a9901bd9b38c3180bf0805805f591:1",
       "line_sha256": "ff3afcf6c7d2681f3a02c901ae3b0ead1e5a9901bd9b38c3180bf0805805f591",
       "disposition": "excluded",
@@ -631,32 +687,32 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check_pass2_routine_supersession.py:23",
-      "semantic_key": "scripts/check_pass2_routine_supersession.py:655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198:1",
-      "line_sha256": "655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198",
-      "disposition": "excluded",
-      "reason": "Explanatory docstring prose describing why a contract test reports a function missing its intended grants; it is narrative documentation, not a code path that diagnoses or reports a missing object."
-    },
-    {
-      "site": "scripts/check_production_verification_sidecars.py:41",
-      "semantic_key": "scripts/check_production_verification_sidecars.py:6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876:1",
-      "line_sha256": "6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876",
-      "disposition": "enriched",
-      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
-    },
-    {
-      "site": "scripts/check_production_verification_sidecars.py:34",
-      "semantic_key": "scripts/check_production_verification_sidecars.py:e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97:1",
-      "line_sha256": "e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97",
-      "disposition": "enriched",
-      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
-    },
-    {
       "site": "scripts/experiment_611_db_push_atomicity.sh:140",
       "semantic_key": "scripts/experiment_611_db_push_atomicity.sh:03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d:1",
       "line_sha256": "03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d",
       "disposition": "excluded",
       "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/historical_preview_recovery.py:118",
+      "semantic_key": "scripts/historical_preview_recovery.py:059ddfaa9bc2681385b08bedcb8d7c3bfe65d383d595dd4bf8dfea21a4b52a85:1",
+      "line_sha256": "059ddfaa9bc2681385b08bedcb8d7c3bfe65d383d595dd4bf8dfea21a4b52a85",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/historical_preview_recovery.py:98",
+      "semantic_key": "scripts/historical_preview_recovery.py:7d0f0f7443e657f961669221c2e509194c130623d3b565bd3ca45e55e180a3b3:1",
+      "line_sha256": "7d0f0f7443e657f961669221c2e509194c130623d3b565bd3ca45e55e180a3b3",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/historical_preview_recovery.py:31",
+      "semantic_key": "scripts/historical_preview_recovery.py:cc5fe0d1f54bb8415b7b1592e5806f9f343c1ee0adb24fb5da8ce0a61579b227:1",
+      "line_sha256": "cc5fe0d1f54bb8415b7b1592e5806f9f343c1ee0adb24fb5da8ce0a61579b227",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
       "site": "scripts/historical-item-mg-reclassification/build-manifest.mjs:47",
@@ -695,45 +751,24 @@
     },
     {
       "site": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:20",
-      "disposition": "excluded",
-      "reason": "Comment describing this guard file own missing-directory probing behavior; not a throughput/lease guard call site.",
       "semantic_key": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:d4cc6726bf4b21dabbffbe9a211c359b032e506f237b089c390cc1e9396c5806:1",
-      "line_sha256": "d4cc6726bf4b21dabbffbe9a211c359b032e506f237b089c390cc1e9396c5806"
+      "line_sha256": "d4cc6726bf4b21dabbffbe9a211c359b032e506f237b089c390cc1e9396c5806",
+      "disposition": "excluded",
+      "reason": "Comment describing this guard file own missing-directory probing behavior; not a throughput/lease guard call site."
     },
     {
       "site": "scripts/historical-item-mg-reclassification/lib/verify.mjs:44",
-      "disposition": "excluded",
-      "reason": "This line reports a read-only post-apply verification failure for the reclassification executor; it describes a live database row or function that is absent and makes no throughput derivability claim.",
       "semantic_key": "scripts/historical-item-mg-reclassification/lib/verify.mjs:4787774716fd11191fd6505f52ae80fc2de230b0978a6f78bb8333896faeecc9:1",
-      "line_sha256": "4787774716fd11191fd6505f52ae80fc2de230b0978a6f78bb8333896faeecc9"
+      "line_sha256": "4787774716fd11191fd6505f52ae80fc2de230b0978a6f78bb8333896faeecc9",
+      "disposition": "excluded",
+      "reason": "This line reports a read-only post-apply verification failure for the reclassification executor; it describes a live database row or function that is absent and makes no throughput derivability claim."
     },
     {
       "site": "scripts/historical-item-mg-reclassification/lib/verify.mjs:84",
-      "disposition": "excluded",
-      "reason": "This line reports a read-only post-apply verification failure for the reclassification executor; it describes a live database row or function that is absent and makes no throughput derivability claim.",
       "semantic_key": "scripts/historical-item-mg-reclassification/lib/verify.mjs:e8b31e35869f65ef1cb3e8da8b78f22a118d7640948fd1b3ecadea22555031e9:1",
-      "line_sha256": "e8b31e35869f65ef1cb3e8da8b78f22a118d7640948fd1b3ecadea22555031e9"
-    },
-    {
-      "site": "scripts/historical_preview_recovery.py:118",
-      "semantic_key": "scripts/historical_preview_recovery.py:059ddfaa9bc2681385b08bedcb8d7c3bfe65d383d595dd4bf8dfea21a4b52a85:1",
-      "line_sha256": "059ddfaa9bc2681385b08bedcb8d7c3bfe65d383d595dd4bf8dfea21a4b52a85",
+      "line_sha256": "e8b31e35869f65ef1cb3e8da8b78f22a118d7640948fd1b3ecadea22555031e9",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
-    },
-    {
-      "site": "scripts/historical_preview_recovery.py:98",
-      "semantic_key": "scripts/historical_preview_recovery.py:7d0f0f7443e657f961669221c2e509194c130623d3b565bd3ca45e55e180a3b3:1",
-      "line_sha256": "7d0f0f7443e657f961669221c2e509194c130623d3b565bd3ca45e55e180a3b3",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
-    },
-    {
-      "site": "scripts/historical_preview_recovery.py:31",
-      "semantic_key": "scripts/historical_preview_recovery.py:cc5fe0d1f54bb8415b7b1592e5806f9f343c1ee0adb24fb5da8ce0a61579b227:1",
-      "line_sha256": "cc5fe0d1f54bb8415b7b1592e5806f9f343c1ee0adb24fb5da8ce0a61579b227",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This line reports a read-only post-apply verification failure for the reclassification executor; it describes a live database row or function that is absent and makes no throughput derivability claim."
     },
     {
       "site": "scripts/import-order-list-xlsx.py:2006",
@@ -750,11 +785,11 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/lib/documents-only-change.mjs:100",
+      "site": "scripts/lib/documents-only-change.mjs:102",
       "semantic_key": "scripts/lib/documents-only-change.mjs:59b3cbf2519d9937a18c077956f4328dd978a7a28681bc93c44e6a4845d7ea69:1",
       "line_sha256": "59b3cbf2519d9937a18c077956f4328dd978a7a28681bc93c44e6a4845d7ea69",
-      "disposition": "excluded",
-      "reason": "This comment describes a missing or truncated Markdown patch that must fail closed; it makes no database-object truth claim."
+      "disposition": "enriched",
+      "reason": "The comment documents a fail-closed classifier rule: a missing or truncated patch is rejected, not treated as evidence that an instruction change is safe."
     },
     {
       "site": "scripts/lib/exclusive-lease.mjs:67",
@@ -778,14 +813,14 @@
       "reason": "This is an explanatory fail-closed design comment, not a catalog or migration evidence decision."
     },
     {
-      "site": "scripts/lib/orchestrator-admission.mjs:146",
+      "site": "scripts/lib/orchestrator-admission.mjs:147",
       "semantic_key": "scripts/lib/orchestrator-admission.mjs:0f06679d47f437f9de9a51e6db390446cbe39075c2e8fa1a038690a0e78fc773:1",
       "line_sha256": "0f06679d47f437f9de9a51e6db390446cbe39075c2e8fa1a038690a0e78fc773",
       "disposition": "excluded",
       "reason": "Issue #2318. This is a refusal message about a missing orchestrator `authorization:` field, not a claim about a missing database object; it reports no throughput or verification state and is outside the truth-audit subject matter."
     },
     {
-      "site": "scripts/lib/orchestrator-admission.mjs:239",
+      "site": "scripts/lib/orchestrator-admission.mjs:240",
       "semantic_key": "scripts/lib/orchestrator-admission.mjs:490dfba463a004c4b2ac1b81705f8d94f40939a4f557f1409d6c2b8632caf8f2:1",
       "line_sha256": "490dfba463a004c4b2ac1b81705f8d94f40939a4f557f1409d6c2b8632caf8f2",
       "disposition": "excluded",
@@ -799,200 +834,214 @@
       "reason": "Issue #2318. A source comment explaining why the renderer emits the authorization field blank rather than silently missing; it is prose about marker authoring and states nothing about migration or object state."
     },
     {
-      "site": "scripts/lib/orchestrator-routing.mjs:185",
+      "site": "scripts/lib/orchestrator-routing.mjs:187",
       "semantic_key": "scripts/lib/orchestrator-routing.mjs:7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434:1",
       "line_sha256": "7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:537",
+      "site": "scripts/manage-migration-author-lanes.mjs:703",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de:1",
       "line_sha256": "0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:3935",
+      "site": "scripts/manage-migration-author-lanes.mjs:5332",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:1",
       "line_sha256": "1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7",
       "disposition": "excluded",
       "reason": "Comment explaining that a cutover record with no commit message must refuse rather than be skipped; documentation of fail-closed behaviour, not a guard call site."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4316",
+      "site": "scripts/manage-migration-author-lanes.mjs:5943",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816:1",
       "line_sha256": "1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:3630",
+      "site": "scripts/manage-migration-author-lanes.mjs:4986",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299:1",
       "line_sha256": "24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2660",
+      "site": "scripts/manage-migration-author-lanes.mjs:3655",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671:1",
       "line_sha256": "2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671",
       "disposition": "excluded",
       "reason": "Prose comment above durableVerdictBlocksReplacement, not executable logic. The word \"missing\" here names the unreadable-assignment-record case that the function immediately below treats as blocking, so this call site documents a fail-closed path rather than a silently missing one."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4809",
+      "site": "scripts/manage-migration-author-lanes.mjs:6520",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759:1",
       "line_sha256": "353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:797",
+      "site": "scripts/manage-migration-author-lanes.mjs:983",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2:1",
       "line_sha256": "40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:276",
+      "site": "scripts/manage-migration-author-lanes.mjs:426",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8:1",
       "line_sha256": "435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8",
       "disposition": "excluded",
       "reason": "Prose comment explaining the #2078 reviewer-repository-access gate; the word matches the discovery pattern but the line is not a throughput call site and carries no derivation behavior."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:3237",
+      "site": "scripts/manage-migration-author-lanes.mjs:4567",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284:1",
       "line_sha256": "503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4525",
+      "site": "scripts/manage-migration-author-lanes.mjs:6227",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c:1",
       "line_sha256": "5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:145",
+      "site": "scripts/manage-migration-author-lanes.mjs:231",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73:1",
       "line_sha256": "5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:781",
+      "site": "scripts/manage-migration-author-lanes.mjs:967",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:6276ee13ad22403bec37597da04e4e6b9b2b3c4fb62b00bbb08b4ebaee525bf2:1",
       "line_sha256": "6276ee13ad22403bec37597da04e4e6b9b2b3c4fb62b00bbb08b4ebaee525bf2",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2940",
+      "site": "scripts/manage-migration-author-lanes.mjs:4128",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d:1",
       "line_sha256": "725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d",
       "disposition": "excluded",
       "reason": "Throws the same slot-1-not-assigned refusal on the three-call fallback path; a control-flow refusal, not a throughput signal."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1276",
+      "site": "scripts/manage-migration-author-lanes.mjs:1531",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019:1",
       "line_sha256": "7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:3265",
+      "site": "scripts/manage-migration-author-lanes.mjs:4599",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415:1",
       "line_sha256": "8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2905",
+      "site": "scripts/manage-migration-author-lanes.mjs:4093",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446:1",
       "line_sha256": "9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446",
       "disposition": "excluded",
       "reason": "Builds the LaneError thrown when slot 1 was never assigned; the word missing is prose in the operator message, not a throughput or DDL-derivability signal."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4808",
+      "site": "scripts/manage-migration-author-lanes.mjs:6519",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b:1",
       "line_sha256": "a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2480",
+      "site": "scripts/manage-migration-author-lanes.mjs:1876",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:a506dd54ce0a675ce62b60933700254ff523561f16a7abdd7e91a1615f095238:1",
+      "line_sha256": "a506dd54ce0a675ce62b60933700254ff523561f16a7abdd7e91a1615f095238",
+      "disposition": "enriched",
+      "reason": "A missing required production-proof artifact file refuses outcome completion, so absent evidence cannot be read as successful application."
+    },
+    {
+      "site": "scripts/manage-migration-author-lanes.mjs:3475",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6:1",
       "line_sha256": "b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2083",
+      "site": "scripts/manage-migration-author-lanes.mjs:2982",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f:1",
       "line_sha256": "b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f",
       "disposition": "excluded",
       "reason": "Prose comment added by the #2076 reviewer-exclusion return path; the wording matches the discovery pattern but the line is not a throughput call site and carries no derivation behavior."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:993",
+      "site": "scripts/manage-migration-author-lanes.mjs:1182",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:bd6893288739c13faca686313ddfeb5815322cf43df464f561e8f6e2e223c478:1",
       "line_sha256": "bd6893288739c13faca686313ddfeb5815322cf43df464f561e8f6e2e223c478",
       "disposition": "excluded",
       "reason": "Prose in the #2152 Link-header parser comment: the word \"missing\" describes a missing < that makes parseLinkHeader throw. Documentation of fail-closed parsing, not a truth claim about a database object."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4368",
+      "site": "scripts/manage-migration-author-lanes.mjs:6072",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420:1",
       "line_sha256": "c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4524",
+      "site": "scripts/manage-migration-author-lanes.mjs:6226",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba:1",
       "line_sha256": "ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2865",
+      "site": "scripts/manage-migration-author-lanes.mjs:4048",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835:1",
       "line_sha256": "ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2931",
+      "site": "scripts/manage-migration-author-lanes.mjs:4119",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a:1",
       "line_sha256": "d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a",
       "disposition": "excluded",
       "reason": "Throws the slot-1-not-assigned refusal on the batched read path; a control-flow refusal, carrying no throughput guard meaning."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4761",
+      "site": "scripts/manage-migration-author-lanes.mjs:6472",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92:1",
       "line_sha256": "edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:3327",
+      "site": "scripts/manage-migration-author-lanes.mjs:4663",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d:1",
       "line_sha256": "f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4055",
+      "site": "scripts/manage-migration-author-lanes.mjs:4714",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a:1",
       "line_sha256": "f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a",
       "disposition": "excluded",
       "reason": "Fail-closed immutable reviewer-evidence validation; the word missing does not describe database or migration state."
+    },
+    {
+      "site": "scripts/manage-migration-author-lanes.mjs:849",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:fc5dbd3411165633fff781b72e2e50b072c8134f5ea05a3a39f2ae78125cbc07:1",
+      "line_sha256": "fc5dbd3411165633fff781b72e2e50b072c8134f5ea05a3a39f2ae78125cbc07",
+      "disposition": "enriched",
+      "reason": "The queue explicitly excludes an issue missing the required admission fields, so it cannot advertise work that the claim gate must refuse."
     },
     {
       "site": "scripts/migration_derivation.py:225",
@@ -1002,35 +1051,35 @@
       "reason": "Fail-closed immutable metadata validation; the word missing describes a changed migration file, not database or migration-ledger state."
     },
     {
-      "site": "scripts/migration_derivation.py:245",
+      "site": "scripts/migration_derivation.py:290",
       "semantic_key": "scripts/migration_derivation.py:26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1:1",
       "line_sha256": "26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/migration_derivation.py:135",
+      "site": "scripts/migration_derivation.py:156",
       "semantic_key": "scripts/migration_derivation.py:38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5:1",
       "line_sha256": "38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/migration_derivation.py:249",
+      "site": "scripts/migration_derivation.py:294",
       "semantic_key": "scripts/migration_derivation.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
       "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/migration_derivation.py:347",
+      "site": "scripts/migration_derivation.py:392",
       "semantic_key": "scripts/migration_derivation.py:718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4:1",
       "line_sha256": "718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/migration_derivation.py:253",
+      "site": "scripts/migration_derivation.py:298",
       "semantic_key": "scripts/migration_derivation.py:b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68:1",
       "line_sha256": "b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68",
       "disposition": "excluded",
@@ -1044,14 +1093,14 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/migration_derivation.py:240",
+      "site": "scripts/migration_derivation.py:285",
       "semantic_key": "scripts/migration_derivation.py:e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b:1",
       "line_sha256": "e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/migration_derivation.py:351",
+      "site": "scripts/migration_derivation.py:396",
       "semantic_key": "scripts/migration_derivation.py:e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5:1",
       "line_sha256": "e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5",
       "disposition": "excluded",
@@ -1098,6 +1147,13 @@
       "line_sha256": "a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a",
       "disposition": "excluded",
       "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/outcome-lifecycle.mjs:145",
+      "semantic_key": "scripts/orchestrator-flow/outcome-lifecycle.mjs:9de2dd292b4305e031e31fafb886b8427cd829cb11c2f4efebc385a08e26075a:1",
+      "line_sha256": "9de2dd292b4305e031e31fafb886b8427cd829cb11c2f4efebc385a08e26075a",
+      "disposition": "enriched",
+      "reason": "Outcome completion directly reads the current issue and refuses an unreadable state before considering merge, production, or live evidence."
     },
     {
       "site": "scripts/orchestrator-flow/qualify-change.mjs:19",
@@ -1212,119 +1268,119 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:694",
+      "site": "scripts/production_business_risk_gate.py:804",
       "semantic_key": "scripts/production_business_risk_gate.py:11d6d11f4529aff953ddf36d9d3b561e0449482be7dc41627c9684f46fd9ea66:1",
       "line_sha256": "11d6d11f4529aff953ddf36d9d3b561e0449482be7dc41627c9684f46fd9ea66",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:421",
+      "site": "scripts/production_business_risk_gate.py:486",
       "semantic_key": "scripts/production_business_risk_gate.py:1ce605ffcacbd03b81a3f96e7e3bdc81d5814073cb125c6bb3f22cefd4222417:1",
       "line_sha256": "1ce605ffcacbd03b81a3f96e7e3bdc81d5814073cb125c6bb3f22cefd4222417",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1579",
+      "site": "scripts/production_business_risk_gate.py:1835",
       "semantic_key": "scripts/production_business_risk_gate.py:28b95d22fe7cde0a3c9398625c92c820fa45356e75d284f5f4eae073104cc76a:1",
       "line_sha256": "28b95d22fe7cde0a3c9398625c92c820fa45356e75d284f5f4eae073104cc76a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1334",
+      "site": "scripts/production_business_risk_gate.py:1588",
       "semantic_key": "scripts/production_business_risk_gate.py:34bf1f8d9d1c16dba74fcffb37f4cf7481d431db6996a99cd1eb10dc5fa2664a:1",
       "line_sha256": "34bf1f8d9d1c16dba74fcffb37f4cf7481d431db6996a99cd1eb10dc5fa2664a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:375",
+      "site": "scripts/production_business_risk_gate.py:440",
       "semantic_key": "scripts/production_business_risk_gate.py:3a3f1979a97e47696c391a59243a32b62fc434d412677d74e188cb99c088f162:1",
       "line_sha256": "3a3f1979a97e47696c391a59243a32b62fc434d412677d74e188cb99c088f162",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1588",
+      "site": "scripts/production_business_risk_gate.py:1844",
       "semantic_key": "scripts/production_business_risk_gate.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
       "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1587",
+      "site": "scripts/production_business_risk_gate.py:1843",
       "semantic_key": "scripts/production_business_risk_gate.py:5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b:1",
       "line_sha256": "5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:662",
+      "site": "scripts/production_business_risk_gate.py:746",
       "semantic_key": "scripts/production_business_risk_gate.py:670a44eb0afd4c0a0ff47b583c426b71a88ddfce627c5d571935a2f4e3bc018d:1",
       "line_sha256": "670a44eb0afd4c0a0ff47b583c426b71a88ddfce627c5d571935a2f4e3bc018d",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1690",
+      "site": "scripts/production_business_risk_gate.py:2379",
       "semantic_key": "scripts/production_business_risk_gate.py:88cc7fb6fc03430c4fdd2485a7faef97f446d5732613153940ea5afd75c105c1:1",
       "line_sha256": "88cc7fb6fc03430c4fdd2485a7faef97f446d5732613153940ea5afd75c105c1",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:324",
+      "site": "scripts/production_business_risk_gate.py:389",
       "semantic_key": "scripts/production_business_risk_gate.py:9928b4d03294947634962bce055e2072938c0082131f5cf02484ccaaa844effc:1",
       "line_sha256": "9928b4d03294947634962bce055e2072938c0082131f5cf02484ccaaa844effc",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:87",
+      "site": "scripts/production_business_risk_gate.py:89",
       "semantic_key": "scripts/production_business_risk_gate.py:b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1:1",
       "line_sha256": "b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1758",
+      "site": "scripts/production_business_risk_gate.py:2455",
       "semantic_key": "scripts/production_business_risk_gate.py:b99d695b1fca431f95ebb9600eb241916948a8538042af2e84faf9903fce5f98:1",
       "line_sha256": "b99d695b1fca431f95ebb9600eb241916948a8538042af2e84faf9903fce5f98",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1589",
+      "site": "scripts/production_business_risk_gate.py:1845",
       "semantic_key": "scripts/production_business_risk_gate.py:fabdb1c33b277da40125b14521d3411518d67a5a462ad2386fab74207c009017:1",
       "line_sha256": "fabdb1c33b277da40125b14521d3411518d67a5a462ad2386fab74207c009017",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_business_risk_gate.py:119",
+      "site": "scripts/production_business_risk_gate.py:184",
       "semantic_key": "scripts/production_business_risk_gate.py:fdd68f53cf3fe51491a4cb46c9365de4a244a37ad8d7786de5abdffa253374df:1",
       "line_sha256": "fdd68f53cf3fe51491a4cb46c9365de4a244a37ad8d7786de5abdffa253374df",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3344",
+      "site": "scripts/production_catalog_verification.py:3351",
       "semantic_key": "scripts/production_catalog_verification.py:03c896706f76fbdca2ed9993bc4bccfc796ea786ceb58ee6cabf1f46155f8e61:1",
       "line_sha256": "03c896706f76fbdca2ed9993bc4bccfc796ea786ceb58ee6cabf1f46155f8e61",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3175",
+      "site": "scripts/production_catalog_verification.py:3182",
       "semantic_key": "scripts/production_catalog_verification.py:0affce0deacc19865075d37b82173f3f3c8928c8dd9b15bba438f61f86309652:1",
       "line_sha256": "0affce0deacc19865075d37b82173f3f3c8928c8dd9b15bba438f61f86309652",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3245",
+      "site": "scripts/production_catalog_verification.py:3252",
       "semantic_key": "scripts/production_catalog_verification.py:165775d3699b5c3d4afdc2b0d5bb9e67323404dd2a89667b395614ddd1de1863:1",
       "line_sha256": "165775d3699b5c3d4afdc2b0d5bb9e67323404dd2a89667b395614ddd1de1863",
       "disposition": "excluded",
@@ -1338,14 +1394,14 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3174",
+      "site": "scripts/production_catalog_verification.py:3181",
       "semantic_key": "scripts/production_catalog_verification.py:251e29372aa89719998ef9d26a5322e11351aefe2834c5d43c92f1ded805e2ac:1",
       "line_sha256": "251e29372aa89719998ef9d26a5322e11351aefe2834c5d43c92f1ded805e2ac",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3144",
+      "site": "scripts/production_catalog_verification.py:3151",
       "semantic_key": "scripts/production_catalog_verification.py:2773d1a7d7dcd0e9419f932321e020840ecd4af9f52e6816b7f992dd7516714d:1",
       "line_sha256": "2773d1a7d7dcd0e9419f932321e020840ecd4af9f52e6816b7f992dd7516714d",
       "disposition": "excluded",
@@ -1359,84 +1415,84 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3340",
+      "site": "scripts/production_catalog_verification.py:3347",
       "semantic_key": "scripts/production_catalog_verification.py:2b26af6aa7e5ad7428075b5646b69ce450d4eca387fb6fb07e7f747512074a4a:1",
       "line_sha256": "2b26af6aa7e5ad7428075b5646b69ce450d4eca387fb6fb07e7f747512074a4a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3748",
+      "site": "scripts/production_catalog_verification.py:3755",
       "semantic_key": "scripts/production_catalog_verification.py:331b788a16bf20ab5c9a46313b6f22a37dd9f74b93375787071bca228116a7df:1",
       "line_sha256": "331b788a16bf20ab5c9a46313b6f22a37dd9f74b93375787071bca228116a7df",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3542",
+      "site": "scripts/production_catalog_verification.py:3549",
       "semantic_key": "scripts/production_catalog_verification.py:333e334755e707c5b15b82609147fa49117fe53b6a8a915d63caa07bbf0353bd:1",
       "line_sha256": "333e334755e707c5b15b82609147fa49117fe53b6a8a915d63caa07bbf0353bd",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2814",
+      "site": "scripts/production_catalog_verification.py:2821",
       "semantic_key": "scripts/production_catalog_verification.py:3384653b96436848500cb8b94cbc06baecca551e008cc212fde9cf2c91b3f40a:1",
       "line_sha256": "3384653b96436848500cb8b94cbc06baecca551e008cc212fde9cf2c91b3f40a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2691",
+      "site": "scripts/production_catalog_verification.py:2698",
       "semantic_key": "scripts/production_catalog_verification.py:456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620:1",
       "line_sha256": "456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620",
       "disposition": "excluded",
       "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3339",
+      "site": "scripts/production_catalog_verification.py:3346",
       "semantic_key": "scripts/production_catalog_verification.py:45ec36a52ccff8b6ade08c25a93e0e9eabd22cda793e580f875de700a5e960a3:1",
       "line_sha256": "45ec36a52ccff8b6ade08c25a93e0e9eabd22cda793e580f875de700a5e960a3",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3513",
+      "site": "scripts/production_catalog_verification.py:3520",
       "semantic_key": "scripts/production_catalog_verification.py:460c7118f13850498cad4c513bfe74c6fe8f18010f0ed653dd13f5f3d7e32ad8:1",
       "line_sha256": "460c7118f13850498cad4c513bfe74c6fe8f18010f0ed653dd13f5f3d7e32ad8",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3252",
+      "site": "scripts/production_catalog_verification.py:3259",
       "semantic_key": "scripts/production_catalog_verification.py:628554b3fce1a187086011cdbf451b00824d31f5b560a88934b95b4c81a891b1:1",
       "line_sha256": "628554b3fce1a187086011cdbf451b00824d31f5b560a88934b95b4c81a891b1",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3407",
+      "site": "scripts/production_catalog_verification.py:3414",
       "semantic_key": "scripts/production_catalog_verification.py:688c6abaee7e032ba4dc8ed68d05d142b0ee9c1f4173d78fcb47edff00d8a3f2:1",
       "line_sha256": "688c6abaee7e032ba4dc8ed68d05d142b0ee9c1f4173d78fcb47edff00d8a3f2",
       "disposition": "excluded",
       "reason": "Report prose telling the reader that a surviving object under a catalog_absence check fails exactly like a missing expected one. It is artifact text, not a derivation site."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3511",
+      "site": "scripts/production_catalog_verification.py:3518",
       "semantic_key": "scripts/production_catalog_verification.py:6c692515220a0f59388ac7e4df694866256f2a8fa8b0328759e368e7f97e1b50:1",
       "line_sha256": "6c692515220a0f59388ac7e4df694866256f2a8fa8b0328759e368e7f97e1b50",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3473",
+      "site": "scripts/production_catalog_verification.py:3480",
       "semantic_key": "scripts/production_catalog_verification.py:6f51b444f73e93f144387f80677b2284b8ed83b1e31d6d9a2b94656e2df1b758:1",
       "line_sha256": "6f51b444f73e93f144387f80677b2284b8ed83b1e31d6d9a2b94656e2df1b758",
       "disposition": "enriched",
       "reason": "This comment states the defect the change repairs: a behavioural query that errored was rendered as MISSING, which reads as a proven absence of the contract. It is documentation of the enrichment, not a detection site."
     },
     {
-      "site": "scripts/production_catalog_verification.py:1791",
+      "site": "scripts/production_catalog_verification.py:1798",
       "semantic_key": "scripts/production_catalog_verification.py:7b17708e75492fed94b2988bdb1ace9f702e9163146080d48303fca0e40c126d:1",
       "line_sha256": "7b17708e75492fed94b2988bdb1ace9f702e9163146080d48303fca0e40c126d",
       "disposition": "excluded",
@@ -1450,28 +1506,28 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3924",
+      "site": "scripts/production_catalog_verification.py:3931",
       "semantic_key": "scripts/production_catalog_verification.py:89f1b4e17307ead19bce82c0f01f411a51810d0a3203d33ae9710bfc5d40d0b3:1",
       "line_sha256": "89f1b4e17307ead19bce82c0f01f411a51810d0a3203d33ae9710bfc5d40d0b3",
       "disposition": "excluded",
       "reason": "A comment explaining that superseded checks are excluded from the assertable set and therefore never produce ERROR/MISSING rows. It describes existing behaviour and creates no new refusal."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3833",
+      "site": "scripts/production_catalog_verification.py:3840",
       "semantic_key": "scripts/production_catalog_verification.py:8b448bcea84f5ea005ad45006696eda66a8c2048e9fea70752e796faab5da8f7:1",
       "line_sha256": "8b448bcea84f5ea005ad45006696eda66a8c2048e9fea70752e796faab5da8f7",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3673",
+      "site": "scripts/production_catalog_verification.py:3680",
       "semantic_key": "scripts/production_catalog_verification.py:8bbb485b39d8759fa011737fbdce1dd19424532f9301a21cfa3d391ef84d2e94:1",
       "line_sha256": "8bbb485b39d8759fa011737fbdce1dd19424532f9301a21cfa3d391ef84d2e94",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:4066",
+      "site": "scripts/production_catalog_verification.py:4073",
       "semantic_key": "scripts/production_catalog_verification.py:9529176a75aa1c6a518a1d009fe4b4a4065a87fe38489e8ed32782980662cf50:1",
       "line_sha256": "9529176a75aa1c6a518a1d009fe4b4a4065a87fe38489e8ed32782980662cf50",
       "disposition": "excluded",
@@ -1485,28 +1541,28 @@
       "reason": "A comment stating that the catalog_absence result pipeline reuses the existing actual-vs-expected/MISSING/ERROR rendering unchanged. It names the existing dispositions rather than introducing a new one."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2943",
+      "site": "scripts/production_catalog_verification.py:2950",
       "semantic_key": "scripts/production_catalog_verification.py:abfc3737e6f888aaf8fca35a209e680fc5f574901d42b90b19b0fee004dc7273:1",
       "line_sha256": "abfc3737e6f888aaf8fca35a209e680fc5f574901d42b90b19b0fee004dc7273",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3205",
+      "site": "scripts/production_catalog_verification.py:3212",
       "semantic_key": "scripts/production_catalog_verification.py:b5525d61a12e30af96d49030c2f843643fdd4cd51d176c39a9d64cddee170525:1",
       "line_sha256": "b5525d61a12e30af96d49030c2f843643fdd4cd51d176c39a9d64cddee170525",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3481",
+      "site": "scripts/production_catalog_verification.py:3488",
       "semantic_key": "scripts/production_catalog_verification.py:c00f2f086cbbabff9a20231f4b5cd5a1e52e73eca0224a7437c7e87da2929b8a:1",
       "line_sha256": "c00f2f086cbbabff9a20231f4b5cd5a1e52e73eca0224a7437c7e87da2929b8a",
       "disposition": "enriched",
       "reason": "Enriched: this render line now distinguishes a failed behavioural query (ERROR) from a genuinely absent row (MISSING), so the word MISSING is only emitted when the query ran and returned nothing."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2908",
+      "site": "scripts/production_catalog_verification.py:2915",
       "semantic_key": "scripts/production_catalog_verification.py:c3f1650695742d004c940db2fb05fff03914dceba5ed15835b697078a00cff0d:1",
       "line_sha256": "c3f1650695742d004c940db2fb05fff03914dceba5ed15835b697078a00cff0d",
       "disposition": "excluded",
@@ -1520,56 +1576,56 @@
       "reason": "Prose in the module docstring describing what a catalog_absence check is for (issue #2043). It is documentation of the ABSENT-object assertion, not a derivation call site, and asserts nothing about a missing object itself."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3854",
+      "site": "scripts/production_catalog_verification.py:3861",
       "semantic_key": "scripts/production_catalog_verification.py:cb41aacde1a3f1cf0a76a50d228f0ea45cab4c641398601b272d1059a051911d:1",
       "line_sha256": "cb41aacde1a3f1cf0a76a50d228f0ea45cab4c641398601b272d1059a051911d",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3376",
+      "site": "scripts/production_catalog_verification.py:3383",
       "semantic_key": "scripts/production_catalog_verification.py:d7851ffb4b4b07d1b444e88db24e91bf0ebae3df15c1cc2d63409d3114bffab3:1",
       "line_sha256": "d7851ffb4b4b07d1b444e88db24e91bf0ebae3df15c1cc2d63409d3114bffab3",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:1531",
+      "site": "scripts/production_catalog_verification.py:1538",
       "semantic_key": "scripts/production_catalog_verification.py:d827572c3a9ffb59ecb6667436ff294813951f974e0fbb25f8a9da5d715c4dc9:1",
       "line_sha256": "d827572c3a9ffb59ecb6667436ff294813951f974e0fbb25f8a9da5d715c4dc9",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:1530",
+      "site": "scripts/production_catalog_verification.py:1537",
       "semantic_key": "scripts/production_catalog_verification.py:ddd4154e072aa71661ba0ed4dd00d6c9a08d58b1f49353a1aa0860e6150aa699:1",
       "line_sha256": "ddd4154e072aa71661ba0ed4dd00d6c9a08d58b1f49353a1aa0860e6150aa699",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:2942",
+      "site": "scripts/production_catalog_verification.py:2949",
       "semantic_key": "scripts/production_catalog_verification.py:deaa69a8035dc79a5b0fef5a50e1757d0446fc1c7dd7f8b8944dafabaa3c4203:1",
       "line_sha256": "deaa69a8035dc79a5b0fef5a50e1757d0446fc1c7dd7f8b8944dafabaa3c4203",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3179",
+      "site": "scripts/production_catalog_verification.py:3186",
       "semantic_key": "scripts/production_catalog_verification.py:e2231de89ad5cc2215030db57177c6893d09bb895eb19859b5f3e45045b6208b:1",
       "line_sha256": "e2231de89ad5cc2215030db57177c6893d09bb895eb19859b5f3e45045b6208b",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:1533",
+      "site": "scripts/production_catalog_verification.py:1540",
       "semantic_key": "scripts/production_catalog_verification.py:e3716573c76754db558c86af0cbf3a41285956cffd1d8fa0ecfaa6738841bd5a:1",
       "line_sha256": "e3716573c76754db558c86af0cbf3a41285956cffd1d8fa0ecfaa6738841bd5a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_catalog_verification.py:3675",
+      "site": "scripts/production_catalog_verification.py:3682",
       "semantic_key": "scripts/production_catalog_verification.py:e449b410c134afc9df71ee9419acd80700588a0a2670dd5828ddd792351c0443:1",
       "line_sha256": "e449b410c134afc9df71ee9419acd80700588a0a2670dd5828ddd792351c0443",
       "disposition": "excluded",
@@ -1583,252 +1639,252 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:812",
+      "site": "scripts/production_migration_guard.py:912",
       "semantic_key": "scripts/production_migration_guard.py:00bc14076dfdfc42a7de7a785cd9cb0a12e0bce3e6dc22ec029dc3451b241dbd:1",
       "line_sha256": "00bc14076dfdfc42a7de7a785cd9cb0a12e0bce3e6dc22ec029dc3451b241dbd",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:145",
+      "site": "scripts/production_migration_guard.py:166",
       "semantic_key": "scripts/production_migration_guard.py:07e281dcbfa7b0a003faa8fea69a37bdd202e13e6edce968b18f3a7bbe77ff9e:1",
       "line_sha256": "07e281dcbfa7b0a003faa8fea69a37bdd202e13e6edce968b18f3a7bbe77ff9e",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1089",
+      "site": "scripts/production_migration_guard.py:1206",
       "semantic_key": "scripts/production_migration_guard.py:0cc14432855314918517887c6f60b5378a55d7cfc83ebf845b78828531dfe152:1",
       "line_sha256": "0cc14432855314918517887c6f60b5378a55d7cfc83ebf845b78828531dfe152",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:917",
+      "site": "scripts/production_migration_guard.py:1017",
       "semantic_key": "scripts/production_migration_guard.py:131b4fe52d2d567c2878da77c07397ed629d83ada5e1504839186955d7659bc1:1",
       "line_sha256": "131b4fe52d2d567c2878da77c07397ed629d83ada5e1504839186955d7659bc1",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1310",
+      "site": "scripts/production_migration_guard.py:1458",
       "semantic_key": "scripts/production_migration_guard.py:208bb5e160a71a7f837d6268cc7f3f3df095eb9efe6b549fba3fa1375ffdca8a:1",
       "line_sha256": "208bb5e160a71a7f837d6268cc7f3f3df095eb9efe6b549fba3fa1375ffdca8a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:898",
+      "site": "scripts/production_migration_guard.py:998",
       "semantic_key": "scripts/production_migration_guard.py:33689528d32e651ca4290cb63ee93283af0fe9ea7b9f1c43d7a1daa750352d11:1",
       "line_sha256": "33689528d32e651ca4290cb63ee93283af0fe9ea7b9f1c43d7a1daa750352d11",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:918",
+      "site": "scripts/production_migration_guard.py:1018",
       "semantic_key": "scripts/production_migration_guard.py:3411b04832d915b23b098ae6e4e832aefb1202c69c9cb62bada4601ef1c45704:1",
       "line_sha256": "3411b04832d915b23b098ae6e4e832aefb1202c69c9cb62bada4601ef1c45704",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:2173",
+      "site": "scripts/production_migration_guard.py:2321",
       "semantic_key": "scripts/production_migration_guard.py:3f5f26d1ca85b389fabb99a6e7516282f6ab514da5992543e6d8a258e8b910bc:1",
       "line_sha256": "3f5f26d1ca85b389fabb99a6e7516282f6ab514da5992543e6d8a258e8b910bc",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1333",
+      "site": "scripts/production_migration_guard.py:1481",
       "semantic_key": "scripts/production_migration_guard.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
       "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1034",
+      "site": "scripts/production_migration_guard.py:1151",
       "semantic_key": "scripts/production_migration_guard.py:478afaabeb0355c3067e2c237a34d268be8d5f10edde207c1103942dbc6b7092:1",
       "line_sha256": "478afaabeb0355c3067e2c237a34d268be8d5f10edde207c1103942dbc6b7092",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1781",
+      "site": "scripts/production_migration_guard.py:1929",
       "semantic_key": "scripts/production_migration_guard.py:53055ed217811b2cc1cb297c0e4d58f51dba471f55f5a4de156e715e0b1d95b6:1",
       "line_sha256": "53055ed217811b2cc1cb297c0e4d58f51dba471f55f5a4de156e715e0b1d95b6",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:964",
+      "site": "scripts/production_migration_guard.py:1081",
       "semantic_key": "scripts/production_migration_guard.py:5682430e5490a616c689b5804ad7e1bd9a26bcbf143bed24dafaa604c6f52bd7:1",
       "line_sha256": "5682430e5490a616c689b5804ad7e1bd9a26bcbf143bed24dafaa604c6f52bd7",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:999",
+      "site": "scripts/production_migration_guard.py:1116",
       "semantic_key": "scripts/production_migration_guard.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:1",
       "line_sha256": "5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1069",
+      "site": "scripts/production_migration_guard.py:1186",
       "semantic_key": "scripts/production_migration_guard.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:2",
       "line_sha256": "5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:984",
+      "site": "scripts/production_migration_guard.py:1101",
       "semantic_key": "scripts/production_migration_guard.py:6492225a96b7205f629dff80768e4ea60f9505250700a11166c4f8b0800f22f1:1",
       "line_sha256": "6492225a96b7205f629dff80768e4ea60f9505250700a11166c4f8b0800f22f1",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1300",
+      "site": "scripts/production_migration_guard.py:1448",
       "semantic_key": "scripts/production_migration_guard.py:69ee6f5639d506a71ea32387f100195b2cc85496e87eee16f02146a2ccda8520:1",
       "line_sha256": "69ee6f5639d506a71ea32387f100195b2cc85496e87eee16f02146a2ccda8520",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1082",
+      "site": "scripts/production_migration_guard.py:1199",
       "semantic_key": "scripts/production_migration_guard.py:6ab0022235fa9fae1543fb58bb74c3e554db731c05c14191c672f00736624906:1",
       "line_sha256": "6ab0022235fa9fae1543fb58bb74c3e554db731c05c14191c672f00736624906",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1079",
+      "site": "scripts/production_migration_guard.py:1196",
       "semantic_key": "scripts/production_migration_guard.py:6d645a745b69976760de25eb8c7b8b7fa953986b233e6ef9249afde173bb0538:1",
       "line_sha256": "6d645a745b69976760de25eb8c7b8b7fa953986b233e6ef9249afde173bb0538",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1334",
+      "site": "scripts/production_migration_guard.py:1482",
       "semantic_key": "scripts/production_migration_guard.py:71f4011a3be1b6b1f423c1733e4669b67c03c6e6f74872353280ea22076976a5:1",
       "line_sha256": "71f4011a3be1b6b1f423c1733e4669b67c03c6e6f74872353280ea22076976a5",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1068",
+      "site": "scripts/production_migration_guard.py:1185",
       "semantic_key": "scripts/production_migration_guard.py:794db6a7d37010ad3f3d10017573cc34938d0182ec215031c3b3fce6e7e5838a:1",
       "line_sha256": "794db6a7d37010ad3f3d10017573cc34938d0182ec215031c3b3fce6e7e5838a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1032",
+      "site": "scripts/production_migration_guard.py:1149",
       "semantic_key": "scripts/production_migration_guard.py:91204eb6362c497fcee4cbb6cf75f250ee36d3d2f830d9455b8f500c839c495b:1",
       "line_sha256": "91204eb6362c497fcee4cbb6cf75f250ee36d3d2f830d9455b8f500c839c495b",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:960",
+      "site": "scripts/production_migration_guard.py:1077",
       "semantic_key": "scripts/production_migration_guard.py:943b24e00604ab3b7f7ac4ba5a0fed29877ab9a0de45132a8ebf9588d82753a5:1",
       "line_sha256": "943b24e00604ab3b7f7ac4ba5a0fed29877ab9a0de45132a8ebf9588d82753a5",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1003",
+      "site": "scripts/production_migration_guard.py:1120",
       "semantic_key": "scripts/production_migration_guard.py:9a73ca665a61edc799ce19b30afeb41022e32e554a753374f231af31f7af0ed7:1",
       "line_sha256": "9a73ca665a61edc799ce19b30afeb41022e32e554a753374f231af31f7af0ed7",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:2097",
+      "site": "scripts/production_migration_guard.py:2245",
       "semantic_key": "scripts/production_migration_guard.py:bb24cd6e40dbeb747ad3d9a3d93fd9d6390d92d92d013a92bf2fc958e8434427:1",
       "line_sha256": "bb24cd6e40dbeb747ad3d9a3d93fd9d6390d92d92d013a92bf2fc958e8434427",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1325",
+      "site": "scripts/production_migration_guard.py:1473",
       "semantic_key": "scripts/production_migration_guard.py:bd0c604d169b8c010370fedbaafcbdf8163c4532b1b503075873f8827b51021e:1",
       "line_sha256": "bd0c604d169b8c010370fedbaafcbdf8163c4532b1b503075873f8827b51021e",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1200",
+      "site": "scripts/production_migration_guard.py:1348",
       "semantic_key": "scripts/production_migration_guard.py:c09f129d700353ee3bdde8d550d639ce22090dfe682acffcdd4510fef639f5c3:1",
       "line_sha256": "c09f129d700353ee3bdde8d550d639ce22090dfe682acffcdd4510fef639f5c3",
       "disposition": "enriched",
       "reason": "The classifier derives the absent base from a migration declaration and compares it with the target ledger before naming the exact gap."
     },
     {
-      "site": "scripts/production_migration_guard.py:897",
+      "site": "scripts/production_migration_guard.py:997",
       "semantic_key": "scripts/production_migration_guard.py:c1d0d18d71548adb88c6e2add9b2c13af540a3c6e1535621c7940976169a1a29:1",
       "line_sha256": "c1d0d18d71548adb88c6e2add9b2c13af540a3c6e1535621c7940976169a1a29",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:2170",
+      "site": "scripts/production_migration_guard.py:2318",
       "semantic_key": "scripts/production_migration_guard.py:c9255a52069df271c4a9150610549a0602d8c5c903d41183ffe6921d9750968f:1",
       "line_sha256": "c9255a52069df271c4a9150610549a0602d8c5c903d41183ffe6921d9750968f",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:2135",
+      "site": "scripts/production_migration_guard.py:2283",
       "semantic_key": "scripts/production_migration_guard.py:d2b790f2e61d2f63d8b22ee0825f53f72b1cc5fce34a04388794523c08bc8f3b:1",
       "line_sha256": "d2b790f2e61d2f63d8b22ee0825f53f72b1cc5fce34a04388794523c08bc8f3b",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:2034",
+      "site": "scripts/production_migration_guard.py:2182",
       "semantic_key": "scripts/production_migration_guard.py:dbf5e1c0c6b9a54f6de3b835a4e05f3c55ad8e8c778eb2bbb83da3abd4782a73:1",
       "line_sha256": "dbf5e1c0c6b9a54f6de3b835a4e05f3c55ad8e8c778eb2bbb83da3abd4782a73",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1025",
+      "site": "scripts/production_migration_guard.py:1142",
       "semantic_key": "scripts/production_migration_guard.py:e12a02db00f32fca4fb105f66380533bb93587ee3a62ebae614e3161f26cfd5e:1",
       "line_sha256": "e12a02db00f32fca4fb105f66380533bb93587ee3a62ebae614e3161f26cfd5e",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1004",
+      "site": "scripts/production_migration_guard.py:1121",
       "semantic_key": "scripts/production_migration_guard.py:edeb1a131417dd91d6df0bc409b0a1e77a4b449fc72fa4ffa4c46f00273263dc:1",
       "line_sha256": "edeb1a131417dd91d6df0bc409b0a1e77a4b449fc72fa4ffa4c46f00273263dc",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:2174",
+      "site": "scripts/production_migration_guard.py:2322",
       "semantic_key": "scripts/production_migration_guard.py:f09718bfc1d3b79048224ca1b09e38feaea64a60a5667ba66d5d3a6a2da4007e:1",
       "line_sha256": "f09718bfc1d3b79048224ca1b09e38feaea64a60a5667ba66d5d3a6a2da4007e",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:1309",
+      "site": "scripts/production_migration_guard.py:1457",
       "semantic_key": "scripts/production_migration_guard.py:f215e81452775dde8be07b97a775dcd16679e5782667c7792ea4651301f207b8:1",
       "line_sha256": "f215e81452775dde8be07b97a775dcd16679e5782667c7792ea4651301f207b8",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:2197",
+      "site": "scripts/production_migration_guard.py:2345",
       "semantic_key": "scripts/production_migration_guard.py:fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef:1",
       "line_sha256": "fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/production_migration_guard.py:395",
+      "site": "scripts/production_migration_guard.py:495",
       "semantic_key": "scripts/production_migration_guard.py:ff9f946083e5618681ad625cf3cd23e10d43babf3e83f3fc868b5e12bafc1b26:1",
       "line_sha256": "ff9f946083e5618681ad625cf3cd23e10d43babf3e83f3fc868b5e12bafc1b26",
       "disposition": "excluded",
@@ -1856,14 +1912,14 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/reap-merged-worktrees.mjs:212",
+      "site": "scripts/reap-merged-worktrees.mjs:235",
       "semantic_key": "scripts/reap-merged-worktrees.mjs:0c5486b47c120906e77ea4bbd5b9279bae7aa6062e0bff1e7994003ea89855c1:1",
       "line_sha256": "0c5486b47c120906e77ea4bbd5b9279bae7aa6062e0bff1e7994003ea89855c1",
       "disposition": "excluded",
       "reason": "Issue #1868. Excluded: the word appears in a prose comment about an optional git administrative file whose mtime could not be read while measuring worktree activity. It makes no claim about a migration, a DDL object, or anything created or applied in the database, so it is outside the throughput-truth surface this audit guards."
     },
     {
-      "site": "scripts/reap-merged-worktrees.mjs:132",
+      "site": "scripts/reap-merged-worktrees.mjs:138",
       "semantic_key": "scripts/reap-merged-worktrees.mjs:e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40:1",
       "line_sha256": "e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40",
       "disposition": "excluded",
@@ -1891,35 +1947,35 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/update-required-checks.mjs:131",
+      "site": "scripts/update-required-checks.mjs:127",
       "semantic_key": "scripts/update-required-checks.mjs:07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721:1",
       "line_sha256": "07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/update-required-checks.mjs:253",
+      "site": "scripts/update-required-checks.mjs:249",
       "semantic_key": "scripts/update-required-checks.mjs:12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec:1",
       "line_sha256": "12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/update-required-checks.mjs:252",
+      "site": "scripts/update-required-checks.mjs:248",
       "semantic_key": "scripts/update-required-checks.mjs:4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1:1",
       "line_sha256": "4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/update-required-checks.mjs:247",
+      "site": "scripts/update-required-checks.mjs:243",
       "semantic_key": "scripts/update-required-checks.mjs:78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6:1",
       "line_sha256": "78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/update-required-checks.mjs:137",
+      "site": "scripts/update-required-checks.mjs:133",
       "semantic_key": "scripts/update-required-checks.mjs:b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0:1",
       "line_sha256": "b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0",
       "disposition": "excluded",
@@ -1933,14 +1989,14 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-db-data-admin-property-source-coverage.mjs:188",
-      "semantic_key": "scripts/check-db-data-admin-property-source-coverage.mjs:ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b:1",
-      "line_sha256": "ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b",
+      "site": "scripts/production_migration_guard.py:2093",
+      "semantic_key": "scripts/production_migration_guard.py:50799e3f2862268507b004d60991c5c99a0c3324c03f871a8dbf0ceb31fa398d:1",
+      "line_sha256": "50799e3f2862268507b004d60991c5c99a0c3324c03f871a8dbf0ceb31fa398d",
       "disposition": "excluded",
-      "reason": "Reviewed 2026-09-10 for #2579: this line reports the reserved migration file as missing only after a direct fs.existsSync test on that exact path, so the absence is measured rather than inferred; there is nothing to enrich and no not-derivable case can reach it."
+      "reason": "#2809. This line is explanatory comment prose quoting the guard refusal text it fixes; it performs no missing-object detection and changes no refusal behaviour, so it carries no enrichment obligation."
     }
   ],
-  "call_site_count": 275,
-  "call_site_sha256": "707a890fbdfed845fa37db82c9bf24852d9d2d6a2146653304e27a8ae1b3b543",
+  "call_site_count": 283,
+  "call_site_sha256": "014700ca17452ac219a56c6e7f7c044426eacd1262a30a9888a3baf61c6cab78",
   "disposition": "Every discovered site has an explicit reviewed disposition bound to its source-line content; line movement alone does not require regeneration, while a content change requires review."
 }

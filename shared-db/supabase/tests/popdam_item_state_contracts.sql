@@ -151,8 +151,8 @@ begin
     raise exception '#2644: dismissal actor/timestamps were not retained';
   end if;
 
-  insert into public.erp_items_current (external_id, division_code, dismissed)
-  values ('ZZ2644ITEM', 'ZZ001', false) returning id into v_legacy;
+  insert into plm.legacy_erp_item_identity (id, external_id, division_code)
+  values (gen_random_uuid(), 'ZZ2644ITEM', 'ZZ001') returning id into v_legacy;
 
   insert into public.product_category_predictions (
     erp_item_id, external_id, predicted_category, confidence,
@@ -169,7 +169,7 @@ begin
     raise exception '#2644: canonical prediction identity did not resolve';
   end if;
 
-  delete from public.erp_items_current where id = v_legacy;
+  delete from plm.legacy_erp_item_identity where id = v_legacy;
   if not exists (
     select 1 from public.product_category_predictions
     where id = v_prediction and plm_item_id = v_item and status = 'approved'

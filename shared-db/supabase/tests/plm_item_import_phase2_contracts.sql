@@ -98,8 +98,8 @@ begin
   -- B3. NOTHING in the new path may FK to the volatile erp_items_current.id.
   select count(*) into v_n from pg_constraint
    where conrelid in ('plm.item_import'::regclass, 'plm.item_import_staging'::regclass, 'plm.item'::regclass)
-     and contype = 'f' and confrelid = 'public.erp_items_current'::regclass;
-  if v_n = 0 then v_pass := v_pass + 1; raise notice 'PASS no FK from the new path to the volatile public.erp_items_current.id';
+     and contype = 'f' and confrelid = 'plm.legacy_erp_item_identity'::regclass;
+  if v_n = 0 then v_pass := v_pass + 1; raise notice 'PASS no FK from the new path to the frozen legacy ERP identity crosswalk (#2482)';
   else v_fail := v_fail + 1; raise notice 'FAIL % FK(s) in the new path point at erp_items_current.id', v_n; end if;
 
   -- B4. item_import links to the canonical item, not the other way round.
@@ -278,29 +278,28 @@ begin
     v_fail := v_fail + 1; raise notice 'FAIL api.plm_item_list does not read canonical plm.item after #2466';
   end if;
 
-  -- D2. The bridge FK must still point at the legacy table, unrepointed.
+  -- D2. #2482 retired the legacy table: the bridge keeps NO FK to it (archived or not).
   select count(*) into v_n from pg_constraint
    where conrelid = 'plm.style_tracker_item_bridge'::regclass and contype = 'f'
-     and confrelid = 'public.erp_items_current'::regclass;
+     and confrelid in (select c.oid from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                        where c.relname = 'erp_items_current');
+  if v_n = 0 then
+    v_pass := v_pass + 1; raise notice 'PASS bridge has no FK to the retired erp_items_current (#2482)';
+  else
+    v_fail := v_fail + 1; raise notice 'FAIL bridge FK to retired erp_items_current count = % (expect 0)', v_n;
+  end if;
+
+  -- D3. The legacy link values are kept: the column survives the FK retirement.
+  select count(*) into v_n from information_schema.columns
+   where table_schema = 'plm' and table_name = 'style_tracker_item_bridge' and column_name = 'erp_item_id';
   if v_n = 1 then
-    v_pass := v_pass + 1; raise notice 'PASS bridge FK still -> public.erp_items_current (not repointed)';
+    v_pass := v_pass + 1; raise notice 'PASS bridge erp_item_id column kept after FK retirement';
   else
-    v_fail := v_fail + 1; raise notice 'FAIL bridge FK to erp_items_current count = % (expect 1)', v_n;
+    v_fail := v_fail + 1; raise notice 'FAIL bridge erp_item_id column missing';
   end if;
 
-  -- D3. #853 removes the silent-link-loss hazard while keeping the legacy FK additive.
-  --     Deletes must now fail loudly until every bridge link has a canonical destination.
-  select pg_get_constraintdef(oid) into v_def from pg_constraint
-   where conrelid = 'plm.style_tracker_item_bridge'::regclass and contype = 'f'
-     and confrelid = 'public.erp_items_current'::regclass;
-  if v_def like '%ON DELETE RESTRICT%' or v_def not like '%ON DELETE%' then
-    v_pass := v_pass + 1; raise notice 'PASS legacy bridge deletion fails loudly: %', v_def;
-  else
-    v_fail := v_fail + 1; raise notice 'FAIL legacy bridge FK can still erase a link silently: %', v_def;
-  end if;
-
-  -- D4. The reconciliation baseline Phase 3 must hit.
-  select count(*) into v_erp from public.erp_items_current;
+  -- D4. The reconciliation baseline Phase 3 must hit (legacy rows now in the frozen crosswalk).
+  select count(*) into v_erp from plm.legacy_erp_item_identity;
   select count(*) into v_item from plm.item;
   select count(*) into v_import from plm.item_import;
   select count(*) into v_bridge from plm.style_tracker_item_bridge;
@@ -312,14 +311,14 @@ begin
   --     plm.item.source_id = companyCode|divisionCode|itemNo, but erp_items_current keys
   --     on a BARE external_id with no pipes. The two key spaces do not overlap, so the
   --     bridge cannot be repointed by a naive source_id join.
-  select count(*) into v_n from public.erp_items_current where external_id like '%|%';
+  select count(*) into v_n from plm.legacy_erp_item_identity where external_id like '%|%';
   raise notice 'BLOCKER erp_items_current.external_id values containing a pipe: % of % (0 means the key spaces DIVERGE and Phase 3 needs an explicit mapping)',
     v_n, v_erp;
   if v_n = 0 then
     raise notice 'CONFIRMED: external_id is a BARE item number. Phase 3 must derive companyCode+divisionCode per row; it cannot join on external_id alone.';
   end if;
 
-  select count(distinct external_id) into v_n from public.erp_items_current;
+  select count(distinct external_id) into v_n from plm.legacy_erp_item_identity;
   if v_n = v_erp then
     v_pass := v_pass + 1; raise notice 'PASS external_id is unique across all % legacy rows (a 1:1 mapping is at least possible)', v_erp;
   else

@@ -85,15 +85,24 @@ export const MIGRATIONS_DIR = 'supabase/migrations'
  * 2) against a project that no longer exists, which is how the stale value was caught.
  */
 
-export const PENDING_KINDS = new Set(['genuinely-pending', 'guarded-batch', 'deliberately-held', 'retired', 'base-absent'])
+export const PENDING_KINDS = new Set(['genuinely-pending', 'guarded-batch', 'deliberately-held', 'retired', 'base-absent', 'foreign-target'])
 export const INTENTIONALLY_EXCLUDED_KINDS = new Set(['deliberately-held', 'retired'])
+
+/**
+ * Issue #2820. A migration whose recorded target is a DIFFERENT database is not
+ * outstanding work for this one. It is excluded from actionable drift AND from
+ * the promotable list — but it is NEVER dropped silently: it is reported in its
+ * own clearly-labelled section, naming the real target, so a reader can see the
+ * scope claim and challenge it. An invisible exclusion is its own hazard.
+ */
+export const FOREIGN_TARGET_KINDS = new Set(['foreign-target'])
 
 /**
  * Ask the production lane's one Python classifier for final answers instead of
  * maintaining either a second list or a second policy engine here. Any import,
  * parse, or coverage failure is UNKNOWN and makes the drift check exit 2.
  */
-export function guardClassifications(versions, appliedVersions = []) {
+export function guardClassifications(versions, appliedVersions = [], target = 'production') {
   if (versions.length === 0) return {}
   const program = String.raw`
 import json, sys
@@ -103,12 +112,13 @@ sys.path.insert(0, str(root / 'scripts'))
 from production_migration_guard import classify_pending_version, local_migrations
 versions = json.loads(sys.argv[2])
 applied = set(json.loads(sys.argv[3]))
+target = sys.argv[4]
 migrations = local_migrations(root)
-print(json.dumps({v: classify_pending_version(v, applied, root, migrations) for v in versions}))
+print(json.dumps({v: classify_pending_version(v, applied, root, migrations, target) for v in versions}))
 `
   let raw
   try {
-    raw = execFileSync('python', ['-c', program, repoRoot, JSON.stringify(versions), JSON.stringify(appliedVersions)], {
+    raw = execFileSync('python', ['-c', program, repoRoot, JSON.stringify(versions), JSON.stringify(appliedVersions), String(target)], {
       cwd: repoRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -210,16 +220,19 @@ export function computeDrift(mainVersions, appliedVersions) {
  */
 export function assessDrift(drift, pendingClassifications) {
   const intentionallyExcluded = []
+  const foreignTarget = []
   const actionableMergedNotApplied = []
   for (const version of drift.mergedNotApplied) {
     const classification = pendingClassifications[version]
     if (!classification) throw new Unknown(`pending migration ${version} has no classification`)
-    if (INTENTIONALLY_EXCLUDED_KINDS.has(classification.kind)) intentionallyExcluded.push(version)
+    if (FOREIGN_TARGET_KINDS.has(classification.kind)) foreignTarget.push(version)
+    else if (INTENTIONALLY_EXCLUDED_KINDS.has(classification.kind)) intentionallyExcluded.push(version)
     else actionableMergedNotApplied.push(version)
   }
   return {
     ...drift,
     intentionallyExcluded,
+    foreignTarget,
     actionableMergedNotApplied,
     driftFound: actionableMergedNotApplied.length > 0 || drift.appliedNotMerged.length > 0,
   }
@@ -242,10 +255,16 @@ export function formatReport({ target, projectRef, baseRef, drift, fileByVersion
     ? 'DRIFT FOUND.'
     : 'NO ACTIONABLE DRIFT. Outstanding versions are intentionally excluded from application.')
 
-  if (drift.mergedNotApplied.length > 0) {
+  // Issue #2820: entries whose recorded target is another database are reported
+  // in their OWN section below, never mixed into the promotable list — but they
+  // are never omitted either, so the scope claim stays visible and challengeable.
+  const foreignTarget = drift.foreignTarget ?? []
+  const promotable = drift.mergedNotApplied.filter((version) => !foreignTarget.includes(version))
+
+  if (promotable.length > 0) {
     lines.push('')
-    lines.push(`MERGED BUT NOT APPLIED — ${drift.mergedNotApplied.length} version(s):`)
-    for (const version of drift.mergedNotApplied) {
+    lines.push(`MERGED BUT NOT APPLIED — ${promotable.length} version(s):`)
+    for (const version of promotable) {
       const classification = pendingClassifications[version]
       if (!classification) throw new Unknown(`pending migration ${version} has no classification`)
       lines.push(`  ${version}  [${classification.kind.toUpperCase()}]  ${fileByVersion[version] ?? ''}`.trimEnd())
@@ -262,6 +281,24 @@ export function formatReport({ target, projectRef, baseRef, drift, fileByVersion
     if (drift.intentionallyExcluded?.length > 0) {
       lines.push(`${drift.intentionallyExcluded.length} RETIRED/DELIBERATELY-HELD version(s) above are listed for visibility but do not make this check fail.`)
     }
+  }
+
+  if (foreignTarget.length > 0) {
+    lines.push('')
+    lines.push(`NOT IN SCOPE FOR THIS DATABASE — ${foreignTarget.length} version(s):`)
+    for (const version of foreignTarget) {
+      const classification = pendingClassifications[version]
+      if (!classification) throw new Unknown(`pending migration ${version} has no classification`)
+      lines.push(`  ${version}  [${classification.kind.toUpperCase()}]  ${fileByVersion[version] ?? ''}`.trimEnd())
+      lines.push(`    why: ${classification.reason}`)
+    }
+    lines.push('')
+    lines.push('These merged migrations were authored against a DIFFERENT database, named above.')
+    lines.push('They are NOT promotable here and are NOT counted as drift — their absence from')
+    lines.push('this ledger is the intended end state. They are listed rather than hidden so the')
+    lines.push('scope claim stays visible: if one is wrong, the migration really is overdue and')
+    lines.push('hiding it would be worse than the bug this section exists to prevent. Challenge it')
+    lines.push('by correcting FOREIGN_TARGET_MIGRATIONS in scripts/production_migration_guard.py.')
   }
 
   if (drift.appliedNotMerged.length > 0) {
@@ -367,7 +404,9 @@ export async function runDriftCheck({ target, baseRef = 'origin/main', io = defa
   const appliedVersions = await io.fetchAppliedVersions(projectRef)
   const rawDrift = computeDrift(mainVersions, appliedVersions)
   const classify = io.guardClassifications ?? guardClassifications
-  const pendingClassifications = await classify(rawDrift.mergedNotApplied, appliedVersions)
+  // Pass the target being checked: scope is DERIVED per target (issue #2820), so
+  // classifying a preview run as though it were production would be wrong.
+  const pendingClassifications = await classify(rawDrift.mergedNotApplied, appliedVersions, target)
   validatePendingClassifications(rawDrift.mergedNotApplied, pendingClassifications)
   const drift = assessDrift(rawDrift, pendingClassifications)
 
