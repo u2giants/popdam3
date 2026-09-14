@@ -46,12 +46,7 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
-import {
-  buildSgCrawlCompletionUpdate,
-  buildSgIngestCompletionUpdate,
-  hasMoreSgSearchDocuments,
-  SG_RECONCILE_BATCH_SIZE,
-} from "../_shared/sg-crawl-state.ts";
+import { buildSgCrawlCompletionUpdate, buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 
