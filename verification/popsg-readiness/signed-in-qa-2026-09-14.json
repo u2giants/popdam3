@@ -1,0 +1,17 @@
+{
+  "signed_in": true,
+  "library_loaded": true,
+  "library_has_search": true,
+  "library_has_both_modes": true,
+  "settings_loaded": true,
+  "preview_coverage_visible": true,
+  "returned_to_login": false,
+  "console_error_count": 4,
+  "console_error_categories": [
+    "resource-load"
+  ],
+  "http_error_classes": [
+    "403:qsllyeztdwjgirsysgai.supabase.co:/functions/v1/admin-api:fetch"
+  ],
+  "request_failure_categories": []
+}
