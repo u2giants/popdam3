@@ -46,7 +46,12 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
-import { buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "../_shared/sg-crawl-state.ts";
+import {
+  buildSgCrawlCompletionUpdate,
+  buildSgIngestCompletionUpdate,
+  hasMoreSgSearchDocuments,
+  SG_RECONCILE_BATCH_SIZE,
+} from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 
@@ -3119,12 +3124,13 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         });
       }
 
-      const { error: completeErr } = await db.from("style_guide_crawl_runs").update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        files_found: finalFileCount,
-        ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
-      }).eq("id", runId);
+      const { error: completeErr } = await db.from("style_guide_crawl_runs").update(
+        buildSgCrawlCompletionUpdate(
+          finalFileCount,
+          inaccessibleRoots,
+          new Date().toISOString(),
+        ),
+      ).eq("id", runId);
       if (completeErr) {
         console.error("[complete-style-guide-crawl] Completion update failed:", completeErr.message);
         return err(`Crawl completion failed: ${completeErr.message}`, 500);

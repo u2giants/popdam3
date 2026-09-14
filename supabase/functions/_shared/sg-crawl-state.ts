@@ -38,6 +38,20 @@ export function buildSgIngestCompletionUpdate(
   };
 }
 
+export function buildSgCrawlCompletionUpdate(
+  discoveredCount: number,
+  inaccessibleRoots: string[],
+  completedAt: string,
+): Record<string, unknown> {
+  return {
+    status: "completed",
+    lifecycle_state: "completed",
+    completed_at: completedAt,
+    files_found: discoveredCount,
+    ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
+  };
+}
+
 export function countAcceptedExtensions(
   files: Array<Record<string, unknown>>,
   allowedExtensions: ReadonlySet<string>,

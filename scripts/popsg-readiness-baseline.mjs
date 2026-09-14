@@ -22,9 +22,18 @@ function launchNas() {
   }
   const wrapper = `#!/bin/sh\ncd '${remote}' || exit 90\ndate -u +%FT%TZ > started-at.txt\nnice -n 19 python3 popsg-readiness-nas-scan.py /volume1/styleguides sg-eligibility-contract.json paths.jsonl summary.json >stdout.txt 2>stderr.txt </dev/null\ncode=$?\nprintf '%s\\n' "$code" > exit-code.txt\ndate -u +%FT%TZ > completed-at.txt\n`;
   execFileSync("ssh", ["-o", "BatchMode=yes", "edgesynology2", "sh", "-c", `cat > '${remote}/run.sh'`], { input: wrapper });
-  const launch = `cd '${remote}' && nohup sh run.sh >/dev/null 2>&1 </dev/null & echo $! > scan.pid`;
+  const launch = `cd '${remote}' && { nohup sh run.sh >/dev/null 2>&1 </dev/null & echo $! > scan.pid; }`;
   execFileSync("ssh", ["-o", "BatchMode=yes", "edgesynology2", launch]);
   console.log(JSON.stringify({ job, remote, status: "launched" }));
+}
+
+function writePrivateFile(target, contents) {
+  const fd = openSync(target, "w", 0o600);
+  try {
+    writeFileSync(fd, contents);
+  } finally {
+    closeSync(fd);
+  }
 }
 
 async function collect() {
@@ -45,12 +54,12 @@ async function collect() {
   const client = createClient(url, key, { auth: { persistSession: false } });
   const rows = [];
   for (let from = 0;; from += 1000) {
-    const { data, error } = await client.from("style_guide_files").select("id,root_label,relative_path,crawl_run_id,file_extension,licensor_name,property_folder,thumbnail_url,thumbnail_error,tag_search_text").eq("is_active", true).range(from, from + 999);
+    const { data, error } = await client.from("style_guide_files").select("id,root_label,relative_path,crawl_run_id,file_extension,licensor_name,property_folder,thumbnail_url,thumbnail_error,tag_search_text").eq("is_active", true).order("id", { ascending: true }).range(from, from + 999);
     if (error) throw error;
     rows.push(...data);
     if (data.length < 1000) break;
   }
-  writeFileSync(`${privateDir}/db-active-${stamp}.jsonl`, rows.map(row => JSON.stringify(row)).join("\n") + "\n");
+  writePrivateFile(`${privateDir}/db-active-${stamp}.jsonl`, rows.map(row => JSON.stringify(row)).join("\n") + "\n");
   const { data: crawls, error: crawlError } = await client.from("style_guide_crawl_runs").select("*").order("started_at", { ascending: false }).limit(30);
   if (crawlError) throw crawlError;
   const [pdfRemainingResult, pdfSamplesResult, sourceResult, groupsResult, foldersResult] = await Promise.all([
@@ -69,8 +78,8 @@ async function collect() {
   const dbKeys = new Set(rows.map(row => `${row.root_label}\0${row.relative_path}`));
   const missing = [...nasKeys].filter(key => !dbKeys.has(key));
   const extra = [...dbKeys].filter(key => !nasKeys.has(key));
-  writeFileSync(`${privateDir}/missing-in-db-${stamp}.txt`, missing.join("\n") + "\n");
-  writeFileSync(`${privateDir}/extra-in-db-${stamp}.txt`, extra.join("\n") + "\n");
+  writePrivateFile(`${privateDir}/missing-in-db-${stamp}.txt`, missing.join("\n") + "\n");
+  writePrivateFile(`${privateDir}/extra-in-db-${stamp}.txt`, extra.join("\n") + "\n");
   const hash = values => createHash("sha256").update([...values].sort().join("\n")).digest("hex");
   const countBy = (values, fn) => Object.fromEntries([...values.reduce((m, value) => m.set(fn(value) || "(none)", (m.get(fn(value) || "(none)") || 0) + 1), new Map())].sort());
   const privateLabelHash = value => createHash("sha256").update(value || "(none)").digest("hex").slice(0, 16);

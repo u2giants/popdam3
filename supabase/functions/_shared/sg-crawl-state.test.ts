@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSgCrawlCompletionUpdate,
   buildSgIngestCompletionUpdate,
   canCompleteSgCrawl,
   countAcceptedExtensions,
@@ -7,6 +8,17 @@ import {
   hasMoreSgSearchDocuments,
   SG_RECONCILE_BATCH_SIZE,
 } from "./sg-crawl-state.ts";
+
+describe("buildSgCrawlCompletionUpdate", () => {
+  it("makes the durable lifecycle agree with the completed run status", () => {
+    expect(buildSgCrawlCompletionUpdate(216_702, [], "2026-09-13T22:11:16.000Z")).toEqual({
+      status: "completed",
+      lifecycle_state: "completed",
+      completed_at: "2026-09-13T22:11:16.000Z",
+      files_found: 216_702,
+    });
+  });
+});
 
 const config = { absoluteDrop: 1_000, percentageDrop: 0.01, minimumPriorCount: 10_000 };
 
