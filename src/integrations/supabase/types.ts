@@ -1412,6 +1412,111 @@ export type Database = {
           },
         ]
       }
+      hts_rag_debate_runs: {
+        Row: {
+          attempt_count: number
+          case_packet_hash: string
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          consensus_code: string | null
+          created_at: string
+          error_code: string | null
+          error_detail: string | null
+          evidence_expansion_count: number
+          evidence_result: Json
+          gate_result: Json
+          id: string
+          lease_expires_at: string | null
+          luna_final_code: string | null
+          luna_initial_code: string | null
+          max_attempts: number
+          policy_version: string
+          precedent_id: string | null
+          session_id: string
+          source_determination_id: string
+          spark_final_code: string | null
+          spark_initial_code: string | null
+          status: string
+          stop_reason: string | null
+          turn_count: number
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          case_packet_hash: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          consensus_code?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_detail?: string | null
+          evidence_expansion_count?: number
+          evidence_result?: Json
+          gate_result?: Json
+          id?: string
+          lease_expires_at?: string | null
+          luna_final_code?: string | null
+          luna_initial_code?: string | null
+          max_attempts?: number
+          policy_version: string
+          precedent_id?: string | null
+          session_id: string
+          source_determination_id: string
+          spark_final_code?: string | null
+          spark_initial_code?: string | null
+          status?: string
+          stop_reason?: string | null
+          turn_count?: number
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          case_packet_hash?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          consensus_code?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_detail?: string | null
+          evidence_expansion_count?: number
+          evidence_result?: Json
+          gate_result?: Json
+          id?: string
+          lease_expires_at?: string | null
+          luna_final_code?: string | null
+          luna_initial_code?: string | null
+          max_attempts?: number
+          policy_version?: string
+          precedent_id?: string | null
+          session_id?: string
+          source_determination_id?: string
+          spark_final_code?: string | null
+          spark_initial_code?: string | null
+          status?: string
+          stop_reason?: string | null
+          turn_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_debate_runs_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_debate_runs_source_determination_id_fkey"
+            columns: ["source_determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hts_rag_determinations: {
         Row: {
           classification_state: string
@@ -1636,6 +1741,11 @@ export type Database = {
           plausible_headings: Json
           positive_attributes: Json
           product_family: string
+          promotion_basis: string
+          promotion_debate_run_id: string | null
+          promotion_gate_result: Json | null
+          promotion_policy_version: string | null
+          promotion_source_determination_id: string | null
           prompt_version: string
           proposed_hts: string | null
           raw_result_hash: string
@@ -1663,6 +1773,11 @@ export type Database = {
           plausible_headings?: Json
           positive_attributes?: Json
           product_family: string
+          promotion_basis?: string
+          promotion_debate_run_id?: string | null
+          promotion_gate_result?: Json | null
+          promotion_policy_version?: string | null
+          promotion_source_determination_id?: string | null
           prompt_version: string
           proposed_hts?: string | null
           raw_result_hash: string
@@ -1690,6 +1805,11 @@ export type Database = {
           plausible_headings?: Json
           positive_attributes?: Json
           product_family?: string
+          promotion_basis?: string
+          promotion_debate_run_id?: string | null
+          promotion_gate_result?: Json | null
+          promotion_policy_version?: string | null
+          promotion_source_determination_id?: string | null
           prompt_version?: string
           proposed_hts?: string | null
           raw_result_hash?: string
@@ -1697,7 +1817,22 @@ export type Database = {
           review_state?: string
           verifier_model?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_precedents_promotion_debate_run_id_fkey"
+            columns: ["promotion_debate_run_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_debate_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_precedents_promotion_source_determination_id_fkey"
+            columns: ["promotion_source_determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hts_rag_product_examples: {
         Row: {
