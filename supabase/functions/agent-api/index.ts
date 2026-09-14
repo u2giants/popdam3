@@ -45,6 +45,7 @@ import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNu
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
+import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
 import { buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
@@ -3550,7 +3551,7 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
     files_used_added: ((bf.files_used_added as number) ?? 0) + filesUsedAdded,
     remaining,
   };
-  if (remaining <= 0 || (newProcessed >= total && total > 0)) {
+  if (isPdfBackfillComplete(remaining)) {
     newBf.status = "completed";
     newBf.completed_at = nowIso;
     newBf.live_current_file = null;
