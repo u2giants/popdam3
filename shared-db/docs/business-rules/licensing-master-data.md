@@ -2,7 +2,7 @@
 
 **Status:** Settled
 
-**Controlling owner rulings:** Albert Hazan, 2026-08-16, 2026-08-19, 2026-08-23, 2026-08-25, and 2026-09-06. The 2026-09-06 ruling records that Paramount, Viacom Multi and Nickelodeon are one Licensor. The 2026-08-23 ruling establishes signed-contract authority for Warner Bros. licensing membership. The 2026-08-25 ruling records the Marvel portal-authority split effective December 2025.
+**Controlling owner rulings:** Albert Hazan, 2026-08-16, 2026-08-19, 2026-08-23, 2026-08-25, 2026-09-06, and 2026-09-14. The 2026-09-14 ruling records that Disney, Marvel, and Lucasfilm / Star Wars are three separate Licensors. The 2026-09-06 ruling records that Paramount, Viacom Multi and Nickelodeon are one Licensor. The 2026-08-23 ruling establishes signed-contract authority for Warner Bros. licensing membership. The 2026-08-25 ruling records the Marvel portal-authority split effective December 2025.
 
 ## Official business objects
 
@@ -20,6 +20,16 @@ Licensing Master Data consists of Licensors, Properties, Characters, Style Guide
 - Property codes are unique only with their owning Licensor. Never resolve a Property from its code alone.
 - Item or Property letters do not identify a Licensor without the accompanying description. `CC`, for example, can refer to Disney's Coco or Coca-Cola depending on the description.
 - `DY` and `DS` both describe the same Disney company for licensing identity. They must not create two Disney Licensors.
+
+### Disney, Marvel, and Lucasfilm / Star Wars are three separate Licensors
+
+**Status: Settled. Authority: Albert Hazan, 2026-09-14.**
+
+- Disney, Marvel, and Lucasfilm / Star Wars are three separate Licensors, even though they share a corporate parent and a submissions portal.
+- Their Minimum Guarantees are not cross-collateralized with each other. Each Licensor's Minimum Guarantee is tracked and recouped on its own.
+- Royalties must be reported separately for each of the three Licensors.
+- Never combine them into one Licensor, or treat one as a sub-Licensor of another, in data, presentation, royalty reporting, or Minimum Guarantee tracking.
+- This does not change "OPA cannot separate Marvel from Disney" below. OPA filing Marvel submissions under its Disney branch is a portal limitation, not Licensor identity.
 - `FR` was not a real Licensor in the ColdLion source. Do not promote it to one from an old code alone.
 
 ## Licensor naming aliases
@@ -119,6 +129,12 @@ may differ.
 Source-internal labels do not create Licensors. Sega is one Licensor with two
 source-purpose sections. Peanuts' source field named `property` means Art
 Program, not a POP licensing Property.
+
+Disney, Marvel, and Lucasfilm / Star Wars are three separate Licensors (Settled,
+Albert Hazan, 2026-09-14). Each shows exactly two sections of its own,
+Submissions and Creative (style guide); they are never merged into one Disney
+Licensor group. Marvel's Submissions section still draws on OPA's Disney branch,
+split by the contract schedule, because that is a portal limitation only.
 
 Creative-to-Submissions equivalence requires authoritative direct evidence or
 an explicit reviewed decision. Similar names are not a mapping. Every

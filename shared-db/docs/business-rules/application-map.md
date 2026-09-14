@@ -33,6 +33,7 @@ same business object or process appears.
 | **How the ColdLion ERP itself works** - the shape of its feeds, what a row means, what it computes, why it duplicates, and any new insight into its behaviour | [`erp-orders-and-source-meaning.md`](erp-orders-and-source-meaning.md), section *How ColdLion works* |
 | RFQ cost, sell price, buyer target, buyer margin, royalty, dilution, logistics, or Incoterm | [`rfq-pricing.md`](rfq-pricing.md) |
 | Marvel talent likeness or the additional likeness royalty | [`licensing-master-data.md`](licensing-master-data.md) and [`rfq-pricing.md`](rfq-pricing.md) |
+| Whether Disney, Marvel, and Lucasfilm / Star Wars are separate Licensors, Minimum Guarantee tracking, or per-Licensor royalty reporting | [`licensing-master-data.md`](licensing-master-data.md) |
 | CRM Opportunity, sales pursuit, or follow-up that creates product work | [`customers-contacts-and-organizations.md`](customers-contacts-and-organizations.md) and [`product-development-workflow.md`](product-development-workflow.md) |
 | Who may edit the Master Data / Styles grid | [`master-data-access.md`](master-data-access.md) |
 | Project, offer, SKU, design, submission, sample, revision, approval, purchase order, production stage, or next-action ownership | [`product-development-workflow.md`](product-development-workflow.md) |

@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,6 +14,8 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import production_apply_review_evidence as gate  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
 
 SHA = "0f42555c9dca23574a23fc6fe992cd0a716c5991"
 ALLOWLIST = "20260812020000"
@@ -28,6 +31,18 @@ SOURCE_PR = 2716
 SOURCE_HEAD = "1" * 40
 WORK_ISSUE = 2493
 PREVIEW_DIGEST = "sha256:" + "b" * 64
+
+
+class ImportCompatibilityTests(unittest.TestCase):
+    def test_repository_root_package_import_matches_workflow_context(self):
+        result = subprocess.run(
+            [sys.executable, "-c", "from scripts.production_apply_review_evidence import automatic_evidence"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 def evidence(**changes):

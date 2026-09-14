@@ -23,6 +23,11 @@ contract schedule the controlling authority for the Disney-versus-Marvel split.
 Applying that ruling requires a recorded, per-Property decision. This queue is how
 that decision gets made.
 
+Deciding Marvel versus Disney here assigns a Property to one of two separate
+Licensors. Disney, Marvel, and Lucasfilm / Star Wars are three separate Licensors
+with separate Minimum Guarantees and separate royalty reporting (owner ruling,
+Albert Hazan, 2026-09-14, in the same business-rules topic).
+
 Related: the presentation rule that produces `DCP Creative - unresolved authority`
 comes from `supabase/migrations/20260830130345_opa_authority_for_dcp_creative.sql`
 (issue #1658). Every DCP Vault Property reads unresolved today because

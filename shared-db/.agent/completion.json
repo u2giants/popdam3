@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "work_issue": 2865,
+  "work_issue": 2797,
   "outcome": "ready-for-merge",
-  "pr": 2891,
-  "migration_versions": [],
-  "contract_ref": "refs/db-contracts/2865/4",
-  "contract_sha256": "cb817b08e79a4639a146a733d355cc5922ee97b87dd292ed99b276a795cad81c",
-  "head_sha": "71cd7ccf16eb67b00023f54ae3279d41e0a5ea50",
-  "files_changed": [".agent/completion.json", ".agent/contract.json", "tools/coldlion-landing/sync-masters.mjs", "tools/coldlion-landing/lib/load-masters.mjs", "tools/coldlion-landing-masters.test.mjs"],
-  "db_reads": [],
-  "db_writes": [],
+  "pr": 2903,
+  "migration_versions": ["20260914164141"],
+  "contract_ref": "refs/db-contracts/2797/2",
+  "contract_sha256": "ae28da1ec5a04a6c2221bc5e5fb8c20e752ca439ef050e50dc98e5e4279287e1",
+  "head_sha": "eb39bd12a8806e209c403f0f2b4e78688ce91fb3",
+  "files_changed": ["supabase/migrations/20260914164141_db_data_admin_inventory_wb_normalized_arms.sql", "supabase/tests/db_data_admin_scraped_source_inventory_calls.sql"],
+  "db_reads": ["plm.wb_property", "plm.wb_character_normalized", "plm.wb_style_guide_normalized"],
+  "db_writes": ["function api.db_data_admin_scraped_source_inventory"],
   "checks": [
-    {"command": "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs", "exit_code": 0, "evidence": "node --test tools/coldlion-landing*.test.mjs: tests 100, pass 100, fail 0, skipped 0. The unreviewed-field guard test fails (1 fail) with the full-fetch guard line removed."}
+    {"command": "git diff --check", "exit_code": 0, "evidence": "No whitespace errors against origin/main 56a51e24."},
+    {"command": "database contract tests (supabase/tests/*.sql)", "exit_code": 0, "evidence": "New test calls the property, character and style_guide arms as a Licensing Manager; CI database-contract-tests runs it on PR #2903."}
   ],
-  "notes": ["Real error from runs 34803418431 and 34834257904: item_detail_company_code_division_code_item_no_fkey.", "Read-only ColdLion pull 2026-09-14: /items 19411 rows, /itemDetails 26803 rows, 8 detail rows across 4 items with no header.", "No database, preview, production, migration, or workflow action was performed."],
-  "assumptions_resolved": ["The 4 orphan identities are absent from the full /items snapshot, so they are a source defect.", "Withheld rows are counted in the log, named on the sync_run, and alerted."],
+  "assumptions_resolved": ["Production catalog read confirmed plm.wb_character_normalized and plm.wb_style_guide_normalized exist with the columns the arms use."],
   "stop_conditions_hit": []
 }

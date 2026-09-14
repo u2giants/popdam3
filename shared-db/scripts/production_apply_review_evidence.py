@@ -15,7 +15,10 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
-from production_review_allowlist import ReviewAllowlistError, normalize_review_allowlist
+if __package__:
+    from .production_review_allowlist import ReviewAllowlistError, normalize_review_allowlist
+else:
+    from production_review_allowlist import ReviewAllowlistError, normalize_review_allowlist
 
 REPOSITORY = "u2giants/shared-db"
 WORKFLOW_PATH = ".github/workflows/production-apply-review-evidence.yml"
