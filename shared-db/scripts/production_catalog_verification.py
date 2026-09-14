@@ -4389,5 +4389,68 @@ CATALOG_CONTRACTS["all_licensor_property_source_coverage_v1"] = (
 )
 
 
+# Issue #2879. Two DCP families predate the source-inventory classifier and
+# must never fall through to `other` in either its exact or browser-safe form.
+DCP_INVENTORY_FAMILY_CLASSIFICATION_CONTRACT = (
+    ALL_LICENSOR_PROPERTY_SOURCE_COVERAGE_CONTRACT
+    + r" and position('lucasfilm\_dcp\_%%' in %s)>0" % _INVENTORY_EXACT_DEF
+    + r" and position('twentieth_century\_dcp\_%%' in %s)>0" % _INVENTORY_EXACT_DEF
+    + r" and position('lucasfilm_dcpvault' in %s)>0" % _INVENTORY_EXACT_DEF
+    + r" and position('twentieth_century_dcpvault' in %s)>0" % _INVENTORY_EXACT_DEF
+    + r" and (select count(*) from api.source_capture_inventory where source_system='lucasfilm_dcpvault' and table_name like 'lucasfilm\_dcp\_%')=20"
+    + r" and (select count(*) from api.source_capture_inventory where source_system='twentieth_century_dcpvault' and table_name like 'twentieth_century\_dcp\_%')=20"
+    + r" and not exists (select 1 from api.source_capture_inventory where source_system='other' and (table_name like 'lucasfilm\_dcp\_%' or table_name like 'twentieth_century\_dcp\_%'))"
+)
+CATALOG_CONTRACTS["dcp_inventory_family_classification_v1"] = (
+    DCP_INVENTORY_FAMILY_CLASSIFICATION_CONTRACT
+)
+
+
+# Issue #2744. The unfiltered DB Data Admin Scraped Properties listing.
+#
+# Migration 20260911222514 rewrites api.db_data_admin_scraped_properties in
+# place with pg_get_functiondef, so the reviewed migration text does not restate
+# the body and derive_targets() -- which reads only plainly written CREATE
+# statements -- names no catalog object for it. This contract reads the durable
+# post-apply outcome of that EXECUTE out of the catalog instead.
+#
+# The regression it guards: the style-guide join hashed the FULL plm.dcp_asset
+# row, so a 61 MB build side spilled work_mem to temp and the default page ran
+# over the 8 s authenticated statement_timeout. Projecting the asset to
+# (id, style_guide_id) before the hash build is the whole fix, so the contract
+# asserts the narrow maps are present AND the wide joins are gone -- a partial
+# rewrite that left either wide join behind would otherwise still pass.
+#
+# It is a strict SUPERSET of all_licensor_property_source_coverage_v1, so every
+# assertion #2579, #2576 and #2449 made about this routine is carried forward
+# when this later version supersedes theirs within one ordered batch.
+DCP_NARROW_ASSET_STYLE_MAP_CONTRACT = (
+    ALL_LICENSOR_PROPERTY_SOURCE_COVERAGE_CONTRACT
+    # Both narrow (id, style_guide_id) asset maps are installed and materialized.
+    + " and position('dcp_asset_style as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    + " and position('lucasfilm_dcp_asset_style as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    + " and position('select a.id,a.style_guide_id from plm.dcp_asset a' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    + " and position('select a.id,a.style_guide_id from plm.lucasfilm_dcp_asset a' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    # Both style joins read the narrow map, and neither wide asset join survives.
+    + " and position('join dcp_asset_style a on a.id=r.asset_id' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    + " and position('join lucasfilm_dcp_asset_style a on a.id=r.asset_id' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    + " and position('join plm.dcp_asset a on a.id=r.asset_id' in %s)=0" % _SCRAPED_PROPERTIES_DEF
+    + " and position('join plm.lucasfilm_dcp_asset a on a.id=r.asset_id' in %s)=0" % _SCRAPED_PROPERTIES_DEF
+    # Each page's retained-asset set is evaluated once, not twice.
+    + " and position('page_dcp_retained_assets as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    + " and position('page_lucasfilm_dcp_retained_assets as materialized' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    # The superseded wide asset-context shape is gone entirely.
+    + " and position('dcp_asset_context' in %s)=0" % _SCRAPED_PROPERTIES_DEF
+    # Style-guide NAMES still resolve, so the narrow map did not cost the label.
+    + " and position('left join plm.dcp_style_guide g on g.id=s.style_guide_id' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    # The authorization boundary and the keyset page ordering survived the rewrite.
+    + " and position('app.require_licensing_manager_access()' in %s)>0" % _SCRAPED_PROPERTIES_DEF
+    + ' and position(\'l.row_key collate "C" > v_cursor_key collate "C"\' in %s)>0' % _SCRAPED_PROPERTIES_DEF
+)
+CATALOG_CONTRACTS["dcp_narrow_asset_style_map_v1"] = (
+    DCP_NARROW_ASSET_STYLE_MAP_CONTRACT
+)
+
+
 if __name__ == "__main__":
     raise SystemExit(main())

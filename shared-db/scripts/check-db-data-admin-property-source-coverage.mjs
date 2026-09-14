@@ -73,6 +73,14 @@ export function checkManifestShape(manifest) {
     if (!DISPOSITIONS.has(f.disposition)) failures.push(`${id}: unknown disposition ${f.disposition}`)
     if (!f.business_purpose) failures.push(`${id}: no business purpose`)
     if (!f.reason) failures.push(`${id}: no recorded reason`)
+    if (Object.hasOwn(f, 'absent_from_production_catalog')) {
+      if (typeof f.absent_from_production_catalog !== 'string' || !f.absent_from_production_catalog.trim()) {
+        failures.push(`${id}: absent_from_production_catalog must record why, as a non-empty string`)
+      }
+      if (f.disposition === 'exposed') {
+        failures.push(`${id}: an exposed family cannot declare absent_from_production_catalog`)
+      }
+    }
     const selectors =
       (f.table_names || []).length + (f.table_prefixes || []).length + (f.table_regex ? 1 : 0)
     if (selectors === 0) failures.push(`${id}: no table selector`)
@@ -118,16 +126,19 @@ export function checkCatalog(manifest, tables, { requireNonEmptyFamilies = false
   if (requireNonEmptyFamilies) {
     const where = derived ? 'the catalog derived from this repository’s migrations' : 'the live catalog'
     for (const f of manifest.families) {
-      const declared = f.absent_from_repo_migrations
-      if (declared && used.has(f.family)) {
+      const repoAbsent = f.absent_from_repo_migrations
+      const productionAbsent = f.absent_from_production_catalog
+      const applicableDeclaration = derived ? repoAbsent : productionAbsent
+      if (applicableDeclaration && used.has(f.family)) {
         failures.push(
-          `${f.family} declares absent_from_repo_migrations but this repository's migrations do create a table it claims: drop the declaration`)
+          `${f.family} declares ${derived ? 'absent_from_repo_migrations' : 'absent_from_production_catalog'} but ${where} does contain a table it claims: drop the declaration`)
         continue
       }
       if (used.has(f.family)) continue
-      if (derived && declared) {
-        if (typeof declared !== 'string' || !declared.trim()) {
-          failures.push(`${f.family}: absent_from_repo_migrations must record why, as a non-empty string`)
+      if (applicableDeclaration) {
+        if (typeof applicableDeclaration !== 'string' || !applicableDeclaration.trim()) {
+          const field = derived ? 'absent_from_repo_migrations' : 'absent_from_production_catalog'
+          failures.push(`${f.family}: ${field} must record why, as a non-empty string`)
         }
         continue
       }

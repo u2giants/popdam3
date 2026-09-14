@@ -2072,13 +2072,35 @@ class ApplyLaneTests(unittest.TestCase):
         header = WORKFLOW_TEXT.split("\njobs:", 1)[0]
         self.assertIn("pull_request:", header)
         self.assertIn("workflow_dispatch:", header)
-        for required_input in ("target", "mode", "production_allowlist", "preview_allowlist", "claim_pr", "claim_head_sha", "commit_sha", "confirmation"):
+        for required_input in ("target", "mode", "production_allowlist", "derivation_override", "preview_allowlist", "claim_pr", "claim_head_sha", "commit_sha", "confirmation"):
             self.assertRegex(header, rf"(?m)^      {re.escape(required_input)}:$")
         self.assertIn("permissions:\n  contents: read", header)
         self.assertIn("issues: read", header)
         self.assertIn("github.event_name == 'pull_request'", header)
         self.assertIn("|| 'shared-supabase-migrations'", header)
         self.assertIn("cancel-in-progress: false", header)
+
+    def test_derivation_override_is_recorded_and_rechecked_at_every_production_choke_point(self) -> None:
+        """An absent-base exception must reach every guard, or fail closed before a push."""
+        for job_name, expected_calls in (
+            ("production-dry-run", 2),
+            ("production-apply-review", 1),
+            ("production-apply", 2),
+        ):
+            job = _job(job_name)
+            self.assertIn("DERIVATION_OVERRIDE: ${{ inputs.derivation_override }}", job)
+            self.assertEqual(job.count('DERIVATION_ARGS+=(--derivation-override "$DERIVATION_OVERRIDE")'), expected_calls)
+            self.assertEqual(job.count('"${DERIVATION_ARGS[@]}"'), expected_calls)
+
+        automatic = _job("automatic-production-promotion")
+        dispatch = next(
+            step
+            for step in _steps(automatic)
+            if "Dispatch the existing serial production lane" in step
+        )
+        self.assertIn("DERIVATION_OVERRIDE: ${{ inputs.derivation_override }}", dispatch)
+        self.assertIn("--arg derivation_override", dispatch)
+        self.assertIn("derivation_override:$derivation_override", dispatch)
 
     def test_admission_workflows_can_reopen_only_the_validated_linked_issue(self) -> None:
         for workflow, job in (("guarded-migration-merge.yml", "merge"), ("preview-ledger-orphan-reconciliation.yml", "reconcile")):

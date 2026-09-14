@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { dispatchObjectKeys, inventoryDdlVerbs } from '../check-pr-object-collisions.mjs'
+import { canonicalIdentifier, dispatchObjectKeys, inventoryDdlVerbs } from '../check-pr-object-collisions.mjs'
 
 export class AdmissionError extends Error {
   constructor(message, result = null) {
@@ -128,13 +128,65 @@ export function inspectPrStructuralChange(prFiles = []) {
     return file.patch.split(/\r?\n/).filter((line)=>line.startsWith('+')&&!line.startsWith('+++')).map((line)=>line.slice(1)).join('\n')
   })
   const ddl=inventoryDdlVerbs(proposedSql)
-  if(!ddl.length)throw new AdmissionError('the pull request migration files contain no statement-leading schema DDL, so the actual change is not structural')
+  const rewrites=proposedSql.flatMap((sql)=>catalogFunctionRewrites(sql))
+  if(!ddl.length&&!rewrites.length)throw new AdmissionError('the pull request migration files contain no statement-leading schema DDL, so the actual change is not structural')
   const ambiguous=ddl.filter((row)=>!row.acknowledged)
   if(ambiguous.length)throw new AdmissionError(`the pull request contains unmodelled DDL (${ambiguous.map((row)=>row.verb).join(', ')}); structural admission fails closed`)
   return {
     migrations:migrations.map((file) => file.filename ?? file.path),
-    objects:[...new Set(proposedSql.flatMap((sql)=>dispatchObjectKeys(sql)))].sort(),
+    objects:[...new Set([...proposedSql.flatMap((sql)=>dispatchObjectKeys(sql)),...rewrites])].sort(),
   }
+}
+
+// A do-block may rewrite an existing function from its own catalog definition:
+// `select pg_get_functiondef('schema.name(args)'::regprocedure) into v; ... execute v;`.
+// It carries no statement-leading DDL, yet its durable effect is CREATE OR REPLACE
+// FUNCTION on that exact object. Recognised only when the SAME variable read from
+// pg_get_functiondef is mutated and later EXECUTEd inside the same do-block.
+function catalogFunctionRewrites(sql){
+  const found=new Set()
+  for(const block of String(sql).matchAll(/\bdo\s+\$([A-Za-z_][A-Za-z0-9_]*|)\$([\s\S]*?)\$\1\$\s*;/gi)){
+    const text=stripSqlNestedDollarQuotedText(stripSqlComments(block[2]))
+    const read=/pg_get_functiondef\(\s*'\s*("?[A-Za-z_][A-Za-z0-9_]*"?)\s*\.\s*("?[A-Za-z_][A-Za-z0-9_]*"?)\s*\([^')]*\)\s*'\s*::\s*regprocedure\s*\)\s*\)?\s*into\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gi
+    for(const match of text.matchAll(read)){
+      const variable=match[3].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
+      const rest=stripSqlQuotedText(text.slice(match.index+match[0].length))
+      const mutation=new RegExp(`\\b${variable}\\s*:=\\s*(?:replace|regexp_replace)\\s*\\(\\s*${variable}\\b`,'i').exec(rest)
+      if(!mutation)continue
+      const afterMutation=rest.slice(mutation.index+mutation[0].length)
+      if(!new RegExp(`(^|;|\\n|\\bthen|\\bloop|\\bbegin)\\s*execute\\s+${variable}\\s*;`,'i').test(afterMutation))continue
+      found.add(`function ${canonicalIdentifier(`${match[1]}.${match[2]}`)}`)
+    }
+  }
+  return [...found]
+}
+
+function stripSqlComments(sql){
+  let out='',state='code'
+  for(let i=0;i<sql.length;i++){
+    const c=sql[i],next=sql[i+1]
+    if(state==='line'){if(c==='\n'){state='code';out+='\n'}continue}
+    if(state==='block'){if(c==='*'&&next==='/'){state='code';i++}continue}
+    if(state==='single'){out+=c;if(c==="'"&&next==="'"){out+=next;i++}else if(c==="'")state='code';continue}
+    if(state==='double'){out+=c;if(c==='"'&&next==='"'){out+=next;i++}else if(c==='"')state='code';continue}
+    if(c==='-'&&next==='-'){state='line';i++;continue}
+    if(c==='/'&&next==='*'){state='block';i++;continue}
+    if(c==="'")state='single'
+    else if(c==='"')state='double'
+    out+=c
+  }
+  return out
+}
+
+function stripSqlQuotedText(sql){
+  return String(sql)
+    .replace(/\$([A-Za-z_][A-Za-z0-9_]*|)\$[\s\S]*?\$\1\$/g,' ')
+    .replace(/'(?:[^']|'')*'/g,' ')
+    .replace(/"(?:[^"]|"")*"/g,' ')
+}
+
+function stripSqlNestedDollarQuotedText(sql){
+  return String(sql).replace(/\$([A-Za-z_][A-Za-z0-9_]*|)\$[\s\S]*?\$\1\$/g,' ')
 }
 
 export function assertPrCarriesStructuralChange(prFiles = []) { return inspectPrStructuralChange(prFiles).migrations }

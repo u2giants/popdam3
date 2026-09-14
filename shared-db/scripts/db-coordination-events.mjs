@@ -80,7 +80,7 @@ export function validateEvent(event) {
   if (!EVENT_RESULTS.includes(event.result)) throw new EventError(`event result must be one of ${EVENT_RESULTS.join(', ')}`)
 
   const v1 = ['schema_version', 'event_id', 'event_type', 'timestamp', 'work_issue', 'claim_issue', 'pr', 'head_sha', 'actor', 'provider', 'holder_id', 'generation', 'db_reads', 'db_writes', 'result', 'evidence_urls', 'detail']
-  const v2 = ['ready_id', 'bundle_id', 'route', 'route_context', 'manifest_digest', 'invalidation_class', 'review_bundle_id', 'integration_sha', 'return_to', 'evidence_required', 'service_class', 'impact']
+  const v2 = ['ready_id', 'bundle_id', 'route', 'route_context', 'manifest_digest', 'invalidation_class', 'review_bundle_id', 'integration_sha', 'return_to', 'evidence_required', 'service_class', 'impact', 'supersedes']
   const known = new Set(event.schema_version === 1 ? v1 : [...v1, ...v2])
   for (const key of Object.keys(event)) {
     if (!known.has(key)) throw new EventError(`event has unknown field ${key}`)
@@ -91,6 +91,23 @@ export function validateEvent(event) {
   if(event.event_type==='rejected_non_structural'){
     if(typeof event.return_to!=='string'||!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(event.return_to))throw new EventError('rejected_non_structural must name return_to as owner/repo')
     if(!Array.isArray(event.evidence_required)||!event.evidence_required.length||event.evidence_required.some((item)=>typeof item!=='string'||!item.trim()))throw new EventError('rejected_non_structural must name reopening evidence_required')
+  }
+  // A SUPERSESSION NAMES EXACT EVENTS AND SAYS WHY. Repair is expressible only by
+  // appending: an event may declare that named earlier event_ids no longer count.
+  // It can never edit or delete the comment that carries the superseded event.
+  if (event.supersedes !== undefined) {
+    // ONLY THE REPAIR EVENT TYPE MAY SUPERSEDE. Left open to every event type, a
+    // routine `dispatched` or `refused` comment could retire arbitrary earlier
+    // events, so any author who can post one event could suppress the history
+    // that contradicts it. `recovery_completed` is the single governed repair
+    // verb (OUTCOME_REPAIR_EVENT_TYPE in orchestrator-flow/outcome-lifecycle.mjs,
+    // named literally here to keep this module free of a circular import).
+    if (event.event_type !== 'recovery_completed') throw new EventError('only a recovery_completed event may supersede earlier events')
+    if (!Array.isArray(event.supersedes) || !event.supersedes.length) throw new EventError('event supersedes must be a non-empty array of event_ids when present')
+    if (event.supersedes.some((id) => typeof id !== 'string' || !id.trim())) throw new EventError('event supersedes must name each superseded event_id as a non-empty string')
+    if (new Set(event.supersedes).size !== event.supersedes.length) throw new EventError('event supersedes must name each superseded event_id exactly once')
+    if (event.supersedes.includes(event.event_id)) throw new EventError('event supersedes cannot name itself')
+    if (typeof event.detail !== 'string' || !event.detail.trim()) throw new EventError('a superseding event must carry a detail saying why it supersedes')
   }
   if (event.generation !== undefined && (!Number.isInteger(event.generation) || event.generation <= 0)) {
     throw new EventError('event generation must be a positive integer when present')
@@ -107,7 +124,13 @@ export function validateEvent(event) {
  * a duplicate rather than appearing as a second thing that happened.
  */
 export function eventId(event) {
-  const material = [event.event_type, event.work_issue, event.timestamp, event.actor, event.holder_id ?? '', event.generation ?? '', event.pr ?? ''].join('|')
+  // `supersedes` is part of the identity of a repair event: two repairs that
+  // differ only in WHICH events they retire are two different things that
+  // happened, and collapsing them onto one id would make the second read as a
+  // duplicate of the first. Appended only when present, so no event that carries
+  // no supersession changes the id it already derives.
+  const material = [event.event_type, event.work_issue, event.timestamp, event.actor, event.holder_id ?? '', event.generation ?? '', event.pr ?? '',
+    ...(Array.isArray(event.supersedes) ? [[...event.supersedes].sort().join(',')] : [])].join('|')
   return createHash('sha256').update(material).digest('hex').slice(0, 16)
 }
 

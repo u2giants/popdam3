@@ -5,6 +5,29 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const HISTORICAL_RESTORATIONS = Object.freeze({
+  // #2879 / #2885 / #2889. Preview applied these exact successor bytes in
+  // post-merge rehearsal run 34827941186 at PR #2886 head ce7eff73. The later
+  // workflow-only repair #2887 changed the evidence-producing workflow, so the
+  // immutable original apply must be rebound through the historical no-write
+  // path rather than replayed. Producer provenance is complete because this
+  // exact version merged from PR #2886 as c0a36970.
+  '20260914075758': Object.freeze({
+    filename: 'supabase/migrations/20260914075758_reissue_dcp_inventory_families.sql',
+    name: 'reissue_dcp_inventory_families',
+    previewProject: 'mvpkijzfmfcxhnzqogzs',
+    previewApplyRun: '34827941186',
+    previewDispatchCommit: 'ce7eff73a2f68ba9309b2b2da4a411f8fef042ae',
+    previewAppliedCommit: 'ce7eff73a2f68ba9309b2b2da4a411f8fef042ae',
+    sourcePr: 2886,
+    sourceMergeCommit: 'c0a369705480a29e64ae6ff22d162022c09e7a7e',
+    statementBytes: 38131,
+    statementSha256: '00872d31763e3ec3a01ace3fe7dca02bb0cfb07f4b60767e8ddedcb0d010cda5',
+    fileSha256: '51dd41075554c1af6896d7e9b1a532313f1bb1aa97e2692dd02afabb8f741f2b',
+    objects: Object.freeze([
+      'function api.source_capture_inventory_exact',
+      'view api.source_capture_inventory',
+    ]),
+  }),
   // #2797 / #2817. Preview applied these exact bytes in claim-mode run
   // 34655606553, dispatched at and applied from PR #2808 commit
   // 916b8005f4588ece389f1f137faf651bd78ef0a2 before the PR merged, because that

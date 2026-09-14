@@ -1,0 +1,13 @@
+{
+    "schema_version": 1,
+    "migration_version": "20260914075758",
+    "migration_sha256": "51dd41075554c1af6896d7e9b1a532313f1bb1aa97e2692dd02afabb8f741f2b",
+    "checks": [
+        {
+            "id": "dcp_inventory_family_classification_reissue",
+            "kind": "catalog_contract",
+            "contract": "dcp_inventory_family_classification_v1",
+            "expected_count": 1
+        }
+    ]
+}

@@ -9,6 +9,19 @@ from verify_preview_apply_artifact import verify
 
 
 class OriginalArtifactTests(unittest.TestCase):
+    def downstream_failure_jobs(self):
+        conclusions = {
+            'SQL migration guards': 'success', 'preview': 'success',
+            'Automatic production qualification and dispatch': 'failure',
+            'Production apply review (immutable evidence + hard guards)': 'skipped',
+            'Production apply (automatic evidence gates)': 'skipped',
+            'production-dry-run': 'skipped',
+        }
+        return {'total_count': 6, 'jobs': [
+            {'name': name, 'status': 'completed', 'conclusion': conclusion}
+            for name, conclusion in conclusions.items()
+        ]}
+
     def fixture(self):
         version, prior, sha = '20260909132734', '20260101000000', 'a' * 40
         binding = dict(schema='shared-db-preview-instance-binding/v1', runId=123,
@@ -41,6 +54,16 @@ class OriginalArtifactTests(unittest.TestCase):
         result = verify(request, self.archive(request, files), lambda _: b'SELECT 1;')
         self.assertEqual(result['versions'], ['20260909132734'])
         self.assertTrue(result['verified'])
+
+    def test_exact_downstream_failure_graph_preserves_artifact_proof(self):
+        request, files = self.fixture()
+        request['run']['conclusion'] = 'failure'
+        request['jobs'] = self.downstream_failure_jobs()
+        result = verify(request, self.archive(request, files), lambda _: b'SELECT 1;')
+        self.assertTrue(result['verified'])
+        request['jobs']['jobs'][1]['conclusion'] = 'failure'
+        with self.assertRaises(ValueError):
+            verify(request, self.archive(request, files), lambda _: b'SELECT 1;')
 
     def test_refuses_changed_metadata(self):
         mutations = [lambda r: r['run'].update(conclusion='failure'),

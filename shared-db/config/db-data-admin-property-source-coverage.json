@@ -359,7 +359,8 @@
       "business_purpose": "DesignFlow Production Tracking lead-time template assignment",
       "disposition": "not_applicable_no_source_property_vocabulary",
       "table_names": ["product_type_factory_time"],
-      "reason": "Application data (#2724): assigns a FactoryTime lead-time template to each product type; not a licensor portal Property vocabulary."
+      "reason": "Application data (#2724): assigns a FactoryTime lead-time template to each product type; not a licensor portal Property vocabulary.",
+      "absent_from_production_catalog": "The table is defined on current main but is not yet applied to production; keep the family so repository-derived coverage remains complete and fail if production later contains it while this declaration remains."
     }
   ]
 }

@@ -51,13 +51,34 @@ begin
   if v_src ~ 'dcp_asset_context' then
     raise exception 'whole-catalog DCP asset context CTE is back';
   end if;
-  if position('page_dcp_retained_assets as not materialized' in v_src) = 0
-     or position('page_lucasfilm_dcp_retained_assets as not materialized' in v_src) = 0 then
-    raise exception 'page retained-asset CTEs must be inlined';
+  -- #2744 forward 2: each page's retained-asset set is referenced by both the
+  -- count path and the style path, so it must be evaluated once, not inlined
+  -- twice. (Measured: this alone buys nothing, but it must not regress.)
+  if position('page_dcp_retained_assets as materialized' in v_src) = 0
+     or position('page_lucasfilm_dcp_retained_assets as materialized' in v_src) = 0 then
+    raise exception 'page retained-asset CTEs must be evaluated once';
   end if;
-  if position('join plm.dcp_asset a on a.id=r.asset_id' in v_src) = 0
-     or position('join plm.lucasfilm_dcp_asset a on a.id=r.asset_id' in v_src) = 0 then
+  -- Style guides resolve from the page's retained assets by asset primary key,
+  -- through a NARROW (id, style_guide_id) map. The narrow projection is the
+  -- load-bearing part: joining the full 61 MB asset row spills the hash build
+  -- to temp and is what pushed the unfiltered page past the 8 s ceiling.
+  if position('dcp_asset_style as materialized' in v_src) = 0
+     or position('select a.id,a.style_guide_id from plm.dcp_asset a' in v_src) = 0
+     or position('lucasfilm_dcp_asset_style as materialized' in v_src) = 0
+     or position('select a.id,a.style_guide_id from plm.lucasfilm_dcp_asset a' in v_src) = 0 then
+    raise exception 'narrow asset style map is missing';
+  end if;
+  if position('join dcp_asset_style a on a.id=r.asset_id' in v_src) = 0
+     or position('join lucasfilm_dcp_asset_style a on a.id=r.asset_id' in v_src) = 0 then
     raise exception 'style guides must resolve from the page retained assets by asset primary key';
+  end if;
+  -- Style guide NAMES must still resolve from the page's own style ids only, so
+  -- the catalog is never materialized with folder names (the shape #2744 retired).
+  if position('left join plm.dcp_style_guide g on g.id=s.style_guide_id' in v_src) = 0 then
+    raise exception 'style guide names must resolve from the page style ids';
+  end if;
+  if v_src ~ 'from plm\.dcp_asset a\s+left join plm\.dcp_style_guide' then
+    raise exception 'whole-catalog asset+style-guide join is back';
   end if;
   if v_src ~* 'work_mem|statement_timeout' then
     raise exception 'scraped Properties function must not change memory or timeout settings';

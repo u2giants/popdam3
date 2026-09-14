@@ -85,6 +85,12 @@ export async function collectMasters({ companyCode=COMPANY_CODE, apiKey, fetchOp
   assertRequestedScope(ITEM_SPECS.item_header,source.item_header,{companyCode});
   assertRequestedScope(ITEM_SPECS.item_detail,source.item_detail,{companyCode});
 
+  const fetchedItemDetails = source.item_detail;
+  // Shape, blank-key and duplicate-key guards still see every fetched row, withheld ones included.
+  projectCurrentRows(ITEM_SPECS.item_detail, fetchedItemDetails, {});
+  const { landable, orphaned } = splitOrphanItemDetails(source.item_header, fetchedItemDetails);
+  source.item_detail = landable;
+
   const finishedAt = new Date().toISOString();
   const loads = [];
   for (const name of ["division","customer","vendor","salesperson","season","merch_group_header","merch_group_detail","item_header","item_detail"]) {
@@ -92,6 +98,10 @@ export async function collectMasters({ companyCode=COMPANY_CODE, apiKey, fetchOp
     loads.push(makeLoad(name, spec, source[name], "coldlion-landing sync-masters", startedAt, finishedAt, companyCode, evidence.get(spec.endpoint) ?? []));
   }
   const byTable = Object.fromEntries(loads.map((load)=>[load.table,load]));
+  // Orphans are withheld, never hidden: counted in the log, named on the sync_run, and alerted.
+  byTable.item_detail.run.rowsFetched = fetchedItemDetails.length;
+  byTable.item_detail.orphaned = orphaned.length;
+  if (orphaned.length) byTable.item_detail.run.requestParams.orphanedWithoutItemHeader = orphaned;
   const itemSlots = dedupeSlots([
     ...projectItemSlots(source.item_header, { runId: byTable.item_header.run.id, fetchedAt: finishedAt }),
     ...projectItemSlots(source.item_detail, { runId: byTable.item_detail.run.id, fetchedAt: finishedAt, itemPkey: "source" }),
@@ -108,6 +118,23 @@ export function assertSameIdentitySet(spec, companyRows, scopedRows) {
   const identities=(rows)=>new Set(rows.map((row)=>apiKeys.map((key)=>String(row[key]??"")).join("\u001f")));
   const company=identities(companyRows), scoped=identities(scopedRows);
   if (companyRows.length!==company.size || scopedRows.length!==scoped.size || company.size!==scoped.size || [...company].some((key)=>!scoped.has(key))) throw Object.assign(new Error(`${spec.endpoint} company snapshot does not match the per-division identity proof`),{endpoint:spec.endpoint,requestParams:{companyCode:COMPANY_CODE,divisionProof:true}});
+}
+
+/**
+ * ColdLion can return /itemDetails rows whose item has no /items header (2026-09-14: 8 rows
+ * across 4 items). coldlion.item_detail references item_header, so one such row aborted the
+ * whole snapshot transaction for every table. Withhold only those rows and return their
+ * identities so the caller reports them; EP001 is left to the normal exclusion.
+ */
+export function splitOrphanItemDetails(headers, details) {
+  const id=(row)=>[row.companyCode,row.divisionCode,row.itemNo].map((value)=>String(value??"").trim()).join("");
+  const known=new Set(headers.map(id));
+  const landable=[], orphaned=[];
+  for (const row of details) {
+    if (String(row.divisionCode??"").trim()==="EP001" || known.has(id(row))) landable.push(row);
+    else orphaned.push({divisionCode:row.divisionCode,itemNo:row.itemNo,itemPkey:row.itemPkey});
+  }
+  return { landable, orphaned };
 }
 
 export function dedupeSlots(rows) {
@@ -137,7 +164,7 @@ export async function main(argv=process.argv.slice(2), dependencies={}) {
     if (!args.dryRun) try { recordFailure({endpoint:error.endpoint ?? "/masters",companyCode:args.company,requestedBy:"coldlion-landing sync-masters",error}); } catch { /* preserve the source failure */ }
     throw error;
   }
-  for (const load of result.loads) console.log(`${load.run.endpoint}: fetched ${load.run.rowsFetched}, landing ${load.rows.length}, excluded ${load.excluded}`);
+  for (const load of result.loads) console.log(`${load.run.endpoint}: fetched ${load.run.rowsFetched}, landing ${load.rows.length}, excluded ${load.excluded}${load.orphaned ? `, withheld ${load.orphaned} with no item header` : ""}`);
   console.log(`item merchandise-group slots: ${result.itemSlots.length}`);
   if (!args.dryRun) {
     try { execute(buildMasterLoadSql(result)); }

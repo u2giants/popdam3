@@ -76,6 +76,36 @@ GOVERNED_ORIGINAL_RECONCILIATION = {
     "preview_artifact_digest": "sha256:2a466d1a0163a276a937e28f9af5eff710096e62ec9e7ddf7dda38fac41ef49a",
     "project_ref": "mvpkijzfmfcxhnzqogzs",
 }
+
+PREVIEW_FAILURE_JOB_CONCLUSIONS = {
+    "SQL migration guards": "success",
+    "preview": "success",
+    "Automatic production qualification and dispatch": "failure",
+    "Production apply review (immutable evidence + hard guards)": "skipped",
+    "Production apply (automatic evidence gates)": "skipped",
+    "production-dry-run": "skipped",
+}
+
+
+def preview_run_has_immutable_apply(run: Any, jobs: Any = None) -> bool:
+    """Accept success, or the exact graph where only downstream promotion failed."""
+    if not isinstance(run, dict) or run.get("status") != "completed":
+        return False
+    if run.get("conclusion") == "success":
+        return True
+    if run.get("conclusion") != "failure" or not isinstance(jobs, dict):
+        return False
+    rows = jobs.get("jobs")
+    if jobs.get("total_count") != 6 or not isinstance(rows, list) or len(rows) != 6:
+        return False
+    return all(
+        sum(
+            1 for job in rows
+            if isinstance(job, dict) and job.get("name") == name
+            and job.get("status") == "completed" and job.get("conclusion") == conclusion
+        ) == 1
+        for name, conclusion in PREVIEW_FAILURE_JOB_CONCLUSIONS.items()
+    )
 RISK_TEXT = {
     "permanent_data_rewrite_or_loss": "existing production data may be lost or permanently altered",
     "expected_downtime": "users may be interrupted",
@@ -1480,13 +1510,18 @@ def prove_historical_original_apply_runs(
             repo_root=repo_root, main_sha=main_sha, api=api, downloader=downloader,
         ):
             continue
-        expected = {
-            "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
-            "path": PREVIEW_WORKFLOW,
-        }
+        jobs = None
+        if isinstance(run, dict) and run.get("conclusion") == "failure":
+            try:
+                jobs = api(f"repos/{REPOSITORY}/actions/runs/{run_id}/jobs?per_page=100")
+            except Exception as exc:  # noqa: BLE001 - unreadable job proof fails closed
+                raise RiskGateError(f"original apply run {run_id} jobs are unreadable") from exc
+        expected = {"status": "completed", "event": "workflow_dispatch", "path": PREVIEW_WORKFLOW}
         for key, value in expected.items():
             if not isinstance(run, dict) or run.get(key) != value:
                 raise RiskGateError(f"original apply run {run_id} for {version} has wrong {key}")
+        if not preview_run_has_immutable_apply(run, jobs):
+            raise RiskGateError(f"original apply run {run_id} for {version} has wrong conclusion")
         artifact, original_commit = preview_applied_commit(
             api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id
         )
@@ -1639,10 +1674,13 @@ def prove_preview(
     downloader: Callable[[int, Path], None], repo_root: Path,
 ) -> None:
     run = api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
-    expected = {
-        "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
-        "path": PREVIEW_WORKFLOW,
-    }
+    jobs = None
+    if isinstance(run, dict) and run.get("conclusion") == "failure":
+        try:
+            jobs = api(f"repos/{REPOSITORY}/actions/runs/{run_id}/jobs?per_page=100")
+        except Exception as exc:  # noqa: BLE001 - unreadable job proof fails closed
+            raise RiskGateError("preview run jobs are unreadable") from exc
+    expected = {"status": "completed", "event": "workflow_dispatch", "path": PREVIEW_WORKFLOW}
     for key, value in expected.items():
         # `isinstance` FIRST, as the twin loop in
         # `prove_historical_original_apply_runs` already does. Without it a
@@ -1654,6 +1692,8 @@ def prove_preview(
         # (#1213 round 9, author's per-condition hunt.)
         if not isinstance(run, dict) or run.get(key) != value:
             raise RiskGateError(f"preview run has wrong {key}")
+    if not preview_run_has_immutable_apply(run, jobs):
+        raise RiskGateError("preview run has wrong conclusion")
     # THE COMMIT THAT ACTUALLY RAN, not the ref the workflow file was read from.
     # `run["head_sha"]` is the latter, and on a post-merge rehearsal dispatched
     # against main the two are different commits. Pinning provenance and the
@@ -2569,6 +2609,9 @@ PREVIEW_PRODUCER_PATHS += (
     "scripts/production-verification-sidecars/20260907030418.json",
     "scripts/production-verification-sidecars/20260907051735.json",
     "scripts/production-verification-sidecars/20260911045438.json",
+    "scripts/production-verification-sidecars/20260911222514.json",
+    "scripts/production-verification-sidecars/20260914061331.json",
+    "scripts/production-verification-sidecars/20260914075758.json",
     # Invoked by check-sql.sh during preview; pin the reviewed parser so the
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",

@@ -176,3 +176,32 @@ test('the derived-path exemption must record a reason, and goes stale loudly', (
   assert.equal(g.length, 1)
   assert.match(g[0], /drop the declaration/)
 })
+
+test('the production-path exemption is live-only, non-empty, and goes stale loudly', () => {
+  const live = ok()
+  live.families[1].absent_from_production_catalog = 'not applied to production yet'
+  assert.deepEqual(checkCatalog(live, ['alpha_property'],
+    { requireNonEmptyFamilies: true }), [])
+
+  const derived = ok()
+  derived.families[1].absent_from_production_catalog = 'not applied to production yet'
+  const missing = checkCatalog(derived, ['alpha_property'],
+    { requireNonEmptyFamilies: true, derived: true })
+  assert.equal(missing.length, 1)
+  assert.match(missing[0], /^beta matches no table in the catalog derived from/)
+
+  const stale = ok()
+  stale.families[1].absent_from_production_catalog = 'not applied to production yet'
+  const present = checkCatalog(stale, ['alpha_property', 'beta_asset'],
+    { requireNonEmptyFamilies: true })
+  assert.equal(present.length, 1)
+  assert.match(present[0], /drop the declaration/)
+
+  const blank = ok()
+  blank.families[1].absent_from_production_catalog = '   '
+  assert.ok(checkManifestShape(blank).some((x) => /must record why/.test(x)))
+
+  const exposed = ok()
+  exposed.families[0].absent_from_production_catalog = 'not applied'
+  assert.ok(checkManifestShape(exposed).some((x) => /exposed family cannot declare/.test(x)))
+})

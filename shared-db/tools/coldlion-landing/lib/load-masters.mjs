@@ -117,6 +117,7 @@ export function buildMasterLoadSql({ loads, itemSlots, affectedItemGrains }) {
   for (const load of loads) pieces.push(currentTableSql(load.table, load.spec, load.rows));
   pieces.push(itemSlotSql(itemSlots, affectedItemGrains));
   for (const load of loads) pieces.push(runFinishSql(load.table, load.run));
+  for (const load of loads) if (load.orphaned) pieces.push(`select pg_notify('coldlion_sync_alert', ${sqlText(`${load.run.endpoint} master snapshot withheld ${load.orphaned} row(s) whose item header is absent from /items`)});`);
   pieces.push("commit;");
   return pieces.join("\n\n");
 }

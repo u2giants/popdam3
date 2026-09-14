@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260911222514",
+  "migration_sha256": "33d55ffa432b09f476e6121fb380e3d676dc287c576a2aefdc03b813744fbaff",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 89,
+      "line_end": 89,
+      "disposition": "checks",
+      "check_ids": [
+        "dcp_narrow_asset_style_map"
+      ],
+      "reason": "The EXECUTE replays a CREATE OR REPLACE FUNCTION text derived from pg_get_functiondef of the already-applied api.db_data_admin_scraped_properties(text,text,integer), with five literal replace() edits: two retained-asset CTEs change from 'not materialized' to 'materialized', a narrow (id, style_guide_id) asset-map CTE pair is inserted, and two joins retarget from plm.dcp_asset / plm.lucasfilm_dcp_asset onto those maps. Its durable post-apply outcome IS the new body of that pre-existing routine in pg_proc, so an existence assertion could not witness it and would still pass on a no-op execute -- the same reasoning 20260830130345 and 20260910155753 recorded for in-place rewrites of this exact signature. derive_targets() reads only plainly written CREATE statements, and this is a do-block executing a constructed string, so the lexer names no catalog object and an empty check list would leave the enforcing run proving nothing. Catalog contract dcp_narrow_asset_style_map_v1 therefore reads pg_get_functiondef of this exact signature back from the catalog after apply and requires both narrow maps, both retargeted joins, both materialized retained-asset CTEs and the surviving style-guide name join to be PRESENT, and requires dcp_asset_context and both wide plm.dcp_asset / plm.lucasfilm_dcp_asset joins to be ABSENT, so a partial or skipped rewrite cannot report itself green. It also re-asserts the licensing-manager gate and the keyset-pagination predicate, proving the authorization boundary and page ordering survived the rewrite. The contract is a strict SUPERSET of all_licensor_property_source_coverage_v1, so every assertion #2579, #2576 and #2449 made about this routine is carried forward and nothing they proved stops being proved when this later version supersedes theirs inside one ordered batch. No catalog object is created, dropped, renamed or re-permissioned, no grant or RLS policy is touched, and no application data is read or written."
+    }
+  ],
+  "checks": [
+    {
+      "id": "dcp_narrow_asset_style_map",
+      "kind": "catalog_contract",
+      "contract": "dcp_narrow_asset_style_map_v1",
+      "expected_count": 1
+    }
+  ]
+}

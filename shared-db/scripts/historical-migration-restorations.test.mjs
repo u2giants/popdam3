@@ -4,6 +4,54 @@ import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 import { HISTORICAL_RESTORATIONS, validateHistoricalProductionProvenance, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 
+test('pins the issue 2879 successor preview apply with complete production provenance',()=>{
+  const row=HISTORICAL_RESTORATIONS['20260914075758']
+  const raw=readFileSync(row.filename,'utf8')
+  assert.deepEqual(row,{
+    filename:'supabase/migrations/20260914075758_reissue_dcp_inventory_families.sql',
+    name:'reissue_dcp_inventory_families',
+    previewProject:'mvpkijzfmfcxhnzqogzs',
+    previewApplyRun:'34827941186',
+    previewDispatchCommit:'ce7eff73a2f68ba9309b2b2da4a411f8fef042ae',
+    previewAppliedCommit:'ce7eff73a2f68ba9309b2b2da4a411f8fef042ae',
+    sourcePr:2886,
+    sourceMergeCommit:'c0a369705480a29e64ae6ff22d162022c09e7a7e',
+    statementBytes:38131,
+    statementSha256:'00872d31763e3ec3a01ace3fe7dca02bb0cfb07f4b60767e8ddedcb0d010cda5',
+    fileSha256:'51dd41075554c1af6896d7e9b1a532313f1bb1aa97e2692dd02afabb8f741f2b',
+    objects:['function api.source_capture_inventory_exact','view api.source_capture_inventory'],
+  })
+  assert.equal(Object.isFrozen(row),true)
+  assert.equal(Object.isFrozen(row.objects),true)
+  assert.equal(validateHistoricalRestorationFile(row.filename,raw),row)
+  const evidence={
+    version:'20260914075758',
+    previewApplyRun:row.previewApplyRun,
+    previewDispatchCommit:row.previewDispatchCommit,
+    previewAppliedCommit:row.previewAppliedCommit,
+    sourcePr:row.sourcePr,
+    sourceMergeCommit:row.sourceMergeCommit,
+    artifactFileSha256:row.fileSha256,
+  }
+  assert.equal(validateHistoricalProductionProvenance(row.filename,raw,evidence),row)
+  for(const [key,value] of [
+    ['version','20260914075759'],
+    ['previewApplyRun','34827941185'],
+    ['previewDispatchCommit','d'.repeat(40)],
+    ['previewAppliedCommit','a'.repeat(40)],
+    ['sourcePr',2885],
+    ['sourceMergeCommit','b'.repeat(40)],
+    ['artifactFileSha256','c'.repeat(64)],
+  ])assert.throws(
+    ()=>validateHistoricalProductionProvenance(row.filename,raw,{...evidence,[key]:value}),
+    new RegExp(`mismatch for ${key}`),
+  )
+  assert.throws(
+    ()=>validateHistoricalRestorationFile(row.filename,raw+'-- changed bytes\n'),
+    /historical restoration file hash mismatch for 20260914075758/,
+  )
+})
+
 test('production provenance accepts only the exact issue 2535 preview apply evidence',()=>{
   const row=HISTORICAL_RESTORATIONS['20260908202651']
   assert.equal(row.filename,'supabase/migrations/20260908202651_hts_rag_dual_model_debate_audit.sql')

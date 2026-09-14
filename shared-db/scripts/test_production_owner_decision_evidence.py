@@ -77,4 +77,14 @@ class Tests(unittest.TestCase):
             "contents":"write","actions":"read","checks":"read","issues":"write","pull-requests":"read",
             "statuses":"write"})
 
+    def test_automatic_promotion_can_write_admission_commit_but_holds_no_database_secret(self):
+        workflow=(Path(__file__).parents[1]/".github/workflows/shared-supabase-migrations.yml").read_text(encoding="utf-8")
+        block=workflow.split("  automatic-production-promotion:\n",1)[1].split("  production-dry-run:\n",1)[0]
+        raw=block.split("    permissions:\n",1)[1].split("    steps:\n",1)[0]
+        self.assertEqual(dict(re.findall(r"^      ([a-z-]+): (read|write)$",raw,re.M)),{
+            "contents":"write","actions":"write","checks":"read","issues":"read","pull-requests":"read"})
+        self.assertNotIn("SUPABASE_DB_PASSWORD",block)
+        self.assertNotIn("SUPABASE_ACCESS_TOKEN",block)
+        self.assertIn("ENGINEER ACTION REQUIRED",block)
+
 if __name__=="__main__": unittest.main()

@@ -15,7 +15,7 @@ import tempfile
 import zipfile
 
 from production_migration_guard import parse_remote_versions
-from production_business_risk_gate import preview_content_manifest
+from production_business_risk_gate import preview_content_manifest, preview_run_has_immutable_apply
 
 
 def require(condition, reason):
@@ -29,8 +29,8 @@ def verify(request, archive_bytes, migration_bytes):
     require(isinstance(versions, list) and versions and len(set(versions)) == len(versions)
             and all(isinstance(v, str) and re.fullmatch(r'\d{14}', v) for v in versions), 'invalid allowlist')
     require(run.get('path') == '.github/workflows/shared-supabase-migrations.yml'
-            and run.get('event') == 'workflow_dispatch' and run.get('status') == 'completed'
-            and run.get('conclusion') == 'success' and run.get('run_attempt') == 1,
+            and run.get('event') == 'workflow_dispatch'
+            and preview_run_has_immutable_apply(run, request.get('jobs')) and run.get('run_attempt') == 1,
             'not a successful original apply run')
     require(isinstance(run.get('id'), int) and not isinstance(run['id'], bool)
             and re.fullmatch(r'[0-9a-f]{40}', str(run.get('head_sha', ''))), 'invalid run identity')

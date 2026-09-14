@@ -5,8 +5,9 @@ import { fetchArrayMaster, fetchPagedMaster, masterUrl } from "./coldlion-landin
 import { ITEM_SPECS, MASTER_SPECS, knownApiFields } from "./coldlion-landing/lib/master-specs.mjs";
 import { assertKnownShape, projectCurrentRows, projectItemSlots } from "./coldlion-landing/lib/project-masters.mjs";
 import { buildMasterLoadSql } from "./coldlion-landing/lib/load-masters.mjs";
-import { assertRequestedScope, assertSameIdentitySet, collectMasters, dedupeSlots, main, parseArgs } from "./coldlion-landing/sync-masters.mjs";
-import { assertExpectedTarget, masterFailureSql, redactPsqlError } from "./coldlion-landing/lib/db.mjs";
+import { assertRequestedScope, assertSameIdentitySet, collectMasters, dedupeSlots, main, parseArgs, splitOrphanItemDetails } from "./coldlion-landing/sync-masters.mjs";
+import { assertExpectedTarget, masterFailureSql, redactPsqlError, runSql as landingRunSql } from "./coldlion-landing/lib/db.mjs";
+import { existsSync } from "node:fs";
 
 const RUN="11111111-1111-4111-8111-111111111111";
 const NOW="2026-09-09T00:00:00.000Z";
@@ -251,4 +252,81 @@ test("collector fans seasons per division, merges active variants, and proves it
   };
   const result=await collectMasters({companyCode:"EDGEHOME",apiKey:"hidden",fetchOptions:{fetchImpl,pauseMs:0}});
   assert.equal(result.loads.length,9); assert.ok(calls.some((call)=>call.startsWith("/seasons?")&&call.includes("divisionCode=SD001"))); assert.equal(calls.filter((call)=>call.startsWith("/itemDetails?")).length,2);
+});
+
+async function collectWithOrphanDetail(orphanRows) {
+  const byEndpoint=new Map([...Object.values(MASTER_SPECS),...Object.values(ITEM_SPECS)].map((spec)=>[spec.endpoint,spec]));
+  const fetchImpl=async(rawUrl)=>{
+    const url=new URL(rawUrl), endpoint=url.pathname.replace("/EhpApi",""); const spec=byEndpoint.get(endpoint);
+    const active=url.searchParams.get("active"); let rows=[];
+    if (active!=="N") rows=[sourceFor(spec,{companyCode:"EDGEHOME",...(spec.fields.some((field)=>field.api==="divisionCode")?{divisionCode:"SD001"}:{}),...(active?{active}:{}),...(endpoint==="/divisions"?{divisionCode:"SD001",active:"Y"}:{}),...(endpoint==="/itemDetails"?{itemNo:"I1",itemPkey:"P1"}:{}),...(endpoint==="/items"?{itemNo:"I1"}:{})})];
+    if (endpoint==="/itemDetails") rows.push(...orphanRows.map((extra)=>sourceFor(spec,{companyCode:"EDGEHOME",divisionCode:"SD001",...extra})));
+    const body=spec.paged?{content:rows,number:0,size:2000,numberOfElements:rows.length,totalElements:rows.length,totalPages:1,last:true}:rows;
+    return{ok:true,status:200,text:async()=>JSON.stringify(body)};
+  };
+  return collectMasters({companyCode:"EDGEHOME",apiKey:"hidden",fetchOptions:{fetchImpl,pauseMs:0}});
+}
+
+test("collector withholds a headerless itemDetail from rows, slots and grains while still counting and naming it",async()=>{
+  const result=await collectWithOrphanDetail([{itemNo:"ORPHAN",itemPkey:"P9",merchGroup01:"MG-ORPHAN"}]);
+  const detail=result.loads.find((load)=>load.table==="item_detail");
+  assert.equal(detail.run.rowsFetched,2);
+  assert.equal(detail.rows.length,1);
+  assert.equal(detail.orphaned,1);
+  assert.deepEqual(detail.run.requestParams.orphanedWithoutItemHeader,[{divisionCode:"SD001",itemNo:"ORPHAN",itemPkey:"P9"}]);
+  assert.ok(result.itemSlots.every((slot)=>slot.item_no!=="ORPHAN"));
+  assert.ok(result.affectedItemGrains.every((grain)=>grain.item_no!=="ORPHAN"));
+});
+
+test("collector still aborts on an unreviewed field that exists only on a withheld itemDetail",async()=>{
+  const clean=await collectWithOrphanDetail([{itemNo:"ORPHAN",itemPkey:"P9"}]);
+  assert.equal(clean.loads.find((load)=>load.table==="item_detail").orphaned,1);
+  await assert.rejects(collectWithOrphanDetail([{itemNo:"ORPHAN",itemPkey:"P9",unreviewedField:"x"}]),(error)=>!/identity proof/.test(error.message));
+});
+
+test("landing runSql passes the script as a file, not stdin, so a large load cannot EPIPE", () => {
+  const sql = "select 1;\n".repeat(200000);
+  let seen;
+  const out = landingRunSql(sql, {
+    url: "postgresql://example.invalid/db",
+    spawn: (cmd, args, opts) => {
+      const file = args.at(-1);
+      seen = { flag: args.at(-2), file, stdin: opts.stdio[0], input: opts.input, body: readFileSync(file, "utf8") };
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+  });
+  assert.equal(out, "ok");
+  assert.equal(seen.flag, "-f");
+  assert.notEqual(seen.file, "-");
+  assert.equal(seen.stdin, "ignore");
+  assert.equal(seen.input, undefined);
+  assert.equal(seen.body, sql);
+  assert.equal(existsSync(seen.file), false, "temp script is removed after the run");
+});
+
+test("landing runSql surfaces psql's real database error instead of a spawn fault", () => {
+  assert.throws(
+    () => landingRunSql("select 1;", {
+      url: "postgresql://example.invalid/db",
+      spawn: () => ({ status: 3, stdout: "", stderr: "psql:script.sql:9: ERROR:  relation coldlion.x does not exist\n" }),
+    }),
+    (error) => error.code === "DATABASE_COMMAND_FAILED" && /ERROR:/.test(error.message),
+  );
+});
+
+test("itemDetails with no item header are withheld, named, and alerted instead of aborting the snapshot", () => {
+  const headers=[{companyCode:"EDGEHOME",divisionCode:"CW001",itemNo:"HAS-HEADER"}];
+  const details=[
+    {companyCode:"EDGEHOME",divisionCode:"CW001",itemNo:"HAS-HEADER",itemPkey:"1"},
+    {companyCode:"EDGEHOME",divisionCode:"EH001",itemNo:"HAS-HEADER",itemPkey:"2"},
+    {companyCode:"EDGEHOME",divisionCode:"CW001",itemNo:"NO-HEADER",itemPkey:"3"},
+    {companyCode:"EDGEHOME",divisionCode:"EP001",itemNo:"NO-HEADER",itemPkey:"4"},
+  ];
+  const { landable, orphaned }=splitOrphanItemDetails(headers,details);
+  assert.deepEqual(landable.map((row)=>row.itemPkey),["1","4"]);
+  assert.deepEqual(orphaned,[{divisionCode:"EH001",itemNo:"HAS-HEADER",itemPkey:"2"},{divisionCode:"CW001",itemNo:"NO-HEADER",itemPkey:"3"}]);
+  const load={table:"item_detail",spec:ITEM_SPECS.item_detail,rows:[],excluded:0,orphaned:2,run:{id:RUN,endpoint:"/itemDetails",companyCode:"EDGEHOME",requestParams:{},requestedBy:"t",startedAt:NOW,finishedAt:NOW,durationMs:0,rowsFetched:4}};
+  const sql=buildMasterLoadSql({loads:[load],itemSlots:[],affectedItemGrains:[]});
+  assert.match(sql,/pg_notify\('coldlion_sync_alert', '\/itemDetails master snapshot withheld 2 row\(s\)/);
+  assert.ok(sql.indexOf("pg_notify")<sql.lastIndexOf("commit;"));
 });

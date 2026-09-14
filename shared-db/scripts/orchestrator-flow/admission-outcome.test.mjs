@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange } from './admission.mjs'
-import { advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, OUTCOME_STATES } from './outcome-lifecycle.mjs'
+import { advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory, OUTCOME_STATES } from './outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
 import { admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
 import { findCompletionRecord } from '../lib/work-dependencies.mjs'
@@ -60,6 +60,40 @@ test('actual pull request files must contain a migration before reviewer or shar
   assert.throws(()=>assertPrCarriesStructuralChange([{filename:'supabase/migrations/20260911120000_example.sql',status:'added',content:'alter widget core.example frobnicate;'}]),/unmodelled DDL/)
   assert.throws(()=>assertPrCarriesStructuralChange([{filename:'supabase/migrations/20260911120000_example.sql',status:'modified',content:'create table core.example(id bigint);',patch:'@@ -2 +2 @@\n-old note\n+new note'}]),/actual change is not structural/)
   assert.deepEqual(assertPrCarriesStructuralChange([{filename:'supabase/migrations/20260911120000_example.sql',status:'modified',content:'create table core.example(id bigint);',patch:'@@ -2 +2 @@\n-old index\n+create index example_id_idx on core.example(id);'}]),['supabase/migrations/20260911120000_example.sql'])
+})
+
+test('catalog-derived do-block routine edits are structural and retain their collision key', () => {
+  const content=`do $migration$
+declare
+  v_definition text;
+begin
+  select pg_get_functiondef(
+    'api.db_data_admin_scraped_properties(text,text,integer)'::regprocedure
+  ) into v_definition;
+  v_definition:=replace(v_definition, 'old body', 'new body');
+  execute v_definition;
+end
+$migration$;`
+  const result=inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_example.sql',status:'added',content}])
+  assert.deepEqual(result.migrations,['supabase/migrations/20260911222514_example.sql'])
+  assert.deepEqual(result.objects,['function api.db_data_admin_scraped_properties'])
+  assert.deepEqual(inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_regex.sql',status:'added',content:content.replace('replace(v_definition','regexp_replace(v_definition')}]).objects,['function api.db_data_admin_scraped_properties'])
+  assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_comment.sql',status:'added',content:`do $$ begin
+    -- select pg_get_functiondef('api.f()'::regprocedure) into v_definition;
+    -- v_definition:=replace(v_definition,'a','b'); execute v_definition;
+    perform 1;
+  end $$;`}]),/actual change is not structural/)
+  assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_unedited.sql',status:'added',content:content.replace("v_definition:=replace(v_definition, 'old body', 'new body');",'perform 1;')}]),/actual change is not structural/)
+  assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_order.sql',status:'added',content:content.replace("v_definition:=replace(v_definition, 'old body', 'new body');\n  execute v_definition;","execute v_definition;\n  v_definition:=replace(v_definition, 'old body', 'new body');")}]),/actual change is not structural/)
+  assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_literal.sql',status:'added',content:content.replace('execute v_definition;',"perform '; execute v_definition;';")}]),/actual change is not structural/)
+  assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_block_comment.sql',status:'added',content:content.replace('execute v_definition;','/* execute v_definition; */')}]),/actual change is not structural/)
+  assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_wrong_variable.sql',status:'added',content:content.replace('v_definition:=replace(v_definition','v_other:=replace(v_other')}]),/actual change is not structural/)
+  assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_quoted_read.sql',status:'added',content:`do $migration$ begin
+    perform $$ select pg_get_functiondef('api.fake(integer)'::regprocedure) into v_definition;
+      v_definition:=replace(v_definition,'a','b'); execute v_definition; $$;
+  end $migration$;`}]),/actual change is not structural/)
+  assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_digit_tag.sql',status:'added',content:content.replace('execute v_definition;',"perform $m1$; execute v_definition; $m1$;")}]),/actual change is not structural/)
+  assert.deepEqual(inspectPrStructuralChange([{filename:'supabase/migrations/20260911222514_quoted_identifier.sql',status:'added',content:content.replace('api.db_data_admin_scraped_properties','"Api"."MixedCase"')}]).objects,['function "Api"."MixedCase"'])
 })
 
 test('shared reviewer and merge routing admits deterministic repository maintenance without fabricated DDL',()=>{
@@ -186,6 +220,33 @@ test('an issue created after the legacy cutover cannot skip the admission fields
 
 test('a truncated modified-migration patch is refused instead of hiding objects past the cutoff',()=>{
   assert.throws(()=>inspectPrStructuralChange([{filename:'supabase/migrations/20260911120000_example.sql',status:'modified',truncated:true,patch:'@@ -2 +2 @@\n-old index\n+create index example_id_idx on core.example(id);'}]),/patch is truncated/)
+})
+
+test('a do-block that rewrites a function from pg_get_functiondef and EXECUTEs it is structural',()=>{
+  const file=(content)=>[{filename:'supabase/migrations/20260911222514_rewrite.sql',status:'added',content}]
+  const rewrite=`-- derived-from: 20260911170526
+do $migration$
+declare
+  v_definition text;
+begin
+  select pg_get_functiondef(
+    'api.db_data_admin_scraped_properties(text,text,integer)'::regprocedure
+  ) into v_definition;
+  if position('anchor' in v_definition)=0 then
+    raise exception using errcode='55000', message='predecessor differs';
+  end if;
+  v_definition:=replace(v_definition,'old','new');
+  execute v_definition;
+end
+$migration$;`
+  assert.deepEqual(inspectPrStructuralChange(file(rewrite)).objects,['function api.db_data_admin_scraped_properties'])
+  const refuse=/no statement-leading schema DDL/
+  assert.throws(()=>inspectPrStructuralChange(file(`do $m$ begin insert into core.example values (1); update core.example set id=2; execute 'delete from core.example'; end $m$;`)),refuse)
+  assert.throws(()=>inspectPrStructuralChange(file(rewrite.replace('execute v_definition;','perform 1;'))),refuse)
+  assert.throws(()=>inspectPrStructuralChange(file(rewrite.replace('execute v_definition;',"execute 'select 1';"))),refuse)
+  assert.throws(()=>inspectPrStructuralChange(file(rewrite.replace('execute v_definition;','-- execute v_definition;'))),refuse)
+  assert.throws(()=>inspectPrStructuralChange(file(rewrite.replace("'api.db_data_admin_scraped_properties","'db_data_admin_scraped_properties"))),refuse)
+  assert.throws(()=>inspectPrStructuralChange(file(rewrite.replace(/^do \$migration\$/m,'select 1;').replace(/\$migration\$;/,''))),refuse)
 })
 
 test('preview preparation must name the admitted issue and its source PR',()=>{
@@ -509,6 +570,151 @@ test('advance validation and lifecycle mutation share one author-mutex interval'
   const old=console.log;console.log=()=>{}
   try{assert.equal(managerMain(['--advance-outcome','dispatched','--admit-issue','41','--issue','41','--owner','o','--evidence','https://github.com/u2giants/shared-db/issues/99'],new Date('2026-09-11T00:03:00Z'),io),0)}finally{console.log=old}
   assert.equal(writes,1);assert.equal(outcomeHistory(comments,41).state,'dispatched');assert.equal(refs.size,0)
+})
+
+test('a lifecycle advance tolerates delayed visibility of its own event instead of wedging the ledger (issue #2847)',()=>{
+  const comments=eventComments('classified',41);let hidden=0,waits=0
+  const io={
+    issueComments:()=>hidden-->0?comments.filter((row)=>parseEventComment(row.body)[0]?.event_type!=='dispatched'):comments,
+    commentIssue:(_n,body)=>{comments.push(ownerComment(body));hidden=3},
+    wait:()=>{waits++},
+  }
+  const result=advanceOutcome({issue:41,state:'dispatched',actor:'test',timestamp:'2026-09-11T00:03:00Z',evidenceUrls:['https://github.com/u2giants/shared-db/issues/99']},io)
+  assert.equal(result.state,'dispatched');assert.equal(waits,3)
+  assert.equal(comments.filter((row)=>parseEventComment(row.body)[0]?.event_type==='dispatched').length,1)
+  assert.equal(outcomeHistory(comments,41).state,'dispatched')
+})
+
+test('a lifecycle advance still refuses only after every bounded read-back retry is exhausted (issue #2847)',()=>{
+  const comments=eventComments('classified',41);let waits=0
+  const io={
+    issueComments:()=>comments.filter((row)=>parseEventComment(row.body)[0]?.event_type!=='dispatched'),
+    commentIssue:(_n,body)=>comments.push(ownerComment(body)),wait:()=>{waits++},
+  }
+  assert.throws(()=>advanceOutcome({issue:41,state:'dispatched',actor:'test',timestamp:'2026-09-11T00:03:00Z',evidenceUrls:['https://github.com/u2giants/shared-db/issues/99']},io),/outcome dispatched event did not read back exactly/)
+  assert.equal(waits,5)
+})
+
+test('a wedged duplicate-event ledger is repaired by appending one superseding event (issue #2847)',()=>{
+  const comments=eventComments('classified',41)
+  const duplicate=outcomeEvent({issue:41,state:'classified',actor:'runner',timestamp:'2026-09-11T05:52:21Z'})
+  comments.push(ownerComment(formatEventComment(duplicate)))
+  assert.equal(outcomeHistory(comments,41).valid,false)
+  const before=comments.map((row)=>row.body)
+  const io={issueComments:()=>comments,commentIssue:(_n,body)=>comments.push(ownerComment(body)),wait:()=>{}}
+  const result=repairOutcomeHistory({issue:41,actor:'albert',reason:'duplicate classified from the #2847 read-back race',timestamp:'2026-09-12T00:00:00Z'},io)
+  assert.deepEqual(result.supersedes,[duplicate.event_id])
+  const after=outcomeHistory(comments,41)
+  assert.equal(after.valid,true);assert.equal(after.state,'classified')
+  assert.deepEqual(comments.slice(0,before.length).map((row)=>row.body),before,'repair must never edit or delete an existing coordination comment')
+  const repair=parseEventComment(comments.at(-1).body)[0]
+  assert.match(repair.detail,/albert/);assert.match(repair.detail,/#2847 read-back race/)
+  assert.throws(()=>repairOutcomeHistory({issue:41,actor:'albert',reason:'again',timestamp:'2026-09-12T00:01:00Z'},io),/already valid; repair refuses/)
+  assert.throws(()=>repairOutcomeHistory({issue:41,actor:'albert',reason:'   ',timestamp:'2026-09-12T00:01:00Z'},io),/must record why it was run/)
+  assert.throws(()=>repairOutcomeHistory({issue:41,actor:'',reason:'x',timestamp:'2026-09-12T00:01:00Z'},io),/must record the actor/)
+})
+
+test('--repair-outcome-history repairs under the author mutex and names its actor and reason (issue #2847)',()=>{
+  const comments=eventComments('classified',41),refs=new Map(),labels=[]
+  const duplicate=outcomeEvent({issue:41,state:'classified',actor:'runner',timestamp:'2026-09-11T05:52:21Z'})
+  comments.push(ownerComment(formatEventComment(duplicate)))
+  const io={
+    issueComments:()=>comments,makeOwnerCommit:()=> 'repair-owner',
+    readRef:(ref)=>refs.get(ref)??null,
+    createRef:(ref,sha)=>{labels.push('lock');if(refs.has(ref))return false;refs.set(ref,sha);return true},
+    deleteRef:(ref)=>{labels.push('unlock');refs.delete(ref)},wait:()=>{},
+    commentIssue:(_n,body)=>{assert.equal(refs.size,1,'repair must be written only while the mutex is held');labels.push('repair');comments.push(ownerComment(body))},
+  }
+  let printed='';const old=console.log;console.log=(value)=>{printed=String(value)}
+  try{assert.equal(managerMain(['--repair-outcome-history','41','--owner','albert','--reason','duplicate classified from the #2847 read-back race'],new Date('2026-09-12T00:00:00Z'),io),0)}finally{console.log=old}
+  assert.deepEqual(labels,['lock','repair','unlock'])
+  assert.deepEqual(JSON.parse(printed).supersedes,[duplicate.event_id])
+  assert.equal(outcomeHistory(comments,41).valid,true);assert.equal(refs.size,0)
+  let message='';const olderr=console.error;console.error=(value)=>{message=String(value)}
+  try{assert.equal(managerMain(['--repair-outcome-history','41','--owner','albert'],new Date('2026-09-12T00:02:00Z'),io),2)}finally{console.error=olderr}
+  assert.match(message,/--repair-outcome-history requires --reason/)
+})
+
+test('repair refuses a genuine skipped state instead of superseding the event that exposed it (#2847 review)',()=>{
+  // entered then dispatched with no classified: a REAL gap, not a read-back re-post.
+  const comments=[eventComments('entered')[0],ownerComment(formatEventComment(outcomeEvent({issue:41,state:'dispatched',actor:'runner',timestamp:'2026-09-11T00:05:00Z'})))]
+  assert.equal(outcomeHistory(comments,41).valid,false)
+  const before=comments.map((row)=>row.body)
+  let posted=0
+  const io={issueComments:()=>comments,commentIssue:()=>{posted++},wait:()=>{}}
+  assert.throws(()=>repairOutcomeHistory({issue:41,actor:'albert',reason:'paper over a skip',timestamp:'2026-09-12T00:00:00Z'},io),/lifecycle violation that repair must not hide: dispatched skips classified/)
+  assert.equal(posted,0,'a refused repair must append nothing')
+  assert.deepEqual(comments.map((row)=>row.body),before)
+  assert.equal(outcomeHistory(comments,41).valid,false,'the gap must remain visible, not be hidden')
+})
+
+test('repair refuses every non-race problem class and leaves the ledger untouched (#2847 review)',()=>{
+  const strayYield=[...eventComments('classified'),ownerComment(formatEventComment(outcomeEvent({issue:41,state:'yielded',actor:'t',timestamp:'2026-09-11T00:09:00Z'})))]
+  const doubleBlock=[...eventComments('classified'),
+    ownerComment(formatEventComment(outcomeEvent({issue:41,state:'blocked',actor:'t',timestamp:'2026-09-11T00:09:00Z'}))),
+    ownerComment(formatEventComment(outcomeEvent({issue:41,state:'blocked',actor:'t',timestamp:'2026-09-11T00:10:00Z'})))]
+  const backward=[...eventComments('dispatched'),ownerComment(formatEventComment(outcomeEvent({issue:41,state:'entered',actor:'t',timestamp:'2026-09-11T00:09:00Z'})))]
+  for(const comments of [strayYield,doubleBlock,backward]){
+    let posted=0
+    const io={issueComments:()=>comments,commentIssue:()=>{posted++},wait:()=>{}}
+    assert.throws(()=>repairOutcomeHistory({issue:41,actor:'albert',reason:'x',timestamp:'2026-09-12T00:00:00Z'},io),/lifecycle violation that repair must not hide/)
+    assert.equal(posted,0)
+  }
+})
+
+test('repair retires the re-posted copy and keeps the legitimate original state (#2847 review)',()=>{
+  const comments=eventComments('classified',41)
+  // A byte-identical re-post (same event_id, posted twice) AND a retried re-post
+  // of the state already reached under a fresh event_id: both race artefacts.
+  const identical=parseEventComment(comments.at(-1).body)[0]
+  comments.push(ownerComment(formatEventComment(identical)))
+  const retried=outcomeEvent({issue:41,state:'classified',actor:'runner',timestamp:'2026-09-11T05:52:21Z'})
+  comments.push(ownerComment(formatEventComment(retried)))
+  assert.equal(outcomeHistory(comments,41).valid,false)
+  const io={issueComments:()=>comments,commentIssue:(_n,body)=>comments.push(ownerComment(body)),wait:()=>{}}
+  const result=repairOutcomeHistory({issue:41,actor:'albert',reason:'duplicate classified from the #2847 read-back race',timestamp:'2026-09-12T00:00:00Z'},io)
+  assert.deepEqual([...result.supersedes].sort(),[identical.event_id,retried.event_id].sort())
+  const after=outcomeHistory(comments,41)
+  assert.equal(after.valid,true)
+  // THE ORIGINAL SURVIVES. Superseding a duplicated event_id must not erase the
+  // real event with it, so the state must not regress from classified to entered.
+  assert.equal(after.state,'classified');assert.equal(result.state,'classified')
+})
+
+test('only a recovery_completed event may carry supersedes (#2847 review)',()=>{
+  for(const eventType of ['dispatched','classified','claim_acquired','review_completed']){
+    assert.throws(()=>coordinationEvent({eventType,workIssue:41,actor:'attacker',timestamp:'2026-09-12T00:00:00Z',detail:'suppress the record',supersedes:['aaaaaaaaaaaaaaaa']}),/only a recovery_completed event may supersede/,eventType)
+  }
+  assert.equal(coordinationEvent({eventType:'recovery_completed',workIssue:41,actor:'albert',timestamp:'2026-09-12T00:00:00Z',detail:'governed repair',supersedes:['aaaaaaaaaaaaaaaa']}).supersedes.length,1)
+})
+
+test('a repair event cannot suppress a phantom or non-outcome event id (#2847 review)',()=>{
+  const comments=eventComments('classified',41)
+  const before=outcomeHistory(comments,41)
+  comments.push(ownerComment(formatEventComment(coordinationEvent({eventType:'recovery_completed',workIssue:41,actor:'attacker',timestamp:'2026-09-12T00:00:00Z',detail:'names an id that is not an outcome event of this issue',supersedes:['deadbeefdeadbeef']}))))
+  const after=outcomeHistory(comments,41)
+  assert.deepEqual(after.superseded,[],'an unmatched supersession target is never honored')
+  assert.equal(after.state,before.state);assert.equal(after.valid,true)
+})
+
+test('two repairs superseding different events do not collide on one event_id (#2847 review)',()=>{
+  const base={eventType:'recovery_completed',workIssue:41,actor:'albert',timestamp:'2026-09-12T00:00:00Z',detail:'governed repair'}
+  const first=coordinationEvent({...base,supersedes:['aaaaaaaaaaaaaaaa']})
+  const second=coordinationEvent({...base,supersedes:['bbbbbbbbbbbbbbbb']})
+  assert.notEqual(first.event_id,second.event_id)
+})
+
+test('completion tolerates delayed visibility of its own completion record (#2847 review)',()=>{
+  const {io,comments}=completionFixture()
+  let hide=0,waits=0
+  const listing=()=>hide>0?(hide--,comments.filter((row)=>!row.body.includes('Authoritative outcome completion'))):comments
+  io.issueComments=listing
+  const normal=io.commentIssue
+  io.commentIssue=(number,body)=>{normal(number,body);if(body.includes('Authoritative outcome completion'))hide=2}
+  io.wait=()=>{waits++}
+  assert.equal(completeOutcome({issue:41,evidenceRef:'https://github.com/u2giants/shared-db/issues/41#issuecomment-9',actor:'test',timestamp:'2026-09-11T02:00:00Z'},io).completed,true)
+  assert.equal(waits,1,'the completion read-back must retry instead of throwing on a landed write')
+  assert.equal(comments.filter((row)=>row.body.includes('Authoritative outcome completion')).length,1)
 })
 
 test('outcome status ignores trusted lifecycle events for a different issue',()=>{

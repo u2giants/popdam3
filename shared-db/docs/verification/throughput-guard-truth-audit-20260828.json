@@ -1994,9 +1994,16 @@
       "line_sha256": "50799e3f2862268507b004d60991c5c99a0c3324c03f871a8dbf0ceb31fa398d",
       "disposition": "excluded",
       "reason": "#2809. This line is explanatory comment prose quoting the guard refusal text it fixes; it performs no missing-object detection and changes no refusal behaviour, so it carries no enrichment obligation."
+    },
+    {
+      "site": "scripts/orchestrator-flow/outcome-lifecycle.mjs:239",
+      "semantic_key": "scripts/orchestrator-flow/outcome-lifecycle.mjs:866d38a6ecd2df3cf81a8b3ce887f22a433904af7da5d4ec7c92be4054413e23:1",
+      "line_sha256": "866d38a6ecd2df3cf81a8b3ce887f22a433904af7da5d4ec7c92be4054413e23",
+      "disposition": "excluded",
+      "reason": "This refusal message names a missing coordination lifecycle event in the outcome ledger, not a missing or unapplied database object, so it is outside the migration throughput truth audit it is discovered by."
     }
   ],
-  "call_site_count": 283,
-  "call_site_sha256": "014700ca17452ac219a56c6e7f7c044426eacd1262a30a9888a3baf61c6cab78",
+  "call_site_count": 284,
+  "call_site_sha256": "84181a3785b28cb678556e653dc060349f44f2cfd12025b16270034a2c87aea1",
   "disposition": "Every discovered site has an explicit reviewed disposition bound to its source-line content; line movement alone does not require regeneration, while a content change requires review."
 }

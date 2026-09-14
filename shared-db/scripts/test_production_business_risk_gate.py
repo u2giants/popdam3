@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import preview_instance_text, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
+from production_business_risk_gate import preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
 
 
 def disable_background_git_maintenance(root):
@@ -53,6 +53,31 @@ DEAD_PREVIEW_PROJECT_REF = "rjyboqwcdzcocqgmsyel"
 
 
 class ProductionBusinessRiskGateTests(unittest.TestCase):
+    def test_failed_workflow_is_preview_evidence_only_for_exact_downstream_failure_graph(self):
+        run = {"status": "completed", "conclusion": "failure"}
+        conclusions = {
+            "SQL migration guards": "success", "preview": "success",
+            "Automatic production qualification and dispatch": "failure",
+            "Production apply review (immutable evidence + hard guards)": "skipped",
+            "Production apply (automatic evidence gates)": "skipped",
+            "production-dry-run": "skipped",
+        }
+        jobs = {"total_count": 6, "jobs": [
+            {"name": name, "status": "completed", "conclusion": conclusion}
+            for name, conclusion in conclusions.items()
+        ]}
+        self.assertTrue(preview_run_has_immutable_apply(run, jobs))
+        for mutate in (
+            lambda value: value["jobs"][0].update(conclusion="failure"),
+            lambda value: value.update(total_count=7),
+            lambda value: value["jobs"].append({"name": "unexpected", "status": "completed", "conclusion": "success"}),
+            lambda value: value["jobs"][4].update(conclusion="success"),
+        ):
+            with self.subTest(mutation=mutate):
+                candidate = json.loads(json.dumps(jobs))
+                mutate(candidate)
+                self.assertFalse(preview_run_has_immutable_apply(run, candidate))
+
     def governed_original_reconciliation_fixture(self):
         case = GOVERNED_ORIGINAL_RECONCILIATION
         migration = next(Path.cwd().glob(f"supabase/migrations/{case['version']}_*.sql"))

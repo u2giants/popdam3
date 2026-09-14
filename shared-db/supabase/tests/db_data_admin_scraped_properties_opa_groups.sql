@@ -44,8 +44,10 @@ begin
      or position('page_submission_source_candidates as materialized' in v_definition) = 0
      or position('select distinct o.dcp_asset_id' in v_definition) = 0
      or position('page_dcp_context_rows as materialized' in v_definition) = 0
-     or position('page_dcp_retained_assets as not materialized' in v_definition) = 0
-     or position('join plm.dcp_asset a on a.id=r.asset_id' in v_definition) = 0
+     or position('page_dcp_retained_assets as materialized' in v_definition) = 0
+     or position('dcp_asset_style as materialized' in v_definition) = 0
+     or position('select a.id,a.style_guide_id from plm.dcp_asset a' in v_definition) = 0
+     or position('join dcp_asset_style a on a.id=r.asset_id' in v_definition) = 0
      or position('dcp_asset_context' in v_definition) <> 0
      or position('left join source_rows s' in v_definition) <> 0
      or position('Disney OPA (unsplit)' in v_definition) <> 0 then

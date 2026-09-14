@@ -1,51 +1,21 @@
 {
   "schema_version": 1,
-  "work_issue": 2809,
+  "work_issue": 2865,
+  "generation": 4,
   "work_type": "repo-maintenance",
-  "route": "shared-db-orchestrator",
-  "goal": "Book an `alter table ... set schema ...` removal at the END of its own statement so archiving a table stops self-flagging as a missing reference, without weakening the guard's genuine missing-reference detection.",
-  "base_sha": "c7465a7598fb2191e2df549ec63ba255360c484a",
-  "dispatcher": "Claude orchestrator #2758",
-  "worker": "claude-2758-2809",
-  "branch": "claude/issue-2809-guard-set-schema-ordering",
-  "worktree": "C:/repos/shared-db-worktrees/pr2810-refresh",
-  "allowed_paths": [
-    "scripts/production_migration_guard.py",
-    "scripts/test_production_migration_guard.py",
-    "docs/verification/throughput-guard-truth-audit-20260828.json",
-    ".agent/contract.json",
-    ".agent/completion.json"
-  ],
-  "file_writes": [
-    "scripts/production_migration_guard.py",
-    "scripts/test_production_migration_guard.py",
-    "docs/verification/throughput-guard-truth-audit-20260828.json",
-    ".agent/contract.json",
-    ".agent/completion.json"
-  ],
+  "route": "repo-maintenance",
+  "goal": "Finish repairing the nightly ColdLion Landing Sync. After PR 2864 removed the EPIPE, runs 34803418431 and 34834257904 exposed the real psql error: item_detail_company_code_division_code_item_no_fkey. A live read of /items and /itemDetails on 2026-09-14 found 8 detail rows (4 items) with no item header. Withhold only those rows, report them visibly (log count, sync_run request_params, coldlion_sync_alert), and let the rest of the snapshot land.",
+  "base_sha": "cfbe5efcf789ff6b431108621ef0a8b691d45f2f",
+  "dispatcher": "Albert Hazan (owner) via chat: owner-authorized repo-maintenance repair of the ColdLion Landing Sync nightly",
+  "worker": "shared-db repo-maintenance Claude session in worktree upbeat-borg-d45c95",
+  "branch": "claude/coldlion-orphan-item-details",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/upbeat-borg-d45c95",
+  "allowed_paths": ["tools/coldlion-landing/sync-masters.mjs", "tools/coldlion-landing/lib/load-masters.mjs", "tools/coldlion-landing-masters.test.mjs", ".agent/contract.json", ".agent/completion.json"],
+  "file_writes": ["tools/coldlion-landing/sync-masters.mjs", "tools/coldlion-landing/lib/load-masters.mjs", "tools/coldlion-landing-masters.test.mjs"],
   "db_reads": [],
   "db_writes": [],
-  "prohibited_actions": [
-    "No weakening, bypassing, deleting or allowlisting around the preflight guard; its missing-reference detection must still refuse after this change.",
-    "No shared database reads or writes by this worker.",
-    "No migration file and no reserved migration version; this work ships none.",
-    "No edits to issue 2482's claim, branch, worktree or migration."
-  ],
-  "required_checks": [
-    "python -m unittest scripts.test_production_migration_guard",
-    "node scripts/check-throughput-truth-audit.mjs",
-    "git diff --check"
-  ],
-  "assumptions": [
-    "The identical self-flag shape in `alter table ... rename to ...` is deliberately out of scope and is recorded in the pull request body as deserving its own issue.",
-    "Generation 4 records base c7465a75. Main moved twice while this branch waited, 485a0ba5 to 4da62786 to c7465a75. On the first step three paths conflicted: the two .agent evidence files, which every lane writes at the repo root and which were resolved wholesale to this lane's own evidence rather than hand-merged between lanes, and the throughput truth audit, an append-style registry resolved as a union of main's 282 dispositions plus the single entry this branch authored. On the second step only the .agent pair conflicted; main c7465a75 touched none of this lane's three paths, so the registry union stands unchanged at 283 sites.",
-    "This branch's registered call site moved from scripts/production_migration_guard.py:1969 to :2093 because main changed the same file. The site was recomputed from the merged tree; its line_sha256 is unchanged because the line content is unchanged. call_site_count 283 and call_site_sha256 were regenerated from the checker's own discover() inventory rather than hand-edited.",
-    "One entry present in the branch's previous copy of the registry, scripts/check-migration-ledger-drift.mjs:247, was not authored by this branch; it came from the superseded base 485a0ba5 and main has since changed that line away. It is dropped rather than resurrected."
-  ],
-  "stop_conditions": [
-    "Stop if the one-line ordering change cannot be made without altering any other guard behaviour.",
-    "Stop if either negative control stops refusing, since that would mean the capability was lost rather than repaired.",
-    "Stop and report the exact refusal if a required tool refuses, rather than working around it."
-  ],
-  "generation": 4
+  "prohibited_actions": ["No database structure change of any kind.", "Do not drop or relax the item_detail foreign key.", "Do not silently discard rows: every withheld row must be counted, named, and alerted.", "Do not weaken the existing identity, scope, shape, or duplicate-key checks."],
+  "required_checks": ["node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs"],
+  "assumptions": ["The orphan rows are a ColdLion source defect, not a loader fault: the same identity is absent from the full /items snapshot.", "Withholding a detail row whose header does not exist loses nothing the schema could store."],
+  "stop_conditions": ["Stop if the fix would require a database structure change.", "Stop if the withheld set grows beyond the rows that genuinely lack a header."]
 }

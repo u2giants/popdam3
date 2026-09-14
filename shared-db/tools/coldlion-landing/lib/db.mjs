@@ -11,6 +11,9 @@
 // as a database failure.
 
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   SPAWN_MAX_BUFFER_BYTES,
   SPAWN_TIMEOUT_MS,
@@ -32,16 +35,31 @@ export function databaseUrl() {
   return url;
 }
 
-/** Run SQL through psql. The SQL owns its own BEGIN/COMMIT. */
-export function runSql(sql, { url = databaseUrl() } = {}) {
-  const psql = spawnSync("psql", [url, "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--quiet", "-f", "-"], {
-    input: sql,
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "pipe"],
-    maxBuffer: SPAWN_MAX_BUFFER_BYTES,
-    timeout: SPAWN_TIMEOUT_MS,
-    killSignal: "SIGKILL",
-  });
+/**
+ * Run SQL through psql. The SQL owns its own BEGIN/COMMIT.
+ *
+ * The script is written to a private temp file and passed with `-f <file>`, NEVER piped on
+ * stdin. A full master snapshot is a very large script; when psql stops reading early
+ * (ON_ERROR_STOP on a real SQL error, a dropped connection) a stdin pipe makes spawnSync fail
+ * with EPIPE, which discards psql's exit status and stderr -- the actual cause -- and leaves
+ * only an opaque client fault (the 2026-09-12 and 2026-09-13 nightly failures).
+ */
+export function runSql(sql, { url = databaseUrl(), spawn = spawnSync } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "coldlion-landing-sql-"));
+  const file = join(dir, "script.sql");
+  let psql;
+  try {
+    writeFileSync(file, sql, { encoding: "utf8", mode: 0o600 });
+    psql = spawn("psql", [url, "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--quiet", "-f", file], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: SPAWN_MAX_BUFFER_BYTES,
+      timeout: SPAWN_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
   if (psql.error) throw clientSpawnFaultError("psql", psql.error);
   if (psql.status !== 0) {
     const error = new Error(redactPsqlError(psql.stderr));

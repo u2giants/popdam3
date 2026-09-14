@@ -1,42 +1,19 @@
 {
   "schema_version": 1,
-  "work_issue": 2809,
+  "work_issue": 2865,
   "outcome": "ready-for-merge",
-  "pr": 2810,
+  "pr": 2891,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/2809/4",
-  "contract_sha256": "0dd3e6769f48f080f9b318bc95a2ab44e0ca38410a3ef01929109a53db05b80a",
-  "head_sha": "a091c63c319067ececd2a5a74d8a69f667a885ac",
-  "files_changed": [
-    ".agent/completion.json",
-    ".agent/contract.json",
-    "docs/verification/throughput-guard-truth-audit-20260828.json",
-    "scripts/production_migration_guard.py",
-    "scripts/test_production_migration_guard.py"
-  ],
+  "contract_ref": "refs/db-contracts/2865/4",
+  "contract_sha256": "cb817b08e79a4639a146a733d355cc5922ee97b87dd292ed99b276a795cad81c",
+  "head_sha": "71cd7ccf16eb67b00023f54ae3279d41e0a5ea50",
+  "files_changed": [".agent/completion.json", ".agent/contract.json", "tools/coldlion-landing/sync-masters.mjs", "tools/coldlion-landing/lib/load-masters.mjs", "tools/coldlion-landing-masters.test.mjs"],
   "db_reads": [],
   "db_writes": [],
   "checks": [
-    {
-      "command": "python -m unittest scripts.test_production_migration_guard",
-      "exit_code": 0,
-      "evidence": "Ran 250 tests in 29.412s, OK, 0 failures, on the tree merged with main c7465a75 (implementation commit a091c63c). The suite grew 243 to 250 purely from cases main added while this branch waited; this lane's own two cases are still present and still pass, namely the archive-a-table case that now passes preflight and the negative control proving the OLD name after a move is still refused with 'DROPPED (or renamed away) by 20260102000000'. The capability was repaired, not removed."
-    },
-    {
-      "command": "node scripts/check-throughput-truth-audit.mjs",
-      "exit_code": 0,
-      "evidence": "truth audit OK: call_sites=283 on the tree merged with main c7465a75. Resolved as a union, not a side pick: main's 282 reviewed dispositions were kept verbatim and exactly ONE entry was re-added, the only one this branch itself authored, verified against the true merge base 485a0ba5 rather than against main. Its site moved from scripts/production_migration_guard.py:1969 to :2093 because main edited the same file, so the line number was recomputed from the merged tree; line_sha256 50799e3f is unchanged because the line content is unchanged. call_site_count and call_site_sha256 were regenerated from the checker's own discover() inventory, giving 283 and 014700ca17452ac219a56c6e7f7c044426eacd1262a30a9888a3baf61c6cab78. The checker reports 0 missing dispositions and 0 stale sites. schema_version remains 3. Main c7465a75 touched none of this lane's three paths, so this union is unchanged from the 4da62786 pass."
-    },
-    {
-      "command": "git diff --check",
-      "exit_code": 0,
-      "evidence": "No whitespace errors on the tree merged with main c7465a75."
-    }
+    {"command": "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs", "exit_code": 0, "evidence": "node --test tools/coldlion-landing*.test.mjs: tests 100, pass 100, fail 0, skipped 0. The unreviewed-field guard test fails (1 fail) with the full-fetch guard line removed."}
   ],
-  "assumptions_resolved": [
-    "The identical self-flag shape in `alter table ... rename to ...` was confirmed present and deliberately left out of scope; it is recorded in the pull request body as deserving its own issue.",
-    "A second entry in the branch's previous registry copy, scripts/check-migration-ledger-drift.mjs:247, was checked against the true base 485a0ba5 and was NOT authored by this branch; main has since changed that line away, so it was dropped rather than resurrected.",
-    "Main moved twice during this refresh. Each step was re-derived with git merge-tree against the real new tip rather than trusted from a prior prediction; on the second step only the shared .agent evidence pair conflicted."
-  ],
+  "notes": ["Real error from runs 34803418431 and 34834257904: item_detail_company_code_division_code_item_no_fkey.", "Read-only ColdLion pull 2026-09-14: /items 19411 rows, /itemDetails 26803 rows, 8 detail rows across 4 items with no header.", "No database, preview, production, migration, or workflow action was performed."],
+  "assumptions_resolved": ["The 4 orphan identities are absent from the full /items snapshot, so they are a source defect.", "Withheld rows are counted in the log, named on the sync_run, and alerted."],
   "stop_conditions_hit": []
 }
