@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_issue": 2802,
+  "application_commit_sha": "b08c0521c6156d48cf0ffd78ab3122eb8c35f519",
+  "live_assertion": "a PopDAM read of a style-guide file returns has_talent_likeness as true, false or null exactly as stored, with null distinguishable from false",
+  "environment": "production qsllyeztdwjgirsysgai",
+  "result": "passed",
+  "observed_at": "2026-09-15T19:40:04.358Z",
+  "detail": {
+    "call": "GET public.style_guide_files has_talent_likeness per state",
+    "elapsed_ms": 1296,
+    "rows_read": {
+      "true": 0,
+      "false": 0,
+      "null": 1
+    },
+    "counts": {
+      "true": 0,
+      "false": 0,
+      "null": 297358
+    }
+  }
+}
