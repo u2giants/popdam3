@@ -138,7 +138,7 @@ async function clearState(): Promise<void> {
   await client.from("admin_config").delete().eq("key", STATE_KEY);
 }
 
-function normalizeState(state: RebuildState | null): RebuildState {
+export function normalizeRebuildState(state: RebuildState | null): RebuildState {
   return {
     stage: state?.stage ?? "clear_assets",
     last_asset_id: state?.last_asset_id ?? null,
@@ -147,6 +147,7 @@ function normalizeState(state: RebuildState | null): RebuildState {
     last_stats_group_id: state?.last_stats_group_id ?? null,
     total_assets: state?.total_assets,
     total_groups: state?.total_groups,
+    total_groups_before_delete: state?.total_groups_before_delete,
     total_processed: state?.total_processed ?? 0,
     started_at: state?.started_at ?? new Date().toISOString(),
     finalize_sub: state?.finalize_sub,
@@ -190,11 +191,11 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
   let state = (existingStateRow?.value as RebuildState | null) ?? null;
 
   if (forceRestart || !state) {
-    state = normalizeState(null);
+    state = normalizeRebuildState(null);
     await saveState(state);
   }
 
-  state = normalizeState(state);
+  state = normalizeRebuildState(state);
 
   // Count total assets once. Progress reporting only - never fatal.
   if (typeof state.total_assets !== "number") {

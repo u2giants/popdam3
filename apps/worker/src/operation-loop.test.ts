@@ -35,6 +35,17 @@ test("AI progress persists and reports visual-analysis-unavailable outcomes", ()
   assert.match(buildResultMessage("ai-tag-all", progress), /3 visual analyses unavailable/);
 });
 
+test("style-group rebuild progress sums deletions and preserves the largest pre-delete total", () => {
+  const progress = mergeProgress(
+    "rebuild-style-groups",
+    { groups_deleted: 200, total_groups_before_delete: 10_868 },
+    { ok: true, done: false, groups_deleted: 200, total_groups_before_delete: 0 },
+  );
+
+  assert.equal(progress.groups_deleted, 400);
+  assert.equal(progress.total_groups_before_delete, 10_868);
+});
+
 test("blank handler errors are made explicit and are not classified as unknown", () => {
   const error = normalizeBatchError("   ");
 
