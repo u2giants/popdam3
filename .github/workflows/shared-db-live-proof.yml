@@ -10,7 +10,7 @@ on:
         description: shared-db outcome issue number
         required: true
         type: choice
-        options: ["2792", "2860", "2911", "2934"]
+        options: ["2792", "2802", "2860", "2911", "2934"]
 
 permissions:
   contents: read

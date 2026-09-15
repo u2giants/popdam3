@@ -27,6 +27,7 @@ const ASSERTIONS = {
   2792: "A natural service-role call to public.reconcile_stale_sg_files_batch at representative production volume completes under the normal statement timeout without SQLSTATE 57014.",
   2860: "A natural service-role Files-mode call to public.search_style_guide_library_v2 with no query, p_limit=1, offset 0 and modified_desc sort completes under the normal statement timeout without SQLSTATE 57014.",
   2911: "From the application's production service-role connection, read-only: public.style_guide_files has column has_talent_likeness, nullable, with no default, and the application's read of public.style_guide_files still succeeds.",
+  2802: "a PopDAM read of a style-guide file returns has_talent_likeness as true, false or null exactly as stored, with null distinguishable from false",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
 };
 
@@ -88,6 +89,21 @@ export function evaluateDrop2934(openapi) {
   };
 }
 
+// Pure check of one PopDAM style-guide file read: the key is present and its
+// JSON value is exactly true, false or null, so null never collapses to false.
+export function evaluateLikenessRead2802(rows, expected) {
+  if (!Array.isArray(rows)) fail("style_guide_files read did not return rows");
+  for (const row of rows) {
+    if (!row || !Object.prototype.hasOwnProperty.call(row, "has_talent_likeness")) {
+      fail("style_guide_files read omitted has_talent_likeness");
+    }
+    if (row.has_talent_likeness !== expected) {
+      fail(`row ${row.id} filtered as ${expected} was read back as ${JSON.stringify(row.has_talent_likeness)}`);
+    }
+  }
+  return rows.length;
+}
+
 async function openapi() {
   const { json } = await call("/rest/v1/", { accept: "application/openapi+json" });
   if (!json) fail("OpenAPI document was not JSON");
@@ -99,6 +115,36 @@ async function proveColumn() {
   const { json, elapsedMs } = await call("/rest/v1/style_guide_files?select=id,relative_path,is_active,has_talent_likeness&limit=1");
   if (!Array.isArray(json)) fail("style_guide_files read did not return rows");
   return { call: "GET public.style_guide_files limit 1", elapsed_ms: elapsedMs, rows_read: json.length, schema };
+}
+
+// Read-only: the same PopSG file read the app makes, once per stored state,
+// plus exact counts of true, false and null.
+async function proveLikeness() {
+  evaluateColumn2911(await openapi());
+  const base = "/rest/v1/style_guide_files?select=id,filename,has_talent_likeness";
+  const states = { true: "is.true", false: "is.false", null: "is.null" };
+  const reads = {};
+  const counts = {};
+  let elapsed = 0;
+  for (const [name, filter] of Object.entries(states)) {
+    const { json, elapsedMs } = await call(`${base}&has_talent_likeness=${filter}&limit=1`);
+    elapsed += elapsedMs;
+    reads[name] = evaluateLikenessRead2802(json, JSON.parse(name));
+    counts[name] = await countWhere(`has_talent_likeness=${filter}`);
+  }
+  if (reads.null + reads.true + reads.false === 0) fail("no style_guide_files row was read");
+  return { call: "GET public.style_guide_files has_talent_likeness per state", elapsed_ms: elapsed, rows_read: reads, counts };
+}
+
+async function countWhere(filter) {
+  const response = await fetch(`${url}/rest/v1/style_guide_files?select=id&${filter}&limit=1`, {
+    method: "HEAD",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, Prefer: "count=exact" },
+  });
+  if (!response.ok) fail(`count ${filter} returned HTTP ${response.status}`);
+  const total = Number((response.headers.get("content-range") || "").split("/")[1]);
+  if (!Number.isFinite(total)) fail(`count ${filter} returned no total`);
+  return total;
 }
 
 async function proveDrop() {
@@ -151,7 +197,7 @@ async function setOutput(applied) {
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `applied=${applied}\n`);
 }
 
-const PROVERS = { 2792: proveReconcile, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop };
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");

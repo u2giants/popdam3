@@ -39,6 +39,7 @@ const SG_INGESTABLE_EXTENSIONS = new Set([
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { isExcludedRelativePath, JUNK_FILENAMES } from "../_shared/path-filters.ts";
+import { talentLikenessFromFilename } from "../_shared/talent-likeness.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
@@ -2884,6 +2885,8 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         modified_at: modifiedAt,
         last_seen_at: new Date().toISOString(),
         is_active: true,
+        // Licensor "With Likeness" / "No Likeness" file naming only; NULL otherwise (#132).
+        has_talent_likeness: talentLikenessFromFilename(f.filename as string),
         // thumbnail_url and thumbnail_error are intentionally omitted — the crawl agent
         // has no knowledge of render state. Including them would overwrite rendered
         // thumbnails with null on every crawl.

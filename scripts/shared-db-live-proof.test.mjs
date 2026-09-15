@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateColumn2911, evaluateDrop2934, NotYetApplied, ProofFailure } from "./shared-db-live-proof.mjs";
+import { evaluateColumn2911, evaluateDrop2934, evaluateLikenessRead2802, NotYetApplied, ProofFailure } from "./shared-db-live-proof.mjs";
+
+test("2802 accepts true, false and null exactly as stored", () => {
+  assert.equal(evaluateLikenessRead2802([{ id: "a", has_talent_likeness: null }], null), 1);
+  assert.equal(evaluateLikenessRead2802([{ id: "b", has_talent_likeness: false }], false), 1);
+  assert.equal(evaluateLikenessRead2802([], true), 0);
+});
+
+test("2802 fails when null collapses to false or the key is missing", () => {
+  assert.throws(() => evaluateLikenessRead2802([{ id: "a", has_talent_likeness: false }], null), ProofFailure);
+  assert.throws(() => evaluateLikenessRead2802([{ id: "a" }], null), ProofFailure);
+});
 
 const table = (column, required = []) => ({
   definitions: {

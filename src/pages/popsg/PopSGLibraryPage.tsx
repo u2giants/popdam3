@@ -41,6 +41,8 @@ import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 // Columns available in PopDAM's style_guide_files table.
 // licensor_name is a generated column: split_part(relative_path, '/', 1)
 // property_folder is segments[1] from the root (licensor's property name)
+import { talentLikenessLabel } from "./talentLikenessLabel";
+
 interface StyleGuideFile {
   id: string;
   filename: string;
@@ -53,6 +55,8 @@ interface StyleGuideFile {
   modified_at: string | null;
   thumbnail_url: string | null;
   thumbnail_error: string | null;
+  // NULL = the source gave no answer; shown as Unknown, never as No (#132).
+  has_talent_likeness?: boolean | null;
 }
 
 interface StyleGuideGroup {
@@ -289,6 +293,11 @@ function FileDetailSheet({
                     label: "Property",
                     value: file.property_folder ?? "—",
                   },
+                  {
+                    icon: <FileText className="h-3.5 w-3.5" />,
+                    label: "Likeness",
+                    value: talentLikenessLabel(file.has_talent_likeness),
+                  },
                 ].map(({ icon, label, value }) => (
                   <div key={label} className="flex items-center gap-3 bg-card px-3 py-2">
                     <span className="text-muted-foreground">{icon}</span>
@@ -322,7 +331,7 @@ function GuideDetailSheet({
       const { data, error } = await supabase
         .from("style_guide_files")
         .select(
-          "id,filename,relative_path,directory_path,file_extension,licensor_name,property_folder,thumbnail_url,thumbnail_error,size_bytes,modified_at",
+          "id,filename,relative_path,directory_path,file_extension,licensor_name,property_folder,thumbnail_url,thumbnail_error,size_bytes,modified_at,has_talent_likeness",
         )
         .eq("is_active", true)
         .eq("root_label", group.root_label)
