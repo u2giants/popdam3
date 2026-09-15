@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { recordReviewVerdict, reviewerExecutionPreflight, resolveCommandPath } from './manage-migration-author-lanes.mjs'
+import { recordReviewVerdict, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
 import { lineOpensWithVerdictWord, isVerdictFor } from './lib/review-verdict.mjs'
 // Issue #2342: one shared transport owns the never-replay-a-write policy.
 import { spawnGitHub } from './lib/github-transport.mjs'
@@ -358,7 +358,15 @@ The preceding findings comment (${comment.html_url}) has been left UNTOUCHED on 
   }
   return {artifact,body}
 }
+// The lane CLI applies SHARED_DB_MERGED_PR_ISSUE_BINDING to its io; verdict recording
+// here runs in-process, so it must see the same verified binding or it refuses a merged
+// pull request that reviewer assignment accepted.
+export function governedReviewDeps(env=process.env){
+  const value=String(env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim()
+  const io=value?withMergedPrIssueBinding(githubIo,value):githubIo
+  return {spawn:spawnSync,preflight:(o)=>reviewerExecutionPreflight(o,io),record:(o)=>recordReviewVerdict(o,io),resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8'),io}
+}
 export function main(argv=process.argv.slice(2)){
-  try{const result=runGovernedReview(parseArgs(argv));process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\n`);return 0}catch(error){process.stderr.write(`REFUSED: ${error.message}\n`);return 2}
+  try{const result=runGovernedReview(parseArgs(argv),governedReviewDeps());process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\n`);return 0}catch(error){process.stderr.write(`REFUSED: ${error.message}\n`);return 2}
 }
 if(import.meta.url===pathToFileURL(process.argv[1]??'').href)process.exitCode=main()

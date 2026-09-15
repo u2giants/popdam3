@@ -71,6 +71,45 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------
+  -- Issue #2905: one canonical licensor group per row across both purposes,
+  -- in every entity arm, with a single trailing unresolved group.
+  -- ---------------------------------------------------------------------
+  if (length(v_definition) - length(replace(v_definition,
+        'end::text as licensor_group_key', ''))) / length('end::text as licensor_group_key') <> 3
+     or (length(v_definition) - length(replace(v_definition,
+        '''licensor_group_key'', n.licensor_group_key', ''))) / length('''licensor_group_key'', n.licensor_group_key') <> 3
+     or (length(v_definition) - length(replace(v_definition,
+        '''licensor_group_name'', n.licensor_group_name', ''))) / length('''licensor_group_name'', n.licensor_group_name') <> 3 then
+    raise exception 'every inventory arm must emit licensor_group_key and licensor_group_name';
+  end if;
+
+  foreach v_required in array array[
+    'else ''unresolved''',
+    'else ''Licensor not yet determined''',
+    'when s.licensor_key in (''marvel'', ''marvel-opa'', ''marvel-asgard-creative'') then ''marvel''',
+    'when s.licensor_key in (''disney'', ''disney-opa'') then ''disney''',
+    'when s.licensor_key in (''lucasfilm-star-wars'', ''lucasfilm-star-wars-opa'') then ''lucasfilm-star-wars''',
+    'when p.source_kind in (''property'', ''franchise_asset'')',
+    'NBCUniversal - Submissions (Product Submissions picker)'
+  ] loop
+    if position(v_required in v_definition) = 0 then
+      raise exception 'canonical licensor grouping clause is absent: %', v_required;
+    end if;
+  end loop;
+
+  -- Unresolved and conflict keys must never be mapped to a real licensor group.
+  foreach v_forbidden in array array[
+    'opa-scope-conflict'', ''disney',
+    '''disney-opa-unresolved'') then',
+    '''dcp-vault-non-authoritative-marvel-tag'') then',
+    '''dcp-authority-conflict'') then'
+  ] loop
+    if position(v_forbidden in v_definition) <> 0 then
+      raise exception 'an unresolved licensor key is assigned to a real licensor group: %', v_forbidden;
+    end if;
+  end loop;
+
+  -- ---------------------------------------------------------------------
   -- Both source purposes are normalized to exactly Creative or Submissions.
   -- ---------------------------------------------------------------------
   if position('''Creative''' in v_definition) = 0

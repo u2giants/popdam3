@@ -56,6 +56,14 @@ begin
     if v_result is null or jsonb_typeof(v_result) <> 'object' then
       raise exception 'inventory arm % returned no object', v_kind;
     end if;
+    -- Issue #2905: every returned row names a canonical licensor group.
+    if exists (
+      select 1 from jsonb_array_elements(v_result -> 'rows') r
+      where coalesce(r ->> 'licensor_group_key', '') = ''
+         or coalesce(r ->> 'licensor_group_name', '') = ''
+    ) then
+      raise exception 'inventory arm % returned a row without a canonical licensor group', v_kind;
+    end if;
   end loop;
 
   -- Searching exercises the filtered path of every arm as well.

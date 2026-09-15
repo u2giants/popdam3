@@ -305,7 +305,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    A reviewer that is truthfully unusable for one pull request is excluded with
    `--exclude-reviewer --issue <issue> --pr <pr> --reviewer <name> --reason
-   <already-reviewed|independence-conflict|terminal-unavailable> --evidence-sha
+   <independence-conflict|terminal-unavailable> --evidence-sha
    <durable-assignment-or-replacement-sha>`. The exclusion is immutable,
    PR-local, requires an existing assignment or replacement for the same
    reviewer, and releases that exact active lease when present. It does not
@@ -356,9 +356,14 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    ONE exclusion reason, and only one, can be lifted:
    `--reinstate-reviewer-exclusion --issue <issue> --pr <pr> --reviewer <name>`.
-   `already-reviewed` and `independence-conflict` are INDEPENDENCE guarantees --
-   a provider that already judged these bytes, or that is the orchestrating
-   engine, is never re-drawn, and no later evidence changes that. Those two are
+   NO LIMIT ON REUSING A REVIEWER (owner ruling, marker #2893, 2026-09-14): the
+   `already-reviewed` reason is retired. A new exclusion with it is refused, and a
+   historical record of it still parses but never bars a draw -- the same
+   reviewer may review the same pull request any number of times. Slot 2 of one
+   exact head must still be a different provider from slot 1 (two approvals).
+   `independence-conflict` is an INDEPENDENCE guarantee -- a provider that is the
+   orchestrating or authoring engine is never drawn, and no later evidence
+   changes that. It is
    refused before any provider is probed. `terminal-unavailable` is different:
    it is a claim about the WORLD, and a misdiagnosis of it used to be permanent.
    Issue #2224 is the incident -- three of five reviewers carried
@@ -381,9 +386,8 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    A LIFT DOES NOT SPEND THE SLOT. An exclusion ref is create-only, so a
    reinstatement used to occupy the reviewer's only exclusion record for that
-   pull request forever: a later `already-reviewed` or `independence-conflict`
-   exclusion -- the record that enforces "a provider that already judged these
-   bytes is never re-drawn" -- was refused as a different durable exclusion, and
+   pull request forever: a later `independence-conflict`
+   exclusion -- was refused as a different durable exclusion, and
    the independence rule became unenforceable for that reviewer on that pull
    request. A later exclusion is now written to the NEXT GENERATION ref,
    `refs/db-review-exclusions/<issue>-<pr>-<reviewer>-gen<N>` (generation 1 keeps

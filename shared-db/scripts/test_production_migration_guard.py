@@ -2202,6 +2202,15 @@ class ApplyLaneTests(unittest.TestCase):
         )
         self.assertIn("return 1", script)
 
+    def test_automatic_review_digest_is_canonicalized_before_dispatch(self) -> None:
+        """upload-artifact@v4 emits bare hex; the verifier requires sha256:<hex> (#2883)."""
+        text = WORKFLOW_TEXT
+        start = text.index("- name: Dispatch the existing serial production lane")
+        step = text[start:text.index("gh api --method POST", start)]
+        prefix = step.index('REVIEW_DIGEST="sha256:${REVIEW_DIGEST}"')
+        refuse = step.index("automatic review evidence has no canonical artifact digest")
+        self.assertLess(prefix, refuse)
+
     def test_the_recorded_review_is_not_the_only_gate(self) -> None:
         """Belt and braces: the environment and deterministic gates remain."""
         self.assertIn("environment: production", _job("production-apply"))

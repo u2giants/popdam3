@@ -1,19 +1,26 @@
 {
   "schema_version": 1,
-  "work_issue": 2797,
+  "work_issue": 2921,
   "outcome": "ready-for-merge",
-  "pr": 2903,
-  "migration_versions": ["20260914164141"],
-  "contract_ref": "refs/db-contracts/2797/2",
-  "contract_sha256": "ae28da1ec5a04a6c2221bc5e5fb8c20e752ca439ef050e50dc98e5e4279287e1",
-  "head_sha": "eb39bd12a8806e209c403f0f2b4e78688ce91fb3",
-  "files_changed": ["supabase/migrations/20260914164141_db_data_admin_inventory_wb_normalized_arms.sql", "supabase/tests/db_data_admin_scraped_source_inventory_calls.sql"],
-  "db_reads": ["plm.wb_property", "plm.wb_character_normalized", "plm.wb_style_guide_normalized"],
-  "db_writes": ["function api.db_data_admin_scraped_source_inventory"],
-  "checks": [
-    {"command": "git diff --check", "exit_code": 0, "evidence": "No whitespace errors against origin/main 56a51e24."},
-    {"command": "database contract tests (supabase/tests/*.sql)", "exit_code": 0, "evidence": "New test calls the property, character and style_guide arms as a Licensing Manager; CI database-contract-tests runs it on PR #2903."}
+  "pr": 2922,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2921/4",
+  "contract_sha256": "5f8cb34848dd2c574bc7f3a04fa6fe89470b19c4f71dde922d8ac712625f11ea",
+  "head_sha": "cfbf0df5487443fb51a5615299c4811a2b86628d",
+  "files_changed": [
+    ".github/live-proofs/2506.sql"
   ],
-  "assumptions_resolved": ["Production catalog read confirmed plm.wb_character_normalized and plm.wb_style_guide_normalized exist with the columns the arms use."],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors between base 477b8633 and implementation cfbf0df5."
+    }
+  ],
+  "assumptions_resolved": [
+    "Production has 20260911213429 (run 34898171486); the exact-match probe at 7a42e035 (index definitions, SECURITY DEFINER, STABLE, search_path array, jsonb result, body md5 83b8190b equal to the migration file's $function$ body) returned [{\"passed\":true}] on production (qsllyeztdwjgirsysgai) read-only, and a variant expecting search_path pg_catalog, auth, public returned [{\"passed\":false}]."
+  ],
   "stop_conditions_hit": []
 }
