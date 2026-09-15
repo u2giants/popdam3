@@ -10,7 +10,7 @@ on:
         description: shared-db outcome issue number
         required: true
         type: choice
-        options: ["2792", "2860"]
+        options: ["2792", "2860", "2911", "2934"]
 
 permissions:
   contents: read
@@ -31,6 +31,7 @@ jobs:
         with:
           node-version: 20
       - name: Make the natural service-role call
+        id: prove
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY }}
@@ -39,6 +40,8 @@ jobs:
           PROOF_DIR: proof
         run: node scripts/shared-db-live-proof.mjs
       - name: Upload the proof
+        # A migration not yet on production reports NOT YET APPLIED and uploads nothing.
+        if: steps.prove.outputs.applied == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: shared-db-live-proof-${{ inputs.issue }}-${{ github.sha }}

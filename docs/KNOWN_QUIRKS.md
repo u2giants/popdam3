@@ -449,7 +449,7 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 ## 46. PopSG Stale Cleanup Is Guarded for Zero-File Crawls, But Not Low Counts
 
-**Why**: At crawl completion, `deactivate_stale_sg_files(root_label, run_id)` flips `is_active = false` for **every** file under that root whose `crawl_run_id != current run`. That is correct for normal deletes/renames, but a bad crawl can hide real files because the resolver and UI filter `is_active`. On 2026-06-10, an empty/inaccessible crawl was suspected while investigating PopSG's "No style guides yet" state.
+**Why**: At crawl completion, `reconcile_stale_sg_files_batch(root_label, run_id, batch_size, min_ratio)` (the bounded, ratio-guarded replacement for the dropped `deactivate_stale_sg_files` wrapper, shared-db #2934) flips `is_active = false` for file under that root whose `crawl_run_id != current run`. That is correct for normal deletes/renames, but a bad crawl can hide real files because the resolver and UI filter `is_active`. On 2026-06-10, an empty/inaccessible crawl was suspected while investigating PopSG's "No style guides yet" state.
 
 **Current guard**: `supabase/functions/agent-api/index.ts` now treats a final `files_found = 0` style-guide crawl as failed and skips stale cleanup. It also excludes `inaccessible_roots` from stale cleanup. This prevents a fully empty/unmounted root from mass-deactivating the active library.
 
