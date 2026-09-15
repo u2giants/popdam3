@@ -1,7 +1,7 @@
 # PopSG Production Readiness and NAS Fidelity Plan
 
 Issue: [u2giants/popdam3 #107](https://github.com/u2giants/popdam3/issues/107)
-Handoff: [HANDOFF.d/2026-09-03T1600Z-hetz-codex-popsg-production-readiness.md](HANDOFF.d/2026-09-03T1600Z-hetz-codex-popsg-production-readiness.md)
+Handoff: [HANDOFF.d/2026-09-15T1117Z-hetz-codex-popsg-production-closeout.md](HANDOFF.d/2026-09-15T1117Z-hetz-codex-popsg-production-closeout.md)
 
 ## STATUS — read this first
 
