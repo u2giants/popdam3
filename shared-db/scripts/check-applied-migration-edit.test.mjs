@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { HISTORICAL_RESTORATIONS } from './historical-migration-restorations.mjs'
-import { EDIT_STATUSES, findingsFor, restorationAllows, formatReport, main, MIGRATIONS_DIR, parseArgs, parseEditedMigrations, PROJECT_REFS, runCheck, Unknown, versionOf, editedMigrations } from './check-applied-migration-edit.mjs'
+import { EDIT_STATUSES, findingsFor, restorationAllows, formatReport, main, MIGRATIONS_DIR, parseArgs, parseEditedMigrations, PROJECT_REFS, runCheck, Unknown, versionOf, editedMigrations, fileMatchesLedgerStatements, fetchLedgerStatements } from './check-applied-migration-edit.mjs'
 
 const APPLIED = '20260831234750'
 const NEW = '20260903120000'
@@ -235,4 +235,81 @@ test('issue 2037 the git invocation is a three-dot diff scoped to the migrations
 
 test('issue 2037 a git failure is UNKNOWN, not an empty edit list', () => {
   assert.throws(() => editedMigrations('origin/main', { executor: () => { throw new Error('no such ref') } }), Unknown)
+})
+
+// --- preview-only pre-merge apply (PR #2933, check run 34922885252) ------
+
+const PRE = '20260915023506'
+const PRE_FILE = file(PRE, 'pre_merge')
+const PRE_BODY = '-- header\ncreate table x (a int);\n\ncreate function f() returns int language sql as $$ select 1; $$;\n'
+const PRE_STATEMENTS = ['-- header\ncreate table x (a int)', 'create function f() returns int language sql as $$ select 1; $$']
+const preIo = ({ production = new Set([APPLIED]), preview = new Set([APPLIED, PRE]), body = PRE_BODY, statements = PRE_STATEMENTS, kind = 'added', calls = [] } = {}) => ({
+  editedMigrations: () => [{ version: PRE, file: PRE_FILE, kind }],
+  readMigration: () => body,
+  appliedVersions: async (ref) => (ref === PROJECT_REFS.production ? production : preview),
+  previewStatements: async (ref, version) => { calls.push([ref, version]); if (statements instanceof Error) throw statements; return statements },
+})
+
+test('pre-merge preview apply: an added file identical to preview statements is ALLOWED', async () => {
+  const calls = []
+  const result = await runCheck({ io: preIo({ calls }) })
+  assert.deepEqual(result.findings, [])
+  assert.equal(result.findings.allowed[0].previewApply.statementCount, 2)
+  assert.deepEqual(calls, [[PROJECT_REFS.preview, PRE]])
+  assert.match(formatReport(result.edits, result.findings).join('\n'), /ALLOWED: 20260915023506 is an added file applied in preview only/)
+})
+
+test('pre-merge preview apply: CRLF checkout of the identical body is still ALLOWED', async () => {
+  const result = await runCheck({ io: preIo({ body: PRE_BODY.replaceAll('\n', '\r\n') }) })
+  assert.deepEqual(result.findings, [])
+})
+
+test('pre-merge preview apply: a MODIFIED body is REFUSED (incident #2037 shape)', async () => {
+  for (const body of [
+    PRE_BODY.replace('a int', 'a bigint'),
+    PRE_BODY.replace('select 1', 'select 12'),
+    `${PRE_BODY}grant all on x to anon;\n`,
+    PRE_BODY.replace('-- header', '-- header!'),
+    PRE_BODY.replace('create table x (a int);\n', ''),
+  ]) {
+    const result = await runCheck({ io: preIo({ body }) })
+    assert.equal(result.findings.length, 1, JSON.stringify(body))
+  }
+})
+
+test('pre-merge preview apply: production-applied versions stay REFUSED and never read statements', async () => {
+  const calls = []
+  const result = await runCheck({ io: preIo({ production: new Set([APPLIED, PRE]), calls }) })
+  assert.equal(result.findings.length, 1)
+  assert.deepEqual(calls, [])
+})
+
+test('pre-merge preview apply: only ADDED files qualify', async () => {
+  for (const kind of ['modified', 'deleted', 'renamed', 'copied', 'type-changed']) {
+    const result = await runCheck({ io: preIo({ kind }) })
+    assert.equal(result.findings.length, 1, kind)
+  }
+})
+
+test('pre-merge preview apply: unknown or unreadable evidence FAILS CLOSED', async () => {
+  for (const statements of [new Unknown('api down'), null, [], [''], [' padded '], [42], 'not an array']) {
+    const result = await runCheck({ io: preIo({ statements }) })
+    assert.equal(result.findings.length, 1, String(statements))
+  }
+  assert.equal((await runCheck({ io: preIo({ body: null }) })).findings.length, 1, 'unreadable file')
+  const noReader = preIo(); delete noReader.previewStatements
+  assert.equal((await runCheck({ io: noReader })).findings.length, 1, 'no evidence reader')
+  assert.equal(fileMatchesLedgerStatements('select 1;\rselect 2', ['select 1', 'select 2']), false, 'bare CR')
+})
+
+test('pre-merge preview apply: the statements reader refuses production and malformed input', async () => {
+  const ok = async () => ({ ok: true, text: async () => JSON.stringify([{ statements: ['select 1'] }]) })
+  assert.deepEqual(await fetchLedgerStatements(PROJECT_REFS.preview, PRE, 't', { fetchImpl: ok }), ['select 1'])
+  await assert.rejects(fetchLedgerStatements(PROJECT_REFS.production, PRE, 't', { fetchImpl: ok }), /preview project only/)
+  await assert.rejects(fetchLedgerStatements(PROJECT_REFS.preview, "1' or '1", 't', { fetchImpl: ok }), /14 digits/)
+  await assert.rejects(fetchLedgerStatements(PROJECT_REFS.preview, PRE, '', { fetchImpl: ok }), /not set/)
+  const rows = (value) => async () => ({ ok: true, text: async () => JSON.stringify(value) })
+  await assert.rejects(fetchLedgerStatements(PROJECT_REFS.preview, PRE, 't', { fetchImpl: rows([]) }), /exactly one/)
+  await assert.rejects(fetchLedgerStatements(PROJECT_REFS.preview, PRE, 't', { fetchImpl: rows([{ statements: null }]) }), /exactly one/)
+  await assert.rejects(fetchLedgerStatements(PROJECT_REFS.preview, PRE, 't', { fetchImpl: async () => ({ ok: false, status: 500, text: async () => '' }) }), /500/)
 })

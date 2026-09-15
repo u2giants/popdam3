@@ -37,7 +37,9 @@ export function selectNewestCommitStatus(rows,context){
   return matching.sort((a,b)=>b.createdAt-a.createdAt||b.id-a.id)[0]??null
 }
 import { buildEvidenceBundle, canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
-import { selectPreviewRoute } from './orchestrator-flow/select-preview-route.mjs'
+import { assertDeliveryPreflightBeforeReview, runDeliveryPreflightGate } from './orchestrator-flow/delivery-preflight-gate.mjs'
+import { trustedEvidenceRegistryReader } from './orchestrator-flow/delivery-preflight.mjs'
+import { bindSenderPreviewClassification, databasePreviewRequiredFromEvidenceBundle, selectPreviewRoute, validatePreviewClassification } from './orchestrator-flow/select-preview-route.mjs'
 import { PROJECT_REFS } from './orchestrator-flow/read-preview-ledger.mjs'; import { verdictOpensLine as sharedVerdictOpensLine, evidenceTiedToHead as sharedEvidenceTiedToHead, isApprovalFor as sharedIsApprovalFor, isVerdictFor as sharedIsVerdictFor, anyVerdictFor as sharedAnyVerdictFor } from './lib/review-verdict.mjs'
 import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, REVIEW_VERDICTS, assertFindingsRefForPr, findingsDigest, formatVerdictMessage, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact, verdictRef } from './lib/review-verdict-artifact.mjs'
 import { changedPathsFromPullRequestFiles, classifyChangedPaths, classifyLightweightMergePullRequestFiles } from './lib/documents-only-change.mjs'
@@ -247,7 +249,7 @@ export const REVIEWERS = Object.freeze([
 // every historical GLM review recorded before this change still has to resolve to
 // a wrapper. One of those lookups is not null-guarded, so a missing name is a
 // crash, not a graceful miss. Retired names stay readable forever; only
-// ACTIVE_REVIEWERS receives new work -- the same pattern used to pause Qwen.
+// ACTIVE_REVIEWERS receives new work -- the same exclusion QUARANTINED_REVIEWERS applies.
 //
 // 'glm-5.3' occupies the SAME rotation slot 'glm-5.2' held, so no in-flight
 // sequence is reassigned out of order. It no longer keeps ACTIVE_REVIEWERS at the
@@ -1185,6 +1187,7 @@ export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.
   })
 }
 function gh(args,options) { return runGitHubCommand(args,options) }
+const hasLabel = (issue, name) => (issue?.labels ?? []).some((label) => (typeof label === 'string' ? label : label?.name) === name)
 
 export function createRefWithReadback(ref,sha,{run=gh,readRef}={}) {
   try{run(['api','-X','POST',`repos/${REPO}/git/refs`,'-f',`ref=${ref}`,'-f',`sha=${sha}`],{expectedFailure:EXPECTED_REF_PRESENCE,idempotentWrite:true});return true}
@@ -1455,6 +1458,31 @@ export function matchesGeneratedTypesProof(proof,evidence){
   return proof?.schema_version===1&&proof.work_issue===evidence.work_issue&&proof.application_commit_sha===evidence.application_commit_sha&&proof.result==='passed'&&proof.generated_types_sha256===evidence.generated_types_output_digest
 }
 
+export function buildDatabasePreviewFileSnapshot(files,base,head,readContent){
+  const allowed=new Set(['added','modified','removed','renamed','copied','changed','unchanged']),seen=new Set()
+  const inspect=(tree,path,side)=>{
+    const entry=tree.get(path)
+    if(!entry?.blob_sha||!/^[0-9a-f]{40}$/i.test(String(entry.blob_sha))||typeof entry.mode!=='string'||typeof entry.type!=='string')throw new LaneError(`live Git identity is unavailable for ${side} file ${path}`)
+    let content
+    try{content=readContent(path,side)}catch(error){throw new LaneError(`live Git content is unavailable for ${side} file ${path}: ${error.message}`)}
+    if(typeof content!=='string')throw new LaneError(`live Git content is not text for ${side} file ${path}`)
+    return {mode:entry.mode,type:entry.type,blob_sha:entry.blob_sha,sha256:sha256(content),content}
+  }
+  return files.map((file)=>{
+    const path=String(file?.filename??'').replaceAll('\\','/'),status=String(file?.status??''),previousPath=String(file?.previous_filename??path).replaceAll('\\','/')
+    if(!path||seen.has(path)||!allowed.has(status)||((status==='renamed'||status==='copied')&&!file?.previous_filename))throw new LaneError(`live Git identity is unavailable for changed file ${path||'(missing path)'}`)
+    seen.add(path)
+    const oldSide=status==='added'?null:inspect(base,previousPath,'base'),newSide=status==='removed'?null:inspect(head,path,'head')
+    const sides=[oldSide,newSide].filter(Boolean),regular=sides.every((side)=>side.type==='blob'&&side.mode==='100644'),text=sides.every((side)=>!side.content.includes('\0'))
+    const databaseSignal=sides.some((side)=>/(?:\b(?:create|alter|drop|grant|revoke|insert|update|delete)\b[\s\S]{0,40}\b(?:table|view|function|policy|role|schema|into|from)\b|\bsupabase\b|\bpsql\b|\bapply_migration\b|\bdb\s+push\b)/i.test(side.content))
+    const databasePath=[path,previousPath].some((candidate)=>/(?:^|\/)(?:supabase|migrations?|policies)(?:\/|$)|\.sql$/i.test(candidate)),safeDocumentation=/^(?:docs\/.*\.(?:md|txt)|HANDOFF\.d\/.*\.md|plan_[^/]*\.md|README\.md)$/i.test(path)
+    const unsafeHistory=['renamed','removed'].includes(status)||!regular||!text
+    const impact=databaseSignal||databasePath?'database-behavior':unsafeHistory?'ambiguous':safeDocumentation?'documentation':'ambiguous'
+    const selected=newSide??oldSide
+    return {path,status,...(previousPath!==path?{previous_path:previousPath}:{}),mode:selected.mode,blob_sha:selected.blob_sha,sha256:selected.sha256,base:oldSide?{mode:oldSide.mode,type:oldSide.type,blob_sha:oldSide.blob_sha,sha256:oldSide.sha256}:null,head:newSide?{mode:newSide.mode,type:newSide.type,blob_sha:newSide.blob_sha,sha256:newSide.sha256}:null,impact}
+  }).sort((a,b)=>a.path.localeCompare(b.path))
+}
+
 export const githubIo = {
   enforceAdmission:true,
   // Owner ruling 2026-09-11 (marker #2758): no global FIFO for reviewer draws. Any PR
@@ -1463,6 +1491,12 @@ export const githubIo = {
   enableReviewerQueue:false,
   enableReviewerSilence:true,
   requiresExactReviewHeadSha: true,
+  databasePreviewClassification(issue){
+    const evidence=this.databasePreviewClassificationEvidence
+    if(evidence===undefined||evidence===null)return null
+    if(evidence.decision===undefined&&Number(evidence.issue)!==Number(issue))throw new LaneError(`database preview evidence is for issue #${evidence.issue}, not #${issue}`)
+    return evidence
+  },
   // The changed-file list a documents-only classification is made from (#2102).
   // Fetched through `ghPaginated` so this side and the merge gate
   // (`check-exact-head-approval.mjs`) build the list the SAME way: paginate,
@@ -1616,10 +1650,30 @@ export const githubIo = {
   atomicReviewMutexRelease(ownerSha){
     return this.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
   },
-  openClaims() {
-    const rows = ghPaginated(`repos/${REPO}/issues?state=open&labels=db-claim&per_page=100`)
-    return rows.filter((x) => !x.pull_request).map((x) => ({ number: x.number, title: x.title, body: x.body, url: x.html_url }))
-  },closedClaimsForWork(issue,pager=ghPaginated){return pager(`repos/${REPO}/issues?state=closed&labels=db-claim&per_page=100`).filter((x)=>!x.pull_request&&[...String(x.title??'').matchAll(/#(\d+)\b/g)].map((match)=>Number(match[1])).filter((number)=>number===Number(issue)).length===1&&[...String(x.title??'').matchAll(/#(\d+)\b/g)].length===1).map((x)=>({number:x.number,title:x.title,body:x.body,url:x.html_url,state:x.state}))},
+  openClaims(pager = ghPaginated, search = (query) => ghJson(['api', `search/issues?q=${encodeURIComponent(query)}&per_page=100`])) {
+    // #2958: GitHub's `labels=` filtered listing returned [] while the same issues
+    // were open and labelled. List unfiltered and filter the label client-side.
+    const rows = pager(`repos/${REPO}/issues?state=open&per_page=100`)
+    if (!Array.isArray(rows)) throw new LaneError('open issue listing was unreadable; refusing to treat open claims as empty')
+    const issues = rows.filter((x) => !x.pull_request)
+    const claims = issues.filter((x) => hasLabel(x, 'db-claim')).map((x) => ({ number: x.number, title: x.title, body: x.body, url: x.html_url }))
+    const listing = `open issue listing returned ${rows.length} rows (${rows.length - issues.length} pull requests, ${issues.length - claims.length} issues without db-claim, ${claims.length} claims)`
+    // #2958 run 34985444563: the merge lane read ZERO claims in CI while the lease check
+    // in the same run, same token and same call, read #2957. An empty or PR-only read
+    // must never pass as "no open claims": refuse, or prove absence a second way.
+    if (issues.length === 0) throw new LaneError(`${listing}; no issues at all is not a readable answer, refusing to treat open claims as empty`)
+    if (claims.length === 0) {
+      const found = search(`repo:${REPO} is:issue is:open label:db-claim`)
+      if (!Number.isInteger(found?.total_count)) throw new LaneError(`${listing}; the db-claim search cross-check was unreadable, refusing to treat open claims as empty`)
+      if (found.total_count !== 0) throw new LaneError(`${listing}; but GitHub search reports ${found.total_count} open db-claim issues (${(found.items ?? []).map((x) => `#${x.number}`).join(', ')}); refusing to treat open claims as empty`)
+    }
+    return Object.defineProperty(claims, 'listing', { value: listing, enumerable: false })
+  },closedClaimsForWork(issue,pager=ghPaginated){const rows=pager(`repos/${REPO}/issues?state=closed&labels=db-claim&per_page=100`)
+    // #2958: GitHub's labels= listing has returned [] for labelled issues. Closed claim
+    // history only ever grows, so an empty or unreadable listing is a GitHub fault;
+    // treating it as "no history" could make a consumed version or object look free.
+    if(!Array.isArray(rows)||rows.length===0)throw new LaneError('closed db-claim history listing returned no rows; refusing to treat claim history as empty')
+    return rows.filter((x)=>!x.pull_request&&[...String(x.title??'').matchAll(/#(\d+)\b/g)].map((match)=>Number(match[1])).filter((number)=>number===Number(issue)).length===1&&[...String(x.title??'').matchAll(/#(\d+)\b/g)].length===1).map((x)=>({number:x.number,title:x.title,body:x.body,url:x.html_url,state:x.state}))},
   // EVERY open issue is audited, not just the ones somebody remembered to
   // label. Filtering on `labels=db-work` here is what let issues #1188, #1238,
   // #1242, #1266 and #1268 sit unlabelled and therefore invisible to the queue
@@ -1676,6 +1730,12 @@ export const githubIo = {
   branchPulls(branch) { return ghPaginated(`repos/${REPO}/pulls?state=all&head=${REPO.split('/')[0]}:${encodeURIComponent(branch)}&per_page=100`) },
   getPr(number) { return ghJson(['api', `repos/${REPO}/pulls/${number}`]) },
   getPrFiles(number) { return ghPaginated(`repos/${REPO}/pulls/${number}/files?per_page=100`) },
+  databasePreviewFileSnapshot(pr,baseSha,headSha){
+    const readTree=(ref)=>{const body=ghJson(['api',`repos/${REPO}/git/trees/${ref}?recursive=1`]);if(body?.truncated===true||!Array.isArray(body?.tree))throw new LaneError(`live Git tree is incomplete for ${ref}`);return new Map(body.tree.map((row)=>[row.path,{blob_sha:row.sha,mode:row.mode,type:row.type}]))}
+    const base=readTree(baseSha),head=readTree(headSha),files=this.getPrFiles(pr)
+    if(!Array.isArray(files)||!files.length)throw new LaneError('live pull request changed-file set is empty or unreadable')
+    return buildDatabasePreviewFileSnapshot(files,base,head,(path,side)=>this.getFileAt(path,side==='base'?baseSha:headSha))
+  },
   comparePullRequestFiles(baseSha,headSha) {
     const comparison=ghJson(['api',`repos/${REPO}/compare/${baseSha}...${headSha}`])
     if(comparison?.base_commit?.sha!==baseSha||!Array.isArray(comparison?.files))throw new LaneError('exact base-to-head comparison is unreadable')
@@ -2117,7 +2177,62 @@ function livePreviewLedger(){
   const code=`import {readPreviewLedger} from './scripts/orchestrator-flow/read-preview-ledger.mjs';try{console.log(JSON.stringify(await readPreviewLedger()))}catch(e){console.error(e.message);process.exit(2)}`
   try{return JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env:process.env}))}catch(error){throw new LaneError(`fresh preview ledger is unavailable (${String(error.stderr??error.message).trim()})`)}
 }
+export function deriveLiveNoDatabasePreview(issue,io){
+  const evidence=io.databasePreviewClassification?.(issue)
+  if(evidence===null||evidence===undefined)return null
+  const admission=databasePreviewAdmission({preparePreviewDispatch:Number(issue),issue:Number(issue),pr:evidence.pr},io)
+  if(admission.decision!=='NO_DATABASE_PREVIEW')return null
+  return {...admission,route:'no_database_preview',route_context:''}
+}
+
+export function databasePreviewAdmission(options,io){
+  const guarded=Boolean(options.claim||options.assignReviewer||options.acquireExclusive||options.preparePreviewDispatch||options.repairPreviewReady||options.reconcileFlow)
+  if(!guarded)return {guarded:false,decision:'NOT_APPLICABLE'}
+  if(io.databasePreviewClassificationEvidence===undefined||io.databasePreviewClassificationEvidence===null)return {guarded:true,decision:'DATABASE_PREVIEW_REQUIRED',reason:'no no-database-preview evidence was supplied; structural admission remains required'}
+  const issue=Number(options.issue??options.preparePreviewDispatch)
+  if(!Number.isInteger(issue)||issue<=0)throw new LaneError('supplied database preview evidence requires an exact --issue for this admission command')
+  const supplied=io.databasePreviewClassification(issue)
+  const sender=supplied?.decision!==undefined&&supplied?.database_preview===undefined
+  const evidence=sender?{repository:REPO,issue,pr:Number(options.pr),base_sha:supplied.base_sha,head_sha:supplied.head_sha,database_preview:supplied,bundle_id:'0'.repeat(64)}:supplied
+  if(evidence?.repository!==REPO||!Number.isInteger(evidence?.pr)||evidence.pr<=0||Number(options.pr)!==evidence.pr||!/^[0-9a-f]{40}$/i.test(String(evidence?.base_sha??''))||!/^[0-9a-f]{40}$/i.test(String(evidence?.head_sha??''))||!/^[0-9a-f]{64}$/.test(String(evidence?.bundle_id??'')))throw new LaneError('database preview evidence requires the exact command repository, PR, base, head, and bundle identities')
+  if(options.headSha!==undefined&&String(options.headSha)!==evidence.head_sha)throw new LaneError('database preview evidence head does not match the command request')
+  let live
+  try{live=io.getPr(evidence.pr)}catch(error){throw new LaneError(`live pull request identity is unreadable: ${error.message}`)}
+  if(!live||live.number!==evidence.pr||live.state!=='open'||live.base?.repo?.full_name!==REPO||live.base?.sha!==evidence.base_sha||live.head?.sha!==evidence.head_sha)throw new LaneError('database preview evidence does not match the authenticated live pull request repository, base, and head')
+  let inspectedFiles
+  try{inspectedFiles=io.databasePreviewFileSnapshot(evidence.pr,evidence.base_sha,evidence.head_sha)}catch(error){throw new LaneError(`authenticated live changed-file evidence is unreadable: ${error.message}`)}
+  let finalLive
+  try{finalLive=io.getPr(evidence.pr)}catch(error){throw new LaneError(`final live pull request identity is unreadable: ${error.message}`)}
+  if(!finalLive||finalLive.number!==evidence.pr||finalLive.state!=='open'||finalLive.base?.repo?.full_name!==REPO||finalLive.base?.sha!==evidence.base_sha||finalLive.head?.sha!==evidence.head_sha)throw new LaneError('pull request moved while authenticated changed-file evidence was read')
+  const liveBundleId=sha256(canonicalJson({repository:REPO,pr:evidence.pr,base_sha:evidence.base_sha,head_sha:evidence.head_sha,files:inspectedFiles}))
+  if(sender){
+    evidence.database_preview=bindSenderPreviewClassification(supplied,inspectedFiles,{repository:REPO,issue,pr:evidence.pr,base_sha:evidence.base_sha,head_sha:evidence.head_sha})
+    evidence.bundle_id=liveBundleId
+  }
+  if(evidence.bundle_id!==liveBundleId)throw new LaneError('database preview bundle identity does not match authenticated live Git files')
+  const claimedImpacts=new Map((evidence.database_preview?.files??[]).map((file)=>[file.path,file.impact]))
+  if(inspectedFiles.some((file)=>claimedImpacts.get(file.path)!==file.impact))throw new LaneError('database preview impact classification does not match authenticated live file content')
+  let classification
+  try{classification=validatePreviewClassification(evidence.database_preview,inspectedFiles,{repository:REPO,issue,pr:evidence.pr,base_sha:evidence.base_sha,head_sha:evidence.head_sha})}
+  catch(error){throw new LaneError(`database preview classification is unverifiable: ${error.message}`)}
+  if(classification.decision==='NO_DATABASE_PREVIEW')return {guarded:true,decision:classification.decision,reason:'exact inspected inputs prove no database preview is applicable',next_action:'return-to-natural-owner',issue,pr:evidence.pr,base_sha:evidence.base_sha,head_sha:evidence.head_sha,bundle_id:evidence.bundle_id,classification_digest:classification.inspected_digest,applicable_checks:classification.applicable_checks}
+  return {guarded:true,decision:'DATABASE_PREVIEW_REQUIRED',reason:classification.reason_code}
+}
+
+export function readDatabasePreviewClassificationFile(file,{reader=readFileSync}={}){
+  if(typeof file!=='string'||!file.trim())throw new LaneError('database preview classification file path is required')
+  let parsed
+  try{parsed=JSON.parse(reader(file,'utf8'))}catch(error){throw new LaneError(`database preview classification file is unreadable: ${error.message}`)}
+  if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new LaneError('database preview classification file must contain exactly one evidence object')
+  return parsed
+}
+
+export function withDatabasePreviewClassificationFile(io,file,options={}){
+  return {...io,databasePreviewClassificationEvidence:readDatabasePreviewClassificationFile(file,options)}
+}
 export function deriveLivePreviewCandidate(issue,io,{claimNumber=null}={}){
+  const noDatabasePreview=deriveLiveNoDatabasePreview(issue,io)
+  if(noDatabasePreview)return noDatabasePreview
   const claims=io.openClaims().map((claim)=>({claim,lease:parseAuthorLease(claim.body)}));for(const row of claims){const titleIssues=claimTitleIssues(row.claim);if(titleIssues.includes(issue)&&titleIssues.length!==1)throw new LaneError(`open claim #${row.claim.number} ambiguously identifies work issue #${issue}`)}const owned=claims.filter((row)=>claimTitleWorkIssue(row.claim)===issue),allClosed=owned.length===0?(io.closedClaimsForWork?.(issue)??[]).map((claim)=>({claim,lease:parseAuthorLease(claim.body)})):[],closed=claimNumber===null?allClosed:allClosed.filter((row)=>Number(row.claim.number)===Number(claimNumber));if(owned.length>1)throw new LaneError(`work issue #${issue} must have exactly one live protected claim`);if(claimNumber!==null&&owned.length===0&&closed.length!==1)throw new LaneError(`closed claim #${claimNumber} is not a unique historical claim for work issue #${issue}`);for(const row of closed)if(claimWorkIssue(row.claim)!==issue)throw new LaneError(`closed claim #${row.claim.number} title does not identify work issue #${issue}`);for(const row of closed)if(io.openPulls().some((pr)=>pr.head?.ref===row.lease.branch))throw new LaneError(`closed claim #${row.claim.number} cannot recover while its pull request is still open`)
   const recoverable=closed.filter((row)=>{const merged=(io.branchPulls?.(row.lease.branch)??[]).filter((pr)=>pr.head?.ref===row.lease.branch&&pr.merged_at&&pr.merge_commit_sha);if(merged.length>1)throw new LaneError(`closed claim #${row.claim.number} has multiple merged pull requests`);if(merged.length===1&&!io.mergeCommitInMain(merged[0].merge_commit_sha))throw new LaneError(`merged claim #${row.claim.number} merge commit ${merged[0].merge_commit_sha} is not in main history`);return merged.length===1});if(owned.length===0&&recoverable.length!==1)throw new LaneError(`work issue #${issue} has ${recoverable.length} recoverable closed claims; historical recovery requires exactly one${recoverable.length>1?' or an explicit --claim-number <claim> selector':''}`);const recoveredClosed=owned.length===0,{claim,lease}=recoveredClosed?recoverable[0]:owned[0],pulls=io.openPulls().filter((pr)=>pr.head?.ref===lease.branch)
   // Merge-first (AGENTS.md section 4 rule 2): once the claim PR merges there is no open
@@ -2145,10 +2260,13 @@ export function deriveLivePreviewCandidate(issue,io,{claimNumber=null}={}){
   const structural=inspectPrStructuralChange(prFiles.filter((file)=>migrations.includes(file.filename)).map((file)=>({...file,content:contents.get(file.filename)}))),leaseWrites=[...(lease.writes??[])].sort()
   if(structural.objects.length!==leaseWrites.length||structural.objects.some((value,index)=>value!==leaseWrites[index]))throw new LaneError(`pull request #${pr.number} structural objects do not exactly match claim #${claim.number} writes; preview preparation refused`)
   const bundle=buildEvidenceBundle({migrations,focusedFiles:changed.filter((file)=>file.startsWith('supabase/tests/')),verificationFiles:changed.filter((file)=>file.startsWith('scripts/production-verification-sidecars/')),writes:lease.writes,reads:lease.reads,migrationOrderDigest:sha256(canonicalJson(order)),issue,pr:pr.number,claim:claim.number,baseMainSha:pr.base.sha,integrationSha:head},{isClean:()=>true,fileExists:(file)=>contents.has(file),readFile:(file)=>contents.get(file)})
-  const work=io.getIssue(issue),scope=parseQueueScope(work?.body??''),gate=io.previewGateProof(issue,pr.number,head,bundle.bundle_id,scope.dependencies)
+  const work=io.getIssue(issue),scope=parseQueueScope(work?.body??'')
+  if(!scope)throw new LaneError(`issue #${issue} has no db-work-scope block; add exactly one before preparing preview dispatch`)
+  const gate=io.previewGateProof(issue,pr.number,head,bundle.bundle_id,scope.dependencies)
   const main=io.mainSha(),mainVersions=io.treeFiles(main).filter((file)=>/^supabase\/migrations\/\d{14}_/.test(file)).map((file)=>path.basename(file).slice(0,14)),preview=io.previewLedger?.()??livePreviewLedger(),originalApplyEvidence=versions.every((version)=>preview.versions.includes(version))?validateOriginalPreviewApplyEvidence({issue,pr:pr.number,versions,mergeCommitSha:merged?pr.merge_commit_sha:null},io):null
   const claimRows=claims.map((row)=>{const linked=io.openPulls().find((p)=>p.head?.ref===row.lease.branch);return{issue:claimTitleWorkIssue(row.claim),pr:linked?.number??0,versions:[row.lease.version],merged:false}}).filter((row)=>row.pr&&row.issue!==null)
-  const route=selectPreviewRoute({issue,pr:pr.number,head_sha:head,bundle_id:bundle.bundle_id,versions,dependency_closure_complete:gate.dependency_closure_complete,claims:claimRows,main_versions:mainVersions,preview_versions:preview.versions,original_apply_evidence:originalApplyEvidence,merged})
+  const databasePreview=databasePreviewRequiredFromEvidenceBundle(bundle)
+  const route=selectPreviewRoute({repository:REPO,issue,pr:pr.number,base_sha:pr.base.sha,head_sha:head,bundle_id:bundle.bundle_id,database_preview:databasePreview,inspected_files:databasePreview.files.map(({path,sha256})=>({path,sha256})),versions,dependency_closure_complete:gate.dependency_closure_complete,claims:claimRows,main_versions:mainVersions,preview_versions:preview.versions,original_apply_evidence:originalApplyEvidence,merged})
   if(route.status!=='READY')throw new LaneError(`preview route is ${route.status}: ${route.reason}`)
   const routeName=route.route==='NORMAL_PREVIEW'?'ordinary_preview_apply':route.route==='POST_MERGE_REHEARSAL'?'merged_rehearsal':'historical_rebind'
   const routeContext=routeName==='ordinary_preview_apply'?'':main
@@ -3805,7 +3923,8 @@ export function assertDurableReviewApproval(issue,pr,headSha,io=githubIo){
     // an exclusion clears a refused head's assignment and leaves its verdict,
     // and that refusal must still block (grok review of PR #2780).
     const priors=[...new Set([REVIEW_ASSIGNMENT_REF_PREFIX,REVIEW_REPLACEMENT_REF_PREFIX,REVIEW_RETURN_REF_PREFIX,REVIEW_VERDICT_REF_PREFIX,REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((p)=>(io.listRefs(prefix(p))??[]).map(({ref})=>new RegExp(`^${Number(issue)}-${Number(pr)}-([0-9a-f]{40})`).exec(String(ref).slice(p.length+1))?.[1])).filter(Boolean))].filter((sha)=>sha!==head)
-    const equivalent=priors.filter((sha)=>io.contentPreservingRefresh(sha,head)?.ok===true)
+    // #2728: a carry records the approved implementation digest; a proof without one carries nothing.
+    const equivalent=priors.filter((sha)=>{const proof=io.contentPreservingRefresh(sha,head);return proof?.ok===true&&/^[0-9a-f]{64}$/.test(String(proof.implementation_digest??''))})
     for(const sha of equivalent){
       let rows
       try{rows=readReviewVerdicts(issue,pr,sha,io)}catch(error){throw new LaneError(`${exactError.message}; an APPROVE cannot be carried forward because the reviewer records at head ${sha}, whose pull request diff is identical to this head, could not be read: ${error?.message??error}`)}
@@ -5970,7 +6089,12 @@ export function acquireAuthorLane(options, now = new Date(), io = githubIo) {
     const expectedDispatch=io.enforceAdmission===true?outcomeEvent(dispatchArgs):null
     try {
       requireOwnedRef(MUTEX_REF,ownerSha,io)
-      if(io.enforceAdmission===true)advanceOutcome(dispatchArgs,io)
+      // A re-claim after a released claim (e.g. its PR closed unmerged) finds the
+      // work issue already dispatched; dispatch is satisfied, not an illegal advance.
+      if(io.enforceAdmission===true){
+        const prior=outcomeHistory(io.issueComments(Number(options.admitIssue)),Number(options.admitIssue))
+        if(!(prior.valid&&prior.state==='dispatched'))advanceOutcome(dispatchArgs,io)
+      }
     }
     catch(error) {
       if(io.readRef(MUTEX_REF)!==ownerSha)throw new LaneError(`lost mutex ownership after claim creation; claim ${url} remains protected for explicit recovery: ${error.message}`)
@@ -6809,15 +6933,18 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       const pr = io.getPr?.(metadata.pr)
       if (!pr?.head?.sha || pr.head.sha !== metadata.headSha) throw new LaneError('exclusive lane head SHA does not match the live pull request')
       const claims = io.openClaims()
-      const matching = claims.map((claim)=>({ ...claim, lease:parseAuthorLease(claim.body) })).filter((claim)=>!claim.lease.legacy && claim.lease.branch===pr.head.ref && claim.lease.active)
-      if (kind !== 'merge' && matching.length !== 1) throw new LaneError('exclusive lane requires exactly one live author claim for the pull-request branch')
-      if (kind === 'merge' && matching.length > 1) throw new LaneError('exclusive merge lane requires at most one live author claim for the pull-request branch')
+      const parsedClaims = claims.map((claim)=>({ ...claim, lease:parseAuthorLease(claim.body) }))
+      const matching = parsedClaims.filter((claim)=>!claim.lease.legacy && claim.lease.branch===pr.head.ref && claim.lease.active)
+      // Refusals name exactly what the lane saw, so a CI-only mismatch (#2958) is diagnosable from the log.
+      const claimsSeen = () => `; PR head branch compared: ${JSON.stringify(pr.head.ref ?? null)}; open claims seen (${parsedClaims.length}): ${parsedClaims.map((claim)=>`#${claim.number} branch=${JSON.stringify(claim.lease.branch ?? null)} active=${claim.lease.active}${claim.lease.legacy ? ' legacy' : ''}`).join(', ') || 'none'}${claims.listing ? `; ${claims.listing}` : ''}`
+      if (kind !== 'merge' && matching.length !== 1) throw new LaneError(`exclusive lane requires exactly one live author claim for the pull-request branch${claimsSeen()}`)
+      if (kind === 'merge' && matching.length > 1) throw new LaneError(`exclusive merge lane requires at most one live author claim for the pull-request branch${claimsSeen()}`)
       if (kind === 'merge' && matching.length === 0) {
         let files
         try { files = io.getPrFiles?.(metadata.pr) } catch (error) { throw new LaneError(`exclusive merge lane cannot read pull request files (${error.message})`) }
         if (!Array.isArray(files)) throw new LaneError('exclusive merge lane cannot establish whether the pull request changes migrations')
         const changesMigration = files.some((file) => /^supabase\/migrations\/[^/]+\.sql$/.test(String(file?.path ?? file?.filename ?? '')))
-        if (changesMigration) throw new LaneError('exclusive merge lane requires exactly one live author claim for a pull request that changes migrations')
+        if (changesMigration) throw new LaneError(`exclusive merge lane requires exactly one live author claim for a pull request that changes migrations${claimsSeen()}`)
       }
       if (kind === 'merge' && pr.base?.sha !== io.mainSha?.()) throw new LaneError('pull request is not based on the current main tip')
       if (kind === 'merge' && io.readRef(EXCLUSIVE_REFS.production)) throw new LaneError('production promotion is active; merges are frozen')
@@ -6848,7 +6975,7 @@ export function authorizeRepositoryMaintenanceStatus(options, io = githubIo) {
     let files
     try{files=io.comparePullRequestFiles(baseSha,headSha)}catch(error){throw new LaneError(`repository-maintenance authorization cannot read the exact base-to-head comparison (${error.message})`)}
     const verdict=classifyLightweightMergePullRequestFiles(files)
-    if(!verdict.documentsOnly)throw new LaneError(`repository-maintenance authorization refused: ${verdict.reason}`)
+    if(!verdict.documentsOnly)throw Object.assign(new LaneError(`repository-maintenance authorization refused: ${verdict.reason}`),{notApplicable:true})
     const finalPr=io.getPr(prNumber)
     if(finalPr?.base?.sha!==baseSha||finalPr?.base?.ref!=='main'||finalPr?.base?.repo?.full_name!==REPO||finalPr?.head?.sha!==headSha)throw new LaneError('repository-maintenance authorization pull request moved during exact comparison')
     requireOwnedRef(MUTEX_REF,ownerSha,io)
@@ -6867,8 +6994,18 @@ export function authorizeRepositoryMaintenanceStatus(options, io = githubIo) {
         }catch{statusHistoryUnreadable=true}
       }
       const refusalContext=options.revokeRequiredStatus||replacesLightweightSuccess||statusHistoryUnreadable?context:'Documents-only merge authorization'
-      try{io.postCommitStatus(headSha,{state:'failure',context:refusalContext,description:'Lightweight authorization refused; guarded code checks required',targetUrl})}
+      // #2838: an ordinary code PR is not a failure of this advisory check. Report it as
+      // not applicable (green) so red here always means a genuine refusal. Revocations of
+      // the required context above still post failure and still fail the job.
+      const notApplicable=error?.notApplicable===true&&refusalContext!==context
+      try{io.postCommitStatus(headSha,notApplicable
+        ?{state:'success',context:refusalContext,description:'Not applicable: code change; guarded code checks required',targetUrl}
+        :{state:'failure',context:refusalContext,description:'Lightweight authorization refused; guarded code checks required',targetUrl})}
       catch(statusError){throw new LaneError(`${error.message}; refusal status also failed: ${statusError.message}`)}
+      if(notApplicable){
+        operationError=null
+        return {pr:prNumber,headSha,context:refusalContext,documentsOnly:false,notApplicable:true,reason:error.message,coordinationRef:MUTEX_REF,structuralStage:null}
+      }
     }
     throw error
   }
@@ -6910,6 +7047,8 @@ function parseArgs(argv) {
     else if (a === '--report-file') out.reportFile = argv[++i]
     else if (a === '--return-issue') out.returnIssue = Number(argv[++i])
     else if (a === '--assign-reviewer') out.assignReviewer = true
+    else if (a === '--delivery-preflight') out.deliveryPreflight = true
+    else if (['--preflight-input','--evidence-bundle','--prior-evidence-bundle','--prior-preflight-record','--integration-facts','--changed-files-file','--delivery-preflight-record'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if (a === '--exclude-reviewer') out.excludeReviewer = true
     else if (a === '--reinstate-reviewer-exclusion') out.reinstateReviewerExclusion = true
     else if (a === '--activate-review-cutover') out.activateReviewCutover = true
@@ -6944,7 +7083,7 @@ function parseArgs(argv) {
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest','--database-preview-classification-file'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if(a==='--confirm-local-dependency-unfixable')out.confirmLocalDependencyUnfixable=true
     else if(a==='--skip-doctor')out.skipDoctor=true
     else if(a==='--confirm-no-verdict')out.confirmNoVerdict=true
@@ -6961,7 +7100,7 @@ export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
     if(String(process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim())io=withMergedPrIssueBinding(io,process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING)
-    const primaryKeys=['authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','reissueMergedClaim','reversionClaim','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','reviewerCapacity','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','releaseClaim','releaseDuplicateClaim','cleanup','audit']
+    const primaryKeys=['authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','reissueMergedClaim','reversionClaim','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','reviewerCapacity','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','releaseClaim','releaseDuplicateClaim','cleanup','audit']
     const selectedPrimary=primaryKeys.filter((key)=>Object.prototype.hasOwnProperty.call(o,key))
     const hasAdmission=Object.prototype.hasOwnProperty.call(o,'admitIssue')
     if(selectedPrimary.length>1)throw new LaneError(`choose exactly one primary operation; received ${selectedPrimary.join(', ')}`)
@@ -6970,6 +7109,23 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(selectedPrimary.length===1&&numericPrimary.has(selectedPrimary[0])&&(!Number.isInteger(o[selectedPrimary[0]])||o[selectedPrimary[0]]<=0))throw new LaneError(`--${selectedPrimary[0].replace(/[A-Z]/g,(value)=>`-${value.toLowerCase()}`)} requires a positive number`)
     const admissionCombined=new Set(['claim','assignReviewer','replaceFailedReviewer','preparePreviewDispatch','acquireExclusive','advanceOutcome'])
     if(hasAdmission&&selectedPrimary.length===1&&!admissionCombined.has(selectedPrimary[0]))throw new LaneError(`--admit-issue cannot be combined with --${selectedPrimary[0].replace(/[A-Z]/g,(value)=>`-${value.toLowerCase()}`)}`)
+    if(o.databasePreviewClassificationFile)io=withDatabasePreviewClassificationFile(io,o.databasePreviewClassificationFile)
+    // DELIVERY PREFLIGHT (#2728). Both paths run before any GitHub read or write.
+    const readJsonArg=(file,label)=>{try{return JSON.parse(readFileSync(file,'utf8'))}catch{throw new LaneError(`${label} is unreadable: ${file}`)}}
+    const preflightAdapters=()=>({readEvidenceRegistration:trustedEvidenceRegistryReader(process.env.DELIVERY_EVIDENCE_REGISTRY_ROOT)})
+    if(o.deliveryPreflight){
+      if(!o.evidenceBundle)throw new LaneError('--delivery-preflight requires --evidence-bundle')
+      if(!o.preflightInput&&!o.priorPreflightRecord)throw new LaneError('--delivery-preflight requires --preflight-input, or a prior record to reuse')
+      const gate=runDeliveryPreflightGate({currentBundle:readJsonArg(o.evidenceBundle,'--evidence-bundle'),priorBundle:o.priorEvidenceBundle?readJsonArg(o.priorEvidenceBundle,'--prior-evidence-bundle'):null,priorRecord:o.priorPreflightRecord?readJsonArg(o.priorPreflightRecord,'--prior-preflight-record'):null,changedFiles:o.changedFilesFile?readJsonArg(o.changedFilesFile,'--changed-files-file'):[],integration:o.integrationFacts?readJsonArg(o.integrationFacts,'--integration-facts'):null,input:o.preflightInput?readJsonArg(o.preflightInput,'--preflight-input'):null},preflightAdapters())
+      if(!gate.reused&&!o.preflightInput)throw new LaneError(`the prior delivery preflight cannot be reused (${gate.plan.reason}); pass --preflight-input to re-run it`)
+      console.log(JSON.stringify(gate,null,2));return 0
+    }
+    if(o.assignReviewer&&(o.deliveryPreflightRecord||o.evidenceBundle)){
+      if(!o.deliveryPreflightRecord||!o.evidenceBundle)throw new LaneError('--assign-reviewer needs both --delivery-preflight-record and --evidence-bundle')
+      assertDeliveryPreflightBeforeReview({record:readJsonArg(o.deliveryPreflightRecord,'--delivery-preflight-record'),bundle:readJsonArg(o.evidenceBundle,'--evidence-bundle'),issue:o.issue,pr:o.pr,headSha:o.headSha,priorBundle:o.priorEvidenceBundle?readJsonArg(o.priorEvidenceBundle,'--prior-evidence-bundle'):null,changedFiles:o.changedFilesFile?readJsonArg(o.changedFilesFile,'--changed-files-file'):[],integration:o.integrationFacts?readJsonArg(o.integrationFacts,'--integration-facts'):null},preflightAdapters())
+    }
+    const previewAdmission=databasePreviewAdmission(o,io)
+    if(previewAdmission.decision==='NO_DATABASE_PREVIEW'){console.log(JSON.stringify(previewAdmission,null,2));return 0}
     if(o.authorizeRepositoryMaintenanceStatus){console.log(JSON.stringify(authorizeRepositoryMaintenanceStatus(o,io),null,2));return 0}
     if(o.resolveAdmittedIssueForPr){console.log(JSON.stringify(resolveAdmittedIssueForPr(o.resolveAdmittedIssueForPr,io),null,2));return 0}
     const admissionOnly=hasAdmission&&selectedPrimary.length===0

@@ -76,6 +76,13 @@ HARD_BLOCKED = {
     # 20260909202801 carries the exact same Git blob under the atomic claim
     # reissue for #2443. Never apply this original.
     "20260908195056",
+    # #2792 stranded preview-only original. Preview apply run 34920902290
+    # applied it at unmerged PR #2930 head a119760e; a later derived-from header
+    # changed the bytes, so the applied version can never be re-bound. Never
+    # merged, never applied to production. Reissued with the same function
+    # bodies plus the derived-from header as 20260915023506 under claim #2931.
+    # Never apply this original.
+    "20260915015414",
     # #505 merged-stranded original. Its first preview apply refused and rolled
     # back transactionally after live app drift invalidated an over-broad
     # licensor_id-is-null assumption. 20260830204711 carries the preserved
@@ -227,6 +234,7 @@ HARD_BLOCKED = {
 RETIRED_VERSION_REASONS = {
     "20260906222338": "preview run 34066470075 applied SHA256 67dc237a6968ad1a63a8d446e7bd0b1a2cb6efc52a9685dc9c5eb753008f204e, while final reviewed PR2415/main holds cb7bf087c6fd2eb2c21faaee786bdf8103ca8cf9f7bed37af0da2367f8c9d438 under the same timestamp; retain historical file and preview ledger, never apply the mismatched original, use complete forward replacement 20260911152203 under issue2741",
     "20260908195056": "unpromotable producer provenance (preview apply run 34273765771 checked out 53937748ee2b8fdba2ada40a79219f4d62d02f77 with lane-manager bytes different from current main) and preview already holds the version, so no fresh qualifying ledger delta can be produced; reissued with identical migration content as 20260909202801 under issue 2439 and claim 2443",
+    "20260915015414": "stranded preview-only version (preview apply run 34920902290 at unmerged PR 2930 head a119760e, never merged, never applied to production) and preview already holds the version, so its bytes can never change; reissued with the same function bodies plus derived-from header as 20260915023506 under issue 2792 and claim 2931",
     "20260814170749": "stranded without qualifying preview evidence after the preview project replacement; reissued with identical executable SQL as 20260825201330 under issue 1517, applied to production 2026-08-25 (PR 1541, run 32901820150)",
     "20260819011639": "unpromotable producer provenance; replaced byte-for-byte by 20260820142402, applied to production 2026-08-20 (issue 1171)",
     "20260819151536": "production verification times out and rolls the migration back; replaced by 20260820004338, applied to production 2026-08-20 (issue 1280)",

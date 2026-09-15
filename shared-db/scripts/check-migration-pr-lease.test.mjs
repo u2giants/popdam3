@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { declarationCoversActual, flattenPages, validateMigrationLease } from './check-migration-pr-lease.mjs'
+import { declarationCoversActual, flattenPages, openClaimIssues, validateMigrationLease } from './check-migration-pr-lease.mjs'
+test('issue 2958 lease re-check keeps only labelled db-claim issues from the unfiltered listing',()=>{
+  const rows=[{number:1,body:'a',labels:[{name:'db-claim'}]},{number:2,body:'b',labels:[{name:'db-work'}]},{number:3,body:'c',labels:[{name:'db-claim'}],pull_request:{url:'x'}},{number:4,body:'d',labels:['db-claim']},{number:5,body:'e'},{number:6,body:'f',labels:[{name:'DB-CLAIM'}]}]
+  assert.deepEqual(openClaimIssues(rows),[{number:1,body:'a'},{number:4,body:'d'}])
+  assert.match(readFileSync(new URL('./check-migration-pr-lease.mjs',import.meta.url),'utf8'),/issues\?state=open&per_page=100`\)/)
+  assert.doesNotMatch(readFileSync(new URL('./check-migration-pr-lease.mjs',import.meta.url),'utf8'),/labels=db-claim/)
+})
 import { claimBody } from './manage-migration-author-lanes.mjs'
 const now=new Date('2026-08-14T20:00:00Z')
 const claim=(overrides={})=>({number:12,body:claimBody({version:'20260814170219',objects:['table core.x'],owner:'a',branch:'codex/x',worktree:'C:/w',expiresAt:new Date('2026-08-15T00:00:00Z'),...overrides})})

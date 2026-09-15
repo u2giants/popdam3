@@ -78,6 +78,13 @@ DECLARATION_MANDATE_FROM = "20260827000000"
 # header prose it was transcribed from. A version here is treated exactly as if
 # its file carried the line.
 LEGACY_DECLARATIONS: dict[str, tuple[frozenset[str], str]] = {
+    "20260915015414": (
+        frozenset({"20260905104802"}),
+        "Retired preview-only PopSG reconcile rewrite (#2792). Preview applied "
+        "these exact bytes in run 34920902290 before the derived-from header was "
+        "added, so the historical file must stay byte-identical; its functions "
+        "were re-derived from 20260905104802, as reissue 20260915023506 declares.",
+    ),
     "20260824135515": (
         frozenset({"20260814223552"}),
         "Its own header: 'This is a full re-derivation of the CURRENT function "

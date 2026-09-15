@@ -174,6 +174,135 @@ def later_only_routines(migration: Path, migrations_dir: Path, schemas: set[str]
     }
 
 
+_DROP_ROUTINE = re.compile(
+    r"(?is)\bdrop[ \t\r\n]+(function|procedure|routine)[ \t\r\n]+"
+    r"(?:if[ \t\r\n]+exists[ \t\r\n]+)?([^;]*?)"
+    r"(?:[ \t\r\n]+(?:cascade|restrict))?[ \t\r\n]*;"
+)
+
+def _strip_literals(text: str) -> str:
+    """Blank out dollar-quoted bodies and single-quoted strings.
+
+    A drop written as data -- `select apply('drop function f(int)');` or inside a
+    function body -- is not a top-level drop; parsing it would emit a broken row.
+    Such drops are simply not replayed, which is the pre-existing behaviour.
+    """
+    text = re.sub(r"(?s)(\$[A-Za-z_0-9]*\$).*?\1", " ", text)
+    return re.sub(r"(?s)'(?:[^']|'')*'", "''", text)
+
+
+def _split_top_level_commas(text: str) -> list[str]:
+    items: list[str] = []
+    depth = 0
+    start = 0
+    quoted = False
+    for index, char in enumerate(text):
+        if char == '"':
+            quoted = not quoted
+        elif quoted:
+            continue
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif char == "," and depth == 0:
+            items.append(text[start:index])
+            start = index + 1
+    items.append(text[start:])
+    return [item.strip() for item in items if item.strip()]
+
+
+def routine_drops(path: Path) -> list[tuple[str, str]]:
+    """(routine name, statement) for every top-level routine drop, in file order.
+
+    A drop keeps its exact target text -- `schema.name(arg types)` -- so replaying
+    it removes exactly the signature the later migration removed, never an
+    overload it left alone.
+    """
+    text = _strip_literals(_strip_comments(path.read_text(encoding="utf-8")))
+    found: list[tuple[str, str]] = []
+    for match in _DROP_ROUTINE.finditer(text):
+        kind = match.group(1).lower()
+        for item in _split_top_level_commas(match.group(2)):
+            name = _norm(item.split("(", 1)[0])
+            target = re.sub(r"\s+", " ", item)
+            found.append((name, f"drop {kind} if exists {target};"))
+    return found
+
+
+def later_drops(
+    migration: Path, migrations_dir: Path, applied: set[str]
+) -> dict[str, list[str]]:
+    """Drops a pass-2 file could undo: routines it creates that a later APPLIED
+    migration dropped.
+
+    In a real database the later drop follows this file's create, so the routine
+    is gone. In the replay this file runs after the drop and resurrects it
+    (20260905104802 recreating public.deactivate_stale_sg_files after
+    20260915111317 retired it). Returns routine -> drop statements.
+
+    Whether a later migration RE-CREATED that exact identity is not guessed from
+    SQL text here (argument names, modes and defaults make identities unreliable
+    to compare statically). See `redeclared_after_drop` for which drops replay
+    unconditionally and which are guarded on the catalog. Only proven-applied
+    later migrations count.
+    """
+    current = declared_routines(migration)
+    if not current:
+        return {}
+    pending: dict[str, list[str]] = {}
+    for later in sorted(migrations_dir.glob("*.sql")):
+        if later.name <= migration.name or later.name not in applied:
+            continue
+        for name, stmt in routine_drops(later):
+            if name in current and stmt not in pending.setdefault(name, []):
+                pending[name].append(stmt)
+    return {name: stmts for name, stmts in pending.items() if stmts}
+
+
+def redeclared_after_drop(
+    migration: Path, migrations_dir: Path, applied: set[str]
+) -> set[str]:
+    """Routines with a later applied drop that a migration AT OR AFTER that drop re-declares.
+
+    THE CATALOG CANNOT ANSWER "WAS IT DROPPED" ON ITS OWN (issue #2959). The
+    captured pre-adoption baseline is loaded BETWEEN pass 1 and pass 2, so a
+    routine a pass-1 migration dropped can be back in the catalog before any
+    pass-2 file runs -- the baseline put it there, not a later migration. PR
+    #2958: 20260915130626 dropped public.deactivate_stale_sg_files(text, uuid)
+    in pass 1, the baseline re-created it, and a presence guard skipped the drop.
+
+    So a drop whose routine NO applied migration re-declares at or after the
+    dropping file replays unconditionally: the file history alone proves the
+    routine's final state is dropped. Only a routine re-declared from the dropping
+    file onward (same identity or a new overload -- not decidable from text) keeps
+    the catalog guard evaluated before the pass-2 file runs. That residual guard
+    can still be fooled by a baseline copy of the exact dropped identity; it is
+    the only case left undecided statically.
+    """
+    current = declared_routines(migration)
+    ordered = [
+        path for path in sorted(migrations_dir.glob("*.sql"))
+        if path.name > migration.name and path.name in applied
+    ]
+    redeclared: set[str] = set()
+    for index, later in enumerate(ordered):
+        dropped = {name for name, _ in routine_drops(later)} & current
+        if not dropped:
+            continue
+        for following in ordered[index:]:
+            redeclared |= dropped & declared_routines(following)
+    return redeclared
+
+
+def _drop_row(routine: str, stmt: str, guarded: bool = True) -> str:
+    target = stmt.split(" if exists ", 1)[1].rstrip(";")
+    lookup = "to_regprocedure" if "(" in target else "to_regproc"
+    quote = lambda value: "'" + value.replace("'", "''") + "'"
+    row = f"select 5 as ord, {quote(stmt)} as stmt, '' as s, {quote(routine)} as f, '' as a"
+    return f"{row} where {lookup}({quote(target)}) is null" if guarded else row
+
+
 def _literals(names: set[str] | dict[str, list[str]]) -> str:
     return ", ".join(
         "'" + name.replace('"', "").replace("'", "''") + "'" for name in sorted(names)
@@ -183,9 +312,21 @@ def _literals(names: set[str] | dict[str, list[str]]) -> str:
 def snapshot_query(
     collisions: dict[str, list[str]],
     privilege_routines: set[str] | None = None,
+    drops: dict[str, list[str]] | None = None,
+    guarded: set[str] | None = None,
 ) -> str:
-    """One query whose rows are the SQL statements that restore later truth."""
+    """One query whose rows are the SQL statements that restore later truth.
+
+    Later drops are replayed last (ord 5), after bodies and grants. A routine in
+    `guarded` (default: every dropped routine) replays its drop only if the exact
+    signature is absent from the catalog when this snapshot is taken; any other
+    drop replays unconditionally (see `redeclared_after_drop`).
+    """
     parts: list[str] = []
+    if drops:
+        for routine in sorted(drops):
+            for stmt in drops[routine]:
+                parts.append(_drop_row(routine, stmt, guarded is None or routine in guarded))
     if collisions:
         parts.append(
             "select x.ord, x.stmt, n.nspname as s, p.proname as f, "
@@ -271,8 +412,19 @@ def main() -> int:
         for routine, files in sorted(unproven.items()):
             print(f"  {routine}: unproven later file(s) {', '.join(files)}", file=sys.stderr)
 
-    if not proven and not privilege_routines:
+    drops = later_drops(args.migration, args.migrations_dir, applied)
+
+    if not proven and not privilege_routines and not drops:
         return 0
+
+    if drops:
+        print(
+            f"PASS-2 ORDER REPAIR: {args.migration.name} re-creates routines that "
+            "later APPLIED migrations dropped. The drops are replayed after it:",
+            file=sys.stderr,
+        )
+        for routine, stmts in sorted(drops.items()):
+            print(f"  {routine}: {' '.join(stmts)}", file=sys.stderr)
 
     if proven:
         print(
@@ -293,7 +445,8 @@ def main() -> int:
         for routine in sorted(privilege_routines):
             print(f"  {routine}", file=sys.stderr)
 
-    print(snapshot_query(proven, privilege_routines))
+    guarded = redeclared_after_drop(args.migration, args.migrations_dir, applied) if drops else set()
+    print(snapshot_query(proven, privilege_routines, drops, guarded))
     return 0
 
 

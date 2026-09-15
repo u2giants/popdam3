@@ -421,13 +421,16 @@ export function evaluateApprovalWithRefresh(input, { contentPreservingRefresh })
   const head = String(input.headSha).toLowerCase()
   const ownAssignments = (input.assignments ?? []).filter((row) => String(row.headSha ?? '').toLowerCase() === head)
   if (ownAssignments.length || (input.returns ?? []).length || input.verdicts.length) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because this head has reviewer records of its own (assignment, return or verdict), so it is judged on those alone`)
-  const equivalent = []
+  const equivalent = [], digests = new Map()
   for (const prior of input.priorHeads ?? []) {
     const proof = contentPreservingRefresh(prior?.headSha, input.headSha)
-    if (proof?.ok !== true) continue
+    // #2728: a carry must record the approved implementation digest; a proof
+    // without one is not a proof.
+    if (proof?.ok !== true || !/^[0-9a-f]{64}$/.test(String(proof.implementation_digest ?? ''))) continue
     // An equivalent head whose records cannot be trusted may hide a refusal.
     if (prior.unreadable || !Array.isArray(prior.verdicts) || prior.verdicts.some((row) => !isValidatedVerdictArtifact(row))) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because the reviewer records at head ${prior.headSha}, whose pull request diff is identical to this head, could not be read${prior.unreadable ? `: ${prior.unreadable}` : ''}`)
     equivalent.push(prior)
+    digests.set(prior, proof.implementation_digest)
   }
   const refusedPrior = equivalent.find((prior) => durableRefusalsAt(prior.verdicts, input.pr, prior.headSha).length)
   if (refusedPrior) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because head ${refusedPrior.headSha}, whose pull request diff is identical to this head, carries a durable reviewer refusal`)
@@ -435,7 +438,7 @@ export function evaluateApprovalWithRefresh(input, { contentPreservingRefresh })
     try {
       const result = evaluateExactHeadApproval({ ...input, headSha: prior.headSha, returns: prior.returns ?? [], verdicts: prior.verdicts })
       if (result.documents_only) continue
-      return { ...result, head_sha: input.headSha, carried_from: prior.headSha }
+      return { ...result, head_sha: input.headSha, carried_from: prior.headSha, implementation_digest: digests.get(prior) }
     } catch (error) { if (!(error instanceof ApprovalCheckError)) throw error }
   }
   throw exactError
@@ -456,7 +459,7 @@ export function main(env = process.env) {
     const input = requireDurableVerdictInput(gatherApprovalInput(env))
     const mainRef = env.APPROVAL_MAIN_REF || 'origin/main'
     const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (approvedHead, head) => isContentPreservingRefresh({ approvedHead, head, mainRef }) })
-    if (result.carried_from) console.log(`Exact-head approval carried forward: PR #${result.pr} head ${result.head_sha} has the same pull request diff as approved head ${result.carried_from}, so its merge-from-main refresh needs no new review (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
+    if (result.carried_from) console.log(`Exact-head approval carried forward: PR #${result.pr} head ${result.head_sha} has the same pull request diff as approved head ${result.carried_from}, so its evidence-only or merge-from-main refresh needs no new review; approved implementation digest ${result.implementation_digest} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
     else if (result.documents_only) console.log(`Documents-only pull request: PR #${result.pr} head ${result.head_sha} draws no database reviewer (${result.reason}). Every other check and the guarded merge lane still apply (#2102).`)
     else console.log(`Exact-head approval verified: PR #${result.pr} head ${result.head_sha} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
     return 0

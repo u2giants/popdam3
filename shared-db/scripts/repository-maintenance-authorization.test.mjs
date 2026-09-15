@@ -43,11 +43,21 @@ test('authorizes prose under only the global mutex and releases it',()=>{
   for(const ref of Object.values(EXCLUSIVE_REFS))assert.equal(io.readRef(ref),null)
 })
 
-test('production, a moved head, or any executable hunk fails closed and routes to guarded checks',()=>{
+test('an ordinary code change reports not applicable, never red, and routes to guarded checks (#2838)',()=>{
+  const io=fakeIo({files:[{filename:'scripts/change.mjs',status:'modified',patch:'@@ -1 +1 @@\n-a\n+b'}]})
+  const result=authorizeRepositoryMaintenanceStatus(options,io)
+  assert.equal(result.documentsOnly,false)
+  assert.equal(result.notApplicable,true)
+  assert.deepEqual(io.statuses.map((row)=>[row.context,row.state]),[['Documents-only merge authorization','success']])
+  assert.match(io.statuses[0].description,/^Not applicable/)
+  assert.match(io.statuses[0].description,/guarded code checks required/)
+  assert.equal(io.readRef(MUTEX_REF),null)
+})
+
+test('production or a moved head fails closed and routes to guarded checks',()=>{
   for(const io of [
     fakeIo({production:'c'.repeat(40)}),
     fakeIo({liveHead:'d'.repeat(40)}),
-    fakeIo({files:[{filename:'scripts/change.mjs',status:'modified',patch:'@@ -1 +1 @@\n-a\n+b'}]}),
   ]){
     assert.throws(()=>authorizeRepositoryMaintenanceStatus(options,io))
     assert.deepEqual(io.statuses.map((row)=>row.state),['failure'])
@@ -68,8 +78,8 @@ test('a base retarget revokes stale required authorization explicitly',()=>{
 test('a reused commit revokes only an earlier lightweight success',()=>{
   const executable=[{filename:'scripts/change.mjs',status:'modified',patch:'@@ -1 +1 @@\n-a\n+b'}]
   const guarded=fakeIo({files:executable,existingStatus:{state:'success',description:'Guarded merge authorized'}})
-  assert.throws(()=>authorizeRepositoryMaintenanceStatus(options,guarded))
-  assert.equal(guarded.statuses[0].context,'Documents-only merge authorization')
+  assert.equal(authorizeRepositoryMaintenanceStatus(options,guarded).notApplicable,true)
+  assert.deepEqual(guarded.statuses.map((row)=>[row.context,row.state]),[['Documents-only merge authorization','success']])
   const lightweight=fakeIo({files:executable,existingStatus:{state:'success',description:options.description}})
   assert.throws(()=>authorizeRepositoryMaintenanceStatus(options,lightweight))
   assert.equal(lightweight.statuses[0].context,'Migration guarded merge authorization')
@@ -99,8 +109,11 @@ test('an ABA push cannot lend prose files to an executable status SHA',()=>{
       {base:{sha:base,ref:'main',repo:{full_name:'u2giants/shared-db'}},head:{sha:head}},
     ],
   })
-  assert.throws(()=>authorizeRepositoryMaintenanceStatus(options,io),/non-lightweight file/)
-  assert.deepEqual(io.statuses.map((row)=>row.state),['failure'])
+  const result=authorizeRepositoryMaintenanceStatus(options,io)
+  assert.equal(result.documentsOnly,false)
+  assert.match(result.reason,/non-lightweight file/)
+  assert.deepEqual(io.statuses.map((row)=>[row.context,row.state]),[['Documents-only merge authorization','success']])
+  assert.match(io.statuses[0].description,/^Not applicable/)
 })
 
 test('a failed mutex release revokes a status and never acquires a stage',()=>{

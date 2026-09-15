@@ -78,6 +78,7 @@ function pages(endpoint){return flattenPages(json(['api','--paginate','--slurp',
 const treeReader=createTreeReader({wrapError:(detail)=>new LeaseCheckError(`GitHub read failed: ${detail}`)})
 function rawFile(filename,ref){const text=treeReader.readFileAtRef(REPO,filename,ref);if(text===null)throw new LeaseCheckError(`${filename} is not tracked at ${ref}; refusing rather than treating it as empty`);return text}
 
+export function openClaimIssues(issues){return issues.filter(x=>!x.pull_request&&(x.labels??[]).some(l=>(typeof l==='string'?l:l?.name)==='db-claim')).map(x=>({number:x.number,body:x.body}))}
 export function gatherPrInput(env=process.env){
   let event={};if(env.GITHUB_EVENT_PATH)event=JSON.parse(readFileSync(env.GITHUB_EVENT_PATH,'utf8'))
   const number=Number(env.PR_NUMBER||event.pull_request?.number);if(!number)throw new LeaseCheckError('PR number is unavailable')
@@ -86,8 +87,9 @@ export function gatherPrInput(env=process.env){
   if(Number(pr.changed_files)!==apiFiles.length)throw new LeaseCheckError(`incomplete PR pagination: expected ${pr.changed_files}, received ${apiFiles.length}`)
   if(apiFiles.length>=3000)throw new LeaseCheckError('GitHub REST file limit reached; collision coverage is incomplete')
   const files=apiFiles.map(f=>({...f,sql:f.status==='removed'||!f.filename?.endsWith('.sql')?'':rawFile(f.filename,pr.head.sha)}))
-  const issues=pages(`repos/${REPO}/issues?state=open&labels=db-claim&per_page=100`)
-  return {claims:issues.filter(x=>!x.pull_request).map(x=>({number:x.number,body:x.body})),branch:pr.head.ref,files,reservationExists:(version)=>{try{return Boolean(json(['api',`repos/${REPO}/git/ref/db-claims/${version}`])?.object?.sha)}catch{return false}}}
+  // #2958: the `labels=` filtered listing returned [] for open, labelled claims; filter client-side.
+  const issues=pages(`repos/${REPO}/issues?state=open&per_page=100`)
+  return {claims:openClaimIssues(issues),branch:pr.head.ref,files,reservationExists:(version)=>{try{return Boolean(json(['api',`repos/${REPO}/git/ref/db-claims/${version}`])?.object?.sha)}catch{return false}}}
 }
 
 export function main(env=process.env){try{const result=validateMigrationLease(gatherPrInput(env));console.log(result.relevant?`Migration claim verified: #${result.claim}, version ${result.version}.`:result.historicalCodeTruth?'Migration code-truth restoration verified; claim check is not applicable.':'No migration files changed; claim check is not applicable.');return 0}catch(e){console.error(`REFUSED: ${e.message}`);return 2}}

@@ -1,0 +1,27 @@
+-- Issue #2934 -- retire the PopSG compatibility wrapper
+-- public.deactivate_stale_sg_files(text, uuid).
+--
+-- derived-from: none
+--
+-- WHY
+-- ---
+-- The wrapper (migration 20260905104802) loops at most 200 times over
+-- public.reconcile_stale_sg_files_batch. Since #2792 each batch writes at most
+-- 500 rows, so one call handles at most ~100,000 rows and returns a partial
+-- count with no signal that stale rows remain. As a single statement it also
+-- cannot fit the normal statement timeout at production volume.
+--
+-- CALLER EVIDENCE (orchestrator read-only check, 2026-09-15, recorded on #2934)
+-- --------------------------------------------------------------------------
+--  * popdam3's crawl calls public.reconcile_stale_sg_files_batch directly
+--    (supabase/functions/agent-api/index.ts:3001), not this wrapper;
+--  * no cron job calls it;
+--  * the only other references were shared-db's own contract tests, updated in
+--    the same pull request.
+--
+-- WHAT CHANGES
+-- ------------
+-- Only the wrapper is dropped. public.reconcile_stale_sg_files_batch and
+-- public.preview_stale_sg_files, their grants and their guards are unchanged.
+
+drop function if exists public.deactivate_stale_sg_files(text, uuid);

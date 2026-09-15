@@ -1,26 +1,39 @@
 {
   "schema_version": 1,
-  "work_issue": 2921,
+  "work_issue": 2969,
   "outcome": "ready-for-merge",
-  "pr": 2922,
+  "pr": 2970,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/2921/4",
-  "contract_sha256": "5f8cb34848dd2c574bc7f3a04fa6fe89470b19c4f71dde922d8ac712625f11ea",
-  "head_sha": "cfbf0df5487443fb51a5615299c4811a2b86628d",
+  "contract_ref": "refs/db-contracts/2969/15",
+  "contract_sha256": "49ceaffff7e08d4e66a33c2b5601e42ee851dd893954feec9dcb63d5351c3559",
+  "head_sha": "dbed90f65ac7e654272bf212829edee77eaebf11",
   "files_changed": [
-    ".github/live-proofs/2506.sql"
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
+      "command": "python -m pytest -q scripts/test_production_business_risk_gate.py",
+      "exit_code": 0,
+      "evidence": "155 passed, 0 skipped, 237 subtests passed. GLM follow-up: a dollar sign glued to an identifier (a$$$, a$$, non-ASCII, a$e'') no longer opens a dollar-quote or escape string, so a DROP cannot be merged into a COMMENT ON (checked on PostgreSQL 18.6: the middle DROP runs); test_a_dollar_inside_an_identifier_opens_no_quote pins it and fails on the previous head. Reviewer follow-ups: argument DEFAULT clauses and CREATE INDEX CONCURRENTLY are refused, and test_block_comments_end_where_postgres_ends_them pins nested comments and the xcstop terminator (checked on a local PostgreSQL 18.6: *+/ is comment text, **/ ends a comment).The classifier is allowlist-only: one ALLOWLIST constant of six full-statement entries, one test per entry (allowed and near-miss refused shapes) plus a test that unknown statements (SELECT, WITH, EXPLAIN, DO, INSERT, SET, BEGIN, GRANT, DROP TABLE, CALL, COPY, EXECUTE, LOCK, unparsed SQL) report all three risks. Against the previous head's gate, 60 of the new subtests failed first. Migrations 20260915130626 (non-CASCADE DROP FUNCTION) and 20260915143302 (nullable ADD COLUMN) give no finding."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/false-alarm-corpus.test.mjs",
+      "exit_code": 0,
+      "evidence": "1 passed, 0 failed; the corpus-indexed test name is kept."
+    },
+    {
       "command": "git diff --check",
       "exit_code": 0,
-      "evidence": "No whitespace errors between base 477b8633 and implementation cfbf0df5."
+      "evidence": "No whitespace errors against origin/main 1a04fa83."
     }
   ],
   "assumptions_resolved": [
-    "Production has 20260911213429 (run 34898171486); the exact-match probe at 7a42e035 (index definitions, SECURITY DEFINER, STABLE, search_path array, jsonb result, body md5 83b8190b equal to the migration file's $function$ body) returned [{\"passed\":true}] on production (qsllyeztdwjgirsysgai) read-only, and a variant expecting search_path pg_catalog, auth, public returned [{\"passed\":false}]."
+    "classify_sql returns [] for migrations 20260915130626 and 20260915143302.",
+    "No database, preview, rehearsal, production, migration, claim or lease write or dispatch.",
+    "Branch refreshed by merge onto main 1a04fa83 (#2952); only the .agent pair conflicted, and the pull request diff is unchanged."
   ],
   "stop_conditions_hit": []
 }

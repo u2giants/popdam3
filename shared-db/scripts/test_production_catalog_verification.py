@@ -1646,6 +1646,22 @@ class BehavioralSidecarTests(unittest.TestCase):
             self.assertIn(term, sql)
         self.assertTrue(sql.lower().startswith("select "))
 
+    def test_popsg_default_timeout_catalog_binds_forward_body(self):
+        def change(sidecar):
+            sidecar["checks"] = [{"id": "popsg_perf", "kind": "catalog_contract", "contract": "popsg_search_v2_default_timeout_v1", "expected_count": 1}]
+        temp, root, migration = self.fixture(change)
+        with temp:
+            sql = build_behavior_sql(self.load(root, migration))
+        forward = Path(__file__).resolve().parents[1] / "supabase/migrations/20260915111626_popsg_search_v2_default_timeout.sql"
+        import hashlib
+        body = forward.read_bytes().replace(b"\r\n", b"\n").decode().split("$function$")
+        self.assertEqual(len(body), 3, "forward migration must define exactly one $function$ body")
+        expected = hashlib.md5(body[1].encode()).hexdigest()
+        self.assertIn("md5(p.prosrc)='" + expected + "'", sql)
+        for term in ["p.prosecdef", "p.provolatile='s'", "search_path=pg_catalog, auth", "work_mem=64MB", "not has_function_privilege('anon'", "has_function_privilege('authenticated'", "has_function_privilege('service_role'"]:
+            self.assertIn(term, sql)
+        self.assertTrue(sql.lower().startswith("select "))
+
     def test_unknown_catalog_contract_and_extra_sql_fail_closed(self):
         def unknown(sidecar):
             sidecar["checks"] = [{

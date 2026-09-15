@@ -102,8 +102,12 @@ not raise the cap without the reviewer growth in §2.1 landing in the same chang
 - **Reviewers.** The rotation reached six by activating `codex-gpt-5.6-sol` and
   DeepSeek as full rotation providers. That was a deliberate departure from §2.1 at the
   time: Gemini stayed outside the rotation while ai-devops reviewer reliability was
-  repaired. Qwen's exclusion was lifted by owner instruction on 2026-09-04; it is
-  treated like any other reviewer and is gated only by its own preflight qualification.
+  repaired. Qwen's retirement label was lifted by owner instruction on 2026-09-04, but
+  that did not make it drawable: it stayed quarantined (`QUARANTINED_REVIEWERS`;
+  `ai-review-preflight` `failure_class: live-qualification-required`) after that day's
+  live re-qualification failed. It returned to the active rotation on 2026-09-07
+  (commit `58a447ae`) only after a live qualification passed, and it can be
+  quarantined again the same way.
 - **Overflow removed.** `OVERFLOW_REVIEWERS` is now empty. With six rotation
   providers there is no reviewer of last resort: when all six execution keys are
   occupied, assignment **fails closed** and the allocator records an ordered

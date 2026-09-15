@@ -413,10 +413,11 @@ test('#2758: a merge-only refresh keeps the APPROVE recorded at the prior head',
   assert.equal(input.headSha, REFRESHED_HEAD)
   assert.throws(() => evaluateRaw(input), ApprovalCheckError)
   const calls = []
-  const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (a, b) => { calls.push([a, b]); return { ok: true } } })
+  const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (a, b) => { calls.push([a, b]); return { ok: true, implementation_digest: 'e'.repeat(64) } } })
   assert.equal(result.approved, true)
   assert.equal(result.head_sha, REFRESHED_HEAD)
   assert.equal(result.carried_from, RETURN_HEAD)
+  assert.equal(result.implementation_digest, 'e'.repeat(64))
   assert.deepEqual(calls, [[RETURN_HEAD, REFRESHED_HEAD]])
 })
 
@@ -432,7 +433,7 @@ test('POSITIVE CONTROL #2758: a refusal at an equivalent prior head is never car
   const input = refreshedInput()
   // In place: a spread copy would drop the non-enumerable validated marker.
   input.priorHeads[0].verdicts[0].verdict = 'REVISE'
-  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true }) }), /carries a durable reviewer refusal/)
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /carries a durable reviewer refusal/)
 })
 
 test('POSITIVE CONTROL #2758: a prior head known only by its verdict is discovered, and an unreadable one refuses the carry', () => {
@@ -446,19 +447,19 @@ test('POSITIVE CONTROL #2758: a prior head known only by its verdict is discover
   const input = gatherApprovalInput({ PR_NUMBER: '1931' }, io)
   const orphan = input.priorHeads.find((prior) => prior.headSha === ORPHAN)
   assert.ok(orphan?.unreadable, 'the verdict-only head must be discovered and marked unreadable')
-  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true }) }), /could not be read/)
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /could not be read/)
 })
 
 test('POSITIVE CONTROL #2758: a head with an assignment of its own is never carried past', () => {
   const input = refreshedInput()
   input.assignments.push({ ...input.assignments[0], headSha: REFRESHED_HEAD, ref: `${input.assignments[0].ref}-new` })
-  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true }) }), /reviewer records of its own/)
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /reviewer records of its own/)
 })
 
 test('POSITIVE CONTROL #2758: a head with a return of its own is never carried past', () => {
   const input = refreshedInput()
   input.returns = [{ ...input.priorHeads[0].returns[0], headSha: REFRESHED_HEAD }]
-  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true }) }), /reviewer records of its own/)
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /reviewer records of its own/)
 })
 
 // The ref name only SELECTS the record; the commit is what is trusted, and it is
@@ -699,4 +700,12 @@ test('an unvalidated verdict object cannot cross the documents-only boundary (#2
     pr: DOC_PR, headSha: DOC_HEAD, assignments: [], changedFiles: ['docs/notes.md'],
     verdicts: [{ pr: DOC_PR, head_sha: DOC_HEAD, verdict: 'REVISE', ref: 'fake', reviewer: 'grok-4.6', validated: true }],
   }), /without artifact validation/)
+})
+
+test('POSITIVE CONTROL #2728: an equivalence proof without implementation_digest carries nothing', () => {
+  const input = refreshedInput()
+  const calls = []
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (a, b) => { calls.push([a, b]); return { ok: true } } }), ApprovalCheckError)
+  assert.ok(calls.length > 0, 'the proof must have been consulted')
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'not-a-digest' }) }), ApprovalCheckError)
 })

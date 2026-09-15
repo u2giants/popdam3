@@ -115,6 +115,61 @@ RISK_TEXT = {
 }
 
 
+# Column types whose ADD COLUMN (nullable, no default) is catalog-only. A type
+# outside this list may be a domain carrying a DEFAULT or NOT NULL, or a
+# serial pseudo-type that implies NOT NULL DEFAULT nextval(), which rewrites or
+# scans the table, so it is refused (#2771).
+_BUILTIN_COLUMN_TYPE = (
+    r"(?:text|citext|uuid|jsonb?|bytea|boolean|bool|date|interval|inet|cidr|macaddr|money|xml|tsvector"
+    r"|smallint|integer|int|int2|int4|int8|bigint|real|float4|float8|double precision"
+    r"|(?:numeric|decimal)(?: ?\( ?\d+ ?(?:, ?\d+ ?)?\))?"
+    r"|(?:varchar|character varying|char|character|bit|bit varying|varbit)(?: ?\( ?\d+ ?\))?"
+    r"|(?:timestamp|time)(?: ?\( ?\d ?\))?(?: with(?:out)? time zone)?|timestamptz|timetz)"
+    r"(?: ?\[ ?\])*"
+)
+
+
+# The ONLY statements that report no business risk (#2969, PR #2970). The design
+# is allowlist-only: every top-level statement must fullmatch one entry, with no
+# trailing clause, or the migration reports all three risks. Anything else --
+# WITH, EXPLAIN, DO, SELECT, INSERT, SET, BEGIN, GRANT, an unparsed file -- is
+# never modelled and never excused. Patterns run on sql_top_level_statements
+# output: comments removed, whitespace folded, unquoted text lower-cased, every
+# string literal emptied to '' and every dollar-quoted body emptied to $$ $$.
+_ALLOW_IDENT = r'(?:"[^"]+"|[a-z_][a-z0-9_]*)'
+_ALLOW_QUALIFIED = rf"{_ALLOW_IDENT}\.{_ALLOW_IDENT}"  # schema-qualified only
+_ALLOW_ARGS = r"\((?![^)]*\bdefault\b)(?:[a-z0-9_ ,\[\]]*)\)"  # argument types only: no DEFAULT
+_ALLOW_ROUTINE_OPTION = r"(?:language (?:sql|plpgsql)|immutable|stable|volatile|strict|security invoker)"
+ALLOWLIST = {
+    # Defines a routine; its body is not executed by CREATE. Only SQL and
+    # PL/pgSQL, only a quoted body, no SECURITY DEFINER, SET, or argument default.
+    "create_function": re.compile(
+        rf"create (?:or replace )?function {_ALLOW_QUALIFIED} ?{_ALLOW_ARGS} "
+        rf"returns (?:setof )?(?:trigger|{_BUILTIN_COLUMN_TYPE}|void) "
+        rf"(?:{_ALLOW_ROUTINE_OPTION} )*as (?:\$\$ \$\$|'')(?: {_ALLOW_ROUTINE_OPTION})*"),
+    # Without CASCADE, Postgres refuses the drop while anything depends on it.
+    "drop_function_if_exists": re.compile(
+        rf"drop function if exists {_ALLOW_QUALIFIED} ?{_ALLOW_ARGS}"
+        rf"(?: ?, ?{_ALLOW_QUALIFIED} ?{_ALLOW_ARGS})*"),
+    # One nullable column of a built-in type, no default, constraint, reference,
+    # collation, or generated/identity clause: a catalog-only change.
+    "add_nullable_column": re.compile(
+        rf"alter table (?:only )?{_ALLOW_QUALIFIED} add column (?:if not exists )?"
+        rf"{_ALLOW_IDENT} {_BUILTIN_COLUMN_TYPE}(?: null)?"),
+    # A brand-new table: no IF NOT EXISTS, AS SELECT/EXECUTE/VALUES, LIKE, OF,
+    # INHERITS, PARTITION, WITH, TABLESPACE, or REFERENCES (a foreign key locks
+    # the referenced existing table).
+    "create_table": re.compile(
+        rf"create table ({_ALLOW_QUALIFIED}) ?\("
+        r"(?!.*\b(?:references|like|of|inherits|partition|with|tablespace|using|select|execute|values)\b)"
+        r"[^;]*\)"),
+    # An index on a table created by an EARLIER statement of this migration.
+    "create_index_on_new_table": re.compile(
+        rf"create (?:unique )?index (?:(?!concurrently )(?!if )(?!on ){_ALLOW_IDENT} )?on ({_ALLOW_QUALIFIED}) ?(?:using [a-z]+ ?)?\([^;]*\)"),
+    "comment_on": re.compile(r"comment on [a-z ]+ [^;]+ is (?:''|null)"),
+}
+
+
 class RiskGateError(ValueError):
     """Governed evidence is missing, inconsistent, forged, or stale."""
 
@@ -644,6 +699,10 @@ PREVIEW_PRODUCER_PATHS = (
     # reused, so preview proof must bind their exact bytes.
     "config/orchestrator-evidence-schema-v1.json",
     "config/orchestrator-global-invalidators-v1.json",
+    # Issue #2728. Read from main by the pinned pr-content-equivalence.mjs to
+    # decide which stored script-hash re-pins may carry an approval forward, so
+    # its bytes change whether a prior review is reused for preview.
+    "config/review-carry-forward-stored-hashes-v1.json",
     # Governed preview-ledger reconciliation reads this reviewed manifest to
     # select the exact issue/claim/source/orphan/replacement tuple. Bind those
     # bytes to the same exact-main producer proof as the workflow and tool.
@@ -1906,16 +1965,34 @@ def classify_sql(repo_root: Path, allowlist: list[str]) -> list[str]:
         matches = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
         if len(matches) != 1:
             raise RiskGateError(f"expected one migration for {version}, found {len(matches)}")
-        sql = migration_statements(matches[0].read_text(encoding="utf-8"))
-        if re.search(r"\b(truncate|delete\s+from|update\s+)\b", sql) or re.search(
-                r"\bdrop\s+(?!trigger\s+if\s+exists|policy\s+if\s+exists)", sql):
-            reasons.add(RISK_TEXT["permanent_data_rewrite_or_loss"])
-        if re.search(r"\b(lock\s+table|alter\s+table)\b", sql) or re.search(
-                r"\bcreate\s+(?:unique\s+)?index\s+(?!concurrently|if\s+not\s+exists)", sql):
-            reasons.add(RISK_TEXT["expected_downtime"])
-        if re.search(r"\b(grant|revoke|create\s+policy|alter\s+policy|drop\s+policy|row\s+level\s+security)\b", sql):
-            reasons.add(RISK_TEXT["material_access_change"])
+        raw = matches[0].read_text(encoding="utf-8")
+        reasons.update(_classify_statements(sql_top_level_statements(raw)))
     return sorted(reasons)
+
+
+def allowlist_entry(statement: str, new_tables: set[str]) -> str | None:
+    """The ALLOWLIST entry this statement fullmatches, or None."""
+    for name, pattern in ALLOWLIST.items():
+        m = pattern.fullmatch(statement)
+        if m and (name != "create_index_on_new_table" or m.group(1) in new_tables):
+            return name
+    return None
+
+
+def _classify_statements(statements: list[str] | None) -> set[str]:
+    """All three risks unless EVERY statement is on ALLOWLIST. Unparsed is all."""
+    every = {RISK_TEXT["permanent_data_rewrite_or_loss"],
+             RISK_TEXT["expected_downtime"], RISK_TEXT["material_access_change"]}
+    if statements is None:
+        return every
+    new_tables: set[str] = set()
+    for s in statements:
+        entry = allowlist_entry(s, new_tables)
+        if entry is None:
+            return every
+        if entry == "create_table":
+            new_tables.add(ALLOWLIST["create_table"].fullmatch(s).group(1))
+    return set()
 
 
 def diagnose_risk_coverage(repo_root: Path, allowlist: list[str]) -> dict[str, Any]:
@@ -2045,7 +2122,7 @@ def sql_top_level_statements(raw: str) -> list[str] | None:
             current.append(" ")
             continue
         if ch == "'":
-            escape = i > 0 and raw[i - 1] in "eE" and (i < 2 or not (raw[i - 2].isalnum() or raw[i - 2] == "_"))
+            escape = i > 0 and raw[i - 1] in "eE" and (i < 2 or not (raw[i - 2].isalnum() or raw[i - 2] in "_$" or ord(raw[i - 2]) >= 0x80))
             j = i + 1
             while True:
                 if j >= n:
@@ -2071,7 +2148,10 @@ def sql_top_level_statements(raw: str) -> list[str] | None:
             continue
         if ch == "$":
             tag = re.match(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$", raw[i:])
-            if tag and not (i > 0 and (raw[i - 1].isalnum() or raw[i - 1] == "_")):
+            # PostgreSQL ident_cont is [A-Za-z\200-\377_0-9$]: a "$" glued to an
+            # identifier (including after another "$", as in a$$$) never opens a quote.
+            prev = raw[i - 1] if i > 0 else ""
+            if tag and not (prev and (prev.isalnum() or prev in "_$" or ord(prev) >= 0x80)):
                 end = raw.find(tag.group(0), i + len(tag.group(0)))
                 if end == -1:
                     return None
@@ -2111,20 +2191,6 @@ def _canonical_name(name: str) -> tuple[str, ...]:
     """
     return tuple(m.group(1) if m.group(1) is not None else m.group(2)
                  for m in re.finditer(r'"([^"]*)"|([^."]+)', name))
-
-
-# Column types whose ADD COLUMN (nullable, no default) is catalog-only. A type
-# outside this list may be a domain carrying a DEFAULT or NOT NULL, or a
-# serial pseudo-type that implies NOT NULL DEFAULT nextval(), which rewrites or
-# scans the table, so it is refused (#2771).
-_BUILTIN_COLUMN_TYPE = (
-    r"(?:text|citext|uuid|jsonb?|bytea|boolean|bool|date|interval|inet|cidr|macaddr|money|xml|tsvector"
-    r"|smallint|integer|int|int2|int4|int8|bigint|real|float4|float8|double precision"
-    r"|(?:numeric|decimal)(?: ?\( ?\d+ ?(?:, ?\d+ ?)?\))?"
-    r"|(?:varchar|character varying|char|character|bit|bit varying|varbit)(?: ?\( ?\d+ ?\))?"
-    r"|(?:timestamp|time)(?: ?\( ?\d ?\))?(?: with(?:out)? time zone)?|timestamptz|timetz)"
-    r"(?: ?\[ ?\])*"
-)
 
 
 def _binds_on(statement: str, pattern: str) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
@@ -2578,6 +2644,7 @@ PREVIEW_PRODUCER_PATHS += (
     "config/db-data-admin-property-source-coverage.json",
     "scripts/production-verification-sidecars/20260908214749.json",
     "scripts/production-verification-sidecars/20260911213429.json",
+    "scripts/production-verification-sidecars/20260915111626.json",
     "scripts/production-verification-sidecars/20260909084253.json",
     "scripts/production-verification-sidecars/20260910123636.json",
     "scripts/production-verification-sidecars/20260830013942.json",

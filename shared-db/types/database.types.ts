@@ -33284,6 +33284,7 @@ export type Database = {
           directory_path: string
           file_extension: string | null
           filename: string
+          has_talent_likeness: boolean | null
           id: string
           is_active: boolean
           last_seen_at: string
@@ -33308,6 +33309,7 @@ export type Database = {
           directory_path: string
           file_extension?: string | null
           filename: string
+          has_talent_likeness?: boolean | null
           id?: string
           is_active?: boolean
           last_seen_at?: string
@@ -33332,6 +33334,7 @@ export type Database = {
           directory_path?: string
           file_extension?: string | null
           filename?: string
+          has_talent_likeness?: boolean | null
           id?: string
           is_active?: boolean
           last_seen_at?: string
@@ -34219,10 +34222,6 @@ export type Database = {
         Returns: string
       }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
-      deactivate_stale_sg_files: {
-        Args: { p_root_label: string; p_run_id: string }
-        Returns: number
-      }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       expand_dam_search_queries: {
         Args: { p_query: string }

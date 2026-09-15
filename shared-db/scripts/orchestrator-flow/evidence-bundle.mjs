@@ -68,7 +68,13 @@ export function buildEvidenceBundle(input,adapters){
 
 export function validateEvidenceBundle(bundle){
   assertExactKeys(bundle,TOP_KEYS,'bundle');if(bundle.schema_version!==1)throw new EvidenceBundleError('schema_version must be 1')
-  assertExactKeys(bundle.identity,IDENTITY_KEYS,'identity');assertExactKeys(bundle.metadata,METADATA_KEYS,'metadata')
+  assertExactKeys(bundle.identity,IDENTITY_KEYS,'identity')
+  const metadata={...bundle.metadata},preflight=metadata.delivery_preflight;delete metadata.delivery_preflight
+  assertExactKeys(metadata,METADATA_KEYS,'metadata')
+  if(preflight!==undefined){
+    assertExactKeys(preflight,new Set(['preflight_id','input_digest']),'metadata.delivery_preflight')
+    if(!/^[0-9a-f]{64}$/i.test(preflight.preflight_id)||preflight.preflight_id!==preflight.input_digest)throw new EvidenceBundleError('delivery preflight registration must contain one matching sha256 identity')
+  }
   if(bundle.bundle_id!==sha256(canonicalJson(bundle.identity)))throw new EvidenceBundleError('bundle_id does not match canonical identity')
   return bundle
 }

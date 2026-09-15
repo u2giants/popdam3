@@ -15,16 +15,17 @@ export function pythonDiagnostics(input,{executor=execFileSync}={}){
 
 export function qualifyChange(input,{diagnostics=pythonDiagnostics,routeSelector=selectPreviewRoute}={}){
   try{
+    const route=routeSelector(input.preview)
+    if(route.status==='UNVERIFIABLE')throw new QualificationError(route.reason)
+    if(route.route==='NO_DATABASE_PREVIEW')return {status:'QUALIFIED',decision:'NO_DATABASE_PREVIEW',reason:route.reason,next_action:'return-to-natural-owner',applicable_checks:route.classification.applicable_checks,route}
     if(input.file_shape?.supersession_supported!==true)return {status:'BLOCKED',reason:'pull-request file shape is unsupported by guarded supersession/recovery'}
     if(input.dependency_closure?.complete!==true)return {status:'BLOCKED',reason:`migration dependency closure is incomplete: ${(input.dependency_closure?.missing??[]).join(', ')}`}
     if(input.historical_evidence?.compatible!==true)return {status:'BLOCKED',reason:'historical preview evidence type is incompatible with the requested route'}
-    const route=routeSelector(input.preview)
-    if(route.status==='UNVERIFIABLE')throw new QualificationError(route.reason)
     if(route.status==='WAITING')return {status:'WAITING',reason:route.reason,next_action:'wait-for-preview-dependency',route}
     const result=diagnostics({repo:input.repo,allowlist:input.preview.versions})
     if(result?.catalog?.status!=='covered')return {status:'BLOCKED',reason:'catalog verifier derives no target and no hash-bound sidecar/contract covers the change'}
     if(result?.risk?.status!=='covered')throw new QualificationError('risk diagnostic coverage is unavailable')
-    return {status:'QUALIFIED',reason:'route, dependency, risk and catalog coverage are compatible',next_action:'reviewer-assignment',route,diagnostics:result}
+    return {status:'QUALIFIED',decision:'DATABASE_PREVIEW_REQUIRED',reason:'route, dependency, risk and catalog coverage are compatible',next_action:'reviewer-assignment',route,diagnostics:result}
   }catch(error){return {status:'UNVERIFIABLE',reason:error.message,next_action:'full-manual-qualification'}}
 }
 

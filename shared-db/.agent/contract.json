@@ -1,1 +1,46 @@
-{"allowed_paths":[".github/live-proofs/2506.sql",".agent/contract.json",".agent/completion.json"],"assumptions":["Issue #2506 migration 20260911213429 (PR #2726) is applied on production by run 34898171486; the Shared DB Live Proof workflow is on main."],"base_sha":"477b8633b42c0d17ece1915e2959eb728e398aa8","branch":"claude/live-proof-probe-2506","db_reads":[],"db_writes":[],"dispatcher":"Albert Hazan (owner, repository-maintenance authorization via orchestrator marker #2893)","file_writes":[".github/live-proofs/2506.sql",".agent/contract.json",".agent/completion.json"],"generation":4,"goal":"Add the committed read-only live-proof probe for outcome #2506 so the Shared DB Live Proof workflow can produce the artifact --complete-outcome re-derives.","prohibited_actions":["No database write; the probe runs with read_only true.","No change to the lane script, the live-proof workflow, or its shared modules.","No hand-written ledger events and no retry of a read-back refusal.","Never delete a claim, lease, verdict, or coordination ref."],"required_checks":["git diff --check"],"route":"repo-maintenance","schema_version":1,"stop_conditions":["Stop if completion would require editing any file other than the probe and the evidence pair.","Stop if the probe does not pass on production."],"work_issue":2921,"work_type":"repo-maintenance","worker":"claude-repo-session-2921","worktree":"C:/tmp/wt-probe2506"}
+{
+  "schema_version": 1,
+  "work_issue": 2969,
+  "generation": 15,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "branch": "claude/risk-gate-drop-function",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/agent-a1b90ddbccf740c3f",
+  "worker": "agent-a1b90ddbccf740c3f",
+  "dispatcher": "Orchestrator (production run 34987389408 for 20260915130626 refused by classify_sql on a non-CASCADE DROP FUNCTION); production run 34989644100 for 20260915143302 (#2911) refused a nullable ADD COLUMN as interrupting; coordinator ordered an allowlist-only restructure after six review rounds",
+  "base_sha": "1a04fa83cfca2f7cdca23b31449089add29e9ca6",
+  "goal": "Make the production business-risk classifier allowlist-only: a migration reports no business risk only when every top-level statement fullmatches one entry of a single ALLOWLIST constant (create function in sql/plpgsql without security definer, set or argument defaults; drop function if exists without cascade; one nullable built-in-type add column; plain create table; create index on a table created earlier in the migration; comment on). Every other statement, including WITH, EXPLAIN, DO, SELECT and unparsed SQL, reports all three risks. The two refused production migrations give no finding.",
+  "allowed_paths": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/contract.json",
+    ".agent/completion.json"
+  ],
+  "file_writes": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/contract.json",
+    ".agent/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions": [
+    "Postgres refuses a non-CASCADE DROP FUNCTION while dependents exist, so it removes no rows.",
+    "A nullable ADD COLUMN of a built-in type with no default is a catalog-only change.",
+    "CREATE FUNCTION does not execute the routine body.",
+    "sql_top_level_statements removes comments and neutralises string and dollar-quoted bodies."
+  ],
+  "prohibited_actions": [
+    "No database, preview, rehearsal, production, migration, claim, lease, or infrastructure write or dispatch.",
+    "Do not change the preview-required check.",
+    "Do not weaken, skip or quarantine any test."
+  ],
+  "required_checks": [
+    "python -m pytest -q scripts/test_production_business_risk_gate.py",
+    "node --test scripts/throughput-guard/false-alarm-corpus.test.mjs",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "Stop if the fix requires changing any file outside the gate script, its test file and the evidence pair."
+  ]
+}

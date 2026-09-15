@@ -1734,10 +1734,11 @@ have already happened in this repo, more than once.
     `scripts/check-documents-only-merge-authorization.mjs` separately permits plan files and
     declarative routing pointers in AGENTS, task-router, and skill files. It inspects the actual
     changed hunks and accepts only link-only list/table rows whose labels literally name the local
-    Markdown target; free-form or behavior-changing instructions stay on the guarded code path. A
-    fail-closed refusal posts a separate visible diagnostic that directs the pull request to guarded
-    code checks without competing for the required context. Ordinary mixed/code pull requests write
-    only that diagnostic; if the same commit already carries this workflow's lightweight success, or
+    Markdown target; free-form or behavior-changing instructions stay on the guarded code path. An
+    ordinary mixed/code pull request gets a separate, green `Not applicable` diagnostic (and a green
+    job) that directs it to guarded code checks without competing for the required context (#2838:
+    a routine red trained everyone to ignore this check). Red on that diagnostic now means a genuine
+    refusal: a moved head, a production freeze, or an unreadable comparison. If the same commit already carries this workflow's lightweight success, or
     if its base is retargeted, the command explicitly revokes that required status before guarded
     checks re-authorize the new comparison. Thus an unreadable,
     over-ceiling, retargeted, or non-prose comparison cannot strand an absent or stale-green result. The

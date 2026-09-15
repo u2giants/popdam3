@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "issue": 2729,
+  "authorization": "https://github.com/u2giants/shared-db/issues/2729#issuecomment-5684812877",
+  "cost_evidence": {
+    "source": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners",
+    "statement": "Use of the standard GitHub-hosted runners is free and unlimited on public repositories.",
+    "checked_on": "2026-09-15",
+    "repository_visibility": "public",
+    "larger_runners_used": false
+  },
+  "aggregate_context": "Queue-sensitive checks (aggregate)",
+  "lanes": [
+    { "name": "ubuntu-latest", "label": "ubuntu-latest", "arch": "x64", "class": "standard", "qualified": true, "note": "Current default lane; resolves to the Ubuntu 24.04 x64 image." },
+    { "name": "ubuntu-24.04", "label": "ubuntu-24.04", "arch": "x64", "class": "standard", "qualified": true, "note": "Pinned Ubuntu 24.04 x64 label." },
+    { "name": "ubuntu-22.04", "label": "ubuntu-22.04", "arch": "x64", "class": "standard", "qualified": true, "note": "Ubuntu 22.04 x64 image pool." },
+    { "name": "ubuntu-24.04-arm", "label": "ubuntu-24.04-arm", "arch": "arm64", "class": "standard", "qualified": true, "note": "Ubuntu 24.04 arm64 pool; free standard runner for public repositories." },
+    { "name": "ubuntu-22.04-arm", "label": "ubuntu-22.04-arm", "arch": "arm64", "class": "standard", "qualified": true, "note": "Ubuntu 22.04 arm64 pool; free standard runner for public repositories." }
+  ],
+  "queue_sensitive_jobs": [
+    {
+      "workflow": "tools-offline-tests.yml",
+      "job_id": "verify",
+      "context": "Tools offline tests",
+      "required_on_main": true,
+      "tooling": ["actions/checkout@v4", "actions/setup-node@v4 node 22", "actions/setup-python@v5 python 3.12", "git", "bash"],
+      "assertions": ["tools-offline-tests"]
+    },
+    {
+      "workflow": "coldlion-promotion-contract-tests.yml",
+      "job_id": "contract-tests",
+      "context": "Promotion contract tests (offline)",
+      "required_on_main": true,
+      "tooling": ["actions/checkout@v4", "actions/setup-node@v4 node 22"],
+      "assertions": ["promotion-contract-tests-offline"]
+    }
+  ],
+  "not_laned": [
+    { "context": "SQL migration guards", "workflow": "shared-supabase-migrations.yml", "reason": "Owned by parallel branch claude/2729-reroute-recovery; laning it here would collide. Needs Supabase CLI tooling review before arm64 lanes qualify." },
+    { "context": "Cross-PR object collision, Domain ownership, Intake pointer guard, Handoff contract, Migration author lease, Migration guarded merge authorization, Orchestrator marker guard, Cancelled work guard, Agent work contract", "workflow": "various", "reason": "Required but short single-step guards; not in this step's queue-sensitive scope. They can be added to this registry later with the same lane contract." }
+  ]
+}

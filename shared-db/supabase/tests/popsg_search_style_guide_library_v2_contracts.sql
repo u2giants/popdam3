@@ -220,6 +220,36 @@ begin
     raise exception 'contract 8: file mode lost a child under a NULL guide identity';
   end if;
 
+  -- Issue #2860: the faster default body must keep file-mode facet semantics.
+  -- Per-file tag facets count every array element (duplicates included), the
+  -- licensor facet counts files, and name_asc orders by filename.
+  update public.style_guide_search_documents
+     set licensor_name = null
+   where style_guide_file_id = '25060000-0000-4000-8000-000000000014';
+  v_result := public.search_style_guide_library_v2(
+    p_result_mode => 'files', p_query => 'uniquechildtoken', p_sort => 'name_asc', p_limit => 200);
+  if (v_result->>'total')::integer <> 3
+     or not exists (select 1 from jsonb_array_elements(v_result->'facets'->'tags') facet
+                     where facet->>'value' = 'alpha-tag' and (facet->>'count')::integer = 4)
+     or exists (select 1 from jsonb_array_elements(v_result->'facets'->'licensors') facet
+                 where facet->'value' = 'null'::jsonb)
+     or not exists (select 1 from jsonb_array_elements(v_result->'facets'->'pdf_content_states') facet
+                     where facet->>'value' = 'not_applicable' and (facet->>'count')::integer = 1)
+     or v_result->'results'->0->>'filename' <> 'alpha.jpg' then
+    raise exception 'contract 10: file-mode facets or name order changed: %', v_result->'facets';
+  end if;
+  if (public.search_style_guide_library_v2('files', null, p_sort => 'modified_desc', p_limit => 1)->>'total')::integer
+       <> (select count(*) from public.style_guide_search_documents d
+             join public.style_guide_files f on f.id = d.style_guide_file_id
+            where d.is_active and f.is_active) then
+    raise exception 'contract 10: default files total is not exact';
+  end if;
+  if not exists (select 1 from pg_proc p
+                  where p.oid = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)'::regprocedure
+                    and p.proconfig = array['search_path=pg_catalog, auth', 'work_mem=64MB']::text[]) then
+    raise exception 'contract 10: function settings changed beyond search_path and work_mem';
+  end if;
+
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',
     '{"sub":"25060000-0000-4000-8000-000000000001","role":"authenticated"}', true);

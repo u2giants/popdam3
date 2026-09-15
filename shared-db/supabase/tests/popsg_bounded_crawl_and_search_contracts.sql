@@ -54,8 +54,6 @@ declare
   v_total integer;
   v_iterations integer;
   v_ok boolean;
-  v_sqlstate text;
-  v_claim record;
   v_claim_count integer;
   v_identity text;
   v_result jsonb;
@@ -63,7 +61,6 @@ declare
   v_page2 jsonb;
   v_page3 jsonb;
   v_ids uuid[];
-  v_text text;
 begin
 
   -- =========================================================================
@@ -100,26 +97,11 @@ begin
   end if;
 
   -- =========================================================================
-  -- verify 3: the SECURITY DEFINER function is no longer reachable by
-  -- `authenticated` (or `anon`, or PUBLIC)
+  -- verify 3: the retired SECURITY DEFINER wrapper is gone (#2934), and every
+  -- continuation RPC is service-role only
   -- =========================================================================
-  if has_function_privilege('authenticated', 'public.deactivate_stale_sg_files(text,uuid)', 'execute') then
-    raise exception 'contract 3: authenticated can still execute deactivate_stale_sg_files';
-  end if;
-  if has_function_privilege('anon', 'public.deactivate_stale_sg_files(text,uuid)', 'execute') then
-    raise exception 'contract 3: anon can still execute deactivate_stale_sg_files';
-  end if;
-  -- PUBLIC is not a role, so it is read straight out of the ACL: a PUBLIC grant
-  -- is spelled with an empty grantee, `=X/owner`.
-  if exists (
-    select 1
-      from pg_proc p, unnest(coalesce(p.proacl, acldefault('f', p.proowner))) a
-     where p.oid = 'public.deactivate_stale_sg_files(text,uuid)'::regprocedure
-       and a::text like '=%') then
-    raise exception 'contract 3: PUBLIC can still execute deactivate_stale_sg_files';
-  end if;
-  if not has_function_privilege('service_role', 'public.deactivate_stale_sg_files(text,uuid)', 'execute') then
-    raise exception 'contract 3: service_role lost EXECUTE on deactivate_stale_sg_files';
+  if to_regprocedure('public.deactivate_stale_sg_files(text,uuid)') is not null then
+    raise exception 'contract 3: the retired wrapper deactivate_stale_sg_files still exists';
   end if;
   -- every continuation RPC is service-role only
   if has_function_privilege('authenticated', 'public.reconcile_stale_sg_files_batch(text,uuid,integer,numeric)', 'execute')
@@ -362,17 +344,6 @@ begin
   end if;
   if v_before <> v_after then
     raise exception 'contract 10: the inaccessible-root guard inactivated rows (% -> %)', v_before, v_after;
-  end if;
-
-  -- the compatibility wrapper refuses too, rather than silently doing nothing
-  v_ok := false;
-  begin
-    perform public.deactivate_stale_sg_files('ROOT_C', v_file);
-  exception when others then
-    v_ok := true;
-  end;
-  if not v_ok then
-    raise exception 'contract 10: deactivate_stale_sg_files did not refuse a guarded root';
   end if;
 
   -- =========================================================================

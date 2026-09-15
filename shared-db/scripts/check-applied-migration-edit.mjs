@@ -34,8 +34,27 @@
 // rare case where it does have to look, it FAILS CLOSED: an unreadable ledger
 // exits 2, because "we could not check" must never be reported as "not applied".
 //
-// READ-ONLY. It runs the same single constant SELECT as the drift check and has
-// no code path that can issue any other statement.
+// THE PREVIEW-ONLY PRE-MERGE EXCEPTION (PR #2933, check run 34922885252)
+// ----------------------------------------------------------------------
+// The governed flow applies an open pull request's migration to preview BEFORE
+// it merges. Any later push to that pull request then found its own version in
+// the preview ledger and went permanently red, even with the file untouched.
+// The one exception: an ADDED file whose version is in the PREVIEW ledger and
+// NOT in production is allowed only when the file reproduces exactly the
+// statements preview's own ledger row recorded when it ran that version. The
+// evidence is the database's durable record of what it executed, never the
+// branch. Every statement must match byte for byte and in order; only whitespace
+// and `;` separators BETWEEN statements are free, because both appliers store
+// each statement trimmed and never execute the separators. A missing, empty,
+// malformed or unreadable row refuses (fail closed). Production-applied versions,
+// modified/deleted/renamed files and any changed statement byte stay refused, so
+// incident #2037 (an applied body rewritten on the branch) is still caught. A
+// version belongs to exactly one version claim, so preview's row for it is the
+// apply made for this pull request's claim.
+//
+// READ-ONLY. It runs the same single constant SELECT as the drift check and,
+// only for that exception's candidates, one SELECT of a validated 14-digit
+// version's `statements` on preview. No code path issues any other statement.
 //
 //   node scripts/check-applied-migration-edit.mjs --base origin/main
 
@@ -82,6 +101,62 @@ export function restorationAllows(file, raw) {
   if (raw === null || raw === undefined) return null
   try { validateHistoricalRestorationFile(file, raw) } catch { return null }
   return HISTORICAL_RESTORATIONS[versionOf(file)] ?? null
+}
+
+/**
+ * Pure. True only when `raw` (CRLF-normalized, as the appliers read it) is
+ * exactly the ledger statements, in order, with nothing but whitespace and `;`
+ * before, between and after them. Any doubt -- a non-array, an empty list, a
+ * non-string, blank or untrimmed statement, a bare CR, an unreadable file -- is
+ * false.
+ */
+export function fileMatchesLedgerStatements(raw, statements) {
+  if (typeof raw !== 'string' || !Array.isArray(statements) || statements.length === 0) return false
+  if (raw.replaceAll('\r\n', '').includes('\r')) return false
+  const text = raw.replaceAll('\r\n', '\n')
+  let cursor = 0
+  for (const statement of statements) {
+    if (typeof statement !== 'string' || statement === '' || statement !== statement.trim()) return false
+    while (cursor < text.length && /[\s;]/.test(text[cursor])) cursor += 1
+    if (!text.startsWith(statement, cursor)) return false
+    cursor += statement.length
+    // The statement must END here: a ledger `select 1` never matches `select 12`.
+    if (cursor < text.length && !/[\s;]/.test(text[cursor])) return false
+  }
+  return /^[\s;]*$/.test(text.slice(cursor))
+}
+
+/**
+ * Pure. The preview-only pre-merge exception described in the header. Returns
+ * null (refuse) unless every condition holds.
+ */
+export function previewApplyAllows(edit, appliedIn, raw, previewStatements) {
+  if (edit?.kind !== 'added' || appliedIn.length !== 1 || appliedIn[0] !== 'preview') return null
+  if (!(previewStatements instanceof Map) || !previewStatements.has(edit.version)) return null
+  const statements = previewStatements.get(edit.version)
+  if (!fileMatchesLedgerStatements(raw, statements)) return null
+  return { statementCount: statements.length }
+}
+
+/**
+ * Reads the `statements` preview recorded for one version. Returns the array,
+ * or throws Unknown. Preview only: it refuses the production project ref.
+ */
+export async function fetchLedgerStatements(projectRef, version, token = process.env.SUPABASE_ACCESS_TOKEN, { fetchImpl = fetch } = {}) {
+  if (projectRef !== PROJECT_REFS.preview) throw new Unknown('ledger statements are read from the preview project only')
+  if (!/^\d{14}$/.test(String(version ?? ''))) throw new Unknown('version must be exactly 14 digits')
+  if (!token) throw new Unknown('SUPABASE_ACCESS_TOKEN is not set, so preview statements could not be read')
+  const query = `select statements from supabase_migrations.schema_migrations where version = '${version}'`
+  let response
+  try {
+    response = await fetchImpl(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) })
+  } catch (error) { throw new Unknown(`could not reach the Supabase Management API: ${error.message}`) }
+  const body = await response.text()
+  if (!response.ok) throw new Unknown(`Supabase Management API returned ${response.status} for project ${projectRef}`)
+  let rows
+  try { rows = JSON.parse(body) } catch { throw new Unknown('Supabase Management API did not return JSON') }
+  if (!Array.isArray(rows) || rows.length !== 1 || !Array.isArray(rows[0]?.statements)) throw new Unknown(`expected exactly one preview ledger row with a statements array for ${version}`)
+  return rows[0].statements
 }
 
 export function versionOf(file) {
@@ -139,7 +214,7 @@ export function editedMigrations(baseRef, { executor = execFileSync, cwd = repoR
  * Pure. Given the edits and each ledger's applied versions, say which edits are
  * forbidden and where each was already applied.
  */
-export function findingsFor(edits, ledgers, bodies = new Map()) {
+export function findingsFor(edits, ledgers, bodies = new Map(), previewStatements = new Map()) {
   const findings = []
   const allowed = []
   for (const edit of edits) {
@@ -147,6 +222,8 @@ export function findingsFor(edits, ledgers, bodies = new Map()) {
     if (appliedIn.length === 0) continue
     const restoration = restorationAllows(edit.file, bodies.get(edit.file))
     if (restoration) { allowed.push({ ...edit, appliedIn, restoration }); continue }
+    const previewApply = previewApplyAllows(edit, appliedIn, bodies.get(edit.file), previewStatements)
+    if (previewApply) { allowed.push({ ...edit, appliedIn, previewApply }); continue }
     findings.push({ ...edit, appliedIn })
   }
   // Non-enumerable: the allowed list rides along for the report, but `findings`
@@ -163,7 +240,8 @@ export function formatReport(edits, findings) {
   lines.push('')
   const allowed = findings.allowed ?? []
   for (const entry of allowed) {
-    lines.push(`ALLOWED: ${entry.version} is applied in ${entry.appliedIn.join(', ')}, and this file is byte-for-byte the approved historical restoration registered in scripts/historical-migration-restorations.mjs (${entry.restoration.name}).`)
+    if (entry.previewApply) lines.push(`ALLOWED: ${entry.version} is an added file applied in preview only (never production), and it reproduces exactly the ${entry.previewApply.statementCount} statement(s) preview's own ledger recorded for that version.`)
+    else lines.push(`ALLOWED: ${entry.version} is applied in ${entry.appliedIn.join(', ')}, and this file is byte-for-byte the approved historical restoration registered in scripts/historical-migration-restorations.mjs (${entry.restoration.name}).`)
   }
   if (allowed.length > 0) lines.push('')
   if (findings.length === 0) {
@@ -181,6 +259,8 @@ export function formatReport(edits, findings) {
   lines.push('')
   lines.push('An ADDED file is refused on the same terms: incident #2037 arrived as an added file, because the')
   lines.push('version was created and then edited on one branch, so it never showed as modified against main.')
+  lines.push('An added file applied to PREVIEW ONLY passes solely when it reproduces exactly the statements')
+  lines.push("preview's ledger recorded for that version; a refusal here means they differ or could not be read.")
   lines.push('')
   lines.push('FIX FORWARD: restore the file to the body that was applied and put the change in a NEW migration at a')
   lines.push('newly reserved version, written to be a no-op where the applied shape already matches. If this change')
@@ -192,6 +272,7 @@ export function formatReport(edits, findings) {
 export const defaultIo = {
   editedMigrations,
   async appliedVersions(projectRef) { return new Set(await fetchAppliedVersions(projectRef)) },
+  previewStatements(projectRef, version) { return fetchLedgerStatements(projectRef, version) },
   readMigration(file) {
     try { return fs.readFileSync(path.join(repoRoot, file), 'utf8') }
     catch { return null }
@@ -210,7 +291,15 @@ export async function runCheck({ baseRef = 'origin/main', io = defaultIo } = {})
     if (!(ledgers[name] instanceof Set) || ledgers[name].size === 0) throw new Unknown(`the ${name} ledger came back empty, so nothing was compared`)
   }
   const bodies = new Map(edits.map((edit) => [edit.file, io.readMigration(edit.file)]))
-  return { edits, findings: findingsFor(edits, ledgers, bodies), ledgersRead: Object.keys(ledgers) }
+  // Statements are read only for the preview-only exception's candidates. An
+  // unreadable row is left absent, which previewApplyAllows refuses.
+  const previewStatements = new Map()
+  for (const edit of edits) {
+    if (edit.kind !== 'added' || !ledgers.preview.has(edit.version) || ledgers.production.has(edit.version)) continue
+    if (restorationAllows(edit.file, bodies.get(edit.file)) || typeof io.previewStatements !== 'function') continue
+    try { previewStatements.set(edit.version, await io.previewStatements(PROJECT_REFS.preview, edit.version)) } catch { /* fail closed: stays refused */ }
+  }
+  return { edits, findings: findingsFor(edits, ledgers, bodies, previewStatements), ledgersRead: Object.keys(ledgers) }
 }
 
 export function parseArgs(argv) {

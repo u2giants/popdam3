@@ -777,6 +777,7 @@ class BatchResolutionTests(unittest.TestCase):
                 "20260903200951",
                 "20260908195056",
                 "20260906222338",
+                "20260915015414",
             },
         )
         self.assertEqual(HELD_VERSIONS, {"20260802170000", "20260802171000"})
@@ -1551,20 +1552,45 @@ class CliTests(unittest.TestCase):
     def test_a_missing_token_blocks_rather_than_passing(self):
         import os
 
+        # Issue #2729: this refusal used to print straight into the CI log, where
+        # "POST-BATCH APP VERIFICATION BLOCKED: SHARED_DB_TEST_TOKEN is empty" read
+        # like a real verification step that had reported success. It is captured
+        # here and asserted instead, so the refusal is proved, not just printed.
         os.environ.pop("SHARED_DB_TEST_TOKEN", None)
-        code = main(
-            [
-                "--batch",
-                "B1",
-                "--output-dir",
-                tempfile.gettempdir(),
-                "--project-ref",
-                PRODUCTION_PROJECT_REF,
-                "--token-env",
-                "SHARED_DB_TEST_TOKEN",
-            ]
-        )
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+            code = main(
+                [
+                    "--batch",
+                    "B1",
+                    "--output-dir",
+                    tempfile.gettempdir(),
+                    "--project-ref",
+                    PRODUCTION_PROJECT_REF,
+                    "--token-env",
+                    "SHARED_DB_TEST_TOKEN",
+                ]
+            )
+        self.assertNotEqual(code, 0)
         self.assertEqual(code, 1)
+        self.assertIn("POST-BATCH APP VERIFICATION BLOCKED: SHARED_DB_TEST_TOKEN is empty", stderr.getvalue())
+
+    def test_an_empty_token_fails_the_real_process_not_just_the_function(self):
+        # The workflow step runs the script as a process; its exit status is what
+        # GitHub Actions judges. An empty (not merely absent) token must fail it.
+        import os
+        import subprocess
+
+        env = {**os.environ, "SHARED_DB_TEST_TOKEN": ""}
+        script = Path(__file__).resolve().parent / "post_batch_app_verification.py"
+        with tempfile.TemporaryDirectory() as output_dir:
+            run = subprocess.run(
+                [sys.executable, str(script), "--batch", "B1", "--output-dir", output_dir,
+                 "--project-ref", PRODUCTION_PROJECT_REF, "--token-env", "SHARED_DB_TEST_TOKEN"],
+                env=env, capture_output=True, text=True, encoding="utf-8", timeout=60,
+            )
+        self.assertNotEqual(run.returncode, 0, "an empty token must never let the verification step succeed")
+        self.assertIn("SHARED_DB_TEST_TOKEN is empty", run.stdout + run.stderr)
 
     def test_a_bad_batch_blocks_before_any_network_call(self):
         import os

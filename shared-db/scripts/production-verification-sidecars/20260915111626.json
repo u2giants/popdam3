@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260915111626",
+  "migration_sha256": "fac195a4b6a7f38f520938a68bd3f7bfa13e9741b25ee98ba099cbb03365fc8f",
+  "checks": [
+    {
+      "id": "popsg_search_v2_default_timeout",
+      "kind": "catalog_contract",
+      "contract": "popsg_search_v2_default_timeout_v1",
+      "expected_count": 1
+    }
+  ]
+}
