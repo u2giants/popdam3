@@ -1,0 +1,14 @@
+{
+  "target": "https://sg.designflow.app/library",
+  "tested_at": "2026-09-15T00:46:00Z",
+  "account": "protected PopSG QA account",
+  "signed_in": true,
+  "guides_ready": true,
+  "files_ready": true,
+  "files_mode_elapsed_ms": 6536,
+  "search_ready": true,
+  "search_elapsed_ms": 3008,
+  "error_http_statuses": [],
+  "console_error_categories": [],
+  "scope": "Signed-in production browse, Files switch, and search journey; no licensed path, filename, or result content retained."
+}

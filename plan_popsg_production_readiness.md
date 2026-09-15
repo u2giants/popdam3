@@ -58,6 +58,8 @@ Handoff: [HANDOFF.d/2026-09-03T1600Z-hetz-codex-popsg-production-readiness.md](H
 
 **Execution drift — 2026-09-15 00:39Z:** active sole marker #2925 succeeded the closed #2858/#2893 markers. Existing timeout successors #2792 and #2860 were re-routed to #2925 without duplicate issues, a competing orchestrator, structural authoring, or production writes. Phases D–E were re-read; the prerequisite order and safety limits are unchanged.
 
+**Execution drift — 2026-09-15 00:46Z:** protected signed-in production QA successfully loaded Guides, switched to Files, and completed a real library search in 3.0 seconds; no HTTP or browser-console errors occurred. The sanitized evidence is `verification/popsg-readiness/search-qa-2026-09-15.json`. This is the PopDAM-owned app-outcome confirmation for shared-db #2506 after the orchestrator’s production-live proof; it does not claim that the separately routed default-v2 performance successor #2860 is resolved. Phases D–E were re-read: the remaining PDF, v2-default-performance, bridge-adoption, and administrator-QA gates remain unchanged.
+
 ## 1. The ultimate goal
 
 PopSG must be a trustworthy, current production library of every **eligible creative file** in POP Creations' canonical Style Guides NAS share. A user must be able to browse, filter, and search that library without seeing files that no longer exist, silently missing eligible files, or being told a crawl succeeded when reconciliation failed. Every technically previewable file must either have a useful preview or a visible, classified exception. Search must cover paths, guide metadata, curated tags, and text extracted directly from active PopSG PDF files.
