@@ -1171,130 +1171,6 @@ export type Database = {
         }
         Relationships: []
       }
-      erp_items_current: {
-        Row: {
-          created_at: string
-          dismissed: boolean
-          division_code: string | null
-          erp_updated_at: string | null
-          external_id: string
-          id: string
-          item_description: string | null
-          licensor_code: string | null
-          mg_category: string | null
-          mg01_code: string | null
-          mg02_code: string | null
-          mg03_code: string | null
-          mg04_code: string | null
-          mg05_code: string | null
-          mg06_code: string | null
-          prepack_code: string | null
-          prepack_codes: Json | null
-          property_code: string | null
-          raw_mg_fields: Json | null
-          size_code: string | null
-          source_system: string
-          style_number: string | null
-          sync_run_id: string | null
-          synced_at: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          dismissed?: boolean
-          division_code?: string | null
-          erp_updated_at?: string | null
-          external_id: string
-          id?: string
-          item_description?: string | null
-          licensor_code?: string | null
-          mg_category?: string | null
-          mg01_code?: string | null
-          mg02_code?: string | null
-          mg03_code?: string | null
-          mg04_code?: string | null
-          mg05_code?: string | null
-          mg06_code?: string | null
-          prepack_code?: string | null
-          prepack_codes?: Json | null
-          property_code?: string | null
-          raw_mg_fields?: Json | null
-          size_code?: string | null
-          source_system?: string
-          style_number?: string | null
-          sync_run_id?: string | null
-          synced_at?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          dismissed?: boolean
-          division_code?: string | null
-          erp_updated_at?: string | null
-          external_id?: string
-          id?: string
-          item_description?: string | null
-          licensor_code?: string | null
-          mg_category?: string | null
-          mg01_code?: string | null
-          mg02_code?: string | null
-          mg03_code?: string | null
-          mg04_code?: string | null
-          mg05_code?: string | null
-          mg06_code?: string | null
-          prepack_code?: string | null
-          prepack_codes?: Json | null
-          property_code?: string | null
-          raw_mg_fields?: Json | null
-          size_code?: string | null
-          source_system?: string
-          style_number?: string | null
-          sync_run_id?: string | null
-          synced_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_items_current_sync_run_id_fkey"
-            columns: ["sync_run_id"]
-            isOneToOne: false
-            referencedRelation: "erp_sync_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      erp_items_raw: {
-        Row: {
-          external_id: string
-          fetched_at: string
-          id: string
-          raw_payload: Json
-          sync_run_id: string | null
-        }
-        Insert: {
-          external_id: string
-          fetched_at?: string
-          id?: string
-          raw_payload: Json
-          sync_run_id?: string | null
-        }
-        Update: {
-          external_id?: string
-          fetched_at?: string
-          id?: string
-          raw_payload?: Json
-          sync_run_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_items_raw_sync_run_id_fkey"
-            columns: ["sync_run_id"]
-            isOneToOne: false
-            referencedRelation: "erp_sync_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       erp_sync_runs: {
         Row: {
           created_by: string | null
@@ -3217,6 +3093,7 @@ export type Database = {
           directory_path: string
           file_extension: string | null
           filename: string
+          has_talent_likeness: boolean | null
           id: string
           is_active: boolean
           last_seen_at: string
@@ -3241,6 +3118,7 @@ export type Database = {
           directory_path: string
           file_extension?: string | null
           filename: string
+          has_talent_likeness?: boolean | null
           id?: string
           is_active?: boolean
           last_seen_at?: string
@@ -3265,6 +3143,7 @@ export type Database = {
           directory_path?: string
           file_extension?: string | null
           filename?: string
+          has_talent_likeness?: boolean | null
           id?: string
           is_active?: boolean
           last_seen_at?: string
@@ -4317,10 +4196,6 @@ export type Database = {
         Returns: string
       }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
-      deactivate_stale_sg_files: {
-        Args: { p_root_label: string; p_run_id: string }
-        Returns: number
-      }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       expand_dam_search_queries: {
         Args: { p_query: string }
