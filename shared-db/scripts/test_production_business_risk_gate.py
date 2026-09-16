@@ -343,6 +343,11 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 if not line.rstrip().endswith("\\"):
                     break
             invocations.append("\n".join(block))
+        # The read-only qualify-route subcommand (#3039) never waits and is counted separately.
+        routes = [block for block in invocations if block.startswith(" qualify-route")]
+        self.assertEqual(len(routes), 1)
+        self.assertNotIn("--rate-limit-wait-seconds", routes[0])
+        invocations = [block for block in invocations if not block.startswith(" qualify-route")]
         self.assertEqual(len(invocations), 2)
         self.assertEqual(["--rate-limit-wait-seconds 900" in block for block in invocations], [True, False],
                          "the lane-held invocation must fail fast")
@@ -2326,7 +2331,9 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     def test_production_workflow_enforces_gate_twice_and_keeps_old_boundary(self):
         workflow = Path(__file__).parents[1] / ".github/workflows/shared-supabase-migrations.yml"
         text = workflow.read_text(encoding="utf-8")
-        self.assertEqual(text.count("python scripts/production_business_risk_gate.py"), 2)
+        self.assertEqual(text.count("python scripts/production_business_risk_gate.py qualify-route"), 1)
+        self.assertEqual(text.count("python scripts/production_business_risk_gate.py")
+                         - text.count("python scripts/production_business_risk_gate.py qualify-route"), 2)
         self.assertIn("environment: production", text)
         self.assertGreaterEqual(text.count("config/production-risk-policy-activation.json"), 2)
 

@@ -7,14 +7,15 @@ Handoff for this plan: [`HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 0 | Plan written, issue opened | ✅ done 2026-09-16 | this file; issue u2giants/shared-db#3024 |
+| 0a | Orchestrator ticket #3036 opened for columns | ✅ done 2026-09-16 | issue u2giants/shared-db#3036 |
 | 1 | Move reader into a permanent module | ⬜ open | — |
 | 2 | Build the full-catalog gold set | ⬜ open | — |
 | 3 | Measure baseline accuracy | ⬜ open | — |
 | 4 | Fix rules until the gold set is 100% | ⬜ open | — |
 | 5 | Owner acceptance of the gold set results | ⬜ open | — |
 | 6 | Discover the `plm.item` writer | ⬜ open | — |
-| 7 | Structural change: column on `plm.item` (orchestrator) | ⬜ open (blocked on 5, 6) | — |
-| 8 | Populate + keep populated | ⬜ open | — |
+| 7 | Columns land via #3036 (orchestrator) | ⬜ open, runs in parallel with Phase A | — |
+| 8 | Populate + keep populated | ⬜ open (depends on #3036 merged + applied on production, and step 5 acceptance) | — |
 | 9 | Live acceptance and doc updates | ⬜ open | — |
 
 **Fresh session starts at step 1.** Re-read Phases 2 and 3 before starting each phase (drift check).
@@ -45,7 +46,8 @@ legal/customs matter.
 
 `u2giants/shared-db` (this repo) governs the *structure* of POP Creations' shared Supabase database
 (project `qsllyeztdwjgirsysgai`), used by PIM `poppim-web`, CRM `popcrm-web`, DAM `popdam-web` and the
-`popcre/designflow-*` PLM repos. Read `AGENTS.md` first. Schema changes go only through
+`popcre/designflow-*` PLM repos. Read `AGENTS.md` first. Issue #3024 is `repo-maintenance` scope — the
+umbrella for the reader work; the column change itself is orchestrator issue #3036. Schema changes go only through
 `supabase/migrations/` and the single orchestrator session (skills `shared-db-change`,
 `shared-db-orchestrator`). Default branch `main`, protected; work on a branch + PR.
 
@@ -144,11 +146,13 @@ Locked:
 - Licensor, property, artwork, color, size never influence the product type.
 - Only material/treatment actually stated in the description may be stored in the HTS-facing value;
   inferred defaults are kept separately flagged or dropped.
+- (2026-09-16, Albert) Column shape — requested up front in orchestrator issue #3036 so the slow
+  orchestrator queue is not the bottleneck. On `plm.item`, all nullable: `product_type text`,
+  `product_construction text`, `product_material text` (material stated in the description only),
+  `product_treatment text`, `product_type_status text check in ('accepted','unreadable','placeholder')`,
+  `product_type_rules_version text`, `product_type_read_at timestamptz`.
 
 Open (implementer decides, with criteria):
-- Column shape: recommended `product_type text`, `product_material text`, `product_treatment text`,
-  `product_type_status text check in ('accepted','unreadable','placeholder')`, `product_type_rules_version text`.
-  Criterion: HTS needs product + stated material; MG matching needs product + construction + treatment.
 - Where the reader runs (step 6): a database function (SQL port) vs. the existing ColdLion ingest job
   (Python). Criterion: whichever already writes `plm.item`, so the value can never go stale; one
   implementation only — no second copy of the rules.
@@ -165,7 +169,10 @@ Open (implementer decides, with criteria):
    `product_type_dictionary.py` (normalize, unusable_reason, PRODUCT_PATTERNS, classify) plus
    `DIMENSION`/size stripping. Leave thin re-exports in the old file so
    `test_hierarchical_item_taxonomy.py` keeps passing. Expose `read_product_type(description) ->
-   {product_type, construction, material, material_stated: bool, treatment, status, matched_wording, rules_version}`.
+   {product_type, product_construction, product_material, product_treatment, product_type_status,
+   product_type_rules_version, matched_wording}` — exactly the #3036 columns (`product_type_read_at` is set
+   by the writer; `product_material` holds stated material only, so there is no `material_stated` flag;
+   `matched_wording` is for evaluation, not stored).
    Gate: `python -m pytest -q docs/verification/item-mg-reclassification-20260814 tools/product_type_reader` all green.
 
 2. **Gold set from the full catalog.** Read-only: export every distinct `item_desc` from
@@ -200,14 +207,14 @@ Open (implementer decides, with criteria):
    of 2026-09-16; `plm.import_item_master_data` is the only SQL function inserting into `plm.item` — check
    it and the ColdLion sync repo/job). Gate: named file/function + evidence line in #3024.
 
-7. **Structural change via orchestrator.** Update #3024's scope block (`status: ready`, final
-   `writes:` list) and let the orchestrator route it (run
-   `node scripts/check-orchestrator-marker.mjs --resolve`; never self-author outside that lane). Migration
-   adds the §8 columns to `plm.item` with comments, grants matching existing column grants, regenerated
-   types. Preview first, then production with owner authorization per AGENTS.md. Gate: migration ledger
-   drift check clean on production; `select count(*) from information_schema.columns where table_schema='plm' and table_name='item' and column_name like 'product_type%'` returns the expected count.
+7. **Columns land via #3036 (orchestrator; runs in parallel with Phase A).** The implementer does NOT
+   author the migration. Check #3036's status (`gh issue view 3036`). If reader work shows a column is
+   wrong or missing, comment on #3036 immediately (or open a follow-up structural issue) — do not wait
+   for Phase A to finish. Gate: #3036 merged and applied on production with drift check clean;
+   `select count(*) from information_schema.columns where table_schema='plm' and table_name='item' and column_name in ('product_type','product_construction','product_material','product_treatment','product_type_status','product_type_rules_version','product_type_read_at')`
+   returns 7.
 
-8. **Populate and keep current.** In the writer found in step 6, call the single reader implementation
+8. **Populate and keep current.** Requires #3036 merged + applied on production and step 5 acceptance. In the writer found in step 6, call the single reader implementation
    on insert/update of `description`; backfill all existing rows in batches (application row data — owned
    by that writer, not a migration). Gate: `select product_type_status, count(*) from plm.item group by 1`
    has no nulls; values equal a fresh `evaluate.py` run for 100 random items.
@@ -255,7 +262,8 @@ wrong) and `evaluate.py` should run on a schedule; two copies of rules drift →
 implementation; backfill load on shared DB → batch.
 Rollback: columns are additive; drop via a follow-up migration.
 
-Open: final column shape and runtime location (criteria in §8); whether "ASSORTED CONTRACTUAL …
+Issue scope: #3024 is `repo-maintenance` (umbrella for the reader work); columns are orchestrator issue #3036.
+Open: runtime location (criteria in §8); whether "ASSORTED CONTRACTUAL …
 ORGANIZERS"-style lines count as usable (decide in step 2, confirm in step 5).
 
 ---

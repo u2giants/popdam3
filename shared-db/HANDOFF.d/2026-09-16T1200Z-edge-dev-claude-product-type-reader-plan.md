@@ -11,5 +11,6 @@ start at step 1. Issue: u2giants/shared-db#3024 (labelled `db-work`, scope `stat
 reader passes the full-catalog accuracy gate).
 
 Owner ruling 2026-09-16: the new value lives on `plm.item`, not `coldlion.item_header`.
+Columns are locked and already requested in orchestrator issue u2giants/shared-db#3036 (runs in parallel with Phase A).
 
 Nothing else was changed in this session besides this handoff, the plan, and an AGENTS.md pointer.

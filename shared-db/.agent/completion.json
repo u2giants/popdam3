@@ -1,28 +1,41 @@
 {
   "schema_version": 1,
-  "work_issue": 3030,
+  "work_issue": 3045,
   "outcome": "ready-for-merge",
-  "pr": 3025,
+  "pr": 3042,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3030/1",
-  "contract_sha256": "d1ced6e1a06d7b9caedbaeb1975c50a13e4e5d745fc69e57ac6350a724323828",
-  "head_sha": "638a61ef15c7fc684be198bed543a7180ffababa",
+  "contract_ref": "refs/db-contracts/3045/8",
+  "contract_sha256": "ea9b09901e84ca0e47780adee3312f57db228de9734fcef470749cea2286040f",
+  "head_sha": "1cfc6e9e166e7c249bc172fa44e0163c4ea3b9d9",
   "files_changed": [
-    "AGENTS.md",
-    "HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md",
-    "plan_product_type_reader.md"
+    ".agent/completion.json",
+    ".agent/contract.json",
+    ".github/workflows/documents-only-merge-authorization.yml",
+    ".github/workflows/orchestrator-no-progress-alarm.yml",
+    ".github/workflows/start-reroute-canary.yml",
+    "scripts/orchestrator-flow/no-progress-alarm.mjs",
+    "scripts/orchestrator-flow/no-progress-alarm.test.mjs",
+    "scripts/orchestrator-flow/preview-route-canary.mjs",
+    "scripts/orchestrator-flow/preview-route-canary.test.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
+      "command": "node --test scripts/orchestrator-flow/start-reroute-canary.test.mjs scripts/orchestrator-flow/no-progress-alarm.test.mjs scripts/orchestrator-flow/preview-route-canary.test.mjs scripts/orchestrator-flow/runner-lanes.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
+      "exit_code": 0,
+      "evidence": "49 pass, 0 fail, 0 skipped at implementation head 7576e32f (ea4c73f5 merged with main 3f5c2a23) rebased on origin/main 95619429."
+    },
+    {
       "command": "git diff --check origin/main...HEAD",
       "exit_code": 0,
-      "evidence": "Exit 0 with no output at implementation head 638a61ef against origin/main 9fe6f0bb; the diff is exactly three prose files (AGENTS.md +1 line, plan +270, handoff +15)."
+      "evidence": "Exit 0 with no output at ea4c73f5."
     }
   ],
   "assumptions_resolved": [
-    "git diff --stat origin/main...638a61ef lists only AGENTS.md, plan_product_type_reader.md and the HANDOFF.d file; no code, migration, workflow or configuration file changed."
+    "The documents-only route step carries continue-on-error: true and always exits 0, so it only reports and cannot change the merge authorization."
   ],
   "stop_conditions_hit": []
 }

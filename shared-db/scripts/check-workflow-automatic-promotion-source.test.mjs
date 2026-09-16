@@ -139,7 +139,7 @@ test('every later step uses the guarded source PR, and recovery re-proves the li
   const job = jobSection()
   const afterGuard = job.split('# <<< END automatic-promotion-source-guard', 2)[1]
   assert.doesNotMatch(afterGuard, /SOURCE_PR: \$\{\{ inputs\./, 'a step after the guard reads the raw input instead of the guarded output')
-  assert.equal((afterGuard.match(/SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \}\}/g) ?? []).length, 3)
+  assert.equal((afterGuard.match(/SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \}\}/g) ?? []).length, 4)
   assert.match(afterGuard, /git merge-base --is-ancestor "\$RECOVERED_MERGE_SHA" "\$MAIN_SHA"/)
   for (const gate of ['check-exact-head-approval.mjs', 'Migration guarded merge authorization', '--resolve-admitted-issue-for-pr']) assert.ok(afterGuard.includes(gate), `shared gate ${gate} is absent`)
 })

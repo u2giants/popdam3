@@ -1,26 +1,38 @@
 {
   "schema_version": 1,
-  "generation": 1,
-  "work_issue": 3030,
+  "generation": 8,
+  "work_issue": 3045,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Record the implementation plan for the product-type reader (issue 3030, tracked work issue 3024): add plan_product_type_reader.md, one AGENTS.md pointer bullet under Active contracts and implementation plans, and the session HANDOFF.d file. Prose rulebook and handoff files only; no code, migration, workflow, or database change.",
-  "base_sha": "9fe6f0bbf6d5f1f2332aaf0af5501816729ccf8d",
-  "dispatcher": "Claude shared-db session (product-type reader planning, 2026-09-16)",
-  "worker": "Claude Opus 5 product-type reader plan author",
-  "branch": "claude/product-description-extraction-118fbe",
-  "worktree": "C:/repos/shared-db/.claude/worktrees/product-description-extraction-118fbe",
+  "goal": "Tooling for programme popcre/ai-devops#401 Steps 2A, 4 and 7 under issue 3045 (tracked in 3027): a report-only no-database-preview route decision in the documents-only workflow, a scheduled two-hour no-progress alarm with successor resume, and a dispatch-only start-reroute staging hook with its harness. Scripts, tests and workflows only; no schema, migration, database claim or database access.",
+  "base_sha": "8c4ce615bd6bfc7910e9351163a14336b709c4cd",
+  "dispatcher": "Claude ai-devops session repairing #401 (2026-09-16)",
+  "worker": "Claude Opus 5 #3027 blocked-steps maintainer",
+  "branch": "claude/3027-blocked-steps-tooling",
+  "worktree": "C:/repos/shared-db-worktrees/3027-blocked-steps",
   "allowed_paths": [
-    "AGENTS.md",
-    "plan_product_type_reader.md",
-    "HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md",
+    ".github/workflows/documents-only-merge-authorization.yml",
+    ".github/workflows/orchestrator-no-progress-alarm.yml",
+    ".github/workflows/start-reroute-canary.yml",
+    "scripts/orchestrator-flow/no-progress-alarm.mjs",
+    "scripts/orchestrator-flow/no-progress-alarm.test.mjs",
+    "scripts/orchestrator-flow/preview-route-canary.mjs",
+    "scripts/orchestrator-flow/preview-route-canary.test.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.test.mjs",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "file_writes": [
-    "AGENTS.md",
-    "plan_product_type_reader.md",
-    "HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md",
+    ".github/workflows/documents-only-merge-authorization.yml",
+    ".github/workflows/orchestrator-no-progress-alarm.yml",
+    ".github/workflows/start-reroute-canary.yml",
+    "scripts/orchestrator-flow/no-progress-alarm.mjs",
+    "scripts/orchestrator-flow/no-progress-alarm.test.mjs",
+    "scripts/orchestrator-flow/preview-route-canary.mjs",
+    "scripts/orchestrator-flow/preview-route-canary.test.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.test.mjs",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
@@ -28,17 +40,18 @@
   "db_writes": [],
   "prohibited_actions": [
     "No database read or write of any kind",
-    "No migration, script, workflow, or configuration change",
-    "No edit to AGENTS.md beyond the one pointer bullet",
-    "No work in a shared checkout or on another branch"
+    "No migration, schema, or database claim",
+    "No GitHub settings change",
+    "No cancellation of any run other than the staged non-start canary"
   ],
   "required_checks": [
+    "node --test scripts/orchestrator-flow/start-reroute-canary.test.mjs scripts/orchestrator-flow/no-progress-alarm.test.mjs scripts/orchestrator-flow/preview-route-canary.test.mjs scripts/orchestrator-flow/runner-lanes.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
     "git diff --check origin/main...HEAD"
   ],
   "assumptions": [
-    "The plan and handoff are prose only and change no executable behaviour"
+    "The documents-only route step is continue-on-error and report-only, so it cannot change a merge decision"
   ],
   "stop_conditions": [
-    "Stop and report if the change set grows beyond the three prose files"
+    "Stop and report if any step needs a schema, migration, database write, or settings change"
   ]
 }

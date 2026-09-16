@@ -63,8 +63,14 @@ shares the Supabase database**: PM/PIM `poppim-web`, CRM `popcrm-web`, DAM
 touching code or the database. It exists to stop separate
 AI sessions from breaking each other through the one database they all depend on.
 
-> **Started in `shared-db` and you are not the orchestrator? Stop and hand over.**
-> This repo runs **one orchestrator session**, which dispatches every task to
+> **The orchestrator takes ONLY database-SHAPE changes (§0.0-C) and curated Master
+> Data loads. Nothing else is ever sent to it** — not proofs, monitoring, reports,
+> tooling, scripts, docs, or repository maintenance, however small. The session
+> that owns that outcome does it. When in doubt, it does not go to the orchestrator.
+>
+> **Started in `shared-db` and you are not the orchestrator?** Stop mutating the
+> database. Hand over only unfinished shape work; keep everything else.
+> This repo runs **one orchestrator session**, which dispatches structural work to
 > sub-agents in isolated worktrees.
 > **To find out who that is and where to send work, run
 > `node scripts/check-orchestrator-marker.mjs --resolve` — §11c.** It is the only

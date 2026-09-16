@@ -2690,5 +2690,99 @@ PREVIEW_PRODUCER_PATHS += (
 )
 
 
+def successful_ephemeral_job_id(pr_head: str, api: Callable[[str], Any]) -> int:
+    """The one successful ephemeral-database check on the source PR head."""
+    endpoint = f"repos/{REPOSITORY}/commits/{pr_head}/check-runs?per_page=100"
+    checks = api_sublist(api_object(api, endpoint), "check_runs", endpoint)
+    ids = sorted({
+        c.get("id") for c in checks
+        if isinstance(c, dict) and c.get("name") == EPHEMERAL_CHECK_NAME
+        and c.get("status") == "completed" and c.get("conclusion") == "success"
+        and type(c.get("id")) is int and c.get("id") > 0
+    })
+    if len(ids) != 1:
+        raise RiskGateError(
+            f"expected exactly one successful '{EPHEMERAL_CHECK_NAME}' check on source PR "
+            f"head {pr_head}, found {len(ids)}"
+        )
+    return ids[0]
+
+
+def qualify_automatic_route(
+    *, main_sha: str, allowlist: list[str], source_pr: int, recovery_record: dict | None,
+    repo_root: Path, api: Callable[[str], Any], downloader: Callable[[int, Path], None],
+) -> dict[str, Any]:
+    """Choose, BEFORE dispatch, the evidence route the production gate will accept (#3039).
+
+    Automatic qualification used to dispatch every historical rebind on its preview
+    evidence without asking the gate's question. When the rebind names an ORIGINAL
+    apply run made on an older commit, `prove_historical_original_apply_runs` pins
+    that run's commits to the authoring merge commit and refuses the drift -- so the
+    dispatch was doomed (runs 35052182196, 35061726161). Qualification now runs that
+    SAME proof, unchanged. On refusal it never dispatches the stale evidence: a
+    migration that is not high-risk to live data takes the gate's own ephemeral-CI
+    route, bound to the exact source PR head and proved here with the gate's own
+    `prove_ephemeral_ci_evidence`; a high-risk migration refuses outright.
+    """
+    pr_endpoint = f"repos/{REPOSITORY}/pulls/{source_pr}"
+    pr = api_object(api, pr_endpoint)
+    head_obj = pr.get("head")
+    pr_head = head_obj.get("sha") if isinstance(head_obj, dict) else None
+    if pr.get("merged") is not True or not re.fullmatch(r"[0-9a-f]{40}", str(pr_head)):
+        raise RiskGateError("source PR is not merged or has no exact head")
+    if recovery_record is None:
+        return {"route": "preview"}
+    try:
+        prove_historical_original_apply_runs(
+            record=recovery_record, allowlist=allowlist, repo_root=repo_root,
+            main_sha=main_sha, api=api, downloader=downloader,
+        )
+        return {"route": "preview"}
+    except RiskGateError as preview_refusal:
+        high_risk = preview_required_reasons(repo_root, allowlist)
+        if high_risk:
+            raise RiskGateError(
+                f"the production gate would refuse this preview evidence ({preview_refusal}), "
+                "and the migration is high-risk to live data so the ephemeral CI route cannot "
+                "substitute -- " + "; ".join(high_risk)
+            ) from preview_refusal
+        job_id = successful_ephemeral_job_id(pr_head, api)
+        prove_ephemeral_ci_evidence(
+            check_run_id_text=str(job_id), pr_head=pr_head, allowlist=allowlist,
+            api=api, downloader=downloader, repo_root=repo_root,
+        )
+        return {"route": "ephemeral", "ephemeral_check_run_id": job_id,
+                "preview_refusal": str(preview_refusal)}
+
+
+def qualify_route_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="production_business_risk_gate.py qualify-route")
+    parser.add_argument("--repo", type=Path, default=Path.cwd())
+    parser.add_argument("--main-sha", required=True)
+    parser.add_argument("--allowlist", required=True)
+    parser.add_argument("--pr", type=int, required=True)
+    parser.add_argument("--recovery-record", type=Path)
+    args = parser.parse_args(argv)
+    try:
+        record = None
+        if args.recovery_record is not None:
+            record = json.loads(args.recovery_record.read_text(encoding="utf-8"))
+            if not isinstance(record, dict):
+                raise RiskGateError("historical recovery record is unreadable")
+        result = qualify_automatic_route(
+            main_sha=args.main_sha, allowlist=normalize_review_allowlist(args.allowlist),
+            source_pr=args.pr, recovery_record=record, repo_root=args.repo.resolve(),
+            api=gh_json, downloader=download_artifact,
+        )
+    except Exception as exc:  # noqa: BLE001 - any failure refuses dispatch
+        print(f"::error::ENGINEER ACTION REQUIRED: automatic qualification found no evidence route "
+              f"the production gate accepts: {type(exc).__name__}: {exc}. Nothing was dispatched.", file=sys.stderr)
+        return 2
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "qualify-route":
+        raise SystemExit(qualify_route_main(sys.argv[2:]))
     raise SystemExit(main())
