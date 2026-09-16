@@ -144,7 +144,7 @@ jobs:
     timeout-minutes: 5
     env:
       COOLIFY_URL: ${{ vars.DB_DATA_ADMIN_COOLIFY_URL }}
-      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      COOLIFY_TOKEN: ${{ secrets.DB_DATA_ADMIN_COOLIFY_TOKEN }}
     steps:
       - name: Read both Coolify applications (read-only)
         run: |
@@ -163,7 +163,7 @@ jobs:
     env:
       COOLIFY_URL: ${{ vars.DB_DATA_ADMIN_COOLIFY_URL }}
       COOLIFY_APP_UUID: ${{ vars.DB_DATA_ADMIN_COOLIFY_APP_UUID }}
-      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      COOLIFY_TOKEN: ${{ secrets.DB_DATA_ADMIN_COOLIFY_TOKEN }}
     steps:
       - name: Point Coolify at the verified immutable image
         run: |
@@ -219,7 +219,7 @@ jobs:
     env:
       COOLIFY_URL: ${{ vars.DB_DATA_ADMIN_COOLIFY_URL }}
       COOLIFY_PROD_APP_UUID: ${{ vars.DB_DATA_ADMIN_COOLIFY_PROD_APP_UUID }}
-      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      COOLIFY_TOKEN: ${{ secrets.DB_DATA_ADMIN_COOLIFY_TOKEN }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       EXPECTED_PROJECT_REF: qsllyeztdwjgirsysgai
       EXPECTED_CONFIRMATION: launch-data-designflow-app
