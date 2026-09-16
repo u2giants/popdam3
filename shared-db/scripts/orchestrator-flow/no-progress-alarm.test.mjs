@@ -86,3 +86,10 @@ test('alarm key ignores minute counters and the CLI reports failures with exit 1
   assert.equal(main(['--resume'], { io: io(), stdout: () => {}, stderr: (l) => errors.push(l) }), 1)
   assert.match(errors[0], /requires --issue/)
 })
+
+test('no open orchestrator marker reports no-orchestrator; other read failures still throw', () => {
+  const fail = (message) => ({ ...io(), gatherLiveInput: () => { throw new Error(message) } })
+  assert.equal(runAlarm({ repo: 'r', now: T0 }, fail('orchestrator marker did not resolve (exit 3)')).status, 'no-orchestrator')
+  assert.equal(runAlarm({ repo: 'r', now: T0 }, fail('no open routable orchestrator marker')).status, 'no-orchestrator')
+  assert.throws(() => runAlarm({ repo: 'r', now: T0 }, fail('orchestrator marker did not resolve (exit 2)')), /exit 2/)
+})

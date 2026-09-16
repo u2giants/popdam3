@@ -82,3 +82,25 @@ plus one incompatible one, then `--propose-train` / `--authorize-train` /
 `--dispatch-train` and a production workflow dispatch with
 `migration_train_ref`. This needs new structural migrations and a production
 dispatch — out of scope for this harvest.
+
+## Step 1 — live automatic production promotion: PROVEN (2026-09-16)
+
+Harmless canary: `20260916120643_production_lane_canary_step1_acceptance_column.sql`
+adds one nullable, default-less `text` column to the revoked, unread
+`plm.production_lane_canary` table (work issue #3043, claim #3044, PR #3046).
+
+1. Two durable exact-head APPROVE verdicts (muse slot 1, grok slot 2).
+2. Guarded merge run 35102238635 merged PR #3046 as `8c4ce615bd6bfc7910e9351163a14336b709c4cd`.
+3. Merged-main preview rehearsal run 35102847581 (`merged_preview_source_pr=3046`)
+   passed; its `Automatic production qualification and dispatch` job logged
+   `Fully qualified production apply dispatched.`
+4. Production run https://github.com/u2giants/shared-db/actions/runs/35103122149,
+   actor and triggering actor `github-actions[bot]`, conclusion success. Log:
+   `Applying migration 20260916120643_production_lane_canary_step1_acceptance_column.sql...`
+   and the after-record row `20260916120643 | 20260916120643 | 2026-09-16 12:06:43`.
+5. Read-only production check (project URL verified as the protected production
+   ref first): column `step1_acceptance_note` is `text nullable=YES`; table
+   still holds 1 row.
+
+No session dispatched production; the session dispatched only the guarded merge
+and the preview rehearsal.

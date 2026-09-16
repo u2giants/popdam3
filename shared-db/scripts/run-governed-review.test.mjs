@@ -786,3 +786,33 @@ test('a wrapper call missing new <session-name> is refused with the usage line (
   assert.throws(()=>wrapperVerdictContractArgs('ai-gemini',[],head),/got no wrapper arguments/)
   assert.deepEqual(wrapperVerdictContractArgs('ai-gemini',['new','review-3100','--prompt-file','p.md'],head),['new','--governed-verdict',head,'review-3100','--prompt-file','p.md'])
 })
+
+import { prepareGovernedReview, reviewCallerEnvironment, promptHeadContract } from './run-governed-review.mjs'
+// popcre/ai-devops#498 items 16-17: paperwork faults are refused or repaired before any reviewer starts.
+test('#498-16 caller variable is kept, detected, or named in a pre-start refusal', () => {
+  assert.deepEqual(reviewCallerEnvironment('ai-muse',{AI_MUSE_CALLER:'codex',CLAUDECODE:'1'}),{AI_MUSE_CALLER:'codex'})
+  assert.deepEqual(reviewCallerEnvironment('ai-muse',{CLAUDECODE:'1'}),{AI_MUSE_CALLER:'claude'})
+  assert.deepEqual(reviewCallerEnvironment('C:/bin/ai-grok-review.cmd',{CODEX_THREAD_ID:'t'}),{AI_GROK_CALLER:'codex'})
+  assert.throws(()=>reviewCallerEnvironment('ai-muse',{}),/needs AI_MUSE_CALLER set.*No reviewer was started.*AI_MUSE_CALLER=claude/)
+  assert.deepEqual(reviewCallerEnvironment('unlisted-wrapper',{}),{})
+})
+test('#498-17 live head is injected, a stale named head or stale prompt verdict line refuses before start', () => {
+  const live='a'.repeat(40),stale='b'.repeat(40)
+  const github=()=>({status:0,stdout:JSON.stringify({head:{sha:live}})})
+  const written={}
+  const files=(text)=>({readFile:()=>text,writeFile:(p,t)=>{written[p]=t},tempDir:()=>'T'})
+  const base={pr:3031,wrapper:'ai-muse',wrapperArgs:['new','s1','--prompt-file','brief.md']}
+  const ok=prepareGovernedReview(base,{env:{CLAUDECODE:'1'},github,files:files('Review it.')})
+  assert.equal(ok.options.headSha,live)
+  assert.deepEqual(ok.callerEnv,{AI_MUSE_CALLER:'claude'})
+  const copy=ok.options.wrapperArgs[3]
+  assert.notEqual(copy,'brief.md')
+  assert.ok(written[copy].startsWith('Review it.')&&written[copy].includes(`VERDICT: APPROVE ${live}`))
+  for(const word of ['APPROVE','REVISE','REJECT']){assert.ok(written[copy].includes(`VERDICT: ${word} ${live}`));assert.notEqual(verdictFromOutput(`VERDICT: ${word} ${live}`,live),null)}
+  assert.ok(!/REQUEST_CHANGES/.test(written[copy]))
+  assert.throws(()=>prepareGovernedReview({...base,headSha:stale},{env:{CLAUDECODE:'1'},github,files:files('x')}),/is stale.*now at a{40}.*No reviewer was started/)
+  assert.throws(()=>prepareGovernedReview(base,{env:{CLAUDECODE:'1'},github,files:files(`End with VERDICT: APPROVE ${stale.slice(0,8)}`)}),/names head bbbbbbbb.*No reviewer was started/)
+  assert.equal(prepareGovernedReview({...base,headSha:live.toUpperCase()},{env:{CLAUDECODE:'1'},github,files:files(`VERDICT: APPROVE ${live}`)}).options.headSha,live)
+  assert.deepEqual(promptHeadContract(['send','--prompt','go','--review'],live)[2].startsWith('go'),true)
+  assert.throws(()=>prepareGovernedReview(base,{env:{CLAUDECODE:'1'},github:()=>({status:1,error:new Error('x')}),files:files('x')}),/could not read the live head/)
+})

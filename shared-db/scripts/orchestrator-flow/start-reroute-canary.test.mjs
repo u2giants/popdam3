@@ -1,14 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { START_SLO_MS } from './start-reroute.mjs'
-import { STAGED_LABEL, canaryLabelAllowed, lifecycleFromJob, main, qualifiedCanaryLanes, reviewerReplay, runCanary } from './start-reroute-canary.mjs'
+import { STAGED_LABEL, canaryLabelAllowed, dispatchSubref, lifecycleFromJob, main, qualifiedCanaryLanes, reviewerReplay, runCanary } from './start-reroute-canary.mjs'
 
 const HEAD = 'b'.repeat(40)
 function world({ stagedStartsAt = null } = {}) {
   let clock = Date.parse('2026-09-16T12:00:00.000Z')
   const runs = [], refs = new Map(), cancelled = [], dispatches = []
   const iso = (ms) => new Date(ms).toISOString()
-  const create = (ref, value) => { if (refs.has(ref)) return false; refs.set(ref, structuredClone(value)); return true }
+  // Model git's file/directory rule: a ref cannot be created under, or over, an existing ref.
+  const create = (ref, value) => { if (refs.has(ref)) return false; if ([...refs.keys()].some((k) => k.startsWith(`${ref}/`) || ref.startsWith(`${k}/`))) throw new Error('Reference update failed (HTTP 422)'); refs.set(ref, structuredClone(value)); return true }
   const io = {
     mainSha: () => HEAD,
     dispatch: (inputs) => { dispatches.push(inputs); runs.push({ id: runs.length + 1, inputs, created: clock, html_url: `run/${runs.length + 1}`, status: 'queued' }) },
@@ -25,8 +26,8 @@ function world({ stagedStartsAt = null } = {}) {
     durable: {
       withMutex: (fn) => fn(), readPair: (ref) => refs.get(ref) ?? null, compareCreatePair: (ref, _e, pair) => create(ref, pair),
       readLive: () => { throw new Error('bound by harness') },
-      readDispatchAck: (ref) => refs.get(`${ref}/dispatch-ack`) ?? null, readDispatchClaim: (ref) => refs.get(`${ref}/dispatch-claim`) ?? null,
-      compareCreateDispatchClaim: (ref, c) => create(`${ref}/dispatch-claim`, c), compareCreateDispatchAck: (ref, a) => create(`${ref}/dispatch-ack`, a),
+      readDispatchAck: (ref) => refs.get(dispatchSubref(ref, 'dispatch-ack')) ?? null, readDispatchClaim: (ref) => refs.get(dispatchSubref(ref, 'dispatch-claim')) ?? null,
+      compareCreateDispatchClaim: (ref, c) => create(dispatchSubref(ref, 'dispatch-claim'), c), compareCreateDispatchAck: (ref, a) => create(dispatchSubref(ref, 'dispatch-ack'), a),
       createAccepted: (ref, digest, result) => create(ref, { digest, result }), readAccepted: (ref) => refs.get(ref) ?? null,
     },
   }
@@ -69,4 +70,9 @@ test('lanes, lifecycle and reviewer replay', () => {
   assert.deepEqual(lifecycleFromJob('a', { status: 'queued', started_at: 'x', runner_name: null }), [])
   assert.equal(lifecycleFromJob('a', { status: 'in_progress', started_at: 'x', runner_name: 'r' })[0].type, 'runner_started')
   assert.deepEqual(reviewerReplay('2026-09-16T12:00:00.000Z'), { staged_non_start: 'governed-return-and-reroute', healthy_started_review: 'keep-active' })
+})
+
+test('dispatch claim and ack refs are siblings of the reservation ref, never children of it', () => {
+  const ref = 'refs/db-start-reroutes/runner/staged-abc'
+  for (const kind of ['dispatch-claim', 'dispatch-ack']) assert.ok(!dispatchSubref(ref, kind).startsWith(`${ref}/`))
 })

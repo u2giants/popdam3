@@ -1,15 +1,13 @@
 {
   "schema_version": 1,
-  "work_issue": 3050,
+  "work_issue": 3062,
   "outcome": "ready-for-merge",
-  "pr": 3051,
+  "pr": 3063,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3050/1",
-  "contract_sha256": "89d9f0701e8ae9aa7066ecb77deb4b99a922fb773a2ca9af17952c0194a2fdd8",
-  "head_sha": "026a9403c9a1f6c228232fee7bc5d6c329f4dcad",
+  "contract_ref": "refs/db-contracts/3062/1",
+  "contract_sha256": "6bc2caeedc71abe0c968ad1c5a1fd1c153603fec0d0a99f3735fa10b208696d6",
+  "head_sha": "2b1e6a395e07ce3587c82a3d0ef9677531a52d5e",
   "files_changed": [
-    "scripts/agent-work-contract-git-evidence.mjs",
-    "scripts/agent-work-contract-git-evidence.test.mjs",
     "scripts/run-governed-review.mjs",
     "scripts/run-governed-review.test.mjs"
   ],
@@ -19,16 +17,16 @@
     {
       "command": "node --test on every changed scripts test file",
       "exit_code": 0,
-      "evidence": "run-governed-review 75/75 pass, agent-work-contract-git-evidence 9/9 pass, 0 fail, 0 skipped; check-throughput-truth-audit OK at 026a9403."
+      "evidence": "run-governed-review 77/77 pass, 0 fail, 0 skipped at 2b1e6a39; check-throughput-truth-audit OK."
     },
     {
       "command": "git diff --check origin/main...HEAD",
       "exit_code": 0,
-      "evidence": "Exit 0 with no output at 026a9403."
+      "evidence": "Exit 0 with no output at 2b1e6a39."
     }
   ],
   "assumptions_resolved": [
-    "No schema or structure change was needed: only refusal message text changed; every refusal condition is unchanged."
+    "No schema or structure change was needed: only the review runner's pre-start checks and prompt copy changed; every existing refusal condition is unchanged."
   ],
   "stop_conditions_hit": []
 }

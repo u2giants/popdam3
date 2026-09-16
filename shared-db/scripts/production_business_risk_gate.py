@@ -622,21 +622,6 @@ PREVIEW_PRODUCER_PATHS = (
     # Hash-bound verification declarations are read by the catalog verifier in
     # preview. Contents API directory responses are arrays, so pin each reviewed
     # file explicitly rather than pretending a directory has a blob SHA.
-    "scripts/production-verification-sidecars/20260621151155.json",
-    "scripts/production-verification-sidecars/20260701154948.json",
-    "scripts/production-verification-sidecars/20260710135600.json",
-    "scripts/production-verification-sidecars/20260710135700.json",
-    "scripts/production-verification-sidecars/20260710135900.json",
-    "scripts/production-verification-sidecars/20260710135950.json",
-    "scripts/production-verification-sidecars/20260727154500.json",
-    "scripts/production-verification-sidecars/20260807030000.json",
-    "scripts/production-verification-sidecars/20260823233716.json",
-    "scripts/production-verification-sidecars/20260825031841.json",
-    "scripts/production-verification-sidecars/20260825050407.json",
-    "scripts/production-verification-sidecars/20260825082910.json",
-    "scripts/production-verification-sidecars/20260828021051.json",
-    "scripts/production-verification-sidecars/20260830195655.json",
-    "scripts/production-verification-sidecars/20260830204711.json",
     # Local import of the guard, and the only thing that reads a migration's
     # `-- derived-from:` declaration (issue #1608). An unpinned copy could
     # declare every base satisfied and the guard would believe it, which is the
@@ -2639,55 +2624,64 @@ PREVIEW_PRODUCER_PATHS += (
     # manifest is repository source read by an offline CI validator. Both are
     # pinned rather than exempted: the test's own instruction is to pin anything
     # a tool in the preview job could read, and pinning is the stricter answer.
-    "scripts/production-verification-sidecars/20260910155753.json",
     # Issue #2988. The sidecar binds migration 20260916033914 and is read by the
     # catalog verifier in preview, so it is pinned like every other sidecar.
-    "scripts/production-verification-sidecars/20260916033914.json",
-    "scripts/production-verification-sidecars/20260911081204.json",
     "config/db-data-admin-property-source-coverage.json",
-    "scripts/production-verification-sidecars/20260908214749.json",
-    "scripts/production-verification-sidecars/20260911213429.json",
-    "scripts/production-verification-sidecars/20260915111626.json",
-    "scripts/production-verification-sidecars/20260909084253.json",
-    "scripts/production-verification-sidecars/20260910123636.json",
-    "scripts/production-verification-sidecars/20260830013942.json",
-    "scripts/production-verification-sidecars/20260830130345.json",
-    "scripts/production-verification-sidecars/20260830172356.json",
-    "scripts/production-verification-sidecars/20260830191719.json",
-    "scripts/production-verification-sidecars/20260830202243.json",
-    "scripts/production-verification-sidecars/20260830212955.json",
-    "scripts/production-verification-sidecars/20260902024541.json",
-    "scripts/production-verification-sidecars/20260830220646.json",
-    "scripts/production-verification-sidecars/20260830230246.json",
-    "scripts/production-verification-sidecars/20260830235651.json",
-    "scripts/production-verification-sidecars/20260831002935.json",
-    "scripts/production-verification-sidecars/20260831012326.json",
-    "scripts/production-verification-sidecars/20260831021656.json",
-    "scripts/production-verification-sidecars/20260831104325.json",
-    "scripts/production-verification-sidecars/20260831145707.json",
-    "scripts/production-verification-sidecars/20260902035909.json",
-    "scripts/production-verification-sidecars/20260831173841.json",
-    "scripts/production-verification-sidecars/20260831184547.json",
-    "scripts/production-verification-sidecars/20260831212757.json",
-    "scripts/production-verification-sidecars/20260831221607.json",
-    "scripts/production-verification-sidecars/20260901142825.json",
-    "scripts/production-verification-sidecars/20260905105038.json",
-    "scripts/production-verification-sidecars/20260903083204.json",
-    "scripts/production-verification-sidecars/20260905063701.json",
-    "scripts/production-verification-sidecars/20260905142150.json",
-    "scripts/production-verification-sidecars/20260907200221.json",
-    "scripts/production-verification-sidecars/20260907030418.json",
-    "scripts/production-verification-sidecars/20260907051735.json",
-    "scripts/production-verification-sidecars/20260911045438.json",
-    "scripts/production-verification-sidecars/20260911222514.json",
-    "scripts/production-verification-sidecars/20260914061331.json",
-    "scripts/production-verification-sidecars/20260914075758.json",
-    "scripts/production-verification-sidecars/20260916001944.json",
     # Invoked by check-sql.sh during preview; pin the reviewed parser so the
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",
     "scripts/check-migration-verify-cost.mjs",
 )
+
+# THE SINGLE SIDECAR DECLARATION REGISTRY (#3028, popcre/ai-devops#401 Step 5).
+#
+# Hash-bound verification sidecars are read by the catalog verifier in preview,
+# so each one is a producer file and must be pinned byte for byte. Contents API
+# directory responses are arrays, so each reviewed file is pinned explicitly
+# rather than pretending a directory has a blob SHA. They used to be hand-listed
+# in the tuples above, and a sidecar merged without its line (#2627) needed a
+# second repair PR. Now the ONLY declaration is one entry in
+# SIDECAR_REGISTRY_PATH. This is not discovery: a sidecar file that is not
+# declared is refused by check_production_verification_sidecars.py in CI before
+# review and by the test suite, and a declaration without its file is refused
+# the same way, so trust never widens silently. The registry itself is pinned.
+SIDECAR_REGISTRY_PATH = "config/production-verification-sidecar-registry.json"
+SIDECAR_DIR = "scripts/production-verification-sidecars"
+
+
+def load_sidecar_registry(repo_root: Path | None = None) -> tuple[str, ...]:
+    """Return the declared sidecar versions, refusing any malformed registry."""
+    root = repo_root or Path(__file__).resolve().parents[1]
+    try:
+        data = json.loads((root / SIDECAR_REGISTRY_PATH).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RiskGateError(f"sidecar registry {SIDECAR_REGISTRY_PATH} is unreadable: {exc}") from exc
+    if not isinstance(data, dict) or set(data) != {"schema_version", "sidecars"} or data["schema_version"] != 1:
+        raise RiskGateError(f"sidecar registry {SIDECAR_REGISTRY_PATH} must be schema_version 1 with exactly schema_version and sidecars")
+    entries = data["sidecars"]
+    if not isinstance(entries, list):
+        raise RiskGateError("sidecar registry must declare a sidecars list")
+    versions = []
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != {"version", "issue"}:
+            raise RiskGateError(f"sidecar registry entry {entry!r} must contain exactly version and issue")
+        version, issue = entry["version"], entry["issue"]
+        if not isinstance(version, str) or not re.fullmatch(r"\d{14}", version):
+            raise RiskGateError(f"sidecar registry version {version!r} is not a 14-digit migration version")
+        if issue is not None and (not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0):
+            raise RiskGateError(f"sidecar registry issue for {version} must be a positive integer or null")
+        versions.append(version)
+    if len(set(versions)) != len(versions):
+        raise RiskGateError("sidecar registry declares a version more than once")
+    return tuple(versions)
+
+
+def sidecar_registry_paths(repo_root: Path | None = None) -> tuple[str, ...]:
+    return tuple(f"{SIDECAR_DIR}/{version}.json" for version in load_sidecar_registry(repo_root))
+
+
+PREVIEW_PRODUCER_PATHS += (SIDECAR_REGISTRY_PATH,) + sidecar_registry_paths()
+
 
 
 def successful_ephemeral_job_id(pr_head: str, api: Callable[[str], Any]) -> int:

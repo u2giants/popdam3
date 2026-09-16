@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from production_business_risk_gate import RiskGateError, SIDECAR_REGISTRY_PATH, load_sidecar_registry
 from production_catalog_verification import (
     BEHAVIOR_SIDECAR_DIR, GuardError, dynamic_execution_marker_lines,
     load_behavior_sidecars,
@@ -24,6 +25,24 @@ def migrations(repo: Path) -> dict[str, Path]:
     return result
 
 
+def check_registry(repo: Path, sidecar_versions: list[str]) -> None:
+    """Every sidecar file needs exactly one declaration, and every declaration its file (#3028)."""
+    try:
+        declared = set(load_sidecar_registry(repo))
+    except RiskGateError as exc:
+        raise GuardError(str(exc)) from exc
+    undeclared = sorted(set(sidecar_versions) - declared)
+    if undeclared:
+        raise GuardError(
+            f"sidecars {undeclared} are not declared in {SIDECAR_REGISTRY_PATH}. "
+            "Add one {\"version\": ..., \"issue\": ...} entry per sidecar; that single "
+            "declaration pins it as a preview producer."
+        )
+    fileless = sorted(declared - set(sidecar_versions))
+    if fileless:
+        raise GuardError(f"{SIDECAR_REGISTRY_PATH} declares sidecars {fileless} whose files do not exist")
+
+
 def check(repo: Path, scan_versions: list[str]) -> dict:
     migration_map = migrations(repo)
     store = repo / BEHAVIOR_SIDECAR_DIR
@@ -34,6 +53,7 @@ def check(repo: Path, scan_versions: list[str]) -> dict:
             raise GuardError(f"orphan sidecar {path}: migration {version} is missing")
         sidecar_versions.append(version)
     load_behavior_sidecars(repo, migration_map, sidecar_versions)
+    check_registry(repo, sidecar_versions)
     rows = []
     for version in sorted(set(scan_versions)):
         migration = migration_map.get(version)

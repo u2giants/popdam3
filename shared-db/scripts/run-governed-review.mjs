@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync, mkdirSync, lstatSync, realpathSync, writeFileSync } from 'node:fs'
+import { readFileSync, mkdirSync, mkdtempSync, lstatSync, realpathSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
@@ -590,7 +591,56 @@ export function governedReviewDeps(env=process.env){
   const io=value?withMergedPrIssueBinding(githubIo,value):githubIo
   return {spawn:spawnSync,preflight:(o)=>reviewerExecutionPreflight(o,io),record:(o)=>recordReviewVerdict(o,io),resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8'),io}
 }
+// #498 items 16-17 (popcre/ai-devops): refuse or repair paperwork faults BEFORE any
+// reviewer starts, so no review round is spent without a recordable verdict.
+export const REVIEW_CALLER_VARIABLES=Object.freeze({'ai-muse':'AI_MUSE_CALLER','ai-grok-review':'AI_GROK_CALLER','ai-glm':'AI_GLM_CALLER','ai-kimi':'AI_KIMI_CALLER','ai-qwen':'AI_QWEN_CALLER','ai-gemini':'AI_GEMINI_CALLER','ai-deepseek-agent':'AI_DEEPSEEK_CALLER','ai-codex-review':'AI_CODEX_REVIEW_CALLER'})
+export function reviewCallerEnvironment(wrapper,env=process.env){
+  const variable=REVIEW_CALLER_VARIABLES[wrapperBaseName(wrapper)]
+  if(!variable)return {}
+  const current=String(env[variable]??'').trim()
+  if(current)return {[variable]:current}
+  const detected=env.CLAUDECODE==='1'?'claude':(env.CODEX_THREAD_ID||env.CODEX_SANDBOX)?'codex':''
+  if(!detected)throw new Error(`${wrapperBaseName(wrapper)} needs ${variable} set to the assistant running this review, and it could not be detected. No reviewer was started. Rerun with ${variable}=claude (or codex) in the environment.`)
+  return {[variable]:detected}
+}
+export function readLivePullRequestHead(pr,github=readGitHub){
+  const response=github(['api',`repos/${REPO}/pulls/${Number(pr)}`])
+  if(response.error||response.status!==0)throw new Error(`could not read the live head of pull request #${Number(pr)}; no reviewer was started`)
+  let body
+  try{body=JSON.parse(response.stdout)}catch{throw new Error(`the live head of pull request #${Number(pr)} is unreadable; no reviewer was started`)}
+  const head=String(body?.head?.sha??'').toLowerCase()
+  if(!/^[0-9a-f]{40}$/.test(head))throw new Error(`pull request #${Number(pr)} has no valid live head; no reviewer was started`)
+  return head
+}
+export function promptHeadContract(wrapperArgs,head,{readFile=(path)=>readFileSync(path,'utf8'),writeFile=writeFileSync,tempDir=()=>mkdtempSync(join(tmpdir(),'governed-review-'))}={}){
+  const list=[...wrapperArgs]
+  const instruction=`
+
+Authoritative pull request head (injected by the governed review runner): ${head}
+Your final line must be exactly one of: VERDICT: APPROVE ${head} | VERDICT: REVISE ${head} | VERDICT: REJECT ${head}
+`
+  const stale=(text)=>{
+    for(const match of String(text).matchAll(/VERDICT:\s*[A-Z_]+[ \t]+([0-9a-f]{7,40})\b/gi)){
+      const named=match[1].toLowerCase()
+      if(!head.startsWith(named))throw new Error(`the review prompt names head ${named} in a VERDICT line, but the live pull request head is ${head}. No reviewer was started. Remove the head from the prompt (the runner injects the live head) or update it.`)
+    }
+  }
+  for(let i=0;i<list.length;i++){
+    if(list[i]==='--prompt-file'&&i+1<list.length){
+      const text=readFile(list[i+1]);stale(text)
+      const copy=join(tempDir(),'prompt.md');writeFile(copy,`${text}${instruction}`);list[i+1]=copy;i++
+    }else if(list[i]==='--prompt'&&i+1<list.length){stale(list[i+1]);list[i+1]=`${list[i+1]}${instruction}`;i++}
+  }
+  return list
+}
+export function prepareGovernedReview(options,{env=process.env,github=readGitHub,files}={}){
+  const live=readLivePullRequestHead(options.pr,github)
+  const named=String(options.headSha??'').trim().toLowerCase()
+  if(named&&named!==live)throw new Error(`--head-sha ${named} is stale: pull request #${Number(options.pr)} is now at ${live}. No reviewer was started. Omit --head-sha to use the live head, after the reviewer assignment is moved to it.`)
+  const callerEnv=reviewCallerEnvironment(options.wrapper,env)
+  return {options:{...options,headSha:live,wrapperArgs:promptHeadContract(options.wrapperArgs??[],live,files)},callerEnv}
+}
 export function main(argv=process.argv.slice(2)){
-  try{const result=runGovernedReview(parseArgs(argv),governedReviewDeps());process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\nSOURCE EVIDENCE: ${JSON.stringify(result.sourceEvidence)}\n`);return 0}catch(error){if(error?.startDecision)process.stderr.write(`REROUTE: ${JSON.stringify(error.startDecision)}\n`);process.stderr.write(`REFUSED: ${error.message}\n`);return 2}
+  try{const prepared=prepareGovernedReview(parseArgs(argv));Object.assign(process.env,prepared.callerEnv);const result=runGovernedReview(prepared.options,governedReviewDeps());process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\nSOURCE EVIDENCE: ${JSON.stringify(result.sourceEvidence)}\n`);return 0}catch(error){if(error?.startDecision)process.stderr.write(`REROUTE: ${JSON.stringify(error.startDecision)}\n`);process.stderr.write(`REFUSED: ${error.message}\n`);return 2}
 }
 if(import.meta.url===pathToFileURL(process.argv[1]??'').href)process.exitCode=main()

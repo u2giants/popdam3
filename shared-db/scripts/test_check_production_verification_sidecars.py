@@ -51,8 +51,12 @@ class OfflineSidecarTests(unittest.TestCase):
             self.assertIn('max("%s")' % column,DFLOW_SEQUENCE_CEILINGS_CONTRACT)
             self.assertIn(str(max(floor,external)),DFLOW_SEQUENCE_CEILINGS_CONTRACT)
 
-    def repo(self, sidecar=True, reviews=True):
+    def repo(self, sidecar=True, reviews=True, declared=None):
         temp = tempfile.TemporaryDirectory(); root = Path(temp.name)
+        declared = (["20260101000000"] if sidecar else []) if declared is None else declared
+        (root / "config").mkdir()
+        (root / "config/production-verification-sidecar-registry.json").write_text(json.dumps(
+            {"schema_version": 1, "sidecars": [{"version": v, "issue": 3028} for v in declared]}), encoding="utf-8")
         migrations = root / "supabase/migrations"; migrations.mkdir(parents=True)
         store = root / "scripts/production-verification-sidecars"; store.mkdir(parents=True)
         sql = "do $$ begin execute 'create table public.x(id int)'; end $$;\n"
@@ -88,6 +92,33 @@ class OfflineSidecarTests(unittest.TestCase):
         with self.assertRaises(GuardError): check(root, ["20260101000000"])
         temp2, root2 = self.repo(reviews=False); self.addCleanup(temp2.cleanup)
         with self.assertRaises(GuardError): check(root2, ["20260101000000"])
+
+    def test_undeclared_sidecar_fails_before_review(self):
+        # The #2627 shape: a valid sidecar merged without its registration.
+        temp, root = self.repo(declared=[]); self.addCleanup(temp.cleanup)
+        with self.assertRaisesRegex(GuardError, "not declared in config/production-verification-sidecar-registry.json"):
+            check(root, ["20260101000000"])
+
+    def test_declaration_without_sidecar_file_fails(self):
+        temp, root = self.repo(sidecar=False, declared=["20260101000000"]); self.addCleanup(temp.cleanup)
+        with self.assertRaisesRegex(GuardError, "whose files do not exist"):
+            check(root, [])
+
+    def test_one_declaration_is_all_a_valid_new_sidecar_needs(self):
+        import production_business_risk_gate as gate
+        temp, root = self.repo(); self.addCleanup(temp.cleanup)
+        self.assertEqual(check(root, ["20260101000000"])["status"], "OK")
+        self.assertEqual(gate.sidecar_registry_paths(root), ("scripts/production-verification-sidecars/20260101000000.json",))
+
+    def test_malformed_registry_fails_closed(self):
+        temp, root = self.repo(); self.addCleanup(temp.cleanup)
+        registry = root / "config/production-verification-sidecar-registry.json"
+        for bad in ({"schema_version": 1, "sidecars": [{"version": "2026", "issue": 1}]},
+                    {"schema_version": 1, "sidecars": [{"version": "20260101000000", "issue": 1}] * 2},
+                    {"schema_version": 1, "sidecars": [{"version": "20260101000000"}]},
+                    {"schema_version": 2, "sidecars": []}):
+            registry.write_text(json.dumps(bad), encoding="utf-8")
+            with self.assertRaises(GuardError): check(root, ["20260101000000"])
 
     def test_overlapping_marker_review_ranges_fail_even_between_markers(self):
         sql = "execute 'a';\nselect 1;\nexecute 'b';\n"

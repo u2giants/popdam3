@@ -27,12 +27,12 @@ D12 only. The full patch (against main `638fef44`) is below; it includes a test.
 This file and the D12 follow-up. Not #3031, #3049, #3027, #3028.
 
 ## 6. What was about to happen next
-After #3031 and #3049 merge: new repo-maintenance work issue, apply the patch
+After #3049 and #3066 merge: new repo-maintenance work issue, apply the patch
 (`git apply --3way`), run `node --test scripts/manage-migration-author-lanes.test.mjs`,
 then the normal guarded merge lane.
 
 ## 7. Blocked on
-#3031 and #3049 merging (other sessions). Both OPEN at 2026-09-16 13:30Z.
+#3049 (#3027) and #3066 merging (other sessions); both OPEN at 2026-09-16 15:50Z. #3031 merged.
 
 ## 8. What was tried that did NOT work — read this before re-treading it
 - Shipping D12 alongside those PRs: refused by the cross-PR object collision check. Do not bypass it; wait.

@@ -26,6 +26,9 @@ export const WORKFLOW = 'start-reroute-canary.yml'
 export const STAGED_LABEL = 'db-staged-non-start-canary'
 export const ASSERTION = 'start-reroute-canary'
 export const CANARY_JOB = 'canary'
+// Git refs are files: once refs/x exists, refs/x/child can never be created (HTTP 422). Dispatch
+// claim and ack refs are therefore siblings of the reservation ref, never children of it.
+export const dispatchSubref = (ref, kind) => `${ref}--${kind}`
 
 /** The staging hook's only admissible labels: a registered lane or the staged non-start label. */
 export function canaryLabelAllowed(label, registry = loadRegistry()) {
@@ -140,10 +143,10 @@ export function liveIo(repo) {
       readPair: (ref) => refRead(ref),
       compareCreatePair: (ref, _expected, pair) => refCreate(ref, pair),
       readLive: () => { throw new Error('readLive is bound by the harness') },
-      readDispatchAck: (ref) => refRead(`${ref}/dispatch-ack`),
-      readDispatchClaim: (ref) => refRead(`${ref}/dispatch-claim`),
-      compareCreateDispatchClaim: (ref, claim) => refCreate(`${ref}/dispatch-claim`, claim),
-      compareCreateDispatchAck: (ref, ack) => refCreate(`${ref}/dispatch-ack`, ack),
+      readDispatchAck: (ref) => refRead(dispatchSubref(ref, 'dispatch-ack')),
+      readDispatchClaim: (ref) => refRead(dispatchSubref(ref, 'dispatch-claim')),
+      compareCreateDispatchClaim: (ref, claim) => refCreate(dispatchSubref(ref, 'dispatch-claim'), claim),
+      compareCreateDispatchAck: (ref, ack) => refCreate(dispatchSubref(ref, 'dispatch-ack'), ack),
       readReroute: (ref) => { const pair = refRead(ref); return pair ? { digest: pair.digest, record: pair.record } : null },
       createAccepted: (ref, digest, result) => refCreate(ref, { digest, result }),
       readAccepted: (ref) => refRead(ref),

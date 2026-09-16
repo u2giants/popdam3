@@ -2295,7 +2295,7 @@ export const githubIo = {
   closeClaim(number, reason) { gh(['issue', 'close', String(number), '--repo', REPO, '--comment', requireClaimCloseReason(reason)]) },
   reversionFiles(worktree,oldVersion) {
     let referenced=[];const riskGatePath=['scripts','production_business_risk_gate.py'].join('/')
-    try{referenced=execFileSync('git',['-C',worktree,'grep','-l',oldVersion,'--','supabase/migrations','supabase/tests',riskGatePath,'docs'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)}
+    try{referenced=execFileSync('git',['-C',worktree,'grep','-l',oldVersion,'--','supabase/migrations','supabase/tests',riskGatePath,'config/production-verification-sidecar-registry.json','docs'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)}
     catch(error){if(error.status!==1)throw error}
     const migrations=execFileSync('git',['-C',worktree,'ls-files','--cached','--others','--exclude-standard','--',`supabase/migrations/${oldVersion}_*.sql`],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean)
     const sidecar=`scripts/production-verification-sidecars/${oldVersion}.json`
@@ -2329,7 +2329,7 @@ export const githubIo = {
   },
   commitAndPushReversion(worktree,oldVersion,newVersion) {
     const riskGatePath=['scripts','production_business_risk_gate.py'].join('/')
-    execFileSync('git',['-C',worktree,'add','--all','--','supabase/migrations','supabase/tests','scripts/production-verification-sidecars',riskGatePath,'docs'])
+    execFileSync('git',['-C',worktree,'add','--all','--','supabase/migrations','supabase/tests','scripts/production-verification-sidecars',riskGatePath,'config/production-verification-sidecar-registry.json','docs'])
     execFileSync('git',['-C',worktree,'commit','-m',`migration: re-reserve ${oldVersion} as ${newVersion}`],{stdio:'pipe'})
     execFileSync('git',['-C',worktree,'push','origin','HEAD'],{stdio:'pipe'})
     return execFileSync('git',['-C',worktree,'rev-parse','HEAD'],{encoding:'utf8'}).trim()

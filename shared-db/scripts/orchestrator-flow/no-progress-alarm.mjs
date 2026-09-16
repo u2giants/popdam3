@@ -68,8 +68,17 @@ export function renderAlarm({ output, key, now, stagedLabel = null }) {
 export const trustedComment = (c) => TRUSTED_AUTHORS.includes(c?.author_association) || c?.user?.login === 'github-actions[bot]'
 export const postedKeys = (comments) => new Set(comments.filter(trustedComment).flatMap((c) => [...String(c?.body ?? '').matchAll(new RegExp(`<!-- ${ALARM_MARKER} alarm_key=([0-9a-f]{64})`, 'g'))].map((m) => m[1])))
 
+// With zero open orchestrator markers there are no owned outcomes to watch; the run reports that
+// plainly (exit 0) instead of failing every half hour. Any other read failure still fails the run.
+export const NO_ORCHESTRATOR = /marker did not resolve \(exit 3\)|no open routable orchestrator marker/
+
 export function runAlarm({ repo, now, postIssue = null, stagedLabel = null, dryRun = false }, io) {
-  const { input, sessionStarted } = io.gatherLiveInput(repo)
+  let live
+  try { live = io.gatherLiveInput(repo) } catch (error) {
+    if (NO_ORCHESTRATOR.test(String(error?.message))) return { status: 'no-orchestrator', detail: error.message }
+    throw error
+  }
+  const { input, sessionStarted } = live
   const { output: raw } = runSnapshotCycle(input, { now, previous: null, sessionStarted })
   // Zero closures only counts once outcomes have existed for the whole four-hour window.
   const earliest = Math.min(...input.outcome_events.map((e) => Date.parse(e.timestamp)).filter((n) => !Number.isNaN(n)))

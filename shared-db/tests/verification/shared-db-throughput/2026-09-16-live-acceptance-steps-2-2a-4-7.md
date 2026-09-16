@@ -165,3 +165,24 @@ After #2984 merged (`1f7dbe47`, 2026-09-15T21:30:19Z), a terminal non-verdict wa
 The same pattern appears on PR #3016 (`turn_limit_cancelled` → replacement, sequences 2915, 2918, 2921). These are started-then-terminated reviews, not non-starts, and they do not show whether a concurrent healthy slot was left intact.
 
 Needed for acceptance: one organic or injected reviewer assignment that never starts, producing a `refs/db-start-reroutes/*` record within 10 minutes while the other slot's lease stays live, plus one runner job left unpicked past the SLO that produces exactly one `workflow_dispatch` lane run and a green aggregate. A reviewer canary needs a real governed review assignment on a database PR, which is outside this session's authority. Neither step needs a schema change.
+
+## 2026-09-16 follow-up: Step 2 named holds and Step 4 hourly alarm (#3048, PR #3049)
+
+### Step 2 named holds: IMPLEMENTED, NOT MERGED
+
+- A hold must name `lease:<stage>`, `claim:#N`, `object:#N:<objects>`, or `dependency:#N`, proven against live facts. Free text and another item's unrelated pipeline stage are refused.
+- Lane refusals ("merges are frozen", "production promotion must wait", repository maintenance, an occupied ref) now end with `hold_reason lease:<stage> held by <stage> lease <sha>, holder, PR, run, acquired`.
+- A `blocked` outcome requires a recorded hold_reason, and outcome events carry it.
+- Full suite at c80edd51: 2286 tests, 2286 pass, 0 fail.
+
+### Step 4 hourly no-progress alarm: IMPLEMENTED, LIVE RUN NOT YET POSSIBLE
+
+- `.github/workflows/orchestrator-no-progress-alarm.yml` runs at minute 41 every hour and on manual dispatch. It calls `orchestrator-snapshot.mjs --report-alarm` and comments on marker issue #3004 only when the alarm state changes.
+- Local dry run against live GitHub, 2026-09-16:
+
+```
+NO-PROGRESS ALARM FIRED: 2 outcomes stalled over 120 minutes: #2866 dispatched 3445m (no named hold recorded); #2870 dispatched 3416m (no named hold recorded); 0 closures in 4h (zero closures in 4h)
+```
+
+- Governed review: APPROVE by muse-spark-1.3-contributor at 9b503ff3. The later head c80edd51 only merges main and rebinds the evidence pair.
+- Blocker: the `Cross-PR object collision` check fails because open PR #3031 (#3028) was ready first and also edits `scripts/manage-migration-author-lanes.mjs`. At 13:57Z #3031 had green checks but no verdict at its head. A workflow can only be dispatched after it is on main, so the live fired run waits for #3031 to merge and #3049 to be refreshed and merged.
