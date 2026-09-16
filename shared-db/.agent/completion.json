@@ -1,32 +1,34 @@
 {
   "schema_version": 1,
-  "work_issue": 3062,
+  "work_issue": 3100,
   "outcome": "ready-for-merge",
-  "pr": 3063,
+  "pr": 3101,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3062/1",
-  "contract_sha256": "6bc2caeedc71abe0c968ad1c5a1fd1c153603fec0d0a99f3735fa10b208696d6",
-  "head_sha": "2b1e6a395e07ce3587c82a3d0ef9677531a52d5e",
+  "contract_ref": "refs/db-contracts/3100/2",
+  "contract_sha256": "01b833462d98b8dd6a6740068af4da0e95875723b68bdfb762d39a01f6b8a605",
+  "head_sha": "3e184f8b1d841b06de3f6c5a76c425be1f3e4c92",
   "files_changed": [
-    "scripts/run-governed-review.mjs",
-    "scripts/run-governed-review.test.mjs"
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node --test on every changed scripts test file",
+      "command": "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
       "exit_code": 0,
-      "evidence": "run-governed-review 77/77 pass, 0 fail, 0 skipped at 2b1e6a39; check-throughput-truth-audit OK."
+      "evidence": "Run at implementation head aefc612c: tests 16, pass 16, fail 0, skipped 0; the new CI/sibling case fails on the pre-fix source."
     },
     {
-      "command": "git diff --check origin/main...HEAD",
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
       "exit_code": 0,
-      "evidence": "Exit 0 with no output at 2b1e6a39."
+      "evidence": "Run at implementation head aefc612c: tests 590, pass 590, fail 0, skipped 0 (run-governed-review 78/78, start-reroute 23/23, repair-voided-findings 11/11, transport conformance 268 files clean)."
     }
   ],
   "assumptions_resolved": [
-    "No schema or structure change was needed: only the review runner's pre-start checks and prompt copy changed; every existing refusal condition is unchanged."
+    "Unstarted probe and reclaim fingerprint only PR state, head, draft and this slot's verdict; the plain silence path still refuses on PR activity (tested)"
   ],
   "stop_conditions_hit": []
 }

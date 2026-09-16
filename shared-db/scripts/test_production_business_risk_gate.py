@@ -3915,5 +3915,149 @@ class PerPullRequestPreviewInstanceBinding(unittest.TestCase):
             self.exercise({})
 
 
+class MigrationTrainPerEntryGate(unittest.TestCase):
+    """#3027 Step 6: a dispatched train binds EACH version to its own merged PR."""
+
+    MAIN = "a" * 40
+    V1, V2 = "20260915000001", "20260915000002"
+
+    def setUp(self):
+        import production_business_risk_gate as gate
+        self.gate = gate
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        migrations = self.root / "supabase" / "migrations"
+        migrations.mkdir(parents=True)
+        self.files = {}
+        for version in (self.V1, self.V2):
+            path = migrations / f"{version}_train.sql"
+            path.write_bytes(f"select {version};\n".encode())
+            self.files[version] = hashlib.sha256(path.read_bytes()).hexdigest()
+        # PR 101 authored V1, PR 102 authored V2: two different merged PRs.
+        self.prs = {
+            101: {"head": "1" * 40, "merge": "b" * 40, "added": [self.V1]},
+            102: {"head": "2" * 40, "merge": "c" * 40, "added": [self.V2]},
+        }
+        git_ok = subprocess.CompletedProcess(args=[], returncode=0, stdout=b"", stderr=b"")
+        patcher = mock.patch("subprocess.run", return_value=git_ok)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self.temp.cleanup)
+
+    def api(self, endpoint):
+        green = {"check_runs": [{"name": n, "conclusion": "success"} for n in REQUIRED_CHECKS]}
+        for number, pr in self.prs.items():
+            if endpoint.endswith(f"/pulls/{number}"):
+                return {"merged": True, "merge_commit_sha": pr["merge"], "head": {"sha": pr["head"]}}
+            if f"/pulls/{number}/files" in endpoint:
+                return [{"filename": f"supabase/migrations/{v}_train.sql", "status": "added"} for v in pr["added"]]
+            if endpoint.endswith(f"/commits/{pr['head']}/check-runs?per_page=100"):
+                return green
+            if endpoint.endswith(f"/commits/{pr['head']}/status"):
+                return {"statuses": [{"context": "Migration guarded merge authorization", "state": "success"}]}
+        raise AssertionError(f"unexpected endpoint {endpoint}")
+
+    def record(self, **entry_overrides):
+        entries = [
+            {"version": self.V1, "file_sha256": self.files[self.V1], "source_pr": 101, "merge_sha": "b" * 40},
+            {"version": self.V2, "file_sha256": self.files[self.V2], "source_pr": 102, "merge_sha": "c" * 40},
+        ]
+        for version, overrides in entry_overrides.items():
+            next(e for e in entries if e["version"] == version).update(overrides)
+        return {"train_id": "d" * 64, "generation": 3, "state": "dispatched", "target": "production",
+                "base_main_sha": self.MAIN, "entries": entries}
+
+    def prove(self, record):
+        return self.gate.prove_migration_train(
+            record, main_sha=self.MAIN, allowlist=[self.V1, self.V2], api=self.api, repo_root=self.root,
+        )
+
+    def test_entry_from_a_different_merged_pr_is_accepted(self):
+        self.assertEqual(self.prove(self.record()), {101: ("1" * 40, "b" * 40), 102: ("2" * 40, "c" * 40)})
+
+    def test_entry_whose_pr_did_not_author_it_is_refused_by_name(self):
+        self.prs[102]["added"] = []
+        with self.assertRaisesRegex(
+            RiskGateError, f"train entry {self.V2}: source PR 102 did not author the exact migration {self.V2}"
+        ):
+            self.prove(self.record())
+        # Naming the OTHER train PR as the author is refused the same way.
+        self.prs[102]["added"] = [self.V2]
+        with self.assertRaisesRegex(RiskGateError, f"train entry {self.V2}: source PR 101 merged as b{{40}}, not the train's c{{40}}"):
+            self.prove(self.record(**{self.V2: {"source_pr": 101}}))
+
+    def test_each_entry_gets_the_full_single_pr_proof(self):
+        with self.assertRaisesRegex(RiskGateError, f"train entry {self.V2}: file hashes to"):
+            self.prove(self.record(**{self.V2: {"file_sha256": "f" * 64}}))
+        with self.assertRaisesRegex(RiskGateError, "not exactly the allowlist"):
+            self.gate.prove_migration_train(self.record(), main_sha=self.MAIN, allowlist=[self.V1], api=self.api, repo_root=self.root)
+        with self.assertRaisesRegex(RiskGateError, "not dispatched"):
+            self.prove({**self.record(), "state": "closed"})
+        with self.assertRaisesRegex(RiskGateError, "different main commit"):
+            self.prove({**self.record(), "base_main_sha": "e" * 40})
+        real_api = self.api
+        def red_checks(endpoint):
+            if endpoint.endswith(f"/commits/{'2' * 40}/check-runs?per_page=100"):
+                return {"check_runs": []}
+            return real_api(endpoint)
+        self.api = red_checks
+        with self.assertRaisesRegex(RiskGateError, f"train entry {self.V2}: source PR 102: required exact-head checks"):
+            self.prove(self.record())
+
+    def assess_args(self, train_path=None, pr=101):
+        return Namespace(
+            repo=self.root, activation=self.root / "activation.json", main_sha=self.MAIN,
+            allowlist=f"{self.V1},{self.V2}", pr=pr, work_issue=7, review_run_id=55,
+            review_digest="sha256:" + "9" * 64, preview_run_id="66", preview_digest="sha256:" + "8" * 64,
+            ephemeral_check_run_id=None, preview_project_ref=PREVIEW_PROJECT_REF,
+            owner_decision_run_id="", owner_decision_digest="", migration_train_record=train_path,
+        )
+
+    def run_assess(self, args, review):
+        def fake_review(**kwargs):
+            path = Path(kwargs["output_dir"], "review.json")
+            path.write_text(json.dumps(review), encoding="utf-8")
+            return path
+        preview_calls = []
+        with mock.patch.object(self.gate, "load_activation", return_value={}), \
+             mock.patch.object(self.gate, "prove_activation"), \
+             mock.patch.object(self.gate, "verify_review", side_effect=fake_review), \
+             mock.patch.object(self.gate, "prove_preview", side_effect=lambda **kw: preview_calls.append(kw)), \
+             mock.patch.object(self.gate, "classify_sql", return_value=[]):
+            return self.gate.assess(args, api=self.api), preview_calls
+
+    def review(self, source_pr, head):
+        return {"schema_version": "shared-db-production-apply-review/v2", "verdict": "APPROVE",
+                "source_pr": source_pr, "source_pr_head": head, "work_issue": 7,
+                "preview_run_id": 66, "preview_artifact_digest": "sha256:" + "8" * 64}
+
+    def test_train_assess_binds_preview_per_authoring_pr(self):
+        path = self.root / "train.json"
+        path.write_text(json.dumps(self.record()), encoding="utf-8")
+        result, calls = self.run_assess(self.assess_args(path), self.review(102, "2" * 40))
+        self.assertEqual(
+            sorted((c["source_pr"], c["pr_head"], c["merge_commit_sha"]) for c in calls),
+            [(101, "1" * 40, "b" * 40), (102, "2" * 40, "c" * 40)],
+        )
+        self.assertTrue(all(c["allowlist"] == [self.V1, self.V2] for c in calls))
+        self.assertEqual([e["sourcePr"] for e in result["governedEvidence"]["migrationTrain"]["entries"]], [101, 102])
+        with self.assertRaisesRegex(RiskGateError, "authored no entry of the migration train"):
+            self.run_assess(self.assess_args(path, pr=103), self.review(101, "1" * 40))
+
+    def test_no_train_keeps_the_single_source_pr_rule_unchanged(self):
+        # PR 102 did not author V1, yet without a train the gate still binds
+        # everything to the one --pr exactly as before, and a review naming a
+        # different PR still refuses with today's wording.
+        with mock.patch.object(self.gate, "prove_pr_and_checks", return_value=("1" * 40, "b" * 40)) as single:
+            with self.assertRaisesRegex(
+                RiskGateError, "automatic review evidence is not bound to the promoted source PR and exact head"
+            ):
+                self.run_assess(self.assess_args(None), self.review(102, "2" * 40))
+            result, calls = self.run_assess(self.assess_args(None), self.review(101, "1" * 40))
+        self.assertEqual(single.call_args.args[0], 101)
+        self.assertEqual([(c["source_pr"], c["pr_head"]) for c in calls], [(101, "1" * 40)])
+        self.assertNotIn("migrationTrain", result["governedEvidence"])
+
+
 if __name__ == "__main__":
     unittest.main()

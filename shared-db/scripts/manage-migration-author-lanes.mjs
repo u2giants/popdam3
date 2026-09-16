@@ -45,9 +45,10 @@ import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, REVIE
 import { changedPathsFromPullRequestFiles, classifyChangedPaths, classifyLightweightMergePullRequestFiles } from './lib/documents-only-change.mjs'
 import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 import { AdmissionError, SERVICE_CLASSES, CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, parseImpactBlock, evaluateAdmission, inspectPrStructuralChange } from './orchestrator-flow/admission.mjs'
+import { assertNamedHold, conflicts, describeLeaseHolder, formatHoldReason, HoldReasonError } from './lib/hold-reason.mjs'
 import { OUTCOME_STATES, OutcomeError, advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory } from './orchestrator-flow/outcome-lifecycle.mjs'
 import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
-import { MigrationTrainError, TRAIN_REF_PREFIX, assertDispatchMatchesTrain, assertRecordedTrain, proposeTrain, trainRecordRef, transitionTrain, validateTrain } from './orchestrator-flow/migration-train.mjs'
+import { MigrationTrainError, TRAIN_REF_PREFIX, assertDispatchMatchesTrain, assertRecordedTrain, assertTrainProductionEvidence, proposeTrain, trainRecordRef, transitionTrain, validateTrain } from './orchestrator-flow/migration-train.mjs'
 
 export const REPO = 'u2giants/shared-db'
 // NO AUTHOR LANE CAP. The cap was three (2026-08-14), five (2026-08-25), eight
@@ -172,6 +173,27 @@ export const REVIEW_QUOTA_RESERVE = 100
 export const REVIEW_LEASE_SUSPECT_HOURS = 24 // Advisory visibility only. Age never releases a lease.
 export const SILENCE_MIN_AGE_HOURS = 2
 export const SILENCE_CONFIRM_HOURS = 2
+// ISSUE #3027 STEP 7 -- the reviewer START watcher. A lease whose review never
+// started (no durable review-started marker written by run-governed-review.mjs and
+// no PR activity after the draw) is returned through this same silence path after
+// the 10-minute start SLO instead of the 2-hour silence window. A lease with ANY
+// start marker newer than its draw is never eligible here: a healthy running review
+// is only ever handled by the ordinary 2-hour silence path.
+export const REVIEW_STARTED_REF_PREFIX = 'refs/db-review-started'
+export const UNSTARTED_MIN_AGE_HOURS = 10/60
+// One deterministic marker per exact lease (issue, PR, head, slot, draw sequence). The runner
+// creates it create-only before launching a provider; the unstarted reclaim creates the SAME ref
+// (pointing at its release commit) inside its atomic compare-and-swap. Exactly one of the two can
+// win, so a review can never start on a slot that was returned, and a started review can never be
+// reclaimed as unstarted. No listing, no timestamps, no extra reclaim requests.
+export function reviewStartedMarkerRef(lease){
+  const head=String(lease.headSha??'').toLowerCase(),seq=Number(lease.sequence),slot=Number(lease.slot??1)
+  if(!Number.isInteger(Number(lease.issue))||!Number.isInteger(Number(lease.pr))||!/^[0-9a-f]{40}$/.test(head)||!Number.isInteger(seq)||!Number.isInteger(slot))throw new LaneError('review start marker requires exact issue, PR, head, slot, and sequence')
+  return `${REVIEW_STARTED_REF_PREFIX}/${Number(lease.issue)}-${Number(lease.pr)}-${head}-slot${slot}-seq${seq}`
+}
+// readRef returns null only on a confirmed 404 and throws otherwise, so an unreadable marker
+// never reads as a non-start.
+export function reviewStartMarkerPresent(lease,io){return io.readRef(reviewStartedMarkerRef(lease))!==null}
 export const REVIEW_QUEUE_TTL_HOURS = 2
 export const REVIEW_QUEUE_ROW_LIMIT = 32
 // Row ceiling for listReviewRefsPaged. It is a REFUSAL, not a truncation: past
@@ -810,26 +832,13 @@ export function parseQueueScope(body = '') {
   return { status, workType, route, priority, dependencies, returnTo, writes, reads, legacyObjects, objects: writes, serviceClass, changeType, applicationReturnTo, liveAssertion, generatedTypes, outcomeStage }
 }
 
-export const COORDINATION_LABELS = new Set(['db-claim','orchestrator-marker'])
+// orchestrator-alarm marks the no-progress alarm fallback issue (scripts/orchestrator-flow/no-progress-alarm.mjs); the queue audit excludes it too.
+export const COORDINATION_LABELS = new Set(['db-claim','orchestrator-marker','orchestrator-alarm'])
 export const WORK_LABEL = 'db-work'
 
-// THE CONFLICT MATRIX (Step 2, issue #1366).
-//
-//              B reads   B writes
-//   A reads      no        YES
-//   A writes     YES       YES
-//
-// Read/read running in parallel is the entire point: two sessions may inspect the
-// same table at once. Anything involving a write serialises, in BOTH directions,
-// because a writer changing an object underneath a reader is exactly the silent
-// corruption these lanes exist to prevent.
-export function conflicts(a, b) {
-  const aWrites = new Set(a?.writes ?? []), bWrites = new Set(b?.writes ?? [])
-  for (const object of aWrites) if (bWrites.has(object)) return true
-  for (const object of (b?.reads ?? [])) if (aWrites.has(object)) return true
-  for (const object of (a?.reads ?? [])) if (bWrites.has(object)) return true
-  return false
-}
+// The conflict matrix lives in ./lib/hold-reason.mjs so named holds and lane
+// placement share one rule; re-exported here for existing callers.
+export { conflicts }
 
 // Two flat lists, compared as writes. Conservative on purpose: a caller that has
 // lost the read/write distinction must not be handed a weaker answer.
@@ -2787,8 +2796,69 @@ export function resolveCommandPath(command,platform=process.platform){
   }catch{return null}
 }
 
+// NAMED HOLDS (Step 2, locked decision 15, issue #3027). Every stage-lease refusal
+// names the exact lease holder, so a waiting item can record a hold on THAT lease
+// rather than on another item's pipeline stage. Reading the holder is best effort:
+// an unreadable lease commit still names the ref and SHA, never a guess.
+export function leaseHoldText(stage, io = githubIo) {
+  const ownerSha=io.readRef(EXCLUSIVE_REFS[stage])
+  if(!ownerSha)return `hold_reason lease:${stage} (holder released during the check; retry)`
+  let message=null
+  try{message=io.readCommitMessage?.(ownerSha)??null}catch{message=null}
+  return `hold_reason lease:${stage} held by ${describeLeaseHolder(stage,ownerSha,message)}`
+}
+
+export function holdFacts(io = githubIo, now = new Date()) {
+  let claims=null
+  const openClaims=()=>claims??=(io.openClaims()??[])
+  return {
+    leaseHolder(stage){
+      const ownerSha=io.readRef(EXCLUSIVE_REFS[stage])
+      if(!ownerSha)return null
+      let message=null
+      try{message=io.readCommitMessage?.(ownerSha)??null}catch{message=null}
+      return {ownerSha,message}
+    },
+    claim(number){
+      const claim=openClaims().find((row)=>Number(row.number)===Number(number))
+      if(!claim)return null
+      const lease=parseAuthorLease(claim.body,now)
+      return {open:!lease.legacy,objects:(lease.objects??[]).map(normalizeObject),reads:(lease.reads??[]).map(normalizeObject)}
+    },
+    issue(number){
+      const issue=io.getIssue(Number(number))
+      if(!issue)return null
+      let scope=null
+      try{scope=parseQueueScope(issue.body??'')}catch{scope=null}
+      return {state:issue.state,dependencies:scope?.dependencies??[],objects:(scope?.writes??[]).map(normalizeObject),reads:(scope?.reads??[]).map(normalizeObject)}
+    },
+  }
+}
+
+export function namedHold(heldIssue, reason, io = githubIo, now = new Date()) {
+  try{return assertNamedHold({heldIssue,reason},holdFacts(io,now))}
+  catch(error){if(error instanceof HoldReasonError)throw new LaneError(error.message);throw error}
+}
+
+// Names the exact claims (and their shared objects) an urgent item waits behind,
+// instead of a generic "capacity is occupied" line (#3027 named holds).
+export function urgentHoldReason(result, issue) {
+  const lane=(result?.queues??[]).find((row)=>(row.queued??[]).includes(issue))
+  const holders=[lane?.active,...(lane?.protected??[])].filter(Boolean).map((claim)=>`claim #${claim}`)
+  const objects=[...new Set(lane?.objects??[])].sort()
+  return holders.length&&objects.length?{kind:'claim',holder:holders.join(', '),objects}:null
+}
+
+export function urgentHoldDetail(result, issue) {
+  const record=urgentHoldReason(result,issue)
+  return `${record?formatHoldReason(record):'hold_reason unavailable: lane holder not found'}; no active work was preempted`
+}
+
 export function acquireRef(ref, ownerSha, io = githubIo) {
-  if (!io.createRef(ref, ownerSha)) throw new LaneError(`${ref} is occupied`)
+  if (!io.createRef(ref, ownerSha)) {
+    const stage=Object.entries(EXCLUSIVE_REFS).find(([kind,value])=>value===ref&&['preview','merge','production'].includes(kind))?.[0]
+    throw new LaneError(`${ref} is occupied${stage?`; ${leaseHoldText(stage,io)}`:''}`)
+  }
   if (readRefAfterWrite(ref, ownerSha, io) !== ownerSha) throw new LaneError(`${ref} ownership could not be proved after acquisition`)
 }
 
@@ -4479,10 +4549,19 @@ function newestActivityTimestamp(rows,fields){
   return newest
 }
 
-export function activityFingerprintForLease(lease,io,{freshPr=false}={}){
+// Issue #3027 Step 7: in unstarted mode a reviewer is judged ONLY by its own durable start
+// marker. PR-wide activity (CI check runs, workflow runs, another slot's review or comments)
+// is not that reviewer's start, so ownStartOnly neither reads nor fingerprints it. The PR state,
+// head, draft flag and this slot's verdict stay in the fingerprint; unreadable facts still throw.
+export const OWN_START_ONLY_ACTIVITY='not-counted-own-start-marker-only'
+export function activityFingerprintForLease(lease,io,{freshPr=false,ownStartOnly=false}={}){
   if(typeof io?.readLeaseActivity!=='function')throw new LaneError('reviewer activity is unreadable; silence cannot be observed')
   const pr=freshPr&&typeof io.__freshGetPr==='function'?io.__freshGetPr(lease.pr):io.getPr(lease.pr)
   if(!pr?.state||!pr?.head?.sha)throw new LaneError('reviewer PR activity is unreadable; silence cannot be observed')
+  if(ownStartOnly){
+    const facts={issue:Number(lease.issue),pr:Number(lease.pr),headSha:String(lease.headSha).toLowerCase(),slot:Number(lease.slot??1),sequence:Number(lease.sequence),prState:String(pr.state).toLowerCase(),currentHead:String(pr.head.sha).toLowerCase(),draft:pr.draft===true,verdictPresent:hasVerdictForHead(lease.issue,lease.pr,lease.headSha,io,leaseVerdictOptions(lease)),activity:OWN_START_ONLY_ACTIVITY}
+    return {fingerprint:createHash('sha256').update(canonicalJson(facts)).digest('hex'),lastActivityIso:OWN_START_ONLY_ACTIVITY,facts}
+  }
   const activity=io.readLeaseActivity(lease)
   for(const key of ['issueComments','reviewComments','reviews','checkRuns','workflowRuns'])if(!Array.isArray(activity?.[key]))throw new LaneError(`reviewer ${key} activity is unreadable; silence cannot be observed`)
   const groups=[
@@ -4521,15 +4600,31 @@ function resolveSilentLease(options,io){
 
 function probeSilentReviewerOperation(options,now,io){
   io=reviewOperationIo(io)
-  const {request,original,lease}=resolveSilentLease(options,io),probeRef=silenceProbeRef(request)
+  let resolved
+  try{resolved=resolveSilentLease(options,io)}
+  catch(error){
+    // A resumed start-watch dispatch re-runs the probe after its own reclaim removed the lease.
+    // Only on that failure path, pay one read to report the existing probe as already done.
+    if(options.unstarted===true&&error instanceof LaneError){
+      let probed=null
+      try{probed=io.readRef(silenceProbeRef({issue:Number(options.issue),pr:Number(options.pr),headSha:String(options.headSha??'').toLowerCase(),sequence:Number(options.failedSequence)}))}catch{}
+      if(probed)throw new LaneError('reviewer silence probe already exists and is immutable')
+    }
+    throw error
+  }
+  // Budget (issue #2075 rule): the unstarted probe is the reclaim's measured 14-request
+  // pre-mutex half minus the reclaim-only reads, plus ONE marker readRef below -- at most 15
+  // of REVIEW_OPERATION_REQUEST_LIMIT=25. The failure-path read above never runs on success.
+  const {request,original,lease}=resolved,probeRef=silenceProbeRef(request)
   if(io.readRef(probeRef))throw new LaneError('reviewer silence probe already exists and is immutable')
   const pr=io.getPr(request.pr)
   if(pr?.state!=='open'||pr?.head?.sha!==request.headSha||hasVerdictForHead(request.issue,request.pr,request.headSha,io,{slot:request.slot}))throw new LaneError('silence probe requires a live lease at the exact open PR head')
-  const age=reviewLeaseAgeHours(lease.heldSince,now)
-  if(age===null||age<SILENCE_MIN_AGE_HOURS)throw new LaneError(`silence probe requires a lease at least ${SILENCE_MIN_AGE_HOURS} hours old`)
+  const age=reviewLeaseAgeHours(lease.heldSince,now),unstarted=options.unstarted===true,minAge=unstarted?UNSTARTED_MIN_AGE_HOURS:SILENCE_MIN_AGE_HOURS
+  if(age===null||age<minAge)throw new LaneError(unstarted?'unstarted probe requires a lease at least 10 minutes old':`silence probe requires a lease at least ${SILENCE_MIN_AGE_HOURS} hours old`)
   const heldSince=lease.heldSince
-  const observed=activityFingerprintForLease(lease,io)
-  if(observed.lastActivityIso!=='none'&&Date.parse(observed.lastActivityIso)>Date.parse(heldSince))throw new LaneError('silence probe refused because reviewer activity occurred after the lease was drawn')
+  if(unstarted&&reviewStartMarkerPresent({...lease,sequence:request.sequence,slot:request.slot},io))throw new LaneError('unstarted probe refused because the review has a durable start marker')
+  const observed=activityFingerprintForLease({...lease,slot:request.slot},io,{ownStartOnly:unstarted})
+  if(!unstarted&&observed.lastActivityIso!=='none'&&Date.parse(observed.lastActivityIso)>Date.parse(heldSince))throw new LaneError('silence probe refused because reviewer activity occurred after the lease was drawn')
   const message=`db-coordination reviewer-silence-probe reviewer=${original.reviewer} issue=${request.issue} pr=${request.pr} head=${request.headSha} sequence=${request.sequence} slot=${request.slot} observed-at=${new Date(now).toISOString()} lease-held-since=${new Date(heldSince).toISOString()} last-activity=${observed.lastActivityIso} fingerprint=${observed.fingerprint}`
   const sha=io.makeOwnerCommit(message)
   if(!io.createRef(probeRef,sha)||io.readRef(probeRef)!==sha)throw new LaneError('reviewer silence probe create-only write could not be proved')
@@ -4541,14 +4636,27 @@ export function probeSilentReviewer(options,now=new Date(),io=githubIo){return w
 function reclaimSilentReviewerOperation(options,now,io){
   if(!options.confirmNoVerdict||!options.confirmNoArtifact)throw new LaneError('silent reviewer reclaim requires explicit confirmation that the session produced no verdict and no artifact')
   io=reviewOperationIo(io)
-  const {request,original,leaseRef,leaseSha}=resolveSilentLease(options,io),probeRef=silenceProbeRef(request),releaseRef=silenceReleaseRef(request),probeSha=io.readRef(probeRef)
+  let resolved
+  try{resolved=resolveSilentLease(options,io)}
+  catch(error){
+    // A retry after a completed unstarted reclaim finds no lease. Only then pay one read to
+    // tell "already reclaimed" apart from any other refusal; the happy path costs nothing.
+    if(options.unstarted===true&&error instanceof LaneError){
+      let released=null
+      try{released=io.readRef(silenceReleaseRef({issue:Number(options.issue),pr:Number(options.pr),headSha:String(options.headSha??'').toLowerCase(),sequence:Number(options.failedSequence),slot:Number(options.slot??1)}))}catch{}
+      if(released)throw new LaneError('silent reviewer lease was already reclaimed with immutable evidence')
+    }
+    throw error
+  }
+  const {request,original,leaseRef,leaseSha}=resolved,probeRef=silenceProbeRef(request),releaseRef=silenceReleaseRef(request),probeSha=io.readRef(probeRef)
   if(!probeSha)throw new LaneError('silent reviewer reclaim requires an immutable prior silence probe')
   if(io.readRef(releaseRef))throw new LaneError('silent reviewer lease was already reclaimed with immutable evidence')
   const probe=parseSilenceProbe(io.getCommit(probeSha))
   if(probe.issue!==request.issue||probe.pr!==request.pr||probe.headSha!==request.headSha||probe.sequence!==request.sequence||probe.slot!==request.slot||probe.reviewer!==original.reviewer)throw new LaneError('silence probe does not match the exact active lease')
-  const probeAge=reviewLeaseAgeHours(probe.observedAt,now)
-  if(probeAge===null||probeAge<SILENCE_CONFIRM_HOURS)throw new LaneError(`silent reviewer reclaim requires an unchanged readable probe for at least ${SILENCE_CONFIRM_HOURS} hours`)
-  const observed=activityFingerprintForLease({...original,slot:request.slot},io)
+  const probeAge=reviewLeaseAgeHours(probe.observedAt,now),unstarted=options.unstarted===true
+  if(unstarted){const leaseAge=reviewLeaseAgeHours(probe.leaseHeldSince,now);if(probeAge===null||leaseAge===null||leaseAge<UNSTARTED_MIN_AGE_HOURS)throw new LaneError('unstarted reclaim requires a lease at least 10 minutes old')}
+  else if(probeAge===null||probeAge<SILENCE_CONFIRM_HOURS)throw new LaneError(`silent reviewer reclaim requires an unchanged readable probe for at least ${SILENCE_CONFIRM_HOURS} hours`)
+  const observed=activityFingerprintForLease({...original,slot:request.slot},io,{ownStartOnly:unstarted})
   if(observed.fingerprint!==probe.fingerprint)throw new LaneError('silent reviewer reclaim refused because the activity fingerprint changed after the probe')
   if(typeof io.atomicReviewRefs!=='function'||typeof io.readReviewRefs!=='function')throw new LaneError('silent reviewer reclaim requires atomic compare-and-swap ref support')
   const releaseSha=io.makeOwnerCommit(`db-coordination reviewer-silence-release reviewer=${original.reviewer} issue=${request.issue} pr=${request.pr} head=${request.headSha} sequence=${request.sequence} code=silent_worker_observed probe=${probeSha} observed-at=${probe.observedAt} confirmed-at=${new Date(now).toISOString()} verdict=none artifact=none replacement=none`)
@@ -4560,13 +4668,17 @@ function reclaimSilentReviewerOperation(options,now,io){
     // The fingerprint already reads the PR fresh (`freshPr`) and records its state and
     // head in `facts`. Reading it fresh a second time here cost one request and could
     // never disagree; issue #2697 removed it and the check now uses those facts.
-    const current=resolveSilentLease(options,io),fresh=activityFingerprintForLease({...original,slot:request.slot},io,{freshPr:true}),pr={state:fresh.facts.prState,head:{sha:fresh.facts.currentHead}}
+    const current=resolveSilentLease(options,io),fresh=activityFingerprintForLease({...original,slot:request.slot},io,{freshPr:true,ownStartOnly:unstarted}),pr={state:fresh.facts.prState,head:{sha:fresh.facts.currentHead}}
     if(current.leaseSha!==leaseSha||pr?.state!=='open'||pr?.head?.sha!==request.headSha||hasVerdictForHead(request.issue,request.pr,request.headSha,io,{fresh:true,slot:request.slot})||fresh.fingerprint!==probe.fingerprint)throw new LaneError('silent reviewer lease or activity changed after mutex acquisition')
-    const locked=io.readReviewRefs([MUTEX_REF,releaseRef,leaseRef])
+    // Unstarted mode claims the lease's start marker in the same atomic push: a runner that
+    // already wrote it makes the push fail, and a runner that writes after finds it occupied.
+    const markerRef=unstarted?reviewStartedMarkerRef({...request}):null,watched=[MUTEX_REF,releaseRef,leaseRef,...(markerRef?[markerRef]:[])]
+    const locked=io.readReviewRefs(watched)
+    if(markerRef&&locked.get(markerRef)!==null)throw new LaneError('unstarted reclaim refused because the review has a durable start marker')
     if(locked.get(MUTEX_REF)!==ownerSha||locked.get(releaseRef)!==null||locked.get(leaseRef)!==leaseSha)throw new LaneError('silent reviewer reclaim ownership changed after preflight')
-    io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},{ref:releaseRef,expected:null,sha:releaseSha},{ref:leaseRef,expected:leaseSha,sha:null}])
-    const after=io.readReviewRefs([MUTEX_REF,releaseRef,leaseRef])
-    if(after.get(MUTEX_REF)!==ownerSha||after.get(releaseRef)!==releaseSha||after.get(leaseRef)!==null)throw new LaneError('atomic silent reviewer reclaim readback mismatch')
+    io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},{ref:releaseRef,expected:null,sha:releaseSha},{ref:leaseRef,expected:leaseSha,sha:null},...(markerRef?[{ref:markerRef,expected:null,sha:releaseSha}]:[])])
+    const after=io.readReviewRefs(watched)
+    if(after.get(MUTEX_REF)!==ownerSha||after.get(releaseRef)!==releaseSha||after.get(leaseRef)!==null||(markerRef&&after.get(markerRef)!==releaseSha))throw new LaneError('atomic silent reviewer reclaim readback mismatch')
     return {...request,reviewer:original.reviewer,probeSha,releaseSha,releasedLeaseSha:leaseSha}
   }finally{if(acquired)finalizeReviewMutex(ownerSha,io)}
 }
@@ -4778,6 +4890,41 @@ function reviewerCapacityReportOperation(io,now){
   if(io.enableReviewerQueue)try{queue=liveReviewerQueue(io)}catch{queue=null}
   return {generatedAt:new Date(now).toISOString(),advisorySuspectHours:REVIEW_LEASE_SUSPECT_HOURS,silenceMinAgeHours:SILENCE_MIN_AGE_HOURS,silenceConfirmHours:SILENCE_CONFIRM_HOURS,summary:{total:rows.length,free:rows.filter((row)=>row.classification==='free').length,live:rows.filter((row)=>['live','suspect-aged','silence-probed'].includes(row.classification)).length,reclaimable:rows.filter((row)=>['stale-reclaimable','silence-reclaimable'].includes(row.classification)).length,silenceProbed:rows.filter((row)=>row.classification==='silence-probed').length,silenceReclaimable:rows.filter((row)=>row.classification==='silence-reclaimable').length,unknown:rows.filter((row)=>row.classification==='unknown').length},queue,reviewers:rows}
 }
+
+// ISSUE #3027 STEP 7 -- read-only lease view for the reviewer start watcher
+// (scripts/orchestrator-flow/reviewer-start-watch.mjs). Every lease reports its exact
+// slot, draw time, whether a durable start marker exists after the draw, and the last
+// PR activity. Anything unreadable is reported as `unknown`, which the watcher never
+// reroutes. Leases younger than the start SLO are listed without further reads.
+function reviewerStartWatchLeasesOperation(io,now,minAgeHours){
+  const busy=findBusyReviewers(io,[],{keepUnreadableLeases:true})
+  if(!busy)throw new LaneError('active reviewer leases are unreadable; start watch refused')
+  const staleRefs=new Set((busy.stale??[]).map((row)=>row.ref))
+  return [...(busy.byAssignment?.values()??[])].map((record)=>{
+    const lease=record.lease,row={leaseRef:record.ref,reviewer:lease.reviewer,issue:lease.issue,pr:lease.pr,headSha:lease.headSha,sequence:lease.sequence,slot:lease.slot??1,heldSinceIso:record.heldSince??null,stale:staleRefs.has(record.ref),started:null,lastActivityIso:null,verdictPresent:null,error:null}
+    const age=reviewLeaseAgeHours(record.heldSince,now)
+    if(row.stale||age===null||age<minAgeHours)return row
+    try{
+      row.verdictPresent=hasVerdictForHead(lease.issue,lease.pr,lease.headSha,io,leaseVerdictOptions(lease))
+      row.started=reviewStartMarkerPresent({...lease,slot:row.slot},io)
+      // Own start marker only (#3027 Step 7): PR-wide CI or another slot's activity is not this reviewer starting.
+      row.lastActivityIso=OWN_START_ONLY_ACTIVITY
+    }catch(error){row.error=String(error?.message??error)}
+    return row
+  })
+}
+// Issue #3027 Step 7: the governed runner re-checks, AFTER writing its start marker and
+// before launching the provider, that its exact lease is still held. A start-watch reclaim
+// that listed markers just before the marker landed has then already removed the lease, and
+// the runner refuses to start. Unreadable leases throw: an unknown lease never starts a review.
+export function reviewLeaseStillHeld(request,io=githubIo){
+  const busy=findBusyReviewers(reviewOperationIo(io),[],{keepUnreadableLeases:true})
+  if(!busy)throw new LaneError('active reviewer leases are unreadable; review start refused')
+  // Returns the exact held lease (with its draw sequence) or null.
+  const hit=[...(busy.byAssignment?.values()??[])].find(({lease})=>Number(lease.issue)===Number(request.issue)&&Number(lease.pr)===Number(request.pr)&&String(lease.headSha).toLowerCase()===String(request.headSha).toLowerCase()&&Number(lease.slot??1)===Number(request.slot??1)&&(!request.reviewer||lease.reviewer===request.reviewer)&&(request.sequence===undefined||Number(lease.sequence)===Number(request.sequence)))
+  return hit?{...hit.lease,slot:Number(hit.lease.slot??1)}:null
+}
+export function reviewerStartWatchLeases(io=githubIo,now=new Date(),minAgeHours=UNSTARTED_MIN_AGE_HOURS){return withReviewRequestBudget(()=>reviewerStartWatchLeasesOperation(reviewOperationIo(io),now,minAgeHours),REVIEW_CAPACITY_REQUEST_LIMIT)}
 
 export function reviewerCapacityReport(io=githubIo,now=new Date()){return withReviewRequestBudget(()=>reviewerCapacityReportOperation(reviewOperationIo(io),now),REVIEW_CAPACITY_REQUEST_LIMIT)}
 
@@ -7467,7 +7614,7 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
     }
     if (kind === 'production') {
       if (metadata.headSha !== io.mainSha?.()) throw new LaneError('production lane requires the exact current main SHA')
-      if (io.readRef(EXCLUSIVE_REFS.merge)) throw new LaneError('a guarded merge is active; production promotion must wait')
+      if (io.readRef(EXCLUSIVE_REFS.merge)) throw new LaneError(`a guarded merge is active; production promotion must wait; ${leaseHoldText('merge',io)}`)
     } else if (kind === 'preview-rehearsal') {
       // POST-MERGE PREVIEW REHEARSAL -- the path that makes "merge first, then
       // rehearse on preview from merged main, then promote" executable. There is
@@ -7557,7 +7704,7 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
         if (changesMigration) throw new LaneError(`exclusive merge lane requires exactly one live author claim for a pull request that changes migrations${claimsSeen()}`)
       }
       if (kind === 'merge' && pr.base?.sha !== io.mainSha?.()) throw new LaneError('pull request is not based on the current main tip')
-      if (kind === 'merge' && io.readRef(EXCLUSIVE_REFS.production)) throw new LaneError('production promotion is active; merges are frozen')
+      if (kind === 'merge' && io.readRef(EXCLUSIVE_REFS.production)) throw new LaneError(`production promotion is active; merges are frozen; ${leaseHoldText('production',io)}`)
     }
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     acquireRef(ref, ownerSha, io)
@@ -7577,7 +7724,7 @@ export function authorizeRepositoryMaintenanceStatus(options, io = githubIo) {
   acquireMutex(ownerSha,io)
   try {
     requireOwnedRef(MUTEX_REF,ownerSha,io)
-    if(io.readRef(EXCLUSIVE_REFS.production))throw new LaneError('production promotion is active; repository-maintenance authorization is frozen')
+    if(io.readRef(EXCLUSIVE_REFS.production))throw new LaneError(`production promotion is active; repository-maintenance authorization is frozen; ${leaseHoldText('production',io)}`)
     const pr=io.getPr(prNumber),baseSha=String(pr?.base?.sha??'')
     if(!pr?.head?.sha||pr.head.sha!==headSha)throw new LaneError('repository-maintenance authorization head SHA does not match the live pull request')
     if(pr?.base?.ref!=='main'||pr?.base?.repo?.full_name!==REPO)throw new LaneError('repository-maintenance authorization requires the protected main base in this repository')
@@ -7589,7 +7736,7 @@ export function authorizeRepositoryMaintenanceStatus(options, io = githubIo) {
     const finalPr=io.getPr(prNumber)
     if(finalPr?.base?.sha!==baseSha||finalPr?.base?.ref!=='main'||finalPr?.base?.repo?.full_name!==REPO||finalPr?.head?.sha!==headSha)throw new LaneError('repository-maintenance authorization pull request moved during exact comparison')
     requireOwnedRef(MUTEX_REF,ownerSha,io)
-    if(io.readRef(EXCLUSIVE_REFS.production))throw new LaneError('production promotion began during repository-maintenance authorization')
+    if(io.readRef(EXCLUSIVE_REFS.production))throw new LaneError(`production promotion began during repository-maintenance authorization; ${leaseHoldText('production',io)}`)
     io.postCommitStatus(headSha,{state:'success',context,description,targetUrl})
     posted=true
     return {pr:prNumber,headSha,context,documentsOnly:true,coordinationRef:MUTEX_REF,structuralStage:null}
@@ -7668,6 +7815,7 @@ function parseArgs(argv) {
     else if (a === '--reclaim-silent-reviewer') out.reclaimSilentReviewer = true
     else if (a === '--request-reviewer') out.assignReviewer = true
     else if (a === '--reviewer-capacity') out.reviewerCapacity = true
+    else if (a === '--reviewer-start-watch-leases') out.reviewerStartWatchLeases = true
     else if (a === '--reap-abandoned-review-leases') out.reapAbandonedReviewLeases = true
     else if (a === '--archive-old-review-verdicts') out.archiveOldReviewVerdicts = true
     else if (a === '--reviewer-preflight') out.reviewerPreflight = true
@@ -7708,11 +7856,12 @@ function parseArgs(argv) {
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest','--database-preview-classification-file','--worktree-state','--recovery-artifact'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest','--database-preview-classification-file','--worktree-state','--recovery-artifact','--hold-reason'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if(a==='--confirm-local-dependency-unfixable')out.confirmLocalDependencyUnfixable=true
     else if(a==='--skip-doctor')out.skipDoctor=true
     else if(a==='--confirm-no-verdict')out.confirmNoVerdict=true
     else if(a==='--confirm-no-artifact')out.confirmNoArtifact=true
+    else if(a==='--unstarted')out.unstarted=true
     else if (a === '--versions') { out.versions = next(i).split(',').map((v)=>v.trim()).filter(Boolean); i++ }
     else if (a === '--objects') { out.objects.push(...next(i).split(',').map((v)=>v.trim()).filter(Boolean)); i++ }
     else if (a === '--lease-hours') { out.leaseHours = Number(next(i)); i++ }
@@ -7784,6 +7933,10 @@ export function runTrainCommand(o,io,readJson){
     const prior=readJson(o.closeTrain,'--close-train')
     assertRecordedTrain(prior,io)
     const failed=o.failedAppliedPrefix!==undefined
+    if(!failed){
+      if(!o.trainProof)throw new MigrationTrainError('--close-train requires --train-proof <file> with passing production assertions')
+      assertTrainProductionEvidence(prior,readJson(o.trainProof,'--train-proof'))
+    }
     const prefix=failed?String(o.failedAppliedPrefix).split(',').map((v)=>v.trim()).filter(Boolean):[]
     const record=transitionTrain(prior,failed?'failed':'closed',io,{applied_prefix:prefix})
     return {record,ref:trainRecordRef(record)}
@@ -7801,7 +7954,7 @@ export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
     if(String(process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim())io=withMergedPrIssueBinding(io,process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING)
-    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','reissueMergedClaim','reversionClaim','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','archiveOldReviewVerdicts','reviewerCapacity','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','releaseClaim','releaseDuplicateClaim','cleanup','audit']
+    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','reissueMergedClaim','reversionClaim','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','archiveOldReviewVerdicts','reviewerCapacity','reviewerStartWatchLeases','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','releaseClaim','releaseDuplicateClaim','cleanup','audit']
     const selectedPrimary=primaryKeys.filter((key)=>Object.prototype.hasOwnProperty.call(o,key))
     const hasAdmission=Object.prototype.hasOwnProperty.call(o,'admitIssue')
     if(selectedPrimary.length>1)throw new LaneError(`choose exactly one primary operation; received ${selectedPrimary.join(', ')}`)
@@ -7842,7 +7995,8 @@ export function main(argv, now = new Date(), io = githubIo) {
       const result=withAuthorMutex('outcome-advance',io,o,(ownerSha)=>{
         requireAdmission(o,io,{pr:o.pr??null,mutexOwner:ownerSha})
         requireOwnedRef(MUTEX_REF,ownerSha,io)
-        return advanceOutcome({issue:Number(o.issue),state:o.advanceOutcome,actor:o.owner??'manage-migration-author-lanes',timestamp:now.toISOString(),evidenceUrls:[o.evidence]},io)
+        const holdReason=o.holdReason===undefined?undefined:namedHold(o.issue,o.holdReason,io)
+        return advanceOutcome({issue:Number(o.issue),state:o.advanceOutcome,actor:o.owner??'manage-migration-author-lanes',timestamp:now.toISOString(),evidenceUrls:[o.evidence],holdReason},io)
       })
       console.log(JSON.stringify(result,null,2));return 0
     }
@@ -7941,6 +8095,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.reclaimSilentReviewer){console.log(JSON.stringify(reclaimSilentReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},now,io),null,2));return 0}
     if(o.reapAbandonedReviewLeases){console.log(JSON.stringify(reapAbandonedReviewLeases(o,now,io),null,2));return 0}
     if(o.archiveOldReviewVerdicts){console.log(JSON.stringify(archiveOldReviewVerdicts(o,now,io),null,2));return 0}
+    if(o.reviewerStartWatchLeases){console.log(JSON.stringify(reviewerStartWatchLeases(io,now),null,2));return 0}
     if(o.reviewerCapacity){console.log(JSON.stringify(reviewerCapacityReport(io,now),null,2));return 0}
     if(o.excludeReviewer){console.log(JSON.stringify(excludeReviewerForPr(o,io),null,2));return 0}
     if(o.reinstateReviewerExclusion){console.log(JSON.stringify(reinstateReviewerExclusion(o,io),null,2));return 0}
@@ -8030,7 +8185,7 @@ export function main(argv, now = new Date(), io = githubIo) {
         const exists=(io.issueComments?.(issue)??[]).flatMap((comment)=>{try{return parseEventComment(comment?.body??'')}catch{return[]}})
           .some((event)=>event.event_type==='urgent_waiting_capacity'&&event.result==='succeeded')
         if(!exists&&io.commentIssue){
-          io.commentIssue(issue,formatEventComment(coordinationEvent({eventType:'urgent_waiting_capacity',workIssue:issue,actor:'queue-audit',timestamp:now.toISOString(),service_class:'urgent-application',detail:'all safe author capacity is occupied or object-protected; no active work was preempted'})))
+          io.commentIssue(issue,formatEventComment(coordinationEvent({eventType:'urgent_waiting_capacity',workIssue:issue,actor:'queue-audit',timestamp:now.toISOString(),service_class:'urgent-application',...(urgentHoldReason(result,issue)?{hold_reason:urgentHoldReason(result,issue)}:{}),detail:urgentHoldDetail(result,issue)})))
         }
       }
       console.log(JSON.stringify(result,null,2))

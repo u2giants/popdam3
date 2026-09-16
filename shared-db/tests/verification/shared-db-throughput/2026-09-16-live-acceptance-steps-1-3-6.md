@@ -104,3 +104,40 @@ adds one nullable, default-less `text` column to the revoked, unread
 
 No session dispatched production; the session dispatched only the guarded merge
 and the preview rehearsal.
+
+## Step 6 — live migration train: PROVEN (2026-09-16)
+
+This supersedes the earlier "Step 6 — live migration train" harvest above.
+
+Canary train on the revoked, unread `plm.production_lane_canary` table, one
+nullable default-less `text` column per entry:
+
+- `20260916160617_production_lane_canary_step6_train_note_a.sql`: work issue #3071, PR #3073, merge `7a5d1ac74c69e3d2c293a92a812d064ae62692b4`.
+- `20260916184821_production_lane_canary_step6_train_note_b.sql`: work issue #3074, PR #3090, merge `135a71a1c4de218035dabd34c2afe3eae326ad7f`.
+- The per-entry gate binding landed first in PR #3075 (`c94ef25f1075e2dc7ee4031f5507fed19422e3ab`).
+
+1. Merged-main preview rehearsal run 35138814669 (`merged_preview_source_pr_map=20260916160617:3073,20260916184821:3090`)
+   logged `added: 20260916160617, 20260916184821`. A read-only query on preview
+   `mvpkijzfmfcxhnzqogzs` showed both columns as `text`, nullable, no default.
+2. Production dry-run run 35139306332 (target production, same commit and allowlist)
+   logged `Would push these migrations:` with exactly both files.
+3. Refusal by name: a variant train that prepended the Step 1 version was refused with
+   `REFUSED: migration 20260916120643 is already applied on the exact target`.
+4. The real train (id `af036faf40ba25c0897395c518485399c55d7e8d74bb64901578343e0157069d`, base main `135a71a1`)
+   validated, then got these immutable refs: `000002-authorized` and `000003-dispatched`.
+   `--verify-train-dispatch` passed for target production and the exact allowlist.
+5. Grok 4.6 read-only review `s6-train-prod-dispatch` covered the workflow, target,
+   SHA, allowlist, train ref, both SQL files and the dry-run output. It returned
+   `VERDICT: APPROVE`. Review evidence run 35140286053 recorded that verdict
+   (artifact `sha256:b0e595eb7e761ebb93d4920307dd333f85bd3c21657e659cb76e5c05a5c22856`).
+6. One production dispatch, https://github.com/u2giants/shared-db/actions/runs/35140328371,
+   with `migration_train_ref=refs/db-migration-trains/af036faf…/000003-dispatched`.
+   Every job it ran succeeded. The log shows:
+   `Applying migration 20260916160617_production_lane_canary_step6_train_note_a.sql...`,
+   `Applying migration 20260916184821_production_lane_canary_step6_train_note_b.sql...`,
+   and the after-record rows `20260916160617 | 20260916160617` and `20260916184821 | 20260916184821`.
+7. A read-only production query on `qsllyeztdwjgirsysgai` returned:
+   - columns `step6_train_note_a:text:YES:none,step6_train_note_b:text:YES:none`
+   - ledger `20260916160617,20260916184821`
+   - still 1 row in the table
+8. The train closed with passing production assertions as `000004-closed`.

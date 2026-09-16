@@ -860,3 +860,12 @@ test('completion refuses preview-only, merge-only, missing generated types, miss
   {const {io}=completionFixture();io.prStructuralObjects=()=>['table core.other'];assert.throws(()=>completeOutcome({issue:41,evidenceRef:'x',actor:'test'},io),/structural objects do not match/)}
   {const {io}=completionFixture();io.verifyProductionApply=()=>false;assert.throws(()=>completeOutcome({issue:41,evidenceRef:'x',actor:'test'},io),/production application/)}
 })
+
+test('issue 3027 a blocked outcome must carry a named hold and other states may not',()=>{
+  const comments=eventComments('classified',41)
+  const io={issueComments:()=>comments,commentIssue:(_n,body)=>comments.push(ownerComment(body)),wait:()=>{}}
+  assert.throws(()=>advanceOutcome({issue:41,state:'blocked',actor:'test',timestamp:'2026-09-11T00:03:00Z'},io),/hold/)
+  assert.throws(()=>advanceOutcome({issue:41,state:'dispatched',actor:'test',timestamp:'2026-09-11T00:03:00Z',holdReason:{kind:'claim',holder:'claim #7',objects:['table core.a']}},io),/hold/)
+  const result=advanceOutcome({issue:41,state:'blocked',actor:'test',timestamp:'2026-09-11T00:03:00Z',evidenceUrls:['https://github.com/u2giants/shared-db/issues/41'],holdReason:{kind:'lease',stage:'production',holder:'production lease abc',owner_sha:'abc'}},io)
+  assert.equal(result.hold_reason.holder,'production lease abc')
+})

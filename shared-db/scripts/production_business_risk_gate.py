@@ -26,6 +26,7 @@ from production_apply_review_evidence import verify as verify_review
 from production_migration_guard import parse_remote_versions
 from production_review_allowlist import normalize_review_allowlist
 from historical_preview_recovery import verify as verify_historical_preview
+from historical_preview_recovery import prove_pr_authored
 from preview_instance_binding import verify as verify_preview_instance_binding
 from production_owner_decision_evidence import TRANSIENT_GITHUB_ERRORS, verify_artifact as verify_owner_decision
 
@@ -1944,6 +1945,84 @@ def prove_pr_and_checks(
     return head, str(merge_commit_sha)
 
 
+TRAIN_VERSION_RE = re.compile(r"\d{14}")
+TRAIN_DIGEST_RE = re.compile(r"[0-9a-f]{64}")
+TRAIN_SHA_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def load_migration_train_record(path: Path) -> dict[str, Any]:
+    """The dispatched train record, as the workflow re-read it from its immutable ref."""
+    try:
+        record = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RiskGateError(f"migration train record is unreadable: {exc}") from exc
+    if not isinstance(record, dict) or not isinstance(record.get("entries"), list) or not record["entries"]:
+        raise RiskGateError("migration train record has no exact entry list")
+    return record
+
+
+def prove_migration_train(
+    record: dict[str, Any], *, main_sha: str, allowlist: list[str],
+    api: Callable[[str], Any], repo_root: Path,
+) -> dict[int, tuple[str, str]]:
+    """Issue #3027 Step 6: prove EVERY train entry against its OWN authoring PR.
+
+    Each entry gets the full single-PR proof it would get alone: merged, merge
+    commit an ancestor of exact main, required checks green at that PR's exact
+    head, the latest guarded-merge authorization successful there, the merge
+    commit equal to the one the train recorded, the PR ADDED that exact migration
+    file, and the file on exact main hashing to the train's recorded sha256.
+    Returns {source_pr: (head, merge_commit)} for the preview and review bindings.
+    """
+    if record.get("state") != "dispatched":
+        raise RiskGateError(f"migration train {record.get('train_id')} is {record.get('state')}, not dispatched")
+    if record.get("target") != "production":
+        raise RiskGateError(f"migration train targets {record.get('target')}, not production")
+    if str(record.get("base_main_sha", "")).lower() != main_sha.lower():
+        raise RiskGateError("migration train was built on a different main commit than the promoted exact main")
+    entries = record["entries"]
+    versions = [str(entry.get("version")) if isinstance(entry, dict) else "" for entry in entries]
+    if versions != allowlist:
+        raise RiskGateError(
+            f"migration train versions {','.join(versions)} are not exactly the allowlist {','.join(allowlist)}"
+        )
+    proven: dict[int, tuple[str, str]] = {}
+    for entry in entries:
+        version = entry["version"]
+        source_pr, merge_sha, file_sha = entry.get("source_pr"), entry.get("merge_sha"), entry.get("file_sha256")
+        if (
+            not TRAIN_VERSION_RE.fullmatch(version)
+            or type(source_pr) is not int or source_pr < 1
+            or not TRAIN_SHA_RE.fullmatch(str(merge_sha))
+            or not TRAIN_DIGEST_RE.fullmatch(str(file_sha))
+        ):
+            raise RiskGateError(f"train entry {version}: missing exact source PR, merge commit or file hash")
+        try:
+            head, merge_commit = prove_pr_and_checks(source_pr, main_sha, [version], api, repo_root)
+        except RiskGateError as exc:
+            raise RiskGateError(f"train entry {version}: source PR {source_pr}: {exc}") from exc
+        if merge_commit != merge_sha:
+            raise RiskGateError(
+                f"train entry {version}: source PR {source_pr} merged as {merge_commit}, not the train's {merge_sha}"
+            )
+        try:
+            authored_merge = prove_pr_authored(source_pr, main_sha, [version], repo_root, api)
+        except ValueError as exc:
+            raise RiskGateError(f"train entry {version}: {exc}") from exc
+        if authored_merge != merge_sha:
+            raise RiskGateError(f"train entry {version}: source PR {source_pr} authorship names another merge commit")
+        matches = list(repo_root.glob(f"supabase/migrations/{version}_*.sql"))
+        if len(matches) != 1:
+            raise RiskGateError(f"train entry {version}: exact main has {len(matches)} migration files, not 1")
+        actual = sha256_file(matches[0])
+        if actual != file_sha:
+            raise RiskGateError(f"train entry {version}: file hashes to {actual}, not the train's {file_sha}")
+        if source_pr in proven and proven[source_pr] != (head, merge_commit):
+            raise RiskGateError(f"train entry {version}: source PR {source_pr} changed identity mid-proof")
+        proven[source_pr] = (head, merge_commit)
+    return proven
+
+
 def classify_sql(repo_root: Path, allowlist: list[str]) -> list[str]:
     reasons: set[str] = set()
     for version in allowlist:
@@ -2461,7 +2540,23 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
         raise RiskGateError("promotion needs preview run + digest, or an ephemeral CI check run ID")
     activation = load_activation(args.activation)
     prove_activation(activation, main_sha=args.main_sha, api=api, repo_root=repo_root)
-    pr_head, pr_merge_commit = prove_pr_and_checks(args.pr, args.main_sha, allowlist, api, repo_root)
+    train_path = getattr(args, "migration_train_record", None)
+    train = load_migration_train_record(train_path) if train_path else None
+    train_prs: dict[int, tuple[str, str]] = {}
+    if train is None:
+        pr_head, pr_merge_commit = prove_pr_and_checks(args.pr, args.main_sha, allowlist, api, repo_root)
+    else:
+        if ephemeral_text:
+            raise RiskGateError(
+                "a migration train promotes only on preview evidence; one ephemeral CI check "
+                "cannot prove several authoring pull request heads"
+            )
+        train_prs = prove_migration_train(
+            train, main_sha=args.main_sha, allowlist=allowlist, api=api, repo_root=repo_root,
+        )
+        if args.pr not in train_prs:
+            raise RiskGateError(f"source PR {args.pr} authored no entry of the migration train")
+        pr_head, pr_merge_commit = train_prs[args.pr]
     with tempfile.TemporaryDirectory(prefix="production-risk-review-") as temp:
         review_path = verify_review(
             run_id_text=str(args.review_run_id), expected_digest=args.review_digest,
@@ -2472,10 +2567,21 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
     if review.get("verdict") != "APPROVE":
         return {"automaticPromotionAllowed": False, "ownerDecisionReasons": [RISK_TEXT["unresolved_material_objection"]]}
     if review.get("schema_version") == "shared-db-production-apply-review/v2":
-        if review.get("source_pr") != args.pr or review.get("source_pr_head") != pr_head:
-            raise RiskGateError(
-                "automatic review evidence is not bound to the promoted source PR and exact head"
-            )
+        if train is None:
+            if review.get("source_pr") != args.pr or review.get("source_pr_head") != pr_head:
+                raise RiskGateError(
+                    "automatic review evidence is not bound to the promoted source PR and exact head"
+                )
+        else:
+            reviewed = review.get("source_pr")
+            if (
+                type(reviewed) is not int or reviewed not in train_prs
+                or review.get("source_pr_head") != train_prs[reviewed][0]
+            ):
+                raise RiskGateError(
+                    "automatic review evidence is not bound to an authoring PR of the migration "
+                    "train and its exact head"
+                )
         if review.get("work_issue") != args.work_issue:
             raise RiskGateError("automatic review evidence names a different admitted structural work issue")
         if not ephemeral_text:
@@ -2497,12 +2603,28 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
     else:
         if not optional_text(getattr(args, "preview_project_ref", None)):
             raise RiskGateError("the preview route needs --preview-project-ref")
-        prove_preview(
-            run_id=int(preview_run_text), digest=preview_digest, pr_head=pr_head,
-            main_sha=args.main_sha, source_pr=args.pr, allowlist=allowlist,
-            preview_project_ref=args.preview_project_ref, merge_commit_sha=pr_merge_commit,
-            api=api, downloader=downloader, repo_root=repo_root,
-        )
+        if train is None:
+            prove_preview(
+                run_id=int(preview_run_text), digest=preview_digest, pr_head=pr_head,
+                main_sha=args.main_sha, source_pr=args.pr, allowlist=allowlist,
+                preview_project_ref=args.preview_project_ref, merge_commit_sha=pr_merge_commit,
+                api=api, downloader=downloader, repo_root=repo_root,
+            )
+        else:
+            # ONE PROOF PER AUTHORING PR against the one rehearsal of the whole
+            # train. A merged_preview_source_pr_map rehearsal files
+            # preview-instance-<pr>.json naming each PR and its own merge commit
+            # over the complete allowlist (#2140); each is checked strictly.
+            for train_pr, (train_head, train_merge) in train_prs.items():
+                try:
+                    prove_preview(
+                        run_id=int(preview_run_text), digest=preview_digest, pr_head=train_head,
+                        main_sha=args.main_sha, source_pr=train_pr, allowlist=allowlist,
+                        preview_project_ref=args.preview_project_ref, merge_commit_sha=train_merge,
+                        api=api, downloader=downloader, repo_root=repo_root,
+                    )
+                except (RiskGateError, ValueError) as exc:
+                    raise RiskGateError(f"migration train preview proof for source PR {train_pr}: {exc}") from exc
     decision = decide_business_risk(classify_sql(repo_root, allowlist), recovery_proven=True, review_approved=True)
     enforce_automatic_risk_decision(review, decision)
     # OWNER RULING 2026-08-18: the machine-readable owner-decision block remains
@@ -2541,7 +2663,7 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
         expected_risks = sorted(key for key, text in RISK_TEXT.items() if text in decision["ownerDecisionReasons"])
         if sorted(owner_evidence["accepted_risks"]) != expected_risks:
             raise RiskGateError("owner decision does not accept exactly the risks derived from governed evidence")
-    return {
+    result = {
         **decision,
         # Legacy/manual evidence preserves the earlier disclosure path. Automatic
         # v2 evidence reached this line only after every derived risk class cleared.
@@ -2559,6 +2681,17 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
             "ownerDecision": owner_evidence,
         },
     }
+    if train is not None:
+        result["governedEvidence"]["migrationTrain"] = {
+            "trainId": train.get("train_id"), "generation": train.get("generation"),
+            "entries": [
+                {"version": e["version"], "sourcePr": e["source_pr"],
+                 "sourcePrHead": train_prs[e["source_pr"]][0], "mergeSha": e["merge_sha"],
+                 "fileSha256": e["file_sha256"]}
+                for e in train["entries"]
+            ],
+        }
+    return result
 
 
 def main() -> int:
@@ -2592,6 +2725,9 @@ def main() -> int:
     # invocation passes a budget (capped at 900s inside gh_json); the invocation
     # that holds the production lane must never sit on it waiting.
     parser.add_argument("--rate-limit-wait-seconds", type=float, default=0)
+    # #3027 Step 6: the dispatched migration-train record, re-read from its
+    # immutable ref by the workflow. Absent, the single source-PR rule is unchanged.
+    parser.add_argument("--migration-train-record", type=Path)
     args = parser.parse_args()
     api = functools.partial(gh_json, rate_limit_wait_seconds=args.rate_limit_wait_seconds) if args.rate_limit_wait_seconds > 0 else gh_json
     try:

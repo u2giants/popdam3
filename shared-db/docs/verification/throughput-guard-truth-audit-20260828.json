@@ -435,20 +435,6 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/check-data-admin-launch-readiness.mjs:126",
-      "semantic_key": "scripts/check-data-admin-launch-readiness.mjs:048d574a26020b4a441b6dcd0e871f2b6cc84d782594c1cce1229cbf6cda4379:1",
-      "line_sha256": "048d574a26020b4a441b6dcd0e871f2b6cc84d782594c1cce1229cbf6cda4379",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
-    },
-    {
-      "site": "scripts/check-data-admin-launch-readiness.mjs:127",
-      "semantic_key": "scripts/check-data-admin-launch-readiness.mjs:d29e78c035a6ddef1223223bf45ed9f98c999e7c796542eed0b9e165a2253174:1",
-      "line_sha256": "d29e78c035a6ddef1223223bf45ed9f98c999e7c796542eed0b9e165a2253174",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
-    },
-    {
       "site": "scripts/check-db-data-admin-property-source-coverage.mjs:221",
       "semantic_key": "scripts/check-db-data-admin-property-source-coverage.mjs:ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b:1",
       "line_sha256": "ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b",
@@ -1394,6 +1380,13 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
+      "site": "scripts/production_business_risk_gate.py:1999",
+      "semantic_key": "scripts/production_business_risk_gate.py:b50d5c58206e9910a7846a21aff5a78fa63782859874b13311a43d17c39bacd3:1",
+      "line_sha256": "b50d5c58206e9910a7846a21aff5a78fa63782859874b13311a43d17c39bacd3",
+      "disposition": "excluded",
+      "reason": "Refusal message for a malformed migration train record entry; it names absent record fields, not an object that was not applied or never created."
+    },
+    {
       "site": "scripts/production_business_risk_gate.py:119",
       "semantic_key": "scripts/production_business_risk_gate.py:b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1:1",
       "line_sha256": "b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1",
@@ -2087,7 +2080,7 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     }
   ],
-  "call_site_count": 296,
-  "call_site_sha256": "aff3c43611580e2c0cbf837a9802227c5c693fbda285324fcf2b534dd74858cc",
+  "call_site_count": 295,
+  "call_site_sha256": "e4af233aa487ff6b3ebecc9ff4406db0f89e18e6e1997e7a170da79e6dea4678",
   "disposition": "Every discovered site has an explicit reviewed disposition bound to its source-line content; line movement alone does not require regeneration, while a content change requires review."
 }

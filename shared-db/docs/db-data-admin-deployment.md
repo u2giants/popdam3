@@ -1,5 +1,7 @@
 # DB Data Admin deployment
 
+> **Moved 2026-09-16:** the DB Data Admin application, its deploy workflow and its launch-readiness check now live in [`u2giants/popdam3`](https://github.com/u2giants/popdam3) at `apps/db-data-admin`, `.github/workflows/db-data-admin.yml` and `scripts/db-data-admin/` (popdam3 PR #135). This repository no longer builds or deploys it. The text below is historical; the current deployment procedure is maintained in popdam3.
+
 DB Data Admin follows the repository's standard release path:
 
 1. GitHub Actions verifies the application.
@@ -121,7 +123,7 @@ It then runs a **read-only** Supabase evidence query (Management API
 
 - migration-ledger membership for batch **B8** (`20260809170000`–`20260809170500`)
   and batch **B9** (`20260810010000`–`20260810170000`; the exact version set is
-  enumerated in the workflow and in `scripts/check-data-admin-launch-readiness.mjs`);
+  enumerated in the workflow and in `scripts/check-data-admin-launch-readiness.mjs` (now under `scripts/db-data-admin/` in popdam3));
 - `core.product_size` and `core.product_depth` exist;
 - the Product Depth picker/mutation functions exist —
   `api.db_data_admin_product_depth_list`, `api.db_data_admin_upsert_product_depth`,
@@ -130,7 +132,7 @@ It then runs a **read-only** Supabase evidence query (Management API
 - at least one active `app.app_access` row for app `admin` (someone can administer it).
 
 The evidence query returns counts and object names only — never row identities or
-values. The gate (`scripts/check-data-admin-launch-readiness.mjs`, with offline tests
+values. The gate (`scripts/check-data-admin-launch-readiness.mjs` (now under `scripts/db-data-admin/` in popdam3), with offline tests
 under `scripts/tests/`) also requires the Coolify application uuid to be exactly
 `zeoy8qfjqffu8ym533cc7dl4`, and records the prior `sha-<commit>` image tag for
 rollback.

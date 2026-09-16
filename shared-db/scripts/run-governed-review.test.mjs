@@ -13,7 +13,7 @@ const fixtureFiles=[{filename:'source.txt',status:'modified'}]
 const fixtureSource=(input)=>({repository:'u2giants/shared-db',pr:input.pr,baseRef:'develop',targetSha:'b'.repeat(40),headSha:input.headSha,mergeBase:'c'.repeat(40),files:fixtureFiles,fileSetSha256:createHash('sha256').update(JSON.stringify(fixtureFiles)).digest('hex'),sourceDigest:'d'.repeat(64)})
 const fixtureReceipt=(input)=>({schema_version:1,identity:{repository:input.worktree,base:'c'.repeat(40),head:input.headSha,source_digest:'d'.repeat(64)},packet_sha256:'e'.repeat(64)})
 const fixturePaths={platform:'win32',realpath:(path)=>path,lstat:()=>({isSymbolicLink:()=>false,isDirectory:()=>true})}
-function runGovernedReview(input,deps){return executeGovernedReview(input,{sourceResolver:fixtureSource,sourcePathOptions:fixturePaths,receiptFactory:()=>({path:'C:/review/.ai/reviews/source.json',read:()=>fixtureReceipt(input),bind:()=> 'C:/review/.ai/reviews/source.json.binding.json'}),...deps})}
+function runGovernedReview(input,deps){return executeGovernedReview(input,{recordStart:()=>'refs/db-review-started/fixture',sourceResolver:fixtureSource,sourcePathOptions:fixturePaths,receiptFactory:()=>({path:'C:/review/.ai/reviews/source.json',read:()=>fixtureReceipt(input),bind:()=> 'C:/review/.ai/reviews/source.json.binding.json'}),...deps})}
 
 test('all qualified wrappers receive immutable source arguments without rewriting prompt values',()=>{
   const source=fixtureSource(options)
@@ -725,7 +725,7 @@ test('issue 2729: one doctor timeout retries the SAME reviewer once and then rev
   const events=[]
   const result=runGovernedReview(options,{preflight:()=>{if(++preflights===1)doctorTimeout()},repairLocalService:()=>repairs++,appendLifecycle:(e)=>events.push(e),resolve:(x)=>x,spawn:(file)=>{if(file!=='gh')providers++;return okSpawn(file)},record:()=>({ref:'refs/db-review-verdicts/x',sha:'b'.repeat(40)})})
   assert.equal(preflights,2);assert.equal(repairs,1);assert.equal(providers,1);assert.ok(result.artifact)
-  assert.deepEqual(events.map((e)=>e.type),['preflight_timeout'])
+  assert.deepEqual(events.map((e)=>e.type),['preflight_timeout','review_started'])
 })
 
 test('issue 2729: a second doctor timeout reroutes and never contacts the provider',()=>{
@@ -760,7 +760,7 @@ test('issue 2729: turn_limit_cancelled is a terminal non-verdict eligible for sa
     assert.deepEqual([d.action,d.reason,d.head_sha,d.same_head],['governed-return-and-reroute','turn_limit_cancelled',options.headSha,true])
     return true
   })
-  assert.deepEqual(events.map((e)=>[e.type,e.reason,e.head_sha]),[['terminal_non_verdict','turn_limit_cancelled',options.headSha]])
+  assert.deepEqual(events.map((e)=>[e.type,e.reason,e.head_sha]),[['review_started',undefined,undefined],['terminal_non_verdict','turn_limit_cancelled',options.headSha]])
 })
 
 test('issue 2729: other wrapper failures stay plain refusals with no reroute decision',()=>{
@@ -815,4 +815,36 @@ test('#498-17 live head is injected, a stale named head or stale prompt verdict 
   assert.equal(prepareGovernedReview({...base,headSha:live.toUpperCase()},{env:{CLAUDECODE:'1'},github,files:files(`VERDICT: APPROVE ${live}`)}).options.headSha,live)
   assert.deepEqual(promptHeadContract(['send','--prompt','go','--review'],live)[2].startsWith('go'),true)
   assert.throws(()=>prepareGovernedReview(base,{env:{CLAUDECODE:'1'},github:()=>({status:1,error:new Error('x')}),files:files('x')}),/could not read the live head/)
+})
+
+// Issue #3027 Step 7: the durable start marker is written before the provider launches and fails closed.
+import { recordReviewStart, reviewStartedRef } from './run-governed-review.mjs'
+test('review start marker is recorded before the provider spawns, and a failed record starts nothing',()=>{
+  const order=[]
+  assert.throws(()=>runGovernedReview(options,{preflight:()=>{},resolve:(name)=>name,recordStart:()=>{order.push('start');throw new Error('review start marker could not be recorded; no reviewer was started')},spawn:()=>{order.push('spawn');return{status:1,stdout:''}},record:()=>assert.fail('must not record')}),/no reviewer was started/)
+  assert.deepEqual(order,['start'])
+  order.length=0
+  try{runGovernedReview(options,{preflight:()=>{},resolve:(name)=>name,recordStart:()=>{order.push('start');return 'ref'},spawn:()=>{order.push('spawn');return{status:1,stdout:''}},record:()=>{}})}catch{}
+  assert.deepEqual(order.slice(0,2),['start','spawn'])
+  const ref=reviewStartedRef({issue:1,pr:2,headSha:'A'.repeat(40),slot:2},7)
+  assert.equal(ref,`refs/db-review-started/1-2-${'a'.repeat(40)}-slot2-seq7`)
+  const req={issue:1,pr:2,headSha:'a'.repeat(40),slot:2,reviewer:'kimi'},held=(r)=>({...r,sequence:7})
+  const refs=new Map(),commits=new Map(),io={makeOwnerCommit:(message)=>{const sha=String(commits.size+1).padStart(40,'c');commits.set(sha,{message});return sha},createRef:(r,sha)=>{if(refs.has(r))return false;refs.set(r,sha);return true},readRef:(r)=>refs.get(r)??null,getCommit:(sha)=>commits.get(sha)??null}
+  assert.equal(recordReviewStart(req,io,123,held),ref)
+  assert.match(commits.get(refs.get(ref)).message,/^db-coordination review-started issue=1 pr=2 .* sequence=7 /)
+  // A retry of the same lease finds its own marker and proceeds.
+  assert.equal(recordReviewStart(req,io,124,held),ref)
+  // A lease the unstarted reclaim already returned owns the marker with its release commit: nothing starts.
+  refs.set(ref,'r'.repeat(40));commits.set('r'.repeat(40),{message:'db-coordination reviewer-silence-release reviewer=kimi'})
+  assert.throws(()=>recordReviewStart(req,io,125,held),/occupied by a reclaim/)
+  // No held lease, a lease reclaimed after the write, or unreadable leases: nothing starts.
+  assert.throws(()=>recordReviewStart(req,io,126,()=>null),/no held reviewer lease/)
+  let calls=0
+  assert.throws(()=>recordReviewStart({...req,pr:3},io,127,(r)=>(calls++?null:{...r,sequence:8})),/reclaimed before the provider launched/)
+  assert.throws(()=>recordReviewStart(req,io,128,()=>{throw new Error('active reviewer leases are unreadable; review start refused')}),/unreadable/)
+  // A runner with no start recorder refuses before any provider launch.
+  order.length=0
+  assert.throws(()=>runGovernedReview(options,{preflight:()=>{},resolve:(name)=>name,recordStart:undefined,spawn:()=>{order.push('spawn');return{status:1,stdout:''}},record:()=>{}}),/start recorder is required/)
+  assert.deepEqual(order,[])
+  assert.throws(()=>reviewStartedRef({issue:1,pr:2,headSha:'short'},1),/exact issue/)
 })

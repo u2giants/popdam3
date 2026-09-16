@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { alarmKey, latestSnapshotFromComments, main, postedKeys, runAlarm, runResume } from './no-progress-alarm.mjs'
+import { FALLBACK_LABEL, FALLBACK_TITLE, alarmKey, findOrCreateFallback, latestSnapshotFromComments, main, postedKeys, runAlarm, runResume } from './no-progress-alarm.mjs'
+import { gatherLiveInput } from '../orchestrator-snapshot.mjs'
 
 const T0 = '2026-09-16T08:00:00.000Z'
 function input({ events = [{ event_id: 'e1', event_type: 'dispatched', work_issue: 11, timestamp: T0 }] } = {}) {
@@ -87,9 +88,49 @@ test('alarm key ignores minute counters and the CLI reports failures with exit 1
   assert.match(errors[0], /requires --issue/)
 })
 
-test('no open orchestrator marker reports no-orchestrator; other read failures still throw', () => {
-  const fail = (message) => ({ ...io(), gatherLiveInput: () => { throw new Error(message) } })
-  assert.equal(runAlarm({ repo: 'r', now: T0 }, fail('orchestrator marker did not resolve (exit 3)')).status, 'no-orchestrator')
-  assert.equal(runAlarm({ repo: 'r', now: T0 }, fail('no open routable orchestrator marker')).status, 'no-orchestrator')
-  assert.throws(() => runAlarm({ repo: 'r', now: T0 }, fail('orchestrator marker did not resolve (exit 2)')), /exit 2/)
+test('with no orchestrator marker the alarm still evaluates stalls and posts to the stable fallback issue', () => {
+  let asked = 0
+  const fake = { ...io({ ...input(), marker: null }), fallbackIssue: () => { asked += 1; return 4242 } }
+  assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T09:59:00.000Z' }, fake).status, 'quiet')
+  assert.equal(asked, 0, 'a quiet run touches no fallback issue')
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T10:01:00.000Z' }, fake)
+  assert.equal(fired.status, 'posted'); assert.equal(fired.target, 4242); assert.equal(fired.marker, 'none'); assert.deepEqual(fired.stalled, [11]); assert.equal(fired.comment_url, 'u1')
+  assert.match(fake.posts[0].body, /#11 has been `dispatched` for 121 minutes/)
+  assert.match(fake.posts[0].body, /No orchestrator marker resolved/)
+  assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T10:31:00.000Z' }, fake).status, 'already-posted')
+  assert.equal(fake.posts.length, 1)
+})
+
+test('the fallback issue is reused, created only when missing, and a failed create or unconfirmed post fails the run', () => {
+  const labels = [{ name: FALLBACK_LABEL }]
+  // The workflow token creates the issue, so production reuse rests on the github-actions[bot] shape.
+  const bot = { author_association: 'NONE', user: { login: 'github-actions[bot]' }, labels }
+  const existing = [{ number: 9, title: FALLBACK_TITLE, author_association: 'OWNER', labels }, { number: 7, title: FALLBACK_TITLE, ...bot }, { number: 3, title: FALLBACK_TITLE, author_association: 'NONE', user: { login: 'x' }, labels }, { number: 2, title: FALLBACK_TITLE, author_association: 'OWNER' }]
+  assert.equal(findOrCreateFallback(existing, () => assert.fail('must not create')), 7)
+  assert.equal(findOrCreateFallback([], () => ({ number: 50 })), 50)
+  assert.throws(() => findOrCreateFallback([], () => ({})), /could not be created/)
+  const cannotPost = { ...io({ ...input(), marker: null }), fallbackIssue: () => { throw new Error('gh api POST failed') } }
+  const errors = []
+  assert.equal(main(['--alarm', '--now', '2026-09-16T10:01:00.000Z'], { io: cannotPost, stdout: () => {}, stderr: (l) => errors.push(l) }), 1)
+  assert.match(errors[0], /POST failed/)
+  assert.throws(() => runAlarm({ repo: 'r', now: '2026-09-16T10:01:00.000Z' }, { ...io(), postComment: () => ({}) }), /not confirmed/)
+})
+
+test('only the alarm reads live state without a marker; other read failures still fail the run', () => {
+  const base = { openIssues: () => [], openPullRequests: () => [], matchingRefs: () => [], issueComments: () => [] }
+  const exit3 = { ...base, resolveMarker: () => { throw new Error('orchestrator marker did not resolve (exit 3)') } }
+  assert.equal(gatherLiveInput('r', exit3, { allowNoMarker: true }).input.marker, null)
+  assert.throws(() => gatherLiveInput('r', exit3), /exit 3/)
+  assert.equal(gatherLiveInput('r', { ...base, resolveMarker: () => ({ marker: 5, routing: {} }) }, { allowNoMarker: true }).input.marker, null)
+  assert.throws(() => gatherLiveInput('r', { ...base, resolveMarker: () => { throw new Error('orchestrator marker did not resolve (exit 2)') } }, { allowNoMarker: true }), /exit 2/)
+  const errors = []
+  assert.equal(main(['--alarm'], { io: { ...io(), gatherLiveInput: () => { throw new Error('gh api failed') } }, stdout: () => {}, stderr: (l) => errors.push(l) }), 1)
+  assert.match(errors[0], /gh api failed/)
+})
+
+test('resume names the missing orchestrator marker instead of a shape error', () => {
+  const fake = io()
+  runAlarm({ repo: 'r', now: '2026-09-16T10:30:00.000Z', postIssue: 5 }, fake)
+  const gone = { ...fake, gatherLiveInput: () => ({ input: { ...input(), marker: null }, sessionStarted: null }) }
+  assert.throws(() => runResume({ repo: 'r', issue: 5, now: '2026-09-16T10:31:00.000Z' }, gone), /no open routable orchestrator marker/)
 })

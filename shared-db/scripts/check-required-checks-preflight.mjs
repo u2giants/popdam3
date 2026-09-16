@@ -323,13 +323,43 @@ export function gatherPreflightInput(env = process.env, deps = { json }) {
   }
 }
 
-export function main(env = process.env) {
+// popcre/ai-devops#507 (a): a head whose checks are only still running, or have not
+// registered yet, is waited on instead of refused. Nothing failing is ever waited on,
+// every pass is re-read from GitHub in full, and the same refusal is printed once the
+// budget is spent, so the gate is exactly as strict as before; it only stops turning
+// "not finished yet" into a lost dispatch.
+export function isWaitableRefusal(message) {
+  const text = String(message ?? '')
+  return /still running:|never reported:/.test(text) && !/failing:/.test(text)
+}
+export async function waitForPreflight(env = process.env, deps = {}) {
+  const gather = deps.gather ?? gatherPreflightInput
+  const evaluate = deps.evaluate ?? evaluatePreflight
+  const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
+  const now = deps.now ?? Date.now
+  const log = deps.log ?? ((line) => console.log(line))
+  const budgetMs = Math.max(0, Number(env.PREFLIGHT_WAIT_SECONDS ?? 900)) * 1000
+  const intervalMs = Math.max(1, Number(env.PREFLIGHT_POLL_SECONDS ?? 30)) * 1000
+  const started = now()
+  for (let attempt = 1; ; attempt++) {
+    try { return evaluate(gather(env)) }
+    catch (e) {
+      if (!(e instanceof PreflightError) || !isWaitableRefusal(e.message)) throw e
+      const waited = now() - started
+      if (waited + intervalMs > budgetMs) throw new PreflightError(`${e.message} Waited ${Math.round(waited / 1000)}s for the checks to finish.`)
+      log(`Waiting for checks to finish (attempt ${attempt}, ${Math.round(waited / 1000)}s so far): ${e.message.split(' No retry')[0]}`)
+      await sleep(intervalMs)
+    }
+  }
+}
+
+export async function main(env = process.env, deps = {}) {
   try {
-    const { required, mode } = evaluatePreflight(gatherPreflightInput(env))
+    const { required, mode } = await waitForPreflight(env, deps)
     console.log(mode === 'required-contexts'
       ? `Required status checks satisfied on the reviewed head (${required} contexts).`
       : `main's required list was unreadable from the API, so the committed mirror was used: all ${required} mirrored contexts and every other check reported on the reviewed head are passing.`)
     return 0
   } catch (e) { console.error(`REFUSED: ${e.message}`); return 2 }
 }
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) process.exitCode = main()
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) process.exitCode = await main()

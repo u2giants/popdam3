@@ -556,3 +556,24 @@ test('the fallback refuses a head missing a check that reported on an earlier at
     checkRuns: [ok('some unrelated job'), { name: 'SQL migration guards', status: 'queued', started_at: '2026-09-03T00:00:00Z' }],
   }), PreflightError)
 })
+
+
+import { waitForPreflight, isWaitableRefusal } from './check-required-checks-preflight.mjs'
+test('#507(a) running or unregistered checks are waited on; failing checks refuse at once; budget still refuses', async () => {
+  assert.equal(isWaitableRefusal('x — still running: supabase/tests. No retry'), true)
+  assert.equal(isWaitableRefusal('x — never reported: a. No retry'), true)
+  assert.equal(isWaitableRefusal('x — failing: a (failure); still running: b'), false)
+  let clock = 0, calls = 0, slept = 0
+  const deps = (results) => ({ gather: () => ({}), evaluate: () => { const r = results[Math.min(calls++, results.length - 1)]; if (r instanceof Error) throw r; return r }, sleep: async (ms) => { slept++; clock += ms }, now: () => clock, log: () => {} })
+  const running = new PreflightError('required status checks are not satisfied on the reviewed head — still running: supabase/tests. No retry can clear this, so the merge lane was not taken.')
+  const ok = { required: 13, mode: 'required-contexts' }
+  assert.deepEqual(await waitForPreflight({ PREFLIGHT_POLL_SECONDS: 30 }, deps([running, running, ok])), ok)
+  assert.equal(slept, 2)
+  calls = 0; slept = 0; clock = 0
+  await assert.rejects(waitForPreflight({}, deps([new PreflightError('— failing: a (failure). No retry')])), /failing: a/)
+  assert.equal(slept, 0)
+  calls = 0; clock = 0
+  await assert.rejects(waitForPreflight({ PREFLIGHT_WAIT_SECONDS: 90, PREFLIGHT_POLL_SECONDS: 30 }, deps([running])), /still running: supabase\/tests.*Waited 90s/)
+  calls = 0; clock = 0
+  await assert.rejects(waitForPreflight({}, deps([new Error('GitHub read failed')])), /GitHub read failed/)
+})

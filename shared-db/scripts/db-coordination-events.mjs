@@ -23,6 +23,7 @@
 // mistaken for ownership. That distinction is the point of recording them at all.
 
 import { createHash } from 'node:crypto'
+import { HoldReasonError, validateHoldReasonRecord } from './lib/hold-reason.mjs'
 
 export const EVENT_FENCE = 'db-coordination-event'
 export const EVENT_SCHEMA_VERSION = 2
@@ -80,13 +81,20 @@ export function validateEvent(event) {
   if (!EVENT_RESULTS.includes(event.result)) throw new EventError(`event result must be one of ${EVENT_RESULTS.join(', ')}`)
 
   const v1 = ['schema_version', 'event_id', 'event_type', 'timestamp', 'work_issue', 'claim_issue', 'pr', 'head_sha', 'actor', 'provider', 'holder_id', 'generation', 'db_reads', 'db_writes', 'result', 'evidence_urls', 'detail']
-  const v2 = ['ready_id', 'bundle_id', 'route', 'route_context', 'manifest_digest', 'invalidation_class', 'review_bundle_id', 'integration_sha', 'return_to', 'evidence_required', 'service_class', 'impact', 'supersedes']
+  const v2 = ['ready_id', 'bundle_id', 'route', 'route_context', 'manifest_digest', 'invalidation_class', 'review_bundle_id', 'integration_sha', 'return_to', 'evidence_required', 'service_class', 'impact', 'supersedes', 'hold_reason']
   const known = new Set(event.schema_version === 1 ? v1 : [...v1, ...v2])
   for (const key of Object.keys(event)) {
     if (!known.has(key)) throw new EventError(`event has unknown field ${key}`)
   }
   for (const field of ['db_reads', 'db_writes', 'evidence_urls']) {
     if (event[field] !== undefined && !Array.isArray(event[field])) throw new EventError(`event ${field} must be an array when present`)
+  }
+  // A RECORDED HOLD NAMES ITS EXACT LEASE OR CONFLICT (Step 2, locked decision 15).
+  // Optional so every historical event stays readable; new holds are required to
+  // carry it by the commands that record them (advanceOutcome blocked; queue audit
+  // urgent_waiting_capacity whenever the lane holder is known).
+  if(event.hold_reason!==undefined){
+    try{validateHoldReasonRecord(event.hold_reason)}catch(error){if(error instanceof HoldReasonError)throw new EventError(error.message);throw error}
   }
   if(event.event_type==='rejected_non_structural'){
     if(typeof event.return_to!=='string'||!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(event.return_to))throw new EventError('rejected_non_structural must name return_to as owner/repo')

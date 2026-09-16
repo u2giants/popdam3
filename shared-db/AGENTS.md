@@ -474,7 +474,8 @@ and then the canonical infrastructure runbook it links.
 ## 0.2 `data.designflow.app` means DB Data Admin — never the retired system
 
 `https://data.designflow.app` is the permanent production hostname of **DB Data
-Admin**, implemented in this repository at `apps/db-data-admin/`. The retired
+Admin**, implemented in `u2giants/popdam3` at `apps/db-data-admin/` (moved
+from this repository on 2026-09-16, popdam3 PR #135). The retired
 legacy application previously used that DNS name, but it has no remaining
 runtime, credential, database, API, import, rollback, proxy, or ownership
 relationship to it.
@@ -493,7 +494,8 @@ DB Data Admin's grid headers already implement the **AG Grid Multi Filter
 equivalent (Text Filter + Set Filter with a searchable checkbox list of distinct
 values)**. The reusable, framework-free logic is
 `apps/db-data-admin/src/lib/grid-filters.ts`; the React header UI is
-`FilterHeader` in `apps/db-data-admin/src/DataAdmin.tsx`.
+`FilterHeader` in `apps/db-data-admin/src/DataAdmin.tsx` — both in `u2giants/popdam3`
+since 2026-09-16.
 
 Before building any column-filter UI in ANY POP app, read
 [`docs/db-data-admin-column-multi-filter.md`](docs/db-data-admin-column-multi-filter.md).
@@ -990,6 +992,8 @@ that may be edited after the fact.
 
 ### 5.2 A red check on `main` can be a STALE verdict — the domain-ownership guard scans more than its trigger watches (learned 2026-07-31)
 
+> **Moved 2026-09-16:** the DB Data Admin application, its deploy workflow and its launch-readiness check now live in [`u2giants/popdam3`](https://github.com/u2giants/popdam3) at `apps/db-data-admin`, `.github/workflows/db-data-admin.yml` and `scripts/db-data-admin/` (popdam3 PR #135). This repository no longer builds or deploys it. The history below is kept; the only domain-ownership run in this repository is now `domain-ownership.yml`.
+
 **Read this before you debug a failing check on `main`.** The `DB Data Admin` workflow
 (`.github/workflows/db-data-admin.yml`) has a `verify` job whose first step,
 *"Enforce DB Data Admin domain ownership"*, runs `scripts/check-domain-ownership.mjs`. That
@@ -1043,9 +1047,8 @@ docs PR. The correct permanent fix is a separate, tiny `domain-ownership` workfl
 filter, `on: pull_request` plus `on: push` to `main`, one job that runs
 `scripts/check-domain-ownership.test.mjs` and then `scripts/check-domain-ownership.mjs`. Its
 check-run name is **`Domain ownership`** and it is one of the six required contexts on `main`
-(§6.7). Verified green against the `main` tip on 2026-08-09. The duplicate invocation still
-inside `db-data-admin.yml` is left there deliberately — it is cheap, and removing it would
-weaken that workflow's own self-check.
+(§6.7). Verified green against the `main` tip on 2026-08-09. (The former duplicate invocation inside
+`db-data-admin.yml` left this repository with that workflow on 2026-09-16.)
 
 *(This paragraph said "Not yet built" until 2026-08-09, four days after it was built, while
 §6.7 of this same file already relied on the workflow existing. Issue #657. If you are adding

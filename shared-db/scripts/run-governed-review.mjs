@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { REPO, recordReviewVerdict, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
+import { REPO, REVIEW_STARTED_REF_PREFIX, reviewStartedMarkerRef, reviewLeaseStillHeld, recordReviewVerdict, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
 import { lineOpensWithVerdictWord, isVerdictFor } from './lib/review-verdict.mjs'
 // Issue #2342: one shared transport owns the never-replay-a-write policy.
 import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
@@ -429,6 +429,11 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   if(!resolved)throw new Error(`review wrapper ${options.wrapper} is not executable`)
   const receipt=(deps.receiptFactory??reserveReviewReceipt)(options)
   const plan=wrapperSpawnPlan(resolved,wrapperArgs)
+  // Issue #3027 Step 7: the durable start marker the reviewer start watcher reads. It is
+  // written BEFORE the provider is launched and fails closed: a review whose start cannot be
+  // recorded is not started, so the watcher can never reroute a review that is running.
+  if(typeof deps.recordStart!=='function')throw new Error('review start recorder is required; no reviewer was started')
+  lifecycle.push(lifecycleEvent(deps,assignment,'review_started',{marker:deps.recordStart(options)}))
   const run=deps.spawn(plan.file,plan.args,{cwd:options.worktree,env:{...process.env,AI_REVIEW_SOURCE_RECEIPT_FILE:receipt.path},encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']})
   let rawBody=String(run.stdout??'').trim()
   // Issue #2244: the codex wrapper's verdict lives in its published report, not on
@@ -583,13 +588,36 @@ The preceding findings comment (${comment.html_url}) has been left UNTOUCHED on 
   }
   return {artifact,body,sourceIdentity,sourceEvidence}
 }
+export function reviewStartedRef(options,sequence){
+  return reviewStartedMarkerRef({issue:options.issue,pr:options.pr,headSha:options.headSha,slot:options.slot??1,sequence})
+}
+// The marker is keyed by the exact held lease's draw sequence. It is created create-only; an
+// existing ref is accepted only when it is this runner's own earlier start marker (a retry).
+// Any other occupant is the unstarted reclaim's release commit: the slot was returned and no
+// provider may start. After the write the same lease must still be held.
+export function recordReviewStart(options,io,at=Date.now(),leaseHeld=reviewLeaseStillHeld){
+  const request={issue:options.issue,pr:options.pr,headSha:String(options.headSha??'').toLowerCase(),slot:options.slot??1,reviewer:options.reviewer}
+  if(!Number.isInteger(Number(request.issue))||!Number.isInteger(Number(request.pr))||!/^[0-9a-f]{40}$/.test(request.headSha))throw new Error('review start marker requires exact issue, PR, and head; no reviewer was started')
+  const lease=leaseHeld(request,io)
+  if(!lease)throw new Error('no held reviewer lease matches this review; no reviewer was started')
+  const ref=reviewStartedRef(request,lease.sequence)
+  if(!ref.startsWith(`${REVIEW_STARTED_REF_PREFIX}/`))throw new Error('review start marker is outside its namespace')
+  const prefix='db-coordination review-started '
+  const sha=io.makeOwnerCommit(`${prefix}issue=${Number(request.issue)} pr=${Number(request.pr)} head=${request.headSha} slot=${Number(request.slot)} sequence=${Number(lease.sequence)} reviewer=${request.reviewer??'unknown'} at=${new Date(at).toISOString()}`)
+  if(!io.createRef(ref,sha)){
+    const existing=io.readRef(ref),message=existing?String(io.getCommit(existing)?.message??io.getCommit(existing)?.commit?.message??''):''
+    if(!existing||!message.startsWith(prefix))throw new Error('review start marker is occupied by a reclaim of this lease; no reviewer was started')
+  }else if(io.readRef(ref)!==sha)throw new Error('review start marker could not be recorded; no reviewer was started')
+  if(!leaseHeld({...request,sequence:lease.sequence},io))throw new Error('review lease was reclaimed before the provider launched; no reviewer was started')
+  return ref
+}
 // The lane CLI applies SHARED_DB_MERGED_PR_ISSUE_BINDING to its io; verdict recording
 // here runs in-process, so it must see the same verified binding or it refuses a merged
 // pull request that reviewer assignment accepted.
 export function governedReviewDeps(env=process.env){
   const value=String(env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim()
   const io=value?withMergedPrIssueBinding(githubIo,value):githubIo
-  return {spawn:spawnSync,preflight:(o)=>reviewerExecutionPreflight(o,io),record:(o)=>recordReviewVerdict(o,io),resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8'),io}
+  return {spawn:spawnSync,preflight:(o)=>reviewerExecutionPreflight(o,io),recordStart:(o)=>recordReviewStart(o,io),record:(o)=>recordReviewVerdict(o,io),resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8'),io}
 }
 // #498 items 16-17 (popcre/ai-devops): refuse or repair paperwork faults BEFORE any
 // reviewer starts, so no review round is spent without a recordable verdict.

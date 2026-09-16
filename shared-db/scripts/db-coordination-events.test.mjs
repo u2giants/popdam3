@@ -169,3 +169,10 @@ test('the rendered timeline is stable and shows problems', () => {
 test('EventError is the single error type callers catch', () => {
   assert.throws(() => validateEvent(null), EventError)
 })
+
+test('issue 3027 hold_reason must name its holder', () => {
+  const v2 = { ...event(), schema_version: 2 }
+  assert.doesNotThrow(() => validateEvent({ ...v2, hold_reason: { kind: 'dependency', holder: 'issue #9' } }))
+  assert.throws(() => validateEvent({ ...v2, hold_reason: { kind: 'dependency', holder: '' } }), /holder/)
+  assert.throws(() => validateEvent({ ...v2, hold_reason: { kind: 'someone else production', holder: 'x' } }), /kind/)
+})

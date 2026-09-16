@@ -1,44 +1,45 @@
 {
   "schema_version": 1,
-  "generation": 1,
-  "work_issue": 3062,
+  "generation": 2,
+  "work_issue": 3100,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Implement popcre/ai-devops#498 items 16-17: the governed review runner sets or names the reviewer caller variable, injects the live PR head into the prompt, and refuses before any reviewer starts when a named head is stale. Every existing refusal still refuses.",
-  "base_sha": "d53d4746b0f80c1be5ccf36c6e3839646a8d6ba5",
-  "dispatcher": "Albert Hazan via Claude session owning ai-devops#498 (2026-09-16)",
-  "worker": "Claude Opus 5 #498 close-out fast path author",
-  "branch": "claude/498-review-caller-head",
-  "worktree": "C:/repos/shared-db-wt-498",
+  "goal": "In unstarted mode judge each reviewer only by its own durable start marker; PR-wide CI or sibling-slot activity never counts as its start; unreadable evidence stays fail-closed.",
+  "base_sha": "9feeccab189aa05f30a6cbe467a3868641c8352e",
+  "dispatcher": "Claude #3027 Step 7 live acceptance session (owner approval relayed 2026-09-16)",
+  "worker": "Claude Opus 5 #3027 Step 7 own-start-marker fix",
+  "branch": "claude/3027-start-watch-own-marker",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/3027-own-marker",
   "allowed_paths": [
-    "scripts/run-governed-review.mjs",
-    "scripts/run-governed-review.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "file_writes": [
-    "scripts/run-governed-review.mjs",
-    "scripts/run-governed-review.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "No database read or write of any kind",
-    "No migration file change",
-    "No production command",
-    "No migration or preview workflow dispatch",
-    "No weakening of any refusal"
+    "No database write of any kind",
+    "No production workflow dispatch"
   ],
   "required_checks": [
-    "node --test on every changed scripts test file",
-    "git diff --check origin/main...HEAD"
+    "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
   ],
   "assumptions": [
-    "No schema or structure change is needed for message text"
+    "The ordinary two-hour silence path keeps using PR activity"
   ],
   "stop_conditions": [
-    "Stop and report if any change needs a schema or structure change, a database write, or loosens a guard"
+    "Stop if the fix would need a database change"
   ]
 }

@@ -33,6 +33,13 @@ test('121-minute idle outcome appears in stalled_outcomes; 120 does not', () => 
   assert.equal(result.active_outcomes, 2)
 })
 
+test('issue 3027 a stalled outcome carries its named hold and the formatted hold line', () => {
+  const hold = { kind: 'claim', holder: 'claim #60', objects: ['table core.shared'] }
+  const result = stalledOutcomes([{ ...event(800, 'blocked', 130), hold_reason: hold }], { now: NOW })
+  assert.deepEqual(result.stalled_outcomes[0].hold_reason, hold)
+  assert.equal(result.stalled_outcomes[0].hold, 'waiting for claim #60 on table core.shared')
+})
+
 test('zero closures in 4h flags only when outcomes are active; a closure clears it and closes the outcome', () => {
   assert.equal(stalledOutcomes([event(800, 'dispatched', 10)], { now: NOW }).zero_closures_4h, true)
   assert.equal(stalledOutcomes([], { now: NOW }).zero_closures_4h, false)

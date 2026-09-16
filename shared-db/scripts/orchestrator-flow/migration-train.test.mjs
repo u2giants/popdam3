@@ -1,8 +1,9 @@
+import { main as readTrainMain } from './read-verified-train-record.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { proposeTrain, validateTrain, transitionTrain, MigrationTrainError } from './migration-train.mjs'
+import { proposeTrain, validateTrain, transitionTrain, assertTrainProductionEvidence, MigrationTrainError } from './migration-train.mjs'
 const h=(c,n=40)=>c.repeat(n), entries=(n=10)=>Array.from({length:n},(_,i)=>({version:`20260912${String(i).padStart(6,'0')}`,file_sha256:h((i%9+1).toString(),64),source_pr:100+i,merge_sha:h(((i+1)%9+1).toString()),dependencies:i?[`20260912${String(i-1).padStart(6,'0')}`]:[],risk_class:'ddl-compatible',role:'postgres',preview_assertion:`preview-${i}`,production_assertion:`prod-${i}`}))
-function fixture(n=10){const es=entries(n),manifest=proposeTrain({target:'production',target_identity:'project:prod',base_main_sha:h('a'),entries:es}),proof={main_sha:h('a'),target_identity:'project:prod',available_roles:['postgres'],applied_versions:[],main_migrations:{},merge_in_main:{},preview_assertions:{},production_assertions:{}};for(const e of es){proof.main_migrations[e.version]={file_sha256:e.file_sha256,source_pr:e.source_pr,merge_sha:e.merge_sha};proof.merge_in_main[e.merge_sha]=true;proof.preview_assertions[e.version]={assertion:e.preview_assertion,result:'passed'};proof.production_assertions[e.version]={assertion:e.production_assertion,result:'passed'}}return{manifest,proof}}
+function fixture(n=10){const es=entries(n),manifest=proposeTrain({target:'production',target_identity:'project:prod',base_main_sha:h('a'),entries:es}),proof={main_sha:h('a'),target_identity:'project:prod',available_roles:['postgres'],applied_versions:[],main_migrations:{},merge_in_main:{},preview_assertions:{},production_assertions:{}};for(const e of es){proof.main_migrations[e.version]={file_sha256:e.file_sha256,source_pr:e.source_pr,merge_sha:e.merge_sha};proof.merge_in_main[e.merge_sha]=true;proof.preview_assertions[e.version]={assertion:e.preview_assertion,result:'passed'};proof.production_assertions[e.version]={assertion:e.production_assertion,result:'passed'}}proof.production_dry_run={result:'clean',target_identity:'project:prod',main_sha:h('a'),pending_versions:es.map((e)=>e.version)};return{manifest,proof}}
 test('ten compatible migrations form one immutable validated train',()=>{const {manifest,proof}=fixture();assert.equal(validateTrain(manifest,proof).entries.length,10)})
 test('missing dependency refuses by migration and dependency',()=>{const {manifest,proof}=fixture(2);manifest.entries[1].dependencies=['20250101000000'];const rebuilt=proposeTrain(manifest);assert.throws(()=>validateTrain(rebuilt,proof),/migration .* missing an earlier dependency 20250101000000/)})
 test('superseded migration refuses by name',()=>{const {manifest,proof}=fixture(1);proof.superseded_versions=[manifest.entries[0].version];assert.throws(()=>validateTrain(manifest,proof),/superseded/)})
@@ -34,7 +35,7 @@ function managerFixture(n=2){
   const dir=mkdtempSync(path.join(tmpdir(),'train-'))
   const write=(name,value)=>{const file=path.join(dir,name);writeFileSync(file,JSON.stringify(value));return file}
   const run=(argv)=>{const out=[],err=[],log=console.log,error=console.error;console.log=(v)=>out.push(v);console.error=(v)=>err.push(v);try{const code=main(argv,new Date(),raw);return{code,out:out.length?JSON.parse(out.join('\n')):null,err:err.join('\n')}}finally{console.log=log;console.error=error}}
-  return {manifest:rebuilt,proof,files,write,run,setMain:(sha)=>{mainSha=sha}}
+  return {manifest:rebuilt,proof,files,write,run,raw,setMain:(sha)=>{mainSha=sha}}
 }
 
 test('manager propose, validate, authorize, dispatch, verify and close one exact train',()=>{
@@ -51,7 +52,8 @@ test('manager propose, validate, authorize, dispatch, verify and close one exact
   const verify=(extra={})=>f.run(['--verify-train-dispatch',inputs.migration_train_ref,'--target',extra.target??'production','--commit-sha',extra.commit??h('a'),'--allowlist',extra.allowlist??versions])
   const good=verify();assert.equal(good.code,0,good.err)
   for(const [extra,pattern] of [[{target:'preview'},/dispatch target preview is not the train target production/],[{commit:h('c')},/dispatch commit c{40} is not the train main/],[{allowlist:f.manifest.entries[0].version},/is not the exact train list/]]){const r=verify(extra);assert.equal(r.code,2);assert.match(r.err,pattern)}
-  const closed=f.run(['--close-train',f.write('d.json',dispatched.out.record)])
+  const unproven=f.run(['--close-train',f.write('d.json',dispatched.out.record)]);assert.equal(unproven.code,2);assert.match(unproven.err,/requires --train-proof/)
+  const closed=f.run(['--close-train',f.write('d.json',dispatched.out.record),'--train-proof',proofFile])
   assert.equal(closed.code,0,closed.err);assert.equal(closed.out.record.state,'closed')
   const reused=verify();assert.equal(reused.code,2);assert.match(reused.err,/is superseded by .*000004-closed/)
 })
@@ -80,4 +82,36 @@ test('the migrations workflow verifies a train dispatch in validate, which every
   assert.match(validate,/node --test scripts\/orchestrator-flow\/migration-train\.test\.mjs/)
   const needs=workflow.match(/^    needs: .+$/gm)
   assert.ok(needs.length>=5&&needs.every((line)=>/validate/.test(line)))
+})
+
+// #3027 Step 6: pre-dispatch validation must not need production evidence that
+// only exists after production runs; closing a train is where it is required.
+test('validation needs no production assertions but refuses a missing, dirty, stale or inexact dry-run',()=>{
+  const {manifest,proof}=fixture(2);proof.production_assertions={}
+  assert.equal(validateTrain(manifest,proof).validated,true)
+  for(const mutate of [p=>delete p.production_dry_run,p=>p.production_dry_run.result='drift',p=>p.production_dry_run.target_identity='other',p=>p.production_dry_run.main_sha=h('b'),p=>p.production_dry_run.pending_versions=[manifest.entries[0].version],p=>p.production_dry_run.pending_versions.push('20260101000000')]){
+    const f=fixture(2);mutate(f.proof);assert.throws(()=>validateTrain(f.manifest,f.proof),/dry-run/)}
+  const g=fixture(2);delete g.proof.preview_assertions[g.manifest.entries[1].version];assert.throws(()=>validateTrain(g.manifest,g.proof),/lacks exact passing preview assertion/)
+})
+test('closing a train refuses missing or failed production assertions by migration',()=>{
+  const {manifest,proof}=fixture(2)
+  assert.equal(assertTrainProductionEvidence(manifest,proof),true)
+  proof.production_assertions[manifest.entries[1].version].result='failed'
+  assert.throws(()=>assertTrainProductionEvidence(manifest,proof),new RegExp(`migration ${manifest.entries[1].version} lacks exact passing production assertion`))
+  assert.throws(()=>assertTrainProductionEvidence(manifest,{...fixture(2).proof,target_identity:'other'}),/different target identity/)
+})
+
+// #3027 Step 6: the production jobs hand the risk gate the exact verified record.
+test('the verified train record reader writes only the exact dispatched record',()=>{
+  const f=managerFixture(2),proofFile=f.write('proof.json',f.proof)
+  const authorized=f.run(['--authorize-train',f.write('m.json',f.manifest),'--train-proof',proofFile,'--authorization-digest',h('b',64),'--target-identity','project:prod'])
+  const dispatched=f.run(['--dispatch-train',f.write('a.json',authorized.out.record)])
+  const versions=f.manifest.entries.map((e)=>e.version).join(','),output=f.write('record.json',{})
+  const err=[],error=console.error;console.error=(v)=>err.push(v)
+  try{
+    assert.equal(readTrainMain(['--ref',dispatched.out.ref,'--target','production','--commit-sha',h('a'),'--allowlist',versions,'--output',output],f.raw),0,err.join('\n'))
+    assert.deepEqual(JSON.parse(readFileSync(output,'utf8')),dispatched.out.record)
+    assert.equal(readTrainMain(['--ref',dispatched.out.ref,'--target','production','--commit-sha',h('a'),'--allowlist',f.manifest.entries[0].version,'--output',output],f.raw),2)
+    assert.match(err.join('\n'),/is not the exact train list/)
+  }finally{console.error=error}
 })

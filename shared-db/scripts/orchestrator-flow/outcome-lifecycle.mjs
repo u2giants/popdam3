@@ -200,15 +200,18 @@ function confirmOutcomeReadBack(io, issue, predicate) {
   return { seen: false, history }
 }
 
-export function advanceOutcome({issue,state,actor,timestamp=new Date().toISOString(),evidenceUrls=[]},io){
+export function advanceOutcome({issue,state,actor,timestamp=new Date().toISOString(),evidenceUrls=[],holdReason},io){
+  // A blocked outcome is a hold, and a hold must name its exact lease or conflict.
+  if(state==='blocked'&&!holdReason)throw new OutcomeError('outcome blocked requires a named hold_reason (lease:<stage>, claim:#N, object:#N:<objects>, or dependency:#N); an unrelated pipeline stage is not a hold')
+  if(state!=='blocked'&&holdReason)throw new OutcomeError('hold_reason is recorded only on a blocked outcome')
   const comments=io.issueComments(Number(issue))
   assertOutcomeTransition(comments,state,issue)
   if(!['entered','classified'].includes(state)&&(!Array.isArray(evidenceUrls)||evidenceUrls.length<1||evidenceUrls.some((value)=>typeof value!=='string'||!EVIDENCE_REF.test(value))))throw new OutcomeError(`outcome ${state} requires at least one durable GitHub or artifact evidence reference`)
-  const event=outcomeEvent({issue,state,actor,timestamp,evidenceUrls})
+  const event=outcomeEvent({issue,state,actor,timestamp,evidenceUrls,holdReason})
   io.commentIssue(Number(issue),formatEventComment(event))
   const {seen}=confirmOutcomeReadBack(io,issue,(history)=>history.valid&&history.events.some((row)=>row.event_id===event.event_id))
   if(!seen)throw new OutcomeError(`outcome ${state} event did not read back exactly`)
-  return {issue:Number(issue),state,event_id:event.event_id}
+  return {issue:Number(issue),state,event_id:event.event_id,...(holdReason?{hold_reason:holdReason}:{})}
 }
 
 // Curative counterpart to the fix above. Two work issues were already wedged by
@@ -257,10 +260,10 @@ export function repairOutcomeHistory({issue,actor,reason,timestamp=new Date().to
   return {issue:Number(issue),event_id:event.event_id,supersedes,state:readBack.state,actor,reason:reason.trim()}
 }
 
-export function outcomeEvent({ issue, state, actor, timestamp, evidenceUrls = [], detail }) {
+export function outcomeEvent({ issue, state, actor, timestamp, evidenceUrls = [], detail, holdReason }) {
   return coordinationEvent({
     eventType: state, workIssue: Number(issue), actor, timestamp,
-    evidence_urls: evidenceUrls, ...(detail ? { detail } : {}),
+    evidence_urls: evidenceUrls, ...(detail ? { detail } : {}), ...(holdReason ? { hold_reason: holdReason } : {}),
   })
 }
 

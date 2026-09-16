@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { namedHold, urgentHoldDetail, urgentHoldReason } from './manage-migration-author-lanes.mjs'
+import { validateHoldReasonRecord } from './lib/hold-reason.mjs'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { REVIEW_VERDICT_REF_PREFIX } from './lib/review-verdict-artifact.mjs'
+import { REVIEW_VERDICT_REF_PREFIX, verdictRef } from './lib/review-verdict-artifact.mjs'
+import { OWN_START_ONLY_ACTIVITY } from './manage-migration-author-lanes.mjs'
 import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
 import { readyRecord, persistInitialReady } from './orchestrator-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
@@ -10,7 +13,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, readOrchestratorResolution, orchestratorEngineFromResolution, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX } from './manage-migration-author-lanes.mjs'
+import { claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, readOrchestratorResolution, orchestratorEngineFromResolution, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases } from './manage-migration-author-lanes.mjs'
 import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
@@ -2490,6 +2493,94 @@ test('the six-hour #2237 shape probes and reclaims after an unchanged confirmati
   assert.notEqual(replacement.reviewer,assigned.reviewer)
 })
 
+// Issue #3027 Step 7: the reviewer START watcher's unstarted mode.
+function withStartMarker(fixture){
+  const ref=reviewStartedMarkerRef({...fixture.request,sequence:fixture.assigned.sequence,slot:1}),sha=fixture.io.makeOwnerCommit('db-coordination review-started')
+  fixture.io.refs.set(ref,sha)
+  return ref
+}
+test('an unstarted lease is probed and reclaimed after 10 minutes, then replaced by the next eligible reviewer',()=>{
+  const {io,request,assigned,leaseRef}=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'}),options={...request,failedSequence:assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true,unstarted:true}
+  assert.throws(()=>probeSilentReviewer(options,new Date('2026-09-04T10:09:59Z'),io),/at least 10 minutes/)
+  // A marker for an earlier draw sequence of the same slot is a different lease.
+  io.refs.set(reviewStartedMarkerRef({...request,sequence:assigned.sequence-1,slot:1}),io.makeOwnerCommit('db-coordination review-started'))
+  probeSilentReviewer(options,new Date('2026-09-04T10:10:00Z'),io)
+  const released=reclaimSilentReviewer(options,new Date('2026-09-04T10:10:05Z'),io)
+  assert.ok(released.releaseSha);assert.equal(io.refs.get(leaseRef)??null,null)
+  // The reclaim occupies this lease's start marker, so a late runner can never start on it.
+  assert.equal(io.refs.get(reviewStartedMarkerRef({...request,sequence:assigned.sequence,slot:1})),released.releaseSha)
+  // A resumed dispatch recognises the completed reclaim even though the lease is gone.
+  assert.throws(()=>reclaimSilentReviewer(options,new Date('2026-09-04T10:11:00Z'),io),/already reclaimed with immutable evidence/)
+  // ...and so does a resumed probe, instead of a lease-mismatch refusal that would moot the reroute.
+  assert.throws(()=>probeSilentReviewer(options,new Date('2026-09-04T10:11:00Z'),io),/silence probe already exists and is immutable/)
+  // Without an existing probe the lease-mismatch refusal is unchanged.
+  assert.throws(()=>probeSilentReviewer({...options,failedSequence:assigned.sequence+50},new Date('2026-09-04T10:11:00Z'),io),(e)=>!/already exists/.test(e.message))
+  const replacement=replaceFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
+  assert.notEqual(replacement.reviewer,assigned.reviewer)
+})
+test('unreadable start markers are never read as a non-start',()=>{
+  const fixture=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'}),options={...fixture.request,failedSequence:fixture.assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true,unstarted:true}
+  const rawRead=fixture.io.readRef
+  fixture.io.readRef=(ref)=>{if(String(ref).startsWith('refs/db-review-started/'))throw new Error('HTTP 502');return rawRead(ref)}
+  assert.throws(()=>probeSilentReviewer(options,new Date('2026-09-04T10:15:00Z'),fixture.io),/HTTP 502/)
+  const row=reviewerStartWatchLeases(fixture.io,new Date('2026-09-04T10:15:00Z')).find((r)=>r.reviewer===fixture.assigned.reviewer)
+  assert.equal(row.started,null);assert.match(row.error,/HTTP 502/)
+})
+test('a lease with a start marker is never probed or reclaimed as unstarted, even when the marker races the reclaim',()=>{
+  const fixture=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'}),options={...fixture.request,failedSequence:fixture.assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true,unstarted:true}
+  withStartMarker(fixture)
+  assert.throws(()=>probeSilentReviewer(options,new Date('2026-09-04T11:00:00Z'),fixture.io),/durable start marker/)
+  // Marker written after the probe: the locked readback refuses.
+  const late=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'}),lateOptions={...late.request,failedSequence:late.assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true,unstarted:true}
+  probeSilentReviewer(lateOptions,new Date('2026-09-04T10:10:00Z'),late.io)
+  withStartMarker(late)
+  assert.throws(()=>reclaimSilentReviewer(lateOptions,new Date('2026-09-04T10:10:05Z'),late.io),/durable start marker/)
+  assert.equal(late.io.refs.get(late.leaseRef),late.leaseSha)
+  // Marker written between the locked readback and the atomic push: the compare-and-swap fails.
+  const race=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'}),raceOptions={...race.request,failedSequence:race.assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true,unstarted:true}
+  probeSilentReviewer(raceOptions,new Date('2026-09-04T10:10:00Z'),race.io)
+  const rawAtomic=race.io.atomicReviewRefs.bind(race.io)
+  race.io.atomicReviewRefs=(changes)=>{if(changes.some((c)=>String(c.ref).startsWith('refs/db-review-started/')))withStartMarker(race);return rawAtomic(changes)}
+  assert.throws(()=>reclaimSilentReviewer(raceOptions,new Date('2026-09-04T10:10:05Z'),race.io))
+  assert.equal(race.io.refs.get(race.leaseRef),race.leaseSha)
+  // Without --unstarted the ordinary two-hour silence windows still apply.
+  const plain=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'})
+  assert.throws(()=>probeSilentReviewer({...plain.request,failedSequence:plain.assigned.sequence},new Date('2026-09-04T10:30:00Z'),plain.io),/at least 2 hours/)
+})
+test('unstarted mode judges a reviewer only by its own start marker: CI and a sibling slot verdict are not its start',()=>{
+  // #3027 Step 7 live finding: CI check runs and the other slot's review made an unstarted
+  // slot look started. Only the lease's own durable start marker may count.
+  const fixture=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'}),options={...fixture.request,failedSequence:fixture.assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true,unstarted:true}
+  let ci='2026-09-04T10:03:00Z'
+  fixture.io.readLeaseActivity=()=>({issueComments:[{created_at:'2026-09-04T10:08:00Z'}],reviewComments:[],reviews:[{submitted_at:'2026-09-04T10:08:00Z',state:'APPROVED'}],checkRuns:[{started_at:ci,completed_at:ci}],workflowRuns:[{updated_at:ci}]})
+  // The sibling slot 2 has a durable verdict at this head.
+  fixture.io.refs.set(verdictRef({...fixture.request,slot:2}),fixture.io.makeOwnerCommit('db-coordination review-verdict sibling'))
+  const row=reviewerStartWatchLeases(fixture.io,new Date('2026-09-04T10:12:00Z')).find((r)=>r.reviewer===fixture.assigned.reviewer)
+  assert.deepEqual([row.started,row.verdictPresent,row.error],[false,false,null])
+  const probe=probeSilentReviewer(options,new Date('2026-09-04T10:12:00Z'),fixture.io)
+  assert.equal(probe.lastActivityIso,OWN_START_ONLY_ACTIVITY)
+  // More CI lands between probe and reclaim; it must not change the unstarted fingerprint.
+  ci='2026-09-04T10:12:30Z'
+  const released=reclaimSilentReviewer(options,new Date('2026-09-04T10:13:00Z'),fixture.io)
+  assert.ok(released.releaseSha);assert.equal(fixture.io.refs.get(fixture.leaseRef)??null,null)
+  // The ordinary (non-unstarted) silence path still treats PR activity as progress.
+  const plain=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z',activity:[{created_at:'2026-09-04T11:00:00Z'}]})
+  assert.throws(()=>probeSilentReviewer({...plain.request,failedSequence:plain.assigned.sequence},new Date('2026-09-04T13:00:00Z'),plain.io),/activity occurred after the lease was drawn/)
+  // Fail closed: an unreadable PR is never read as unstarted.
+  const dark=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'}),darkOptions={...dark.request,failedSequence:dark.assigned.sequence,unstarted:true}
+  dark.io.getPr=()=>null
+  assert.throws(()=>probeSilentReviewer(darkOptions,new Date('2026-09-04T10:12:00Z'),dark.io))
+})
+test('start-watch lease view reports slot, draw time, start marker, and activity',()=>{
+  const fixture=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'})
+  const [young]=reviewerStartWatchLeases(fixture.io,new Date('2026-09-04T10:05:00Z')).filter((row)=>row.reviewer===fixture.assigned.reviewer)
+  assert.equal(young.slot,1);assert.equal(young.started,null)
+  const [old]=reviewerStartWatchLeases(fixture.io,new Date('2026-09-04T10:15:00Z')).filter((row)=>row.reviewer===fixture.assigned.reviewer)
+  assert.deepEqual([old.started,old.lastActivityIso,old.verdictPresent,old.error],[false,OWN_START_ONLY_ACTIVITY,false,null])
+  withStartMarker(fixture)
+  assert.equal(reviewerStartWatchLeases(fixture.io,new Date('2026-09-04T10:15:00Z')).find((row)=>row.reviewer===fixture.assigned.reviewer).started,true)
+})
+
 test('capacity reports a silence probe and only calls it reclaimable after confirmation',()=>{
   const {io,request,assigned}=silentLeaseIo(),options={...request,failedSequence:assigned.sequence}
   probeSilentReviewer(options,new Date('2026-09-04T12:00:00Z'),io)
@@ -2782,6 +2873,34 @@ test('preview and merge are fixed exclusive refs and merge refuses during produc
   assert.throws(()=>acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc'},io),/merges are frozen/)
   io.refs.delete(EXCLUSIVE_REFS.production);io.refs.set(EXCLUSIVE_REFS.merge,'merge-owner')
   assert.throws(()=>acquireExclusive('production',{owner:'p',headSha:'main'},io),/guarded merge is active/)
+})
+
+test('issue 3027 every stage-lease refusal names the exact lease holder', () => {
+  const io=memoryIo()
+  io.openClaims=()=>[{number:1,body:body(['table core.x'],'1','2099-01-01T00:00:00Z')}]
+  io.getPr=(number)=>({number:Number(number),head:{sha:'abc',ref:'codex/1'},base:{sha:'main'}})
+  io.readCommitMessage=(sha)=>sha==='prod-owner-sha-0001'?'db-coordination production req pr=77 head=main\nholder_id: run-9\ngithub_run_id: 9\nacquired_at: 2026-09-16T00:00:00Z':null
+  io.refs.set(EXCLUSIVE_REFS.production,'prod-owner-sha-0001')
+  assert.throws(()=>acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc'},io),/merges are frozen; hold_reason lease:production held by production lease prod-owner-s, holder run-9, PR #77, run 9, acquired 2026-09-16T00:00:00Z/)
+  io.refs.delete(EXCLUSIVE_REFS.production);io.refs.set(EXCLUSIVE_REFS.merge,'merge-owner')
+  assert.throws(()=>acquireExclusive('production',{owner:'p',headSha:'main'},io),/guarded merge is active; production promotion must wait; hold_reason lease:merge held by merge lease merge-owner/)
+  io.refs.delete(EXCLUSIVE_REFS.merge)
+  const first=acquireExclusive('preview',{owner:'a',pr:1,headSha:'abc'},io)
+  assert.throws(()=>acquireExclusive('preview',{owner:'b',pr:2,headSha:'abc'},io),new RegExp(`occupied; hold_reason lease:preview held by preview lease ${first.ownerSha.slice(0,12)}`))
+})
+
+test('issue 3027 a hold naming an unrelated production refuses while the held production lease is accepted', () => {
+  const io=memoryIo()
+  const scopeBody=['```db-work-scope','status: ready','work_type: structural','route: shared-db-orchestrator','service_class: standard-application','change_type: migration','application_return_to: u2giants/example-app','live_assertion: authenticated create-and-read succeeds','generated_types: not-applicable','outcome_stage: entered','priority: 5','depends_on:','writes:','  - table core.mine','```'].join('\n')
+  io.getIssue=(n)=>Number(n)===50?{number:50,state:'open',body:scopeBody}:{number:Number(n),state:'open',body:''}
+  io.openClaims=()=>[{number:60,body:body(['table core.other'],'1','2099-01-01T00:00:00Z')}]
+  assert.throws(()=>namedHold(50,'lease:production',io),/names a lease nobody holds/)
+  assert.throws(()=>namedHold(50,'until #2860 production finishes',io),/hold_reason must be/)
+  assert.throws(()=>namedHold(50,'claim:#60',io),/shares no conflicting object/)
+  assert.throws(()=>namedHold(50,'dependency:#2860',io),/not declared/)
+  io.refs.set(EXCLUSIVE_REFS.production,'prod-sha')
+  const record=namedHold(50,'lease:production',io)
+  assert.equal(record.kind,'lease');assert.equal(record.stage,'production');assert.equal(record.owner_sha,'prod-sha')
 })
 
 test('issue 2958 open claims never depend on the GitHub labels= filtered listing', () => {
@@ -8206,4 +8325,30 @@ test('--abandonment-audit reports a refusal as unverifiable (3), not as an expir
   }finally{console.error=originalError}
   assert.equal(errors.filter((line)=>line.startsWith('REFUSED: ')).length,3,'the refusal message is still printed in full; only its exit code moves')
   assert.ok(errors.some((line)=>line.includes('must identify exactly one work issue')),'the operator must still be told what could not be read')
+})
+
+test('issue 3027 an urgent item waiting on capacity names the exact claims and objects it waits behind', () => {
+  const result={queues:[{lane:1,active:12,protected:[14],queued:[30],objects:['table core.b','table core.a']}]}
+  assert.equal(urgentHoldDetail(result,30),'waiting for claim #12, claim #14 on table core.a, table core.b; no active work was preempted')
+  assert.deepEqual(urgentHoldReason(result,30),{kind:'claim',holder:'claim #12, claim #14',objects:['table core.a','table core.b']})
+  assert.match(urgentHoldDetail(result,99),/holder not found/)
+  assert.doesNotThrow(()=>validateHoldReasonRecord(urgentHoldReason(result,30)),'the queue-audit hold is a valid recorded hold_reason')
+  assert.equal(urgentHoldReason(result,99),null)
+  assert.equal(urgentHoldReason({queues:[{lane:1,active:12,queued:[30],objects:[]}]},30),null,'a hold with no shared object is not a named hold')
+})
+
+test('issue 3027 a claim hold is accepted only when the claim and held work share a conflicting object', () => {
+  const io=memoryIo()
+  const scopeBody=['```db-work-scope','status: ready','work_type: structural','route: shared-db-orchestrator','service_class: standard-application','change_type: migration','application_return_to: u2giants/example-app','live_assertion: authenticated create-and-read succeeds','generated_types: not-applicable','outcome_stage: entered','priority: 5','depends_on:','writes:','  - table core.mine','  - table core.shared','```'].join('\n')
+  io.getIssue=(n)=>Number(n)===50?{number:50,state:'open',body:scopeBody}:{number:Number(n),state:'open',body:''}
+  io.openClaims=()=>[{number:60,body:body(['table core.shared','table core.theirs'],'1','2099-01-01T00:00:00Z')}]
+  assert.deepEqual(namedHold(50,'claim:#60',io),{kind:'claim',holder:'claim #60',objects:['table core.shared']})
+  assert.deepEqual(namedHold(50,'object:#60:table core.shared',io),{kind:'object',holder:'claim #60',objects:['table core.shared']})
+  assert.throws(()=>namedHold(50,'object:#60:table core.theirs',io),/do not conflict on/)
+})
+
+test('the no-progress alarm fallback label is a coordination label the queue audit excludes', async () => {
+  const { COORDINATION_LABELS } = await import('./manage-migration-author-lanes.mjs')
+  const { FALLBACK_LABEL } = await import('./orchestrator-flow/no-progress-alarm.mjs')
+  assert.ok(COORDINATION_LABELS.has(FALLBACK_LABEL))
 })

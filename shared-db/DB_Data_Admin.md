@@ -4,7 +4,7 @@ Status: **approved direction; implementation not started**
 Decision date: **2026-07-21**  
 Owner and code repository: **`u2giants/shared-db`**
 
-Planned frontend location: **`apps/db-data-admin/`**
+Frontend location: **`apps/db-data-admin/` in `u2giants/popdam3`** (moved from this repository on 2026-09-16, popdam3 PR #135)
 
 Production URL: **`https://data.designflow.app`**
 
@@ -191,7 +191,7 @@ performs real compensating writes through the same audited RPCs with reason
 `Undid table edit`; it does not merely repaint the browser. Refresh and entity-tab changes
 clear the local undo history. The circular-arrows control is **Refresh table** and both it
 and Undo expose accessible labels plus native hover tooltips. Implementation and operating
-detail: [`apps/db-data-admin/README.md`](apps/db-data-admin/README.md).
+detail: [`apps/db-data-admin/README.md` in popdam3](https://github.com/u2giants/popdam3/blob/main/apps/db-data-admin/README.md).
 
 ---
 

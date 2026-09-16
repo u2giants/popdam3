@@ -19,6 +19,7 @@
     "scripts/lib/exclusive-lease.mjs",
     "scripts/lib/github-transport.mjs",
     "scripts/lib/github-tree.mjs",
+    "scripts/lib/hold-reason.mjs",
     "scripts/lib/merge-self-context.mjs",
     "scripts/lib/pr-content-equivalence.mjs",
     "scripts/lib/review-verdict-artifact.mjs",

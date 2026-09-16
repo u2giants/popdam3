@@ -23,7 +23,7 @@ owners, consumers, and release blockers; it is not a second product specificatio
   Since 2026-07-28 the Customer/Vendor grid also has guarded in-table status editing,
   strict dropdown values, native copy/paste and drag-fill, and a 10-action audited undo
   stack. Name and all non-status context columns remain read-only. See the app
-  [`README`](../apps/db-data-admin/README.md#in-table-editing).
+  [`README`](https://github.com/u2giants/popdam3/blob/main/apps/db-data-admin/README.md#in-table-editing).
 - Unit/browser: Vitest + Testing Library + Playwright. Database contract tests run against a
   disposable/preview database, not production.
 - Runtime: GitHub Actions builds GHCR; Coolify deploys on the Hetzner host. The development

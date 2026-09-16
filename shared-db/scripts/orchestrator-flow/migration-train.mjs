@@ -41,10 +41,28 @@ export function validateTrain(manifest,proof){
     if(superseded.has(entry.version))throw new MigrationTrainError(`migration ${entry.version} is superseded`)
     if(!roles.has(entry.role))throw new MigrationTrainError(`migration ${entry.version} requires absent database role ${entry.role}`)
     for(const dependency of entry.dependencies)if(!ledger.has(dependency)&&(!versions.has(dependency)||manifest.entries.findIndex((x)=>x.version===dependency)>=manifest.entries.findIndex((x)=>x.version===entry.version)))throw new MigrationTrainError(`migration ${entry.version} is missing an earlier dependency ${dependency}`)
-    const preview=proof.preview_assertions?.[entry.version],production=proof.production_assertions?.[entry.version]
-    if(preview?.assertion!==entry.preview_assertion||preview?.result!=='passed'||production?.assertion!==entry.production_assertion||production?.result!=='passed')throw new MigrationTrainError(`migration ${entry.version} lacks exact passing preview/production assertion coverage`)
+    const preview=proof.preview_assertions?.[entry.version]
+    if(preview?.assertion!==entry.preview_assertion||preview?.result!=='passed')throw new MigrationTrainError(`migration ${entry.version} lacks exact passing preview assertion coverage`)
   }
+  // Pre-dispatch evidence is preview proof plus a fresh dry-run against the exact
+  // target. Production assertions cannot exist before production runs; they are
+  // required only to close the train (assertTrainProductionEvidence).
+  const dry=proof.production_dry_run
+  if(dry?.result!=='clean'||dry?.target_identity!==manifest.target_identity||dry?.main_sha!==manifest.base_main_sha)throw new MigrationTrainError('train lacks a clean dry-run against the exact target at the train main')
+  const pending=[...(dry.pending_versions??[])].map(String).sort(),exact=manifest.entries.map((e)=>e.version).sort()
+  if(JSON.stringify(pending)!==JSON.stringify(exact))throw new MigrationTrainError(`train dry-run pending list ${pending.join(',')||'(empty)'} is not the exact train list ${exact.join(',')}`)
   return {...manifest,validated:true,risk_class:[...risks][0]}
+}
+
+// Closing a dispatched train as successful needs exact passing production
+// assertions for every entry, read after the production run.
+export function assertTrainProductionEvidence(record,proof){
+  if(proof?.target_identity!==record.target_identity)throw new MigrationTrainError('train production evidence names a different target identity')
+  for(const entry of record.entries){
+    const production=proof.production_assertions?.[entry.version]
+    if(production?.assertion!==entry.production_assertion||production?.result!=='passed')throw new MigrationTrainError(`migration ${entry.version} lacks exact passing production assertion coverage`)
+  }
+  return true
 }
 
 export function trainRecordRef(record){

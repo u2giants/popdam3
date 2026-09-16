@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url'
 import { canonicalJson } from './orchestrator-flow/evidence-bundle.mjs'
 import { buildOrchestratorSnapshot, publishSnapshotTransition } from './orchestrator-flow/orchestrator-snapshot.mjs'
 import { OUTCOME_STATES, trustedOutcomeComments } from './orchestrator-flow/outcome-lifecycle.mjs'
+import { formatHoldReason } from './lib/hold-reason.mjs'
 import { parseEventComment } from './db-coordination-events.mjs'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 
@@ -65,7 +66,7 @@ export function outcomeEventsFromComments(comments = []) {
     try { parsed = parseEventComment(comment?.body ?? '') } catch { continue }
     for (const event of parsed) {
       if (!OUTCOME_STATES.includes(event.event_type) || event.result === 'refused') continue
-      events.push({ event_id: event.event_id, event_type: event.event_type, work_issue: event.work_issue, timestamp: event.timestamp })
+      events.push({ event_id: event.event_id, event_type: event.event_type, work_issue: event.work_issue, timestamp: event.timestamp, ...(event.hold_reason ? { hold_reason: event.hold_reason } : {}) })
     }
   }
   return events
@@ -83,12 +84,12 @@ export function stalledOutcomes(outcomeEvents, { now, ownedIssues = null, stallM
     const at = Date.parse(event.timestamp)
     if (Number.isNaN(at)) continue
     const prior = last.get(event.work_issue)
-    if (!prior || at > prior.at || (at === prior.at && event.event_id > prior.event_id)) last.set(event.work_issue, { at, state: event.event_type, event_id: event.event_id })
+    if (!prior || at > prior.at || (at === prior.at && event.event_id > prior.event_id)) last.set(event.work_issue, { at, state: event.event_type, event_id: event.event_id, hold_reason: event.hold_reason ?? null })
   }
   const owned = ownedIssues ? new Set(ownedIssues.map(Number)) : null
   const outcomes = [...last.entries()]
     .filter(([issue, row]) => row.state !== TERMINAL_OUTCOME_STATE && (!owned || owned.has(issue)))
-    .map(([issue, row]) => ({ work_issue: issue, state: row.state, last_transition_at: new Date(row.at).toISOString(), minutes_since_transition: Math.max(0, Math.floor((nowMs - row.at) / MINUTE)) }))
+    .map(([issue, row]) => ({ work_issue: issue, state: row.state, last_transition_at: new Date(row.at).toISOString(), minutes_since_transition: Math.max(0, Math.floor((nowMs - row.at) / MINUTE)), ...(row.hold_reason ? { hold_reason: row.hold_reason, hold: formatHoldReason(row.hold_reason) } : {}) }))
     .sort((a, b) => b.minutes_since_transition - a.minutes_since_transition || a.work_issue - b.work_issue)
   const closureIds = new Set()
   const closures = outcomeEvents.filter((event) => {
@@ -210,9 +211,20 @@ function checkSummary(rollup = []) {
   return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)))
 }
 
-export function gatherLiveInput(repo, io = defaultIo) {
-  const resolved = io.resolveMarker(repo)
-  if (!Number.isInteger(resolved?.marker) || !resolved?.routing?.routeId) throw new SnapshotCallerError('no open routable orchestrator marker')
+// Exit 3 from the marker resolver, or a resolved marker with no route, means no orchestrator is running.
+export const NO_ORCHESTRATOR = /marker did not resolve \(exit 3\)|no open routable orchestrator marker/
+
+// allowNoMarker: the no-progress alarm must still evaluate stalls with no orchestrator, so it gets
+// marker: null. Every other caller keeps refusing, and any other read failure still throws.
+export function gatherLiveInput(repo, io = defaultIo, { allowNoMarker = false } = {}) {
+  let resolved = null
+  try {
+    resolved = io.resolveMarker(repo)
+    if (!Number.isInteger(resolved?.marker) || !resolved?.routing?.routeId) throw new SnapshotCallerError('no open routable orchestrator marker')
+  } catch (error) {
+    if (!allowNoMarker || !NO_ORCHESTRATOR.test(String(error?.message))) throw error
+    resolved = null
+  }
   const issues = io.openIssues(repo).filter((issue) => !issue.pull_request)
   const claims = issues.filter((issue) => labelNames(issue).includes('db-claim')).map((issue) => ({
     issue: issue.number,
@@ -230,7 +242,7 @@ export function gatherLiveInput(repo, io = defaultIo) {
   const stageRefs = io.matchingRefs(repo, 'db-coordination').filter((ref) => STAGE_LOCK_REFS.includes(ref.ref))
   return {
     input: {
-      marker: { issue: resolved.marker, status: 'active', route_id: resolved.routing.routeId },
+      marker: resolved ? { issue: resolved.marker, status: 'active', route_id: resolved.routing.routeId } : null,
       claims,
       pull_requests: io.openPullRequests(repo).map((pr) => ({ number: pr.number, head: pr.headRefOid, checks: checkSummary(pr.statusCheckRollup) })),
       reviewer_leases: leaseRefs.map((ref) => ({ ref: ref.ref, sha: ref.object?.sha })),
@@ -238,7 +250,7 @@ export function gatherLiveInput(repo, io = defaultIo) {
       outcome_events: outcomeEvents,
       eligible_queue: issues.filter((issue) => labelNames(issue).some((name) => QUEUE_LABELS.includes(name))).map((issue) => ({ issue: issue.number, labels: labelNames(issue).filter((name) => QUEUE_LABELS.includes(name)).sort() })),
     },
-    sessionStarted: resolved.routing.started ?? null,
+    sessionStarted: resolved?.routing?.started ?? null,
   }
 }
 

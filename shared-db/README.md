@@ -21,7 +21,8 @@ Business rules are owned by the business, not by an application. Start with the 
 ## DB Data Admin hostname
 
 `https://data.designflow.app` belongs exclusively to **DB Data Admin**, whose
-source is [`apps/db-data-admin/`](apps/db-data-admin/). Although a retired
+source lives in [`u2giants/popdam3`](https://github.com/u2giants/popdam3) at
+`apps/db-data-admin/` (moved from this repository on 2026-09-16). Although a retired
 application used the same DNS name historically, it has no live, rollback,
 credential, data-connection, or deployment relationship to the current
 application. The permanent ownership contract and AI guardrails are in
