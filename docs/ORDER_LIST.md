@@ -109,6 +109,16 @@ buffers (~8 MB)** where it once read 24,835 (~194 MB). That is ~1.5% of the 8 s
 `authenticated` ceiling. The visible-row path stays count-free regardless, so
 whole-list work cannot delay or kill a bounded block.
 
+**No-role timeout resolved and verified on production 2026-09-16**
+(shared-db #2988, migration `20260916033914`). Customer and vendor display
+names now come through two narrow, non-exposed directory views instead of
+re-running the role-dependent Customer/Vendor policies for every directory row.
+The main OrderList view remains security-invoker, anonymous access stays denied,
+and direct Customer/Vendor access is unchanged. The same first 500 rows took
+105 ms as Albert and 121 ms as Yzhou's no-business-role identity, with identical
+row/name digests, no missing linked names, and 1,927 warm buffer hits for each
+identity (down from Yzhou's measured 58,527 before the repair).
+
 ## Master Data rules
 
 - An order line points at a canonical `plm.item`. Master Data is reached through
@@ -247,11 +257,10 @@ Two measurement traps cost time and are worth knowing:
   `Import PO #` are pinned left, so they are not inside
   `.ag-center-cols-container`; a row reader that only looks there finds nothing.
 
-One intermittent remains, unchanged in nature: on 1 cold load out of 7 the row
-query itself hit the 8s `authenticated` statement timeout. The rows still
-rendered, the pager honestly said "of more", and the banner named the cause —
-which is quirk #75 behaving as designed — but the ceiling is still occasionally
-reached.
+The earlier intermittent first-block timeout for no-business-role users is
+resolved by shared-db #2988. Keep the block count-free and preserve the narrow
+directory-view contract; restoring per-row Customer/Vendor role checks would
+reintroduce the production failure.
 
 ## Current data state
 
