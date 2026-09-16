@@ -37,7 +37,13 @@ jobs:
           scan_files="$(printf '%s\n' "$changed" | grep -E '^(\.github/workflows/|scripts/|package\.json|package-lock\.json)' | grep -v '^\.github/workflows/forbid-shared-db-bypass\.yml$' || true)"
           if [ -n "$scan_files" ]; then
             pattern='supabase[[:space:]]+db[[:space:]]+(push|reset)|supabase[[:space:]]+migration[[:space:]]+repair|schema_migrations|SUPABASE_DB_PASSWORD|SUPABASE_DB_URL|POSTGRES_URL_NON_POOLING'
-            if printf '%s\n' "$scan_files" | xargs grep -nE "$pattern"; then
+            # db-data-admin.yml's production launch gate READS the migration ledger through the
+            # Supabase Management API with read_only: true. That exact line is allowed; any other
+            # match, in that file or anywhere else, still fails.
+            allowed_read='^\.github/workflows/db-data-admin\.yml:[0-9]+:[[:space:]]+'"'"'ledger'"'"', coalesce\(\(select jsonb_agg\(version::text\) from supabase_migrations\.schema_migrations\), '"'"'\[\]'"'"'::jsonb\),$'
+            hits="$(printf '%s\n' "$scan_files" | xargs grep -HnE "$pattern" | grep -vE "$allowed_read" || true)"
+            if [ -n "$hits" ]; then
+              printf '%s\n' "$hits"
               echo "App repos may not mutate or repair the shared Supabase database. Put DB changes in u2giants/shared-db."
               exit 1
             fi

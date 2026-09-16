@@ -1,0 +1,372 @@
+name: DB Data Admin
+
+on:
+  pull_request:
+    paths:
+      - "apps/db-data-admin/**"
+      - "scripts/db-data-admin/**"
+      - ".github/workflows/db-data-admin.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/db-data-admin/**"
+      - "scripts/db-data-admin/**"
+      - ".github/workflows/db-data-admin.yml"
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: "Production Supabase project ref. Must be exactly qsllyeztdwjgirsysgai."
+        required: true
+        type: string
+      confirmation:
+        description: "Type launch-data-designflow-app to confirm a production launch of data.designflow.app."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: db-data-admin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # A stalled step must fail on its own budget instead of blocking merges for hours (#1266).
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/db-data-admin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Production launch readiness gate tests
+        working-directory: .
+        run: node --test scripts/db-data-admin/check-data-admin-launch-readiness.test.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/db-data-admin/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run lint
+      - run: npm test
+      - run: VITE_BUILD_DATE="$(date -u +%Y-%m-%d)" npm run build
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+      # A stalled browser download looks exactly like a slow one in the Actions UI, and a
+      # 28-minute hang on a REQUIRED check teaches operators to cancel and re-run instead of
+      # reading the log (issue #1186). Bound it, and retry once for a genuinely flaky mirror.
+      #
+      # The bound is PER ATTEMPT, via `timeout`, not on the step. The first version of this
+      # put `timeout-minutes: 6` on the step alone, and on 2026-08-19 PR #1263 proved that
+      # wrong: the Ubuntu mirror stalled, the first attempt consumed the entire six minutes,
+      # and the step was killed mid-attempt so the retry NEVER RAN. A retry that a slow first
+      # attempt can starve is not a retry. `timeout-minutes` is kept as a backstop, sized to
+      # cover both attempts plus overhead, so the step still cannot hang if `timeout` itself
+      # is defeated.
+      - name: Install the Playwright browser (fails fast rather than hanging)
+        timeout-minutes: 9
+        run: |
+          set -euo pipefail
+          attempt() { timeout --signal=TERM --kill-after=30s 4m npx playwright install --with-deps chromium; }
+          # Capture the status explicitly. `if ! attempt; then code=$?` reads 0, because the
+          # `if` has already consumed and reset $?, so the warning would claim "exit 0" on a
+          # real timeout and send the reader looking for the wrong problem.
+          code=0
+          attempt || code=$?
+          if [ "$code" -ne 0 ]; then
+            if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+              echo "::warning::playwright install exceeded 4 minutes (likely a package-mirror stall); retrying once"
+            else
+              echo "::warning::playwright install failed with exit $code; retrying once"
+            fi
+            attempt
+          fi
+      - run: VITE_BUILD_DATE="$(date -u +%Y-%m-%d)" npm run test:browser
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+
+  container:
+    needs: verify
+    runs-on: ubuntu-latest
+    # A stalled step must fail on its own budget instead of blocking merges for hours (#1266).
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+      - name: Record build date
+        id: build-date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Prove the production container starts with password login unset
+        run: |
+          set -euo pipefail
+          docker build \
+            --build-arg "VITE_BUILD_SHA=${GITHUB_SHA}" \
+            --build-arg "VITE_BUILD_DATE=${{ steps.build-date.outputs.date }}" \
+            --tag db-data-admin-startup-test \
+            apps/db-data-admin
+          docker run --rm \
+            --env DB_DATA_ADMIN_SUPABASE_URL=https://example.invalid \
+            --env DB_DATA_ADMIN_SUPABASE_ANON_KEY=test-only \
+            --env DB_DATA_ADMIN_AUTH_REDIRECT_URL=https://example.invalid \
+            db-data-admin-startup-test nginx -t
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/u2giants/db-data-admin
+          tags: |
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/db-data-admin
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_BUILD_SHA=${{ github.sha }}
+            VITE_BUILD_DATE=${{ steps.build-date.outputs.date }}
+
+  # Proves on every pull request that this repository's Coolify token can read both
+  # DB Data Admin applications, so a wrong token fails here instead of at deploy time.
+  coolify-access:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      COOLIFY_URL: ${{ vars.DB_DATA_ADMIN_COOLIFY_URL }}
+      COOLIFY_TOKEN: ${{ secrets.DB_DATA_ADMIN_COOLIFY_TOKEN }}
+    steps:
+      - name: Read both Coolify applications (read-only)
+        run: |
+          set -euo pipefail
+          for uuid in "${{ vars.DB_DATA_ADMIN_COOLIFY_APP_UUID }}" "${{ vars.DB_DATA_ADMIN_COOLIFY_PROD_APP_UUID }}"; do
+            curl --fail-with-body --silent --show-error --output /dev/null               --header "Authorization: Bearer ${COOLIFY_TOKEN}"               "${COOLIFY_URL}/api/v1/applications/${uuid}"
+            echo "Coolify application ${uuid} readable"
+          done
+
+  deploy-development:
+    if: github.event_name == 'push'
+    needs: container
+    runs-on: ubuntu-latest
+    # A stalled step must fail on its own budget instead of blocking merges for hours (#1266).
+    timeout-minutes: 90
+    env:
+      COOLIFY_URL: ${{ vars.DB_DATA_ADMIN_COOLIFY_URL }}
+      COOLIFY_APP_UUID: ${{ vars.DB_DATA_ADMIN_COOLIFY_APP_UUID }}
+      COOLIFY_TOKEN: ${{ secrets.DB_DATA_ADMIN_COOLIFY_TOKEN }}
+    steps:
+      - name: Point Coolify at the verified immutable image
+        run: |
+          image_tag="sha-${GITHUB_SHA::7}"
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "{\"docker_registry_image_tag\":\"${image_tag}\"}" \
+            "${COOLIFY_URL}/api/v1/applications/${COOLIFY_APP_UUID}"
+
+      - name: Deploy through Coolify
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            "${COOLIFY_URL}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false"
+
+  # ---------------------------------------------------------------------------
+  # Production launch for https://data.designflow.app (originally u2giants/shared-db issue #729; moved to popdam3 2026-09-16).
+  #
+  # This job is DISPATCH-ONLY. It never runs on an ordinary push to main, so
+  # merging this workflow can never by itself publish the admin tool that four
+  # live applications share a database with. A launch requires:
+  #
+  #   1. workflow_dispatch from main, with inputs:
+  #        project_ref  == qsllyeztdwjgirsysgai
+  #        confirmation == launch-data-designflow-app
+  #   2. the checked-out GITHUB_SHA equals the current tip of origin/main
+  #      (checked after checkout, before any exposure);
+  #   3. a read-only Supabase evidence query proving the B8 + B9 migration
+  #      batches are in the ledger, the Product Depth tables/functions exist,
+  #      and at least one active admin has app_access for the 'admin' app;
+  #   4. the Coolify application uuid is exactly zeoy8qfjqffu8ym533cc7dl4.
+  #
+  # Only then does it attach exactly https://data.designflow.app (rejecting any
+  # extra/sslip.io domain on re-read), set the exact sha-<commit> image, deploy,
+  # and verify the live site. The GitHub `production` environment is kept for
+  # audit/deployment history, but launch safety does NOT depend on a manual
+  # reviewer — the typed confirmation plus the read-only evidence gate are the
+  # control. Roll back in Coolify to the prior sha-<commit> tag (recorded by the
+  # gate); see apps/db-data-admin/README.md.
+  # ---------------------------------------------------------------------------
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch'
+    needs: container
+    runs-on: ubuntu-latest
+    # A stalled step must fail on its own budget instead of blocking merges for hours (#1266).
+    timeout-minutes: 90
+    environment:
+      name: production
+      url: https://data.designflow.app
+    env:
+      COOLIFY_URL: ${{ vars.DB_DATA_ADMIN_COOLIFY_URL }}
+      COOLIFY_PROD_APP_UUID: ${{ vars.DB_DATA_ADMIN_COOLIFY_PROD_APP_UUID }}
+      COOLIFY_TOKEN: ${{ secrets.DB_DATA_ADMIN_COOLIFY_TOKEN }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      EXPECTED_PROJECT_REF: qsllyeztdwjgirsysgai
+      EXPECTED_CONFIRMATION: launch-data-designflow-app
+      EXPECTED_APP_UUID: zeoy8qfjqffu8ym533cc7dl4
+      EXPECTED_DOMAIN: https://data.designflow.app
+      INPUT_PROJECT_REF: ${{ inputs.project_ref }}
+      INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - name: Refuse unless this is a main dispatch with the exact typed inputs
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]; then
+            echo "::error::deploy-production only runs on workflow_dispatch (got ${GITHUB_EVENT_NAME}). Ordinary pushes never deploy production."
+            exit 1
+          fi
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::Production launch must be dispatched from main (got ${GITHUB_REF})."
+            exit 1
+          fi
+          if [ "${INPUT_PROJECT_REF:-}" != "${EXPECTED_PROJECT_REF}" ]; then
+            echo "::error::input project_ref must be ${EXPECTED_PROJECT_REF} (got ${INPUT_PROJECT_REF:-<empty>})."
+            exit 1
+          fi
+          if [ "${INPUT_CONFIRMATION:-}" != "${EXPECTED_CONFIRMATION}" ]; then
+            echo "::error::input confirmation must be '${EXPECTED_CONFIRMATION}' (got ${INPUT_CONFIRMATION:-<empty>})."
+            exit 1
+          fi
+          if [ "${COOLIFY_PROD_APP_UUID:-}" != "${EXPECTED_APP_UUID}" ]; then
+            echo "::error::COOLIFY_PROD_APP_UUID must be ${EXPECTED_APP_UUID} (got ${COOLIFY_PROD_APP_UUID:-<empty>})."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Fail unless the checked-out SHA is the current tip of origin/main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          tip="$(git rev-parse origin/main)"
+          echo "origin/main tip: ${tip}"
+          echo "GITHUB_SHA:      ${GITHUB_SHA}"
+          if [ "${GITHUB_SHA}" != "${tip}" ]; then
+            echo "::error::GITHUB_SHA (${GITHUB_SHA}) is not the current tip of origin/main (${tip}). Re-dispatch from the latest main commit."
+            exit 1
+          fi
+          echo "ORIGIN_MAIN_SHA=${tip}" >> "$GITHUB_ENV"
+
+      - name: Gather read-only Supabase evidence (production, read_only query)
+        run: |
+          set -euo pipefail
+          SQL="select jsonb_build_object(
+            'ledger', coalesce((select jsonb_agg(version::text) from supabase_migrations.schema_migrations), '[]'::jsonb),
+            'tables', coalesce((select jsonb_agg(format('%s.%s', n.nspname, c.relname))
+                                from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                                where (n.nspname, c.relname) in (('core','product_size'),('core','product_depth'))), '[]'::jsonb),
+            'functions', coalesce((select jsonb_agg(format('%s.%s', n.nspname, p.proname))
+                                   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                                   where (n.nspname, p.proname) in (('api','db_data_admin_product_depth_list'),('api','db_data_admin_upsert_product_depth'),('api','db_data_admin_set_product_depth_status'),('app','require_db_data_admin_product_depth_access'))), '[]'::jsonb),
+            'admin_count', (select count(*)::int from app.app_access where app = 'admin' and revoked_at is null)
+          ) as evidence;"
+          body="$(jq -n --arg q "$SQL" '{query: $q, read_only: true}')"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://api.supabase.com/v1/projects/${EXPECTED_PROJECT_REF}/database/query" \
+            --header "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --header "User-Agent: popdam3-data-admin-launch/1.0" \
+            --data "${body}" \
+            --output /tmp/supabase-evidence.json
+          echo "Supabase evidence bytes: $(wc -c < /tmp/supabase-evidence.json)"
+
+      - name: Read the production Coolify application
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            --output /tmp/coolify-app.json \
+            "${COOLIFY_URL}/api/v1/applications/${COOLIFY_PROD_APP_UUID}"
+
+      - name: Pre-mutation launch readiness gate
+        run: |
+          set -euo pipefail
+          node scripts/db-data-admin/check-data-admin-launch-readiness.mjs \
+            --phase gate \
+            --supabase /tmp/supabase-evidence.json \
+            --coolify /tmp/coolify-app.json
+
+      - name: Recheck main tip immediately before public exposure
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          tip="$(git rev-parse origin/main)"
+          if [ "${GITHUB_SHA}" != "${tip}" ]; then
+            echo "::error::main moved to ${tip} after the first gate. Refusing to attach the domain or deploy stale ${GITHUB_SHA}. Re-dispatch from current main."
+            exit 1
+          fi
+
+      - name: Attach the exact domain and the immutable sha image tag
+        run: |
+          set -euo pipefail
+          image_tag="sha-${GITHUB_SHA::7}"
+          body="$(jq -n --arg t "$image_tag" --arg d "${EXPECTED_DOMAIN}" '{docker_registry_image_tag: $t, domains: $d}')"
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "${body}" \
+            "${COOLIFY_URL}/api/v1/applications/${COOLIFY_PROD_APP_UUID}"
+          echo "Patched image tag to ${image_tag} and fqdn to ${EXPECTED_DOMAIN}"
+
+      - name: Re-read Coolify and reject extra/sslip.io domains or a wrong tag
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            --output /tmp/coolify-app-after.json \
+            "${COOLIFY_URL}/api/v1/applications/${COOLIFY_PROD_APP_UUID}"
+          node scripts/db-data-admin/check-data-admin-launch-readiness.mjs \
+            --phase domains \
+            --coolify /tmp/coolify-app-after.json
+
+      - name: Deploy through Coolify
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            "${COOLIFY_URL}/api/v1/deploy?uuid=${COOLIFY_PROD_APP_UUID}&force=false"
+
+      - name: Verify external HTTPS, health and build-sha
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            code="$(curl --silent --output /dev/null --write-out '%{http_code}' https://data.designflow.app/health || true)"
+            live="$(curl --silent https://data.designflow.app/ | grep -o 'name="build-sha" content="[0-9a-f]*"' | grep -o '[0-9a-f]\{40\}' || true)"
+            if [ "${code}" = "200" ] && [ "${live}" = "${GITHUB_SHA}" ]; then
+              echo "data.designflow.app is healthy over HTTPS and serving ${GITHUB_SHA}"
+              exit 0
+            fi
+            echo "attempt ${attempt}: health=${code} build-sha=${live:-none}"
+            sleep 10
+          done
+          echo "::error::data.designflow.app did not report health 200 and build-sha ${GITHUB_SHA}."
+          echo "::error::Roll back in Coolify to the prior sha-<commit> image recorded by the readiness gate."
+          exit 1
