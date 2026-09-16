@@ -47,6 +47,33 @@ export function validateTrain(manifest,proof){
   return {...manifest,validated:true,risk_class:[...risks][0]}
 }
 
+export function trainRecordRef(record){
+  if(!DIGEST.test(String(record?.train_id??''))||!Number.isInteger(Number(record?.generation))||!TRAIN_STATES.includes(record?.state))throw new MigrationTrainError('train record has no exact identity, generation, or state')
+  return `${TRAIN_REF_PREFIX}/${record.train_id}/${String(record.generation).padStart(6,'0')}-${record.state}`
+}
+
+// A record read back from a file is trusted only when the immutable ref for its
+// exact identity holds the same digest, and no later generation exists.
+export function assertRecordedTrain(record,io){
+  const ref=trainRecordRef(record),prior=io.readImmutable(ref),digest=sha256(canonicalJson(record))
+  if(!prior||prior.digest!==digest)throw new MigrationTrainError(`train record ${ref} is not the exact immutable record`)
+  const later=(io.listTrainRecords?.(record.train_id)??null)
+  if(!Array.isArray(later))throw new MigrationTrainError(`train ${record.train_id} history is unreadable`)
+  const newer=later.filter((row)=>Number(/\/(\d{6})-[a-z]+$/.exec(String(row.ref))?.[1])>Number(record.generation))
+  if(newer.length)throw new MigrationTrainError(`train record ${ref} is superseded by ${newer.map((row)=>row.ref).join(', ')}`)
+  return ref
+}
+
+// The migrations workflow calls this before any job runs for a train dispatch.
+export function assertDispatchMatchesTrain(record,{target,commit_sha,allowlist}){
+  if(record?.state!=='dispatched')throw new MigrationTrainError(`train ${record?.train_id} is ${record?.state}, not dispatched`)
+  if(String(target)!==record.target)throw new MigrationTrainError(`dispatch target ${target} is not the train target ${record.target}`)
+  if(String(commit_sha??'').toLowerCase()!==record.base_main_sha)throw new MigrationTrainError(`dispatch commit ${commit_sha} is not the train main ${record.base_main_sha}`)
+  const exact=record.entries.map((e)=>e.version),given=String(allowlist??'').split(',').map((v)=>v.trim()).filter(Boolean).sort()
+  if(JSON.stringify(given)!==JSON.stringify(exact))throw new MigrationTrainError(`dispatch allowlist ${given.join(',')||'(empty)'} is not the exact train list ${exact.join(',')}`)
+  return {train_id:record.train_id,versions:exact}
+}
+
 export function transitionTrain(manifest,next,io,{authorization_digest=null,current_main_sha=null,target_identity=null,applied_prefix=[]}={}){
   const allowed={proposed:['authorized'],authorized:['dispatched'],dispatched:['closed','failed'],failed:['dispatched'],closed:[]}
   if(!TRAIN_STATES.includes(next)||!allowed[manifest.state]?.includes(next))throw new MigrationTrainError(`train cannot move from ${manifest.state} to ${next}`)

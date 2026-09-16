@@ -10,12 +10,52 @@
 //      the prior sealed record and makes no adapter call at all.
 //   3. Refuse a reviewer draw unless a passing record is registered in a bundle
 //      bound to the exact head under review.
+//   4. Before either of the above, run the pass-2 rebuild check for any change
+//      that adds or edits a migration. A change that drops or replaces a routine
+//      whose contract-test rebuild would not match a straight replay refuses
+//      here, before review, not after approvals (#401 Step 5).
 // Every unreadable or mismatched input refuses; nothing here falls open.
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { classifyInvalidation } from './classify-invalidation.mjs'
 import { DeliveryPreflightError, composeDeliveryPreflight, registerDeliveryPreflight, runDeliveryPreflight, validateDeliveryPreflight } from './delivery-preflight.mjs'
 import { validateEvidenceBundle } from './evidence-bundle.mjs'
 
 const SHA = /^[0-9a-f]{40}$/i
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const MIGRATION = /^supabase\/migrations\/[^/]+\.sql$/
+
+export function changedMigrations(changedFiles) {
+  if (!Array.isArray(changedFiles)) throw new DeliveryPreflightError('changed files must be a list')
+  return [...new Set(changedFiles.map((file) => String(typeof file === 'string' ? file : file?.path ?? '').replace(/\\/g, '/')).filter((file) => MIGRATION.test(file)).map((file) => path.posix.basename(file)))].sort()
+}
+
+// Runs scripts/check_pass2_routine_supersession.py --rebuild-check. Exit 0 is
+// PASS, 1 is a proven mismatch, anything else (or unreadable output) refuses.
+export function runRoutineRebuildCheck(migrations, { repoRoot = REPO_ROOT, python = process.env.PYTHON || 'python' } = {}) {
+  const result = spawnSync(python, [path.join(repoRoot, 'scripts', 'check_pass2_routine_supersession.py'), '--rebuild-check', '--migrations-dir', path.join(repoRoot, 'supabase', 'migrations'), ...migrations], { encoding: 'utf8' })
+  let report = null
+  try { report = JSON.parse(result.stdout) } catch { /* refused below */ }
+  if (result.status === 0 && report?.status === 'PASS') return report
+  if (result.status === 1 && report?.status === 'BLOCKED' && Array.isArray(report.mismatches) && report.mismatches.length) return report
+  throw new DeliveryPreflightError(`routine rebuild check is unreadable: ${(result.error?.message || result.stderr || `exit ${result.status}`).trim()}`)
+}
+
+/**
+ * The routine_rebuild gate. Refuses when a changed migration drops or replaces a
+ * routine and the pass-2 rebuild would not reproduce a straight replay.
+ * `adapters.routineRebuild(migrations)` overrides the Python runner.
+ */
+export function assertRoutineRebuild(changedFiles, adapters = {}) {
+  const migrations = changedMigrations(changedFiles)
+  if (!migrations.length) return { status: 'PASS', migrations, mismatches: [] }
+  const run = typeof adapters.routineRebuild === 'function' ? adapters.routineRebuild : (files) => runRoutineRebuildCheck(files, { repoRoot: adapters.repoRoot })
+  const report = run(migrations)
+  if (report?.status === 'PASS') return { status: 'PASS', migrations, mismatches: [] }
+  const detail = (report?.mismatches ?? []).map((m) => `${m.pass2_migration} resurrects [${(m.resurrected ?? []).join(', ')}] loses [${(m.lost ?? []).join(', ')}]`).join('; ')
+  throw new DeliveryPreflightError(`delivery preflight blocked by routine_rebuild: ${detail || 'unreadable rebuild report'}`)
+}
 
 function registrationOf(bundle) {
   return bundle?.metadata?.delivery_preflight ?? null
@@ -60,6 +100,7 @@ export function planDeliveryPreflight({ currentBundle, priorBundle, priorRecord,
  * DeliveryPreflightError when the preflight is blocked or unreadable.
  */
 export function runDeliveryPreflightGate({ currentBundle, priorBundle = null, priorRecord = null, changedFiles = [], integration = null, input = null }, adapters = {}) {
+  assertRoutineRebuild(changedFiles, adapters)
   const plan = planDeliveryPreflight({ currentBundle, priorBundle, priorRecord, changedFiles, integration })
   if (plan.reuse) {
     const record = validateDeliveryPreflight(priorRecord, adapters)
@@ -83,6 +124,7 @@ export function runDeliveryPreflightGate({ currentBundle, priorBundle = null, pr
 // re-registered in a bundle with a different identity is refused.
 export function assertDeliveryPreflightBeforeReview({ record, bundle, issue, pr, headSha, priorBundle = null, changedFiles = [], integration = null }, adapters = {}) {
   if (!record) throw new DeliveryPreflightError('no delivery preflight record; run --delivery-preflight before drawing a reviewer')
+  assertRoutineRebuild(changedFiles, adapters)
   if (record.status !== 'PASS') throw new DeliveryPreflightError(`delivery preflight is ${String(record.status ?? 'unreadable')}; a reviewer is not drawn`)
   validateDeliveryPreflight(record, adapters)
   try { validateEvidenceBundle(bundle) } catch (error) { throw new DeliveryPreflightError(`evidence bundle is unreadable: ${error.message}`) }

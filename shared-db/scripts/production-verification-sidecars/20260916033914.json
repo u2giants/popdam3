@@ -1,0 +1,13 @@
+{
+  "checks": [
+    {
+      "contract": "dam_order_list_role_free_party_names_v1",
+      "expected_count": 1,
+      "id": "dam_order_list_role_free_party_names",
+      "kind": "catalog_contract"
+    }
+  ],
+  "migration_sha256": "e8fbe0874fcb5289f1d60ec5a5c75c541fd234a3015458bb9d9ff26790ad65d0",
+  "migration_version": "20260916033914",
+  "schema_version": 1
+}

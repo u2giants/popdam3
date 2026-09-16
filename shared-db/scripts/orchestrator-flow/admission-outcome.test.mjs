@@ -391,7 +391,7 @@ test('shared-stage capacity revalidates admission after taking the author mutex'
   for(const operation of ['preview']){
     let state='open';const refs=new Map(),created=[]
     const io={
-      enforceAdmission:true,makeOwnerCommit:()=>`${operation}-owner`,readRef:(ref)=>refs.get(ref)??null,
+      enforceAdmission:true,makeOwnerCommit:()=>`${operation}-owner`,readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
       createRef:(ref,sha)=>{created.push(ref);if(refs.has(ref))return false;refs.set(ref,sha);if(ref===MUTEX_REF)state='closed';return true},
       deleteRef:(ref)=>refs.delete(ref),getIssue:()=>({...issue(scopeBody()),state}),
       closingIssuesForPr:()=>[{number:41,state}],getPr:()=>({head:{sha:'a'.repeat(40)},merged_at:null}),
@@ -485,7 +485,7 @@ test('initial admission events are serialized under the author mutex',()=>{
   const io={
     enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>comments,
     makeOwnerCommit:()=> 'mutex-owner',
-    readRef:(ref)=>refs.get(ref)??null,
+    readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
     createRef:(ref,sha)=>{labels.push(`lock:${ref}`);if(refs.has(ref))return false;refs.set(ref,sha);return true},
     deleteRef:(ref)=>{labels.push(`unlock:${ref}`);refs.delete(ref)},
     commentIssue:(_n,body)=>{assert.equal(refs.size,1,'admission comment must be written only while the mutex is held');labels.push('comment');comments.push(ownerComment(body))},
@@ -500,7 +500,7 @@ test('claim admission and dispatched event share one author-mutex ownership inte
   const comments=[],refs=new Map(),labels=[]
   const io={
     enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>comments,
-    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,
+    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
     createRef:(ref,sha)=>{labels.push('lock');if(refs.has(ref))return false;refs.set(ref,sha);return true},
     deleteRef:(ref)=>{labels.push('unlock');refs.delete(ref)},openClaims:()=>[],prSources:()=>[],
     reserveVersion:()=>({version:'20260911133700'}),
@@ -517,7 +517,7 @@ test('lost dispatched-comment response tolerates delayed exact-event visibility 
   const comments=[],refs=new Map();let closed=0,hiddenReads=0,waits=0
   const io={
     enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>hiddenReads-->0?comments.filter((comment)=>parseEventComment(comment.body)[0]?.event_type!=='dispatched'):comments,
-    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,
+    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
     createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref),
     openClaims:()=>[],prSources:()=>[],reserveVersion:()=>({version:'20260911133800'}),
     createClaim:()=> 'https://github.com/u2giants/shared-db/issues/99',closeClaim:()=>{closed++},wait:()=>{waits++},
@@ -532,7 +532,7 @@ test('exhausted dispatch visibility remains ambiguous and never closes the claim
   const comments=[],refs=new Map();let closed=0,hiddenReads=100,message=''
   const io={
     enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>hiddenReads>0?comments.filter((comment)=>parseEventComment(comment.body)[0]?.event_type!=='dispatched'):comments,
-    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,
+    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
     createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref),
     openClaims:()=>[],prSources:()=>[],reserveVersion:()=>({version:'20260911133801'}),wait:()=>{},
     createClaim:()=> 'https://github.com/u2giants/shared-db/issues/99',closeClaim:()=>{closed++},
@@ -548,7 +548,7 @@ test('lost mutex ownership never closes the newly created claim',()=>{
   const comments=[],refs=new Map();let closed=0,message=''
   const io={
     enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>comments,
-    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,
+    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
     createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref),
     openClaims:()=>[],prSources:()=>[],reserveVersion:()=>({version:'20260911133900'}),
     createClaim:()=> 'https://github.com/u2giants/shared-db/issues/99',closeClaim:()=>{closed++},
@@ -563,7 +563,7 @@ test('advance validation and lifecycle mutation share one author-mutex interval'
   const comments=eventComments('classified',41),refs=new Map();let writes=0
   const io={
     enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>comments,
-    makeOwnerCommit:()=> 'advance-owner',readRef:(ref)=>refs.get(ref)??null,
+    makeOwnerCommit:()=> 'advance-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
     createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref),
     commentIssue:(_n,body)=>{assert.equal(refs.size,1);writes++;comments.push(ownerComment(body))},
   }
@@ -620,7 +620,7 @@ test('--repair-outcome-history repairs under the author mutex and names its acto
   comments.push(ownerComment(formatEventComment(duplicate)))
   const io={
     issueComments:()=>comments,makeOwnerCommit:()=> 'repair-owner',
-    readRef:(ref)=>refs.get(ref)??null,
+    readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
     createRef:(ref,sha)=>{labels.push('lock');if(refs.has(ref))return false;refs.set(ref,sha);return true},
     deleteRef:(ref)=>{labels.push('unlock');refs.delete(ref)},wait:()=>{},
     commentIssue:(_n,body)=>{assert.equal(refs.size,1,'repair must be written only while the mutex is held');labels.push('repair');comments.push(ownerComment(body))},

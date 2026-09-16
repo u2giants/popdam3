@@ -109,14 +109,181 @@ export function repairPreviewReady(readyId,issue,io){
   return preparePreviewDispatch(issue,io)
 }
 
+// CAPACITY AND PREVIEW ARE SEPARATE TRUTHS (issue #2301 Step 4). Before this, a
+// single issue whose preview readiness could not be derived turned the WHOLE
+// reconciliation `UNVERIFIABLE`, which reads as "capacity truth is unavailable"
+// for every other lane in the run -- including lanes whose capacity state was
+// perfectly readable. One undeciphered preview edge was enough to hide every
+// capacity report in the repository behind a single word.
+//
+// The two domains now carry their own status and their own counts, and every
+// action declares which domain it belongs to. The top-level `status` is
+// unchanged in meaning for existing consumers: it is still `UNVERIFIABLE`
+// whenever preview evidence is unreadable, and the only NEW way to reach it is a
+// capacity error, an input field that did not exist before this change and so
+// cannot silently reclassify any run that a consumer has already seen.
+export const RECONCILE_SCHEMA_VERSION=2
+export const CAPACITY_DOMAIN='capacity'
+export const PREVIEW_DOMAIN='preview'
+export const RELINQUISH_WORKTREE_STATES=Object.freeze(['clean','dirty','absent','remote'])
+
+// THE ABANDONMENT-AUDIT FENCE. Parsed here rather than in the caller so that the
+// reconciler that SUGGESTS the guarded command and the guarded command that
+// REVALIDATES the evidence read the same definition. A fence that omits any
+// identity field, or carries one in the wrong shape, is not evidence: it returns
+// null rather than a partially-trusted record.
+export function parseAbandonmentAudit(body){
+  const fence=/^```abandonment-audit[ \t]*\r?\n([\s\S]*?)^```[ \t]*$/m.exec(String(body??''))
+  if(!fence)return null
+  const fields=new Map()
+  for(const line of fence[1].split(/\r?\n/)){
+    const match=/^([a-z_]+):[ \t]*(\S.*?)[ \t]*$/.exec(line)
+    if(match&&!fields.has(match[1]))fields.set(match[1],match[2])
+  }
+  const record={
+    claim:Number(String(fields.get('claim')??'').replace(/^#/,'')),
+    pr:Number(String(fields.get('pr')??'').replace(/^#/,'')),
+    head_sha:String(fields.get('head_sha')??'').toLowerCase(),
+    owner:String(fields.get('owner')??''),
+  }
+  if(!Number.isInteger(record.claim)||record.claim<1)return null
+  if(!Number.isInteger(record.pr)||record.pr<1)return null
+  if(!/^[0-9a-f]{40}$/.test(record.head_sha)||!record.owner)return null
+  return record
+}
+
+// ABANDONMENT EVIDENCE IS DELIBERATELY NARROW. An ordinary durable work
+// dependency -- "this task waits on issue #123" -- says the work is BLOCKED, not
+// that its author walked away, and it must never produce a capacity-relinquish
+// suggestion. Evidence is only a live `repo-maintenance` abandonment-audit issue
+// that names this exact claim, pull request, head and owner. Anything absent,
+// closed, differently typed, or naming a different tuple returns null, and a null
+// here means the report stays a report.
+export function abandonmentEvidenceFor(issue){
+  const blocker=issue?.blocker
+  if(!blocker?.durable||blocker.resolved)return null
+  if(blocker.state!=='open'||blocker.work_type!=='repo-maintenance')return null
+  const audit=blocker.audit,claim=issue.expired_claim
+  if(!audit||!claim)return null
+  if(Number(audit.claim)!==Number(claim.claim))return null
+  if(Number(audit.pr)!==Number(claim.pr))return null
+  if(String(audit.head_sha).toLowerCase()!==String(claim.head_sha??'').toLowerCase())return null
+  if(String(audit.owner)!==String(claim.owner??''))return null
+  return {...audit,reference:blocker.reference}
+}
+
+// EXPIRY ALONE NEVER MUTATES. An expired lease is a claim whose clock ran out,
+// which is not the same fact as an author who abandoned it, and the difference is
+// only knowable from evidence somebody wrote down. So this emits a REPORT: who
+// holds it, how long it has been expired, what its pull request is doing, what it
+// is blocked on, and how many tasks are queued behind it -- and it carries the
+// suggested guarded command ONLY when real abandonment evidence is present. The
+// suggestion is text for an operator to run deliberately; nothing here relinquishes.
+function expiredUnconfirmedReport(issue){
+  const claim=issue.expired_claim??{},evidence=abandonmentEvidenceFor(issue),blocker=issue.blocker
+  const action={
+    issue:issue.issue,domain:CAPACITY_DOMAIN,action:'expired-unconfirmed-report',mutates:false,
+    claim:claim.claim??issue.claim??null,
+    owner:claim.owner??issue.owner??null,
+    expires_at:claim.expires_at??null,
+    expired_for_seconds:claim.expired_for_seconds??null,
+    pr:claim.pr??null,
+    pr_state:claim.pr_state??'unknown',
+    head_sha:claim.head_sha??null,
+    // null means UNKNOWN, never zero. "Nothing is waiting behind this expired
+    // lane" is a reason not to act; an unreadable queue is not.
+    queued_behind:claim.queued_behind===null||claim.queued_behind===undefined?null:Number(claim.queued_behind),
+    blocker:blocker?{reference:blocker.reference??null,state:blocker.state??null,work_type:blocker.work_type??null,resolved:Boolean(blocker.resolved),abandonment_audit:Boolean(blocker.audit)}:null,
+    abandonment_evidence:evidence?{reference:evidence.reference,claim:evidence.claim,pr:evidence.pr,head_sha:evidence.head_sha,owner:evidence.owner}:null,
+    suggested_command:null,
+  }
+  if(evidence)action.suggested_command=[
+    'node scripts/manage-migration-author-lanes.mjs --relinquish-author-lease',
+    // --claim-number, NOT --claim. The lane CLI parses `--claim` as a BOOLEAN
+    // (it is the flag that claims a lane), so `--claim 41` dies on the bare 41
+    // as an unknown argument. The value flag is --claim-number, and the test
+    // below runs this exact string through the real CLI rather than matching it.
+    `--claim-number ${evidence.claim}`,
+    `--owner "${evidence.owner}"`,
+    `--blocked-on ${evidence.reference}`,
+    `--worktree-state <${RELINQUISH_WORKTREE_STATES.join('|')}>`,
+  ].join(' ')
+  return action
+}
+
+function domainStatus(unverifiable,mutating){return unverifiable?'UNVERIFIABLE':mutating?'RECONCILED':'REPORT_ONLY'}
+
+// #2301 Step 5. A SCHEDULED audit must be read-only BY CONSTRUCTION, not by
+// luck of its environment. `reconcileFlow` decides whether to mutate from the
+// live sole-orchestrator marker, and a hosted runner happens not to hold one --
+// but "happens not to" is exactly the guarantee that stops holding the day
+// somebody grants the workflow a token or a marker leaks into CI. This wrapper
+// removes the capability instead of relying on its absence: the marker reads as
+// gone, and every mutation hook throws if it is ever reached at all. A run that
+// tried to write fails loudly rather than writing.
+export const AUDIT_EXIT_CLEAN=0
+export const AUDIT_EXIT_EXPIRED=2
+export const AUDIT_EXIT_UNVERIFIABLE=3
+export function reportOnlyFlowIo(io){
+  const refuse=(name)=>()=>{throw new ReconcileError(`read-only abandonment audit must never call ${name}`)}
+  return {
+    ...io,
+    resolveMarker:()=>null,
+    relinquishCapacity:refuse('relinquishCapacity'),
+    resumeCapacity:refuse('resumeCapacity'),
+    persistReady:refuse('persistReady'),
+  }
+}
+
+// THREE OUTCOMES, NOT TWO. Expiry and unreadability are different facts and an
+// operator must be able to tell them apart from the exit code alone: an expired
+// claim is a queue that needs a decision, while an unreadable or malformed audit
+// state is a broken instrument and must fail closed. Anything that is not a
+// report-only result of the current schema is treated as unreadable, so a future
+// schema or a mutating result can never be mistaken for a clean run.
+export function abandonmentAuditExit(result){
+  if(result?.schema_version!==RECONCILE_SCHEMA_VERSION||result?.mutating!==false)return AUDIT_EXIT_UNVERIFIABLE
+  if([result.capacity?.status,result.preview?.status].includes('UNVERIFIABLE'))return AUDIT_EXIT_UNVERIFIABLE
+  if((result.actions??[]).some((action)=>action.action==='expired-unconfirmed-report'))return AUDIT_EXIT_EXPIRED
+  return AUDIT_EXIT_CLEAN
+}
+
 export function reconcileFlow(input,io){
   const marker=io.resolveMarker(),mutating=Boolean(marker?.live&&marker.calling_task===marker.task),actions=[]
+  const seen={[CAPACITY_DOMAIN]:new Set(),[PREVIEW_DOMAIN]:new Set()}
+  let capacityUnverifiable=false,previewUnverifiable=false
   for(const issue of input.issues??[]){
-    if(issue.preview_error)actions.push({issue:issue.issue,action:'preview-unverifiable',reason:issue.preview_error})
-    if(issue.blocker?.durable&&!issue.blocker.resolved&&issue.capacity_state==='active')actions.push({issue:issue.issue,action:'relinquish-capacity',result:mutating?io.relinquishCapacity(issue):null})
-    if(issue.blocker?.resolved&&issue.capacity_state==='relinquished')actions.push({issue:issue.issue,action:'resume-capacity',result:mutating?io.resumeCapacity(issue):null})
-    if(issue.preview_edge_satisfied)actions.push({issue:issue.issue,action:mutating?'persist-preview-ready':'report-preview-ready',result:mutating?io.persistReady(issue):null})
+    // The capacity leg runs to completion whatever the preview leg reports, and
+    // the preview leg runs whatever capacity reports. Neither reads the other's
+    // error, which is the whole point of the separation.
+    seen[CAPACITY_DOMAIN].add(issue.issue)
+    if(issue.capacity_error){
+      capacityUnverifiable=true
+      actions.push({issue:issue.issue,domain:CAPACITY_DOMAIN,action:'capacity-unverifiable',mutates:false,reason:issue.capacity_error})
+    }else{
+      if(issue.capacity_state==='expired-unconfirmed')actions.push(expiredUnconfirmedReport(issue))
+      if(issue.blocker?.durable&&!issue.blocker.resolved&&issue.capacity_state==='active')actions.push({issue:issue.issue,domain:CAPACITY_DOMAIN,action:'relinquish-capacity',mutates:mutating,result:mutating?io.relinquishCapacity(issue):null})
+      if(issue.blocker?.resolved&&issue.capacity_state==='relinquished')actions.push({issue:issue.issue,domain:CAPACITY_DOMAIN,action:'resume-capacity',mutates:mutating,result:mutating?io.resumeCapacity(issue):null})
+    }
+    seen[PREVIEW_DOMAIN].add(issue.issue)
+    if(issue.preview_error){
+      previewUnverifiable=true
+      actions.push({issue:issue.issue,domain:PREVIEW_DOMAIN,action:'preview-unverifiable',mutates:false,reason:issue.preview_error})
+    }else if(issue.preview_edge_satisfied){
+      actions.push({issue:issue.issue,domain:PREVIEW_DOMAIN,action:mutating?'persist-preview-ready':'report-preview-ready',mutates:mutating,result:mutating?io.persistReady(issue):null})
+    }
   }
-  const unavailable=actions.some((action)=>action.action==='preview-unverifiable')
-  return {status:unavailable?'UNVERIFIABLE':mutating?'RECONCILED':'REPORT_ONLY',mutating,actions}
+  const counts=(domain,unverifiable)=>({
+    issues:seen[domain].size,
+    actions:actions.filter((action)=>action.domain===domain).length,
+    unverifiable:actions.filter((action)=>action.domain===domain&&action.action.endsWith('-unverifiable')).length,
+    status:domainStatus(unverifiable,mutating),
+  })
+  const capacity=counts(CAPACITY_DOMAIN,capacityUnverifiable),preview=counts(PREVIEW_DOMAIN,previewUnverifiable)
+  return {
+    schema_version:RECONCILE_SCHEMA_VERSION,
+    // Unchanged for every consumer that existed before this change.
+    status:capacityUnverifiable||previewUnverifiable?'UNVERIFIABLE':mutating?'RECONCILED':'REPORT_ONLY',
+    mutating,capacity,preview,actions,
+  }
 }

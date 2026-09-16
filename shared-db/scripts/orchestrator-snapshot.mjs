@@ -178,6 +178,27 @@ export const defaultIo = {
   openPullRequests: (repo) => JSON.parse(gh(['pr', 'list', '--repo', repo, '--state', 'open', '--limit', '200', '--json', 'number,headRefOid,statusCheckRollup'])),
   matchingRefs: (repo, prefix) => JSON.parse(gh(['api', `repos/${repo}/git/matching-refs/${prefix}`])),
   issueComments: (repo, issue) => ghPages(`repos/${repo}/issues/${issue}/comments?per_page=100`),
+  // One GraphQL read for every owned issue's comments instead of one paginated
+  // REST read per issue. An issue whose comments do not fit one page, or that
+  // GraphQL cannot resolve, falls back to the REST reader so nothing is dropped
+  // and an unresolvable issue still refuses exactly as before.
+  issueCommentsMany(repo, issues) {
+    const [owner, name] = repo.split('/')
+    const result = new Map()
+    for (let start = 0; start < issues.length; start += 25) {
+      const chunk = issues.slice(start, start + 25)
+      const fields = 'comments(first:100){pageInfo{hasNextPage} nodes{authorAssociation body}}'
+      const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){${chunk.map((n) => `i${Number(n)}:issueOrPullRequest(number:${Number(n)}){...on Issue{${fields}} ...on PullRequest{${fields}}}`).join(' ')}}}`
+      let data = null
+      try { data = JSON.parse(gh(['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `name=${name}`]))?.data?.repository ?? null } catch { data = null }
+      for (const n of chunk) {
+        const connection = data?.[`i${Number(n)}`]?.comments
+        if (!connection || connection.pageInfo?.hasNextPage || !Array.isArray(connection.nodes)) { result.set(n, defaultIo.issueComments(repo, n)); continue }
+        result.set(n, connection.nodes.map((node) => ({ author_association: node.authorAssociation, body: node.body })))
+      }
+    }
+    return result
+  },
 }
 
 function checkSummary(rollup = []) {
@@ -200,7 +221,11 @@ export function gatherLiveInput(repo, io = defaultIo) {
   }))
   const ownedIssues = [...new Set(claims.flatMap((claim) => [claim.issue, ...claim.work_issues]))].sort((a, b) => a - b)
   const owned = new Set(ownedIssues)
-  const outcomeEvents = ownedIssues.flatMap((issue) => outcomeEventsFromComments(io.issueComments(repo, issue)).filter((event) => owned.has(event.work_issue) && (event.work_issue === issue || claims.some((claim) => claim.issue === issue))))
+  // An owned issue already listed with zero comments has no events to read.
+  const listedCommentCount = new Map(issues.map((issue) => [issue.number, issue.comments]))
+  const toRead = ownedIssues.filter((issue) => listedCommentCount.get(issue) !== 0)
+  const commentsByIssue = io.issueCommentsMany ? io.issueCommentsMany(repo, toRead) : new Map(toRead.map((issue) => [issue, io.issueComments(repo, issue)]))
+  const outcomeEvents = ownedIssues.flatMap((issue) => outcomeEventsFromComments(commentsByIssue.get(issue) ?? []).filter((event) => owned.has(event.work_issue) && (event.work_issue === issue || claims.some((claim) => claim.issue === issue))))
   const leaseRefs = io.matchingRefs(repo, REVIEWER_LEASE_PREFIX)
   const stageRefs = io.matchingRefs(repo, 'db-coordination').filter((ref) => STAGE_LOCK_REFS.includes(ref.ref))
   return {

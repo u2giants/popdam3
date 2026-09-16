@@ -1,6 +1,6 @@
 # Plan: author-lane abandonment lifecycle and permanent retirement
 
-Tracked by [issue #2301](https://github.com/u2giants/shared-db/issues/2301). Registered by [`HANDOFF.d/2026-09-04T1453Z-edge-dev-codex-author-lane-lifecycle-plan.md`](HANDOFF.d/2026-09-04T1453Z-edge-dev-codex-author-lane-lifecycle-plan.md).
+Tracked by [issue #2301](https://github.com/u2giants/shared-db/issues/2301). It was registered by the handoff `HANDOFF.d/2026-09-04T1453Z-edge-dev-codex-author-lane-lifecycle-plan.md`, which was retired when the work finished; this file is the durable record in its place.
 
 This is repository-maintenance work. It authorizes no database migration, database write, preview deployment, production deployment, infrastructure change, claim cleanup, pull-request closure, or worktree mutation.
 
@@ -8,15 +8,15 @@ This is repository-maintenance work. It authorizes no database migration, databa
 
 | Step | Deliverable | State | Evidence |
 |---|---|---|---|
-| 1 | Extend relinquished-claim metadata and fail-closed parsing | ⬜ open | Not implemented |
-| 2 | Make capacity relinquishment machine-independent and recovery-gated | ⬜ open | Not implemented |
-| 3 | Add immutable terminal-retirement tombstones and resurrection guards | ⬜ open | Not implemented |
-| 4 | Separate capacity reconciliation from preview readiness | ⬜ open | Not implemented |
-| 5 | Add hourly and dispatch-time read-only detection | ⬜ open | Not implemented |
-| 6 | Synchronize operating rules, skill text, and abandonment evidence template | ⬜ open | Not implemented |
-| 7 | Full regression, independent review, guarded landing, and live report proof | ⬜ open | Not implemented |
+| 1 | Extend relinquished-claim metadata and fail-closed parsing | ✅ complete | Phase A PR #2640 merged 2026-09-15 as `7eac0c7110e597bb8380c75037f2f1b4730d6a9b` (guarded merge at head `e7619dc3e391cefa016c5cfad8510d59b41d6cbe`, governed APPROVE ref `refs/db-review-verdicts/2994-2640-e7619dc3e391cefa016c5cfad8510d59b41d6cbe`, sub-issue #2994 closed); implementation commit `c039ca46e21528ef4d2ded2e7f8b5137dfd0aadf`; pre-cut census recorded on issue #2301; 528 focused manager/reconcile/lease tests passed |
+| 2 | Make capacity relinquishment machine-independent and recovery-gated | ✅ complete | Phase A PR #2640 merged 2026-09-15 as `7eac0c7110e597bb8380c75037f2f1b4730d6a9b`; at that exact head 630/630 lane/capacity, 57/57 exclusive-lease and scenario, and 252 production-guard tests passed; clean/dirty/absent/remote and recovery/rollback scenarios passed; recovery artifacts are dereferenced, not shape-checked; 533 lane/capacity tests, 57 exclusive-lease/scenario tests and 239 production-guard tests passed |
+| 3 | Add immutable terminal-retirement tombstones and resurrection guards | ✅ complete | Phase B PR #3000 merged 2026-09-15 as `1dcf196ea9b506ec14feb55e8465b53d9faf1706` (guarded merge at head `cd4aa51dd35d9c8d7cb828dd215f54d798f1b34c`, implementation commit `43c14f8d96895a945679d1a6d769ae16121097c1`, sub-issue #2999). A tombstone is written before the claim closes and read back before it is trusted; a retired version is refused on every claim-reactivation path, not only on acquire; malformed and conflicting payloads fail closed |
+| 4 | Separate capacity reconciliation from preview readiness | ✅ complete | Phase C PR #3010 merged 2026-09-15 as `0a11c42d3e373fe9b45e826a3015c93bb7cf4704` (guarded merge at head `c94a69ca93b1dc78b6753e740cfb4c575ec2c718`, implementation commit `c922c0c99219cbdfba14f356bf6aa84b28947a98`, sub-issue #3011). Capacity truth and preview truth are reported separately, each with its own status, so an unreadable preview edge can no longer make capacity look healthy |
+| 5 | Add hourly and dispatch-time read-only detection | ✅ complete | Phase C PR #3013 merged 2026-09-16 as `95e1ac957a9692bbcaf00a46c9c9073abd25e2d7` (guarded merge at head `b1f9bbc0f304ed52f9223c29c6310df2492d1f10`, governed APPROVE ref `refs/db-review-verdicts/3012-3013-b1f9bbc0f304ed52f9223c29c6310df2492d1f10`, implementation commit `b5fcd818c270f765e5d9e2779e8e77465c3ecdf4`, sub-issue #3012). `--abandonment-audit` runs the Step 4 reconciler with its write hooks removed before the reconciler sees them, so it is read-only by construction rather than by environment; exit `0` clean, `2` expired, `3` unverifiable, with unverifiable outranking expiry. The hourly `Author Lane Abandonment Audit` workflow holds only `read` scopes and files nothing. The orchestrator skill half landed as `popcre/ai-devops` PR #491, merge commit `131f1167ff12d7229238e40213cb842beca945cb`, and `node scripts/check-skill-drift.mjs` reports no contradictions against that landed text |
+| 6 | Synchronize operating rules, skill text, and abandonment evidence template | ✅ complete | Phase D PR #3016 merged 2026-09-16 as `3fdd16effbd154e1602c29aa5610161910138d68` (guarded merge at head `4f3f25b86a81d290467461ce53315a82ba389c72`, governed APPROVE ref `refs/db-review-verdict-replacements/3015-3016-a44638c2f704ac4a19a74db1a8e4e9867f153468-2918`, implementation commit `1d1ed815e7aec817fcf74482413c111c7b7f48ff`, sub-issue #3015). `AGENTS.md`, `docs/agents/section-4-anti-collision-rules.md` and the new `.github/ISSUE_TEMPLATE/author-lane-abandonment.md` now state the same lifecycle the code enforces, and twelve agreement tests in `scripts/test_production_migration_guard.py` fail if any venue drifts. The reviewer caught three real defects before merge: the printed commands used the boolean `--claim` instead of the value flag `--claim-number`, the printed relinquish omitted the mandatory `--worktree-state`, and the template shipped no machine-readable `abandonment-audit` fence, so the guarded revalidation could never have run. The orchestrator skill half landed as `popcre/ai-devops` PR #493, merge commit `db3d0b9cb7f8c08fd34c8b57bdff6127de063a25` |
+| 7 | Full regression, independent review, guarded landing, and live report proof | ✅ complete | Phase D. Full §10 suites at this head: 653/653 capacity/reconcile/lane/lease, 57/57 exclusive-lease and coordination scenarios, 272 production-guard tests OK. Live read-only proof on 2026-09-16 found and fixed a real defect the unit suites could not see: `--abandonment-audit` refused outright and described no lane at all, because live claim #2871 is titled `CLAIM: issue-2870-cutover-columns` and the identity read threw out of the snapshot before any lane was described — one legacy title silenced the whole hourly instrument. The claim-identity read is now its own failing leg, so one unreadable claim is one unreadable row. The hourly workflow run at head `3fdd16ef` proved a second, separate defect in how that refusal was announced: the generic handler exits `2`, which on this command already means "an expired author lane was found", so the job logged `Expired author lane(s) detected` about lanes it had never managed to read. A refusal on `--abandonment-audit` now exits `3`, because an instrument that could not read is exactly the unverifiable case and unverifiable outranks expiry; the refusal message is still printed in full, and every other command keeps exiting `2`. Both fixes are pinned by their own tests (lanes 580/580). The live audit then reported all eight lanes with `mutating: false` and zero mutating actions: capacity 8 issues / 7 actions / 1 unverifiable, exit `3`. That agrees exactly with `--queue-audit`, which reports the same seven lanes without a live lease (six expired reports plus the one unreadable claim) and one active lane. No database, preview, production or infrastructure write occurred, and no ref, branch or worktree was deleted |
 
-**Fresh implementation starts at Step 1.** Use a fresh isolated session at each phase boundary: Phase A = Steps 1–2, Phase B = Step 3, Phase C = Steps 4–5, Phase D = Steps 6–7. Before each phase, re-read this STATUS table, the remaining steps, live issue #2301, current `origin/main`, and the current orchestrator marker. Do not repeat completed phases.
+**This plan is complete. Nothing here is left to implement.** Steps 1–6 landed on `main` between 2026-09-15 and 2026-09-16, Step 7 is the change that carries this paragraph, and issue #2301 is closed as soon as this change is verified on `main`. The file stays as the durable record of what was built and why: read the STATUS table for the exact commits, §7 for the twelve approaches that were rejected, and §13 for the proven definition of done. Do not restart it, and do not re-run a phase to "check" it — the live lifecycle is already in force, and applying it to a live claim needs that claim's own current evidence and an authorized operator decision, never this plan as authority.
 
 ---
 
@@ -258,9 +258,40 @@ Behavior:
 - capacity becomes non-active while claim/version/branch/PR/worktree remain untouched;
 - idempotent replay requires an identical blocker, state, and recovery tuple;
 - resume from `clean` follows current guards;
-- resume from `dirty`, `absent`, `remote`, or legacy unknown requires current proven-clean state or validated immutable recovery artifact;
+- resume from `dirty`, `absent`, or legacy unknown requires current proven-clean state or a **dereferenceable** immutable recovery artifact;
+- resume from `remote` requires a dereferenceable recovery artifact **regardless of local observation** — a clean tree at the same literal path on this machine is a different tree and can never stand in for the machine that holds the work;
+- an unreadable or ambiguous worktree observation **blocks resume even when a recovery artifact is present**; an unknown state is never excused by a stored reference;
 - successful resume removes relinquishment-only metadata, renews expiry, rechecks capacity/collisions/version, and records events atomically;
 - no code path deletes, moves, cleans, resets, or writes inside the worktree.
+
+**What "recovery-gated" means here, exactly.** A recovery artifact is accepted
+only if it is an immutable object hash this repository can dereference right
+now, through `githubIo.verifyArtifact()` (`git cat-file -t`). Shape validation
+alone was rejected during review of PR #2640: forty invented hexadecimal
+characters are well-formed, so a shape-only gate is an assertion, not a control.
+Two consequences are deliberate and recorded here rather than left implicit:
+
+- an `artifact:https://…` reference is **refused** for `--recovery-artifact`,
+  because this tool cannot dereference a URL. https references remain valid for
+  `--blocked-on`, which is an informational blocker rather than a recovery gate;
+- the stored reference is **re-verified on every resume**, never trusted because
+  it was accepted once.
+
+**Legacy relinquishment freeze applies to every mutator.** A pre-Phase-A
+relinquished fence (`relinquishmentMetadataLegacy`) is refused by
+`resumeAuthorLease`, `renewExpiredClaim`, `recoverExpiredClaimFromPr`,
+`expandActiveClaimFromPr`, and `expandActiveClaimFromIssue`. Enforcing it on the
+resume path alone would have let a legacy claim be renewed or expanded around
+the freeze.
+
+**Orchestrator flow adapters (`githubFlowAdapter`) call
+`relinquishAuthorLease`/`resumeAuthorLease` without `worktreeState` or
+`recoveryArtifact`.** That is intentional and it fails closed: those adapters can
+only relinquish work whose worktree is observably clean on the calling machine,
+and can only resume work that is observably clean now. **Machine-independent
+relinquishment (`dirty`/`absent`/`remote`) is NOT reachable through the flow
+adapters** and must be driven through the CLI with explicit evidence flags. No
+caller should assume otherwise.
 
 Dependencies: Step 1.
 
@@ -487,27 +518,38 @@ Run any additional package/repository test command required by current `package.
 
 ### Definition of done
 
-- [ ] Steps 1–7 are marked done with commit, test, CI, workflow, or exact command artifacts.
-- [ ] Every new/changed parser and command fails closed on unavailable or contradictory evidence.
-- [ ] A relinquished dirty/absent/remote claim consumes no capacity but retains every object/version/work artifact protection.
-- [ ] Resume requires proven recovery and atomically renews/rechecks current truth.
-- [ ] Deliberately retired work has an immutable tombstone and cannot re-enter through issue reopening or identity reuse.
-- [ ] Capacity and preview outcomes are independently machine-readable.
-- [ ] Hourly and dispatch-time audits are read-only, bounded, and visibly report expiry.
-- [ ] Shared-db rules and canonical/installed orchestrator skill agree and drift tests enforce them.
-- [ ] All focused and existing suites pass with exact summaries.
-- [ ] Independent reviewer approves the exact final heads.
-- [ ] Required GitHub checks pass; PRs merge; merge SHAs are verified on each `main`.
-- [ ] Manual exact-head workflow run and live read-only commands prove reporting works without mutation.
-- [ ] No database, preview, production, infrastructure, worktree, or ref deletion occurred.
-- [ ] Issue #2301 is closed only after all evidence is recorded.
-- [ ] The linked handoff is retired in the completion commit; this plan remains as the durable implementation/history record with final STATUS.
+Every box below was confirmed against a named artifact at the completion step, not
+asserted. Where a box is satisfied by more than one step, the STATUS table above
+holds the per-step commits, sub-issues and suite counts.
+
+Where a box covers review, checks, merge or issue closure, it is ticked for Steps
+1–6, which were already on `main` when this list was written. The completion
+step's own review, checks, merge and closure necessarily happen after the commit
+that carries this list, so this list does not vouch for them: the pull request
+that landed this file is their record.
+
+- [x] Steps 1–7 are marked done with commit, test, CI, workflow, or exact command artifacts. The STATUS table records, for Steps 1–6, the merge commit, guarded-merge head, implementation commit and sub-issue; Step 7's row records its suites, its live proof and the two defects that proof found, and its own merge is the commit that carries this file.
+- [x] Every new/changed parser and command fails closed on unavailable or contradictory evidence. Proven by the parser and lifecycle tests in the lane suite, and by the audit itself: an unreadable claim reports `UNVERIFIABLE`, never "clean".
+- [x] A relinquished dirty/absent/remote claim consumes no capacity but retains every object/version/work artifact protection. Step 3 and Step 4 tests, including the blocked-on relinquish and the object-retention assertions.
+- [x] Resume requires proven recovery and atomically renews/rechecks current truth. Step 3 resume tests: recovery evidence is required, and the renewal and the recheck are one operation.
+- [x] Deliberately retired work has an immutable tombstone and cannot re-enter through issue reopening or identity reuse. Step 3 tombstone tests plus the `RETIRED-REOPENED` audit line, which reports a reopened retired claim instead of silently allowing it.
+- [x] Capacity and preview outcomes are independently machine-readable. The reconcile output carries a separate `capacity` and `preview` block with its own status, and the two legs fail independently — pinned by the Step 4 and Step 7 tests.
+- [x] Hourly and dispatch-time audits are read-only, bounded, and visibly report expiry. Step 5 landed the hourly workflow; the live run reports `"mutating": false`, no action carries `"mutates": true`, and expiry surfaces as `expired-unconfirmed-report` with exit `2`.
+- [x] Shared-db rules and canonical/installed orchestrator skill agree and drift tests enforce them. Step 6 agreement tests over all four in-repo venues, plus `check-skill-drift` for the canonical `popcre/ai-devops` skill, which landed as its own pull request.
+- [x] All focused and existing suites pass with exact summaries. Final run: 653/653 across capacity-state, reconcile, lanes and migration-pr-lease; 57/57 exclusive-lease and coordination scenarios; 272 production-guard tests OK, all with zero failed, cancelled, skipped or todo.
+- [x] Independent reviewer approves the exact final heads. Steps 1–6 each carry a governed `APPROVE` verdict artifact pinned to the exact reviewed head, created by the review runner and never by hand; the STATUS table names the ref for the later steps and the sub-issue for every step, from which the rest can be read back.
+- [x] Required GitHub checks pass; PRs merge; merge SHAs are verified on each `main`. Steps 1–6 each merged through `guarded-migration-merge.yml` at an exact head, and each merge commit was read back from `main` rather than assumed.
+- [x] Manual exact-head workflow run and live read-only commands prove reporting works without mutation. The hourly workflow was dispatched by hand at an exact `main` head, which is how the second Step 7 defect was found; `--abandonment-audit` and `--queue-audit` were then run live at the fixed head, reported `mutating: false` with no mutating action, and agree with each other. The workflow is dispatched once more on the head this step produces, and that run is recorded on the pull request rather than here.
+- [x] No database, preview, production, infrastructure, worktree, or ref deletion occurred. Every step is repo-maintenance: empty `writes:` and `reads:` fences, no migration version, no preview dispatch, no ref or branch deleted.
+- [ ] Issue #2301 is closed only after all evidence is recorded. This box is deliberately left open in the commit that carries it, because the evidence is not all recorded until this commit is on `main`. The issue is closed by hand once that merge is verified — a pull request may close exactly one work issue, and this one's is its own step issue — and the closing comment on #2301 is the record of it.
+- [x] The linked handoff is retired in the completion commit; this plan remains as the durable implementation/history record with final STATUS. The Step 7 pull request deletes `HANDOFF.d/2026-09-04T1453Z-edge-dev-codex-author-lane-lifecycle-plan.md`, as the handoff-contract rule requires of any pull request that closes its issue.
 
 ### Risks and mitigations
 
 - **Parser rollout strands legacy records.** Mitigation: explicit legacy classification, fail-closed mutation, fixtures from real historical fence shapes.
 - **A false abandonment record frees capacity.** Mitigation: capacity only; locks/work remain. Mutation requires typed durable evidence and current marker/mutex validation.
 - **A dirty worktree is lost later.** Mitigation: no worktree mutation; record state; recovery-gated resume; dirty/remote retirement requires Albert’s decision.
+- **A recovery artifact names something that does not exist.** Mitigation: the reference is dereferenced through `githubIo.verifyArtifact()` at relinquish AND at every resume; an unverifiable reference, an absent verification hook, and a verification error all refuse.
 - **Retired work resurfaces.** Mitigation: immutable tombstone, tuple guards, audit classification, permanent version reservation, fresh successor tuple.
 - **GitHub API budget grows.** Mitigation: one bounded ref snapshot per command plus budget regression tests.
 - **Hourly workflow creates noise.** Mitigation: one run/check result, concurrency cancellation, no duplicate comments/issues, structured exact claims.

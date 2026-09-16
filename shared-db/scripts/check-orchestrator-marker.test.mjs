@@ -304,6 +304,16 @@ test('resolve: a target is DECLARED, never proven active or reachable', () => {
   assert.match(out, /silence is not delivery/)
 })
 
+test('resolve --json: a declared target says reachability is UNVERIFIED (#2350)', () => {
+  // #2350: --resolve --json exited 0 with an address no session answered; the
+  // JSON carried no caveat, so a consumer read exit 0 as a working route.
+  const target = resolveTarget(evaluate([marker({ route_id: '00000000-0000-4000-8000-000000000000' })]).markers)
+  assert.equal(target.state, 'declared')
+  assert.equal(target.reachability, 'unverified')
+  assert.match(target.notProven, /NOT PROVEN/)
+  assert.match(target.notProven, /silence is not delivery/)
+})
+
 test('a marker predating the contract WARNS but does not fail the guard', () => {
   // Marker #1602 was live at merge and no PR author could fix it.
   const stale = issue(1602, [MARKER_LABEL], { body: 'Started: 2026-08-20', created_at: '2026-08-20T10:00:00Z' })

@@ -52,9 +52,127 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    The created issue body is authoritative and machine-readable. Never hand-edit
    its fenced blocks. The permanent version ref prevents reuse even after a lease
    ends. Clock expiry releases neither protection nor capacity. When durable
-   external evidence blocks clean work, use `--relinquish-author-lease --claim
-   <n> --owner <owner> --blocked-on issue:#<n>`; after the blocker clears, use
-   `--resume-author-lease --claim <n> --owner <owner> --lease-hours <hours>`.
+   external evidence blocks clean work, use `--relinquish-author-lease
+   --claim-number <n> --owner <owner> --blocked-on issue:#<n>`; after the blocker
+   clears, use `--resume-author-lease --claim-number <n> --owner <owner>
+   --lease-hours <hours>`. The value flag is `--claim-number` on both: a bare
+   `--claim` is the boolean that claims a lane.
+
+   **An expired lease is not an abandoned lane (issue #2301).** Expiry is
+   created by time passing. It proves that nobody renewed a claim; it does not
+   prove the author is gone, and it never releases either the object protection
+   or the capacity slot. Detection and decision are therefore separate steps,
+   and nothing in this repository transitions a claim because a clock ran out.
+
+   Detect with the read-only audit:
+
+   ```bash
+   node scripts/manage-migration-author-lanes.mjs --abandonment-audit
+   ```
+
+   It prints the same report as `--reconcile-flow` but cannot write: the
+   sole-orchestrator marker reads as gone and every mutation hook throws before
+   the reconciler can reach it, so a regression fails loudly instead of writing.
+   Its exit code is the answer — `0` no expired lane, `2` at least one expired
+   lane needs a decision, `3` unverifiable — the state could not be read and
+   nothing may be concluded from the run. `3` outranks `2`: an audit that could not read
+   everything is not trusted to have seen the expiry either. The same report
+   runs hourly as the `Author Lane Abandonment Audit` workflow, which holds only
+   `read` scopes and files no issue and no comment; the failing run and its job
+   summary are the report. Never run `--reconcile-flow` from a scheduled job.
+
+   **The abandonment record.** Before any lane is touched, open an abandonment
+   audit issue using
+   [`.github/ISSUE_TEMPLATE/author-lane-abandonment.md`](../../.github/ISSUE_TEMPLATE/author-lane-abandonment.md).
+   It must identify the claim, the pull request and its exact head, the recorded
+   owner, the branch, the migration version, the last known worktree and
+   machine, the expiry, the evidence that the author is terminal or unreachable,
+   the observed worktree state, and the recovery or successor references. Record
+   the machine and worktree as their recorded identifiers only; never paste
+   personal paths, account names, tokens, or message contents into the issue.
+   The issue carries its own `db-work-scope` fence so the queue can order it:
+
+   ````text
+   ```db-work-scope
+   status: ready
+   work_type: repo-maintenance
+   route: repo-maintenance
+   change_type: repo-maintenance
+   priority: 100
+   depends_on:
+   writes:
+   reads:
+   ```
+   ````
+
+   `writes:` and `reads:` are empty on purpose. An abandonment audit claims no
+   database object; claiming one would collide with the very claim it is
+   investigating. It is `repo-maintenance` work on the `repo-maintenance` route,
+   not orchestrator structural work: it changes no database structure, and
+   `route: shared-db-orchestrator` is refused for this work type.
+
+   The issue also carries a second, REQUIRED fence — the machine-readable half of
+   the record:
+
+   ````text
+   ```abandonment-audit
+   claim: <claim issue number>
+   pr: <pull request number>
+   head_sha: <the full 40-character head SHA>
+   owner: <the claim's recorded owner>
+   ```
+   ````
+
+   Without it the record is prose only. The reconciler that suggests the guarded
+   relinquish command and the guarded command that revalidates the evidence both
+   read this one fence, and a fence that is absent, incomplete or malformed is
+   read as no evidence at all: no command is suggested, and a relinquish falls
+   through to the ordinary-blocker path with none of the exact-tuple, head,
+   marker and worktree-state revalidation the abandonment path exists to
+   perform. The four values must match the live claim exactly.
+
+   **Procedure 1 — quarantine and recovery** (the work may still come back):
+
+   1. Open the durable abandonment audit issue above and let the audit output
+      stand as its first evidence.
+   2. Relinquish capacity with the observed worktree state:
+      `--relinquish-author-lease --claim-number <n> --owner <owner> --blocked-on issue:#<audit issue> --worktree-state <clean|dirty|absent|remote>`.
+      The value flag is `--claim-number`; the CLI parses a bare `--claim` as the
+      boolean that claims a lane, so giving it a value dies in the parser on the
+      bare number.
+      `--worktree-state` is not optional on this path — acting on abandonment
+      evidence is refused without it, because the observation is the operator's
+      own and may never be inferred from a stale audit. The reconciler prints
+      this exact command for you; prefer its printed line to a hand-typed one.
+   3. Change nothing else. The pull request, the claim, the object locks, the
+      version reservation, the branch and the worktree all stay exactly as they
+      are. Never delete a ref, a branch, a claim or a worktree to free a lane.
+   4. Recover the work when the author or a successor returns, and record the
+      recovery evidence on the audit issue.
+   5. Resume atomically with
+      `--resume-author-lease --claim-number <n> --owner <owner> --lease-hours <hours>`,
+      which re-runs every current collision, capacity and version check.
+
+   **Procedure 2 — terminal retirement** (the work cannot or should not return):
+
+   1. Record the evidence that the work is terminal on the audit issue.
+   2. Obtain Albert's explicit decision **only** for potentially recoverable
+      work — see the authority boundary below.
+   3. Close the pull request through the normal authenticated operator flow.
+      Never delete its branch or its refs.
+   4. Retire the claim with the tombstoning `--release-claim`, which writes an
+      immutable tombstone and reads it back before the claim closes.
+   5. A successor takes a fresh claim tuple and a fresh migration version. The
+      retired version can never be reissued, and a retired claim is refused on
+      every reactivation path.
+
+   **Authority boundary (settled).** The orchestrator may retire work on its own
+   evidence where the worktree is `clean`, or `absent` with its absence proven
+   and its durable branch and pull-request evidence complete — in both cases
+   nothing unrecoverable is being discarded. Albert decides, and only Albert
+   decides, whether potentially recoverable uncommitted work may be abandoned:
+   that is any worktree observed `dirty` or `remote`. An `ambiguous` observation
+   is not a state; re-observe, or treat it as `3` and stop.
 
    Audit lanes with `node scripts/manage-migration-author-lanes.mjs --audit`.
    Audit and refill the dynamic queues with

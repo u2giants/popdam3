@@ -39,6 +39,20 @@ test('declared parent table does not cover another table columns',()=>{
 })
 test('empty SQL fails closed',()=>assert.throws(()=>run({files:[file('')]}),/empty SQL/))
 test('non-migration PR is not relevant',()=>assert.equal(run({claims:[],files:[{filename:'README.md',status:'modified',sql:''}]}).relevant,false))
+// Issue #2301 Step 3. A terminally retired migration version can never merge
+// again. The claim here is OPEN and otherwise healthy on purpose: that is what a
+// reopened claim looks like, and the tombstone is the only thing that still
+// remembers the work was ended.
+test('#2301 a terminally retired migration version can never merge again',()=>{
+  assert.throws(()=>run({retirementExists:()=>true}),/terminally retired; it can never be merged again/)
+  assert.equal(run({retirementExists:()=>false}).claim,12)
+})
+test('#2301 an unreadable retirement ref refuses the merge instead of allowing it',()=>{
+  assert.throws(()=>run({retirementExists:()=>{throw new Error('GitHub read failed: HTTP 500')}}),/HTTP 500/)
+})
+test('#2301 the merge gate treats a missing lookup as no retirement only for callers that supply none',()=>{
+  assert.equal(validateMigrationLease({claims:[claim()],branch:'codex/x',files:[file()],now,reservationExists:()=>true}).claim,12)
+})
 test('pagination includes more than 100 records',()=>{
   const rows=flattenPages([Array.from({length:100},(_,i)=>i),[100]])
   assert.equal(rows.length,101);assert.equal(rows.at(-1),100)

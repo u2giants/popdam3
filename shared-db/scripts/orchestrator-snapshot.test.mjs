@@ -132,6 +132,23 @@ test('claim title parsing ignores years, counts, dates and embedded hashes', () 
   assert.deepEqual(claimTitleIssues('no issues in 2026 or 4h'), [])
 })
 
+test('owned-issue comments are read in one bulk call, skipping issues listed with zero comments', () => {
+  const comments = { 800: [ownerComment(event(800, 'dispatched', 30))] }
+  const base = fakeIo({ comments })
+  let single = 0
+  const bulkCalls = []
+  const io = {
+    ...base,
+    openIssues: () => base.openIssues().map((issue) => (issue.number === 901 ? { ...issue, comments: 0 } : issue)),
+    issueComments: () => { single += 1; return [] },
+    issueCommentsMany: (_repo, issues) => { bulkCalls.push(issues); return new Map(issues.map((n) => [n, comments[n] ?? []])) },
+  }
+  const { input } = gatherLiveInput('o/r', io)
+  assert.equal(single, 0)
+  assert.deepEqual(bulkCalls, [[800, 802, 900]])
+  assert.deepEqual(input.outcome_events, gatherLiveInput('o/r', base).input.outcome_events)
+})
+
 test('events on a claim thread about an unowned issue are dropped', () => {
   const comments = { 900: [ownerComment(event(800, 'dispatched', 30)), ownerComment(event(555, 'dispatched', 30))] }
   const { input } = gatherLiveInput('o/r', fakeIo({ comments }))

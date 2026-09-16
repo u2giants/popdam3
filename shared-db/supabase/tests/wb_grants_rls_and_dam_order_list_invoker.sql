@@ -37,7 +37,10 @@
 --      B2 below -- that is the case the shipped comments got wrong.
 --   C  api.dam_order_list is security_invoker=true AND base-table RLS demonstrably
 --      applies. The previous version asserted the reloption but only `raise notice`d the
---      row count; it is asserted here.
+--      row count; it is asserted here. Since 20260916033914 (issue #2988) section C also
+--      asserts the NEW behaviour: a no-role principal resolves the full customer and
+--      vendor directories through the owner-evaluated dam views, while still reading
+--      zero rows from core.customer directly.
 --   D  The loaders still work after the revokes, and the privilege guard is genuinely
 --      exercised. The previous version used `set local role service_role`, which leaves
 --      session_user = postgres, so plm.wb_loader_privilege_ok (20260810030000:669-680)
@@ -343,23 +346,45 @@ $$;
 rollback;
 
 -- =====================================================================================
--- C. api.dam_order_list must be SECURITY INVOKER, and base-table RLS must demonstrably
---    apply through it.
+-- C. api.dam_order_list must be SECURITY INVOKER, base-table RLS must demonstrably apply
+--    through it, AND a no-role principal must still resolve customer/vendor names.
 --
---    The view's own row count is currently 0 for everyone because plm.production_order
---    and plm.production_order_line are empty on preview, so a row-count comparison on the
---    view alone would pass under EITHER security mode and prove nothing. The load-bearing
---    assertion is therefore made against core.customer -- a populated base table of the
---    view whose SELECT policy is restricted -- read as a no-role principal. Under invoker
---    semantics that principal must see FEWER rows than the owner does.
+--    CHANGED BY 20260916033914 (issue #2988). The view no longer reads core.customer and
+--    core.factory directly; it reads two narrow postgres-owned security_invoker=false
+--    directory views in the non-PostgREST-exposed `dam` schema. That deliberately
+--    REVERSES the old expectation that a no-role authenticated principal reads zero rows
+--    from the view: the point of the fix is that PopDAM OrderList opens, with customer
+--    and vendor names, for a signed-in user who has no app.user_role row -- without the
+--    per-row policy evaluation that cost ~5.4 s over 826 customers on production and
+--    tripped the 8 s statement timeout.
+--
+--    What must STILL be true, and is asserted below:
+--      * api.dam_order_list is security_invoker=true -- the outer view was NOT made
+--        security definer (issue #2662 untouched).
+--      * A no-role principal reading core.customer DIRECTLY still sees zero rows; the
+--        base-table policies are unchanged and still applied under invoker semantics.
+--    What is NEWLY true, and is asserted below:
+--      * That same principal resolves the FULL customer directory through
+--        dam.dam_order_list_customer_directory and the full factory directory through
+--        dam.dam_order_list_vendor_directory.
+--      * The two directory joins are name lookups, not filters: the principal's
+--        api.dam_order_list row count equals their visible production_order_line count.
+--
+--    The directory assertions carry the load on preview, where plm.production_order and
+--    plm.production_order_line are empty and any row-count comparison on the view alone
+--    would pass under EITHER security mode and prove nothing.
 -- =====================================================================================
 begin;
 do $$
 declare
-  v_opts       text[];
-  v_view_rows  int;
-  v_cust_owner int;
+  v_opts        text[];
+  v_view_rows   int;
+  v_cust_owner  int;
+  v_fact_owner  int;
   v_cust_noRole int;
+  v_dir_noRole  int;
+  v_vdir_noRole int;
+  v_line_noRole int;
 begin
   select reloptions into v_opts
   from pg_class where relnamespace = 'api'::regnamespace and relname = 'dam_order_list';
@@ -372,33 +397,63 @@ begin
   end if;
 
   select count(*) into v_cust_owner from core.customer;
-  if v_cust_owner = 0 then
-    raise exception 'C FAILED: core.customer is EMPTY, so the RLS-inheritance assertion '
-      'below would pass vacuously. Point it at a populated restricted base table.';
+  select count(*) into v_fact_owner from core.factory;
+  if v_cust_owner = 0 or v_fact_owner = 0 then
+    raise exception 'C FAILED: core.customer (%) or core.factory (%) is EMPTY, so the '
+      'assertions below would pass vacuously. Point them at populated restricted base '
+      'tables.', v_cust_owner, v_fact_owner;
   end if;
 
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims', '{"app_metadata":{"roles":[]}}', true);
   select count(*) into v_view_rows  from api.dam_order_list;
   select count(*) into v_cust_noRole from core.customer;
+  select count(*) into v_dir_noRole  from dam.dam_order_list_customer_directory;
+  select count(*) into v_vdir_noRole from dam.dam_order_list_vendor_directory;
+  select count(*) into v_line_noRole
+  from plm.production_order_line pol
+  join plm.production_order po on po.id = pol.production_order_id;
   execute 'reset role';
   perform set_config('request.jwt.claims', null, true);
 
   -- ASSERTED, not merely reported: a no-role principal must not read the restricted base
-  -- table through invoker semantics.
+  -- table DIRECTLY. Unchanged by 20260916033914 -- it proves the core.customer policies
+  -- were not weakened to fix the timeout.
   if v_cust_noRole <> 0 then
     raise exception 'C FAILED: a no-role authenticated principal read % of % core.customer '
-      'row(s) -- base-table RLS is not being applied', v_cust_noRole, v_cust_owner;
+      'row(s) directly -- base-table RLS is not being applied', v_cust_noRole, v_cust_owner;
   end if;
 
-  -- ASSERTED: the view itself must not leak rows to a no-role principal either.
-  if v_view_rows <> 0 then
+  -- ASSERTED (new behaviour, issue #2988): the same principal MUST resolve the COMPLETE
+  -- party directories through the owner-evaluated dam views. This fails if a directory
+  -- view is flipped to security_invoker=true, if a role predicate is reintroduced inside
+  -- one, or if the directories are dropped and the outer view pointed back at
+  -- core.customer / core.factory.
+  if v_dir_noRole <> v_cust_owner then
+    raise exception 'C FAILED: a no-role authenticated principal resolved % of % rows from '
+      'dam.dam_order_list_customer_directory -- PopDAM OrderList would show blank customer '
+      'names for a user with no app.user_role row (issue #2988)', v_dir_noRole, v_cust_owner;
+  end if;
+  if v_vdir_noRole <> v_fact_owner then
+    raise exception 'C FAILED: a no-role authenticated principal resolved % of % rows from '
+      'dam.dam_order_list_vendor_directory -- PopDAM OrderList would show blank vendor '
+      'names for a user with no app.user_role row (issue #2988)', v_vdir_noRole, v_fact_owner;
+  end if;
+
+  -- ASSERTED: the directory joins are LEFT JOIN name lookups, not filters. The view must
+  -- return exactly the order lines the principal can already see -- neither dropping rows
+  -- nor duplicating them.
+  if v_view_rows <> v_line_noRole then
     raise exception 'C FAILED: a no-role authenticated principal read % row(s) from '
-      'api.dam_order_list', v_view_rows;
+      'api.dam_order_list but % visible production_order_line row(s) -- the party '
+      'directory joins are dropping or duplicating rows', v_view_rows, v_line_noRole;
   end if;
 
   raise notice 'C passed: api.dam_order_list is security_invoker=true; a no-role principal '
-    'reads 0 of % core.customer rows and 0 view rows', v_cust_owner;
+    'reads 0 of % core.customer rows directly, resolves %/% customer and %/% vendor '
+    'directory rows, and reads % view row(s) for % visible order line(s)',
+    v_cust_owner, v_dir_noRole, v_cust_owner, v_vdir_noRole, v_fact_owner,
+    v_view_rows, v_line_noRole;
 end;
 $$;
 rollback;

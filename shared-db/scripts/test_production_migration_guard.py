@@ -3676,5 +3676,422 @@ class ForeignTargetScopeTest(unittest.TestCase):
         self.assertEqual(parse_allowlist(self.IN_SCOPE_CONTROL), [self.IN_SCOPE_CONTROL])
 
 
+# ===========================================================================
+# THE HOURLY READ-ONLY ABANDONMENT AUDIT (issue #2301, Step 5)
+#
+# This workflow's whole value is that it is SAFE to run unattended every hour
+# against the live repository. That safety is a property of its declaration --
+# what it is triggered by, what token it is handed, how long it may run, and
+# which command it invokes -- so it is the declaration that is tested here, in
+# the repository's canonical workflow-policy test, rather than left to review.
+#
+# The mutating counterpart, `--reconcile-flow`, is a real command that a human
+# runs deliberately while holding a sole-orchestrator marker. The one thing that
+# must never happen is a SCHEDULED run reaching it, so the absence of every
+# mutating flag from every scheduled workflow is asserted, not assumed.
+# ===========================================================================
+ABANDONMENT_AUDIT_WORKFLOW = (
+    REPO / ".github" / "workflows" / "author-lane-abandonment-audit.yml"
+)
+
+# Flags that change state. A scheduled workflow naming any of these is the
+# failure this plan step exists to make impossible.
+MUTATING_LANE_FLAGS = (
+    "--reconcile-flow",
+    "--relinquish-author-lease",
+    "--resume-author-lease",
+    "--recover-expired-claim",
+    "--renew-claim",
+    "--release-claim",
+    "--recover-mutex",
+    "--complete-work",
+    "--cleanup-stale",
+)
+
+
+class AbandonmentAuditWorkflowPolicyTests(unittest.TestCase):
+    """Prove the hourly audit's declaration, not merely its intent."""
+
+    def setUp(self) -> None:
+        self.text = ABANDONMENT_AUDIT_WORKFLOW.read_text(encoding="utf-8")
+        self.header = self.text.split("\njobs:", 1)[0]
+        self.jobs = self.text.split("\njobs:", 1)[1]
+
+    def test_the_audit_runs_hourly_and_on_demand_and_on_nothing_else(self) -> None:
+        # Hourly: a lease is measured in hours, so a daily job would let a queue
+        # wait most of a day behind a lane whose author is gone.
+        cron = re.search(r'(?m)^\s*- cron: "([^"]+)"', self.header)
+        self.assertIsNotNone(cron, "the audit has no schedule at all")
+        minute, hour = cron.group(1).split()[:2]
+        self.assertEqual(hour, "*", f"the audit is not hourly: {cron.group(1)}")
+        self.assertNotEqual(minute, "*", "a cron running every minute is not an hourly audit")
+        self.assertIn("workflow_dispatch:", self.header)
+        # Time passing changes no file, so no commit-shaped trigger could catch
+        # expiry; one present would mean somebody misunderstood what this checks.
+        # Prose naming a trigger to explain why it is absent is not a trigger.
+        declared = [
+            line.strip()
+            for line in self.header.splitlines()
+            if line.startswith("  ") and not line.lstrip().startswith("#")
+        ]
+        for trigger in ("push:", "pull_request:", "pull_request_target:"):
+            self.assertNotIn(trigger, declared, f"{trigger} cannot detect a lease expiring")
+        self.assertIn("schedule:", declared, "the positive control failed; nothing was scanned")
+
+    def test_the_audit_is_handed_a_token_that_cannot_write(self) -> None:
+        # The promise "this job never files an issue or a comment" is only worth
+        # something if the job COULD not, whatever a future step tries to do.
+        permissions = re.search(r"(?m)^permissions:\n((?:^ +\S+: \w+\n)+)", self.text)
+        self.assertIsNotNone(permissions, "the audit inherits default permissions")
+        granted = dict(
+            re.findall(r"(?m)^\s+(\S+):\s*(\w+)$", permissions.group(1))
+        )
+        self.assertEqual(
+            sorted(granted),
+            ["contents", "issues", "pull-requests"],
+            "the audit's permission set changed; every entry must stay read-only",
+        )
+        for scope, level in granted.items():
+            self.assertEqual(level, "read", f"{scope} is not read-only")
+        # A job-level block could silently widen the header's grant.
+        self.assertNotIn("\n    permissions:", self.jobs)
+
+    def test_the_audit_is_bounded_and_cancels_its_own_overlap(self) -> None:
+        timeout = re.search(r"(?m)^\s+timeout-minutes:\s*(\d+)$", self.jobs)
+        self.assertIsNotNone(timeout, "an unbounded hourly job can stack up forever")
+        self.assertLessEqual(int(timeout.group(1)), 15)
+        self.assertRegex(self.header + self.jobs, r"(?m)^concurrency:\n\s+group: \S+")
+        self.assertRegex(self.header + self.jobs, r"(?m)^\s+cancel-in-progress: true$")
+
+    def test_the_audit_pins_its_runtime_and_actions(self) -> None:
+        # An hourly job on a floating action or Node version is an hourly job
+        # whose behaviour can change without anyone changing this repository.
+        for action in ("actions/checkout@v4", "actions/setup-node@v4"):
+            self.assertIn(action, self.jobs, f"{action} is unpinned or absent")
+        self.assertRegex(self.jobs, r"(?m)^\s+node-version:\s*\d+$")
+        self.assertNotRegex(self.jobs, r"uses: [^\s@]+\s*$")
+
+    def test_the_audit_calls_the_read_only_command_and_no_mutating_one(self) -> None:
+        self.assertIn(
+            "node scripts/manage-migration-author-lanes.mjs --abandonment-audit",
+            self.jobs,
+        )
+        for flag in MUTATING_LANE_FLAGS:
+            self.assertNotIn(flag, self.text, f"a scheduled workflow names {flag}")
+        # Filing is the duplicate-generating failure mode this job must not have.
+        for writer in ("gh issue create", "gh issue comment", "gh pr comment"):
+            self.assertNotIn(writer, self.text, f"the hourly audit calls {writer}")
+
+    def test_no_scheduled_workflow_anywhere_calls_a_mutating_lane_command(self) -> None:
+        # The rule is about SCHEDULED runs, not about this one file, so it is
+        # enforced across the whole directory. A positive control first: the
+        # scan must actually be looking at scheduled workflows.
+        scheduled = [
+            path
+            for path in sorted((REPO / ".github" / "workflows").glob("*.yml"))
+            if re.search(r"(?m)^\s*schedule:\s*$", path.read_text(encoding="utf-8"))
+        ]
+        self.assertIn(
+            ABANDONMENT_AUDIT_WORKFLOW,
+            scheduled,
+            "the scan did not even find the audit; it proves nothing",
+        )
+        for path in scheduled:
+            text = path.read_text(encoding="utf-8")
+            for line in text.splitlines():
+                # Prose explaining WHY a command must not be called is not a call.
+                if line.lstrip().startswith("#"):
+                    continue
+                if "--reconcile-flow" in line:
+                    self.fail(f"{path.name} calls --reconcile-flow on a schedule: {line.strip()}")
+
+    def test_the_audit_runs_the_guards_own_tests_before_trusting_it(self) -> None:
+        self.assertIn(
+            "node --test scripts/orchestrator-flow/reconcile.test.mjs", self.jobs
+        )
+
+    def test_the_audit_distinguishes_unreadable_from_expired(self) -> None:
+        # Exit 2 and exit 3 must reach the operator as different sentences. An
+        # hourly job that reports "something is wrong" for both trains its reader
+        # to ignore both.
+        self.assertRegex(self.jobs, r"(?m)^\s+2\)\s*echo \"::error::")
+        self.assertRegex(self.jobs, r"(?m)^\s+\*\)\s*echo \"::error::")
+        self.assertIn("COULD NOT RUN", self.jobs)
+        self.assertIn('exit "$CODE"', self.jobs)
+
+
+# ---------------------------------------------------------------------------
+# #2301 Step 6: the rules, the template and the tool must say the same thing.
+#
+# Documentation drifts silently. A rule that lives in four files is really four
+# rules the moment one of them is edited alone, and the reader who follows the
+# stale copy has no way to know which one he read. These tests make that drift a
+# red build rather than a discovery made during an incident.
+#
+# They assert AGREEMENT, not wording: each one names a fact that must appear in
+# every place the fact is operative, so a fact can be rephrased freely but never
+# deleted from one venue while the others still promise it. The canonical
+# ai-devops skill is the fifth venue and is checked by scripts/check-skill-drift.mjs,
+# which reads a path outside this repository and so cannot be asserted here.
+# ---------------------------------------------------------------------------
+ABANDONMENT_ISSUE_TEMPLATE = (
+    REPO / ".github" / "ISSUE_TEMPLATE" / "author-lane-abandonment.md"
+)
+
+# Every field the abandonment record must carry, as its required heading.
+ABANDONMENT_RECORD_HEADINGS = (
+    "## Claim",
+    "## Pull request and exact head",
+    "## Migration version",
+    "## Last known worktree and machine",
+    "## Expiry",
+    "## Audit output",
+    "## Evidence the author is terminal or unreachable",
+    "## Observed worktree state",
+    "## Decision and authority",
+    "## Recovery or successor references",
+)
+
+
+class AbandonmentDocumentationAgreementTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.agents = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+        cls.rules = (
+            REPO / "docs" / "agents" / "section-4-anti-collision-rules.md"
+        ).read_text(encoding="utf-8")
+        cls.template = ABANDONMENT_ISSUE_TEMPLATE.read_text(encoding="utf-8")
+        cls.workflow = ABANDONMENT_AUDIT_WORKFLOW.read_text(encoding="utf-8")
+        cls.cli = (REPO / "scripts" / "manage-migration-author-lanes.mjs").read_text(
+            encoding="utf-8"
+        )
+        cls.reconcile = (
+            REPO / "scripts" / "orchestrator-flow" / "reconcile.mjs"
+        ).read_text(encoding="utf-8")
+        # SCOPE THE SEARCH, OR THE TEST IS A LOTTERY. AGENTS.md is ~1750 lines and
+        # section 4 is ~1100; the bare words "clean", "dirty", "remote", "3" and
+        # "schedul" all occur in them for reasons that have nothing to do with
+        # abandonment. A venue could lose the entire lifecycle paragraph and every
+        # substring assertion would still pass. So each rulebook is reduced to the
+        # passage that actually carries this promise, and the assertions run
+        # against that passage only.
+        cls.agents_passage = cls._passage(
+            cls.agents, "Author-lane abandonment lifecycle (issue #2301)"
+        )
+        cls.rules_passage = cls._passage(
+            cls.rules, "An expired lease is not an abandoned lane"
+        )
+
+    @staticmethod
+    def _passage(text: str, marker: str) -> str:
+        """The block of prose that begins at ``marker``.
+
+        AGENTS.md carries the lifecycle as one bullet, so the passage ends at the
+        next top-level bullet. Section 4 carries it as several indented
+        paragraphs, so the passage ends at the next unindented line, which is the
+        next numbered rule. Either way the result is the text an editor would
+        have to delete to lose the promise.
+        """
+        start = text.find(marker)
+        if start < 0:
+            raise AssertionError(f"the abandonment passage {marker!r} is gone")
+        rest = text[start:]
+        for line_start in re.finditer(r"(?m)^(?:- \*\*|\d+\. |## )", rest):
+            if line_start.start() > 0:
+                return rest[: line_start.start()]
+        return rest
+
+    def _rulebook_passages(self):
+        return (
+            ("AGENTS.md", self.agents_passage),
+            ("section 4", self.rules_passage),
+        )
+
+    def test_the_read_only_command_is_named_everywhere_it_is_operative(self) -> None:
+        # A procedure that names no command is not a procedure. If the flag is
+        # ever renamed, every venue that tells an operator to run it must move
+        # with it.
+        for name, text in (
+            ("AGENTS.md", self.agents),
+            ("section 4", self.rules),
+            ("the issue template", self.template),
+            ("the workflow", self.workflow),
+        ):
+            self.assertIn("--abandonment-audit", text, f"{name} lost the command")
+        self.assertIn(
+            "'--abandonment-audit'",
+            self.cli,
+            "the CLI no longer defines the flag the documentation promises",
+        )
+
+    def test_all_three_exit_codes_are_documented_where_the_command_is(self) -> None:
+        # Two of the three codes are not a usable signal. An operator who is told
+        # only "0 or not 0" cannot tell a queue that needs a decision from an
+        # instrument that could not read the state.
+        for name, text in self._rulebook_passages():
+            for token in ("`0`", "`2`", "`3`"):
+                self.assertIn(token, text, f"{name} lost exit code {token}")
+            self.assertIn("unverifiable", text.lower(), f"{name} lost the 3 meaning")
+            self.assertIn(
+                "outrank", text.lower(), f"{name} lost the precedence of 3 over 2"
+            )
+
+    def test_the_expiry_is_not_abandonment_rule_survives_in_the_rules(self) -> None:
+        # This is the whole premise of the lifecycle. If it is ever edited out,
+        # the next reader is one step from releasing a lane on a clock.
+        for name, text in (
+            ("AGENTS.md", self.agents),
+            ("section 4", self.rules),
+            ("the issue template", self.template),
+        ):
+            self.assertIn(
+                "expired lease is not an abandoned lane",
+                text,
+                f"{name} lost the premise of the lifecycle",
+            )
+
+    def test_the_authority_boundary_is_stated_identically_in_both_rulebooks(
+        self,
+    ) -> None:
+        # The boundary decides who may destroy potentially recoverable work. It
+        # is the one fact here that cannot be paraphrased loosely in one venue
+        # and precisely in another.
+        for name, text in (
+            *self._rulebook_passages(),
+            ("the issue template", self.template),
+        ):
+            lowered = text.lower()
+            for state in ("clean", "absent", "dirty", "remote"):
+                self.assertIn(state, lowered, f"{name} lost worktree state {state}")
+            self.assertIn("albert", lowered, f"{name} lost who decides")
+            # The boundary is only a boundary if the venue says which side the
+            # orchestrator may act on alone and which side it may not.
+            self.assertRegex(
+                lowered,
+                r"dirty|remote",
+                f"{name} lost the owner-only side of the boundary",
+            )
+            self.assertIn("retire", lowered, f"{name} lost what the boundary governs")
+
+    def test_the_scheduled_job_prohibition_is_written_down(self) -> None:
+        # The workflow-policy tests above enforce this mechanically. This asserts
+        # the operator is also TOLD, so a person writing the next scheduled job
+        # does not have to discover the rule from a failing build.
+        for name, text in self._rulebook_passages():
+            self.assertIn("--reconcile-flow", text, f"{name} lost the prohibition")
+            self.assertIn("schedul", text.lower(), f"{name} lost the scheduled context")
+            self.assertRegex(
+                text,
+                r"[Nn]ever (run|call)",
+                f"{name} softened the prohibition into advice",
+            )
+
+    def test_the_template_carries_every_required_record_field(self) -> None:
+        # The record is the evidence a decision was made on facts. A missing
+        # heading is a fact nobody was asked for.
+        for heading in ABANDONMENT_RECORD_HEADINGS:
+            self.assertIn(heading, self.template, f"the template lost {heading!r}")
+
+    def test_the_template_is_privacy_safe_and_claims_no_object(self) -> None:
+        # An abandonment audit that claimed a database object would collide with
+        # the very claim it is investigating, and a record that invites pasted
+        # paths and account names turns an audit trail into a disclosure.
+        self.assertIn("db-work-scope", self.template)
+        self.assertRegex(self.template, r"(?m)^writes:\s*$")
+        self.assertRegex(self.template, r"(?m)^reads:\s*$")
+        # repo-maintenance work may not take the orchestrator route; the lane CLI
+        # refuses that pair outright, so a template that shipped it would hand
+        # every operator a fence that cannot be admitted.
+        self.assertRegex(self.template, r"(?m)^route: repo-maintenance\s*$")
+        self.assertRegex(self.template, r"(?m)^work_type: repo-maintenance\s*$")
+        self.assertIn("PRIVACY", self.template)
+        for forbidden in ("credential", "token"):
+            self.assertIn(forbidden, self.template.lower())
+
+    def test_the_rules_point_at_the_template_that_exists(self) -> None:
+        # A dangling pointer reads exactly like a procedure until it is followed.
+        self.assertTrue(ABANDONMENT_ISSUE_TEMPLATE.is_file())
+        self.assertIn("author-lane-abandonment.md", self.rules)
+        self.assertIn("author-lane-abandonment.md", self.agents)
+
+    def test_both_procedures_are_written_out_not_merely_referenced(self) -> None:
+        # A fresh reader must be able to follow either path without chat context.
+        # Naming a procedure is not documenting it, so require the steps that
+        # distinguish them: the blocked-on relinquish and the atomic resume on one
+        # side, the tombstoning release and the fresh successor version on the
+        # other.
+        for token in (
+            "--relinquish-author-lease",
+            "--resume-author-lease",
+            "--release-claim",
+            "tombstone",
+            "fresh migration version",
+        ):
+            self.assertIn(token, self.rules, f"section 4 lost {token!r}")
+        self.assertIn("Never delete a ref", self.rules)
+
+    def test_no_printed_lane_command_uses_the_boolean_claim_flag(self) -> None:
+        # A printed command that dies in the argument parser is worse than no
+        # command: the operator believes the procedure is broken rather than the
+        # documentation. `--claim` is the BOOLEAN that claims a lane; the value
+        # flag is `--claim-number`. This is the defect that shipped in the first
+        # draft of this step and was caught only by a reviewer reading the parser.
+        # Scoped to the abandonment passages and the template: older rules
+        # elsewhere in these files print the same mistake and are not this
+        # change's to rewrite, but nothing this lifecycle tells an operator to
+        # run may carry it.
+        for name, text in (
+            *self._rulebook_passages(),
+            ("the issue template", self.template),
+        ):
+            self.assertNotRegex(
+                text,
+                r"--claim [<\d]",
+                f"{name} prints --claim with a value; the value flag is "
+                "--claim-number and a bare --claim is a boolean",
+            )
+
+    def test_the_relinquish_procedure_demands_an_explicit_worktree_state(
+        self,
+    ) -> None:
+        # assertAbandonmentEvidence refuses without --worktree-state, because the
+        # observation is the operator's own and may never be inferred from a
+        # stale audit. A procedure that omits it hands the operator a refusal.
+        self.assertIn("--worktree-state", self.rules_passage)
+        self.assertIn(
+            "--worktree-state",
+            self.agents_passage,
+            "AGENTS.md describes a looser relinquish than the code enforces",
+        )
+        self.assertIn(
+            "requires an explicit --worktree-state",
+            self.cli,
+            "the CLI no longer enforces what the procedure promises",
+        )
+
+    def test_the_template_carries_the_machine_readable_audit_fence(self) -> None:
+        # The prose half of the record persuades a human; the fence is what the
+        # reconciler and the guarded relinquish actually read. Without it
+        # parseAbandonmentAudit returns null, abandonmentEvidenceFor returns null,
+        # no guarded command is ever suggested, and a relinquish falls through to
+        # the ordinary-blocker path with none of the exact-tuple revalidation --
+        # silently, because a missing fence is indistinguishable from no evidence.
+        self.assertIn("```abandonment-audit", self.template)
+        for field in ("claim:", "pr:", "head_sha:", "owner:"):
+            self.assertIn(
+                field,
+                self.template.split("```abandonment-audit", 1)[1],
+                f"the audit fence lost {field!r}",
+            )
+        # Exactly the four fields parseAbandonmentAudit requires, and no more.
+        self.assertIn("head_sha:String(fields.get('head_sha')", self.reconcile)
+        for name, text in self._rulebook_passages():
+            self.assertIn(
+                "abandonment-audit",
+                text,
+                f"{name} tells an operator to open the record without its fence",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

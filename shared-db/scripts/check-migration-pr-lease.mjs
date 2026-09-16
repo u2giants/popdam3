@@ -18,7 +18,7 @@ export function declarationCoversActual(declared, actual) {
   return Boolean(column && declared.has(`table ${column[1]}`))
 }
 
-export function validateMigrationLease({ claims, branch, files, now = new Date(), reservationExists }) {
+export function validateMigrationLease({ claims, branch, files, now = new Date(), reservationExists, retirementExists = () => false }) {
   const migrations=files.filter(f=>f.filename?.startsWith('supabase/migrations/')&&f.filename.endsWith('.sql')&&f.status!=='removed')
   if (!migrations.length) return { relevant:false }
   if(migrations.length===1){
@@ -57,6 +57,12 @@ export function validateMigrationLease({ claims, branch, files, now = new Date()
     try{historical=validateHistoricalRestorationFile(migrations[0].filename,migrations[0].sql)}catch(error){throw new LeaseCheckError(`migration version does not match claim and ${error.message}`)}
   } else if(versions.size!==1) throw new LeaseCheckError(`migration version must exactly match claim #${holder.number}`)
   if(!reservationExists(holder.lease.version)) throw new LeaseCheckError(`permanent reservation ref is missing for ${holder.lease.version}`)
+  // #2301 Step 3. A terminally retired version can never merge again, no matter
+  // what state its claim is in. The claim above is open and looks healthy
+  // precisely because somebody reopened it; the tombstone is the record that
+  // outlives that reopening, so the merge gate reads the tombstone, not the issue.
+  // A successor does not lose anything here: successors take a fresh version.
+  if(retirementExists(holder.lease.version)) throw new LeaseCheckError(`migration version ${holder.lease.version} was terminally retired; it can never be merged again. Successor work needs a fresh claim, branch, worktree and migration version.`)
   const undeclared=[...actual].filter(x=>!declarationCoversActual(declared,x))
   if(undeclared.length){
     // Name the read-vs-write mistake explicitly. "undeclared" would send an author
@@ -88,8 +94,15 @@ export function gatherPrInput(env=process.env){
   if(apiFiles.length>=3000)throw new LeaseCheckError('GitHub REST file limit reached; collision coverage is incomplete')
   const files=apiFiles.map(f=>({...f,sql:f.status==='removed'||!f.filename?.endsWith('.sql')?'':rawFile(f.filename,pr.head.sha)}))
   // #2958: the `labels=` filtered listing returned [] for open, labelled claims; filter client-side.
-  const issues=pages(`repos/${REPO}/issues?state=open&per_page=100`)
-  return {claims:openClaimIssues(issues),branch:pr.head.ref,files,reservationExists:(version)=>{try{return Boolean(json(['api',`repos/${REPO}/git/ref/db-claims/${version}`])?.object?.sha)}catch{return false}}}
+  // The claim list is read only when the PR changes a migration: without one the
+  // validator returns before it looks at claims, so the full issue listing was wasted.
+  const claims=files.some(f=>f.filename?.startsWith('supabase/migrations/')&&f.filename.endsWith('.sql')&&f.status!=='removed')?openClaimIssues(pages(`repos/${REPO}/issues?state=open&per_page=100`)):[]
+  return {claims,branch:pr.head.ref,files,reservationExists:(version)=>{try{return Boolean(json(['api',`repos/${REPO}/git/ref/db-claims/${version}`])?.object?.sha)}catch{return false}},
+    // A retirement lookup is a single ref read for the ONE version this PR
+    // carries, so it costs nothing per claim. It is fail-CLOSED on an unreadable
+    // answer only when the ref exists: a hard failure here would let a retired
+    // version merge, so anything other than a confirmed absence refuses.
+    retirementExists:(version)=>{try{return Boolean(json(['api',`repos/${REPO}/git/ref/db-claims-retired/${version}`])?.object?.sha)}catch(error){if(/not found|404/i.test(String(error.message)))return false;throw new LeaseCheckError(`retirement ref for ${version} is unreadable: ${error.message}`)}}}
 }
 
 export function main(env=process.env){try{const result=validateMigrationLease(gatherPrInput(env));console.log(result.relevant?`Migration claim verified: #${result.claim}, version ${result.version}.`:result.historicalCodeTruth?'Migration code-truth restoration verified; claim check is not applicable.':'No migration files changed; claim check is not applicable.');return 0}catch(e){console.error(`REFUSED: ${e.message}`);return 2}}

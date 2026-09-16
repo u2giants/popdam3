@@ -848,6 +848,13 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
+      "site": "scripts/manage-migration-author-lanes.mjs:1540",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c:1",
+      "line_sha256": "05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c",
+      "disposition": "excluded",
+      "reason": "Issue #2301 Step 3 retirement-record validation message; it names a missing required field in a tombstone payload and makes no claim about whether a migration was applied to the database."
+    },
+    {
       "site": "scripts/manage-migration-author-lanes.mjs:757",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de:1",
       "line_sha256": "0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de",
@@ -2080,7 +2087,7 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     }
   ],
-  "call_site_count": 295,
-  "call_site_sha256": "0591f86aa85c7e8b046491596f9f9ed1f55336c0305d4c123aebcf8b31fc685b",
+  "call_site_count": 296,
+  "call_site_sha256": "aff3c43611580e2c0cbf837a9802227c5c693fbda285324fcf2b534dd74858cc",
   "disposition": "Every discovered site has an explicit reviewed disposition bound to its source-line content; line movement alone does not require regeneration, while a content change requires review."
 }

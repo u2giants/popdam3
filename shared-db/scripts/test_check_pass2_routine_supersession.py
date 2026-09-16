@@ -1,3 +1,4 @@
+import json
 import shutil
 import socket
 import subprocess
@@ -6,7 +7,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from check_pass2_routine_supersession import (
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from check_pass2_routine_supersession import (  # noqa: E402
     broad_routine_revoke_schemas,
     classify_collisions,
     declared_routines,
@@ -14,6 +17,7 @@ from check_pass2_routine_supersession import (
     later_drops,
     later_only_routines,
     read_applied_migrations,
+    rebuild_mismatches,
     redeclared_after_drop,
     snapshot_query,
 )
@@ -399,6 +403,19 @@ class Pass2LaterDropTests(unittest.TestCase):
                 ]},
             )
 
+    def test_named_parameter_drop_guard_uses_argument_types_only(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root, old = self._replay(
+                temp,
+                "drop function public.deactivate_stale_sg_files(in p text, q uuid default null, out r int);\n",
+            )
+            drops = later_drops(old, root, {self.DROP})
+            self.assertEqual(list(drops), ["public.deactivate_stale_sg_files"])
+            query = snapshot_query({}, set(), drops)
+            self.assertIn(
+                "to_regprocedure('public.deactivate_stale_sg_files(text, uuid)') is null", query
+            )
+
     def test_unapplied_later_drop_is_not_replayed(self):
         with tempfile.TemporaryDirectory() as temp:
             root, old = self._replay(
@@ -506,6 +523,17 @@ class Pass2LaterDropCatalogTests(unittest.TestCase):
         self.assertFalse(self.exists(db, self.OLD_SIG))
         self.assertTrue(self.exists(db, "public.deactivate_stale_sg_files(text, uuid, integer)"))
 
+    def test_named_parameter_drop_leaves_routine_absent(self):
+        # GLM Low finding on #2948: a later DROP that names its parameters.
+        db = self.replay("drop function if exists public.deactivate_stale_sg_files(p text, in q uuid);\n")
+        self.assertFalse(self.exists(db, self.OLD_SIG))
+
+    def test_named_parameter_drop_then_same_identity_recreate_keeps_routine(self):
+        # Guarded path: the drop is re-declared later, so the catalog guard decides.
+        # A guard built from `p text` never resolves and would drop the re-created routine.
+        db = self.replay("drop function if exists public.deactivate_stale_sg_files(p text, q uuid);\n" + self.CREATE)
+        self.assertTrue(self.exists(db, self.OLD_SIG))
+
     def test_baseline_recreated_between_passes_is_still_dropped(self):
         # PR #2958 run 34973127156: 20260915130626 drops the wrapper in pass 1,
         # the between-pass baseline re-creates it, 20260905104802 re-runs in
@@ -565,6 +593,75 @@ class Pass2DropSurvivesBaselineTests(unittest.TestCase):
             query = snapshot_query({}, set(), later_drops(root / self.OLD, root, {before, drop}), set())
             self.assertIn(self.STMT, query)
             self.assertNotIn("to_regproc", query)
+
+
+class Pass2RebuildPreflightTests(unittest.TestCase):
+    """Issue #2728: the delivery preflight runs the pass-2 rebuild for any change
+    that drops or replaces a routine, so a broken rebuild fails before review."""
+
+    CLI = Path(__file__).with_name("check_pass2_routine_supersession.py")
+    CREATE = Pass2LaterDropTests.CREATE
+    OLD = Pass2LaterDropTests.OLD
+
+    def _dir(self, temp, files):
+        root = Path(temp)
+        for name, sql in files.items():
+            (root / name).write_text(sql, encoding="utf-8")
+        return root
+
+    def _cli(self, root, changed):
+        return subprocess.run(
+            [sys.executable, str(self.CLI), "--rebuild-check", "--migrations-dir", str(root), *changed],
+            capture_output=True, text=True,
+        )
+
+    def test_drop_with_matching_rebuild_passes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            drop = "20260915200000_retire.sql"
+            root = self._dir(temp, {self.OLD: self.CREATE,
+                                    drop: "drop function public.deactivate_stale_sg_files(p text, q uuid);\n"})
+            self.assertEqual(rebuild_mismatches(root, [drop]), [])
+            out = self._cli(root, [drop])
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertEqual(json.loads(out.stdout)["status"], "PASS")
+
+    def test_drop_without_matching_rebuild_fails(self):
+        # The pre-#2948 repair, which replayed no later drop.
+        with tempfile.TemporaryDirectory() as temp:
+            drop = "20260915200000_retire.sql"
+            root = self._dir(temp, {self.OLD: self.CREATE,
+                                    drop: "drop function if exists public.deactivate_stale_sg_files(text, uuid);\n"})
+            mismatches = rebuild_mismatches(root, [drop], repair=lambda *_: {})
+            self.assertEqual(mismatches, [{"pass2_migration": self.OLD,
+                                           "resurrected": ["public.deactivate_stale_sg_files"], "lost": []}])
+
+    def test_replace_that_an_older_drop_undoes_fails_the_cli(self):
+        # An older file drops a routine this change re-creates; re-running the
+        # older file in pass 2 removes it, and no repair row restores it.
+        with tempfile.TemporaryDirectory() as temp:
+            older, new = "20260901000000_drop_old.sql", "20260915200000_replace.sql"
+            root = self._dir(temp, {
+                older: "drop function if exists public.deactivate_stale_sg_files(text, uuid);\n"
+                       "create function public.other() returns void language sql as $$ select $$;\n",
+                new: self.CREATE,
+            })
+            out = self._cli(root, [new])
+            self.assertEqual(out.returncode, 1)
+            report = json.loads(out.stdout)
+            self.assertEqual(report["status"], "BLOCKED")
+            self.assertEqual(report["mismatches"], [{"pass2_migration": older, "resurrected": [],
+                                                     "lost": ["public.deactivate_stale_sg_files"]}])
+
+    def test_change_touching_no_routine_is_not_judged(self):
+        with tempfile.TemporaryDirectory() as temp:
+            new = "20260915200000_table.sql"
+            root = self._dir(temp, {self.OLD: self.CREATE, new: "create table public.t (id int);\n"})
+            self.assertEqual(rebuild_mismatches(root, [new], repair=lambda *_: {}), [])
+
+    def test_unreadable_migrations_dir_refuses(self):
+        with tempfile.TemporaryDirectory() as temp:
+            out = self._cli(Path(temp) / "missing", ["x.sql"])
+            self.assertEqual(out.returncode, 2)
 
 
 if __name__ == "__main__":

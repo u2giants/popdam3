@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { runGovernedReview as executeGovernedReview, resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER } from './run-governed-review.mjs'
+import { parseArgs, runGovernedReview as executeGovernedReview,resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER } from './run-governed-review.mjs'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -767,4 +767,13 @@ test('issue 2729: other wrapper failures stay plain refusals with no reroute dec
   for(const stderr of ['reason: provider_cancelled','reason: unknown_terminal_reason','timed-out','private-value']){
     assert.throws(()=>runGovernedReview(options,{preflight:()=>{},resolve:(x)=>x,spawn:()=>({status:1,stderr,stdout:''}),record:()=>assert.fail('must not record')}),(error)=>{assert.equal(error.startDecision,undefined);assert.ok(!(error instanceof GovernedReviewRerouteError));return true})
   }
+})
+
+test('parseArgs refuses unknown arguments instead of silently defaulting the slot (#2467)',()=>{
+  assert.throws(()=>parseArgs(['--issue','1','--pr','2','--slot','2','--','review']),/unknown governed review argument --slot \(use --review-slot\)/)
+  assert.throws(()=>parseArgs(['--issue','1','--bogus','x']),/unknown governed review argument --bogus/)
+  assert.throws(()=>parseArgs(['issue','1']),/--name value pairs/)
+  const parsed=parseArgs(['--issue','1','--pr','2','--head-sha','a','--reviewer','r','--wrapper','w','--worktree','t','--review-slot','2','--replacement-sequence','3','--assignment-id','x','--skip-doctor','true','--','review','--slot','9'])
+  assert.equal(parsed.slot,2);assert.equal(parsed.issue,1);assert.deepEqual(parsed.wrapperArgs,['review','--slot','9'])
+  assert.equal(parseArgs(['--issue','1','--pr','2']).slot,1)
 })

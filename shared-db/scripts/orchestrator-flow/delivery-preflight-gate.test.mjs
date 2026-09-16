@@ -2,7 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { canonicalJson, sha256 } from './evidence-bundle.mjs'
 import { DELIVERY_CHECKS } from './delivery-preflight.mjs'
-import { assertDeliveryPreflightBeforeReview, planDeliveryPreflight, runDeliveryPreflightGate } from './delivery-preflight-gate.mjs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { assertDeliveryPreflightBeforeReview, assertRoutineRebuild, changedMigrations, planDeliveryPreflight, runDeliveryPreflightGate, runRoutineRebuildCheck } from './delivery-preflight-gate.mjs'
 
 const HEAD_A = 'a'.repeat(40), HEAD_B = 'c'.repeat(40)
 const checksFor = (head, status = 'PASS') => {
@@ -100,4 +104,57 @@ test('POSITIVE CONTROL: review refuses a stale PASS record re-registered in a bu
   const sameHead = { ...bundleAt(HEAD_A, otherIdentity) }
   sameHead.metadata = { ...sameHead.metadata, delivery_preflight: { preflight_id: first.record.preflight_id, input_digest: first.record.input_digest } }
   assert.throws(() => assertDeliveryPreflightBeforeReview({ record: first.record, bundle: sameHead, issue: 2728, pr: 2800, headSha: HEAD_A, priorBundle: first.bundle, changedFiles: [], integration: facts(HEAD_A) }, adaptersFor(HEAD_A)), /CONTENT_INVALIDATED/)
+})
+
+// #2728 / #401 Step 5: the pass-2 rebuild runs in the preflight for routine drops and replacements.
+const SCRIPTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const CREATE = 'create or replace function public.deactivate_stale_sg_files(p text, q uuid) returns void language sql as $$ select $$;\n'
+function fixtureRepo(files) {
+  const root = mkdtempSync(path.join(tmpdir(), 'rebuild-'))
+  mkdirSync(path.join(root, 'supabase', 'migrations'), { recursive: true })
+  mkdirSync(path.join(root, 'scripts'))
+  // The real checker, run from the fixture repo so it reads only fixture migrations.
+  writeFileSync(path.join(root, 'scripts', 'check_pass2_routine_supersession.py'), `import runpy\nrunpy.run_path(${JSON.stringify(path.join(SCRIPTS, 'check_pass2_routine_supersession.py'))}, run_name='__main__')\n`)
+  for (const [name, sql] of Object.entries(files)) writeFileSync(path.join(root, 'supabase', 'migrations', name), sql)
+  return root
+}
+
+test('changed migrations are the only files the rebuild check judges', () => {
+  assert.deepEqual(changedMigrations(['docs/x.md', 'supabase/migrations/2_b.sql', { path: 'supabase\\migrations\\1_a.sql' }, 'supabase/migrations/2_b.sql']), ['1_a.sql', '2_b.sql'])
+  assert.throws(() => changedMigrations('supabase/migrations/1_a.sql'), /must be a list/)
+})
+
+test('POSITIVE CONTROL: a PR that replaces a routine an older migration drops fails the preflight before any gate runs', () => {
+  const root = fixtureRepo({ '20260901000000_drop_old.sql': 'drop function if exists public.deactivate_stale_sg_files(text, uuid);\n', '20260915200000_replace.sql': CREATE })
+  try {
+    const calls = []
+    assert.throws(() => runDeliveryPreflightGate({ currentBundle: bundleAt(HEAD_A), changedFiles: ['supabase/migrations/20260915200000_replace.sql'] }, { ...adaptersFor(HEAD_A, 'PASS', calls), repoRoot: root }), /blocked by routine_rebuild: 20260901000000_drop_old\.sql resurrects \[\] loses \[public\.deactivate_stale_sg_files\]/)
+    assert.deepEqual(calls, [])
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('a PR that drops a routine with a matching rebuild passes and composes every gate', () => {
+  const root = fixtureRepo({ '20260905104802_create.sql': CREATE, '20260915200000_retire.sql': 'drop function public.deactivate_stale_sg_files(p text, q uuid);\n' })
+  try {
+    const calls = []
+    const result = runDeliveryPreflightGate({ currentBundle: bundleAt(HEAD_A), changedFiles: ['supabase/migrations/20260915200000_retire.sql'] }, { ...adaptersFor(HEAD_A, 'PASS', calls), repoRoot: root })
+    assert.equal(result.status, 'PASS')
+    assert.deepEqual(calls, DELIVERY_CHECKS)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('POSITIVE CONTROL: a drop without a matching rebuild refuses the reviewer draw', () => {
+  const { first } = priorRun()
+  const missingRepair = () => ({ status: 'BLOCKED', mismatches: [{ pass2_migration: '20260905104802_create.sql', resurrected: ['public.deactivate_stale_sg_files'], lost: [] }] })
+  const review = (changedFiles) => assertDeliveryPreflightBeforeReview({ record: first.record, bundle: first.bundle, issue: 2728, pr: 2800, headSha: HEAD_A, changedFiles }, { ...adaptersFor(HEAD_A), routineRebuild: missingRepair })
+  assert.throws(() => review(['supabase/migrations/20260915200000_retire.sql']), /blocked by routine_rebuild: .*resurrects \[public\.deactivate_stale_sg_files\]/)
+  assert.equal(review(['docs/readme.md']).ok, true)
+})
+
+test('an unreadable rebuild check refuses rather than passing', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'rebuild-missing-'))
+  try {
+    assert.throws(() => runRoutineRebuildCheck(['20260915200000_x.sql'], { repoRoot: root }), /routine rebuild check is unreadable/)
+    assert.throws(() => assertRoutineRebuild(['supabase/migrations/20260915200000_x.sql'], { routineRebuild: () => ({ status: 'PASS?' }) }), /unreadable rebuild report/)
+  } finally { rmSync(root, { recursive: true, force: true }) }
 })

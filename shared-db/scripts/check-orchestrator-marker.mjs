@@ -252,6 +252,11 @@ export function evaluateRouting(markers, predecessorRouteIdOf = () => null) {
  *
  * @returns {{state: 'declared'|'none'|'ambiguous'|'invalid', ...}}
  */
+export const DECLARED_NOT_PROVEN =
+  'NOT PROVEN: that this session exists, is running, is reachable, or is the orchestrator. ' +
+  'Only that one open marker declares this address. Confirm you got a reply — silence is ' +
+  'not delivery, and this tool cannot tell you the difference.'
+
 export function resolveTarget(markers, predecessorRouteIdOf = () => null) {
   if (markers.length === 0) {
     return {
@@ -278,7 +283,20 @@ export function resolveTarget(markers, predecessorRouteIdOf = () => null) {
   // review: the human output was corrected to MARKER-DECLARED TARGET while the
   // machine-readable state still said `active`, so any tool reading the JSON kept
   // the overclaim the prose had just dropped. Shape is all that was checked.
-  if (routing) return { state: 'declared', routing, message: null, marker: markers[0].number }
+  // #2350: `--resolve --json` exited 0 with a well-formed address no session
+  // answered, and a consumer read exit 0 as a route. The JSON now carries the
+  // same NOT PROVEN caveat as the prose, as a field a tool cannot miss. No
+  // liveness probe is possible here: this repo has no session API.
+  if (routing) {
+    return {
+      state: 'declared',
+      routing,
+      message: null,
+      marker: markers[0].number,
+      reachability: 'unverified',
+      notProven: DECLARED_NOT_PROVEN,
+    }
+  }
   return {
     state: 'invalid',
     routing: null,
@@ -361,9 +379,7 @@ export function formatTarget({ routing, marker }) {
       'or conversation history — those are how a delegation reached a session that had ' +
       'already closed. Re-resolve before every delegation; a handover changes this target.',
     '',
-    'NOT PROVEN: that this session exists, is running, is reachable, or is the orchestrator. ' +
-      'Only that one open marker declares this address. Confirm you got a reply — silence is ' +
-      'not delivery, and this tool cannot tell you the difference.',
+    DECLARED_NOT_PROVEN,
   ].join('\n')
 }
 

@@ -56,6 +56,7 @@ cannot resurrect an unproven definition.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -295,9 +296,48 @@ def redeclared_after_drop(
     return redeclared
 
 
+_ARG_MODES = {"in", "out", "inout", "variadic"}
+# First words of built-in type names that are written as several words, so a
+# leading word here is part of the type, never a parameter name.
+_MULTIWORD_TYPE_STARTS = {"double", "character", "char", "varchar", "bit", "timestamp", "time", "interval", "national"}
+
+
+def _lookup_signature(target: str, kind: str) -> str:
+    """The `name(type, ...)` text regprocedure accepts for a drop target.
+
+    A drop may name its parameters, give modes and defaults
+    (`f(in p text, q uuid default null)`); PostgreSQL accepts that in DROP, but
+    `to_regprocedure` resolves only argument TYPES, so the guard would never find
+    the routine and would drop one a later migration re-created (GLM Low finding
+    on #2948). OUT arguments are not part of a function's identity and are left
+    out; a procedure keeps them.
+    """
+    if "(" not in target:
+        return target
+    name, args = target.split("(", 1)
+    types: list[str] = []
+    for arg in _split_top_level_commas(args.rsplit(")", 1)[0]):
+        arg = re.split(r"(?is)\s+default\s+|\s*=", arg, maxsplit=1)[0].strip()
+        tokens = arg.split()
+        if tokens and tokens[0].lower() in _ARG_MODES:
+            mode = tokens.pop(0).lower()
+            if mode == "out" and kind != "procedure":
+                continue
+        if (
+            len(tokens) > 1
+            and re.fullmatch(IDENT, tokens[0], flags=re.I)
+            and tokens[0].lower() not in _MULTIWORD_TYPE_STARTS
+        ):
+            tokens.pop(0)
+        if tokens:
+            types.append(" ".join(tokens))
+    return f"{name.rstrip()}({', '.join(types)})"
+
+
 def _drop_row(routine: str, stmt: str, guarded: bool = True) -> str:
     target = stmt.split(" if exists ", 1)[1].rstrip(";")
     lookup = "to_regprocedure" if "(" in target else "to_regproc"
+    target = _lookup_signature(target, stmt.split()[1])
     quote = lambda value: "'" + value.replace("'", "''") + "'"
     row = f"select 5 as ord, {quote(stmt)} as stmt, '' as s, {quote(routine)} as f, '' as a"
     return f"{row} where {lookup}({quote(target)}) is null" if guarded else row
@@ -369,7 +409,112 @@ def snapshot_query(
     )
 
 
+# ---------------------------------------------------------------------------
+# Delivery preflight: rebuild check (issue #2728, popcre/ai-devops#401 Step 5).
+#
+# The contract-test lane discovers a broken pass-2 rebuild only after review.
+# This static check runs before review for any change that drops or replaces a
+# routine: every older migration that touches an affected routine is treated as
+# a pass-2 file (any of them may fail from empty), and the routine set after
+# "straight replay, in order" is compared with the set after "every other file,
+# then this one, then the repair rows this script emits". A difference means the
+# rebuild would not reproduce the straight replay, and the preflight refuses.
+#
+# The model is routine NAMES, not full identities: overloads that differ only
+# in argument types collapse to one name. It proves the repair emits a drop or
+# restoration wherever one is needed; the PostgreSQL catalog tests prove what
+# those rows do to exact signatures.
+# ---------------------------------------------------------------------------
+def routine_events(path: Path) -> list[tuple[str, str]]:
+    """("create"|"drop", routine name) in file order, outside literals and comments."""
+    text = _strip_literals(_strip_comments(path.read_text(encoding="utf-8")))
+    events: list[tuple[int, str, str]] = [
+        (match.start(), "create", _norm(match.group(1))) for match in ROUTINE.finditer(text)
+    ]
+    for match in _DROP_ROUTINE.finditer(text):
+        for item in _split_top_level_commas(match.group(2)):
+            events.append((match.start(), "drop", _norm(item.split("(", 1)[0])))
+    return [(kind, name) for _, kind, name in sorted(events, key=lambda event: event[0])]
+
+
+def _replay(files: list[Path], state: set[str] | None = None) -> set[str]:
+    state = set() if state is None else state
+    for path in files:
+        for kind, name in routine_events(path):
+            (state.add if kind == "create" else state.discard)(name)
+    return state
+
+
+def rebuild_mismatches(
+    migrations_dir: Path, changed: list[str], repair=None
+) -> list[dict[str, object]]:
+    """Every older pass-2 candidate whose repaired rebuild differs from straight replay.
+
+    `changed` names the migrations a pull request adds or edits. Only routines
+    those files drop or create are judged. `repair(migration, dir, applied)`
+    returns routine -> drop statements to replay (default: `later_drops`), so a
+    test can prove an absent repair is caught.
+    """
+    repair = repair or later_drops
+    ordered = sorted(migrations_dir.glob("*.sql"))
+    names = {path.name for path in ordered}
+    targets = [name for name in changed if name in names]
+    affected: set[str] = set()
+    for name in targets:
+        affected |= {routine for _, routine in routine_events(migrations_dir / name)}
+    if not affected:
+        return []
+    straight = _replay(ordered) & affected
+    newest_target = max(targets)
+    mismatches: list[dict[str, object]] = []
+    for migration in ordered:
+        if migration.name > newest_target:
+            break
+        touched = {routine for _, routine in routine_events(migration)} & affected
+        if not touched:
+            continue
+        rest = [path for path in ordered if path != migration]
+        state = _replay(rest)
+        before = set(state)
+        _replay([migration], state)
+        applied = names - {migration.name}
+        drops = repair(migration, migrations_dir, applied)
+        guarded = redeclared_after_drop(migration, migrations_dir, applied) if drops else set()
+        for routine in drops:
+            if routine not in guarded or routine not in before:
+                state.discard(routine)
+        # Proven later definitions are restored only for routines still present.
+        for routine in later_collisions(migration, migrations_dir):
+            if routine in before:
+                state.add(routine)
+        rebuilt = state & affected
+        if rebuilt != straight:
+            mismatches.append({
+                "pass2_migration": migration.name,
+                "resurrected": sorted(rebuilt - straight),
+                "lost": sorted(straight - rebuilt),
+            })
+    return mismatches
+
+
+def rebuild_check_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="check_pass2_routine_supersession.py --rebuild-check")
+    parser.add_argument("--rebuild-check", action="store_true", required=True)
+    parser.add_argument("--migrations-dir", type=Path, required=True)
+    parser.add_argument("changed", nargs="*")
+    args = parser.parse_args(argv)
+    if not args.migrations_dir.is_dir():
+        print(f"REBUILD CHECK: migrations directory {args.migrations_dir} is unreadable", file=sys.stderr)
+        return 2
+    mismatches = rebuild_mismatches(args.migrations_dir, [Path(name).name for name in args.changed])
+    print(json.dumps({"status": "BLOCKED" if mismatches else "PASS", "mismatches": mismatches},
+                     separators=(",", ":")))
+    return 1 if mismatches else 0
+
+
 def main() -> int:
+    if "--rebuild-check" in sys.argv[1:]:
+        return rebuild_check_main(sys.argv[1:])
     parser = argparse.ArgumentParser()
     parser.add_argument("migration", type=Path)
     parser.add_argument("--migrations-dir", type=Path, required=True)

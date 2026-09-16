@@ -2640,6 +2640,9 @@ PREVIEW_PRODUCER_PATHS += (
     # pinned rather than exempted: the test's own instruction is to pin anything
     # a tool in the preview job could read, and pinning is the stricter answer.
     "scripts/production-verification-sidecars/20260910155753.json",
+    # Issue #2988. The sidecar binds migration 20260916033914 and is read by the
+    # catalog verifier in preview, so it is pinned like every other sidecar.
+    "scripts/production-verification-sidecars/20260916033914.json",
     "scripts/production-verification-sidecars/20260911081204.json",
     "config/db-data-admin-property-source-coverage.json",
     "scripts/production-verification-sidecars/20260908214749.json",
@@ -2679,6 +2682,7 @@ PREVIEW_PRODUCER_PATHS += (
     "scripts/production-verification-sidecars/20260911222514.json",
     "scripts/production-verification-sidecars/20260914061331.json",
     "scripts/production-verification-sidecars/20260914075758.json",
+    "scripts/production-verification-sidecars/20260916001944.json",
     # Invoked by check-sql.sh during preview; pin the reviewed parser so the
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",

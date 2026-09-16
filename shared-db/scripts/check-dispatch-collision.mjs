@@ -558,9 +558,13 @@ export function gatherOpenPrObjects(repo, io = defaultIo) {
   const open = io.listPulls(repo)
   const sources = []
   for (const listed of open) {
-    const pr = io.getPull(repo, listed.number)
+    // A listing that already carries changed_files and head (the GraphQL listing)
+    // needs no per-PR detail read; the REST listing omits changed_files, so it does.
+    const pr = Number.isInteger(listed.changed_files) && listed.head?.sha ? listed : io.getPull(repo, listed.number)
     if (!pr || pr.number !== listed.number) throw new Unknown(`PR #${listed.number} returned unreadable detail metadata`)
-    const files = io.listPullFiles(repo, pr.number)
+    // Files embedded in the listing are used when present; a PR whose files did
+    // not fit the listing page is read in full. The count proof below still applies.
+    const files = Array.isArray(listed.files) ? listed.files : io.listPullFiles(repo, pr.number)
     if (!Array.isArray(files)) throw new Unknown(`PR #${pr.number} returned an unreadable file list`)
     if (!Number.isInteger(pr.changed_files) || pr.changed_files < 0) throw new Unknown(`PR #${pr.number} has no trustworthy changed_files count`)
     if (pr.changed_files >= 3000) throw new Unknown(`PR #${pr.number} reaches GitHub's 3000-file limit; refusing incomplete coverage`)
@@ -607,7 +611,35 @@ export function gatherOpenPrObjects(repo, io = defaultIo) {
  * such mode.
  */
 export const defaultIo = {
-  listPulls: (repo) => ghJson(['api', '--paginate', `repos/${repo}/pulls?state=open&per_page=100`]),
+  // One GraphQL listing returns every open PR with changed_files and up to 100
+  // files each, replacing a detail read plus a file-list read per PR. A PR with
+  // more files than one page carries no `files`, so the full REST list is read.
+  listPulls: (repo) => {
+    const [owner, name] = repo.split('/')
+    const query = 'query($owner:String!,$name:String!,$after:String){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:50,after:$after){pageInfo{hasNextPage endCursor} nodes{number title url isDraft headRefOid headRefName changedFiles files(first:100){pageInfo{hasNextPage} nodes{path changeType}}}}}}'
+    const pulls = []
+    let after = null
+    do {
+      const args = ['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `name=${name}`]
+      if (after) args.push('-f', `after=${after}`)
+      const connection = ghJson(args)?.data?.repository?.pullRequests
+      if (!connection || !Array.isArray(connection.nodes)) throw new Unknown(`open pull request listing for ${repo} is unreadable`)
+      for (const node of connection.nodes) {
+        const complete = node.files && !node.files.pageInfo?.hasNextPage && Array.isArray(node.files.nodes)
+        pulls.push({
+          number: node.number,
+          title: node.title,
+          html_url: node.url,
+          draft: Boolean(node.isDraft),
+          head: { sha: node.headRefOid, ref: node.headRefName },
+          changed_files: node.changedFiles,
+          ...(complete ? { files: node.files.nodes.map((file) => ({ filename: file.path, status: file.changeType === 'DELETED' ? 'removed' : String(file.changeType).toLowerCase() })) } : {}),
+        })
+      }
+      after = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null
+    } while (after)
+    return pulls
+  },
   getPull: (repo, number) => ghJson(['api', `repos/${repo}/pulls/${number}`]),
   listPullFiles: (repo, number) =>
     ghJson(['api', '--paginate', `repos/${repo}/pulls/${number}/files?per_page=100`]),

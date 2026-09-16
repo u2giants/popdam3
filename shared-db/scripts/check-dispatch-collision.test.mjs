@@ -578,6 +578,27 @@ test('open PRs hydrate detail metadata because the list endpoint omits changed_f
   assert.equal(sources.length,1)
 })
 
+test('a listing that carries changed_files and files makes no per-PR GitHub reads', () => {
+  let perPr = 0
+  const count = () => { perPr += 1; return null }
+  const listed = [
+    { ...PR(1), changed_files: 1, files: [FILE('supabase/migrations/20260806120000_x.sql')] },
+    { ...PR(2), changed_files: 2, files: [FILE('docs/a.md'), FILE('README.md')] },
+  ]
+  const io = { listPulls: () => listed, getPull: count, listPullFiles: count, readFileAtRef: () => SQL }
+  const sources = gatherOpenPrObjects('o/r', io)
+  assert.equal(perPr, 0)
+  assert.deepEqual(sources.map((s) => s.label), ['PR #1 "pr 1"'])
+  // The completeness proof still applies to embedded files.
+  assert.throws(() => gatherOpenPrObjects('o/r', { ...io, listPulls: () => [{ ...listed[1], changed_files: 3 }] }), /returned 2 of 3/)
+  // A PR whose files did not fit the listing is read in full, without a detail read.
+  let fileReads = 0
+  const big = { ...io, listPulls: () => [{ ...PR(3), changed_files: 1 }], listPullFiles: () => (fileReads += 1, [FILE('docs/x.md')]) }
+  assert.deepEqual(gatherOpenPrObjects('o/r', big), [])
+  assert.equal(fileReads, 1)
+  assert.equal(perPr, 0)
+})
+
 test('open PR gathering fails closed when detail hydration is unreadable', () => {
   const io=fakeIo([PR(984)],{984:[]});io.getPull=()=>null
   assert.throws(()=>gatherOpenPrObjects('o/r',io),/unreadable detail metadata/)
