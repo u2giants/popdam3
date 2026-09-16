@@ -777,3 +777,12 @@ test('parseArgs refuses unknown arguments instead of silently defaulting the slo
   assert.equal(parsed.slot,2);assert.equal(parsed.issue,1);assert.deepEqual(parsed.wrapperArgs,['review','--slot','9'])
   assert.equal(parseArgs(['--issue','1','--pr','2']).slot,1)
 })
+
+test('a wrapper call missing new <session-name> is refused with the usage line (#498)',()=>{
+  const head='a'.repeat(40)
+  assert.throws(()=>wrapperVerdictContractArgs('ai-gemini',['--prompt-file','p.md'],head),/must start with the new or ask subcommand; got "--prompt-file"\. Usage after the runner options: -- new <session-name> --prompt-file <file>/)
+  assert.throws(()=>wrapperVerdictContractArgs('ai-qwen',['new','--prompt-file','p.md'],head),/ai-qwen new has no <session-name>\. Usage after the runner options: -- new <session-name>/)
+  assert.throws(()=>wrapperVerdictContractArgs('ai-deepseek-agent',['reply','--review'],head),/ai-deepseek-agent reply has no <session-name>.*-- reply <session-name>/)
+  assert.throws(()=>wrapperVerdictContractArgs('ai-gemini',[],head),/got no wrapper arguments/)
+  assert.deepEqual(wrapperVerdictContractArgs('ai-gemini',['new','review-3100','--prompt-file','p.md'],head),['new','--governed-verdict',head,'review-3100','--prompt-file','p.md'])
+})

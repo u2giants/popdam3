@@ -36,7 +36,10 @@ export function verifyGitEvidence({ contract, report, prBaseSha, prHeadSha }, io
   const actualFiles = [...io.changedFiles(prBaseSha, report.head_sha)].sort()
   const reportedFiles = [...report.files_changed].sort()
   if (JSON.stringify(actualFiles) !== JSON.stringify(reportedFiles)) {
-    throw new GitEvidenceError(`reported files_changed does not match Git: expected [${actualFiles.join(', ')}], got [${reportedFiles.join(', ')}]`)
+    const toAdd = actualFiles.filter((file) => !reportedFiles.includes(file))
+    const extra = reportedFiles.filter((file) => !actualFiles.includes(file))
+    // Name which side is which: Git is the truth, the report is what to fix (#498 item 11).
+    throw new GitEvidenceError(`reported files_changed does not match Git: Git changed [${actualFiles.join(', ')}] but .agent/completion.json files_changed lists [${reportedFiles.join(', ')}]; add to the report [${toAdd.join(', ')}], remove from the report [${extra.join(', ')}]`)
   }
 
   const afterImplementation = [...io.changedFiles(report.head_sha, prHeadSha)].sort()

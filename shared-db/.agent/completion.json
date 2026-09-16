@@ -1,41 +1,34 @@
 {
   "schema_version": 1,
-  "work_issue": 3045,
+  "work_issue": 3050,
   "outcome": "ready-for-merge",
-  "pr": 3042,
+  "pr": 3051,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3045/8",
-  "contract_sha256": "ea9b09901e84ca0e47780adee3312f57db228de9734fcef470749cea2286040f",
-  "head_sha": "1cfc6e9e166e7c249bc172fa44e0163c4ea3b9d9",
+  "contract_ref": "refs/db-contracts/3050/1",
+  "contract_sha256": "89d9f0701e8ae9aa7066ecb77deb4b99a922fb773a2ca9af17952c0194a2fdd8",
+  "head_sha": "026a9403c9a1f6c228232fee7bc5d6c329f4dcad",
   "files_changed": [
-    ".agent/completion.json",
-    ".agent/contract.json",
-    ".github/workflows/documents-only-merge-authorization.yml",
-    ".github/workflows/orchestrator-no-progress-alarm.yml",
-    ".github/workflows/start-reroute-canary.yml",
-    "scripts/orchestrator-flow/no-progress-alarm.mjs",
-    "scripts/orchestrator-flow/no-progress-alarm.test.mjs",
-    "scripts/orchestrator-flow/preview-route-canary.mjs",
-    "scripts/orchestrator-flow/preview-route-canary.test.mjs",
-    "scripts/orchestrator-flow/start-reroute-canary.mjs",
-    "scripts/orchestrator-flow/start-reroute-canary.test.mjs"
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node --test scripts/orchestrator-flow/start-reroute-canary.test.mjs scripts/orchestrator-flow/no-progress-alarm.test.mjs scripts/orchestrator-flow/preview-route-canary.test.mjs scripts/orchestrator-flow/runner-lanes.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
+      "command": "node --test on every changed scripts test file",
       "exit_code": 0,
-      "evidence": "49 pass, 0 fail, 0 skipped at implementation head 7576e32f (ea4c73f5 merged with main 3f5c2a23) rebased on origin/main 95619429."
+      "evidence": "run-governed-review 75/75 pass, agent-work-contract-git-evidence 9/9 pass, 0 fail, 0 skipped; check-throughput-truth-audit OK at 026a9403."
     },
     {
       "command": "git diff --check origin/main...HEAD",
       "exit_code": 0,
-      "evidence": "Exit 0 with no output at ea4c73f5."
+      "evidence": "Exit 0 with no output at 026a9403."
     }
   ],
   "assumptions_resolved": [
-    "The documents-only route step carries continue-on-error: true and always exits 0, so it only reports and cannot change the merge authorization."
+    "No schema or structure change was needed: only refusal message text changed; every refusal condition is unchanged."
   ],
   "stop_conditions_hit": []
 }

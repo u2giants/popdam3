@@ -78,3 +78,10 @@ test('a branch behind main is classified from its merge base, not as deleting ev
   })
   assert.equal(classifyEvidencePair(files), 'inherited')
 })
+
+test('a files_changed mismatch says which list is Git and exactly what to add or remove (#498)', () => {
+  assert.throws(
+    () => verifyGitEvidence({ contract, report, prBaseSha: prBase, prHeadSha: prHead }, io({ changedFiles: (from) => from === prBase ? [...report.files_changed, 'scripts/hidden.mjs'] : ['.agent/contract.json', '.agent/completion.json'] })),
+    /Git changed \[.*scripts\/hidden\.mjs.*\] but \.agent\/completion\.json files_changed lists \[.*\]; add to the report \[scripts\/hidden\.mjs\], remove from the report \[\]/,
+  )
+})

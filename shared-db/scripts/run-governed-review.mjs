@@ -339,7 +339,11 @@ export function wrapperVerdictContractArgs(wrapper,args,headSha){
   }
   if(supplied)return list
   const commands=name==='ai-deepseek-agent'?['send','reply']:['new','ask']
-  if(!commands.includes(String(list[0]??'')))throw new Error(`${name} governed reviews must start with the ${commands.join(' or ')} subcommand`)
+  // Say exactly what is absent and the shape that works (#498 item 13).
+  const usage=name==='ai-deepseek-agent'?`-- send "<prompt>" --review  |  -- reply <session-name> "<prompt>" --review`:`-- new <session-name> --prompt-file <file>  |  -- ask <session-name> --prompt-file <file>`
+  if(!commands.includes(String(list[0]??'')))throw new Error(`${name} governed reviews must start with the ${commands.join(' or ')} subcommand; got ${list.length?`"${String(list[0])}"`:'no wrapper arguments'}. Usage after the runner options: ${usage}`)
+  const sessionName=String(list[1]??'')
+  if((name!=='ai-deepseek-agent'||list[0]==='reply')&&(!sessionName||sessionName.startsWith('-')))throw new Error(`${name} ${list[0]} has no <session-name>. Usage after the runner options: ${usage}`)
   list.splice(name==='ai-deepseek-agent'&&list[0]==='reply'?2:1,0,'--governed-verdict',String(headSha))
   return list
 }

@@ -1,38 +1,32 @@
 {
   "schema_version": 1,
-  "generation": 8,
-  "work_issue": 3045,
+  "generation": 1,
+  "work_issue": 3050,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Tooling for programme popcre/ai-devops#401 Steps 2A, 4 and 7 under issue 3045 (tracked in 3027): a report-only no-database-preview route decision in the documents-only workflow, a scheduled two-hour no-progress alarm with successor resume, and a dispatch-only start-reroute staging hook with its harness. Scripts, tests and workflows only; no schema, migration, database claim or database access.",
-  "base_sha": "8c4ce615bd6bfc7910e9351163a14336b709c4cd",
-  "dispatcher": "Claude ai-devops session repairing #401 (2026-09-16)",
-  "worker": "Claude Opus 5 #3027 blocked-steps maintainer",
-  "branch": "claude/3027-blocked-steps-tooling",
-  "worktree": "C:/repos/shared-db-worktrees/3027-blocked-steps",
+  "goal": "Implement popcre/ai-devops#498 items 11-13: refusal messages for files_changed mismatch, wrong-owner claim operations, and a governed review wrapper call missing new <session-name> say exactly what is wrong and how to correct it. Every refusal still refuses.",
+  "base_sha": "9b6c26b0c6b37f5390c371ac3fd22001a04fe234",
+  "dispatcher": "Albert Hazan via Claude session owning ai-devops#498 (2026-09-16)",
+  "worker": "Claude Opus 5 #498 close-out fast path author",
+  "branch": "claude/498-closeout-fastpath",
+  "worktree": "C:/repos/shared-db-wt-498",
   "allowed_paths": [
-    ".github/workflows/documents-only-merge-authorization.yml",
-    ".github/workflows/orchestrator-no-progress-alarm.yml",
-    ".github/workflows/start-reroute-canary.yml",
-    "scripts/orchestrator-flow/no-progress-alarm.mjs",
-    "scripts/orchestrator-flow/no-progress-alarm.test.mjs",
-    "scripts/orchestrator-flow/preview-route-canary.mjs",
-    "scripts/orchestrator-flow/preview-route-canary.test.mjs",
-    "scripts/orchestrator-flow/start-reroute-canary.mjs",
-    "scripts/orchestrator-flow/start-reroute-canary.test.mjs",
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "file_writes": [
-    ".github/workflows/documents-only-merge-authorization.yml",
-    ".github/workflows/orchestrator-no-progress-alarm.yml",
-    ".github/workflows/start-reroute-canary.yml",
-    "scripts/orchestrator-flow/no-progress-alarm.mjs",
-    "scripts/orchestrator-flow/no-progress-alarm.test.mjs",
-    "scripts/orchestrator-flow/preview-route-canary.mjs",
-    "scripts/orchestrator-flow/preview-route-canary.test.mjs",
-    "scripts/orchestrator-flow/start-reroute-canary.mjs",
-    "scripts/orchestrator-flow/start-reroute-canary.test.mjs",
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
@@ -40,18 +34,19 @@
   "db_writes": [],
   "prohibited_actions": [
     "No database read or write of any kind",
-    "No migration, schema, or database claim",
-    "No GitHub settings change",
-    "No cancellation of any run other than the staged non-start canary"
+    "No migration file change",
+    "No production command",
+    "No migration or preview workflow dispatch",
+    "No weakening of any refusal"
   ],
   "required_checks": [
-    "node --test scripts/orchestrator-flow/start-reroute-canary.test.mjs scripts/orchestrator-flow/no-progress-alarm.test.mjs scripts/orchestrator-flow/preview-route-canary.test.mjs scripts/orchestrator-flow/runner-lanes.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
+    "node --test on every changed scripts test file",
     "git diff --check origin/main...HEAD"
   ],
   "assumptions": [
-    "The documents-only route step is continue-on-error and report-only, so it cannot change a merge decision"
+    "No schema or structure change is needed for message text"
   ],
   "stop_conditions": [
-    "Stop and report if any step needs a schema, migration, database write, or settings change"
+    "Stop and report if any change needs a schema or structure change, a database write, or loosens a guard"
   ]
 }
