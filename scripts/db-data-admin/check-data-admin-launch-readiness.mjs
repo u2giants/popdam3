@@ -37,7 +37,7 @@ export const EXPECTED_APP_UUID = "zeoy8qfjqffu8ym533cc7dl4";
 export const EXPECTED_DOMAIN = "https://data.designflow.app";
 
 // A production launch depends on these migration versions being present in the
-// Supabase migration ledger (supabase_migrations.schema_migrations.version).
+// Supabase migration ledger (the version column of the Supabase migrations ledger table).
 export const BATCH_B8 = [
   "20260809170000",
   "20260809170100",
