@@ -146,6 +146,14 @@ chains explicitly rather than inferring missing terms.
 
 Marvel charges two additional royalty percentage points when artwork contains talent likeness. Marvel is the only Licensor with this confirmed rule. The likeness flag belongs to the specific Style Guide Asset file, never to the Character or Property.
 
+## `source_licensor_id` is attribution provenance, never current ownership
+
+`core.taxonomy_source_ref.source_licensor_id` records **who attributed a row**: which Licensor's source data first supplied the name. It never records who owns the entity now. When a Character is re-licensed, the Character moves to the new Licensor and the provenance row's stamp deliberately stays at the old one. That behaviour is intentional and is enforced by contract D7d in [`supabase/tests/character_alias_and_source_provenance_contracts.sql`](../../supabase/tests/character_alias_and_source_provenance_contracts.sql): a freshness-only update must never re-derive `source_licensor_id` from the re-licensed target.
+
+Any consumer that needs **current** ownership must read the live Licensor linkage on the entity itself — the Character's or Property's owning Licensor — never the source-ref stamp. This binds royalty and revenue reporting above all: attributing a royalty on the strength of `source_licensor_id` pays the Licensor that originally supplied the name instead of the Licensor that now owns the Character, and the failure would be silent, with no error and no test on the read side. Reading this column as current ownership is a defect even when nothing fails, because the D7d contract guards the write, not every downstream read.
+
+This reading was flagged as a policy judgement — not a mechanical fact — by an independent reviewer during the #2426 adjudication, and is recorded here as the stated companywide contract (issue #2827). The column's behaviour is correct as designed and is not changed by this rule; only its interpretation is settled.
+
 ## Refresh cadence and conflict handling
 
 Authorized licensor sources run at least weekly. Within their Property coverage, an authorized source wins disagreements about Property spelling or ownership. Outside that coverage, ColdLion-only Property data under a Licensor with no scrape data is canonical. ColdLion remains authoritative for Licensor names and normally for Property Active/Inactive, except where a signed entitlement schedule is explicitly controlling, as it is for Warner Bros. When identity or coverage is ambiguous, retain evidence and send it to review rather than guessing.

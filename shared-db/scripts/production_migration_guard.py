@@ -1499,18 +1499,39 @@ def assert_content_manifest(directory: Path) -> None:
     )
 
 
+# The ledgers the shared guard can be pointed at. Only used to word refusals
+# truthfully; every check runs identically whichever ledger was read.
+LEDGER_NAMES = ("production", "preview")
+
+
 def validate_candidates(
     migrations: dict[str, Path],
     allowlist: list[str],
     remote: set[str],
     derivation_overrides: dict[tuple[str, str], str] | None = None,
+    ledger_name: str = "production",
 ) -> None:
+    if ledger_name not in LEDGER_NAMES:
+        raise GuardError(f"unknown ledger name: {ledger_name!r}")
     unknown = [version for version in allowlist if version not in migrations]
     if unknown:
         raise GuardError(f"unknown migration version: {', '.join(unknown)}")
     applied = [version for version in allowlist if version in remote]
     if applied:
-        raise GuardError(f"already applied on production: {', '.join(applied)}")
+        # Issue #3193: the guard is shared, so name the ledger it actually read.
+        # The preview job passes its OWN ledger, and the old fixed wording
+        # ("already applied on production") sent operators the wrong way.
+        message = f"already applied on {ledger_name}: {', '.join(applied)}"
+        if ledger_name == "preview":
+            message += (
+                ". An applied version is never applied again. To produce fresh "
+                "evidence at exact main, dispatch the historical-recovery lane "
+                "(mode=apply with historical_preview_source_pr or "
+                "historical_preview_source_pr_map, plus "
+                "historical_preview_original_run_map naming the run that "
+                "originally applied each version); never weaken this guard"
+            )
+        raise GuardError(message)
     # Contract section 5 / section 10: B1, B3, B7 and B9 are ATOMIC. Enforced
     # here rather than in `parse_allowlist` because the check needs the real
     # production ledger to stay resumable (see the ATOMIC_BATCHES header).
@@ -2350,11 +2371,12 @@ def preflight(
     raw_allowlist: str,
     ledger: Path,
     derivation_overrides: dict[tuple[str, str], str] | None = None,
+    ledger_name: str = "production",
 ) -> None:
     remote = parse_remote_versions(ledger)
     allowlist = parse_allowlist(raw_allowlist, remote)
     migrations = local_migrations(repo)
-    validate_candidates(migrations, allowlist, remote, derivation_overrides)
+    validate_candidates(migrations, allowlist, remote, derivation_overrides, ledger_name)
     preflight_batch(migrations, allowlist, remote)
     print(
         f"PREFLIGHT OK: {len(allowlist)} migrations, no missing non-deferrable "
@@ -2370,11 +2392,12 @@ def prepare(
     raw_allowlist: str,
     ledger: Path,
     derivation_overrides: dict[tuple[str, str], str] | None = None,
+    ledger_name: str = "production",
 ) -> None:
     remote = parse_remote_versions(ledger)
     allowlist = parse_allowlist(raw_allowlist, remote)
     migrations = local_migrations(repo)
-    validate_candidates(migrations, allowlist, remote, derivation_overrides)
+    validate_candidates(migrations, allowlist, remote, derivation_overrides, ledger_name)
     # AGENTS.md section 6.8: the whole batch must be proven runnable end to end
     # before anything is applied, never one migration at a time.
     preflight_batch(migrations, allowlist, remote)
@@ -2501,11 +2524,13 @@ def main() -> int:
     prep.add_argument("--commit-sha", required=True)
     prep.add_argument("--allowlist", required=True)
     prep.add_argument("--remote-ledger", type=Path, required=True)
+    prep.add_argument("--ledger-name", choices=LEDGER_NAMES, default="production")
     _add_derivation_override(prep)
     pre = subs.add_parser("preflight")
     pre.add_argument("--repo", type=Path, required=True)
     pre.add_argument("--allowlist", required=True)
     pre.add_argument("--remote-ledger", type=Path, required=True)
+    pre.add_argument("--ledger-name", choices=LEDGER_NAMES, default="production")
     _add_derivation_override(pre)
     bounded = subs.add_parser("assert-bounded")
     bounded.add_argument("--dir", dest="directory", type=Path, required=True)
@@ -2534,10 +2559,12 @@ def main() -> int:
                 args.allowlist,
                 args.remote_ledger,
                 overrides,
+                args.ledger_name,
             )
         elif args.command == "preflight":
             preflight(
-                args.repo.resolve(), args.allowlist, args.remote_ledger, overrides
+                args.repo.resolve(), args.allowlist, args.remote_ledger, overrides,
+                args.ledger_name,
             )
         elif args.command == "assert-bounded":
             assert_bounded(

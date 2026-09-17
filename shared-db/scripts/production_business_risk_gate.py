@@ -2066,6 +2066,49 @@ def is_pinned_historical_disney_source(
     )
 
 
+def select_newest_check_runs(checks: list[Any]) -> dict[str, dict[str, Any]]:
+    """The newest row per check name, independent of the API's row order (issue #2730).
+
+    One head can carry several same-name check runs -- a cancelled run beside its
+    re-run. The dict comprehension this replaces kept whichever row the API
+    happened to list last, so an older cancelled run listed after the newer
+    successful one was silently selected and refused a healthy promotion (PR
+    #2527: run 34563999011 succeeded, 34563998795 was cancelled, the gate chose
+    the cancellation). The newest row is the one with the greatest check-run id:
+    ids are unique and assigned at creation, so every re-run gets a larger one.
+    A name with one row needs no ordering; two or more rows must each carry a
+    unique integer id, or the newest cannot be known and the gate refuses rather
+    than guess -- which also keeps a NEWER failure or pending run refusing over
+    an OLDER success, never the reverse.
+    """
+    rows_by_name: dict[str, list[dict[str, Any]]] = {}
+    for row in checks:
+        if not isinstance(row, dict) or not isinstance(row.get("name"), str) or not row["name"]:
+            raise RiskGateError(f"check-run row {row!r} is malformed: no check name")
+        rows_by_name.setdefault(row["name"], []).append(row)
+    newest: dict[str, dict[str, Any]] = {}
+    for name, rows in rows_by_name.items():
+        if len(rows) == 1:
+            newest[name] = rows[0]
+            continue
+        by_id: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            check_run_id = row.get("id")
+            if type(check_run_id) is not int or isinstance(check_run_id, bool) or check_run_id <= 0:
+                raise RiskGateError(
+                    f"check '{name}' has {len(rows)} rows but row {row!r} carries no "
+                    "positive integer id, so the newest cannot be selected"
+                )
+            seen = by_id.get(check_run_id)
+            if seen is not None and seen.get("conclusion") != row.get("conclusion"):
+                raise RiskGateError(
+                    f"check '{name}' repeats id {check_run_id} with different conclusions"
+                )
+            by_id[check_run_id] = row
+        newest[name] = by_id[max(by_id)]
+    return newest
+
+
 def prove_pr_and_checks(
     pr_number: int, main_sha: str, allowlist: list[str], api: Callable[[str], Any], repo_root: Path
 ) -> tuple[str, str]:
@@ -2084,7 +2127,9 @@ def prove_pr_and_checks(
     )
     checks_endpoint = f"repos/{REPOSITORY}/commits/{head}/check-runs?per_page=100"
     checks = api_sublist(api_object(api, checks_endpoint), "check_runs", checks_endpoint)
-    conclusions = {c.get("name"): c.get("conclusion") for c in checks if isinstance(c, dict)}
+    conclusions = {
+        name: row.get("conclusion") for name, row in select_newest_check_runs(checks).items()
+    }
     missing = sorted(name for name in REQUIRED_CHECKS if conclusions.get(name) != "success")
     historical_source = is_pinned_historical_disney_source(
         pr_number, head, merge_commit_sha, allowlist

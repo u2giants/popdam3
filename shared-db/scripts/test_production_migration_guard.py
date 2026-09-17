@@ -613,6 +613,59 @@ class GuardTests(unittest.TestCase):
                 migrations, ["20260727010000"], {"20260727010000"}
             )
 
+    def test_applied_refusal_names_the_ledger_it_read(self) -> None:
+        """Issue #3193: the preview job reads PREVIEW's ledger, so say so."""
+        migrations = {"20260727010000": Path("one.sql")}
+        with self.assertRaises(GuardError) as default:
+            validate_candidates(migrations, ["20260727010000"], {"20260727010000"})
+        self.assertIn("already applied on production: 20260727010000", str(default.exception))
+        self.assertNotIn("historical", str(default.exception))
+        with self.assertRaises(GuardError) as preview:
+            validate_candidates(
+                migrations, ["20260727010000"], {"20260727010000"}, None, "preview"
+            )
+        text = str(preview.exception)
+        self.assertIn("already applied on preview: 20260727010000", text)
+        self.assertNotIn("production", text)
+        self.assertIn("historical_preview_original_run_map", text)
+        with self.assertRaises(GuardError) as unknown:
+            validate_candidates(migrations, [], set(), None, "staging")
+        self.assertIn("unknown ledger name", str(unknown.exception))
+
+    def test_preflight_cli_passes_the_ledger_name_through(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "ledger.txt"
+            ledger.write_text(
+                "Local | Remote | Time\n20260727010000 | 20260727010000 | x\n",
+                encoding="utf-8",
+            )
+            migrations = {"20260727010000": Path("one.sql")}
+            for name, expected in ((None, "production"), ("preview", "preview")):
+                argv = ["guard", "preflight", "--repo", directory,
+                        "--allowlist", "20260727010000", "--remote-ledger", str(ledger)]
+                if name:
+                    argv += ["--ledger-name", name]
+                with patch.object(sys, "argv", argv), patch.object(
+                    production_migration_guard, "local_migrations", return_value=migrations
+                ), patch("sys.stderr") as stderr:
+                    self.assertEqual(production_migration_guard.main(), 1)
+                written = "".join(call.args[0] for call in stderr.write.call_args_list)
+                self.assertIn(f"already applied on {expected}: 20260727010000", written)
+
+    def test_preview_job_guard_calls_name_the_preview_ledger(self) -> None:
+        workflow = (REPO / ".github/workflows/shared-supabase-migrations.yml").read_text(encoding="utf-8")
+        calls = re.findall(
+            r"production_migration_guard\.py (?:preflight|prepare) \\\n(?:.*\\\n)*.*",
+            workflow,
+        )
+        preview = [call for call in calls if "preview-ledger-before.txt" in call]
+        production = [call for call in calls if "production-ledger-before.txt" in call]
+        self.assertEqual(len(preview), 2, calls)
+        for call in preview:
+            self.assertIn("--ledger-name preview", call)
+        for call in production:
+            self.assertNotIn("--ledger-name preview", call)
+
     def test_dry_run_requires_exact_list(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "dry.txt"

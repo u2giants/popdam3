@@ -1,38 +1,63 @@
 {
   "schema_version": 1,
-  "generation": 5,
-  "work_issue": 3181,
-  "work_type": "repo-maintenance",
-  "route": "repo-maintenance",
-  "goal": "Remove the stale absent_from_production_catalog declaration for prod_order_milestone_schedule, which is live on production (run 35179427282, proof on #3091).",
-  "base_sha": "23d6142e079a805d86a7e5a0cf4324897c732bcd",
-  "dispatcher": "Albert Hazan chat session",
-  "worker": "Claude Opus 5 session bold-kowalevski",
-  "branch": "claude/remove-3091-prod-gap-1789640648",
-  "worktree": "C:/repos/shared-db/.claude/worktrees/rm-3091-gap",
+  "generation": 9,
+  "work_issue": 3174,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Add Coca-Cola Submissions, WWE Creative, Peanuts Creative, Sesame Workshop Creative and Sesame Workshop Submissions sections to api.db_data_admin_scraped_source_inventory, with the new landing table plm.sesame_submission_property_option.",
+  "base_sha": "f943d40410984525445267b04a677663ec89276a",
+  "dispatcher": "claude shared-db orchestrator issue #3174",
+  "worker": "Claude Opus 5 issue-3174 migration author lane (claim #3189)",
+  "branch": "claude/issue-3174-scraped-sections",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/agent-aa5246435e4e6b9b3",
   "allowed_paths": [
-    "config/db-data-admin-property-source-coverage.json",
+    ".agent/completion.json",
     ".agent/contract.json",
-    ".agent/completion.json"
+    ".github/live-proofs/3174.sql",
+    "supabase/migrations/20260917144950_db_data_admin_inventory_coke_wwe_peanuts_sesame_sections.sql",
+    "supabase/tests/sesame_landing_contracts.sql"
   ],
   "file_writes": [
-    "config/db-data-admin-property-source-coverage.json",
+    ".agent/completion.json",
     ".agent/contract.json",
-    ".agent/completion.json"
+    ".github/live-proofs/3174.sql",
+    "supabase/migrations/20260917144950_db_data_admin_inventory_coke_wwe_peanuts_sesame_sections.sql",
+    "supabase/tests/sesame_landing_contracts.sql"
   ],
-  "db_reads": [],
-  "db_writes": [],
+  "db_reads": [
+    "table plm.coke_approval_vocabulary_value",
+    "table plm.wwe_creative_brand",
+    "table plm.peanuts_art_program",
+    "table plm.sesame_brand",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory",
+    "table plm.sesame_submission_property_option"
+  ],
   "prohibited_actions": [
-    "No database write or structure change of any kind"
+    "Never run direct production DDL; production reaches the database only through the governed promotion lane.",
+    "Never change existing inventory arms, row keys or grants.",
+    "Never rebase this branch; refresh from main with a merge."
   ],
   "required_checks": [
-    "node scripts/check-db-data-admin-property-source-coverage.mjs",
-    "node --test scripts/check-db-data-admin-property-source-coverage.test.mjs scripts/check-main-tip-freshness.test.mjs"
+    "bash scripts/check-sql.sh"
   ],
   "assumptions": [
-    "The production catalog contains prod_order_milestone_schedule, so the coverage check would fail while the declaration remains"
+    "The live production function body equals migration 20260917005650 (md5 verified), so it is the derivation source.",
+    "Peanuts rows without a Tenovos source id have no ledger identity and are left out on purpose; production has none today.",
+    "Generation 2 exists because main advanced to 23d6142e; the branch was refreshed by merge (a3889133) and main changed no file this PR touches.",
+    "Generation 3: refreshed by merge (fce3914f) onto main 1c81b5b6, which carries the #3195 grant-kind reader fix; the migration and live proof are unchanged.",
+    "Generation 4: the migration version was superseded 20260917112114 -> 20260917144950 (claim #3189 supersession 314adcc7) because main gained 20260917112129; claim worktree rebound (1424b1c9); the Sesame NetX landing census test now excludes the separate sesame_submission_ landing table; refreshed onto main e2c53f21.",
+    "Generation 5: refreshed by merge onto main c0238000; the PR's own diff is unchanged.",
+    "Generation 6: refreshed by merge onto main 6aff8344; the PR's own diff is unchanged.",
+    "Generation 7: refreshed by merge onto main 985e19b6; the PR's own diff is unchanged.",
+    "Generation 8: refreshed by merge onto main ccfe1371; the PR's own diff is unchanged.",
+    "Generation 9: refreshed by merge onto main f943d404; the PR's own diff is unchanged."
   ],
   "stop_conditions": [
-    "Stop if any other coverage family changes"
+    "Stop if the lane claim is refused for object collision.",
+    "Stop on anything other than an explicit independent APPROVE."
   ]
 }

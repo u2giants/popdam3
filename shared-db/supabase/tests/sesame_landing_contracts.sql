@@ -116,7 +116,7 @@ begin
 
   -- Nothing outside the claim may have appeared under this prefix.
   select count(*) into v_n from information_schema.tables
-   where table_schema = 'plm' and table_name like 'sesame\_%' and table_type = 'BASE TABLE';
+   where table_schema = 'plm' and table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%' and table_type = 'BASE TABLE';
   if v_n <> 19 then
     v_fail := v_fail + 1;
     raise warning 'A FAIL: plm holds % sesame tables, expected exactly 19', v_n;
@@ -126,7 +126,7 @@ begin
   -- brand. Pairing those two independent fields off a shared asset is the Disney DCP
   -- Vault fabrication, and no table here may hold the result, derived or otherwise.
   select count(*) into v_n from information_schema.tables
-   where table_schema = 'plm' and table_name like 'sesame\_%'
+   where table_schema = 'plm' and table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%'
      and table_name like '%brand%' and table_name like '%character%';
   if v_n <> 0 then
     v_fail := v_fail + 1;
@@ -238,7 +238,7 @@ begin
   -- This release resolves NOTHING. A half-built reconciliation surface reads as
   -- "resolution exists and nothing resolved yet", which is worse than none at all.
   select count(*) into v_n from information_schema.columns
-   where table_schema = 'plm' and table_name like 'sesame\_%'
+   where table_schema = 'plm' and table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%'
      and column_name in ('core_property_id','core_character_id','core_licensor_id',
                          'resolved_at','resolution_status');
   if v_n <> 0 then
@@ -251,7 +251,7 @@ begin
   select count(*) into v_n
     from pg_trigger g join pg_class t on t.oid = g.tgrelid
     join pg_namespace n on n.oid = t.relnamespace
-   where n.nspname = 'plm' and t.relname like 'sesame\_%' and not g.tgisinternal;
+   where n.nspname = 'plm' and t.relname like 'sesame\_%' and t.relname not like 'sesame\_submission\_%' and not g.tgisinternal;
   if v_n <> 0 then
     v_fail := v_fail + 1;
     raise warning 'A FAIL: % user trigger(s) on sesame tables', v_n;
@@ -297,7 +297,7 @@ declare
   v_n integer;
 begin
   select count(*) into v_n from information_schema.role_table_grants
-   where table_schema = 'plm' and table_name like 'sesame\_%'
+   where table_schema = 'plm' and table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%'
      and grantee in ('service_role','authenticated','anon','PUBLIC')
      and privilege_type in ('UPDATE','DELETE','TRUNCATE');
   if v_n <> 0 then
@@ -305,14 +305,14 @@ begin
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
-   where table_schema = 'plm' and table_name like 'sesame\_%'
+   where table_schema = 'plm' and table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%'
      and grantee = 'service_role' and privilege_type = 'SELECT';
   if v_n <> 19 then
     raise exception 'B FAILED: expected 19 service_role SELECT grants, found %', v_n;
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
-   where table_schema = 'plm' and table_name like 'sesame\_%'
+   where table_schema = 'plm' and table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%'
      and grantee = 'service_role' and privilege_type = 'INSERT';
   if v_n <> 18 then
     raise exception 'B FAILED: expected 18 service_role INSERT grants, found %', v_n;
@@ -323,13 +323,13 @@ begin
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
-   where table_schema = 'plm' and table_name like 'sesame\_%' and grantee = 'anon';
+   where table_schema = 'plm' and table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%' and grantee = 'anon';
   if v_n <> 0 then
     raise exception 'B FAILED: anon holds % grant(s) on plm.sesame_* tables', v_n;
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
-   where table_schema = 'plm' and table_name like 'sesame\_%'
+   where table_schema = 'plm' and table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%'
      and grantee = 'authenticated' and privilege_type = 'SELECT';
   if v_n <> 19 then
     raise exception 'B FAILED: expected 19 authenticated SELECT grants, found %', v_n;
@@ -1946,10 +1946,11 @@ declare
   v_loading uuid;
   v_counts jsonb;
 begin
-  if (select count(*) from api.source_capture_inventory where source_system='sesame') <> 19 then
+  if (select count(*) from api.source_capture_inventory where source_system='sesame'
+       and table_name not like 'sesame\_submission\_%') <> 19 then
     raise exception 'J FAILED: all 19 Sesame landing tables must classify as sesame';
   end if;
-  if exists (select 1 from api.source_capture_inventory where table_name like 'sesame\_%'
+  if exists (select 1 from api.source_capture_inventory where table_name like 'sesame\_%' and table_name not like 'sesame\_submission\_%'
        and (source_system <> 'sesame' or count_basis <> 'latest_complete')) then
     raise exception 'J FAILED: a Sesame landing table has the wrong source or count basis';
   end if;

@@ -815,6 +815,95 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                     )
 
     # ------------------------------------------------------------------
+    # Issue #2730: one head can carry several same-name check runs -- a
+    # cancelled run beside its re-run. The conclusions dictionary used to keep
+    # whichever row the API listed last, so an older cancelled run listed after
+    # a newer successful one silently refused a healthy promotion (PR #2527:
+    # run 34563999011/check 103152259453 succeeded, older 34563998795/check
+    # 103152255159 was cancelled, production run 34564942032 took the
+    # cancellation). The newest row must be selected by check-run id, never by
+    # API row order.
+    # ------------------------------------------------------------------
+
+    def prove_with_check_rows(self, root, main, merge_sha, rows):
+        head = "1" * 40
+        pr = {"merged": True, "merge_commit_sha": merge_sha, "head": {"sha": head}}
+
+        def api(endpoint):
+            if "check-runs" in endpoint:
+                return {"check_runs": rows}
+            if endpoint.endswith("/status"):
+                return {"statuses": [{
+                    "context": "Migration guarded merge authorization", "state": "success",
+                }]}
+            return pr
+
+        return prove_pr_and_checks(1, main, ["20260814000000"], api, root)
+
+    def issue_2730_rows(self, duplicated):
+        others = [
+            {"name": name, "conclusion": "success"}
+            for name in REQUIRED_CHECKS if name != "Cross-PR object collision"
+        ]
+        return others + duplicated
+
+    def test_the_newest_same_name_check_is_selected_in_either_api_order(self):
+        temp, root, main, merge_sha = self.historical_repo()
+        older = {"name": "Cross-PR object collision", "id": 103152255159, "conclusion": "cancelled"}
+        newer = {"name": "Cross-PR object collision", "id": 103152259453, "conclusion": "success"}
+        with temp:
+            for rows in ([older, newer], [newer, older]):
+                with self.subTest(order=[row["id"] for row in rows]):
+                    self.assertEqual(
+                        self.prove_with_check_rows(root, main, merge_sha, self.issue_2730_rows(rows)),
+                        ("1" * 40, merge_sha),
+                    )
+
+    def test_a_newer_unsuccessful_check_refuses_over_an_older_success(self):
+        temp, root, main, merge_sha = self.historical_repo()
+        older = {"name": "Cross-PR object collision", "id": 103152255159, "conclusion": "success"}
+        with temp:
+            for newer_conclusion in ("failure", "cancelled", "timed_out", None):
+                newer = {"name": "Cross-PR object collision", "id": 103152259453}
+                if newer_conclusion is not None:
+                    newer["conclusion"] = newer_conclusion
+                with self.subTest(newer_conclusion=newer_conclusion), self.assertRaisesRegex(
+                    RiskGateError, "required exact-head checks are not successful"
+                ):
+                    self.prove_with_check_rows(
+                        root, main, merge_sha, self.issue_2730_rows([older, newer])
+                    )
+
+    def test_same_name_rows_without_usable_ids_refuse_rather_than_guess(self):
+        temp, root, main, merge_sha = self.historical_repo()
+        with temp:
+            for bad in ({"name": "Cross-PR object collision", "conclusion": "success"},
+                        {"name": "Cross-PR object collision", "id": "103152259453", "conclusion": "success"},
+                        {"name": "Cross-PR object collision", "id": 0, "conclusion": "success"}):
+                duplicate = dict(bad, conclusion="cancelled")
+                with self.subTest(bad=bad), self.assertRaisesRegex(
+                    RiskGateError, "newest cannot be selected"
+                ):
+                    self.prove_with_check_rows(
+                        root, main, merge_sha, self.issue_2730_rows([bad, duplicate])
+                    )
+
+    def test_one_check_run_id_with_two_conclusions_refuses_as_ambiguous(self):
+        temp, root, main, merge_sha = self.historical_repo()
+        rows = self.issue_2730_rows([
+            {"name": "Cross-PR object collision", "id": 103152259453, "conclusion": "success"},
+            {"name": "Cross-PR object collision", "id": 103152259453, "conclusion": "failure"},
+        ])
+        with temp, self.assertRaisesRegex(RiskGateError, "different conclusions"):
+            self.prove_with_check_rows(root, main, merge_sha, rows)
+
+    def test_a_check_run_row_without_a_name_refuses_as_malformed(self):
+        temp, root, main, merge_sha = self.historical_repo()
+        rows = self.issue_2730_rows([]) + [{"conclusion": "success"}]
+        with temp, self.assertRaisesRegex(RiskGateError, "no check name"):
+            self.prove_with_check_rows(root, main, merge_sha, rows)
+
+    # ------------------------------------------------------------------
     # Issue #1218: a well-formed GitHub response of an unexpected SHAPE must
     # produce a NAMED ::error:: refusal, not a raw traceback.
     #

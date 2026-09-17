@@ -1,31 +1,44 @@
 {
   "schema_version": 1,
-  "work_issue": 3181,
+  "work_issue": 3174,
   "outcome": "ready-for-merge",
-  "pr": 3176,
-  "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3181/5",
-  "contract_sha256": "573c5940dc6288512684f7ea7728ca968afc2c8cd2f2ae6853d18442f7b569d8",
-  "head_sha": "b68ae799cbe52764c7db48fdcceeff4b36c0d365",
-  "files_changed": [
-    "config/db-data-admin-property-source-coverage.json"
+  "pr": 3190,
+  "migration_versions": [
+    "20260917144950"
   ],
-  "db_reads": [],
-  "db_writes": [],
+  "contract_ref": "refs/db-contracts/3174/9",
+  "contract_sha256": "d3b26dec5934e3b919c46a24db56b44a7e31abe6aa68dd400511126176b63d31",
+  "head_sha": "899b0f8b8b28adac1e6e890de24818eb2b660b32",
+  "files_changed": [
+    ".agent/completion.json",
+    ".agent/contract.json",
+    ".github/live-proofs/3174.sql",
+    "supabase/migrations/20260917144950_db_data_admin_inventory_coke_wwe_peanuts_sesame_sections.sql",
+    "supabase/tests/sesame_landing_contracts.sql"
+  ],
+  "db_reads": [
+    "table plm.coke_approval_vocabulary_value",
+    "table plm.wwe_creative_brand",
+    "table plm.peanuts_art_program",
+    "table plm.sesame_brand",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory",
+    "table plm.sesame_submission_property_option"
+  ],
   "checks": [
     {
-      "command": "node scripts/check-db-data-admin-property-source-coverage.mjs",
+      "command": "bash scripts/check-sql.sh",
       "exit_code": 0,
-      "evidence": "DB Data Admin Property-source coverage passed: 38 families, 15 exposed, 332 plm tables classified."
-    },
-    {
-      "command": "node --test scripts/check-db-data-admin-property-source-coverage.test.mjs scripts/check-main-tip-freshness.test.mjs",
-      "exit_code": 0,
-      "evidence": "44 pass, 0 fail, 0 skipped."
+      "evidence": "Previous head failed only the backdated-version guard (fixed by governed version supersession) and Sesame census A (20 vs 19 sesame_ tables; census now excludes the separate submissions landing). Both re-verified by CI on this head."
     }
   ],
   "assumptions_resolved": [
-    "Production proof for prod_order_milestone_schedule is run 35179427282 recorded on #3091"
+    "Production function body md5 matched migration 20260917005650 before derivation.",
+    "Production plm.peanuts_art_program has 19 rows and none without a Tenovos source id, so the exclusion drops nothing today.",
+    "Migration version superseded to 20260917144950 through --reversion-active-claim; claim #3189 lease version updated by the tool."
   ],
   "stop_conditions_hit": []
 }

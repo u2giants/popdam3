@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { namedHold, urgentHoldDetail, urgentHoldReason } from './manage-migration-author-lanes.mjs'
+import { rebindClaimWorktree, claimWorktreeRebindRef } from './manage-migration-author-lanes.mjs'
 import { validateHoldReasonRecord } from './lib/hold-reason.mjs'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -8392,4 +8393,194 @@ test('#2530: outcome evidence is never read from a repository other than this on
   assert.throws(() => githubIo.readOutcomeEvidence('https://github.com/attacker/shared-db/issues/1#issuecomment-5'), /outcome evidence refused: .*only this repository/)
   assert.throws(() => githubIo.readOutcomeEvidence('https://github.com/popcre/designflow-backend/pull/1#issuecomment-5'), /outcome evidence refused/)
   assert.throws(() => githubIo.readOutcomeEvidence('not a url'), /outcome evidence refused: evidence must be an exact GitHub/)
+})
+
+test('#3187 mutex release is proved when a rival acquires the lock inside the readback window',()=>{
+  const io=reviewIo();let attempts=0,baseLoaded=false;io.enforceAdmission=true
+  const rawGetCommit=io.getCommit
+  const active=new Map(),states=new Map()
+  ACTIVE_REVIEWERS.slice(0,-1).forEach((reviewer,index)=>{
+    const issue=2000+index,pr=2100+index,headSha=`c${index}`.padEnd(40,'0')
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${reviewer.name} issue=${issue} pr=${pr} head=${headSha}`)
+    io.refs.set(reviewActiveRef(reviewer.name),sha);active.set(reviewActiveRef(reviewer.name),{sha,commit:io.getCommit(sha)})
+    states.set(`${issue}:${pr}`,{pr:{state:'open',head:{sha:headSha}},evidence:[]})
+  })
+  states.set('1767:1800',{issue:{state:'open'},pr:{state:'open',head:{sha:'a'.repeat(40)}},evidence:[]})
+  // Multiple durable exclusions must remain one fixed-cost exact-record read.
+  // The former prefix scan paid an unreserved getCommit request for every row
+  // after the mutex was acquired and could exhaust the global wire ceiling.
+  REVIEWERS.slice(0,4).forEach((reviewer,index)=>{
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-exclusion reviewer=${reviewer.name} issue=1767 pr=1800 reason=independence-conflict evidence=${String(index+1).repeat(40).slice(0,40)}`)
+    io.refs.set(`${REVIEW_EXCLUSION_REF_PREFIX}/1767-1800-${reviewer.name}`,sha)
+  })
+  const wire=(n=1)=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})}
+  io.getRateLimit=()=>{wire(2);return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readReviewerOperationRoute=()=>{wire();return {pr:{state:'open',head:{sha:'a'.repeat(40)}},files:[{filename:'scripts/reviewer-tool.mjs',status:'modified'}],linkedIssues:[{number:1767,state:'open',createdAt:'2026-09-11T17:00:00Z',body:['```db-work-scope','status: ready','work_type: repo-maintenance','route: repo-maintenance','service_class: maintenance','change_type: reviewer-tooling','priority: 5','depends_on:','objects:','```'].join('\n')}]}}
+  io.readActiveReviewLeases=()=>{wire();const snapshot=new Map(active);for(const [ref,sha] of io.refs)if(ref.startsWith(REVIEW_ACTIVE_REF_PREFIX))snapshot.set(ref,{sha,commit:rawGetCommit(sha)});return snapshot}
+  io.readReviewStates=()=>{wire();return states}
+  io.readReviewRefs=(refs)=>{wire();return new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))}
+  io.readReviewRecords=(refs)=>{wire();return new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  const RIVAL="9".repeat(40);io.atomicReviewMutexRelease=(ownerSha)=>{io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}]);io.refs.set(MUTEX_REF,RIVAL)}
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){
+    const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}
+  }
+  const make=io.makeOwnerCommit
+  io.makeOwnerCommit=(message)=>{wire(1);baseLoaded=true;return make(message)}
+  assert.ok(assignNextReviewer({issue:1767,pr:1800,headSha:"a".repeat(40),admissionOptions:{pr:1800}},io).reviewer)
+  assert.equal(io.refs.get(MUTEX_REF),RIVAL)
+})
+
+test('#3187 mutex release still refuses when the lock keeps naming our owner commit',()=>{
+  const io=reviewIo();let attempts=0,baseLoaded=false;io.enforceAdmission=true
+  const rawGetCommit=io.getCommit
+  const active=new Map(),states=new Map()
+  ACTIVE_REVIEWERS.slice(0,-1).forEach((reviewer,index)=>{
+    const issue=2000+index,pr=2100+index,headSha=`c${index}`.padEnd(40,'0')
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${reviewer.name} issue=${issue} pr=${pr} head=${headSha}`)
+    io.refs.set(reviewActiveRef(reviewer.name),sha);active.set(reviewActiveRef(reviewer.name),{sha,commit:io.getCommit(sha)})
+    states.set(`${issue}:${pr}`,{pr:{state:'open',head:{sha:headSha}},evidence:[]})
+  })
+  states.set('1767:1800',{issue:{state:'open'},pr:{state:'open',head:{sha:'a'.repeat(40)}},evidence:[]})
+  // Multiple durable exclusions must remain one fixed-cost exact-record read.
+  // The former prefix scan paid an unreserved getCommit request for every row
+  // after the mutex was acquired and could exhaust the global wire ceiling.
+  REVIEWERS.slice(0,4).forEach((reviewer,index)=>{
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-exclusion reviewer=${reviewer.name} issue=1767 pr=1800 reason=independence-conflict evidence=${String(index+1).repeat(40).slice(0,40)}`)
+    io.refs.set(`${REVIEW_EXCLUSION_REF_PREFIX}/1767-1800-${reviewer.name}`,sha)
+  })
+  const wire=(n=1)=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})}
+  io.getRateLimit=()=>{wire(2);return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readReviewerOperationRoute=()=>{wire();return {pr:{state:'open',head:{sha:'a'.repeat(40)}},files:[{filename:'scripts/reviewer-tool.mjs',status:'modified'}],linkedIssues:[{number:1767,state:'open',createdAt:'2026-09-11T17:00:00Z',body:['```db-work-scope','status: ready','work_type: repo-maintenance','route: repo-maintenance','service_class: maintenance','change_type: reviewer-tooling','priority: 5','depends_on:','objects:','```'].join('\n')}]}}
+  io.readActiveReviewLeases=()=>{wire();const snapshot=new Map(active);for(const [ref,sha] of io.refs)if(ref.startsWith(REVIEW_ACTIVE_REF_PREFIX))snapshot.set(ref,{sha,commit:rawGetCommit(sha)});return snapshot}
+  io.readReviewStates=()=>{wire();return states}
+  io.readReviewRefs=(refs)=>{wire();return new Map(refs.map((ref)=>[ref,io.refs.get(ref)??null]))}
+  io.readReviewRecords=(refs)=>{wire();return new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  const RIVAL="9".repeat(40);io.atomicReviewMutexRelease=(ownerSha)=>{assert.equal(io.refs.get(MUTEX_REF),ownerSha)}
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){
+    const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}
+  }
+  const make=io.makeOwnerCommit
+  io.makeOwnerCommit=(message)=>{wire(1);baseLoaded=true;return make(message)}
+  assert.throws(()=>assignNextReviewer({issue:1767,pr:1800,headSha:"a".repeat(40),admissionOptions:{pr:1800}},io),/could not be proved after atomic deletion/)
+})
+
+
+// Issue #3182: guarded --rebind-claim-worktree.
+function rebindIo(overrides={}){
+  const io=reversionIo()
+  const target='C:/repos/shared-db/.claude/worktrees/issue-764-rebind-fresh'
+  io.targetWorktree=target
+  io.inspected=[]
+  io.localClean=(worktree)=>{io.inspected.push(worktree);return true}
+  io.localHead=(worktree)=>{io.inspected.push(worktree);return io.head}
+  io.localBranch=(worktree)=>{io.inspected.push(worktree);return 'codex/issue-764-sequence-repair'}
+  io.getPrFiles=()=>[{filename:`supabase/migrations/${io.old}_repair.sql`}]
+  return Object.assign(io,overrides)
+}
+const rebindArgs={issue:764,claim:1056,pr:1047,owner:'issue_764_sequence_repair/session-1053',branch:'codex/issue-764-sequence-repair',worktree:'C:\\repos\\shared-db-worktrees\\issue-764-sequence-repair',targetWorktree:'C:/repos/shared-db/.claude/worktrees/issue-764-rebind-fresh',headSha:'a'.repeat(40)}
+
+test('issue 3182: rebind moves only the lease worktree, records evidence, and never inspects the old worktree',()=>{
+  const io=rebindIo(),before=parseAuthorLease(io.issue.body,NOW),result=rebindClaimWorktree(rebindArgs,NOW,io),after=parseAuthorLease(io.issue.body,NOW)
+  assert.equal(result.idempotent,false)
+  assert.equal(after.worktree,rebindArgs.targetWorktree)
+  for(const key of ['version','owner','branch','capacityState','declaredCapacityState','active'])assert.equal(after[key],before[key],key)
+  assert.equal(after.expiresAt.toISOString(),before.expiresAt.toISOString())
+  assert.deepEqual(after.writes,before.writes)
+  const ref=claimWorktreeRebindRef(1056,io.old,rebindArgs.targetWorktree)
+  assert.equal(io.refs.get(ref),result.rebindSha)
+  assert.match(io.getCommit(result.rebindSha).message,/^db-coordination claim-worktree-rebound issue=764 claim=1056 pr=1047 version=20260816044638 /)
+  assert.equal(io.refs.has(MUTEX_REF),false,'mutex must be released')
+  assert.ok(io.inspected.length>0)
+  assert.ok(io.inspected.every((worktree)=>worktree===rebindArgs.targetWorktree),'old worktree must never be inspected')
+  const again=rebindClaimWorktree(rebindArgs,NOW,io)
+  assert.equal(again.idempotent,true);assert.equal(again.rebindSha,result.rebindSha)
+})
+
+test('issue 3182: rebind refuses without exact owner proof, PR head, and a clean target on the claim branch',()=>{
+  const cases=[
+    [{owner:'someone-else'},{},/claim owner changed/],
+    [{branch:'other/branch'},{},/claim branch changed/],
+    [{worktree:'C:/elsewhere'},{},/claim worktree changed/],
+    [{issue:765},{},/claim title does not identify exact issue #765/],
+    [{claim:999},{getIssue:()=>({number:999,state:'closed',title:'x',body:''})},/not open/],
+    [{headSha:'c'.repeat(40)},{},/exact head/],
+    [{targetWorktree:'c:/repos/shared-db-worktrees/issue-764-sequence-repair/'},{},/must differ/],
+    [{},{localClean:()=>false},/absent or dirty/],
+    [{},{localHead:()=>'d'.repeat(40)},/not at the exact PR head/],
+    [{},{localBranch:()=>'main'},/not on the claim branch/],
+    [{},{localBranch:undefined},/not on the claim branch/],
+    [{},{getPrFiles:()=>[{filename:'supabase/migrations/20260816050000_other.sql'}]},/does not match the claim version/],
+    [{headSha:'A'.repeat(40)},{},/40-character lowercase head/],
+    [{targetWorktree:''},{},/requires exact/],
+  ]
+  for(const [args,overrides,pattern] of cases){
+    const io=rebindIo(overrides),original=io.issue.body
+    assert.throws(()=>rebindClaimWorktree({...rebindArgs,...args},NOW,io),pattern,JSON.stringify(args))
+    assert.equal(io.issue.body,original,'claim body must be unchanged after refusal')
+    assert.equal(io.refs.has(MUTEX_REF),false)
+  }
+})
+
+test('issue 3182: rebind refuses expired or relinquished leases and asks for renewal first',()=>{
+  const io=rebindIo()
+  assert.throws(()=>rebindClaimWorktree(rebindArgs,new Date('2026-08-17T00:00:00Z'),io),/renew or resume it before rebinding/)
+  const relinquished=rebindIo();relinquished.issue.body=relinquished.issue.body.replace('capacity_state: active','capacity_state: relinquished\nblocked_on: #1\nworktree_state: dirty')
+  assert.throws(()=>rebindClaimWorktree(rebindArgs,NOW,relinquished),/renew or resume it before rebinding/)
+})
+
+test('issue 3182: rebind rolls back the claim body when readback or evidence fails',()=>{
+  const io=rebindIo(),original=io.issue.body,baseUpdate=io.updateIssue;let first=true
+  io.updateIssue=(number,fields)=>{const result=baseUpdate(number,fields);if(first){first=false;io.issue.title='CLAIM: #764 tampered'}return result}
+  assert.throws(()=>rebindClaimWorktree(rebindArgs,NOW,io),/exact readback failed/)
+  assert.equal(io.issue.body,original)
+  const evidence=rebindIo(),evidenceOriginal=evidence.issue.body
+  evidence.createRef=(ref,sha)=>{if(ref.startsWith('refs/db-claim-worktree-rebinds/'))return false;if(evidence.refs.has(ref))return false;evidence.refs.set(ref,sha);return true}
+  assert.throws(()=>rebindClaimWorktree(rebindArgs,NOW,evidence),/could not be created/)
+  assert.equal(evidence.issue.body,evidenceOriginal)
+  assert.equal(evidence.refs.has(MUTEX_REF),false)
+})
+
+test('issue 3182: rebind never rolls back after losing the mutex',()=>{
+  const io=rebindIo(),baseUpdate=io.updateIssue
+  io.updateIssue=(number,fields)=>{const result=baseUpdate(number,fields);io.refs.set(MUTEX_REF,'successor');return result}
+  assert.throws(()=>rebindClaimWorktree(rebindArgs,NOW,io),/ROLLBACK NOT ATTEMPTED/)
+})
+
+test('issue 3182: claim already naming the target without evidence is refused, and mismatched evidence is refused',()=>{
+  const io=rebindIo();rebindClaimWorktree(rebindArgs,NOW,io)
+  assert.throws(()=>rebindClaimWorktree({...rebindArgs,pr:1048},NOW,io),/does not match this request/)
+  const bare=rebindIo();bare.issue.body=bare.issue.body.replace(/^worktree: .*$/m,`worktree: ${rebindArgs.targetWorktree}`)
+  assert.throws(()=>rebindClaimWorktree(rebindArgs,NOW,bare),/without durable rebind evidence/)
+})
+
+test('issue 3182: re-run at a changed head, a respelled target, or a malformed branch is refused, not reported idempotent',()=>{
+  const io=rebindIo();rebindClaimWorktree(rebindArgs,NOW,io)
+  assert.throws(()=>rebindClaimWorktree({...rebindArgs,headSha:'b'.repeat(40)},NOW,io),/already rebound at head a{40}/)
+  assert.throws(()=>rebindClaimWorktree({...rebindArgs,targetWorktree:rebindArgs.targetWorktree.toUpperCase()},NOW,io),/different spelling/)
+  const branch=rebindIo(),original=branch.issue.body
+  assert.throws(()=>rebindClaimWorktree({...rebindArgs,branch:'codex/issue-764\nworktree: C:/evil'},NOW,branch),/branch contains a forbidden character/)
+  assert.equal(branch.issue.body,original)
+})
+
+test('issue 3182: rebind refuses a retired version, a missing permanent reservation, and orphan evidence',async()=>{
+  const {resetRetirementSnapshot}=await import('./manage-migration-author-lanes.mjs')
+  const retired=rebindIo(),retiredOriginal=retired.issue.body
+  retired.refs.set(`refs/db-claims-retired/${retired.old}`,'9'.repeat(40));retired.readCommitMessage=()=>null
+  resetRetirementSnapshot()
+  try{assert.throws(()=>rebindClaimWorktree(rebindArgs,NOW,retired),/retire/i)}finally{resetRetirementSnapshot()}
+  assert.equal(retired.issue.body,retiredOriginal)
+  const unreserved=rebindIo(),unreservedOriginal=unreserved.issue.body;unreserved.refs.delete(`refs/db-claims/${unreserved.old}`)
+  assert.throws(()=>rebindClaimWorktree(rebindArgs,NOW,unreserved),/permanent version reservation is unreadable/)
+  assert.equal(unreserved.issue.body,unreservedOriginal);assert.equal(unreserved.refs.has(MUTEX_REF),false)
+  const orphan=rebindIo(),orphanOriginal=orphan.issue.body;orphan.refs.set(claimWorktreeRebindRef(1056,orphan.old,rebindArgs.targetWorktree),'8'.repeat(40))
+  assert.throws(()=>rebindClaimWorktree(rebindArgs,NOW,orphan),/evidence already exists for this target but the claim does not name it/)
+  assert.equal(orphan.issue.body,orphanOriginal);assert.equal(orphan.refs.has(MUTEX_REF),false)
+})
+
+test('issue 3182: REAL main command wires --rebind-claim-worktree with every identity field',()=>{
+  const io=rebindIo(),args=['--rebind-claim-worktree','--issue','764','--claim-number','1056','--owner',rebindArgs.owner,'--branch',rebindArgs.branch,'--worktree',rebindArgs.worktree,'--target-worktree',rebindArgs.targetWorktree,'--pr','1047','--head-sha',rebindArgs.headSha]
+  assert.equal(main(args,NOW,io),0)
+  assert.equal(parseAuthorLease(io.issue.body,NOW).worktree,rebindArgs.targetWorktree)
 })

@@ -199,8 +199,13 @@ export function evaluateExactHeadApproval(input) {
   const pinned = atThisHead.filter((row) => !returnedShas.has(String(row.sha ?? '').toLowerCase()))
   const liveBySlot = new Map()
   for (const assignment of pinned) {
-    const prior = liveBySlot.get(assignment.slot)
-    if (!prior || Number(assignment.replacementSequence ?? 0) > Number(prior.replacementSequence ?? 0)) liveBySlot.set(assignment.slot, assignment)
+    // A ref without a `-slot<N>` suffix IS slot 1 (`parseAssignmentRef` defaults
+    // it), and rows built by callers that predate slots may omit the field. A
+    // slot read as `undefined` is as invisible as one never drawn (#2837), so it
+    // is normalized to the same default the ref parser applies.
+    const slot = Number.isInteger(assignment.slot) && assignment.slot >= 1 ? assignment.slot : 1
+    const prior = liveBySlot.get(slot)
+    if (!prior || Number(assignment.replacementSequence ?? 0) > Number(prior.replacementSequence ?? 0)) liveBySlot.set(slot, { ...assignment, slot })
   }
   const sequenceOf = (row, label) => { const value = Number(row?.sequence); if (!Number.isInteger(value) || value < 1) throw new ApprovalCheckError(`${label} has no readable reviewer sequence`); return value }
   const newestReturned = new Map()
@@ -210,6 +215,32 @@ export function evaluateExactHeadApproval(input) {
     if (!live || sequenceOf(live, `assignment ${live.ref ?? live.sha}`) <= sequence) throw new ApprovalCheckError(`review slot ${slot} was durably returned for head ${headSha} and has no live exact-head assignment newer than the returned one; it cannot be satisfied by another slot, nor by a record the returned one had already superseded. Draw a new reviewer for this exact head and slot and have that assignment record its own APPROVE.`)
   }
   if (!pinned.length) throw new ApprovalCheckError(`every reviewer assignment pinned to head ${headSha} was durably returned; a returned slot is an unapproved slot`)
+
+  // THE MINIMUM SLOT COUNT (issue #2837). The loop below demands an APPROVE for
+  // every slot it can SEE from pinned assignments -- but a slot that was never
+  // drawn is a slot it cannot see, so "every visible slot approved" equals two
+  // independent reviews only when two were drawn. PR #2746 (issue #2478) merged
+  // production-bound bytes on a single slot-1 verdict because slot 2 was never
+  // drawn across all nine heads, nothing required it, and the log line read like
+  // success. This file already names the failure class for a RETURNED slot; a
+  // never-drawn slot reaches the identical blind spot from the other side.
+  //
+  // The required minimum comes from the same source AGENTS.md 6.x section 4
+  // uses: a change that touches supabase/migrations/ needs TWO independent
+  // reviews; every other change (scripts, docs, CI) needs ONE. It is judged from
+  // the pull request's own changed files -- the same list the documents-only
+  // lane reads above, renames carrying their previous name -- and, exactly like
+  // that lane, `changedFiles` absent entirely means every caller that predates
+  // the rule behaves as before (one slot). An undrawn required slot is a refusal
+  // naming the slot number, so it fails loudly instead of being invisible.
+  const migrationsTouched = (input.changedFiles ?? []).some((file) => String(file ?? '').replace(/\\/g, '/').startsWith('supabase/migrations/'))
+  const requiredSlots = Object.prototype.hasOwnProperty.call(input, 'changedFiles') && migrationsTouched ? 2 : 1
+  const undrawnSlots = []
+  for (let slot = 1; slot <= requiredSlots; slot += 1) if (!liveBySlot.has(slot)) undrawnSlots.push(slot)
+  if (undrawnSlots.length) {
+    throw new ApprovalCheckError(`head ${headSha} owes required review slot(s) ${undrawnSlots.join(', ')} that no assignment ever drew: this pull request's change requires ${requiredSlots} independent review slot(s) (AGENTS.md 6.x: migrations need two, scripts/docs/CI one), and a slot this gate cannot see is a slot it cannot require. Draw the owed slot pinned to this exact head (--assign-reviewer, slot 2 only after slot 1 is assigned) and have that assignment record its own APPROVE.`)
+  }
+
 
   if (Object.prototype.hasOwnProperty.call(input, 'verdicts')) {
     const all = (verdicts ?? []).filter((row) => Number(row.pr) === Number(pr) && String(row.head_sha).toLowerCase() === String(headSha).toLowerCase())
@@ -235,7 +266,7 @@ export function evaluateExactHeadApproval(input) {
     if (!approvals.length) throw new ApprovalCheckError(`head ${headSha} has no durable APPROVE artifact; a review that wrote no artifact never authorizes a merge${disregardedNote}`)
     const latestBySlot = liveBySlot
     for (const assignment of latestBySlot.values()) if (!approvals.some((row) => row.assignment_sha === assignment.sha)) throw new ApprovalCheckError(`review slot ${assignment.slot} has no durable APPROVE for its latest exact-head assignment${disregardedNote}`)
-    return { approved: true, head_sha: headSha, pr: Number(pr), assignments: latestBySlot.size, approvals: new Set(approvals.map((row) => row.ref)).size }
+    return { approved: true, head_sha: headSha, pr: Number(pr), assignments: latestBySlot.size, approvals: new Set(approvals.map((row) => row.ref)).size, required_slots: requiredSlots }
   }
 
   // COMMENT TEXT IS NOT A VERDICT IN PRODUCTION (issue #2075).
@@ -255,7 +286,7 @@ export function evaluateExactHeadApproval(input) {
     .filter((row) => approvalLine(row.body) || state(row) === 'APPROVED')
   if (!approvals.length) throw new ApprovalCheckError(`head ${headSha} has no APPROVE tied to it; an approval of an earlier head never approves these bytes`)
 
-  return { approved: true, head_sha: headSha, pr: Number(pr), assignments: pinned.length, approvals: approvals.length }
+  return { approved: true, head_sha: headSha, pr: Number(pr), assignments: pinned.length, approvals: approvals.length, required_slots: requiredSlots }
 }
 
 // Issue #2342: shared transport, identical refusal.
@@ -476,7 +507,7 @@ export function main(env = process.env) {
     const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (approvedHead, head) => isContentPreservingRefresh({ approvedHead, head, mainRef }) })
     if (result.carried_from) console.log(`Exact-head approval carried forward: PR #${result.pr} head ${result.head_sha} has the same pull request diff as approved head ${result.carried_from}, so its evidence-only or merge-from-main refresh needs no new review; approved implementation digest ${result.implementation_digest} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
     else if (result.documents_only) console.log(`Documents-only pull request: PR #${result.pr} head ${result.head_sha} draws no database reviewer (${result.reason}). Every other check and the guarded merge lane still apply (#2102).`)
-    else console.log(`Exact-head approval verified: PR #${result.pr} head ${result.head_sha} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
+    else console.log(`Exact-head approval verified: PR #${result.pr} head ${result.head_sha} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s), required slot(s) ${result.required_slots}).`)
     return 0
   } catch (e) { console.error(`REFUSED: ${e.message}`); return 2 }
 }

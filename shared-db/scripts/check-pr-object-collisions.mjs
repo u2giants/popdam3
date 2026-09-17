@@ -583,7 +583,9 @@ const DISPATCH_PATTERNS = [
       const kinds = raw === 'routine' ? ['function', 'procedure']
         : !m[1] || raw === 'table' ? ['table', 'view']
           : [raw === 'domain' ? 'type' : raw]
-      return kinds.map((kind) => ({ action: 'grant', kind, target }))
+      // `relationGuess` marks the table-or-view pair so extractOperations can
+      // drop the half the same migration's own CREATE rules out (see there).
+      return kinds.map((kind) => ({ action: 'grant', kind, target, ...(kinds.length === 2 && kind !== 'function' ? { relationGuess: true } : {}) }))
     },
   },
   {
@@ -827,6 +829,32 @@ export function extractOperations(sql) {
     let m
     while ((m = re.exec(text)) !== null) for (const op of map(m)) add(op, m.index)
   }
+
+  // A keyword-less (or `on table`) grant is keyed as BOTH table and view
+  // (#3183) because the text alone cannot say which the name is. When this
+  // same migration CREATES the name, its kind is known: keep only that half,
+  // or a claim that correctly declares `table x` is refused for an undeclared
+  // `view x`. With no CREATE here (or a name created as both), keep both.
+  const createdKinds = new Map()
+  const noteCreated = (re, kind) => {
+    re.lastIndex = 0
+    let c
+    while ((c = re.exec(text)) !== null) {
+      const target = canonical(c[1])
+      if (!createdKinds.has(target)) createdKinds.set(target, new Set())
+      createdKinds.get(target).add(kind)
+    }
+  }
+  noteCreated(new RegExp(String.raw`\bcreate\s+(?:global\s+|local\s+|unlogged\s+)*table\s+(?:if\s+not\s+exists\s+)?(${QUALIFIED})`, 'gi'), 'table')
+  noteCreated(new RegExp(String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:temp\s+|temporary\s+)?(?:recursive\s+)?(?:materialized\s+)?view\s+(?:if\s+not\s+exists\s+)?(${QUALIFIED})`, 'gi'), 'view')
+  for (const op of [...seen.values()]) {
+    if (!op.relationGuess) continue
+    const kinds = createdKinds.get(op.target)
+    if (!kinds || kinds.size !== 1) continue
+    const other = kinds.has('table') ? 'view' : 'table'
+    seen.delete(`grant|${other}|${op.target}`)
+  }
+  for (const op of seen.values()) delete op.relationGuess
 
   return [...seen.values()].sort((a, b) =>
     `${a.kind} ${a.target} ${a.action}`.localeCompare(`${b.kind} ${b.target} ${b.action}`),

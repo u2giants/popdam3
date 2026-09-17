@@ -593,6 +593,65 @@ test('an absent or unreadable changed-file list never grants the exemption', () 
   assert.throws(() => evaluateExactHeadApproval({ pr: 2102, headSha: NEW, assignments: [], verdicts: [], changedFiles: null }), /no reviewer was ever assigned head/)
 })
 
+// THE MINIMUM SLOT COUNT (issue #2837). PR #2746 (issue #2478) merged
+// production-bound bytes with exactly one approval because slot 2 was never
+// drawn across any of its nine heads: the loop over visible slots passed, since
+// a never-drawn slot is a slot the gate cannot see. A migration change must now
+// require two slots, judged from the pull request's own changed files, and the
+// refusal must name the missing slot number.
+test('a migration change refuses on a single slot: slot 2 was never drawn', () => {
+  assert.throws(() => evaluateExactHeadApproval({
+    pr: 2746, headSha: NEW,
+    assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }],
+    evidence: [{ body: `APPROVE ${NEW}` }],
+    changedFiles: ['supabase/migrations/20260911212849_shared_style_group_sku_key.sql'],
+  }), (error) => error instanceof ApprovalCheckError && /owes required review slot\(s\) 2/.test(error.message) && /requires 2 independent review slot/.test(error.message))
+})
+
+test('a migration rename still requires two slots: the previous name counts', () => {
+  // The flattened form `changedPathsFromPullRequestFiles` produces for a rename
+  // row -- both the new name and the previous one reach the classifier.
+  assert.throws(() => evaluateExactHeadApproval({
+    pr: 2746, headSha: NEW,
+    assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }],
+    evidence: [{ body: `APPROVE ${NEW}` }],
+    changedFiles: ['docs/moved.md', 'supabase/migrations/20260902120000_add_thing.sql'],
+  }), /owes required review slot\(s\) 2/)
+})
+
+test('a migration change with both slots approved passes and reports the required count', () => {
+  const result = evaluateExactHeadApproval({
+    pr: 2746, headSha: NEW,
+    assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }, { issue: 2478, pr: 2746, headSha: NEW, slot: 2 }],
+    evidence: [{ body: `APPROVE ${NEW}` }],
+    changedFiles: ['supabase/migrations/20260911212849_shared_style_group_sku_key.sql'],
+  })
+  assert.equal(result.approved, true)
+  assert.equal(result.required_slots, 2)
+  assert.equal(result.assignments, 2)
+})
+
+test('a scripts-only change keeps the one-slot floor and passes with a single review', () => {
+  const result = evaluateExactHeadApproval({
+    pr: 2837, headSha: NEW,
+    assignments: [{ issue: 2837, pr: 2837, headSha: NEW, slot: 1 }],
+    evidence: [{ body: `APPROVE ${NEW}` }],
+    changedFiles: ['scripts/check-exact-head-approval.mjs', 'scripts/check-exact-head-approval.test.mjs'],
+  })
+  assert.equal(result.approved, true)
+  assert.equal(result.required_slots, 1)
+})
+
+test('with no changed-file list the one-slot floor is unchanged for legacy callers', () => {
+  const result = evaluateExactHeadApproval({
+    pr: 1809, headSha: NEW,
+    assignments: [{ issue: 1769, pr: 1809, headSha: NEW }],
+    evidence: [{ body: `APPROVE ${NEW}` }],
+  })
+  assert.equal(result.approved, true)
+  assert.equal(result.required_slots, 1)
+})
+
 // THE DOCUMENTS-ONLY LANE THROUGH THE ADAPTER, NOT ONLY THROUGH THE CORE (#2102).
 //
 // The exemption is only real if `gatherApprovalInput` actually reads
