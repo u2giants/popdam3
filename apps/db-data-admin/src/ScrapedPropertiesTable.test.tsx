@@ -99,6 +99,18 @@ describe('ScrapedPropertiesTable', () => {
     })
   })
 
+  it('shows mapped values in the Mapping column for both Creative and Submissions rows', async () => {
+    const member = (label: string) => ({ source_system: 's', source_table: 't', source_id: label, display_label: label })
+    const rpc = vi.fn().mockResolvedValueOnce({ data: { rows: [
+      row('c1', 'Warner Bros. - Creative (STARLABS)', 'Creative', 'property', { mapping_state: 'mapped', submissions: [member('BATMAN'), member('DC')] }),
+      row('c2', 'Warner Bros. - Creative (STARLABS)', 'Creative', 'property', { mapping_state: 'unmapped' }),
+      row('s1', 'Warner Bros. - Submissions (STARLABS Product catalogue)', 'Submissions', 'property', { mapped_creative: [member('Batman')] }),
+      row('s2', 'Warner Bros. - Submissions (STARLABS Product catalogue)', 'Submissions', 'property', { mapped_creative: null }),
+    ], next_cursor: null }, error: null })
+    const rows = await loadScrapedInventory({ rpc } as unknown as ApiClient, 'property')
+    expect(rows.map(r => r.mapping_display)).toEqual(['BATMAN • DC', 'Unmapped', 'Batman', '—'])
+  })
+
   it('renders Properties, Characters, and Style Guides tabs and only Creative/Submissions sections', async () => {
     const client = { rpc: vi.fn().mockResolvedValue({ data: { rows: [row('1', 'Disney')], next_cursor: null }, error: null }) } as unknown as ApiClient
     render(<ScrapedPropertiesTable client={client} />)
