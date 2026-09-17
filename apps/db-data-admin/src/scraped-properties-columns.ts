@@ -18,7 +18,7 @@ export function scrapedInventoryColumns(entityKind: ScrapedInventoryKind): Colum
   const label = entityKind === 'property' ? 'Property' : entityKind === 'character' ? 'Character' : 'Style Guide'
   const columns: ColumnRegular[] = [
     { prop: 'display_label', name: label, size: 280, sortable: true },
-    ...(entityKind === 'property' ? [{ prop: 'mapping_display', name: 'Mapping', size: 130, sortable: true }] : []),
+    ...(entityKind === 'property' ? [{ prop: 'mapping_display', name: 'Mapping', size: 260, sortable: true }] : []),
     ...sourceColumns,
   ]
   return columns.map(column => ({ ...column, cellProperties: unmappedCreativeCell }))

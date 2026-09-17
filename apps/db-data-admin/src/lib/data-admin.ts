@@ -318,6 +318,19 @@ export function groupScrapedProperties(rows: ScrapedPropertyRow[]) {
 
 export type ScrapedInventoryKind = 'property' | 'character' | 'style_guide'
 
+export type ScrapedMappedMember = { source_system: string; source_table: string; source_id: string; display_label: string | null }
+
+function mappedMemberLabels(members: ScrapedMappedMember[] | null | undefined) {
+  return (members ?? []).map(member => member.display_label ?? member.source_id).join(' • ')
+}
+
+export function scrapedInventoryMappingDisplay(row: ScrapedInventoryRow, entityKind: ScrapedInventoryKind) {
+  if (entityKind !== 'property') return '—'
+  if (row.source_purpose !== 'Creative') return mappedMemberLabels(row.mapped_creative) || '—'
+  if (row.mapping_state === 'mapped') return mappedMemberLabels(row.submissions) || 'Mapped'
+  return row.mapping_state === 'conflict' ? 'Conflict - review required' : 'Unmapped'
+}
+
 export type ScrapedInventoryRow = AdminRow & {
   row_key: string
   entity_kind: ScrapedInventoryKind
@@ -334,6 +347,8 @@ export type ScrapedInventoryRow = AdminRow & {
   latest_seen_at: string | null
   capture_marker: string | null
   mapping_state?: 'mapped' | 'conflict' | 'unmapped' | null
+  submissions?: ScrapedMappedMember[] | null
+  mapped_creative?: ScrapedMappedMember[] | null
   mapping_display?: string
   is_unmapped_creative?: boolean
 }
@@ -355,9 +370,7 @@ export async function loadScrapedInventory(client: ApiClient, entityKind: Scrape
       return {
         ...row,
         id: row.row_key,
-        mapping_display: entityKind !== 'property' || row.source_purpose !== 'Creative'
-          ? '—'
-          : row.mapping_state === 'mapped' ? 'Mapped' : row.mapping_state === 'conflict' ? 'Conflict - review required' : 'Unmapped',
+        mapping_display: scrapedInventoryMappingDisplay(row, entityKind),
         is_unmapped_creative: isUnmapped,
       }
     }))
