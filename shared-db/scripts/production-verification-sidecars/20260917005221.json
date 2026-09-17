@@ -1,0 +1,13 @@
+{
+  "checks": [
+    {
+      "contract": "popsg_refresh_search_sync_queue_v1",
+      "expected_count": 1,
+      "id": "popsg_refresh_search_sync_queue",
+      "kind": "catalog_contract"
+    }
+  ],
+  "migration_sha256": "719d2d3200071f7207f17c8d211cee381ec0f40ccc7f3752900c57eb24baad1b",
+  "migration_version": "20260917005221",
+  "schema_version": 1
+}

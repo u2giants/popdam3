@@ -50,7 +50,11 @@ const ORCHESTRATOR_REQUIREMENTS = [
   // five look like skill drift, and the fix for that must never be to delete the
   // requirement. It also has to accept a skill copy that has not been re-synced
   // yet, so both the old numeric wording and the constant-referencing wording pass.
-  ['author-cap', /(?:the|one of the|three)\s+fixed\s+author slots|at most (?:`?MAX_AUTHOR_LANES`?|three|four|five|six|\d+) migration authors/i],
+  // Owner ruling 2026-09-11 (AGENTS.md section 4 rule 1, issue #2775) removed the
+  // numeric author cap, and ai-devops #531 (plan #401 Step 7A) re-synced the skill to
+  // say so. The skill must still STATE the author-admission rule: either the current
+  // no-ceiling wording or the older cap wording from a copy not yet re-synced.
+  ['author-cap', /no numeric ceiling on concurrent authors|(?:the|one of the|three)\s+fixed\s+author slots|at most (?:`?MAX_AUTHOR_LANES`?|three|four|five|six|\d+) migration authors/i],
   ['github-object-locks', /GitHub-backed(?: exact-)?object locks/i],
   ['exclusive-preview', /exclusive GitHub-backed preview lock/i],
   ['exclusive-merge', /exclusive merge lock/i],

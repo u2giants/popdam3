@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import test from 'node:test'
-import { evaluateExactHeadApproval as evaluateRaw, evaluateApprovalWithRefresh, gatherApprovalInput, parseAssignmentRef, requireDurableVerdictInput, ApprovalCheckError } from './check-exact-head-approval.mjs'
+import { evaluateExactHeadApproval as evaluateRaw, evaluateApprovalWithRefresh, gatherApprovalInput, parseAssignmentRef, requireDurableVerdictInput, resolveApprovalMainRef, ApprovalCheckError } from './check-exact-head-approval.mjs'
 import { isValidatedVerdictArtifact } from './lib/review-verdict-artifact.mjs'
 
 const OLD = 'b494401028464ef8b2e67fe0b5b1836839b2be36'
@@ -708,4 +708,14 @@ test('POSITIVE CONTROL #2728: an equivalence proof without implementation_digest
   assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (a, b) => { calls.push([a, b]); return { ok: true } } }), ApprovalCheckError)
   assert.ok(calls.length > 0, 'the proof must have been consulted')
   assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'not-a-digest' }) }), ApprovalCheckError)
+})
+
+// #3146: after the merge, current main contains the head, so the qualifier must
+// judge a merged pull request's diff against main as it was before the merge.
+test('a merged pull request is judged against its merge commit first parent', () => {
+  const merge = 'a'.repeat(40)
+  assert.equal(resolveApprovalMainRef({}, 7, () => ({ merged: true, merge_commit_sha: merge })), `${merge}^1`)
+  assert.equal(resolveApprovalMainRef({}, 7, () => ({ merged: false })), 'origin/main')
+  assert.equal(resolveApprovalMainRef({ APPROVAL_MAIN_REF: 'x' }, 7, () => { throw new Error('unread') }), 'x')
+  assert.throws(() => resolveApprovalMainRef({}, 7, () => ({ merged: true, merge_commit_sha: null })), ApprovalCheckError)
 })

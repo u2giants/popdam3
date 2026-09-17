@@ -13782,9 +13782,16 @@ export type Database = {
           licensor_id: string | null
           merch_group_id: string | null
           name: string | null
+          product_construction: string | null
           product_depth_id: string | null
+          product_material: string | null
           product_size_id: string | null
+          product_treatment: string | null
+          product_type: string | null
           product_type_id: string | null
+          product_type_read_at: string | null
+          product_type_rules_version: string | null
+          product_type_status: string | null
           property_id: string | null
           raw: Json
           source_id: string | null
@@ -13802,9 +13809,16 @@ export type Database = {
           licensor_id?: string | null
           merch_group_id?: string | null
           name?: string | null
+          product_construction?: string | null
           product_depth_id?: string | null
+          product_material?: string | null
           product_size_id?: string | null
+          product_treatment?: string | null
+          product_type?: string | null
           product_type_id?: string | null
+          product_type_read_at?: string | null
+          product_type_rules_version?: string | null
+          product_type_status?: string | null
           property_id?: string | null
           raw?: Json
           source_id?: string | null
@@ -13822,9 +13836,16 @@ export type Database = {
           licensor_id?: string | null
           merch_group_id?: string | null
           name?: string | null
+          product_construction?: string | null
           product_depth_id?: string | null
+          product_material?: string | null
           product_size_id?: string | null
+          product_treatment?: string | null
+          product_type?: string | null
           product_type_id?: string | null
+          product_type_read_at?: string | null
+          product_type_rules_version?: string | null
+          product_type_status?: string | null
           property_id?: string | null
           raw?: Json
           source_id?: string | null
@@ -22432,6 +22453,78 @@ export type Database = {
           warehouseCode?: string | null
         }
         Relationships: []
+      }
+      prod_order_milestone_schedule: {
+        Row: {
+          actual_date: string | null
+          anchor_date: string | null
+          anchor_type: string | null
+          computed_at: string
+          estimated_date: string | null
+          factory_time_id: number | null
+          first_past_due_at: string | null
+          id: number
+          mass_production_days: number | null
+          needed_date: string | null
+          prod_order_header_id: number
+          sampling_days: number | null
+          sku: string
+          stage_name: string
+          status: string
+          template_source: string | null
+        }
+        Insert: {
+          actual_date?: string | null
+          anchor_date?: string | null
+          anchor_type?: string | null
+          computed_at?: string
+          estimated_date?: string | null
+          factory_time_id?: number | null
+          first_past_due_at?: string | null
+          id?: never
+          mass_production_days?: number | null
+          needed_date?: string | null
+          prod_order_header_id: number
+          sampling_days?: number | null
+          sku?: string
+          stage_name: string
+          status: string
+          template_source?: string | null
+        }
+        Update: {
+          actual_date?: string | null
+          anchor_date?: string | null
+          anchor_type?: string | null
+          computed_at?: string
+          estimated_date?: string | null
+          factory_time_id?: number | null
+          first_past_due_at?: string | null
+          id?: never
+          mass_production_days?: number | null
+          needed_date?: string | null
+          prod_order_header_id?: number
+          sampling_days?: number | null
+          sku?: string
+          stage_name?: string
+          status?: string
+          template_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prod_order_milestone_schedule_factory_time_id_fkey"
+            columns: ["factory_time_id"]
+            isOneToOne: false
+            referencedRelation: "FactoryTime"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prod_order_milestone_schedule_prod_order_header_id_fkey"
+            columns: ["prod_order_header_id"]
+            isOneToOne: false
+            referencedRelation: "ProdOrderHeader"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ProdPaymentTerms: {
         Row: {

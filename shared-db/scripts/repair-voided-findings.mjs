@@ -24,8 +24,10 @@ import { spawnSync } from 'node:child_process'
 import { ghJson, spawnGitHub } from './lib/github-transport.mjs'
 import { findingsDigest, parseVerdictCommit, parseVerdictRef } from './lib/review-verdict-artifact.mjs'
 import { VOID_MARKER, VOID_LINE_PREFIX } from './run-governed-review.mjs'
+import { currentRepository } from './lib/repository-identity.mjs'
 
-export const REPO='u2giants/shared-db'
+// Resolved from explicit/env/verified origin, never hard-coded (#2530).
+export const REPO=currentRepository()
 
 // The exact inverse of `neutraliseVerdictLine`: drop the appended void block, then strip the
 // `> VOIDED REVIEWER LINE - ` prefix from every line that carries it. It is deliberately

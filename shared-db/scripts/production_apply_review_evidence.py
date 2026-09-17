@@ -10,6 +10,10 @@ import os
 import re
 import subprocess
 import sys
+try:  # run as scripts/<name>.py or imported as scripts.<name>
+    from repository_identity import current_repository
+except ImportError:  # pragma: no cover
+    from scripts.repository_identity import current_repository
 import tempfile
 import zipfile
 from pathlib import Path
@@ -20,7 +24,7 @@ if __package__:
 else:
     from production_review_allowlist import ReviewAllowlistError, normalize_review_allowlist
 
-REPOSITORY = "u2giants/shared-db"
+REPOSITORY = current_repository()  # never hard-coded (#2530)
 WORKFLOW_PATH = ".github/workflows/production-apply-review-evidence.yml"
 AUTOMATIC_WORKFLOW_PATH = ".github/workflows/shared-supabase-migrations.yml"
 ARTIFACT_NAME = "production-apply-review-evidence"

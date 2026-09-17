@@ -565,6 +565,13 @@ def _shape_contract(*, relations=(), indexes=(), constraints=(), routines=(), po
     checks += ["(select count(*) from pg_policies where schemaname='%s' and tablename='%s')=%d" % (*table.split('.',1),sum(1 for owner,_ in policies if owner==table)) for table in policy_tables]
     checks += ["exists (select 1 from pg_trigger where tgrelid=to_regclass('%s') and tgname='%s' and not tgisinternal and tgenabled<>'D')" % row for row in triggers]
     return " and ".join(checks)
+# Issue #2794: the retired DesignFlow PLM import is dropped; the licensing write
+# guard it sat beside must survive, with its triggers on their own relations.
+PLM_IMPORT_RETIREMENT_GUARD_CONTRACT = _shape_contract(
+    relations=('plm.licensing_write_authorization','plm.licensing_write_guard_audit'),
+    routines=('app.enforce_licensing_write_authority()',),
+    triggers=(('core.licensor','licensor_licensing_write_guard'),('core.property','property_licensing_write_guard')),
+) + " and not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='plm' and p.proname='import_master_data')"
 STYLE_TRACKER_TABLES_CONTRACT = _shape_contract(
     relations=('public.style_tracker_rows','plm.style_tracker_value_resolution','plm.style_tracker_item_bridge','public.style_tracker_audit_log','public.style_tracker_user_views','public.style_tracker_audit_log_with_user','public.style_tracker_rows_with_bridge'),
     indexes=tuple('public.'+name for name in ('idx_style_tracker_audit_log_changed_at','idx_style_tracker_audit_log_row','idx_style_tracker_audit_log_sheet','idx_style_tracker_rows_group_id','idx_style_tracker_rows_row_data_gin','idx_style_tracker_rows_sku','idx_style_tracker_rows_source_sheet'))+tuple('plm.'+name for name in ('idx_style_tracker_item_bridge_company','idx_style_tracker_item_bridge_creative_designer','idx_style_tracker_item_bridge_erp_item','idx_style_tracker_item_bridge_match_status','idx_style_tracker_item_bridge_row','idx_style_tracker_item_bridge_sku','idx_style_tracker_item_bridge_style_group','idx_style_tracker_value_resolution_field_value')),
@@ -1026,6 +1033,7 @@ CATALOG_CONTRACTS = {
     "scraped_properties_targeted_submission_label_v1": SCRAPED_PROPERTIES_TARGETED_SUBMISSION_LABEL_CONTRACT,
     "dflow_sequence_ceilings_v1": DFLOW_SEQUENCE_CEILINGS_CONTRACT,
     "popdam_forward_recovery_v1": POPDAM_FORWARD_RECOVERY_CONTRACT,
+    "plm_import_retirement_guard_v1": PLM_IMPORT_RETIREMENT_GUARD_CONTRACT,
     "popdam_query_expansion_rows_v1": """
       (select p.prorows = 32
         from pg_proc p
@@ -4592,6 +4600,29 @@ CATALOG_CONTRACTS["dam_order_list_role_free_party_names_v1"] = (
     DAM_ORDER_LIST_ROLE_FREE_PARTY_NAMES_CONTRACT
 )
 
+
+POPSG_REFRESH_SEARCH_SYNC_QUEUE_CONTRACT = (
+    # Issue #3023. The refresh reads search-sync candidates from a narrow queue
+    # fed by a trigger instead of scanning every style guide file.
+    "exists (select 1 from pg_class c where c.oid=to_regclass('public.style_guide_search_sync_queue')"
+    " and c.relkind='r' and c.relrowsecurity"
+    " and not has_table_privilege('anon',c.oid,'SELECT')"
+    " and not has_table_privilege('authenticated',c.oid,'SELECT')"
+    " and has_table_privilege('service_role',c.oid,'SELECT'))"
+    " and exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.style_guide_files_queue_search_sync()')"
+    " and p.prosecdef and md5(p.prosrc)='2b082d5e84238234f3d20669b2931f0c'"
+    " and not has_function_privilege('authenticated',p.oid,'EXECUTE'))"
+    " and exists (select 1 from pg_trigger t where t.tgrelid=to_regclass('public.style_guide_files')"
+    " and t.tgname='trg_style_guide_files_queue_search_sync' and not t.tgisinternal and t.tgenabled='O'"
+    " and t.tgfoid=to_regprocedure('public.style_guide_files_queue_search_sync()'))"
+    " and exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.refresh_style_guide_matviews(uuid,integer)')"
+    " and p.prosecdef and md5(p.prosrc)='52b676f90e4500dc323c2f9e6e6f3c97'"
+    " and not has_function_privilege('authenticated',p.oid,'EXECUTE')"
+    " and has_function_privilege('service_role',p.oid,'EXECUTE'))"
+)
+CATALOG_CONTRACTS["popsg_refresh_search_sync_queue_v1"] = (
+    POPSG_REFRESH_SEARCH_SYNC_QUEUE_CONTRACT
+)
 
 if __name__ == "__main__":
     raise SystemExit(main())

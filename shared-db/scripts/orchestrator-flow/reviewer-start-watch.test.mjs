@@ -204,6 +204,8 @@ test('--apply requires --drawn-since and leaves leases drawn earlier to the ordi
   assert.match(out[0].reason, /before --drawn-since/)
   assert.equal(calls.length, 0)
   assert.equal(watchOnce(io, { apply: false }).length, 1)
+  assert.throws(() => watchOnce(io, { apply: false, drawnSince: 'yesterday-ish' }), /not a valid ISO time/)
+  assert.equal(calls.length, 0)
 })
 
 test('a permanently refused resume is recorded per attempt and closed with a terminal moot at the limit', () => {

@@ -71,8 +71,12 @@ that exists), and that TODAY'S machinery produced the evidence.
 
 import argparse, json, re, subprocess
 from pathlib import Path
+try:  # run as scripts/<name>.py or imported as scripts.<name>
+    from repository_identity import current_repository
+except ImportError:  # pragma: no cover
+    from scripts.repository_identity import current_repository
 
-REPO = "u2giants/shared-db"
+REPO = current_repository()  # never hard-coded (#2530)
 # v3/v4 supersede v1/v2, which carried no originalApplyRuns. A stale v1/v2
 # artifact is refused by the gate rather than silently accepted, because the
 # record it re-derives now always carries the field.

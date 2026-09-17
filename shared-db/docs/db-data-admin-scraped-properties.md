@@ -37,11 +37,25 @@ NBCUniversal Property rows whose `source_kind` is `property` or
 `asset_metadata_label` rows are Creative. NBCU Character and Style Guide rows
 come from Creative asset pages only and stay Creative.
 
+Warner Bros. `plm.wb_property` rows with `source_namespace`
+`warner_product_catalogue` (STARLABS Product catalogue) are Submissions, labelled
+`Warner Bros. - Submissions (STARLABS Product catalogue)`; `warner_art_assets`
+rows stay Creative (#3104). Their `licensor_key`, `source_id` and `row_key` are
+unchanged.
+
 ## Mapping presentation
 
 Each Creative Property displays its authoritative Submissions equivalent when
 one is proven. The association preserves both source identities and its reviewed
 evidence. Name similarity alone is never sufficient.
+
+Since #3104 every Property row also carries the mapped value itself. A Creative
+row returns `submissions`: the Submissions members of its winning mapped
+decision, each as `source_system`, `source_table`, `source_id` and
+`display_label` (empty unless `mapping_state` is `mapped`). A Submissions row
+returns `mapped_creative`: the Creative rows whose winning mapped decision names
+it, in the same shape. Conflicted decisions contribute nothing. The frontend
+renders these labels in the Mapping column instead of "Mapped" or a dash.
 
 An unmapped Creative Property remains visible and its full row is highlighted
 red. Conflict and unmapped states are explicit; rows are never guessed,

@@ -12,6 +12,10 @@ import re
 import subprocess
 import sys
 import tempfile
+try:  # run as scripts/<name>.py or imported as scripts.<name>
+    from repository_identity import current_repository
+except ImportError:  # pragma: no cover
+    from scripts.repository_identity import current_repository
 import zipfile
 
 from production_migration_guard import parse_remote_versions
@@ -91,7 +95,7 @@ def main():
     require(isinstance(artifact_id, int) and not isinstance(artifact_id, bool) and artifact_id > 0,
             'invalid artifact id')
     archive = subprocess.check_output(['gh', 'api',
-        f'repos/u2giants/shared-db/actions/artifacts/{artifact_id}/zip'], stderr=subprocess.PIPE)
+        f'repos/{current_repository()}/actions/artifacts/{artifact_id}/zip'], stderr=subprocess.PIPE)
     print(json.dumps(verify(request, archive, git_migration_reader(request['verificationCommit']))))
 
 

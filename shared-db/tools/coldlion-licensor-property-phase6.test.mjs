@@ -108,7 +108,10 @@ test("workflow is workflow_dispatch-first, preview-only, schedule-exact", () => 
   assert.match(workflow, /force-fail-compare/);
   assert.match(workflow, /SUPABASE_DB_PASSWORD_PREVIEW/);
   assert.match(workflow, /COLDLION_API_KEY/);
-  assert.match(workflow, /DESIGNFLOW_API_KEY/);
+  // #2794 removed the DesignFlow lane, its importer and its secret wiring. This is
+  // deliberately inverted rather than deleted: the workflow must NOT regain a
+  // DesignFlow secret reference, so a silent revival of the lane fails this test.
+  assert.doesNotMatch(workflow, /DESIGNFLOW_API_KEY/);
   assert.match(workflow, /PHASE6_PREVIEW_ONLY/);
   assert.match(workflow, /github\.event\.schedule/);
   assert.match(workflow, /tools\/coldlion-licensor-property-phase6\.test\.mjs/);

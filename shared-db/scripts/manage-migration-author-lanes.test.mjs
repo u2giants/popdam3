@@ -786,6 +786,36 @@ test('reviewer cursor advances atomically through the durable round robin',()=>{
   assert.ok(io.refs.has(REVIEW_CURSOR_REF))
 })
 
+test('owner ruling 2026-09-16: one reviewer holds more than eight simultaneous exact-head reviews, each on its own lease',()=>{
+  const io=withAtomicRefs(reviewIo()),heads=new Map()
+  io.requiresExactReviewHeadSha=true
+  io.getPr=(pr)=>({number:Number(pr),state:'open',head:{sha:heads.get(Number(pr)),ref:'codex/x'}})
+  // Production lists live v2 leases; without this the busy set would be blind to them.
+  const rawGetCommit=io.getCommit
+  io.readActiveReviewLeases=()=>new Map([...io.refs.entries()].filter(([ref])=>ref.startsWith(REVIEW_ACTIVE_REF_PREFIX)).map(([ref,sha])=>[ref,{sha,commit:rawGetCommit(sha)}]))
+  const assigned=[]
+  let drawsWhileAllBusy=0
+  for(let n=0;n<ACTIVE_REVIEWERS.length*10;n++){
+    const request={issue:4000+n,pr:5000+n,headSha:(0xb00+n).toString(16).padStart(40,'c')}
+    heads.set(request.pr,request.headSha)
+    if(n>=ACTIVE_REVIEWERS.length){
+      const busy=findBusyReviewers(io)
+      assert.deepEqual([...busy].sort(),ACTIVE_REVIEWERS.map((r)=>r.name).sort(),'every active reviewer is visibly live')
+      drawsWhileAllBusy++
+    }
+    assigned.push(assignNextReviewer(request,io))
+  }
+  assert.ok(drawsWhileAllBusy>8*ACTIVE_REVIEWERS.length,'draws keep succeeding while every reviewer already has a live review')
+  for(const row of ACTIVE_REVIEWERS){
+    const mine=assigned.filter((a)=>a.reviewer===row.name)
+    assert.ok(mine.length>8,`${row.name} must hold more than eight concurrent reviews`)
+    const refs=mine.map((a)=>reviewActiveRef(a.reviewer,a))
+    assert.equal(new Set(refs).size,mine.length,'no two reviews share a lease ref')
+    for(const [i,ref] of refs.entries())assert.equal(io.refs.get(ref),io.refs.get(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${mine[i].issue}-${mine[i].pr}-${mine[i].headSha}`),'every concurrent review keeps its own live lease')
+  }
+  assert.equal(githubIo.requiresExactReviewHeadSha,true,'production always uses the per-review lease protocol')
+})
+
 test('#2694 exact-head assignments let one reviewer hold concurrent independent reviews without overwriting either lease',()=>{
   const io=withAtomicRefs(reviewIo()),heads=new Map()
   io.requiresExactReviewHeadSha=true
@@ -1124,21 +1154,20 @@ function busyIo(){
   return {io,heads}
 }
 
-test('every active reviewer busy refuses a new assignment',()=>{
+// LEGACY SHORT-HEAD FIXTURE PROTOCOL ONLY. Its lease ref is one per reviewer, so it
+// physically cannot store a second lease. Production (githubIo) always uses the
+// exact-head per-review lease and has no same-reviewer ceiling -- proved by the
+// "more than eight simultaneous exact-head reviews" test above.
+test('legacy short-head protocol cannot store a second lease for one reviewer',()=>{
   const {io}=busyIo()
   assert.deepEqual([...findBusyReviewers(io)].sort(),ACTIVE_REVIEWERS.map((r)=>r.name).sort())
   assert.throws(()=>assignNextReviewer({issue:9,pr:109,headSha:'abcdef9'},io),/no reviewer is available/)
 })
 
-test('a busy rotation slot advances to the next free active reviewer',()=>{
-  const {io,heads}=busyIo()
-  // Muse's PR is merged, so muse is free again -- and free means rotation, even
-  // though the sequence would otherwise land elsewhere.
-  const musePr=600+ACTIVE_REVIEWERS.findIndex((r)=>r.name==='muse-spark-1.3-contributor')
-  const openPr=io.getPr
-  io.getPr=(number)=>Number(number)===musePr?{number:musePr,state:'closed',head:{sha:heads.get(musePr)}}:openPr(number)
-  assert.ok(!findBusyReviewers(io).has('muse-spark-1.3-contributor'))
-  assert.equal(pickReviewer(1,io).name,'muse-spark-1.3-contributor')
+test('a live review never moves the rotation off a busy provider (no same-reviewer ceiling)',()=>{
+  const {io}=busyIo()
+  assert.equal(findBusyReviewers(io).size,ACTIVE_REVIEWERS.length)
+  ACTIVE_REVIEWERS.forEach((row,index)=>assert.equal(pickReviewer(index+1,io).name,row.name))
 })
 
 test('a recorded verdict and a moved head both free the reviewer that held them',()=>{
@@ -1155,16 +1184,19 @@ test('a recorded verdict and a moved head both free the reviewer that held them'
   assert.ok(!findBusyReviewers(movedIo).has('grok-4.6'))
 })
 
-test('an unreadable busy probe keeps the rotation',()=>{
-  // FAIL OPEN. A probe that cannot read GitHub must never silently send every
-  // review to the provider that costs money per run.
+test('an unreadable busy probe reports null, never an empty busy set',()=>{
+  // Every production caller refuses on null; see the findBusyReviewers header.
   const {io}=busyIo()
   const blind={...io,readRef:()=>{throw new Error('HTTP 500')}}
   assert.equal(findBusyReviewers(blind),null)
-  assert.equal(pickReviewer(1,blind).name,'grok-4.6')
   const noReadRef={...io};delete noReadRef.readRef
   assert.equal(findBusyReviewers(noReadRef),null)
-  assert.equal(pickReviewer(2,noReadRef).name,'glm-5.3')
+})
+
+test('the rotation helper ignores busy state entirely (no same-reviewer ceiling)',()=>{
+  const {io}=busyIo()
+  const blind={...io,readRef:()=>{throw new Error('HTTP 500')}}
+  assert.equal(pickReviewer(1,blind).name,pickReviewer(1,io).name,'an unreadable probe and a readable one pick the same provider')
 })
 
 test('retired reviewer names stay resolvable so historical review evidence never orphans',()=>{
@@ -2246,7 +2278,7 @@ test('reviewer replacement rejects a mismatched original assignment',()=>{
 // which stranded a failed review with no replacement at all after N-1 assignments,
 // for ANY N -- and after the #1290 roster change that was TWO intervening
 // assignments, the natural rest point of a three-name parallel dispatch (Grok takes
-// a PR and holds ai-grok-review's per-repo in-flight lock, GLM the next, Muse the
+// a PR and -- at the time -- held ai-grok-review's per-repo in-flight lock, since removed, GLM the next, Muse the
 // third, cursor on a multiple of three).
 //
 // Roster length was never the fix. An earlier version of this test asserted
@@ -5187,6 +5219,9 @@ test('slot 2 lands a different provider than slot 1, and is idempotent on retry'
   assert.deepEqual(assignNextReviewer(request,io),first)
 })
 
+// LEGACY SHORT-HEAD FIXTURE PROTOCOL ONLY: reviewIo() sets no requiresExactReviewHeadSha, so
+// one lease ref per reviewer makes a provider unable to take a second review here. Production
+// (exact-head leases) has no busy state; see the owner ruling 2026-09-16 test.
 test('slot 2 skips a provider that is busy on unrelated live review work',()=>{
   const io=reviewIo(),request={issue:203,pr:303,headSha:'d'.repeat(40)}
   const first=assignNextReviewer(request,io) // grok-4.6
@@ -8137,7 +8172,7 @@ test('re-claim of an already dispatched work issue treats dispatch as satisfied'
   const {outcomeEvent}=await import('./orchestrator-flow/outcome-lifecycle.mjs')
   const {formatEventComment}=await import('./db-coordination-events.mjs')
   const {io}=admittedReviewIo(),posted=[]
-  const history=['entered','classified','dispatched'].map((state,index)=>({author_association:'OWNER',body:formatEventComment(outcomeEvent({issue:41,state,actor:'test',timestamp:new Date(Date.UTC(2026,8,11,0,index)).toISOString(),evidenceUrls:state==='dispatched'?['https://github.com/u2giants/shared-db/issues/2929']:[]}))}))
+  const history=['entered','classified','dispatched'].map((state,index)=>({author_association:'OWNER',author:'u2giants',body:formatEventComment(outcomeEvent({issue:41,state,actor:'test',timestamp:new Date(Date.UTC(2026,8,11,0,index)).toISOString(),evidenceUrls:state==='dispatched'?['https://github.com/u2giants/shared-db/issues/2929']:[]}))}))
   io.issueComments=()=>history
   io.commentIssue=(_number,body)=>posted.push(body)
   const result=acquireAuthorLane({...opts,task:'#41',objects:['table core.example'],admitIssue:41,claim:true},NOW,io)
@@ -8351,4 +8386,10 @@ test('the no-progress alarm fallback label is a coordination label the queue aud
   const { COORDINATION_LABELS } = await import('./manage-migration-author-lanes.mjs')
   const { FALLBACK_LABEL } = await import('./orchestrator-flow/no-progress-alarm.mjs')
   assert.ok(COORDINATION_LABELS.has(FALLBACK_LABEL))
+})
+
+test('#2530: outcome evidence is never read from a repository other than this one', () => {
+  assert.throws(() => githubIo.readOutcomeEvidence('https://github.com/attacker/shared-db/issues/1#issuecomment-5'), /outcome evidence refused: .*only this repository/)
+  assert.throws(() => githubIo.readOutcomeEvidence('https://github.com/popcre/designflow-backend/pull/1#issuecomment-5'), /outcome evidence refused/)
+  assert.throws(() => githubIo.readOutcomeEvidence('not a url'), /outcome evidence refused: evidence must be an exact GitHub/)
 })

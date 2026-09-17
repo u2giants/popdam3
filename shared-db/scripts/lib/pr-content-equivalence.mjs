@@ -151,6 +151,14 @@ export function isContentPreservingRefresh({ approvedHead, head, mainRef = 'orig
   const a = String(approvedHead ?? '').toLowerCase(), b = String(head ?? '').toLowerCase()
   if (!SHA.test(a) || !SHA.test(b)) return { ok: false, reason: 'both heads must be exact 40-character SHAs' }
   if (a === b) return { ok: true, reason: 'same head' }
+  // AN ALREADY-MERGED HEAD HAS NO DIFF OF ITS OWN (#3146). Once `head` is inside
+  // `mainRef`, every ancestor's merge base is itself, so every earlier head --
+  // a superseded REVISE'd head included -- has an empty, "identical" diff. That
+  // is no proof, so answer "not equivalent"; a post-merge caller must compare
+  // against main as it was before the merge (the merge commit's first parent).
+  try { gitRunner(['merge-base', '--is-ancestor', b, mainRef]); return { ok: false, reason: `${b} is already contained in ${mainRef}; compare against main before the merge` } } catch (error) {
+    if (error?.status !== 1) return { ok: false, reason: `could not prove ${b} is not already contained in ${mainRef}` }
+  }
   try { gitRunner(['merge-base', '--is-ancestor', a, b]) } catch (error) {
     return { ok: false, reason: error?.status === 1 ? `${a} is not an ancestor of ${b}; the branch was rewritten, not refreshed` : `could not prove ${a} is an ancestor of ${b}` }
   }

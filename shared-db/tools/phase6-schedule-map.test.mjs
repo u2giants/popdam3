@@ -14,7 +14,6 @@ const workflowPath = fileURLToPath(
 const workflow = readFileSync(workflowPath, "utf8");
 
 test("jobForSchedule maps every registered cron exactly", () => {
-  assert.equal(jobForSchedule("30 3 * * *"), "designflow");
   assert.equal(jobForSchedule("0 4 * * *"), "coldlion");
   assert.equal(jobForSchedule("0 5 * * *"), "compare");
   assert.equal(jobForSchedule("15 * * * *"), "health");
@@ -22,6 +21,8 @@ test("jobForSchedule maps every registered cron exactly", () => {
 
 test("jobForSchedule refuses unknown or empty expressions (no wall-clock fallback)", () => {
   assert.throws(() => jobForSchedule("0 3 * * *"), /Unknown Phase 6 schedule/);
+  // #2794 retired the DesignFlow lane: its cron must no longer resolve to a job.
+  assert.throws(() => jobForSchedule("30 3 * * *"), /Unknown Phase 6 schedule/);
   assert.throws(() => jobForSchedule(""), /Unknown Phase 6 schedule/);
   assert.throws(() => jobForSchedule(null), /Unknown Phase 6 schedule/);
 });

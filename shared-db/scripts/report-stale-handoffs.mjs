@@ -24,6 +24,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveRepositoryIdentity } from './lib/repository-identity.mjs';
 import { HANDOFF_DIR, parseFrontMatter } from "./check-handoff-contract.mjs";
 
 export const TRACKING_TITLE = "HANDOFF.d hygiene — files whose issue is already closed";
@@ -138,7 +139,7 @@ function gh(args, opts = {}) {
 }
 
 function main() {
-  const repo = process.env.HANDOFF_REPO || "u2giants/shared-db";
+  const repo = resolveRepositoryIdentity({ explicit: process.env.HANDOFF_REPO });
   const publish = process.argv.includes("--publish");
 
   const files = readdirSync(HANDOFF_DIR)

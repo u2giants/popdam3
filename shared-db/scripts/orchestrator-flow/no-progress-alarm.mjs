@@ -23,7 +23,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { canonicalJson } from './evidence-bundle.mjs'
 import { OrchestratorSnapshotError, snapshotInputs, verifyOrchestratorSnapshot } from './orchestrator-snapshot.mjs'
-import { ZERO_CLOSURE_WINDOW_MINUTES, defaultIo, gatherLiveInput, gh, runSnapshotCycle, stalledOutcomes } from '../orchestrator-snapshot.mjs'
+import { currentRepository } from '../lib/repository-identity.mjs'
+import { ZERO_CLOSURE_WINDOW_MINUTES, defaultIo, gatherLiveInput, gh, runSnapshotCycle, stalledOutcomes, stalledRequests } from '../orchestrator-snapshot.mjs'
 
 export const FALLBACK_TITLE = 'Orchestrator no-progress alarm (no orchestrator marker)'
 // A coordination label, so the queue audit does not report the fallback issue as unlabelled work.
@@ -36,6 +37,7 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 
 // What is normally waiting on an outcome that sits in each state, and who moves it.
 export const UNBLOCK = Object.freeze({
+  requested: ['ready structural request never entered the outcome ledger', 'orchestrator admits it (records entered and classified) or sets its db-work-scope status to blocked with the reason'],
   entered: ['not yet classified', 'orchestrator classifies the work and records classified'],
   classified: ['no worker dispatched', 'orchestrator dispatches a worker or records blocked with the reason'],
   dispatched: ['worker has not reported implementation complete', 'check the worker session; if it is gone, reclaim and redispatch'],
@@ -77,13 +79,17 @@ export const postedKeys = (comments) => new Set(comments.filter(trustedComment).
 
 export function runAlarm({ repo, now, postIssue = null, stagedLabel = null, dryRun = false }, io) {
   // Read failures other than "no orchestrator" throw here, so the CLI exits 1.
-  const { input, sessionStarted } = io.gatherLiveInput(repo)
+  const { input, sessionStarted, unentered = [], unclaimedEvents = [] } = io.gatherLiveInput(repo)
   let raw
   if (input.marker) raw = runSnapshotCycle(input, { now, previous: null, sessionStarted }).output
   else {
     const ownedIssues = [...new Set(input.claims.flatMap((claim) => [claim.issue, ...(claim.work_issues ?? [])]))]
     raw = { snapshot: null, ...stalledOutcomes(input.outcome_events, { now, ownedIssues, sessionStarted }) }
   }
+  // Ready requests that never entered the ledger alarm on the same 30-minute threshold (#3148).
+  // Requests that entered the ledger but have no owning claim yet use the same event thresholds (#3158).
+  const unclaimed = stalledOutcomes(unclaimedEvents, { now }).stalled_outcomes
+  raw = { ...raw, stalled_outcomes: [...raw.stalled_outcomes, ...stalledRequests(unentered, { now }), ...unclaimed] }
   // Zero closures only counts once outcomes have existed for the whole four-hour window.
   const earliest = Math.min(...input.outcome_events.map((e) => Date.parse(e.timestamp)).filter((n) => !Number.isNaN(n)))
   const output = { ...raw, zero_closures_4h: raw.zero_closures_4h && Date.parse(now) - earliest >= ZERO_CLOSURE_WINDOW_MINUTES * 60000 }
@@ -173,7 +179,7 @@ export const liveIo = {
 
 export function main(argv = process.argv.slice(2), { io = liveIo, stdout = console.log, stderr = console.error } = {}) {
   const value = (name) => { const i = argv.indexOf(name); return i >= 0 && argv[i + 1] !== undefined ? argv[i + 1] : null }
-  const repo = value('--repo') ?? 'u2giants/shared-db'
+  const repo = currentRepository(value('--repo'))
   const now = value('--now') || new Date().toISOString()
   try {
     if (Number.isNaN(Date.parse(now))) throw new Error('--now must be an ISO instant')

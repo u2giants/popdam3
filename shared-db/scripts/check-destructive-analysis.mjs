@@ -13,9 +13,10 @@ import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { ghJson } from './lib/github-transport.mjs'
+import { currentRepository } from './lib/repository-identity.mjs'
 import { PROPOSAL_LABEL, REQUIRED_HEADINGS, checkProposalBody, findDestructiveSql, findMarkedDestructiveSql, checkMarkerIssue } from './lib/destructive-analysis-guard.mjs'
 
-export function fetchIssueWithGh(number, repo = process.env.GITHUB_REPOSITORY || 'u2giants/shared-db') {
+export function fetchIssueWithGh(number, repo = currentRepository()) {
   const notFound = /HTTP 404|Not Found/i
   let issue
   try {

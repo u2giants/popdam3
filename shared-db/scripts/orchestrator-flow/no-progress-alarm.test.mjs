@@ -37,6 +37,30 @@ test('an outcome without a transition for over 120 minutes fires exactly one ala
   assert.equal(fake.posts.length, 1)
 })
 
+test('issue 3148 a ready request that never entered the ledger is named in the alarm with its unblock action', () => {
+  const fake = io(input({ events: [] }))
+  fake.gatherLiveInput = () => ({ input: input({ events: [] }), sessionStarted: null, unentered: [{ work_issue: 3036, created_at: '2026-09-16T11:51:07Z' }] })
+  assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T12:21:00.000Z' }, fake).status, 'quiet')
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:23:00.000Z' }, fake)
+  assert.equal(fired.status, 'posted'); assert.deepEqual(fired.stalled, [3036])
+  assert.match(fake.posts[0].body, /#3036 has been `requested` for 31 minutes/)
+  assert.match(fake.posts[0].body, /Unblock: orchestrator admits it/)
+  assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T12:53:00.000Z' }, fake).status, 'already-posted')
+  assert.equal(fake.posts.length, 1)
+})
+
+test('issue 3158 a request that entered the ledger but has no owning claim still alarms', () => {
+  const fake = io(input({ events: [] }))
+  const unclaimedEvents = [{ event_id: 'u1', event_type: 'entered', work_issue: 3160, timestamp: '2026-09-16T12:00:00.000Z' }]
+  fake.gatherLiveInput = () => ({ input: input({ events: [] }), sessionStarted: null, unentered: [], unclaimedEvents })
+  assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T12:30:00.000Z' }, fake).status, 'quiet')
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:31:00.000Z' }, fake)
+  assert.equal(fired.status, 'posted'); assert.deepEqual(fired.stalled, [3160])
+  assert.match(fake.posts[0].body, /#3160 has been `entered` for 31 minutes/)
+  assert.match(fake.posts[0].body, /Unblock: orchestrator classifies/)
+  assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T13:01:00.000Z' }, fake).status, 'already-posted')
+})
+
 test('an untrusted comment carrying the alarm key cannot suppress the alarm', () => {
   const fake = io()
   const planted = runAlarm({ repo: 'r', now: '2026-09-16T10:01:00.000Z', dryRun: true }, fake)

@@ -23,6 +23,8 @@
 // dependent work stays blocked and says why. The failure mode this replaces was
 // silence, so silence is exactly what must not come back.
 
+import { TRUSTED_OPERATOR_LOGIN, expectedOperatorAssociation, isTrustedOperatorComment } from './repository-identity.mjs'
+
 export class DependencyError extends Error {}
 
 // GRANDFATHER CUTOFF. Completion records did not exist before this rule shipped,
@@ -159,9 +161,7 @@ export function findCompletionRecord(comments,{requireTrustedAuthor=false}={}) {
   for (const comment of comments ?? []) {
     const record = parseCompletionComment(comment?.body)
     if (record) {
-      const association=String(comment?.author_association??comment?.authorAssociation??'').toUpperCase()
-      const author=String(comment?.author??comment?.author_login??'').toLowerCase()
-      if(requireTrustedAuthor&&(association!=='OWNER'||author!=='u2giants'))throw new DependencyError('db-work-completion must be authored by repository owner u2giants with explicit OWNER association')
+      if(requireTrustedAuthor&&!isTrustedOperatorComment(comment))throw new DependencyError(`db-work-completion must be authored by operator ${TRUSTED_OPERATOR_LOGIN} with the ${expectedOperatorAssociation()} association this repository's owner implies`)
       found.push(record)
     }
   }

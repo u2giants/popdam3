@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260916232818",
+  "migration_sha256": "f2d32de4298716d282475c4dd830fd9cbb0be85443b719e874229971ec7fb639",
+  "checks": [
+    {
+      "id": "hts_prod_worker_shared_read_policies",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "hts_rag"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "hts_rag_prod_worker_access"
+        },
+        {
+          "column": "cmd",
+          "type": "text",
+          "equals": "SELECT"
+        },
+        {
+          "column": "qual",
+          "type": "text",
+          "equals": "true"
+        }
+      ],
+      "expected_count": 10
+    },
+    {
+      "id": "hts_alsand_worker_shared_read_policies",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "hts_rag"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "hts_rag_alsand_worker_access"
+        },
+        {
+          "column": "cmd",
+          "type": "text",
+          "equals": "SELECT"
+        },
+        {
+          "column": "qual",
+          "type": "text",
+          "equals": "true"
+        }
+      ],
+      "expected_count": 10
+    },
+    {
+      "id": "hts_prod_worker_bound_insert_policies",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "hts_rag"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "hts_rag_prod_worker_insert"
+        },
+        {
+          "column": "cmd",
+          "type": "text",
+          "equals": "INSERT"
+        },
+        {
+          "column": "with_check",
+          "type": "text",
+          "equals": "(source_environment = 'production'::text)"
+        }
+      ],
+      "expected_count": 10
+    },
+    {
+      "id": "hts_alsand_worker_bound_insert_policies",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "hts_rag"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "hts_rag_alsand_worker_insert"
+        },
+        {
+          "column": "cmd",
+          "type": "text",
+          "equals": "INSERT"
+        },
+        {
+          "column": "with_check",
+          "type": "text",
+          "equals": "(source_environment = 'alsand'::text)"
+        }
+      ],
+      "expected_count": 10
+    },
+    {
+      "id": "hts_prod_worker_shared_update_policies",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "hts_rag"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "hts_rag_prod_worker_update"
+        },
+        {
+          "column": "cmd",
+          "type": "text",
+          "equals": "UPDATE"
+        },
+        {
+          "column": "qual",
+          "type": "text",
+          "equals": "true"
+        },
+        {
+          "column": "with_check",
+          "type": "text",
+          "equals": "true"
+        }
+      ],
+      "expected_count": 10
+    },
+    {
+      "id": "hts_alsand_worker_shared_update_policies",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "hts_rag"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "hts_rag_alsand_worker_update"
+        },
+        {
+          "column": "cmd",
+          "type": "text",
+          "equals": "UPDATE"
+        },
+        {
+          "column": "qual",
+          "type": "text",
+          "equals": "true"
+        },
+        {
+          "column": "with_check",
+          "type": "text",
+          "equals": "true"
+        }
+      ],
+      "expected_count": 10
+    }
+  ]
+}

@@ -56,6 +56,7 @@ import { runGitHubCommand } from "./lib/github-transport.mjs";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveRepositoryIdentity } from './lib/repository-identity.mjs';
 
 export const HANDOFF_DIR = "HANDOFF.d";
 
@@ -242,7 +243,7 @@ function readIssueStates(repo, numbers) {
 }
 
 function main() {
-  const repo = process.env.HANDOFF_REPO || "u2giants/shared-db";
+  const repo = resolveRepositoryIdentity({ explicit: process.env.HANDOFF_REPO });
   const base = process.env.HANDOFF_BASE || "origin/main";
 
   // Files this pull request adds, modifies or deletes under HANDOFF.d/.

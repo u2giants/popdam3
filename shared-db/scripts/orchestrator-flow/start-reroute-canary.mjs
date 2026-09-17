@@ -21,6 +21,7 @@ import { canonicalJson, sha256 } from './evidence-bundle.mjs'
 import { loadRegistry } from './runner-lanes.mjs'
 import { START_SLO_MS, acceptRunnerResult, createDurableStartRerouteAdapter, dispatchQueuedReroute, reserveRunnerReroute, reviewerStartDecision, runnerStartDecision } from './start-reroute.mjs'
 import { runGitHubCommand } from '../lib/github-transport.mjs'
+import { currentRepository } from '../lib/repository-identity.mjs'
 
 export const WORKFLOW = 'start-reroute-canary.yml'
 export const STAGED_LABEL = 'db-staged-non-start-canary'
@@ -161,7 +162,7 @@ export async function main(argv = process.argv.slice(2)) {
     console.error('label is not a registered lane or the staged non-start label'); return 1
   }
   if (!argv.includes('--run')) { console.error('usage: --run [--repo owner/name] [--healthy-hold seconds] | --check-label LABEL'); return 2 }
-  const repo = value('--repo') ?? 'u2giants/shared-db'
+  const repo = currentRepository(value('--repo'))
   const evidence = await runCanary({ io: liveIo(repo), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)), healthyHold: Number(value('--healthy-hold') ?? 900) })
   console.log(JSON.stringify(evidence, null, 2))
   return evidence.verdict === 'PASS' ? 0 : 1

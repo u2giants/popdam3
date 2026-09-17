@@ -515,7 +515,7 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
       preserved=candidate
     }catch{preserved=null}
     if(preserved===null)throw new Error(`${detail}; nothing was posted because the findings could not be made inert`)
-    const kept=spawnGitHub(['api','-X','POST',`repos/u2giants/shared-db/issues/${options.pr}/comments`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body:preserved})})
+    const kept=spawnGitHub(['api','-X','POST',`repos/${REPO}/issues/${options.pr}/comments`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body:preserved})})
     if(kept.error||kept.status!==0)throw new Error(`${detail}; the findings could not be preserved durably either`)
     let keptUrl=null
     try{keptUrl=JSON.parse(kept.stdout).html_url}catch{keptUrl=null}
@@ -523,7 +523,7 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   }
   const preflightNote=skipDoctor?'REVIEW PREFLIGHT: automated doctor skipped; the caller must retain the fresh external doctor proof that justified this exception.\n\n':''
   const body=`GOVERNED REVIEW FINDINGS — NON-AUTHORIZING UNLESS THE MATCHING CREATE-ONLY VERDICT ARTIFACT EXISTS\n\n${preflightNote}${rawBody}`
-  const posted=spawnGitHub(['api','-X','POST',`repos/u2giants/shared-db/issues/${options.pr}/comments`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body})})
+  const posted=spawnGitHub(['api','-X','POST',`repos/${REPO}/issues/${options.pr}/comments`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body})})
   if(posted.error||posted.status!==0)throw new Error('review findings could not be posted durably; no verdict was recorded')
   let comment
   try{comment=JSON.parse(posted.stdout)}catch{throw new Error('durable findings response was unreadable; no verdict was recorded')}
@@ -553,7 +553,7 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
       // not voiding is not, but the notice must not claim more than was proved.
       const {ref,sha,confirmed}=error.verdictArtifactCreated
       const state=confirmed===false?'MAY HAVE BEEN CREATED':'WAS CREATED AND IS LEFT INTACT'
-      spawnGitHub(['api','-X','POST',`repos/u2giants/shared-db/issues/${options.pr}/comments`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body:`REVIEW RECORDING INCOMPLETE — THE DURABLE VERDICT ARTIFACT ${state}.
+      spawnGitHub(['api','-X','POST',`repos/${REPO}/issues/${options.pr}/comments`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body:`REVIEW RECORDING INCOMPLETE — THE DURABLE VERDICT ARTIFACT ${state}.
 
 Artifact: \`${ref}\` = \`${sha}\`
 
@@ -561,7 +561,7 @@ The step AFTER the create failed: ${error.message}
 
 The preceding findings comment (${comment.html_url}) has been left UNTOUCHED on purpose. Its body is what ${confirmed===false?'any artifact recorded by this round would have computed its findings_digest over, so editing it could permanently invalidate a verdict that may already exist':"the artifact's recorded findings_digest was computed over, so editing it would permanently invalidate a verdict that already exists"} and cannot be rewritten. Do not re-run this review at this head and do not edit that comment. Confirm the artifact with:
 
-    gh api repos/u2giants/shared-db/git/ref/${ref.replace(/^refs\//,'')}
+    gh api repos/${REPO}/git/ref/${ref.replace(/^refs\//,'')}
 `})})
       throw new Error(`${error.message} — the durable verdict artifact ${ref} = ${sha} ${confirmed===false?'MAY have been created and could not be read back':'WAS created'}; the findings comment ${comment.id} was deliberately left untouched so ${confirmed===false?'any digest recorded over it stays valid':'its digest stays valid'}. Nothing was voided.`)
     }
@@ -575,14 +575,14 @@ The preceding findings comment (${comment.html_url}) has been left UNTOUCHED on 
       // head: those are exactly the conditions under which the lane tooling reads
       // a comment, so they are the conditions the void has to survive.
       if(isVerdictFor({author_association:'OWNER',body:edited},options.headSha))throw new Error('the neutralised body is still read as a verdict by the shared verdict predicate')
-      const patch=spawnGitHub(['api','-X','PATCH',`repos/u2giants/shared-db/issues/comments/${comment.id}`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body:edited})})
+      const patch=spawnGitHub(['api','-X','PATCH',`repos/${REPO}/issues/comments/${comment.id}`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body:edited})})
       if(patch.error||patch.status!==0)throw new Error(`gh exited ${patch.status??'unknown'}${patch.error?` (${patch.error.message})`:''}`)
     }catch(voidError){voidStatus=`FAILED: ${voidError.message}`}
     const stillLive=voidStatus!=='voided'
     const note=stillLive
       ? `\n\nTHE VOIDING EDIT ITSELF ${voidStatus}. A PARSEABLE VERDICT LINE IS STILL LIVE ON COMMENT ${comment.id} (${comment.html_url}). Lane tooling will read it as a real verdict at ${options.headSha} and deadlock this pull request. That line must be neutralised BY HAND on comment ${comment.id} before this pull request can proceed.`
       : `\n\nEvery parseable verdict line on comment ${comment.id} was voided so no tool can read it as a verdict at ${options.headSha}. The reviewer's findings were left intact.`
-    spawnGitHub(['api','-X','POST',`repos/u2giants/shared-db/issues/${options.pr}/comments`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body:`REVIEW RECORDING FAILED — the preceding findings comment is non-authorizing and no verdict artifact was recorded. Reason: ${error.message}${note}`})})
+    spawnGitHub(['api','-X','POST',`repos/${REPO}/issues/${options.pr}/comments`,'--input','-'],{executor:deps.spawn,input:JSON.stringify({body:`REVIEW RECORDING FAILED — the preceding findings comment is non-authorizing and no verdict artifact was recorded. Reason: ${error.message}${note}`})})
     if(stillLive)throw new Error(`${error.message} — and the voiding edit ${voidStatus}; a parseable verdict line is still live on comment ${comment.id} and must be neutralised by hand`)
     throw error
   }

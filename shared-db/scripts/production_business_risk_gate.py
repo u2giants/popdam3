@@ -15,6 +15,10 @@ import json
 import re
 import subprocess
 import sys
+try:  # run as scripts/<name>.py or imported as scripts.<name>
+    from repository_identity import current_repository
+except ImportError:  # pragma: no cover
+    from scripts.repository_identity import current_repository
 import tempfile
 import time
 import zipfile
@@ -30,7 +34,7 @@ from historical_preview_recovery import prove_pr_authored
 from preview_instance_binding import verify as verify_preview_instance_binding
 from production_owner_decision_evidence import TRANSIENT_GITHUB_ERRORS, verify_artifact as verify_owner_decision
 
-REPOSITORY = "u2giants/shared-db"
+REPOSITORY = current_repository()  # never hard-coded (#2530)
 # The production database's identity. It is deliberately a constant and NOT
 # configurable: this value exists so the gate can refuse evidence that claims a
 # PRODUCTION write was a preview rehearsal. The PREVIEW ref is the opposite --
@@ -641,6 +645,11 @@ PREVIEW_PRODUCER_PATHS = (
     # decides tip acceptance and whether two heads carry the same pull request
     # diff, so an unpinned copy could wave any tip or any refresh through.
     "scripts/lib/pr-content-equivalence.mjs",
+    # Repository identity helpers (#2530). Imported by the manager and by the
+    # preview-job Python entry points; they decide which repository every API
+    # call reads, so an unpinned copy could point evidence reads elsewhere.
+    "scripts/lib/repository-identity.mjs",
+    "scripts/repository_identity.py",
     # Invoked by the manager before preview preparation to prove the live sole
     # orchestrator identity. Its result gates whether preparation may proceed.
     "scripts/check-orchestrator-marker.mjs",
@@ -797,6 +806,18 @@ PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
         "and by this gate itself, both of which check out exact main and prove "
         "HEAD == origin/main before executing; prove_activation additionally "
         "re-reads it against main. Pinning it here would assert nothing new."
+    ),
+    "config/db-data-admin-property-source-coverage.json": (
+        "Never read by the preview job. Its only reader is "
+        "scripts/check-db-data-admin-property-source-coverage.mjs, run by the "
+        "validate job of shared-supabase-migrations.yml, which is a pull-request "
+        "check, not the preview rehearsal. No migration, apply helper, catalog "
+        "verifier or sidecar reads it, so its bytes cannot shape preview "
+        "evidence. It was pinned by #2579; that pin refused #2870's production "
+        "promotion (run 35176603519) and #2866's (run 35178225764) only "
+        "because unrelated PR #3110 edited the "
+        "manifest after the preview ran. If a preview-job tool ever reads it, the "
+        "phrase check on this reason fails and it must be pinned again."
     ),
     "config/agent-work-contract.schema.json": (
         "Never read by the preview job, and in fact read by no job at all - not "
@@ -987,6 +1008,122 @@ def independent_sidecar_paths(
     return frozenset(independent)
 
 
+# CUSTODY-ONLY PRODUCERS (#3168). These files run in the preview job BEFORE or
+# AROUND the apply -- lane acquisition, tip freshness, orchestrator identity,
+# collision and capacity bookkeeping, evidence-reuse policy -- but none of them
+# executes, derives or writes the migration SQL, the ledgers, the content
+# manifest or the instance binding. They are pinned so a FORGED ref cannot run a
+# doctored copy. A preview dispatched at a commit that exact main CONTAINS ran
+# reviewed main-line copies of them, so a later main commit changing one of them
+# does not change what the rehearsal proved. #2870 and #2866 were refused for
+# exactly that: both previews ran at main-line 426cca7c, and main later changed
+# the freshness check, the lane manager and the repository identity helpers.
+# The tolerance applies ONLY to an exact-main target and ONLY after the ref is
+# proved an ancestor of exact main. Everything that shapes the apply --
+# guard, derivation, atomic apply, instance binding, allowlist, supabase
+# config, orphan reconciliations, every sidecar of an overlapping version --
+# stays compared byte for byte, and a tolerated path is never counted as a
+# comparison, so the zero-comparison refusal still holds.
+PREVIEW_CUSTODY_ONLY_PATHS = frozenset((
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/check-main-tip-freshness.mjs",
+    "scripts/lib/pr-content-equivalence.mjs",
+    "scripts/lib/repository-identity.mjs",
+    "scripts/repository_identity.py",
+    "scripts/check-orchestrator-marker.mjs",
+    "scripts/db-coordination-events.mjs",
+    "scripts/check-dispatch-collision.mjs",
+    "scripts/check-pr-object-collisions.mjs",
+    "scripts/lib/open-pr-files.mjs",
+    "config/orchestrator-evidence-schema-v1.json",
+    "config/orchestrator-global-invalidators-v1.json",
+    "config/review-carry-forward-stored-hashes-v1.json",
+))
+
+# Executes in the preview job's historical-recovery mode, so it is NOT
+# custody-only. Tolerated only when the two versions are identical after the
+# repository identity move (#2530): the resolver import lines and the one REPO
+# assignment, spelled as the resolved slug or through the resolver.
+HISTORICAL_RECOVERY_PRODUCER = "scripts/historical_preview_recovery.py"
+_RECOVERY_IDENTITY_DROPPED_LINES = frozenset((
+    "try:  # run as scripts/<name>.py or imported as scripts.<name>",
+    "from repository_identity import current_repository",
+    "except ImportError:  # pragma: no cover",
+    "from scripts.repository_identity import current_repository",
+))
+
+
+def _recovery_identity_normal_form(text: str) -> list[str]:
+    lines = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line in _RECOVERY_IDENTITY_DROPPED_LINES:
+            continue
+        if line in {f'REPO = "{REPOSITORY}"', "REPO = current_repository()  # never hard-coded (#2530)"}:
+            line = "REPO = <repository>"
+        lines.append(line)
+    return lines
+
+# The workflow decides which steps exist, so it is NOT custody-only as a whole.
+# It is tolerated only when the two versions are identical after these exact,
+# custody-only rewrites; any other changed line -- a step, a condition, an
+# apply command, an environment value -- still refuses.
+_WORKFLOW_CUSTODY_REWRITES = (
+    # Same repository, spelled literally (the resolved identity) or through the
+    # runner variable.
+    (re.compile(r"""['"]?repos/(?:""" + re.escape(REPOSITORY)
+                + r"""|\$\{GITHUB_REPOSITORY\})/([^'"\s]*)['"]?"""),
+     r"repos/<repository>/\1"),
+    # The freshness rule is the freshness script's own business.
+    (re.compile(r"(scripts/check-main-tip-freshness\.mjs) --production\b"), r"\1"),
+)
+_WORKFLOW_CUSTODY_DROPPED_LINES = frozenset((
+    # The production job's exact-tip equality, replaced by the freshness rule.
+    'test "$(git rev-parse origin/main)" = "$REQUESTED_SHA"',
+))
+
+
+def _workflow_custody_normal_form(text: str) -> list[str]:
+    lines = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or line in _WORKFLOW_CUSTODY_DROPPED_LINES:
+            continue
+        for pattern, replacement in _WORKFLOW_CUSTODY_REWRITES:
+            line = pattern.sub(replacement, line)
+        lines.append(line)
+    return lines
+
+
+def _blob_text(sha: str, api: Callable[[str], Any]) -> str:
+    try:
+        blob = api(f"repos/{REPOSITORY}/git/blobs/{sha}")
+    except Exception as exc:  # noqa: BLE001 - unreadable content must fail closed
+        raise RiskGateError(f"preview producer blob {sha} is unreadable") from exc
+    if not isinstance(blob, dict) or blob.get("encoding") != "base64" \
+            or not isinstance(blob.get("content"), str):
+        raise RiskGateError(f"preview producer blob {sha} is unreadable")
+    import base64
+    try:
+        return base64.b64decode(blob["content"]).decode("utf-8")
+    except Exception as exc:  # noqa: BLE001
+        raise RiskGateError(f"preview producer blob {sha} is unreadable") from exc
+
+
+def _custody_only_difference(
+    path: str, ref_blob: str, target_blob: str, api: Callable[[str], Any]
+) -> bool:
+    if path in PREVIEW_CUSTODY_ONLY_PATHS:
+        return True
+    if path == PREVIEW_WORKFLOW:
+        return _workflow_custody_normal_form(_blob_text(ref_blob, api)) \
+            == _workflow_custody_normal_form(_blob_text(target_blob, api))
+    if path == HISTORICAL_RECOVERY_PRODUCER:
+        return _recovery_identity_normal_form(_blob_text(ref_blob, api)) \
+            == _recovery_identity_normal_form(_blob_text(target_blob, api))
+    return False
+
+
 def prove_preview_producer_matches_main(
     ref: str, target: ProvedTarget, main_sha: str, api: Callable[[str], Any], *,
     what: str = "preview run", against: str = "exact main",
@@ -1067,6 +1204,7 @@ def prove_preview_producer_matches_main(
     entries_at_target = tracked_tree_at(target.sha, api)
     present_at_ref, present_at_target = entries_at_ref.keys(), entries_at_target.keys()
     compared = 0
+    main_line_proved = False
     for path in PREVIEW_PRODUCER_PATHS:
         at_ref, at_target = path in present_at_ref, path in present_at_target
         if not at_ref and not at_target:
@@ -1083,18 +1221,47 @@ def prove_preview_producer_matches_main(
             # preview proof is still valid. Not counted as a comparison.
             continue
         if at_ref != at_target:
-            raise PreviewProducerMismatch(
+            mismatch = PreviewProducerMismatch(
                 f"{what} produced evidence with {path} "
                 f"{'present' if at_ref else 'absent'} where {against} has it "
                 f"{'present' if at_target else 'absent'}"
             )
-        if (
-            blob_sha_from_tree(path, ref, entries_at_ref)
-            != blob_sha_from_tree(path, target.sha, entries_at_target)
-        ):
-            raise PreviewProducerMismatch(
+            # A custody-only helper added or removed on main after a main-line
+            # preview (#3168: repository identity helpers arrived after 426cca7c).
+            if target.kind != "exact-main" or path not in PREVIEW_CUSTODY_ONLY_PATHS:
+                raise mismatch
+            if not main_line_proved:
+                try:
+                    prove_applied_commit_is_main_line(ref, main_sha, api)
+                except RiskGateError as exc:
+                    raise mismatch from exc
+                main_line_proved = True
+            continue
+        ref_blob = blob_sha_from_tree(path, ref, entries_at_ref)
+        target_blob = blob_sha_from_tree(path, target.sha, entries_at_target)
+        if ref_blob != target_blob:
+            mismatch = PreviewProducerMismatch(
                 f"{what} produced evidence with a different {path} than {against}"
             )
+            if target.kind != "exact-main" or (
+                path not in PREVIEW_CUSTODY_ONLY_PATHS
+                and path not in {PREVIEW_WORKFLOW, HISTORICAL_RECOVERY_PRODUCER}
+            ):
+                raise mismatch
+            # Custody-only drift is tolerated only for a main-line ref (#3168).
+            if not main_line_proved:
+                try:
+                    prove_applied_commit_is_main_line(ref, main_sha, api)
+                except RiskGateError as exc:
+                    raise mismatch from exc
+                main_line_proved = True
+            try:
+                tolerated = _custody_only_difference(path, ref_blob, target_blob, api)
+            except RiskGateError as exc:
+                raise mismatch from exc
+            if not tolerated:
+                raise mismatch
+            continue
         compared += 1
     # A PIN THAT COMPARED NOTHING IS NOT A PIN. The skip above is the only rule
     # in this function that can silently do nothing, and anything that makes both
@@ -1504,8 +1671,7 @@ def prove_historical_original_apply_runs(
             "historical preview recovery does not name the original apply run for each "
             "version; a recovery is never accepted without a byte binding"
         )
-    # DEFENCE IN DEPTH, AND UNREACHABLE END TO END -- SAID OUT LOUD SO NOBODY
-    # SCORES IT AS TESTED. This guard and the two below it (the run-id shape and
+    # DEFENCE IN DEPTH, AND UNREACHABLE END TO END. This guard and the two below it (the run-id shape and
     # the source-pull-request shape) restate rules `parse_original_run_map` and
     # `parse_source_map` in scripts/historical_preview_recovery.py already
     # enforce, and re-derivation runs those parsers BEFORE this function is
@@ -1514,9 +1680,11 @@ def prove_historical_original_apply_runs(
     # `prove_preview`.
     #
     # They stay, because this function is also importable and callable on its
-    # own and must not assume its caller validated anything. But "the suite goes
-    # red if I delete it" is FALSE for all three, and #1213 round 9 is precisely
-    # about not calling such a line tested. The rules themselves ARE tested,
+    # own and must not assume its caller validated anything. Because they cannot
+    # be reached through `prove_preview`, they are driven by calling this function
+    # directly in `DirectRecordShapeGuardTests` in
+    # scripts/test_production_business_risk_gate_historical_original_runs_mutations.py
+    # (#2367), which goes red if any of them is removed. The rules are also tested,
     # per condition, in `PerConditionParserTests` in
     # scripts/test_historical_preview_recovery.py -- which is where the five
     # refusal paths of `parse_original_run_map` got their first negative tests of
@@ -2030,8 +2198,119 @@ def classify_sql(repo_root: Path, allowlist: list[str]) -> list[str]:
         if len(matches) != 1:
             raise RiskGateError(f"expected one migration for {version}, found {len(matches)}")
         raw = matches[0].read_text(encoding="utf-8")
-        reasons.update(_classify_statements(sql_top_level_statements(raw)))
+        reasons.update(_classify_statements(
+            sql_top_level_statements(raw), prior=_PriorMigrations(repo_root, version, raw)))
     return sorted(reasons)
+
+
+# ROUTINE FUNCTION RE-ESTABLISHMENT AND NARROWING REVOKES (#3159). #3104 (PR
+# #3131) and #2866 were forced onto the manual route because every CREATE OR
+# REPLACE FUNCTION outside the narrow create_function shape, and every GRANT or
+# REVOKE, reported all three risks. Two shapes are now recognised, and both stay
+# fail-closed on anything that could widen access or lose data:
+#
+#   1. REVOKE on named functions or tables. Removing a privilege can only
+#      narrow access; it never rewrites data or holds a long lock.
+#   2. A function RE-ESTABLISHED exactly as the latest earlier migration that
+#      touched it left it. Every statement of this migration naming the function
+#      must be a CREATE OR REPLACE FUNCTION, COMMENT, GRANT or REVOKE on it, and the whole
+#      ordered list must equal, byte for byte after normalisation, the list of
+#      statements naming it in the most recent earlier migration. Bodies are
+#      emptied by the tokeniser, so the comparison covers the full header
+#      (arguments, defaults, return type, SECURITY DEFINER, SET search_path) with
+#      every string literal compared exactly, and every grant, but never the body; the body is what the required
+#      independent review reads. Because the latest earlier migration is the one
+#      compared, any later migration that changed the function's privileges
+#      breaks the match, and any schema-wide grant or revoke, default-privilege
+#      change, rename or ownership move since then (or now) excuses nothing. A new function, a changed header, a new role, or a
+#      different grant order all still report every risk.
+_ROLE_LIST = rf"{_ALLOW_IDENT}(?: ?, ?{_ALLOW_IDENT})*"
+_FUNCTION_REF = rf"{_ALLOW_QUALIFIED} ?{_ALLOW_ARGS}"
+NARROWING_REVOKE = re.compile(
+    rf"revoke (?:grant option for )?[a-z ,]+ on (?:function {_FUNCTION_REF}(?: ?, ?{_FUNCTION_REF})*"
+    rf"|(?:table )?{_ALLOW_QUALIFIED}(?: ?, ?{_ALLOW_QUALIFIED})*) from {_ROLE_LIST}(?: (?:cascade|restrict))?")
+_REPLACE_FUNCTION = re.compile(rf"create or replace function ({_ALLOW_QUALIFIED}) ?\(.*")
+_FUNCTION_PRIVILEGE = re.compile(
+    rf"(?:grant|revoke) [a-z ,]+ on function ({_ALLOW_QUALIFIED}) ?{_ALLOW_ARGS} (?:to|from) {_ROLE_LIST}")
+
+_FUNCTION_COMMENT = re.compile(rf"comment on function ({_ALLOW_QUALIFIED}) ?{_ALLOW_ARGS} is (?:''|null)")
+
+
+def _names_object(statement: str, name: str) -> bool:
+    return re.search(rf'(?<![a-z0-9_$."]){re.escape(name)}(?![a-z0-9_$"])', statement) is not None
+
+
+# A statement that can change a function's privileges or identity WITHOUT
+# naming it (#3159 review): schema-wide grants/revokes, default privileges,
+# renames and ownership moves. Seen between the latest named match and now, the
+# earlier state can no longer be trusted, so nothing is excused.
+_UNNAMED_FUNCTION_ACL_OR_IDENTITY = re.compile(
+    r"\bin schema\b|\balter default privileges\b|\brename to\b|\bowner to\b"
+    r"|\bset schema\b|\bon schema\b|\bdrop (?:schema|owned|role)\b")
+
+
+def _comparison_form(neutral: str, exact: str) -> str:
+    """Exact literals everywhere except a COMMENT's text, which grants nothing."""
+    return neutral if _FUNCTION_COMMENT.fullmatch(neutral) else exact
+
+
+class _PriorMigrations:
+    """Statements of every migration on this tree older than ``version``, newest first."""
+
+    def __init__(self, repo_root: Path, version: str, current_raw: str | None = None):
+        self.current_exact = (None if current_raw is None
+                              else sql_top_level_statements(current_raw, keep_literals=True))
+        self.files = sorted(
+            (path for path in (Path(repo_root) / "supabase/migrations").glob("*.sql")
+             if re.fullmatch(r"\d{14}", path.name[:14]) and path.name[:14] < version),
+            key=lambda path: path.name, reverse=True)
+        self._cache: dict[Path, tuple[list[str], list[str]] | None] = {}
+
+    def latest_touching(self, name: str) -> list[str] | None:
+        """The ordered statements naming ``name`` in the newest earlier migration that names it.
+
+        None when no earlier migration names it, or when a newer one cannot be
+        parsed (it might name it, so nothing older can be trusted).
+        """
+        for path in self.files:
+            if path not in self._cache:
+                text = path.read_text(encoding="utf-8")
+                neutral = sql_top_level_statements(text)
+                exact = sql_top_level_statements(text, keep_literals=True)
+                self._cache[path] = (None if neutral is None or exact is None
+                                     or len(neutral) != len(exact) else (neutral, exact))
+            parsed = self._cache[path]
+            if parsed is None:
+                return None
+            neutral, exact = parsed
+            if any(_UNNAMED_FUNCTION_ACL_OR_IDENTITY.search(s) for s in neutral):
+                return None
+            touching = [_comparison_form(s, exact[i]) for i, s in enumerate(neutral) if _names_object(s, name)]
+            if touching:
+                return touching
+        return None
+
+
+def _reestablished_functions(statements: list[str], prior: "_PriorMigrations | None") -> set[int]:
+    """Indexes of statements that re-establish a function exactly as before (#3159)."""
+    if prior is None or prior.current_exact is None or len(prior.current_exact) != len(statements):
+        return set()
+    if any(_UNNAMED_FUNCTION_ACL_OR_IDENTITY.search(s) for s in statements):
+        return set()
+    exact = prior.current_exact
+    excused: set[int] = set()
+    names = {m.group(1) for s in statements if (m := _REPLACE_FUNCTION.fullmatch(s))}
+    for name in names:
+        touching = [(i, s) for i, s in enumerate(statements) if _names_object(s, name)]
+        if not all(
+            (m := _REPLACE_FUNCTION.fullmatch(s) or _FUNCTION_PRIVILEGE.fullmatch(s)
+             or _FUNCTION_COMMENT.fullmatch(s)) and m.group(1) == name
+            for _, s in touching
+        ):
+            continue
+        if prior.latest_touching(name) == [_comparison_form(s, exact[i]) for i, s in touching]:
+            excused.update(i for i, _ in touching)
+    return excused
 
 
 def allowlist_entry(statement: str, new_tables: set[str]) -> str | None:
@@ -2043,20 +2322,57 @@ def allowlist_entry(statement: str, new_tables: set[str]) -> str | None:
     return None
 
 
-def _classify_statements(statements: list[str] | None) -> set[str]:
-    """All three risks unless EVERY statement is on ALLOWLIST. Unparsed is all."""
+# ADD COLUMN ... CHECK on the column being added (#3119, run 35163423338). The
+# new column is NULL in every existing row and a CHECK passes on NULL, so no
+# data can be lost and no grant changes. It is NOT catalog-only: Postgres scans
+# the whole table under ACCESS EXCLUSIVE to validate the constraint, so this
+# shape still reports expected downtime. The CHECK body may only compare the
+# added column itself against literal values; anything else is unrecognised.
+_NEW_COLUMN_ACTION = re.compile(
+    rf"add column (?:if not exists )?({_ALLOW_IDENT}) {_BUILTIN_COLUMN_TYPE}(?: null)?"
+    rf"(?: (?:constraint {_ALLOW_IDENT} )?check ?\( ?({_ALLOW_IDENT}) (?:not )?in ?\( ?''(?: ?, ?'')* ?\) ?\))?")
+NEW_COLUMN_CHECK_RISKS = frozenset({RISK_TEXT["expected_downtime"]})
+
+
+def new_column_check_risks(statement: str) -> frozenset | None:
+    """Risks of an ADD COLUMN list whose CHECKs bind only their own new column, or None."""
+    m = re.fullmatch(rf"alter table (?:only )?{_ALLOW_QUALIFIED} (.+)", statement)
+    if not m:
+        return None
+    checked = False
+    for action in _split_top_level_commas(m.group(1)):
+        column = _NEW_COLUMN_ACTION.fullmatch(action)
+        if not column:
+            return None
+        if column.group(2) is not None:
+            if column.group(2) != column.group(1):
+                return None
+            checked = True
+    return NEW_COLUMN_CHECK_RISKS if checked else None
+
+
+def _classify_statements(statements: list[str] | None, prior: "_PriorMigrations | None" = None) -> set[str]:
+    """All three risks unless EVERY statement is recognised. Unparsed is all."""
     every = {RISK_TEXT["permanent_data_rewrite_or_loss"],
              RISK_TEXT["expected_downtime"], RISK_TEXT["material_access_change"]}
     if statements is None:
         return every
     new_tables: set[str] = set()
-    for s in statements:
+    reasons: set[str] = set()
+    reestablished = _reestablished_functions(statements, prior)
+    for index, s in enumerate(statements):
+        if index in reestablished or NARROWING_REVOKE.fullmatch(s):
+            continue
         entry = allowlist_entry(s, new_tables)
         if entry is None:
-            return every
+            partial = new_column_check_risks(s)
+            if partial is None:
+                return every
+            reasons.update(partial)
+            continue
         if entry == "create_table":
             new_tables.add(ALLOWLIST["create_table"].fullmatch(s).group(1))
-    return set()
+    return reasons
 
 
 def diagnose_risk_coverage(repo_root: Path, allowlist: list[str]) -> dict[str, Any]:
@@ -2152,7 +2468,7 @@ _IDENT = r'(?:"[^"]+"|[a-z_][a-z0-9_$]*)'
 _NAME = rf"{_IDENT}(?:\.{_IDENT})?"
 
 
-def sql_top_level_statements(raw: str) -> list[str] | None:
+def sql_top_level_statements(raw: str, keep_literals: bool = False) -> list[str] | None:
     """Split SQL into top-level statements with literal CONTENTS neutralised.
 
     Comments are removed, string literals become '', and dollar-quoted bodies
@@ -2163,6 +2479,7 @@ def sql_top_level_statements(raw: str) -> list[str] | None:
     """
     out: list[str] = []
     current: list[str] = []
+    literals: list[str] = []  # keep_literals: exact literal text, restored after folding
     i, n = 0, len(raw)
     while i < n:
         ch = raw[i]
@@ -2200,7 +2517,11 @@ def sql_top_level_statements(raw: str) -> list[str] | None:
                         continue
                     break
                 j += 1
-            current.append("''")
+            if keep_literals:
+                literals.append(raw[i:j + 1])
+                current.append(f"'#{len(literals) - 1}'")
+            else:
+                current.append("''")
             i = j + 1
             continue
         if ch == '"':
@@ -2231,6 +2552,8 @@ def sql_top_level_statements(raw: str) -> list[str] | None:
         i += 1
     out.append("".join(current))
     normalised = [_normalise_outside_identifiers(s) for s in out]
+    if keep_literals:
+        normalised = [re.sub(r"'#(\d+)'", lambda m: literals[int(m.group(1))], s) for s in normalised]
     return [s for s in normalised if s]
 
 
@@ -2756,13 +3079,10 @@ def main() -> int:
     return 0 if result.get("productionPromotionAllowed", result["automaticPromotionAllowed"]) else 3
 
 PREVIEW_PRODUCER_PATHS += (
-    # Issue #2579. The sidecar binds migration 20260910155753, and the coverage
-    # manifest is repository source read by an offline CI validator. Both are
-    # pinned rather than exempted: the test's own instruction is to pin anything
-    # a tool in the preview job could read, and pinning is the stricter answer.
-    # Issue #2988. The sidecar binds migration 20260916033914 and is read by the
-    # catalog verifier in preview, so it is pinned like every other sidecar.
-    "config/db-data-admin-property-source-coverage.json",
+    # config/db-data-admin-property-source-coverage.json was pinned here by
+    # #2579 and is now EXEMPTED instead (see PREVIEW_RUNTIME_DATA_EXEMPTIONS):
+    # no step of the preview job reads it, so pinning it refused #2870's
+    # promotion when unrelated PR #3110 edited it after the preview ran.
     # Invoked by check-sql.sh during preview; pin the reviewed parser so the
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",

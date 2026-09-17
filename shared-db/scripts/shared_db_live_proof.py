@@ -28,8 +28,12 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+try:  # run as scripts/<name>.py or imported as scripts.<name>
+    from repository_identity import current_repository, is_this_repository_or_historical
+except ImportError:  # pragma: no cover
+    from scripts.repository_identity import current_repository, is_this_repository_or_historical
 
-SHARED_DB = "u2giants/shared-db"
+SHARED_DB = current_repository()  # never hard-coded (#2530)
 PROJECT_REF = "qsllyeztdwjgirsysgai"
 SHA = re.compile(r"^[0-9a-f]{40}$")
 SCOPE_FENCE = re.compile(r"```db-work-scope\s*\n(.*?)```", re.S)
@@ -61,7 +65,9 @@ def build_proof(*, issue: dict, work_issue: int, probe_sql: str, commit_sha: str
     body = issue.get("body") or ""
     if scope_field(body, "work_type") != "structural":
         raise LiveProofError("only a structural outcome has a live proof")
-    if scope_field(body, "application_return_to") != SHARED_DB:
+    return_to = scope_field(body, "application_return_to")
+    # Scopes written before a transfer carry the historical slug (#2530).
+    if not return_to or not is_this_repository_or_historical(return_to, SHARED_DB):
         raise LiveProofError(f"application_return_to is not {SHARED_DB}; the owning application must prove it")
     assertion = scope_field(body, "live_assertion")
     if not assertion:

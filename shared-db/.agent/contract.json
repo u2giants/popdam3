@@ -1,45 +1,38 @@
 {
   "schema_version": 1,
-  "generation": 2,
-  "work_issue": 3100,
+  "generation": 5,
+  "work_issue": 3181,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "In unstarted mode judge each reviewer only by its own durable start marker; PR-wide CI or sibling-slot activity never counts as its start; unreadable evidence stays fail-closed.",
-  "base_sha": "9feeccab189aa05f30a6cbe467a3868641c8352e",
-  "dispatcher": "Claude #3027 Step 7 live acceptance session (owner approval relayed 2026-09-16)",
-  "worker": "Claude Opus 5 #3027 Step 7 own-start-marker fix",
-  "branch": "claude/3027-start-watch-own-marker",
-  "worktree": "C:/repos/shared-db/.claude/worktrees/3027-own-marker",
+  "goal": "Remove the stale absent_from_production_catalog declaration for prod_order_milestone_schedule, which is live on production (run 35179427282, proof on #3091).",
+  "base_sha": "23d6142e079a805d86a7e5a0cf4324897c732bcd",
+  "dispatcher": "Albert Hazan chat session",
+  "worker": "Claude Opus 5 session bold-kowalevski",
+  "branch": "claude/remove-3091-prod-gap-1789640648",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/rm-3091-gap",
   "allowed_paths": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    "config/db-data-admin-property-source-coverage.json",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "file_writes": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    "config/db-data-admin-property-source-coverage.json",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "No database write of any kind",
-    "No production workflow dispatch"
+    "No database write or structure change of any kind"
   ],
   "required_checks": [
-    "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
-    "node --test scripts/manage-migration-author-lanes.test.mjs"
+    "node scripts/check-db-data-admin-property-source-coverage.mjs",
+    "node --test scripts/check-db-data-admin-property-source-coverage.test.mjs scripts/check-main-tip-freshness.test.mjs"
   ],
   "assumptions": [
-    "The ordinary two-hour silence path keeps using PR activity"
+    "The production catalog contains prod_order_milestone_schedule, so the coverage check would fail while the declaration remains"
   ],
   "stop_conditions": [
-    "Stop if the fix would need a database change"
+    "Stop if any other coverage family changes"
   ]
 }

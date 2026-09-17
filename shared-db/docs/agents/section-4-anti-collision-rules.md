@@ -8,7 +8,7 @@ Reviewer availability is the bounded active-lease index. Before the parallel-rev
 
 An exact-head verdict, terminal failure/replacement, moved head, merged PR, or closed PR makes a lease stale; a verdict additionally releases the lease it was recorded against, so the stale classification is the fallback for leases no verdict path reclaimed. Stale leases are deleted only while the global mutex is owned and the fixed ref still matches its expected SHA. If release cannot be proved, preserve the named ref/SHA and use the guarded `recover-author-mutex.yml` procedure.
 
-Phase 2 rules: protected object claims and active-author capacity are separate; relinquishment never releases a claim. The follow-on abandonment/recovery lifecycle is planned in [`../../plan_author_lane_abandonment_lifecycle.md`](../../plan_author_lane_abandonment_lifecycle.md); read its STATUS table before changing author-capacity behavior. Preview dependencies produce `PREVIEW_WAIT`, never a successful workflow. Immediately before manual preview dispatch, resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and dispatch only its matching stored instruction. Historical recovery is `mode=apply` only; historical dry-run proves nothing. Use `--repair-preview-ready <ready-id> --issue <n>` only for a v2-bound stale wrong digest; a corrupt live digest requires an owner decision and no mutation. Reviewer reservations serialize approved provider/wrapper execution keys and create an ordered durable `review-wait` when all eligible keys are busy. The live orchestrator engine is excluded from review; Gemini 3.8 Flash High re-entered the active rotation on 2026-09-06 (PR #2438, ai-devops issue #285) after a recorded live re-qualification, Kimi K3 was unpaused on 2026-09-07 (PR #2483) and is drawable again, and Codex GPT-5.6 Sol was retired on 2026-09-06 (issue #2485) by owner instruction so it is not drawable. **With zero open orchestrator markers (`state: none`) the exclusion list is empty and the whole rotation stays drawable** (issue #2127): the exclusion is a same-engine conflict guard, and with no live engine there is no conflict, so closing a marker must not freeze merging repository-wide. `ambiguous`, `invalid` and `unsafe` marker states still refuse. The marker resolver exits non-zero for answers it is certain of (3 for `none`, 1 for the refusing states), so a non-zero exit carrying parseable JSON is an ANSWER; only unreadable output is a resolver fault, and the refusal names which it was.
+Phase 2 rules: protected object claims and active-author capacity are separate; relinquishment never releases a claim. The follow-on abandonment/recovery lifecycle is planned in [`../../plan_author_lane_abandonment_lifecycle.md`](../../plan_author_lane_abandonment_lifecycle.md); read its STATUS table before changing author-capacity behavior. Preview dependencies produce `PREVIEW_WAIT`, never a successful workflow. Immediately before manual preview dispatch, resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and dispatch only its matching stored instruction. Historical recovery is `mode=apply` only; historical dry-run proves nothing. Use `--repair-preview-ready <ready-id> --issue <n>` only for a v2-bound stale wrong digest; a corrupt live digest requires an owner decision and no mutation. Reviewer reservations are per exact review, never per provider: one reviewer may run any number of reviews at once and there is no busy state or `review-wait` (issue #3130). The live orchestrator engine is excluded from review; Gemini 3.8 Flash High re-entered the active rotation on 2026-09-06 (PR #2438, ai-devops issue #285) after a recorded live re-qualification, Kimi K3 was unpaused on 2026-09-07 (PR #2483) and is drawable again, and Codex GPT-5.6 Sol was retired on 2026-09-06 (issue #2485) by owner instruction so it is not drawable. **With zero open orchestrator markers (`state: none`) the exclusion list is empty and the whole rotation stays drawable** (issue #2127): the exclusion is a same-engine conflict guard, and with no live engine there is no conflict, so closing a marker must not freeze merging repository-wide. `ambiguous`, `invalid` and `unsafe` marker states still refuse. The marker resolver exits non-zero for answers it is certain of (3 for `none`, 1 for the refusing states), so a non-zero exit carrying parseable JSON is an ANSWER; only unreadable output is a resolver fault, and the refusal names which it was.
 
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212) so the router stays under its
 80 KB ceiling. **Text unchanged, section number unchanged.** `AGENTS.md` §4 carries the operative
@@ -56,7 +56,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    --claim-number <n> --owner <owner> --blocked-on issue:#<n>`; after the blocker
    clears, use `--resume-author-lease --claim-number <n> --owner <owner>
    --lease-hours <hours>`. The value flag is `--claim-number` on both: a bare
-   `--claim` is the boolean that claims a lane.
+   `--claim` is the boolean that claims a lane. If a resumed claim still carries
+   `blocked_on`, `worktree_state` or `recovery` (refused as unreadable), repair it
+   with `--repair-resumed-claim --claim-number <n> --owner <owner>`; it only
+   removes that residue, and only after a recorded `author_capacity_resumed`
+   event (issue #3170).
 
    **An expired lease is not an abandoned lane (issue #2301).** Expiry is
    created by time passing. It proves that nobody renewed a claim; it does not
@@ -417,9 +421,13 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    retired Codex reviewer was equipped the same way, via `codex exec --sandbox
    read-only`, but is no longer drawable.
 
-   No reviewer is overflow. If every eligible
-   reviewer is busy, the allocator records an ordered
-   `review-wait`; it does not duplicate an assignment or invent availability.
+   No reviewer is overflow. **No reviewer is ever "busy" (owner ruling,
+   2026-09-16).** One reviewer provider may run any number of independent
+   reviews at the same time; each exact review (issue, PR, head, slot) holds its
+   own lease ref, so a live review never makes its provider wait, reroute, or
+   queue. Independence still applies per head (slot 2 never draws slot 1's
+   provider), a reviewer never reviews its own orchestrator engine, and a
+   provider `ai-review-preflight` does not report `usable` is not drawn.
 
    A reviewer that is truthfully unusable for one pull request is excluded with
    `--exclude-reviewer --issue <issue> --pr <pr> --reviewer <name> --reason
@@ -427,8 +435,8 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    <durable-assignment-or-replacement-sha>`. The exclusion is immutable,
    PR-local, requires an existing assignment or replacement for the same
    reviewer, and releases that exact active lease when present. It does not
-   create a failure record. New heads skip the reviewer; if exclusions and live
-   leases consume the roster, assignment refuses loudly and names each durable
+   create a failure record. New heads skip the reviewer; if exclusions consume the
+   roster, assignment refuses loudly and names each durable
    reason. Never use this to shop for a preferred verdict.
 
    The exclusion also RETURNS every assignment AND every replacement of that
@@ -532,11 +540,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    The re-run rebuilds the returned records from the return namespace and
    completes the re-filing, recording no second exclusion and no second return.
 
-   **Grok's in-flight lock is PER REPOSITORY, not global.** `ai-grok-review`
-   allows one live Grok review at a time *in shared-db*; it does not cap Grok
-   across repositories. Five repositories with work can run five Grok reviews
-   simultaneously. Never treat a Grok review running in another repository as a
-   reason to skip Grok here, and never treat a busy Grok here as a Grok outage. Historical Qwen assignments, failures, and
+   **No reviewer wrapper serializes reviews by provider (owner ruling,
+   2026-09-16; popcre/ai-devops#401 Step 7A).** Any number of reviews by any provider in the active
+   rotation (Grok, Kimi, GLM, Muse, Gemini or Qwen) may run at once, in this repository or any other,
+   each in its own session and sandbox. Never treat another live review by the
+   same provider as a reason to skip, wait for, or replace it. Historical Qwen assignments, failures, and
    replacement evidence remain readable and must be recovered or replaced
    through `scripts/manage-migration-author-lanes.mjs`, never hand-edited. Use
    only the wrapper returned by the manager and its fixed model settings. Reuse

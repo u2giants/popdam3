@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildPreviewGraph, assertAcyclic } from './preview-graph.mjs'
 import { canonicalJson, sha256 } from './evidence-bundle.mjs'
+import { currentRepository } from '../lib/repository-identity.mjs'
 
 export const PREVIEW_CLASSIFIER_VERSION = 1
 export const NO_DATABASE_PREVIEW = 'NO_DATABASE_PREVIEW'
@@ -15,7 +16,7 @@ const INVALIDATION_CONDITIONS = Object.freeze(['file-content-change','file-set-c
 export function databasePreviewRequiredFromEvidenceBundle(bundle){
   const identity=bundle?.identity
   if(!identity||bundle.bundle_id!==sha256(canonicalJson(identity)))throw new Error('database evidence bundle identity is unavailable or changed')
-  const target={repository:'u2giants/shared-db',issue:bundle?.metadata?.issue,pr:bundle?.metadata?.pr,base_sha:bundle?.metadata?.base_main_sha,head_sha:bundle?.metadata?.integration_sha}
+  const target={repository:currentRepository(),issue:bundle?.metadata?.issue,pr:bundle?.metadata?.pr,base_sha:bundle?.metadata?.base_main_sha,head_sha:bundle?.metadata?.integration_sha}
   if(!Number.isInteger(target.issue)||!Number.isInteger(target.pr)||!/^[0-9a-f]{40}$/i.test(String(target.base_sha??''))||!/^[0-9a-f]{40}$/i.test(String(target.head_sha??'')))throw new Error('database evidence bundle target identity is unavailable')
   const byPath=new Map()
   const add=(rows,impact,reason)=>{for(const row of rows??[]){const existing=byPath.get(row.path);if(existing&&existing.sha256!==row.sha256)throw new Error(`database evidence bundle disagrees on ${row.path}`);byPath.set(row.path,{path:row.path,sha256:row.sha256,impact,reason})}}

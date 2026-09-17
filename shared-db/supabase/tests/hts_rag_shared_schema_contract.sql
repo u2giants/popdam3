@@ -77,18 +77,18 @@ insert into hts_rag.hts_rag_precedents (
   ('27120000-0000-4000-8000-00000000000a', 'ZZ synthetic', 'contract-v1', 'p1', 'c1', 'v1', 'e1',
    repeat('3', 64), repeat('4', 64), repeat('a', 64), '1234.56.78.90', 'provisional_complete', true, 'accepted', 'production'),
   ('27120000-0000-4000-8000-00000000000b', 'ZZ synthetic', 'contract-v1', 'p1', 'c1', 'v1', 'e1',
-   repeat('3', 64), repeat('4', 64), repeat('b', 64), '1234.56.78.90', 'provisional_complete', false, 'accepted', 'alsand'),
+   repeat('3', 64), repeat('4', 64), repeat('b', 64), '1234.56.78.90', 'provisional_complete', false, 'accepted', 'production'),
   ('27120000-0000-4000-8000-00000000000d', 'ZZ synthetic', 'contract-v1', 'p1', 'c1', 'v1', 'e1',
    repeat('3', 64), repeat('4', 64), repeat('d', 64), '1234.56.78.90', 'provisional_complete', true, 'rejected', 'production');
 
 insert into hts_rag.hts_rag_rulings (id, ruling_number, full_text, full_text_hash, source_environment) values
   ('27120000-0000-4000-8000-000000000011', 'ZZ-R1', 'synthetic ruling one', repeat('5', 64), 'production'),
-  ('27120000-0000-4000-8000-000000000012', 'ZZ-R2', 'synthetic ruling two', repeat('6', 64), 'alsand'),
+  ('27120000-0000-4000-8000-000000000012', 'ZZ-R2', 'synthetic ruling two', repeat('6', 64), 'production'),
   ('27120000-0000-4000-8000-000000000013', 'ZZ-R3', 'synthetic ruling three', repeat('7', 64), 'production');
 
 insert into hts_rag.hts_rag_precedent_rulings (precedent_id, ruling_id, source_environment) values
   ('27120000-0000-4000-8000-00000000000a', '27120000-0000-4000-8000-000000000011', 'production'),
-  ('27120000-0000-4000-8000-00000000000b', '27120000-0000-4000-8000-000000000012', 'alsand'),
+  ('27120000-0000-4000-8000-00000000000b', '27120000-0000-4000-8000-000000000012', 'production'),
   ('27120000-0000-4000-8000-00000000000d', '27120000-0000-4000-8000-000000000013', 'production');
 
 insert into hts_rag.hts_rag_review_events (id, subject_type, subject_id, action, source_environment)
@@ -100,14 +100,14 @@ begin
     insert into hts_rag.hts_rag_rulings (ruling_number, full_text, full_text_hash)
     values ('ZZ-R9', 'no provenance', repeat('8', 64));
     raise exception 'insert without source_environment was accepted';
-  exception when not_null_violation then null;
+  exception when not_null_violation or insufficient_privilege then null;
   end;
 
   begin
     insert into hts_rag.hts_rag_rulings (ruling_number, full_text, full_text_hash, source_environment)
     values ('ZZ-R9', 'bad provenance', repeat('8', 64), 'staging');
     raise exception 'unknown source_environment was accepted';
-  exception when check_violation then null;
+  exception when check_violation or insufficient_privilege then null;
   end;
 
   update hts_rag.hts_rag_rulings set operationally_revoked = false, subject = 'refreshed'
@@ -206,6 +206,186 @@ begin
   end;
 end
 $alsand_worker_contract$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------------
+-- Issue #2866: every worker can insert one valid row into every table only when
+-- source_environment names that worker's environment. The duplicate-key clone
+-- attempts below are deliberate: a correct RLS policy rejects them first with
+-- insufficient_privilege; if provenance is not enforced, the unexpected unique
+-- violation escapes and fails the contract.
+-- ---------------------------------------------------------------------------------
+set local role designflow_hts_prod_worker;
+
+insert into hts_rag.hts_rag_product_examples
+  (id, product_family, fixture_version, fixture_hash, input_hash, source_environment)
+values ('28660000-0000-4000-8000-000000000001', 'ZZ provenance prod', 'v2866p', repeat('1', 64), repeat('2', 64), 'production');
+
+insert into hts_rag.hts_rag_precedents
+  (id, product_family, fixture_version, prompt_version, classifier_model, verifier_model,
+   extraction_version, fixture_hash, input_hash, raw_result_hash, classification_state, source_environment)
+values ('28660000-0000-4000-8000-000000000002', 'ZZ provenance prod', 'v2866p', 'p', 'c', 'v',
+        'e', repeat('3', 64), repeat('4', 64), repeat('5', 64), 'needs_more_facts', 'production');
+
+insert into hts_rag.hts_rag_rulings
+  (id, ruling_number, full_text, full_text_hash, source_environment)
+values ('28660000-0000-4000-8000-000000000003', 'ZZ-2866-P', 'synthetic', repeat('6', 64), 'production');
+
+insert into hts_rag.hts_rag_precedent_rulings
+  (id, precedent_id, ruling_id, source_environment)
+values ('28660000-0000-4000-8000-000000000004', '28660000-0000-4000-8000-000000000002',
+        '28660000-0000-4000-8000-000000000003', 'production');
+
+insert into hts_rag.hts_rag_extraction_jobs
+  (id, product_example_id, prompt_version, model_version, extraction_version, input_hash, source_environment)
+values ('28660000-0000-4000-8000-000000000005', '28660000-0000-4000-8000-000000000001',
+        'p', 'm', 'e', repeat('7', 64), 'production');
+
+insert into hts_rag.hts_rag_determinations
+  (id, product_example_id, method, classification_state, result_hash, comparison_key, source_environment)
+values ('28660000-0000-4000-8000-000000000006', '28660000-0000-4000-8000-000000000001',
+        'legacy_ai_cross', 'needs_more_facts', repeat('8', 64), '28660000-0000-4000-8000-000000000016', 'production');
+
+insert into hts_rag.hts_rag_provider_responses
+  (id, session_id, turn_index, turn_role, determination_id, provider, model_version,
+   prompt_version, request_hash, raw_response, raw_response_hash, source_environment)
+values ('28660000-0000-4000-8000-000000000007', '28660000-0000-4000-8000-000000000017', 0,
+        'classifier', '28660000-0000-4000-8000-000000000006', 'synthetic', 'm', 'p',
+        repeat('9', 64), '{}'::jsonb, repeat('a', 64), 'production');
+
+insert into hts_rag.hts_rag_review_events
+  (id, subject_type, subject_id, action, source_environment)
+values ('28660000-0000-4000-8000-000000000008', 'precedent',
+        '28660000-0000-4000-8000-000000000002', 'created', 'production');
+
+insert into hts_rag.hts_rag_product_family_allowlist (product_family, source_environment)
+values ('ZZ provenance prod', 'production');
+
+insert into hts_rag.hts_rag_debate_runs
+  (id, source_determination_id, session_id, policy_version, case_packet_hash, source_environment)
+values ('28660000-0000-4000-8000-000000000010', '28660000-0000-4000-8000-000000000006',
+        '28660000-0000-4000-8000-000000000017', 'v2866p', repeat('b', 64), 'production');
+
+do $prod_cross_environment_denials$
+declare
+  v_table text;
+begin
+  foreach v_table in array array[
+    'hts_rag_rulings', 'hts_rag_product_examples', 'hts_rag_precedents',
+    'hts_rag_precedent_rulings', 'hts_rag_extraction_jobs', 'hts_rag_determinations',
+    'hts_rag_provider_responses', 'hts_rag_review_events',
+    'hts_rag_product_family_allowlist', 'hts_rag_debate_runs'
+  ] loop
+    begin
+      execute format(
+        'insert into hts_rag.%1$I select (jsonb_populate_record(null::hts_rag.%1$I, to_jsonb(t) || jsonb_build_object(''source_environment'', ''alsand''))).* from hts_rag.%1$I t limit 1',
+        v_table
+      );
+      raise exception 'production worker forged alsand provenance on %', v_table;
+    exception when insufficient_privilege then null;
+    end;
+  end loop;
+end
+$prod_cross_environment_denials$;
+
+reset role;
+set local role designflow_hts_alsand_worker;
+
+insert into hts_rag.hts_rag_product_examples
+  (id, product_family, fixture_version, fixture_hash, input_hash, source_environment)
+values ('2866a000-0000-4000-8000-000000000001', 'ZZ provenance alsand', 'v2866a', repeat('c', 64), repeat('d', 64), 'alsand');
+
+insert into hts_rag.hts_rag_precedents
+  (id, product_family, fixture_version, prompt_version, classifier_model, verifier_model,
+   extraction_version, fixture_hash, input_hash, raw_result_hash, classification_state, source_environment)
+values ('2866a000-0000-4000-8000-000000000002', 'ZZ provenance alsand', 'v2866a', 'p', 'c', 'v',
+        'e', repeat('e', 64), repeat('f', 64), repeat('0', 64), 'needs_more_facts', 'alsand');
+
+insert into hts_rag.hts_rag_rulings
+  (id, ruling_number, full_text, full_text_hash, source_environment)
+values ('2866a000-0000-4000-8000-000000000003', 'ZZ-2866-A', 'synthetic', repeat('1', 64), 'alsand');
+
+insert into hts_rag.hts_rag_precedent_rulings
+  (id, precedent_id, ruling_id, source_environment)
+values ('2866a000-0000-4000-8000-000000000004', '2866a000-0000-4000-8000-000000000002',
+        '2866a000-0000-4000-8000-000000000003', 'alsand');
+
+insert into hts_rag.hts_rag_extraction_jobs
+  (id, product_example_id, prompt_version, model_version, extraction_version, input_hash, source_environment)
+values ('2866a000-0000-4000-8000-000000000005', '2866a000-0000-4000-8000-000000000001',
+        'p', 'm', 'e', repeat('2', 64), 'alsand');
+
+insert into hts_rag.hts_rag_determinations
+  (id, product_example_id, method, classification_state, result_hash, comparison_key, source_environment)
+values ('2866a000-0000-4000-8000-000000000006', '2866a000-0000-4000-8000-000000000001',
+        'legacy_ai_cross', 'needs_more_facts', repeat('3', 64), '2866a000-0000-4000-8000-000000000016', 'alsand');
+
+insert into hts_rag.hts_rag_provider_responses
+  (id, session_id, turn_index, turn_role, determination_id, provider, model_version,
+   prompt_version, request_hash, raw_response, raw_response_hash, source_environment)
+values ('2866a000-0000-4000-8000-000000000007', '2866a000-0000-4000-8000-000000000017', 0,
+        'classifier', '2866a000-0000-4000-8000-000000000006', 'synthetic', 'm', 'p',
+        repeat('4', 64), '{}'::jsonb, repeat('5', 64), 'alsand');
+
+insert into hts_rag.hts_rag_review_events
+  (id, subject_type, subject_id, action, source_environment)
+values ('2866a000-0000-4000-8000-000000000008', 'precedent',
+        '2866a000-0000-4000-8000-000000000002', 'created', 'alsand');
+
+insert into hts_rag.hts_rag_product_family_allowlist (product_family, source_environment)
+values ('ZZ provenance alsand', 'alsand');
+
+insert into hts_rag.hts_rag_debate_runs
+  (id, source_determination_id, session_id, policy_version, case_packet_hash, source_environment)
+values ('2866a000-0000-4000-8000-000000000010', '2866a000-0000-4000-8000-000000000006',
+        '2866a000-0000-4000-8000-000000000017', 'v2866a', repeat('6', 64), 'alsand');
+
+do $alsand_cross_environment_denials$
+declare
+  v_table text;
+begin
+  foreach v_table in array array[
+    'hts_rag_rulings', 'hts_rag_product_examples', 'hts_rag_precedents',
+    'hts_rag_precedent_rulings', 'hts_rag_extraction_jobs', 'hts_rag_determinations',
+    'hts_rag_provider_responses', 'hts_rag_review_events',
+    'hts_rag_product_family_allowlist', 'hts_rag_debate_runs'
+  ] loop
+    begin
+      execute format(
+        'insert into hts_rag.%1$I select (jsonb_populate_record(null::hts_rag.%1$I, to_jsonb(t) || jsonb_build_object(''source_environment'', ''production''))).* from hts_rag.%1$I t limit 1',
+        v_table
+      );
+      raise exception 'Alsand worker forged production provenance on %', v_table;
+    exception when insufficient_privilege then null;
+    end;
+  end loop;
+end
+$alsand_cross_environment_denials$;
+
+-- Shared visibility and bounded cross-environment update remain intentional.
+do $alsand_shared_update$
+begin
+  update hts_rag.hts_rag_rulings set subject = 'updated by alsand'
+   where id = '28660000-0000-4000-8000-000000000003';
+  if not found then
+    raise exception 'Alsand worker cannot update a production-origin row';
+  end if;
+end
+$alsand_shared_update$;
+
+reset role;
+set local role designflow_hts_prod_worker;
+
+do $prod_shared_update$
+begin
+  update hts_rag.hts_rag_rulings set subject = 'updated by production'
+   where id = '2866a000-0000-4000-8000-000000000003';
+  if not found then
+    raise exception 'production worker cannot update an Alsand-origin row';
+  end if;
+end
+$prod_shared_update$;
 
 reset role;
 

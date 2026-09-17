@@ -11,7 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ghJson } from '../lib/github-transport.mjs'
+import { nextPageEndpoint, pollDelayMs, sharedConditionalGet } from '../lib/github-conditional.mjs'
 
 export class RunnerLaneError extends Error {}
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -155,17 +155,36 @@ export function workflowLaneConformance(registry, rawWorkflowText, job) {
 
 function argValue(argv, flag) { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined }
 
-export function runAggregate({ repo, headSha, registry = loadRegistry(), fetchRuns, sleep, now = Date.now, timeoutMs, intervalMs = 20000, log = console.log }) {
+export function runAggregate({ repo, headSha, registry = loadRegistry(), fetchRuns, sleep, now = Date.now, timeoutMs, intervalMs = 20000, log = console.log, random = Math.random }) {
   if (!SHA.test(String(headSha ?? '')) || !/^[\w.-]+\/[\w.-]+$/.test(String(repo ?? ''))) throw new RunnerLaneError('aggregate requires --repo owner/name and a 40-hex --head-sha')
   const deadline = now() + timeoutMs
+  let failures = 0
   for (;;) {
-    const result = aggregateVerdict(registry, fetchRuns(repo, headSha))
+    let runs
+    try {
+      runs = fetchRuns(repo, headSha)
+      failures = 0
+    } catch (error) {
+      // A refusal about the CONTENT of the listing still fails closed at once.
+      // A failed READ (outage, quota latch, unreadable response) is retried with
+      // 30/60/120/300s jittered backoff until the deadline, instead of ending a
+      // 50-minute wait on one bad poll or hammering GitHub while it is failing.
+      if (error instanceof RunnerLaneError) throw error
+      if (!error?.transientTransport && !error?.rateLimitExhausted && !error?.quotaLatched) throw error
+      failures += 1
+      if (now() >= deadline) return { verdict: 'refuse', refusals: [`check-run listing still failing at deadline: ${error?.message ?? error}`] }
+      const delay = Math.min(pollDelayMs({ baseMs: intervalMs, failures, random }), Math.max(0, deadline - now()))
+      log(`check-run listing failed (${failures} in a row); retrying in ${Math.ceil(delay / 1000)}s: ${error?.message ?? error}`)
+      sleep(delay)
+      continue
+    }
+    const result = aggregateVerdict(registry, runs)
     const onlyWaiting = result.verdict === 'pending' || (result.verdict === 'refuse' && result.unreported?.length && result.refusals.length === result.unreported.length)
     if (!onlyWaiting) return result
     const waiting = [...(result.pending ?? []), ...(result.unreported ?? [])]
     if (now() >= deadline) return { verdict: 'refuse', refusals: waiting.map((p) => `still not finished at deadline: ${p}`) }
     log(`waiting: ${waiting.join('; ')}`)
-    sleep(intervalMs)
+    sleep(pollDelayMs({ baseMs: intervalMs, pollIntervalHeaderMs: runs?.pollIntervalMs }))
   }
 }
 
@@ -173,8 +192,29 @@ export function runAggregate({ repo, headSha, registry = loadRegistry(), fetchRu
 // filter=all, not filter=latest: `latest` selects by completed_at and can omit queued or in-progress
 // runs, and its total_count semantics are not pinned. The newest run per name (highest id) is kept,
 // which is what a re-run means, while queued runs stay visible so the verdict waits for them.
-export function fetchCheckRuns(repo, sha, { readJson = ghJson } = {}) {
-  const payload = readJson(['api', '--paginate', '--slurp', `repos/${repo}/commits/${sha}/check-runs?per_page=100&filter=all`])
+// Issue #2773: without an injected reader every page is a host-shared conditional
+// read (ETag -> free 304 when nothing changed), so an aggregate waiting 45 minutes
+// on unchanged checks no longer spends a primary-quota request per poll. The
+// pages are validated below exactly as a slurped listing was.
+export function readCheckRunPagesConditionally(repo, sha, { readPage = sharedConditionalGet, maxPages = 50 } = {}) {
+  const pages = []
+  let pollIntervalMs = 0
+  let endpoint = `repos/${repo}/commits/${sha}/check-runs?per_page=100&filter=all`
+  while (endpoint) {
+    if (pages.length >= maxPages) throw new RunnerLaneError(`check-run listing exceeded ${maxPages} pages; refusing rather than judging a partial read`)
+    const page = readPage(endpoint)
+    pollIntervalMs = Math.max(pollIntervalMs, Number(page.pollIntervalMs) || 0)
+    try { pages.push(JSON.parse(page.body)) } catch { throw new RunnerLaneError('check-run listing returned unreadable JSON; refusing rather than judging a partial read') }
+    try { endpoint = nextPageEndpoint(page.link) } catch (error) { throw new RunnerLaneError(error?.message ?? String(error)) }
+  }
+  Object.defineProperty(pages, 'pollIntervalMs', { value: pollIntervalMs, enumerable: false })
+  return pages
+}
+
+export function fetchCheckRuns(repo, sha, { readJson = null, readPage } = {}) {
+  const payload = readJson
+    ? readJson(['api', '--paginate', '--slurp', `repos/${repo}/commits/${sha}/check-runs?per_page=100&filter=all`])
+    : readCheckRunPagesConditionally(repo, sha, readPage ? { readPage } : {})
   const pages = Array.isArray(payload) ? payload : null
   if (!pages || !pages.length) throw new RunnerLaneError('check-run listing did not return pages; refusing rather than judging a partial read')
   const rows = []
@@ -192,7 +232,10 @@ export function fetchCheckRuns(repo, sha, { readJson = ghJson } = {}) {
     if (seen && seen.id === r.id) throw new RunnerLaneError(`check-run listing repeated run ${r.id}; refusing rather than judging an unstable read`)
     if (!seen || r.id > seen.id) newest.set(r.name, r)
   }
-  return [...newest.values()].map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion }))
+  const latest = [...newest.values()].map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion }))
+  // GitHub's x-poll-interval rides along (non-enumerable) so runAggregate can honour it as a floor.
+  Object.defineProperty(latest, 'pollIntervalMs', { value: Number(pages.pollIntervalMs) || 0, enumerable: false })
+  return latest
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -79,12 +79,12 @@ import { parseRoutingBlock, validateRouting } from './lib/orchestrator-routing.m
 import { validateAdmission } from './lib/orchestrator-admission.mjs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { resolveRepositoryIdentity } from './lib/repository-identity.mjs'
 
 /** The live marker label. */
 export const MARKER_LABEL = 'orchestrator-marker'
 /** The retired label. Its continued existence is itself the defect (B1a). */
 export const RETIRED_MARKER_LABEL = 'coordinator-marker'
-export const DEFAULT_REPO = 'u2giants/shared-db'
 
 export const EXIT_OK = 0
 export const EXIT_FAIL = 1
@@ -437,7 +437,14 @@ export const defaultIo = {
 
 export function main(argv = [], io = defaultIo) {
   const repoFlag = argv.indexOf('--repo')
-  const repo = repoFlag !== -1 ? argv[repoFlag + 1] : process.env.GITHUB_REPOSITORY || DEFAULT_REPO
+  let repo
+  try {
+    repo = resolveRepositoryIdentity({ explicit: repoFlag !== -1 ? argv[repoFlag + 1] : undefined })
+  } catch (error) {
+    // Unknown repository is UNKNOWN, never "no marker open".
+    console.error(`UNKNOWN: ${error.message}`)
+    return EXIT_UNKNOWN
+  }
   const asJson = argv.includes('--json')
   const resolving = argv.includes('--resolve')
 

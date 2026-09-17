@@ -373,3 +373,38 @@ test('merge collisions use broad claim identities for create/alter table', () =>
   ])
   assert.deepEqual(result.collisions.map((x) => x.object), ['table core.thing'])
 })
+
+// --- issue #3183: real PR #2835 statement shapes ---------------------------
+test('#3183: "--" inside a comment literal does not hide the grants after it', async () => {
+  const { extractOperations } = await import('./check-pr-object-collisions.mjs')
+  const sql = `create view api.licensing_resolution_queue with (security_invoker = true) as select 1 as n;
+
+comment on view api.licensing_resolution_queue is
+  'Audited licensing resolution backlog. '
+  'Aggregate only -- it exposes no source identifier and no row content, so it stays readable '
+  'policies, so the counts a caller sees are the counts that caller is entitled to see.';
+
+revoke all on api.licensing_resolution_queue from public, anon;
+grant select on api.licensing_resolution_queue to authenticated, service_role;
+`
+  const ops = extractOperations(sql).map((o) => `${o.action} ${o.kind} ${o.target}`)
+  assert.ok(ops.includes('grant view api.licensing_resolution_queue'), ops.join('\n'))
+  assert.ok(ops.includes('grant table api.licensing_resolution_queue'), ops.join('\n'))
+})
+
+test('#3183: a keyword-less grant on a view collides with the view key', async () => {
+  const { extractOperations } = await import('./check-pr-object-collisions.mjs')
+  const sql = `create view api.licensing_entity_candidates with (security_invoker = true) as select 1 as n;
+grant select on api.licensing_entity_candidates to authenticated, service_role;`
+  const ops = extractOperations(sql).map((o) => `${o.action} ${o.kind} ${o.target}`)
+  assert.ok(ops.includes('grant view api.licensing_entity_candidates'), ops.join('\n'))
+  // explicit non-table keywords keep their own kind only
+  const schemaOps = extractOperations('grant usage on schema api to anon;').map((o) => o.kind)
+  assert.deepEqual(schemaOps, ['schema'])
+})
+
+test('#3183: comment stripping still removes real comments and keeps literals', async () => {
+  const { normalizeSql } = await import('./check-pr-object-collisions.mjs')
+  assert.equal(normalizeSql("select 'a -- b' -- gone\n/* x */ , 'it''s';").trim(), "select 'a -- b' , 'it''s';")
+  assert.equal(normalizeSql("do $$ begin -- don't\n perform 1; end $$;").includes("don't"), false)
+})

@@ -36,20 +36,36 @@ Do not write placeholder text into a prepack code field to mark rows for later. 
 
 ### Prepack head and prepack member are two different fields
 
-**Verified 2026-09-07. This matters for prepack work in flight.**
-`plm."itemDetail".prepack_code_fk` and `public.erp_items_current.prepack_code`
-have similar names and mean opposite things:
+**Verified 2026-09-07. Head/member labelling corrected 2026-09-11 (issue #2611).**
 
-| Field | Marks | Share resolving a Property |
-|---|---|---|
-| `plm."itemDetail".prepack_code_fk` | prepack **members** — the real single-property Items inside a carton | **97.3%** |
-| `public.erp_items_current.prepack_code` | prepack **heads** — the orderable assortment carton | **5.2%** |
+A head and a member are genuinely different business objects, and reading one
+where the other was meant inverts the answer. That part stands. What was wrong
+was which field marks which.
 
-They are not the same field and must never be treated as interchangeable.
-Reading the head field where the member field was meant inverts the answer:
-members almost always have a Property, heads almost never do, and that is the
-correct behaviour of both. For comparison, items that are neither head nor
-member resolve a Property 94.2% of the time.
+**Correction.** This section previously said `public.erp_items_current.prepack_code`
+marks prepack **heads**. Re-derived against production on 2026-09-11, it does
+not: `erp_items_current` is a frozen DesignFlow snapshot (last synced
+2026-05-21) and almost every one of its prepack rows is a live prepack
+**member**, with essentially none being a head. The low Property-resolution rate
+that made it look like a head field is explained by the age of the snapshot, not
+by the role of the rows. `public.erp_items_current` is being retired by issue
+#2482 and must not be used for this test at all.
+
+The authoritative test is now one function, `plm.prepack_role`, and no caller
+should re-implement it:
+
+| Source | Marks |
+|---|---|
+| `coldlion.prod_history_component.prepack_item_no` | prepack **heads** — the orderable assortment carton, transaction-attested |
+| `coldlion.item_detail.pre_pack_code` | prepack **members** — the real single-property Items inside a carton |
+
+Head codes and member codes are disjoint. Note the grain of the component
+table: rows carrying a head are self-referencing (`sub_item_no =
+prepack_item_no`), so it records *that* an ordered item is a prepack head and
+does **not** enumerate that head's members.
+
+For today's resolution rates, count `plm.item_missing_attribution` and group by
+`plm.prepack_role` rather than quoting the figures that used to sit here.
 
 ### Exclusions to apply before counting a "missing Licensor" population
 
@@ -149,7 +165,7 @@ Stage, lifecycle, next action, owner, blocker, and required evidence are differe
 
 Application plans and Item Master validation notes may describe screens, endpoints, fields, and proposed transitions. They must link here and to [`product-development-workflow.md`](product-development-workflow.md) instead of becoming separate business authorities.
 
-The ColdLion ERP records assortment membership on the stock record rather than on the item record: an inventory row carrying a prepack code identifies that item as the assortment head, and the prepack manifest lists its member items. The two populations are effectively disjoint. An Item with no stock record carries no assortment evidence either way and must be reported as unconfirmed rather than assumed. The item record itself carries no assortment flag.
+The item record itself carries no assortment flag, so assortment status is read from the transactional feeds. **Corrected 2026-09-11 (issue #2611):** this paragraph previously said an inventory row carrying a prepack code identifies that item as the assortment head. It does not — `coldlion.inventory.prepack_code` is empty on every row in production, so it identifies nothing. Heads come from the production-history components feed and members from the item-detail feed, both behind `plm.prepack_role`. The two populations are effectively disjoint. An Item that appears in neither feed carries no assortment evidence either way and must be reported as unconfirmed rather than assumed.
 
 The ColdLion ERP carries this distinction as a single-character flag on the item
 record, mirrored into our systems as the Item Master's non-inventory field. The

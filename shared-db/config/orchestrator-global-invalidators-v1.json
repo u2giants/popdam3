@@ -22,6 +22,7 @@
     "scripts/lib/hold-reason.mjs",
     "scripts/lib/merge-self-context.mjs",
     "scripts/lib/pr-content-equivalence.mjs",
+    "scripts/lib/repository-identity.mjs",
     "scripts/lib/review-verdict-artifact.mjs",
     "scripts/lib/review-verdict.mjs",
     "scripts/lib/work-dependencies.mjs",
@@ -38,6 +39,7 @@
     "scripts/throughput-guard/ledger-lib.mjs",
     "scripts/production_apply_review_evidence.py",
     "scripts/production_business_risk_gate.py",
-    "scripts/production_catalog_verification.py"
+    "scripts/production_catalog_verification.py",
+    "scripts/repository_identity.py"
   ]
 }

@@ -378,7 +378,7 @@ test('a create index in an open PR collides with a proposal naming its table', (
 
 test('a grant in an open PR collides with a proposal naming that table', () => {
   const prObjects = dispatchObjectKeys('grant select on core.licensor to anon;')
-  assert.deepEqual(prObjects, ['table core.licensor'])
+  assert.deepEqual(prObjects, ['table core.licensor', 'view core.licensor'])
   const result = findDispatchConflicts({ objects: ['table core.licensor'] }, [
     { label: 'PR #504', objects: prObjects, versions: [] },
   ])

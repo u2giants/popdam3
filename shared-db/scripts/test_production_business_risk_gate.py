@@ -1008,6 +1008,33 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         self.assertEqual(len(seen), 2)
         self.assertTrue(all("/git/trees/" in e for e in seen))
 
+    def test_unrelated_coverage_manifest_change_does_not_refuse_promotion(self):
+        """#2870 and #2866 regression: runs 35176603519 and 35178225764 (both
+        previewed at 426cca7c) refused because #3110 edited
+        config/db-data-admin-property-source-coverage.json after the preview ran.
+        No preview-job step reads that manifest, so a difference in it alone must
+        not refuse, while a real producer difference beside it still does."""
+        ref, main = "1" * 40, "3" * 40
+        manifest = "config/db-data-admin-property-source-coverage.json"
+        self.assertNotIn(manifest, PREVIEW_PRODUCER_PATHS)
+        self.assertIn(manifest, PREVIEW_RUNTIME_DATA_EXEMPTIONS)
+
+        def api_for(forged):
+            def api(endpoint):
+                r = tree_ref(endpoint)
+                paths = list(PREVIEW_PRODUCER_PATHS) + [manifest]
+                return {"truncated": False, "tree": [
+                    {"path": p, "type": "blob",
+                     "sha": "forged-blob" if (r == ref and p in forged) else "same-blob"}
+                    for p in paths
+                ]}
+            return api
+
+        prove_preview_producer_matches_main(ref, exact_main(main), main, api_for({manifest}))
+        with self.assertRaisesRegex(RiskGateError, "different supabase/config.toml than exact main"):
+            prove_preview_producer_matches_main(
+                ref, exact_main(main), main, api_for({manifest, "supabase/config.toml"}))
+
     def test_the_tree_sourced_producer_pin_still_refuses_both_dirty_cases(self):
         """A green run on clean input proves nothing; feed it known-dirty input.
 
@@ -1876,6 +1903,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         "supabase/tests",
         "supabase/ci-bootstrap",
         "config/production-risk-policy-activation.json",
+        # #2870 / run 35176603519: read only by the validate job's coverage check.
+        "config/db-data-admin-property-source-coverage.json",
         # Issue #1366 Step 4. All three are static text: two document a field
         # contract that hand-rolled code in scripts/agent-work-contract.mjs
         # actually enforces, and the third is a pull-request-workflow flag whose
@@ -3642,6 +3671,31 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             "COMMENT ON COLUMN public.t.c IS NULL;",
         ], [])
 
+    def test_check_on_a_new_column_reports_only_downtime(self):
+        """#3119: run 35163423338 refused #3036 with every risk for this shape.
+        A CHECK on an all-NULL new column loses no data and changes no access,
+        but Postgres still scans the table to validate it."""
+        downtime = [RISK_TEXT["expected_downtime"]]
+        for body in [
+            "alter table plm.item add column product_type text null, add column product_type_status"
+            " text null constraint item_product_type_status_check check (product_type_status in"
+            " ('a', 'b', 'c')), add column product_type_read_at timestamptz null;"
+            " comment on column plm.item.product_type_status is 'x';",
+            "alter table public.t add column s text check (s in ('a'));",
+        ]:
+            with self.subTest(body=body):
+                self.assertEqual(self.classify(body), downtime)
+        self.assert_allowed([], [
+            "alter table public.t add column s text check (other in ('a'));",
+            "alter table public.t add column s text check (s in ('a')), drop column old;",
+            "alter table public.t add column s text not null check (s in ('a'));",
+            "alter table public.t add column s text default 'a' check (s in ('a'));",
+            "alter table public.t add column s text check (s in (select v from public.u));",
+            "alter table public.t add column s text check (public.f(s));",
+            "alter table public.t add column s text check (s in ('a')); grant all on public.t to anon;",
+            "alter table public.t add column s text check (s in ('a')); delete from public.t;",
+        ])
+
     def test_an_unknown_statement_reports_every_risk(self):
         """Nothing outside ALLOWLIST is modelled, so nothing outside it is excused."""
         self.assert_allowed([], [
@@ -4057,6 +4111,220 @@ class MigrationTrainPerEntryGate(unittest.TestCase):
         self.assertEqual(single.call_args.args[0], 101)
         self.assertEqual([(c["source_pr"], c["pr_head"]) for c in calls], [(101, "1" * 40)])
         self.assertNotIn("migrationTrain", result["governedEvidence"])
+
+
+class RoutineFunctionReestablishmentTests(unittest.TestCase):
+    """#3159: #3104 (PR #3131) and #2866 were forced onto the manual route because a
+    behavior-preserving CREATE OR REPLACE FUNCTION with its unchanged grants, and any
+    narrowing REVOKE, reported every risk. Real widening stays fail-closed."""
+
+    EVERY_RISK = sorted([RISK_TEXT["permanent_data_rewrite_or_loss"],
+                         RISK_TEXT["expected_downtime"], RISK_TEXT["material_access_change"]])
+
+    FN = """create or replace function api.inv(p_kind text, p_search text default null)
+returns jsonb language plpgsql stable security definer set search_path to ''
+as $$ begin return jsonb_build_object('kind', p_kind); end; $$;
+comment on function api.inv(text,text) is 'inventory';
+revoke all on function api.inv(text,text) from public, anon, service_role;
+grant execute on function api.inv(text,text) to authenticated;
+"""
+
+    def classify(self, migrations):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "supabase/migrations").mkdir(parents=True)
+            for version, body in migrations:
+                (root / f"supabase/migrations/{version}_x.sql").write_text(body, encoding="utf-8")
+            return classify_sql(root, [migrations[-1][0]])
+
+    def test_the_real_3104_and_2866_migrations_are_routine(self):
+        root = Path(__file__).resolve().parents[1]
+        for version in ["20260917005650", "20260914172031"]:
+            self.assertTrue(list(root.glob(f"supabase/migrations/{version}_*.sql")), version)
+            self.assertEqual(classify_sql(root, [version]), [], version)
+
+    def test_body_only_replacement_with_the_same_header_and_grants_is_routine(self):
+        changed_body = self.FN.replace("'kind', p_kind", "'kind', upper(p_kind)")
+        self.assertEqual(self.classify([("20260101000000", self.FN), ("20260201000000", changed_body)]), [])
+
+    def test_a_narrowing_revoke_alone_is_routine(self):
+        self.assertEqual(self.classify([("20260201000000",
+            "revoke execute on function api.inv(text,text) from anon, authenticated;\n"
+            "revoke select on table core.thing from anon;")]), [])
+
+    def assert_every_risk(self, migrations):
+        self.assertEqual(self.classify(migrations), self.EVERY_RISK)
+
+    def test_a_new_function_with_no_earlier_migration_reports_every_risk(self):
+        self.assert_every_risk([("20260201000000", self.FN)])
+
+    def test_security_definer_added_reports_every_risk(self):
+        before = self.FN.replace("security definer ", "")
+        self.assert_every_risk([("20260101000000", before), ("20260201000000", self.FN)])
+
+    def test_a_return_type_change_reports_every_risk(self):
+        self.assert_every_risk([("20260101000000", self.FN),
+                                ("20260201000000", self.FN.replace("returns jsonb", "returns text"))])
+
+    def test_a_grant_widened_to_anon_reports_every_risk(self):
+        self.assert_every_risk([("20260101000000", self.FN),
+                                ("20260201000000", self.FN + "grant execute on function api.inv(text,text) to anon;\n")])
+
+    def test_an_intervening_migration_that_changed_grants_breaks_the_match(self):
+        narrowed = "revoke execute on function api.inv(text,text) from authenticated;\n"
+        self.assert_every_risk([("20260101000000", self.FN), ("20260115000000", narrowed),
+                                ("20260201000000", self.FN)])
+
+    def test_a_changed_header_string_literal_reports_every_risk(self):
+        before = self.FN.replace("search_path to ''", "search_path to 'app', 'public'")
+        for after in (before.replace("'app', 'public'", "'evil', 'public'"),
+                      before.replace("'app', 'public'", "'App', 'public'"),
+                      before.replace("default null", "default 'a'")):
+            with self.subTest(after=after[:120]):
+                self.assert_every_risk([("20260101000000", before), ("20260201000000", after)])
+        self.assertEqual(self.classify([("20260101000000", before), ("20260201000000", before)]), [])
+        recommented = before.replace("is 'inventory'", "is 'inventory, reworded'")
+        self.assertEqual(self.classify([("20260101000000", before), ("20260201000000", recommented)]), [])
+
+    def test_an_intervening_schema_wide_privilege_change_breaks_the_match(self):
+        for between in ("revoke execute on all functions in schema api from authenticated;\n",
+                        "alter default privileges in schema api revoke execute on functions from authenticated;\n",
+                        "alter function api.old(text,text) rename to inv;\n"):
+            with self.subTest(between=between):
+                self.assert_every_risk([("20260101000000", self.FN), ("20260115000000", between),
+                                        ("20260201000000", self.FN)])
+        self.assert_every_risk([("20260101000000", self.FN),
+                                ("20260201000000", self.FN + "grant execute on all functions in schema api to anon;\n")])
+
+    def test_an_unparseable_earlier_migration_excuses_nothing(self):
+        self.assert_every_risk([("20260101000000", self.FN), ("20260115000000", "select 'unterminated;\n"),
+                                ("20260201000000", self.FN)])
+
+    def test_a_standalone_grant_reports_every_risk(self):
+        self.assert_every_risk([("20260201000000", "grant execute on function api.inv(text,text) to authenticated;")])
+
+    def test_a_replacement_bundled_with_a_data_change_still_reports_every_risk(self):
+        self.assert_every_risk([("20260101000000", self.FN),
+                                ("20260201000000", self.FN + "delete from core.thing;\n")])
+
+from production_business_risk_gate import REPOSITORY  # noqa: E402
+
+
+class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
+    """#3168: #2870 and #2866 previewed at main-line 426cca7c; main later changed
+    custody-only producers (freshness check, lane manager, repository identity,
+    workflow freshness flag). That drift must not refuse, while apply-shaping
+    producers and non-main-line refs still refuse."""
+
+    REF, MAIN = "1" * 40, "3" * 40
+    BASE_WORKFLOW = (
+        "jobs:\n  preview:\n    steps:\n"
+        "      - run: |\n"
+        "          MAIN_SHA=\"$REQUESTED_SHA\" node scripts/check-main-tip-freshness.mjs\n"
+        f"          gh api 'repos/{REPOSITORY}/pulls?state=open' \\\n"
+        "          python scripts/atomic_migration_apply.py --apply\n"
+    )
+
+    def api(self, *, changed=(), absent_at_ref=(), main_line=True, workflows=None, recovery=None):
+        import base64
+        ref, main = self.REF, self.MAIN
+        workflows = workflows or {}
+
+        def api(endpoint):
+            if endpoint.endswith(f"/compare/{main}...{main}"):
+                return {"status": "identical", "behind_by": 0}
+            if "/compare/" in endpoint:
+                self.assertEqual(endpoint, f"repos/{REPOSITORY}/compare/{ref}...{main}")
+                return ({"status": "ahead", "behind_by": 0} if main_line
+                        else {"status": "diverged", "behind_by": 2})
+            if "/git/blobs/" in endpoint:
+                if recovery and endpoint.rsplit("/", 1)[1] in recovery:
+                    return {"encoding": "base64", "content": base64.b64encode(
+                        recovery[endpoint.rsplit("/", 1)[1]].encode()).decode()}
+                side = endpoint.rsplit("/", 1)[1]
+                text = workflows[side]
+                return {"encoding": "base64",
+                        "content": base64.b64encode(text.encode()).decode()}
+            r = tree_ref(endpoint)
+            entries = []
+            for path in PREVIEW_PRODUCER_PATHS:
+                if r == ref and path in absent_at_ref:
+                    continue
+                if path == PREVIEW_WORKFLOW and workflows:
+                    sha = "wf-ref" if r == ref else "wf-main"
+                elif path == "scripts/historical_preview_recovery.py" and recovery:
+                    sha = "rec-ref" if r == ref else "rec-main"
+                else:
+                    sha = f"changed-{r}" if path in changed else "same-blob"
+                entries.append({"path": path, "type": "blob", "sha": sha})
+            return {"truncated": False, "tree": entries}
+        return api
+
+    def prove(self, api, target=None):
+        prove_preview_producer_matches_main(
+            self.REF, target or exact_main(self.MAIN), self.MAIN, api,
+            promoted_versions=[], repo_root=Path("."))
+
+    def test_custody_only_edits_and_additions_after_a_main_line_preview_pass(self):
+        self.prove(self.api(
+            changed=("scripts/check-main-tip-freshness.mjs",
+                     "scripts/manage-migration-author-lanes.mjs"),
+            absent_at_ref=("scripts/lib/repository-identity.mjs",
+                           "scripts/repository_identity.py"),
+        ))
+
+    def test_custody_only_drift_from_a_ref_main_does_not_contain_is_refused(self):
+        with self.assertRaisesRegex(RiskGateError, "different scripts/check-main-tip-freshness.mjs"):
+            self.prove(self.api(changed=("scripts/check-main-tip-freshness.mjs",), main_line=False))
+        with self.assertRaisesRegex(RiskGateError, "repository_identity.py absent where"):
+            self.prove(self.api(absent_at_ref=("scripts/repository_identity.py",), main_line=False))
+
+    def test_apply_shaping_producers_still_refuse_on_a_main_line_ref(self):
+        for path in ("scripts/production_migration_guard.py", "scripts/migration_derivation.py",
+                     "scripts/atomic_migration_apply.py", "scripts/preview_instance_binding.py",
+                     "config/atomic-migration-allowlist.json", "supabase/config.toml"):
+            with self.subTest(path=path), self.assertRaisesRegex(RiskGateError, f"different {re.escape(path)}"):
+                self.prove(self.api(changed=(path, "scripts/check-main-tip-freshness.mjs")))
+        with self.assertRaisesRegex(RiskGateError, "atomic_migration_apply.py absent where"):
+            self.prove(self.api(absent_at_ref=("scripts/atomic_migration_apply.py",)))
+
+    def test_authored_merge_target_gets_no_custody_tolerance(self):
+        with self.assertRaisesRegex(RiskGateError, "different scripts/check-main-tip-freshness.mjs"):
+            self.prove(self.api(changed=("scripts/check-main-tip-freshness.mjs",)),
+                       target=authored_merge(self.MAIN))
+
+    def test_recovery_script_tolerates_only_the_repository_identity_move(self):
+        before = f'import sys\nREPO = "{REPOSITORY}"\ndef main():\n    apply()\n'
+        after = ("import sys\ntry:  # run as scripts/<name>.py or imported as scripts.<name>\n"
+                 "    from repository_identity import current_repository\n"
+                 "except ImportError:  # pragma: no cover\n"
+                 "    from scripts.repository_identity import current_repository\n"
+                 "REPO = current_repository()  # never hard-coded (#2530)\n"
+                 "def main():\n    apply()\n")
+        self.prove(self.api(recovery={"rec-ref": before, "rec-main": after}))
+        with self.assertRaisesRegex(RiskGateError, "different scripts/historical_preview_recovery.py"):
+            self.prove(self.api(recovery={"rec-ref": before,
+                                          "rec-main": after.replace("apply()", "skip()")}))
+        with self.assertRaisesRegex(RiskGateError, "different scripts/historical_preview_recovery.py"):
+            self.prove(self.api(recovery={"rec-ref": before, "rec-main": after}, main_line=False))
+
+    def test_workflow_differing_only_by_custody_rewrites_passes(self):
+        main_wf = (self.BASE_WORKFLOW
+                   .replace("freshness.mjs\n", "freshness.mjs --production\n")
+                   .replace(f"'repos/{REPOSITORY}/pulls?state=open'",
+                            '"repos/${GITHUB_REPOSITORY}/pulls?state=open"')
+                   + "          # #3153: a comment\n")
+        self.prove(self.api(workflows={"wf-ref": self.BASE_WORKFLOW, "wf-main": main_wf}))
+
+    def test_workflow_step_change_is_refused_even_on_a_main_line_ref(self):
+        for main_wf in (
+            self.BASE_WORKFLOW.replace("--apply", "--apply --skip-verify"),
+            self.BASE_WORKFLOW.replace(REPOSITORY, "someone/else"),
+            self.BASE_WORKFLOW + "          echo forged > ledger.json\n",
+        ):
+            with self.subTest(main_wf=main_wf), self.assertRaisesRegex(
+                    RiskGateError, "different .github/workflows/shared-supabase-migrations.yml"):
+                self.prove(self.api(workflows={"wf-ref": self.BASE_WORKFLOW, "wf-main": main_wf}))
 
 
 if __name__ == "__main__":

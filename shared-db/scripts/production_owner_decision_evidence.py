@@ -3,8 +3,12 @@
 
 import argparse, hashlib, json, re, subprocess, tempfile, time, zipfile
 from pathlib import Path
+try:  # run as scripts/<name>.py or imported as scripts.<name>
+    from repository_identity import current_repository
+except ImportError:  # pragma: no cover
+    from scripts.repository_identity import current_repository
 
-REPO="u2giants/shared-db"
+REPO=current_repository()  # never hard-coded (#2530)
 SCHEMA="shared-db-production-owner-decision/v1"
 TARGET=".github/workflows/shared-supabase-migrations.yml"
 ALLOWED_RISKS={"permanent_data_rewrite_or_loss","expected_downtime","material_access_change","recovery_unproven","unresolved_material_objection"}

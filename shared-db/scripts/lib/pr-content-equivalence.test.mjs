@@ -197,3 +197,24 @@ test('POSITIVE CONTROL: a non-blob at a stored-hash path fails closed', () => {
     const proof = check(repo, approved, linked); assert.equal(proof.ok, false); assert.match(proof.reason, /not a regular file \(160000 commit\)/)
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
+
+// #3146: PR #3118 was refused after merge because every earlier head -- including
+// a REVISE'd head whose migration header differed -- had an empty diff against a
+// main that already contained the merged head.
+test('POSITIVE CONTROL: after the merge, a superseded head is not identical against current main', () => {
+  const { repo, approved } = fixture()
+  try {
+    git(repo, ['switch', '-q', 'pr'])
+    const revised = git(repo, ['rev-parse', 'HEAD']).trim()
+    const fixed = commit(repo, { 'supabase/migrations/20260911120000_add_thing.sql': '-- header\ncreate table thing (id int);\n' }, 'change header')
+    const merged = commit(repo, { '.agent/contract.json': '{"head":"final"}\n' }, 'bind evidence')
+    git(repo, ['switch', '-q', 'main'])
+    git(repo, ['merge', '-q', '--no-ff', '--no-edit', 'pr'])
+    const stale = check(repo, revised, merged)
+    assert.equal(stale.ok, false, stale.reason); assert.match(stale.reason, /already contained/)
+    const beforeMerge = (a, b) => isContentPreservingRefresh({ approvedHead: a, head: b, mainRef: 'main^1', gitRunner: (args) => git(repo, args) })
+    assert.equal(beforeMerge(revised, merged).ok, false)
+    const carried = beforeMerge(fixed, merged); assert.equal(carried.ok, true, carried.reason)
+    assert.notEqual(approved, fixed)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})

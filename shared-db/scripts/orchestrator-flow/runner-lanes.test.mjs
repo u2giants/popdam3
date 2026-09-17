@@ -217,6 +217,26 @@ test('live check-run listing paginates, keeps queued runs, takes the newest re-r
   refuse([{ total_count: 1, check_runs: [{ name: T, status: 'completed', conclusion: 'success' }] }], /without a name or id/)
 })
 
+test('a failed check-run read is retried with jittered backoff until the deadline; content refusals still fail at once', () => {
+  const T = 'Tools offline tests', P = 'Promotion contract tests (offline)'
+  let clock = 0, calls = 0; const sleeps = []
+  const transient = (message) => Object.assign(new Error(message), { transientTransport: true })
+  const recovered = runAggregate({ repo: 'u2giants/shared-db', headSha: h, registry, random: () => 0, fetchRuns: () => { calls += 1; if (calls < 3) throw transient('HTTP 502'); return [ok(T), ok(P)] }, sleep: (ms) => { sleeps.push(ms); clock += ms }, now: () => clock, timeoutMs: 600000, log: () => {} })
+  assert.equal(recovered.verdict, 'pass'); assert.deepEqual(sleeps, [30000, 60000])
+  clock = 0
+  const down = runAggregate({ repo: 'u2giants/shared-db', headSha: h, registry, random: () => 0, fetchRuns: () => { throw transient('HTTP 503') }, sleep: (ms) => { clock += ms }, now: () => clock, timeoutMs: 600000, log: () => {} })
+  assert.equal(down.verdict, 'refuse'); assert.match(down.refusals.join(), /still failing at deadline: HTTP 503/)
+  assert.throws(() => runAggregate({ repo: 'u2giants/shared-db', headSha: h, registry, fetchRuns: () => { throw new RunnerLaneError('incomplete listing') }, sleep: () => { throw new Error('must not wait') }, now: () => 0, timeoutMs: 600000, log: () => {} }), /incomplete listing/)
+  for (const message of ['HTTP 404: commit absent', 'HTTP 401: bad credentials', 'HTTP 403: Resource not accessible by integration']) {
+    let slept = false
+    assert.throws(() => runAggregate({ repo: 'u2giants/shared-db', headSha: h, registry, fetchRuns: () => { throw new Error(message) }, sleep: () => { slept = true }, now: () => 0, timeoutMs: 600000, log: () => {} }), new RegExp(message.split(':')[0]))
+    assert.equal(slept, false, `${message} must fail immediately`)
+  }
+  const floor = []; clock = 0; calls = 0
+  runAggregate({ repo: 'u2giants/shared-db', headSha: h, registry, fetchRuns: () => { calls += 1; const rows = calls < 2 ? [ok(T)] : [ok(T), ok(P)]; Object.defineProperty(rows, 'pollIntervalMs', { value: 60000 }); return rows }, sleep: (ms) => { floor.push(ms); clock += ms }, now: () => clock, timeoutMs: 600000, log: () => {} })
+  assert.deepEqual(floor, [60000], 'x-poll-interval raises the healthy interval')
+})
+
 test('aggregate waits for a context that has not reported yet, and refuses it at the deadline', () => {
   const T = 'Tools offline tests', P = 'Promotion contract tests (offline)'
   let clock = 0, calls = 0

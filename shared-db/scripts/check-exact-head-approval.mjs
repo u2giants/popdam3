@@ -454,10 +454,25 @@ export function requireDurableVerdictInput(input) {
   return input
 }
 
+// WHICH MAIN THE PULL REQUEST'S DIFF IS TAKEN AGAINST (#3146). Before the merge
+// that is current main. After it -- the automatic production qualifier re-proves
+// a merged pull request -- current main contains the head, every earlier head's
+// diff is empty, and a superseded refusal looked identical to the approved head.
+// A merged pull request is therefore judged against its merge commit's first
+// parent: main exactly as the guarded merge saw it. An unreadable answer refuses.
+export function resolveApprovalMainRef(env = process.env, pr, readJson = json) {
+  if (env.APPROVAL_MAIN_REF) return env.APPROVAL_MAIN_REF
+  const live = readJson(['api', `repos/${REPO}/pulls/${pr}`])
+  if (live?.merged !== true) return 'origin/main'
+  const merge = String(live.merge_commit_sha ?? '').toLowerCase()
+  if (!/^[0-9a-f]{40}$/.test(merge)) throw new ApprovalCheckError(`pull request #${pr} is merged but has no exact merge commit to judge its diff against`)
+  return `${merge}^1`
+}
+
 export function main(env = process.env) {
   try {
     const input = requireDurableVerdictInput(gatherApprovalInput(env))
-    const mainRef = env.APPROVAL_MAIN_REF || 'origin/main'
+    const mainRef = resolveApprovalMainRef(env, input.pr)
     const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (approvedHead, head) => isContentPreservingRefresh({ approvedHead, head, mainRef }) })
     if (result.carried_from) console.log(`Exact-head approval carried forward: PR #${result.pr} head ${result.head_sha} has the same pull request diff as approved head ${result.carried_from}, so its evidence-only or merge-from-main refresh needs no new review; approved implementation digest ${result.implementation_digest} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
     else if (result.documents_only) console.log(`Documents-only pull request: PR #${result.pr} head ${result.head_sha} draws no database reviewer (${result.reason}). Every other check and the guarded merge lane still apply (#2102).`)

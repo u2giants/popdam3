@@ -238,6 +238,11 @@ begin
      or v_result->'results'->0->>'filename' <> 'alpha.jpg' then
     raise exception 'contract 10: file-mode facets or name order changed: %', v_result->'facets';
   end if;
+  -- Issue #3009: the unfiltered default browse reads a snapshot refreshed every
+  -- 5 minutes. Refresh it so the fixtures above are visible, then require the
+  -- snapshot total to be exact.
+  refresh materialized view public.style_guide_library_default_summary;
+  refresh materialized view public.style_guide_library_default_guides;
   if (public.search_style_guide_library_v2('files', null, p_sort => 'modified_desc', p_limit => 1)->>'total')::integer
        <> (select count(*) from public.style_guide_search_documents d
              join public.style_guide_files f on f.id = d.style_guide_file_id

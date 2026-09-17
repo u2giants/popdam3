@@ -45,8 +45,9 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { currentRepository } from './lib/repository-identity.mjs'
 
-export const REPO = process.env.SHARED_DB_REPO ?? 'u2giants/shared-db'
+export const REPO = currentRepository(process.env.SHARED_DB_REPO)
 export const CONTRACT_REF_PREFIX = 'refs/db-contracts'
 export const CONTRACT_FENCE = 'db-agent-contract'
 export const CONTRACT_SCHEMA_VERSION = 1

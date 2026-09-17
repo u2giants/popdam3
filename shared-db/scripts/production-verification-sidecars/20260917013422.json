@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260917013422",
+  "migration_sha256": "441ce132309ebe871c3e8e23b028b91b3953551b6f6f98b151a805fc6c3dbd2e",
+  "checks": [
+    {
+      "id": "dflow_prod_users_app_profile_id_nullable_uuid",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow_prod"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "users"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "app_profile_id"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "uuid"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "YES"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "dflow_prod_comments_app_comment_id_nullable_uuid",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow_prod"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "comments"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "app_comment_id"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "uuid"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "YES"
+        }
+      ],
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 19,
+      "line_end": 57,
+      "disposition": "no_durable_target",
+      "reason": "The do-block verification contains no dynamic SQL (no execute and no DDL-apply call); it runs fixed information_schema and pg_constraint queries only and creates no durable object."
+    }
+  ]
+}

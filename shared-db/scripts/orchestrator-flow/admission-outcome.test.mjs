@@ -1,13 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange } from './admission.mjs'
-import { advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory, OUTCOME_STATES } from './outcome-lifecycle.mjs'
+import { advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory, trustedOutcomeComments, OUTCOME_STATES } from './outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
 import { admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
 import { findCompletionRecord } from '../lib/work-dependencies.mjs'
 
 const issue = (body, number = 41) => ({ number, state: 'open', title: 'structural outcome', body, createdAt: '2026-09-11T00:00:00Z' })
-const ownerComment = (body) => ({body,author_association:'OWNER'})
+const ownerComment = (body) => ({body,author_association:'OWNER',author:'u2giants'})
 const serializedIo = (io = {}) => {
   const refs=new Map();let sequence=0
   return {...io,
@@ -463,7 +463,7 @@ test('outcome lifecycle refuses every skip and merge is not live completion', ()
 })
 
 test('untrusted forged and malformed event comments cannot alter lifecycle history',()=>{
-  const trusted=eventComments('classified').map((row)=>({...row,author_association:'OWNER'}))
+  const trusted=eventComments('classified').map((row)=>({...row,author_association:'OWNER',author:'u2giants'}))
   const forged={...eventComments('live_verified').at(-1),author_association:'NONE'}
   const malformed={body:'```db-coordination-event\n{bad json}\n```',author_association:'NONE'}
   const missingAssociation={body:eventComments('live_verified').at(-1).body}
@@ -868,4 +868,15 @@ test('issue 3027 a blocked outcome must carry a named hold and other states may 
   assert.throws(()=>advanceOutcome({issue:41,state:'dispatched',actor:'test',timestamp:'2026-09-11T00:03:00Z',holdReason:{kind:'claim',holder:'claim #7',objects:['table core.a']}},io),/hold/)
   const result=advanceOutcome({issue:41,state:'blocked',actor:'test',timestamp:'2026-09-11T00:03:00Z',evidenceUrls:['https://github.com/u2giants/shared-db/issues/41'],holdReason:{kind:'lease',stage:'production',holder:'production lease abc',owner_sha:'abc'}},io)
   assert.equal(result.hold_reason.holder,'production lease abc')
+})
+
+test('outcome comments trust only the operator login with the owner-implied association (#2530 transfer)', () => {
+  const row = (author, association) => ({ body: 'x', author, author_association: association })
+  const personal = [row('u2giants','OWNER'), row(undefined,'OWNER'), row('mallory','OWNER'), row('u2giants','MEMBER'), row('u2giants','COLLABORATOR')]
+  assert.deepEqual(trustedOutcomeComments(personal, 'u2giants/shared-db'), [personal[0]])
+  const org = [row('u2giants','MEMBER'), row('u2giants','OWNER'), row('mallory','MEMBER'), row(undefined,'MEMBER'), row('u2giants','COLLABORATOR')]
+  assert.deepEqual(trustedOutcomeComments(org, 'popcre/shared-db'), [org[0]])
+  const forged = { body: formatEventComment(outcomeEvent({ issue: 41, state: 'entered', actor: 'forger', timestamp: '2026-09-11T00:00:00Z' })), author: 'mallory', author_association: 'OWNER' }
+  assert.equal(outcomeHistory([forged], 41).events.length, 0)
+  assert.equal(outcomeHistory([{ ...forged, author: 'u2giants' }], 41).events.length, 1)
 })

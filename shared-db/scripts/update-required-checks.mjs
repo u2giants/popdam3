@@ -40,8 +40,8 @@ import { execFileSync } from 'node:child_process'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { resolveRepositoryIdentity, RepositoryIdentityError } from './lib/repository-identity.mjs'
 
-export const DEFAULT_REPO = 'u2giants/shared-db'
 export const DEFAULT_BRANCH = 'main'
 
 export class RequiredChecksError extends Error {}
@@ -51,7 +51,7 @@ export const USAGE = `Usage:
 
 Options:
   --add <context>     A required status check context to ADD. Repeatable. Required.
-  --repo <owner/name> Default: ${DEFAULT_REPO}
+  --repo <owner/name> Default: GITHUB_REPOSITORY, else this checkout's verified GitHub origin
   --branch <name>     Default: ${DEFAULT_BRANCH}
   --apply             Actually write. Without it this is a dry run that changes nothing.
   --help
@@ -93,7 +93,7 @@ export function ghSpawnOptions(input) {
 }
 
 export function parseArgs(argv) {
-  const options = { add: [], repo: DEFAULT_REPO, branch: DEFAULT_BRANCH, apply: false, help: false }
+  const options = { add: [], repo: undefined, branch: DEFAULT_BRANCH, apply: false, help: false }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--help' || arg === '-h') { options.help = true; continue }
@@ -113,6 +113,10 @@ export function parseArgs(argv) {
     }
     throw new RequiredChecksError(`unknown argument ${arg}`)
   }
+  // An explicit --repo must agree with the detected identity; nothing is hard-coded (#2530).
+  if (options.help) return options
+  try { options.repo = resolveRepositoryIdentity({ explicit: options.repo }) }
+  catch (error) { if (error instanceof RepositoryIdentityError) throw new RequiredChecksError(error.message); throw error }
   return options
 }
 

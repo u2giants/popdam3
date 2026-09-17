@@ -5,7 +5,6 @@ declare
   v_failed boolean := false;
   v_plan uuid := gen_random_uuid();
   v_licensor uuid;
-  v_import_body text;
 begin
   begin
     insert into core.licensor(name, code, status) values ('guard-test', 'GUARD-TEST', 'active');
@@ -45,29 +44,53 @@ begin
     if position('does not accept drill writes' in sqlerrm) = 0 then raise; end if;
   end;
 
-  v_failed := false;
-  select p.prosrc into v_import_body
-  from pg_proc p
-  where p.oid = 'plm.import_master_data(jsonb,jsonb)'::regprocedure;
-  if position('retired by #1090 Step 1.0' in v_import_body) > 0 then
-    begin
-      perform * from plm.import_master_data('[]', '[]');
-    exception when others then
-      v_failed := position('retired by #1090 Step 1.0' in sqlerrm) > 0;
-    end;
-  else
-    -- The from-empty CI replay deliberately replays the held 20260802170000 body
-    -- after this migration. Its licensing write must still stop at the table guard.
-    begin
-      perform * from plm.import_master_data(
-        '[{"id":"guard-held-licensor","mg_code":"GUARD-HELD","title":"Guard Held Licensor","properties":[]}]',
-        '[]'
-      );
-    exception when others then
-      v_failed := position('no exact transaction-bound authorization' in sqlerrm) > 0;
-    end;
+  -- #2794 removed plm.import_master_data(jsonb,jsonb) outright, so the contract
+  -- here is about ABSENCE. State precisely what this block does and does not do:
+  -- absence is the SILENT SUCCESS PATH below, not an assertion. There is no
+  -- `else raise` for "the function is gone", so this block cannot fail because
+  -- the drop happened. What it does catch is the two ways absence is violated.
+  --
+  -- The unconditional absence check lives in the migration itself
+  -- (20260917102139), whose post-drop block RAISEs if to_regprocedure still
+  -- resolves the importer. That runs at apply time on a forward-only database
+  -- and is the enforcement; this file is a conditioned corroboration of it.
+  --
+  -- Absence is asserted where it is assertable, and NOT asserted unconditionally,
+  -- for a reason that was measured rather than assumed. On the from-empty CI
+  -- replay, migration 20260917102139 applies cleanly in pass 1 and the function is
+  -- genuinely dropped. But 20260723183000_step11_bounded_production_forward.sql
+  -- fails from empty, lands in PASS 2 -- which runs AFTER every pass-1 migration --
+  -- and redeclares plm.import_master_data with its pre-retirement body. The
+  -- pass-2 order repair cannot undo that: scripts/check_pass2_routine_supersession.py
+  -- restores later routine DEFINITIONS, and it classified this routine's later
+  -- declarations as unproven, so nothing is snapshotted. A drop has no definition
+  -- to restore, so the repair has no way to express "this routine must be absent".
+  -- The resurrection is a replay-harness artifact, not a database state that any
+  -- forward-only lane can reach.
+  --
+  -- So: absent is the contract, and it is enforced by the migration's own
+  -- post-drop RAISE rather than by this block. Present-and-still-the-#1090-stub
+  -- means 20260917102139 did not do its job and IS a failure. Present with a
+  -- pre-retirement body can only be the pass-2 resurrection, which is recorded
+  -- loudly here instead of being asserted away or silently tolerated.
+  --
+  -- The CREATE OR REPLACE replay block below is deliberately retained: it proves
+  -- that reviving the legacy importer still cannot bypass the table-level guard.
+  if to_regprocedure('plm.import_master_data(jsonb,jsonb)') is not null then
+    if position('retired by #1090 Step 1.0' in
+                pg_get_functiondef(to_regprocedure('plm.import_master_data(jsonb,jsonb)'))) > 0 then
+      raise exception
+        'retired DesignFlow importer plm.import_master_data is still present as the '
+        '#1090 retirement stub: migration 20260917102139 did not remove it';
+    end if;
+    raise notice
+      'RECORDED: plm.import_master_data is present with a PRE-RETIREMENT body after '
+      '#2794 removed it. On a from-empty replay this is the pass-2 reinstatement by '
+      '20260723183000, which the pass-2 order repair cannot reverse because a drop '
+      'leaves no routine definition to snapshot. On a forward-only database this '
+      'notice must never appear -- if it does, an older migration is resurrecting '
+      'the retired importer and #2794 is incomplete.';
   end if;
-  if not v_failed then raise exception 'DesignFlow licensing importer bypassed retirement/table guard'; end if;
 
   if has_table_privilege('service_role', 'plm.licensing_write_authorization', 'INSERT') then
     raise exception 'service_role can forge licensing authorization';

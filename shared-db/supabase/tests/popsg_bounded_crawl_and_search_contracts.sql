@@ -627,7 +627,52 @@ begin
     raise exception 'contract 15: the completed run lost its reconciliation stamp';
   end if;
 
-  raise notice 'issue #2212 PopSG contracts: all 15 checks passed';
+  -- =========================================================================
+  -- verify 16 (issue #3023): identity changes enqueue search sync; nothing else does
+  -- =========================================================================
+  declare
+    v_q uuid;
+    v_q_run uuid;
+  begin
+    insert into public.style_guide_crawl_runs (status, files_found) values ('pending', 1) returning id into v_q_run;
+    v_q := pg_temp.mk_file('ROOT_Q', v_q_run, 'q1.pdf');
+    if not exists (select 1 from public.style_guide_search_sync_queue where style_guide_file_id = v_q) then
+      raise exception 'contract 16: inserting an active file did not enqueue it for search sync';
+    end if;
+
+    delete from public.style_guide_search_sync_queue where style_guide_file_id = v_q;
+    update public.style_guide_files set thumbnail_url = 'https://example.invalid/t.png', crawl_run_id = v_q_run where id = v_q;
+    if exists (select 1 from public.style_guide_search_sync_queue where style_guide_file_id = v_q) then
+      raise exception 'contract 16: an update that changes no identity input enqueued the file';
+    end if;
+
+    update public.style_guide_files set size_bytes = coalesce(size_bytes, 0) + 1 where id = v_q;
+    if not exists (select 1 from public.style_guide_search_sync_queue where style_guide_file_id = v_q) then
+      raise exception 'contract 16: an identity change did not enqueue the file';
+    end if;
+
+    delete from public.style_guide_search_sync_queue where style_guide_file_id = v_q;
+    update public.style_guide_files set is_active = false where id = v_q;
+    if exists (select 1 from public.style_guide_search_sync_queue where style_guide_file_id = v_q) then
+      raise exception 'contract 16: deactivating a file enqueued it';
+    end if;
+    update public.style_guide_files set is_active = true where id = v_q;
+    if not exists (select 1 from public.style_guide_search_sync_queue where style_guide_file_id = v_q) then
+      raise exception 'contract 16: re-activating a file did not enqueue it';
+    end if;
+  end;
+
+  if not (select relrowsecurity from pg_class where oid = 'public.style_guide_search_sync_queue'::regclass)
+     or has_table_privilege('authenticated', 'public.style_guide_search_sync_queue', 'select')
+     or has_table_privilege('anon', 'public.style_guide_search_sync_queue', 'select') then
+    raise exception 'contract 16: the search sync queue is exposed to API roles';
+  end if;
+  if position('from public.style_guide_search_sync_queue q' in
+              pg_get_functiondef('public.refresh_style_guide_matviews(uuid,integer)'::regprocedure)) = 0 then
+    raise exception 'contract 16: refresh_style_guide_matviews still scans every file for search sync';
+  end if;
+
+  raise notice 'issue #2212 PopSG contracts: all 16 checks passed';
 end
 $contracts$;
 

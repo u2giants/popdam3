@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { currentRepository } from '../lib/repository-identity.mjs'
 import { canonicalIdentifier, dispatchObjectKeys, inventoryDdlVerbs } from '../check-pr-object-collisions.mjs'
 
 export class AdmissionError extends Error {
@@ -58,7 +59,7 @@ function refusal(issue, scope, reason, evidenceRequired) {
     admitted: false,
     issue: Number(issue.number),
     event_type: 'rejected_non_structural',
-    return_to: scope?.returnTo ?? scope?.applicationReturnTo ?? 'u2giants/shared-db',
+    return_to: scope?.returnTo ?? scope?.applicationReturnTo ?? currentRepository(),
     evidence_required: evidenceRequired,
     reason,
   }

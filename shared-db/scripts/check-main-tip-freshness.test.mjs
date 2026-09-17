@@ -13,7 +13,7 @@ import { join, dirname } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { classifyBranchFreshness, classifyMainTip, isDocumentationPath } from './check-main-tip-freshness.mjs'
+import { classifyBranchFreshness, classifyMainTip, isDocumentationPath, isProductionInertPath } from './check-main-tip-freshness.mjs'
 
 // #2758: a main that moved is not a refusal when the PR is independent of it.
 // Fixture: dispatched main D; PR branch off D adds a migration + .agent evidence.
@@ -368,5 +368,50 @@ test('POSITIVE CONTROL: a rename from code to documentation is still refused (#2
     assert.equal(sha.length, 40)
   } finally {
     rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+// #3153 / #3091 production run 35178463315: main moved from e460bd2c to 6be9fdac
+// by #3141, which changed only a test file and its .agent evidence pair.
+test('#3153: production tip moved only by a test file and .agent evidence is accepted in production mode', () => {
+  const { repo, sha } = makeRepo()
+  try {
+    const tip = commitFiles(repo, {
+      '.agent/completion.json': '{"x":1}\n',
+      '.agent/contract.json': '{"x":1}\n',
+      'scripts/test_production_business_risk_gate_source_identity_mutations.py': 'pass\n',
+    }, '#3141')
+    const refused = classify(repo, sha, tip)
+    assert.equal(refused.ok, false, 'the default (merge/preview) lane is unchanged')
+    const verdict = classifyMainTip({ mainSha: sha, tipSha: tip, gitRunner: (args) => git(repo, args), production: true })
+    assert.equal(verdict.ok, true, verdict.reason)
+    assert.match(verdict.reason, /production-inert/)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+test('POSITIVE CONTROL #3153: production mode still refuses migrations, gate code, config and workflows', () => {
+  for (const path of [
+    'supabase/migrations/20260917013422_x.sql',
+    'scripts/production_business_risk_gate.py',
+    'scripts/check-main-tip-freshness.mjs',
+    'config/db-data-admin-property-source-coverage.json',
+    '.github/workflows/shared-supabase-migrations.yml',
+    'supabase/config.toml',
+    'scripts/production-verification-sidecars/20260917013422.json',
+    '.agent/nested/contract.json',
+    'test_top_level.py',
+  ]) {
+    assert.equal(isProductionInertPath(path), false, path)
+    const { repo, sha } = makeRepo()
+    try {
+      const tip = commitFiles(repo, { [path]: 'changed\n', 'scripts/foo.test.mjs': 'x\n' }, 'mixed')
+      const verdict = classifyMainTip({ mainSha: sha, tipSha: tip, gitRunner: (args) => git(repo, args), production: true })
+      assert.equal(verdict.ok, false, path)
+      assert.ok(verdict.reason.includes(path), verdict.reason)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
   }
 })

@@ -74,6 +74,7 @@ import { createTreeReader } from './lib/github-tree.mjs'
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveRepositoryIdentity } from './lib/repository-identity.mjs'
 
 // The DISPATCH policy's parser, not the merge guard's (plan step 3b). Same
 // file, deliberately broader reading: `describeCoverage`/`extractObjects` model
@@ -845,7 +846,7 @@ A task that cannot declare its objects must be dispatched READ-ONLY.
  * in this script that MUTATES anything; everything else is read-only.
  */
 function runReserveVersion(options, io = defaultIo) {
-  const repo = process.env.GITHUB_REPOSITORY || 'u2giants/shared-db'
+  const repo = resolveRepositoryIdentity()
   let reservation
   try {
     const start = options.version ? String(options.version) : utcStamp()
@@ -937,7 +938,7 @@ function main(argv) {
 
   if (options.reserve) return runReserveVersion(options)
 
-  const repo = process.env.GITHUB_REPOSITORY || 'u2giants/shared-db'
+  const repo = resolveRepositoryIdentity()
 
   let objects = options.objects.map(normalizeObject)
   if (options.sql) {

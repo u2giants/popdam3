@@ -1,34 +1,31 @@
 {
   "schema_version": 1,
-  "work_issue": 3100,
+  "work_issue": 3181,
   "outcome": "ready-for-merge",
-  "pr": 3101,
+  "pr": 3176,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3100/2",
-  "contract_sha256": "01b833462d98b8dd6a6740068af4da0e95875723b68bdfb762d39a01f6b8a605",
-  "head_sha": "3e184f8b1d841b06de3f6c5a76c425be1f3e4c92",
+  "contract_ref": "refs/db-contracts/3181/5",
+  "contract_sha256": "573c5940dc6288512684f7ea7728ca968afc2c8cd2f2ae6853d18442f7b569d8",
+  "head_sha": "b68ae799cbe52764c7db48fdcceeff4b36c0d365",
   "files_changed": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs"
+    "config/db-data-admin-property-source-coverage.json"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+      "command": "node scripts/check-db-data-admin-property-source-coverage.mjs",
       "exit_code": 0,
-      "evidence": "Run at implementation head aefc612c: tests 16, pass 16, fail 0, skipped 0; the new CI/sibling case fails on the pre-fix source."
+      "evidence": "DB Data Admin Property-source coverage passed: 38 families, 15 exposed, 332 plm tables classified."
     },
     {
-      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "command": "node --test scripts/check-db-data-admin-property-source-coverage.test.mjs scripts/check-main-tip-freshness.test.mjs",
       "exit_code": 0,
-      "evidence": "Run at implementation head aefc612c: tests 590, pass 590, fail 0, skipped 0 (run-governed-review 78/78, start-reroute 23/23, repair-voided-findings 11/11, transport conformance 268 files clean)."
+      "evidence": "44 pass, 0 fail, 0 skipped."
     }
   ],
   "assumptions_resolved": [
-    "Unstarted probe and reclaim fingerprint only PR state, head, draft and this slot's verdict; the plain silence path still refuses on PR activity (tested)"
+    "Production proof for prod_order_milestone_schedule is run 35179427282 recorded on #3091"
   ],
   "stop_conditions_hit": []
 }

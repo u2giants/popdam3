@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
-import { runGitHubCommand as sharedRunGitHubCommand, isTransientGitHubTransport } from './lib/github-transport.mjs'
+import { runGitHubCommand as sharedRunGitHubCommand, isTransientGitHubTransport, hostQuotaLatch } from './lib/github-transport.mjs'
 import { createTreeReader } from './lib/github-tree.mjs'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
@@ -14,6 +14,7 @@ import { assertLease, evaluateRecovery, formatLeaseMessage, parseLeaseMessage, r
 import { coordinationEvent, formatEventComment, parseEventComment, auditTimeline, renderTimeline } from './db-coordination-events.mjs'
 import { reconcileFlow, persistInitialReady, preparePreviewDispatch, repairPreviewReady, terminalizeReady, readyRecord, MODE_SEQUENCE, parseAbandonmentAudit, reportOnlyFlowIo, abandonmentAuditExit, AUDIT_EXIT_UNVERIFIABLE } from './orchestrator-flow/reconcile.mjs'
 import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
+import { currentRepository, isThisRepositoryOrHistorical, isTrustedOperatorComment, repositoryCommentApiPath } from './lib/repository-identity.mjs'
 
 // `Migration guarded merge authorization` is posted by the guarded merge ITSELF,
 // after this gate has already passed -- see SELF_CONTEXT in
@@ -50,7 +51,9 @@ import { OUTCOME_STATES, OutcomeError, advanceOutcome, completeOutcome, outcomeE
 import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
 import { MigrationTrainError, TRAIN_REF_PREFIX, assertDispatchMatchesTrain, assertRecordedTrain, assertTrainProductionEvidence, proposeTrain, trainRecordRef, transitionTrain, validateTrain } from './orchestrator-flow/migration-train.mjs'
 
-export const REPO = 'u2giants/shared-db'
+// Resolved from explicit/env/verified origin, never hard-coded (#2530).
+export const REPO = currentRepository()
+const [REPO_OWNER, REPO_NAME] = REPO.split('/')
 // NO AUTHOR LANE CAP. The cap was three (2026-08-14), five (2026-08-25), eight
 // (2026-08-28) and twenty-four (2026-09-11, #2766). On 2026-09-11 Albert ruled
 // there must be no limit on migration author lanes at all, ever (marker #2758,
@@ -411,10 +414,12 @@ export const REVIEWERS = Object.freeze([
 //
 // The actual fix landed in #1297: `replaceFailedReviewer` now SKIPS every provider
 // that already failed on the exact head and advances the cursor past it, refusing
-// only when no other active reviewer is left. Roster length therefore buys CAPACITY
+// only when no other active reviewer is left. Roster length therefore buys independence
+// and failure substitution, not concurrency (there is no per-provider ceiling since
+// issue #3130). Historically it bought CAPACITY
 // -- three reviews in flight, and for most of 2026-08-19 the rotation was
-// effectively Grok alone because ai-grok-review holds a per-REPOSITORY in-flight
-// lock -- and nothing else.
+// effectively Grok alone because ai-grok-review then held a per-REPOSITORY in-flight
+// lock (removed under the 2026-09-16 owner ruling, issue #3130) -- and nothing else.
 //
 // Capacity is worth having on its own terms: twice on 2026-08-19 a second reviewer
 // overturned the first's conclusion, once by refuting an author's design rationale
@@ -519,9 +524,9 @@ export function reviewerKnownNonReading(name, reviewers=REVIEWERS){
 // DeepSeek were added as active rotation providers then. NEITHER IS ACTIVE NOW:
 // DeepSeek was retired for fabricated reviews, and Codex on 2026-09-06 for an
 // exhausted account (see RETIRED_REVIEWERS above, which is the only roster that
-// decides this). No overflow provider remains; when all execution keys are
-// occupied, assignment fails closed and the Phase 2 allocator records an ordered
-// durable wait.
+// decides this). No overflow provider remains. A provider with live reviews is
+// never "occupied": one reviewer may run any number of concurrent reviews
+// (owner ruling 2026-09-16), so there is no ordered wait for a free reviewer.
 //
 // It is listed in REVIEWERS like every other name, so a cursor commit naming it
 // still resolves to a wrapper forever (`REVIEWERS.find(...)` at parse time is
@@ -1248,6 +1253,8 @@ export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.
     maxBuffer,
     encoding,
     input,
+    // Issue #2773: the real binary shares the host-wide exhaustion latch; a fixture executor never does. A latched refusal sends no request, so it is deliberately not charged to the wire budget above.
+    quotaLatch:executor===execFileSync?hostQuotaLatch():null,
     wrapError:(detail)=>new LaneError(`GitHub command failed: ${detail}`),
   })
 }
@@ -1765,7 +1772,7 @@ export const githubIo = {
   pullRequestFiles(pr){return ghPaginated(`repos/${REPO}/pulls/${Number(pr)}/files?per_page=100`)},
   readReviewerOperationRoute(pr){
     const query=`query($owner:String!,$name:String!,$pr:Int!){repository(owner:$owner,name:$name){pullRequest(number:$pr){state merged mergedAt headRefOid files(first:100){pageInfo{hasNextPage} nodes{path changeType}} closingIssuesReferences(first:2){pageInfo{hasNextPage} nodes{... on Issue{number state body createdAt}}}}}}`
-    const data=ghJson(['api','graphql','-f',`query=${query}`,'-F','owner=u2giants','-F','name=shared-db','-F',`pr=${Number(pr)}`])
+    const data=ghJson(['api','graphql','-f',`query=${query}`,'-F',`owner=${REPO_OWNER}`,'-F',`name=${REPO_NAME}`,'-F',`pr=${Number(pr)}`])
     return projectReviewerOperationRouteSnapshot(data)
   },
   countLogicalReviewRequests:true,
@@ -1797,7 +1804,7 @@ export const githubIo = {
     const fields=refs.map((ref,index)=>`r${index}:object(expression:${JSON.stringify(ref)}){oid ... on Commit{message committedDate}}`).join(' ')
     const query=`query($owner:String!,$name:String!){repository(owner:$owner,name:$name){defaultBranchRef{target{oid ... on Commit{tree{oid}}}} ${fields}}}`
     let data
-    try{data=ghJson(['api','graphql','-f',`query=${query}`,'-F','owner=u2giants','-F','name=shared-db'])}
+    try{data=ghJson(['api','graphql','-f',`query=${query}`,'-F',`owner=${REPO_OWNER}`,'-F',`name=${REPO_NAME}`])}
     catch(error){
       if(isCommandSizeFailure(error))throw markReviewRefListingRefusal(new LaneError(`active reviewer lease snapshot of ${refs.length} refs exceeds the process argument limit; retire abandoned leases with --reap-abandoned-review-leases --apply-recovery (${error.message})`),{refs:refs.length,cause:'command-size'})
       throw error
@@ -1827,7 +1834,7 @@ export const githubIo = {
     const unique=[...new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,lease])).values()]
     if(!unique.length)return new Map()
     const fields=unique.map(reviewStateGraphqlFields).join(' ')
-    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){${fields}}}`])
+    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){${fields}}}`])
     if(data?.errors?.length||!data?.data?.repository)throw new LaneError('batched reviewer PR/verdict evidence returned GraphQL errors')
     const result=new Map()
     unique.forEach((lease,index)=>{
@@ -1846,7 +1853,7 @@ export const githubIo = {
   // readActiveReviewLeases.
   readReviewRefs(refs){
     const fields=refs.map((ref,index)=>`r${index}:object(expression:${JSON.stringify(ref)}){oid}`).join(' ')
-    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){${fields}}}`])
+    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){${fields}}}`])
     if(data?.errors?.length||!data?.data?.repository)throw new LaneError('review ref readback returned GraphQL errors')
     return new Map(refs.map((ref,index)=>[ref,data.data.repository[`r${index}`]?.oid??null]))
   },
@@ -1885,7 +1892,7 @@ export const githubIo = {
     }):[]
     const allRefs=reviewRecordRefs([...refs,...dependentFailures],matches)
     const fields=allRefs.map((ref,index)=>`r${index}:object(expression:${JSON.stringify(ref)}){oid ... on Commit{message}}`).join(' ')
-    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){base:defaultBranchRef{target{... on Commit{oid tree{oid}}}} ${fields}}}`])
+    const data=ghJson(['api','graphql','-f',`query=query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){base:defaultBranchRef{target{... on Commit{oid tree{oid}}}} ${fields}}}`])
     if(data?.errors?.length||!data?.data?.repository)throw new LaneError('review record preflight returned GraphQL errors')
     const base=data.data.repository.base?.target
     if(reviewWireBudget&&base?.oid&&base?.tree?.oid)reviewCommitBase={head:base.oid,tree:base.tree.oid}
@@ -2014,7 +2021,7 @@ export const githubIo = {
     return selectNewestCommitStatus(ghPaginated(`repos/${REPO}/commits/${headSha}/statuses?per_page=100`),context)
   },
   closingIssuesForPr(number) {
-    const query=`query{repository(owner:"u2giants",name:"shared-db"){pullRequest(number:${Number(number)}){closingIssuesReferences(first:10){nodes{number state} pageInfo{hasNextPage}}}}}`
+    const query=`query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){pullRequest(number:${Number(number)}){closingIssuesReferences(first:10){nodes{number state} pageInfo{hasNextPage}}}}}`
     const data=ghJson(['api','graphql','-f',`query=${query}`])
     const connection=data?.data?.repository?.pullRequest?.closingIssuesReferences
     if(!connection||!Array.isArray(connection.nodes)||connection.pageInfo?.hasNextPage!==false)throw new LaneError('pull request closing-issue linkage is unreadable or paginated')
@@ -2045,7 +2052,7 @@ export const githubIo = {
   getIssueComments(number) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`) },
   getPrReviews(number) { return ghPaginated(`repos/${REPO}/pulls/${number}/reviews?per_page=100`) },
   readLeaseActivity(lease) {
-    const query=`query{repository(owner:"u2giants",name:"shared-db"){pullRequest(number:${Number(lease.pr)}){comments(first:100){totalCount nodes{updatedAt}} reviews(first:100){totalCount nodes{submittedAt updatedAt}} reviewThreads(first:100){totalCount nodes{comments(first:100){totalCount nodes{updatedAt}}}}} object(oid:${JSON.stringify(String(lease.headSha))}){... on Commit{statusCheckRollup{contexts(first:100){totalCount nodes{... on CheckRun{startedAt completedAt}}}}}}}}`
+    const query=`query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){pullRequest(number:${Number(lease.pr)}){comments(first:100){totalCount nodes{updatedAt}} reviews(first:100){totalCount nodes{submittedAt updatedAt}} reviewThreads(first:100){totalCount nodes{comments(first:100){totalCount nodes{updatedAt}}}}} object(oid:${JSON.stringify(String(lease.headSha))}){... on Commit{statusCheckRollup{contexts(first:100){totalCount nodes{... on CheckRun{startedAt completedAt}}}}}}}}`
     const data=ghJson(['api','graphql','-f',`query=${query}`])?.data?.repository,pr=data?.pullRequest,contexts=data?.object?.statusCheckRollup?.contexts
     const workflows=ghJson(['api',`repos/${REPO}/actions/runs?head_sha=${lease.headSha}&per_page=100`])
     if(!pr||!Array.isArray(pr.comments?.nodes)||Number(pr.comments.totalCount)!==pr.comments.nodes.length||!Array.isArray(pr.reviews?.nodes)||Number(pr.reviews.totalCount)!==pr.reviews.nodes.length||!Array.isArray(pr.reviewThreads?.nodes)||Number(pr.reviewThreads.totalCount)!==pr.reviewThreads.nodes.length)throw new LaneError('reviewer comment or review activity is unreadable or paginated')
@@ -2062,7 +2069,7 @@ export const githubIo = {
     const parsed=tickets.map((row)=>({...row,ticket:parseReviewerQueueTicket(row.commit)}))
     if(!parsed.length)return []
     const fields=parsed.map((row,index)=>`p${index}:pullRequest(number:${row.ticket.pr}){state headRefOid}`).join(' ')
-    const repo=ghJson(['api','graphql','-f',`query=query{repository(owner:"u2giants",name:"shared-db"){${fields}}}`])?.data?.repository
+    const repo=ghJson(['api','graphql','-f',`query=query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){${fields}}}`])?.data?.repository
     if(!repo)throw new LaneError('reviewer queue PR states are unreadable')
     return parsed.map((row,index)=>({...row,pr:{state:String(repo[`p${index}`]?.state??'').toLowerCase(),head:{sha:repo[`p${index}`]?.headRefOid??null}}}))
   },
@@ -2107,9 +2114,9 @@ export const githubIo = {
     return commit.sha
   },
   readFindings(url){
-    const match=/^https:\/\/github\.com\/u2giants\/shared-db\/(?:issues|pull)\/\d+#issuecomment-(\d+)$/.exec(String(url??''))
-    if(!match)throw new LaneError('findings-ref must be a durable shared-db issue or PR comment URL')
-    return ghJson(['api',`repos/${REPO}/issues/comments/${match[1]}`])?.body??null
+    const match=/^https:\/\/github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/\d+#issuecomment-(\d+)$/.exec(String(url??''))
+    if(!match||!isThisRepositoryOrHistorical(match[1],REPO))throw new LaneError('findings-ref must be a durable shared-db issue or PR comment URL')
+    return ghJson(['api',`repos/${REPO}/issues/comments/${match[2]}`])?.body??null
   },
   createRef(ref, sha) {
     return createRefWithReadback(ref,sha,{readRef:(target)=>this.readRef(target)})
@@ -2223,9 +2230,9 @@ export const githubIo = {
   commentIssue(number, body) { gh(['issue','comment',String(number),'--repo',REPO,'--body',body]) },
   issueComments(number) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body:c.body, author_association:c.author_association, author:c.user?.login })) },
   readOutcomeEvidence(ref) {
-    const match=/^https:\/\/github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/\d+#issuecomment-(\d+)$/.exec(String(ref??''))
-    if(!match)throw new LaneError('outcome evidence must be an exact GitHub issue or pull-request comment URL')
-    return ghJson(['api',`repos/${match[1]}/issues/comments/${match[2]}`])?.body??''
+    let path
+    try{path=repositoryCommentApiPath(ref,REPO)}catch(error){throw new LaneError(`outcome evidence refused: ${error.message}`)}
+    return ghJson(['api',path])?.body??''
   },
   applicationCommitInDefaultBranch(repository,sha) {
     const repo=ghJson(['api',`repos/${repository}`]),branch=repo?.default_branch
@@ -2234,16 +2241,16 @@ export const githubIo = {
     return comparison?.behind_by===0&&['identical','ahead'].includes(comparison?.status)
   },
   verifyProductionApply(evidence){
-    const match=/^https:\/\/github\.com\/(u2giants\/shared-db)\/actions\/runs\/(\d+)$/.exec(String(evidence?.production_evidence??''))
-    if(!match)return false
-    const run=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}`])
+    const match=/^https:\/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)$/.exec(String(evidence?.production_evidence??''))
+    if(!match||!isThisRepositoryOrHistorical(match[1],REPO))return false
+    const run=ghJson(['api',`repos/${REPO}/actions/runs/${match[2]}`])
     if(run?.conclusion!=='success'||run?.event!=='workflow_dispatch'||run?.path!=='.github/workflows/shared-supabase-migrations.yml'||String(run?.head_sha??'').toLowerCase()!==String(evidence.production_commit_sha).toLowerCase())return false
     const ancestry=ghJson(['api',`repos/${REPO}/compare/${evidence.merge_sha}...${evidence.production_commit_sha}`])
     if(!['identical','ahead'].includes(ancestry?.status)||Number(ancestry?.behind_by)!==0)return false
-    const artifacts=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}/artifacts`])?.artifacts
+    const artifacts=ghJson(['api',`repos/${REPO}/actions/runs/${match[2]}/artifacts`])?.artifacts
     const artifact=Array.isArray(artifacts)?artifacts.find((row)=>Number(row.id)===Number(evidence.production_artifact_id)):null
     if(!(artifact?.name===`production-migration-apply-${String(evidence.production_commit_sha).toLowerCase()}`&&artifact.expired===false&&String(artifact.digest??'').toLowerCase()===String(evidence.production_artifact_digest).toLowerCase()))return false
-    const files=this.readArtifactFiles(match[1],artifact.id,['production-apply.txt','production-ledger-after.txt','migration-content-manifest.json','production-catalog-verification.json'])
+    const files=this.readArtifactFiles(REPO,artifact.id,['production-apply.txt','production-ledger-after.txt','migration-content-manifest.json','production-catalog-verification.json'])
     if(!files.get('production-apply.txt')?.trim())return false
     try{JSON.parse(files.get('production-catalog-verification.json'));JSON.parse(files.get('migration-content-manifest.json'))}catch{return false}
     const versions=this.getPrFiles(Number(evidence.merge_pr)).map((file)=>/^supabase\/migrations\/(\d{14})_[^/]+\.sql$/.exec(String(file?.filename??''))?.[1]).filter(Boolean)
@@ -4446,22 +4453,27 @@ function isReviewAssignmentLive(assignment,states,io){
   return pr?.state==='open'&&pr?.head?.sha===assignment.headSha&&!verdict
 }
 
-// WHICH REVIEWERS ARE BUSY IN THIS REPOSITORY RIGHT NOW.
+// WHICH REVIEWERS HOLD LIVE REVIEW LEASES IN THIS REPOSITORY RIGHT NOW.
 //
-// The constraint being modelled is real and provider-side: `ai-grok-review`
-// holds an in-flight lock PER REPOSITORY, so shared-db can have one live Grok
-// review at a time. That is not a global limit -- five repositories with work
-// can run five Grok reviews at once, and nothing here tries to coordinate across
-// repositories. This function answers only the local question.
+// This is a REPORT, not a capacity gate. Owner ruling 2026-09-16: one reviewer
+// may run any number of reviews at once, so the production draw
+// (`requiresExactReviewHeadSha`, one lease ref per exact review) never skips a
+// provider because it appears here. The set feeds stale-lease release, silence
+// and start watches, and the capacity report. Only the legacy short-head fixture
+// protocol, which stores one lease ref per reviewer and so physically cannot
+// hold two, still treats a listed name as taken.
 //
 // A reviewer is busy when it holds a durable assignment whose work is still
 // live: the PR is open, its head is still the head that reviewer was given, and
 // no verdict has landed for that head. Anything else -- a merged or closed PR, a
 // head that moved on, a recorded verdict -- frees the provider.
 //
-// FAIL OPEN, DELIBERATELY. If the refs cannot be listed, this returns null and
-// the caller keeps the ordinary rotation. A busy probe that cannot read GitHub
-// must never invent availability.
+// NULL MEANS UNREADABLE, AND EVERY CALLER FAILS CLOSED ON IT. If the refs cannot
+// be listed this returns null; the draw, release, replacement, reap, capacity
+// report and start watch all refuse rather than proceed. No caller may treat null
+// as "nobody is busy" -- a probe that cannot read GitHub must never invent
+// availability. (Before issue #3130 the test-only rotation helper kept rotating on
+// null; it no longer reads this at all.)
 export function findBusyReviewers(io,requested=[],{keepUnreadableLeases=false}={}){
   if(typeof io.readRef!=='function')return null
   let cutover
@@ -4932,19 +4944,17 @@ export function describeMovedAssignmentHead(request,recorded){
   return `the durable reviewer assignment is NOT missing: sequence=${recorded.sequence} reviewer=${recorded.reviewer} for issue #${request.issue} PR #${request.pr} is recorded under head ${recorded.headSha}, and this request names head ${request.headSha}. The PR head moved after that reviewer was assigned, so the exact code that reviewer was given is no longer this PR's head. A replacement would bind a new reviewer -- and later a verdict -- to a commit the failed reviewer never saw, so it is refused. Assign a reviewer to the current code instead: --assign-reviewer --issue ${request.issue} --pr ${request.pr} --head-sha <the PR's current head>. Nothing was lost and nothing needs reconstructing.`
 }
 
-// PRE-CONCURRENCY SERIAL HELPER -- it has NO production caller in this tree (tests
-// only). It treats ANY busy provider as taken, which is the serial-lease rule. The
-// live draw path has a concurrent-mode branch (`concurrentLeases`) plus failed-name,
-// exclusion and excluded-provider filtering that this helper does not have, so it
-// must NOT be reused for a draw without that branch and those filters.
+// ROTATION HELPER -- it has NO production caller in this tree (tests only). A live
+// review never makes its provider busy (owner ruling 2026-09-16: no ceiling on
+// concurrent reviews by one reviewer), so it returns the plain rotation slot. The
+// live draw path adds failed-name, exclusion and excluded-provider filtering that
+// this helper does not have, so it must NOT be reused for a draw.
 export function pickReviewer(sequence,io){
-  const busy=findBusyReviewers(io)
   const {eligible}=allocatableReviewers(io)
   if(!eligible.length)throw new LaneError('no reviewer is independent from the live orchestrator engine')
   const eligibleNames=new Set(eligible.map((row)=>row.name)),start=(sequence-1)%ACTIVE_REVIEWERS.length
   const ordered=Array.from({length:ACTIVE_REVIEWERS.length},(_,offset)=>ACTIVE_REVIEWERS[(start+offset)%ACTIVE_REVIEWERS.length]).filter((row)=>eligibleNames.has(row.name))
-  if(!busy)return ordered[0]
-  return ordered.find((row)=>!busy.has(row.name))??OVERFLOW_REVIEWERS.find((row)=>!busy.has(row.name))??ordered[0]
+  return ordered[0]??OVERFLOW_REVIEWERS.find((row)=>eligibleNames.has(row.name))
 }
 
 // Slot 1 keeps the original, unsuffixed ref namespace so every already-recorded
@@ -6376,9 +6386,7 @@ export function activateReviewCutover(io=githubIo){return withReviewRequestBudge
 export const ADMISSION_LEGACY_CUTOVER = '2026-09-11T18:00:00Z'
 
 function trustedCompletionComments(comments=[]){return comments.filter((comment)=>{
-  const association=String(comment?.author_association??comment?.authorAssociation??'').toUpperCase()
-  const author=String(comment?.author??comment?.author_login??'').toLowerCase()
-  return association==='OWNER'&&author==='u2giants'
+  return isTrustedOperatorComment(comment,REPO)
 })}
 
 export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-migration-author-lanes', allowLegacy = false, timestamp } = {}) {
@@ -6439,7 +6447,7 @@ export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-m
     return admitted
   } catch (error) {
     if(error instanceof AdmissionError&&!error.result&&/(contains no added or modified migration|(?:content|patch) is unreadable|contain no statement-leading schema DDL|contains unmodelled DDL)/.test(error.message)){
-      error.result={reason:error.message,return_to:scope?.applicationReturnTo??'u2giants/shared-db',evidence_required:['readable pull request content containing acknowledged statement-leading schema DDL for the proposed structural change']}
+      error.result={reason:error.message,return_to:scope?.applicationReturnTo??REPO,evidence_required:['readable pull request content containing acknowledged statement-leading schema DDL for the proposed structural change']}
     }
     if (error instanceof AdmissionError && error.result && io.commentIssue) {
       const refusal={event_type:'rejected_non_structural',work_issue:Number(number),actor,result:'refused',detail:error.result.reason,return_to:error.result.return_to,evidence_required:error.result.evidence_required}
@@ -6794,15 +6802,33 @@ function replaceCapacityState(body, capacityState, blockedOn = null, worktreeSta
   block=capacityMatches.length
     ? block.replace(/^capacity_state:\s*.+$/m,`capacity_state: ${capacityState}`)
     : `${block.replace(/\s*$/,'')}\ncapacity_state: ${capacityState}\n`
-  for(const [field,label] of [['blocked_on','blocked_on'],['worktree_state','worktree_state'],['recovery','recovery']]){
-    const matches=block.match(new RegExp(`^${field}:\\s*.+$`,'gm'))??[]
-    if(matches.length>1)throw new LaneError(`claim ${label} is ambiguous`)
-    if(matches.length)block=block.replace(new RegExp(`^${field}:\\s*.+\\r?\\n?`,'m'),'')
-  }
+  // #3170. The parser trims each lease line, so a relinquish-only field is
+  // recognized even when indented or spaced before the colon. Removal must match
+  // exactly what the parser reads, or resume leaves `worktree_state` behind next to
+  // `capacity_state: active` and every lane command refuses the claim.
+  block=stripRelinquishOnlyFields(block)
   if(blockedOn) block=`${block.replace(/\s*$/,'')}\nblocked_on: ${blockedOn}\n`
   if(worktreeState) block=`${block.replace(/\s*$/,'')}\nworktree_state: ${worktreeState}\n`
   if(recoveryArtifact) block=`${block.replace(/\s*$/,'')}\nrecovery: ${recoveryArtifact}\n`
+  if(capacityState!=='relinquished'&&relinquishOnlyFieldsIn(block).length)throw new LaneError('capacity write would leave relinquish-only fields on a non-relinquished claim')
   return body.slice(0,fences[0].index)+fences[0][0].replace(fences[0][1],()=>block)+body.slice(fences[0].index+fences[0][0].length)
+}
+
+export const RELINQUISH_ONLY_LEASE_FIELDS = Object.freeze(['blocked_on', 'worktree_state', 'recovery'])
+
+function leaseLineField(line) {
+  return /^\s*([a-z_]+)\s*:/.exec(line)?.[1] ?? null
+}
+
+function relinquishOnlyFieldsIn(block) {
+  return block.split('\n').map(leaseLineField).filter((field)=>RELINQUISH_ONLY_LEASE_FIELDS.includes(field))
+}
+
+function stripRelinquishOnlyFields(block) {
+  for(const field of RELINQUISH_ONLY_LEASE_FIELDS){
+    if(relinquishOnlyFieldsIn(block).filter((name)=>name===field).length>1)throw new LaneError(`claim ${field} is ambiguous`)
+  }
+  return block.split('\n').filter((line)=>!RELINQUISH_ONLY_LEASE_FIELDS.includes(leaseLineField(line))).join('\n')
 }
 
 function claimTitleIssues(claim) {
@@ -7028,7 +7054,50 @@ export function resumeAuthorLease(options, now = new Date(), io = githubIo) {
   }finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
 }
 
-export function renewalIssueScope(issue, lease, claimIssues=[], { allowClaimSuperset=false, allowIssueExpansion=false }={}) {
+// #3170. REPAIR A CLAIM A RESUME LEFT UNREADABLE. Narrow on purpose: it only
+// removes relinquish-only residue (`blocked_on`, `worktree_state`, `recovery`)
+// from a lease that already declares `capacity_state: active`, only for the
+// claim's own owner, only when the work issue's latest capacity event for this
+// claim is `author_capacity_resumed`, and only when the result parses as an
+// active-capacity lease. It never changes capacity, owner, expiry or objects.
+export function repairResumedClaim(options, now = new Date(), io = githubIo) {
+  for(const key of ['claim','owner'])if(!options[key])throw new LaneError(`resumed-claim repair requires ${key}`)
+  const ownerSha=io.makeOwnerCommit(`db-coordination author-capacity-resume claim=${options.claim} repair=relinquish-residue`)
+  acquireMutex(ownerSha,io,options.mutexAttempts??100)
+  let before,changed=false
+  try{
+    before=io.getIssue(options.claim)
+    if(before?.state!=='open')throw new LaneError(`claim #${options.claim} must be open`)
+    const fences=[...String(before.body??'').matchAll(/```db-author-lease\s*\n([\s\S]*?)```/g)]
+    if(fences.length!==1)throw new LaneError('claim body must contain exactly one manager-owned db-author-lease block')
+    const block=fences[0][1],lines=block.split('\n')
+    const capacity=lines.map((line)=>/^\s*capacity_state\s*:\s*(\S+)\s*$/.exec(line)?.[1]).filter(Boolean)
+    if(capacity.length!==1||capacity[0]!=='active')throw new LaneError('resumed-claim repair applies only to a lease declaring capacity_state: active')
+    const owner=lines.map((line)=>/^\s*owner\s*:\s*(.+?)\s*$/.exec(line)?.[1]).filter(Boolean)
+    if(owner.length!==1||owner[0]!==options.owner)throw new LaneError('claim lease belongs to a different owner')
+    if(!relinquishOnlyFieldsIn(block).length)throw new LaneError('claim carries no relinquish-only residue; nothing to repair')
+    const workIssue=claimWorkIssue(before)
+    const events=(io.getIssueComments?.(workIssue)??[]).flatMap((comment)=>{try{return parseEventComment(comment.body)}catch{return []}})
+      .filter((event)=>Number(event.claim_issue)===Number(options.claim)&&['author_capacity_resumed','author_capacity_relinquished'].includes(event.event_type))
+    if(events.at(-1)?.event_type!=='author_capacity_resumed')throw new LaneError('latest capacity event for this claim is not author_capacity_resumed')
+    const repairedBlock=stripRelinquishOnlyFields(block)
+    const expected=before.body.slice(0,fences[0].index)+fences[0][0].replace(block,()=>repairedBlock)+before.body.slice(fences[0].index+fences[0][0].length)
+    const lease=parseAuthorLease(expected,now)
+    if(lease.legacy||lease.declaredCapacityState!=='active'||!lease.capacityActive||lease.worktreeState||lease.blockedOn||lease.recoveryArtifact)throw new LaneError('repaired lease does not parse as clean active capacity')
+    assertClaimNotRetired(lease.version,'repaired',io)
+    requireOwnedRef(MUTEX_REF,ownerSha,io);changed=true;io.updateIssue(options.claim,{body:expected})
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
+    const after=io.getIssue(options.claim)
+    if(after?.body!==expected)throw new LaneError('repaired claim readback failed')
+    parseAuthorLease(after.body,now)
+    return {claim:Number(options.claim),workIssue,capacityState:lease.capacityState,removedFields:relinquishOnlyFieldsIn(block),repaired:true}
+  }catch(error){
+    if(changed&&io.readRef(MUTEX_REF)===ownerSha)try{io.updateIssue(options.claim,{body:before.body})}catch(rollback){throw new LaneError(`${error.message}; rollback failed: ${rollback.message}`)}
+    throw error
+  }finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
+}
+
+export function renewalIssueScope(issue, lease, claimIssues=[],{ allowClaimSuperset=false, allowIssueExpansion=false }={}) {
   const scope=issue?.state==='open'?parseQueueScope(issue.body):null
   const structural=scope?.status==='ready'&&scope.workType==='structural'&&scope.route==='shared-db-orchestrator'
   const curated=scope?.status==='ready'&&scope.workType==='curated-master-data'&&scope.route==='curated-master-data-governance'
@@ -7843,6 +7912,7 @@ function parseArgs(argv) {
     else if (a === '--recover-expired-claim-from-pr') out.recoverExpiredClaim = true
     else if (a === '--relinquish-author-lease') out.relinquishAuthorLease = true
     else if (a === '--resume-author-lease') out.resumeAuthorLease = true
+    else if (a === '--repair-resumed-claim') out.repairResumedClaim = true
     else if (a === '--flow-audit') out.flowAudit = true
     else if (a === '--reconcile-flow') out.reconcileFlow = true
     else if (a === '--abandonment-audit') out.abandonmentAudit = true
@@ -7954,7 +8024,7 @@ export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
     if(String(process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim())io=withMergedPrIssueBinding(io,process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING)
-    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','reissueMergedClaim','reversionClaim','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','archiveOldReviewVerdicts','reviewerCapacity','reviewerStartWatchLeases','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','releaseClaim','releaseDuplicateClaim','cleanup','audit']
+    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','repairResumedClaim','reissueMergedClaim','reversionClaim','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','archiveOldReviewVerdicts','reviewerCapacity','reviewerStartWatchLeases','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','releaseClaim','releaseDuplicateClaim','cleanup','audit']
     const selectedPrimary=primaryKeys.filter((key)=>Object.prototype.hasOwnProperty.call(o,key))
     const hasAdmission=Object.prototype.hasOwnProperty.call(o,'admitIssue')
     if(selectedPrimary.length>1)throw new LaneError(`choose exactly one primary operation; received ${selectedPrimary.join(', ')}`)
@@ -8087,6 +8157,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.recoverExpiredClaim){console.log(JSON.stringify(recoverExpiredClaimFromPr({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.relinquishAuthorLease){console.log(JSON.stringify(relinquishAuthorLease({...o,claim:o.claimNumber??o.claim},now,io),null,2));return 0}
     if(o.resumeAuthorLease){console.log(JSON.stringify(resumeAuthorLease({...o,claim:o.claimNumber??o.claim},now,io),null,2));return 0}
+    if(o.repairResumedClaim){console.log(JSON.stringify(repairResumedClaim({...o,claim:o.claimNumber??o.claim},now,io),null,2));return 0}
     if(o.reissueMergedClaim){console.log(JSON.stringify(reissueMergedStrandedClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.reversionClaim){console.log(JSON.stringify(reversionActiveClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.replaceFailedReviewer){const result=replaceFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1,admissionOptions:io.enforceAdmission===true?o:null},io);console.log(JSON.stringify(result,null,2));return 0}

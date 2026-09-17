@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url'
 import { START_SLO_MS, createDurableStartRerouteAdapter, dispatchQueuedReroute, reserveReviewerReroute, reviewerStartDecision } from './start-reroute.mjs'
 import { dispatchSubref, liveIo as canaryLiveIo } from './start-reroute-canary.mjs'
 import { runGitHubCommand } from '../lib/github-transport.mjs'
+import { currentRepository } from '../lib/repository-identity.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 export const MANAGER = path.resolve(HERE, '..', 'manage-migration-author-lanes.mjs')
@@ -121,6 +122,9 @@ export function watchOnce(io, { apply = false, drawnSince = null } = {}) {
   // --apply the operator must name the instant from which every runner writes markers; older
   // leases are left to the ordinary two-hour silence path.
   if (apply && !Number.isFinite(Date.parse(drawnSince ?? ''))) throw new Error('--apply requires --drawn-since <ISO time> after which every governed runner writes start markers')
+  // A malformed --drawn-since would otherwise compare as NaN and silently skip every overdue lease,
+  // so a dry run would report no non-starts while some exist.
+  if (drawnSince != null && !Number.isFinite(Date.parse(drawnSince))) throw new Error(`--drawn-since is not a valid ISO time: ${drawnSince}`)
   const now = io.now()
   const out = []
   const handled = new Set()
@@ -197,7 +201,8 @@ export function liveWatchIo(repo, env = process.env) {
 
 export function main(argv = process.argv.slice(2)) {
   const i = argv.indexOf('--repo')
-  const repo = i >= 0 ? argv[i + 1] : 'u2giants/shared-db'
+  // --repo is an assertion: it must agree with GITHUB_REPOSITORY and the verified origin (#2530).
+  const repo = currentRepository(i >= 0 ? argv[i + 1] : undefined)
   const apply = argv.includes('--apply')
   const d = argv.indexOf('--drawn-since')
   const drawnSince = d >= 0 ? argv[d + 1] : null

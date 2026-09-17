@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
+import { currentRepository, isTrustedOperatorComment } from '../lib/repository-identity.mjs'
 import { COMPLETION_FENCE, findCompletionRecord, validateCompletionRecord } from '../lib/work-dependencies.mjs'
 
 export class OutcomeError extends Error {}
@@ -51,12 +52,10 @@ export function parseOutcomeEvidence(body = '') {
   return record
 }
 
-export function trustedOutcomeComments(comments = []) {
-  return comments.filter((comment) => {
-    if(!Object.prototype.hasOwnProperty.call(comment??{},'author_association')&&!Object.prototype.hasOwnProperty.call(comment??{},'authorAssociation'))return false
-    const association = String(comment?.author_association ?? comment?.authorAssociation ?? '').toUpperCase()
-    return association === 'OWNER'
-  })
+// Transfer-safe (#2530): the operator login is mandatory and the association must be
+// exactly the one this repository's owner implies (OWNER personal, MEMBER organization).
+export function trustedOutcomeComments(comments = [], repository = currentRepository()) {
+  return comments.filter((comment) => isTrustedOperatorComment(comment, repository))
 }
 
 // A repair is expressible ONLY as a later appended event that names exact earlier

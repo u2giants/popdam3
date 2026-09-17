@@ -16,7 +16,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { assertLaneAvailable, claimBody, conflicts, parseAuthorLease, parseQueueScope, buildDynamicQueues, relinquishAuthorLease, resumeAuthorLease } from './manage-migration-author-lanes.mjs'
+import { assertLaneAvailable, claimBody, conflicts, parseAuthorLease, parseQueueScope, buildDynamicQueues, relinquishAuthorLease, resumeAuthorLease, repairResumedClaim } from './manage-migration-author-lanes.mjs'
 import { classifyDependency } from './lib/work-dependencies.mjs'
 import { contractHash, reconcileReportWithContract, validateContract } from './agent-work-contract.mjs'
 import { auditTimeline } from './db-coordination-events.mjs'
@@ -335,4 +335,46 @@ test('the queue honours the conflict matrix end to end', () => {
     { number: 3, title: 'w', body: scope('writes:\n  - table core.shared') },
   ], [], NOW)
   assert.equal(mixed.dispatchable.length, 1, 'a writer must serialise against a reader')
+})
+
+// #3170. Claim #2834 was left with `capacity_state: active` next to
+// `worktree_state: absent`, which made every lane command refuse it.
+function residueFixture(leaseTail){
+  const version='20260912000806',claimNumber=2834,owner='claude/issue-2357-licensing-apis'
+  const refs=new Map([[`refs/db-claims/${version}`,'reservation']]),comments=[]
+  const base=claimBody({version,objects:['table api.sample'],owner,branch:'claude/issue-2357-branch',worktree:'C:/repos/x',expiresAt:new Date('2026-08-24T00:00:00Z')})
+  const claim={number:claimNumber,state:'open',title:'CLAIM: #2357 fixture',body:base.replace('capacity_state: active\n',leaseTail)}
+  let serial=0
+  const io={
+    makeOwnerCommit:()=>`owner-${++serial}`,createRef:(name,sha)=>{if(refs.has(name))return false;refs.set(name,sha);return true},readRef:name=>refs.get(name)??null,deleteRef:name=>refs.delete(name),getCommitMessage:()=>'',
+    listRefs:(prefix)=>[...refs].filter(([name])=>name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
+    openClaims:()=>[structuredClone(claim)],getIssue:number=>Number(number)===claimNumber?structuredClone(claim):{number,state:'open',body:''},updateIssue:(number,{body})=>{claim.body=body},
+    localWorktreeState:()=>({state:'clean'}),prSources:()=>[],commentIssue:(issue,body)=>comments.push({issue,body}),getIssueComments:()=>comments.map(({body})=>({body})),verifyArtifact:()=>null,
+  }
+  return {claim,io,owner,claimNumber,comments,refs}
+}
+
+test('resume removes indented relinquish-only fields the parser still reads (#3170)',()=>{
+  const {claim,io,owner,claimNumber}=residueFixture('capacity_state: relinquished\n  worktree_state: absent\n  blocked_on: issue:#3114\n')
+  assert.equal(parseAuthorLease(claim.body,NOW).capacityState,'relinquished')
+  resumeAuthorLease({claim:claimNumber,owner,leaseHours:12},NOW,io)
+  const lease=parseAuthorLease(claim.body,NOW)
+  assert.equal(lease.capacityState,'active')
+  assert.equal(lease.worktreeState,null)
+  assert.doesNotMatch(claim.body,/worktree_state|blocked_on|recovery:/)
+})
+
+test('repair-resumed-claim clears residue only after a recorded resume (#3170)',()=>{
+  const {claim,io,owner,claimNumber,comments,refs}=residueFixture('capacity_state: active\nworktree_state: absent\n')
+  assert.throws(()=>parseAuthorLease(claim.body,NOW),/worktree_state is allowed only for relinquished author capacity/)
+  assert.throws(()=>repairResumedClaim({claim:claimNumber,owner},NOW,io),/not author_capacity_resumed/)
+  assert.throws(()=>repairResumedClaim({claim:claimNumber,owner:'someone-else'},NOW,io),/different owner/)
+  comments.push({issue:2357,body:'```db-coordination-event\n'+JSON.stringify({schema_version:2,event_id:'f36f9658feafb80a',event_type:'author_capacity_resumed',timestamp:NOW.toISOString(),work_issue:2357,actor:owner,result:'succeeded',claim_issue:claimNumber,detail:'guarded capacity resume'})+'\n```'})
+  const before=claim.body
+  const result=repairResumedClaim({claim:claimNumber,owner},NOW,io)
+  assert.deepEqual(result.removedFields,['worktree_state'])
+  assert.equal(claim.body,before.replace('worktree_state: absent\n',''))
+  assert.equal(parseAuthorLease(claim.body,NOW).capacityActive,true)
+  assert.throws(()=>repairResumedClaim({claim:claimNumber,owner},NOW,io),/nothing to repair/)
+  assert.equal(refs.has('refs/db-coordination/author-acquisition'),false)
 })

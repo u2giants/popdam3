@@ -17,11 +17,12 @@ These migrations implement the first migration-ready version of the unified Supa
 
 Related tooling:
 
-| File | Purpose |
-|---|---|
-| `tools/sync-plm-master-data.mjs` | Fetches the read-only Designflow PLM master-data API, reports response shape/counts, and can apply the payload to the linked Supabase project through `plm.import_master_data`. |
-| `tools/run-plm-master-data-sync.sh` | Host systemd wrapper for the active `plm-sync.service`; maps the external secret env file into the canonical import command using `SUPABASE_DB_URL`, not interactive Supabase CLI state. |
-| `systemd/plm-sync.*` | Host unit templates for the daily Supabase PLM master-data import. |
+The DesignFlow PLM import tooling that used to be listed here
+(`tools/sync-plm-master-data.mjs`, `tools/run-plm-master-data-sync.sh`, and the
+`systemd/plm-sync.*` unit templates) was removed by issue #2794, together with the
+`plm.import_master_data(jsonb, jsonb)` function that migration `20260624173000`
+originally created. The migration row above is retained as history; the objects it
+created no longer exist.
 
 ## Production Migration History
 

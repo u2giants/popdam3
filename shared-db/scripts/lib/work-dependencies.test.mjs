@@ -90,7 +90,7 @@ test('two completion records on one issue is an error, not latest-wins', () => {
 })
 
 test('only an explicitly identified repository owner can publish dependency completion',()=>{
-  for(const over of [{author_association:'NONE'},{author_association:undefined},{author:'attacker'},{author:undefined}])assert.throws(()=>findCompletionRecord([comment(merged(),over)],{requireTrustedAuthor:true}),/repository owner u2giants/)
+  for(const over of [{author_association:'NONE'},{author_association:undefined},{author:'attacker'},{author:undefined},{author_association:'MEMBER'},{author_association:'COLLABORATOR'}])assert.throws(()=>findCompletionRecord([comment(merged(),over)],{requireTrustedAuthor:true}),/operator u2giants with the OWNER association/)
   assert.deepEqual(findCompletionRecord([comment(merged())],{requireTrustedAuthor:true}),merged())
 })
 

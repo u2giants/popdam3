@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { runGitHubCommand } from '../lib/github-transport.mjs'
+import { currentRepository } from '../lib/repository-identity.mjs'
 
 export const PROJECT_REFS=Object.freeze({production:'qsllyeztdwjgirsysgai',preview:'mvpkijzfmfcxhnzqogzs'})
 export const APPLIED_VERSIONS_SQL='select version from supabase_migrations.schema_migrations order by version'
@@ -16,7 +17,7 @@ export async function fetchAppliedVersions(projectRef,token=process.env.SUPABASE
 }
 
 export function readRepoVariable(name,{run=runGitHubCommand}={}){
-  try{return run(['variable','get',name,'--repo','u2giants/shared-db'],{wrapError:(detail)=>new Unknown(`repository variable ${name} is unavailable: ${detail}`)}).trim()}catch(error){throw error instanceof Unknown?error:new Unknown(`repository variable ${name} is unavailable: ${error.message}`)}
+  try{return run(['variable','get',name,'--repo',currentRepository()],{wrapError:(detail)=>new Unknown(`repository variable ${name} is unavailable: ${detail}`)}).trim()}catch(error){throw error instanceof Unknown?error:new Unknown(`repository variable ${name} is unavailable: ${error.message}`)}
 }
 
 export async function readPreviewLedger({readRepoVariable:readVariable=readRepoVariable,fetchAppliedVersions:fetchVersions=fetchAppliedVersions}={}){

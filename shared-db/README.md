@@ -79,20 +79,19 @@ the rule even before reading app-specific docs.
 - [Schema implementation notes](docs/implementation/schema-implementation-notes.md) - what the migration package implements and what remains intentionally unresolved.
 - [AI session instructions](docs/ai-session-instructions/README.md) - the current shared preview and production-promotion workflow.
 
-## Host PLM Import
+## Host PLM Import (removed)
 
-The active Designflow PLM master-data sync is owned here:
+The Designflow PLM master-data sync no longer exists. Issue #1090 Step 1.0 retired the
+importer because it could not be allowed to write canonical licensing identity, and issue
+#2794 removed the function `plm.import_master_data(jsonb, jsonb)` along with every runtime
+vestige: the import tool, the host wrapper, the `systemd/plm-sync.*` unit templates, and the
+`DESIGNFLOW_API_KEY` / `/home/ai/.plm-sync.env` secret wiring.
 
-- Import tool: `tools/sync-plm-master-data.mjs`
-- Host wrapper: `tools/run-plm-master-data-sync.sh`
-- Unit templates: `systemd/plm-sync.service` and `systemd/plm-sync.timer`
-- Secrets: mode-600 `/home/ai/.plm-sync.env`
-
-The host service runs the import into the linked production Supabase project via
-`plm.import_master_data(...)`. It must use the shared Supabase connection and
-must not point at any retired backend database. The env file must provide `PLM_API_KEY` (or
-`DESIGNFLOW_API_KEY`) and `SUPABASE_DB_URL`; systemd must not depend on an
-interactive Supabase CLI login.
+Nothing in this repository imports DesignFlow PLM master data, and no host timer runs it.
+Do not recreate these files. The licensing write-authority guard
+(`plm.licensing_write_authorization`, `plm.licensing_write_guard_audit`, and the
+`*_licensing_write_guard` triggers) is unrelated to the importer and remains fully in force.
+Historical detail is preserved under `docs/verification/` and `docs/archive/`.
 
 ## Migration Package
 

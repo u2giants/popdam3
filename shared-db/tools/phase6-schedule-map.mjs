@@ -4,8 +4,8 @@
 // and the workflow's github.event.schedule case dispatch.
 // Never use wall-clock date/hour for lane selection.
 
+// The "30 3 * * *" DesignFlow lane was removed by #2794 along with the importer.
 export const PHASE6_SCHEDULE_JOBS = Object.freeze({
-  "30 3 * * *": "designflow",
   "0 4 * * *": "coldlion",
   "0 5 * * *": "compare",
   "15 * * * *": "health",

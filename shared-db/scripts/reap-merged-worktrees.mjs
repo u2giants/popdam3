@@ -28,6 +28,7 @@ import { execSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveRepositoryIdentity } from './lib/repository-identity.mjs';
 
 // Issue #1868. The reaper refused to run AT ALL while any orchestrator marker was
 // open, and a marker is open nearly all the time, so the reap never happened: the
@@ -245,7 +246,7 @@ export function lastActivityMs(worktreePath) {
 }
 
 function main() {
-  const repo = process.env.HANDOFF_REPO || "u2giants/shared-db";
+  const repo = resolveRepositoryIdentity({ explicit: process.env.HANDOFF_REPO });
   const apply = process.argv.includes("--apply");
   const force = process.argv.includes("--force");
   const idleArg = process.argv.indexOf("--idle-hours");

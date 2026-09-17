@@ -2,7 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   parseArgs, planUnion, renderPlan, validateLiveDocument, readLive, applyUnion,
-  verifyReadback, main, RequiredChecksError, DEFAULT_REPO, DEFAULT_BRANCH, ghSpawnOptions, mirrorDocument, writeMirror, MIRROR_PATH } from './update-required-checks.mjs'
+  verifyReadback, main, RequiredChecksError, DEFAULT_BRANCH, ghSpawnOptions, mirrorDocument, writeMirror, MIRROR_PATH } from './update-required-checks.mjs'
+import { resolveRepositoryIdentity } from './lib/repository-identity.mjs'
+
+// The repository is resolved, never hard-coded (#2530).
+const DEFAULT_REPO = resolveRepositoryIdentity()
 
 const LIVE = Object.freeze({
   strict: false,

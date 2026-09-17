@@ -82,6 +82,24 @@ export function isDocumentationPath(path) {
   return DOCUMENTATION_SUFFIXES.some((suffix) => lower.endsWith(suffix))
 }
 
+// PRODUCTION-INERT PATHS (#3153). A production job checks out the dispatched
+// commit and executes only that commit's bytes, so main moving past it matters
+// only when the move could change what production would run or prove. Test-only
+// files and regenerated `.agent/` pull-request evidence cannot: no production
+// step runs a test or reads `.agent/`, and no executed script imports a test file.
+// #3091's run 35178463315 was refused because #3141 added one test file and its
+// `.agent/` pair. The rule stays narrow and fail-closed: migrations, workflows,
+// config, SQL, and every non-test script still refuse. It applies only where a
+// caller passes `--production`; merge and preview lanes are unchanged.
+const PRODUCTION_INERT_EVIDENCE = /^\.agent\/[^/]+\.json$/
+const PRODUCTION_INERT_TEST_FILE = /^scripts\/(?:[^/]+\/)*(?:test_[^/]+\.py|[^/]+\.test\.mjs)$/
+
+export function isProductionInertPath(path) {
+  if (isDocumentationPath(path)) return true
+  if (typeof path !== 'string' || path.includes('\n') || path.includes('\0')) return false
+  return PRODUCTION_INERT_EVIDENCE.test(path) || PRODUCTION_INERT_TEST_FILE.test(path)
+}
+
 function git(args, { cwd } = {}) {
   return execFileSync('git', args, {
     cwd,
@@ -96,7 +114,8 @@ function git(args, { cwd } = {}) {
  * Returns `{ ok, reason, movedBy }`. `ok: false` always carries a reason that
  * names what was refused; callers print it verbatim.
  */
-export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git }) {
+export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git, production = false }) {
+  const inert = production ? isProductionInertPath : isDocumentationPath
   if (!/^[0-9a-f]{40}$/.test(mainSha ?? '')) {
     return { ok: false, reason: 'REFUSED: MAIN_SHA is not a full 40-character commit SHA.' }
   }
@@ -195,7 +214,7 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git }) {
     }
   }
 
-  const blocking = paths.filter((path) => !isDocumentationPath(path)).sort()
+  const blocking = paths.filter((path) => !inert(path)).sort()
   if (blocking.length > 0) {
     const shown = blocking.slice(0, 10)
     const suffix = blocking.length > shown.length ? `, and ${blocking.length - shown.length} more` : ''
@@ -203,7 +222,7 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git }) {
       ok: false,
       reason:
         `REFUSED: origin/main (${tipSha}) has moved past the dispatched commit ` +
-        `(${mainSha}) with changes that are not documentation: ` +
+        `(${mainSha}) with changes that are not ${production ? 'production-inert (documentation, .agent evidence or test files)' : 'documentation'}: ` +
         `${shown.join(', ')}${suffix}. Re-dispatch against the current tip.`,
       movedBy: paths,
     }
@@ -213,7 +232,7 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git }) {
     ok: true,
     reason:
       `origin/main has advanced to ${tipSha}, but every change since ${mainSha} is ` +
-      `documentation (${paths.length} file${paths.length === 1 ? '' : 's'}), so the dispatched ` +
+      `${production ? 'production-inert (documentation, .agent evidence or test files)' : 'documentation'} (${paths.length} file${paths.length === 1 ? '' : 's'}), so the dispatched ` +
       'commit is still current for the purposes of this gate.',
     movedBy: paths,
   }
@@ -298,6 +317,11 @@ function resolveTip() {
 
 function main() {
   const contains = process.argv.includes('--contains')
+  const production = process.argv.includes('--production')
+  if (contains && production) {
+    console.error('REFUSED: --contains and --production are different questions; name one.')
+    process.exit(1)
+  }
 
   let tipSha
   try {
@@ -333,7 +357,7 @@ function main() {
     }
   }
 
-  const verdict = classifyMainTip({ mainSha, tipSha })
+  const verdict = classifyMainTip({ mainSha, tipSha, production })
   if (!verdict.ok) {
     console.error(verdict.reason)
     if (contains) {
@@ -345,7 +369,7 @@ function main() {
   }
   console.log(`OK -- ${verdict.reason}`)
   if (verdict.movedBy?.length) {
-    for (const path of verdict.movedBy) console.log(`  documentation: ${path}`)
+    for (const path of verdict.movedBy) console.log(`  ${production ? 'production-inert' : 'documentation'}: ${path}`)
   }
 }
 

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { isThisRepositoryOrHistorical } from './repository-identity.mjs'
 
 export const REVIEW_VERDICT_REF_PREFIX = 'refs/db-review-verdicts'
 export const REVIEW_VERDICT_REPLACEMENT_REF_PREFIX = 'refs/db-review-verdict-replacements'
@@ -13,8 +14,8 @@ export function verdictRef({ issue, pr, headSha, slot = 1, replacementSequence =
 }
 export function findingsDigest(body) { return createHash('sha256').update(String(body), 'utf8').digest('hex') }
 export function assertFindingsRefForPr(findingsRef, pr) {
-  const match = /^https:\/\/github\.com\/u2giants\/shared-db\/pull\/(\d+)#issuecomment-\d+$/.exec(String(findingsRef ?? ''))
-  if (!match || Number(match[1]) !== Number(pr)) throw new Error('findings_ref must name a durable comment on the reviewed shared-db PR')
+  const match = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)#issuecomment-\d+$/.exec(String(findingsRef ?? ''))
+  if (!match || !isThisRepositoryOrHistorical(match[1]) || Number(match[2]) !== Number(pr)) throw new Error('findings_ref must name a durable comment on the reviewed shared-db PR')
 }
 
 export function parseVerdictRef(ref) {
