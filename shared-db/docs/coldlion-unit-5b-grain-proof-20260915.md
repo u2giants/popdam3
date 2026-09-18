@@ -123,6 +123,18 @@ The payload carries **no `companyCode`** even though the request requires one, s
 **Chosen grain: `(company_code, pkey)`, with `(company_code, prod_order_no,
 prod_line_seq)` unique. Zero duplicate collapse on either.**
 
+> **SUPERSEDED IN PART, 2026-09-18 (issue #3234, backfill #3180):** the
+> `(prodOrderNo, prodLineSeq)` uniqueness below is a fact about THIS SAMPLE only.
+> The full production backfill (3,761 orders) found **8 orders** whose live
+> `/proddetails` response carries two rows with **distinct `pkey`s sharing one
+> `prodLineSeq`** (different item, quantities and costs — real distinct lines, not
+> echoes). The second identity is falsified by the source at depth; **`pkey`
+> remains unique**, and the landed table enforces no collapse on either. The
+> loader (#3180) refuses those 8 keys durably (`sync_run` `refused:
+> identity-collision`) and the constraint decision — drop it, re-key it, or rule
+> the refusals permanent — is #3234 (needs-albert). The tables and verdicts on
+> this page stand as the 2026-09-15 measurement.
+
 ### Disposition — all 21 fields land, plus the request-stamped `company_code`
 
 Same owner-authority note as §1: the field-decisions CSV does not cover this feed.
