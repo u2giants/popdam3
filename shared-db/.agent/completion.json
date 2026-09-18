@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "work_issue": 3271,
+  "work_issue": 3283,
   "outcome": "ready-for-merge",
-  "pr": 3272,
+  "pr": 3284,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3271/5",
-  "contract_sha256": "e30a1607645070ead174a3d7f518cfdfe21e8e3c172426ac641de49d6bc71d45",
-  "head_sha": "c884cca60e12024b748601c17371e2837d651b01",
+  "contract_ref": "refs/db-contracts/3283/2",
+  "contract_sha256": "5d8abbe9d86ba9f42105c6f51f2d461bb70d1f62b217c07acfa926965739b7ee",
+  "head_sha": "6518de24550a62c10d0b31f52bdcf1aa300acb7e",
   "files_changed": [
-    ".github/workflows/reviewer-start-watch.yml",
-    "docs/verification/throughput-guard-truth-audit-20260828.json"
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
@@ -17,7 +17,7 @@
     {
       "command": "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
       "exit_code": 0,
-      "evidence": "44 pass, 0 fail, 0 skipped"
+      "evidence": "46 pass, 0 fail, 0 skipped; the 2 new tests fail on the previous code"
     },
     {
       "command": "python -m pytest -q scripts/test_production_migration_guard.py",
@@ -37,12 +37,11 @@
     {
       "command": "node scripts/check-throughput-truth-audit.mjs",
       "exit_code": 0,
-      "evidence": "truth audit OK: call_sites=310"
+      "evidence": "exit 0"
     }
   ],
   "assumptions_resolved": [
-    "Contract generation 1 was published before the implementation commit; generations 2 and 3 re-base it on current main after main moved, with the same scope. Generation 3 also carries the review fixes: relay only when the watch step ran, and a pass with no JSON still reaches its error and exit.",
-    "GitHub runs a run: step without a shell key as bash -e {0}; confirmed by the live failure."
+    "The reservation record has no time field and its ref is keyed by the draw sequence, so the retry reuses the same reservation (confirmed in start-reroute.mjs reserveAndDispatch and by the end-to-end test)."
   ],
   "stop_conditions_hit": []
 }

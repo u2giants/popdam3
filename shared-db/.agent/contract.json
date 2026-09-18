@@ -1,28 +1,28 @@
 {
   "schema_version": 1,
-  "work_issue": 3271,
+  "work_issue": 3283,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Make a failed reviewer-start-watch pass print its error JSON, keep the leg watching, end the leg non-zero and still relay to the next leg",
-  "base_sha": "7220a7e57a2eebb676d7d07a3dd2011f6beeb095",
+  "goal": "Stop the reviewer start watch counting a lease's own mooted reservation against its slot's automatic reroute budget, so a refused reroute is retried",
+  "base_sha": "f03954ce57ef41066f36f182ce65cfe0a8467af7",
   "dispatcher": "repo-maintenance session for issue #3242 (popcre/ai-devops#401 Step 7 chain)",
   "worker": "claude",
-  "branch": "claude/issue-3242-watch-exit-capture",
-  "worktree": "scratchpad/fix-exit",
+  "branch": "claude/issue-3242-reroute-budget-own-retry",
+  "worktree": "scratchpad/fix-budget",
   "allowed_paths": [
-    ".github/workflows/reviewer-start-watch.yml",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
     ".agent/contract.json",
-    ".agent/completion.json",
-    "docs/verification/throughput-guard-truth-audit-20260828.json"
+    ".agent/completion.json"
   ],
   "file_writes": [
-    ".github/workflows/reviewer-start-watch.yml",
-    "docs/verification/throughput-guard-truth-audit-20260828.json"
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "do not touch any migration, script or database object",
+    "do not touch any migration, workflow or database object",
     "do not edit another session's handoff, worktree, branch, or claim"
   ],
   "required_checks": [
@@ -33,10 +33,10 @@
     "node scripts/check-throughput-truth-audit.mjs"
   ],
   "assumptions": [
-    "the step shell is bash -e, as GitHub runs a run: step with no shell key"
+    "a reservation ref is keyed by the lease's draw sequence and its record is deterministic, so re-picking the same lease reuses the same reservation"
   ],
   "stop_conditions": [
     "stop if the change would need to touch a file outside allowed_paths"
   ],
-  "generation": 5
+  "generation": 2
 }

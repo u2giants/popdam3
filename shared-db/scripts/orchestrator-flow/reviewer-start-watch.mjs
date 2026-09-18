@@ -183,12 +183,19 @@ export const RESUME_ATTEMPT_LIMIT = 12
 // otherwise be rerouted every pass, forever, once the watcher runs unattended (#3242). Each
 // (issue, PR, slot) gets this many automatic reroutes; after that the lease is left to the
 // ordinary two-hour silence path. Reroute refs do not carry the head, so the budget spans heads.
+// Only reroutes of EARLIER draws count: the lease's own reservation (same sequence) is the one a
+// mooted probe or reclaim refusal hands back to the lease scan to retry, so counting it would
+// strand a lease that was never rerouted after one refused attempt.
 export const AUTO_REROUTES_PER_SLOT = 2
 
 export function priorReroutesForSlot(refNames, row) {
   const prefix = `refs/db-start-reroutes/reviewer/review-${Number(row.issue)}-${Number(row.pr)}-seq`
   const suffix = `-slot${Number(row.slot)}`
-  return [...new Set(refNames)].filter((ref) => ref.startsWith(prefix) && ref.endsWith(suffix) && /^\d+$/.test(ref.slice(prefix.length, -suffix.length))).length
+  return [...new Set(refNames)].filter((ref) => {
+    if (!ref.startsWith(prefix) || !ref.endsWith(suffix)) return false
+    const seq = ref.slice(prefix.length, -suffix.length)
+    return /^\d+$/.test(seq) && Number(seq) !== Number(row.sequence)
+  }).length
 }
 
 function rerouteBudgetDecision(io, row, decision) {

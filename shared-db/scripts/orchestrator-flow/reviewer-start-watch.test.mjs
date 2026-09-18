@@ -230,6 +230,37 @@ test('prior automatic reroutes are counted per issue, PR and slot, ignoring subr
   assert.equal(priorReroutesForSlot(refs, { issue: 10, pr: 20, slot: 2 }), 1)
 })
 
+test('a reservation for the same draw is not a prior reroute of its slot', () => {
+  const base = 'refs/db-start-reroutes/reviewer/review-10-20-seq'
+  assert.equal(priorReroutesForSlot([`${base}1-slot1`, `${base}3-slot1`, `${base}3-slot1--moot`], { issue: 10, pr: 20, slot: 1, sequence: 3 }), 1)
+})
+
+test('a lease whose reroute was refused before it touched the lease is retried, not counted against the budget', () => {
+  const durable = memoryDurable(), calls = []
+  const earlier = 'refs/db-start-reroutes/reviewer/review-10-20-seq1-slot1'
+  let refuse = true
+  const io = {
+    now: () => late,
+    readLeases: () => [row()],
+    manager: (args) => {
+      calls.push(args[0])
+      if (args[0] === '--reclaim-silent-reviewer' && refuse) throw new Error('REFUSED: refs/db-coordination/author-acquisition is occupied')
+      return { ok: true }
+    },
+    durable,
+    rerouteRefs: () => [earlier, ...durable.refs.keys()],
+    pendingReroutes: () => pendingFromRefNames([...durable.refs.keys()]),
+  }
+  const [first] = watchOnce(io, { apply: true, drawnSince: '2026-09-16T00:00:00.000Z' })
+  assert.match(first.error, /author-acquisition is occupied/)
+  assert.ok(durable.refs.has('refs/db-start-reroutes/reviewer/review-10-20-seq3-slot1--moot'))
+  refuse = false
+  const [retry] = watchOnce(io, { apply: true, drawnSince: '2026-09-16T00:00:00.000Z' })
+  assert.equal(retry.action, 'governed-return-and-reroute')
+  assert.equal(retry.reroute.ack.status, 'acknowledged')
+  assert.deepEqual(calls.slice(-3), ['--probe-silent-reviewer', '--reclaim-silent-reviewer', '--replace-failed-reviewer'])
+})
+
 test('an unattended watcher stops rerouting a slot whose replacements keep not starting', () => {
   const calls = []
   const history = Array.from({ length: AUTO_REROUTES_PER_SLOT }, (_, i) => `refs/db-start-reroutes/reviewer/review-10-20-seq${i + 1}-slot1`)
