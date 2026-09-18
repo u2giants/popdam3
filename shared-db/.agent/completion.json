@@ -1,45 +1,48 @@
 {
   "schema_version": 1,
-  "work_issue": 3264,
+  "work_issue": 3271,
   "outcome": "ready-for-merge",
-  "pr": 3268,
+  "pr": 3272,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3264/7",
-  "contract_sha256": "783e824590d7e6e1a4bc347ed105f73bb3a2890f3f3ada905d313f7d0c94acc9",
-  "head_sha": "7cc559b2355ca87ed354807a0300b9b86b2623f1",
+  "contract_ref": "refs/db-contracts/3271/5",
+  "contract_sha256": "e30a1607645070ead174a3d7f518cfdfe21e8e3c172426ac641de49d6bc71d45",
+  "head_sha": "c884cca60e12024b748601c17371e2837d651b01",
   "files_changed": [
-    ".agent/completion.json",
-    ".agent/contract.json",
-    ".github/workflows/guarded-migration-merge.yml",
-    ".github/workflows/sync.yml",
-    "scripts/check-guarded-merge-sync-dispatch.test.mjs"
+    ".github/workflows/reviewer-start-watch.yml",
+    "docs/verification/throughput-guard-truth-audit-20260828.json"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node --test scripts/check-guarded-merge-sync-dispatch.test.mjs",
+      "command": "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
       "exit_code": 0,
-      "evidence": "tests 6, pass 6, fail 0"
+      "evidence": "44 pass, 0 fail, 0 skipped"
     },
     {
-      "command": "node --test scripts/check-lane-route-sync.test.mjs",
+      "command": "python -m pytest -q scripts/test_production_migration_guard.py",
       "exit_code": 0,
-      "evidence": "tests 4, pass 4, fail 0"
-    },
-    {
-      "command": "node --test scripts/lib/documents-only-change.test.mjs",
-      "exit_code": 0,
-      "evidence": "tests 22, pass 22, fail 0"
+      "evidence": "275 passed, 356 subtests passed"
     },
     {
       "command": "node scripts/check-github-transport-conformance.mjs",
       "exit_code": 0,
-      "evidence": "GitHub transport conformance: 295 files scanned, every GitHub call goes through scripts/lib/github-transport.mjs."
+      "evidence": "exit 0"
+    },
+    {
+      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "exit 0"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=310"
     }
   ],
   "assumptions_resolved": [
-    "sync.yml's existing concurrency group (sync-shared-db, cancel-in-progress: false) safely serializes a manual dispatch against an overlapping ordinary push."
+    "Contract generation 1 was published before the implementation commit; generations 2 and 3 re-base it on current main after main moved, with the same scope. Generation 3 also carries the review fixes: relay only when the watch step ran, and a pass with no JSON still reaches its error and exit.",
+    "GitHub runs a run: step without a shell key as bash -e {0}; confirmed by the live failure."
   ],
   "stop_conditions_hit": []
 }

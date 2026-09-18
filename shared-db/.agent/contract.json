@@ -1,49 +1,42 @@
 {
   "schema_version": 1,
-  "generation": 7,
-  "work_issue": 3264,
+  "work_issue": 3271,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Fix #3264: guarded-lane merges push as github-actions, and GitHub starts no push workflow for that token, so sync.yml never fired after a guarded merge. Add workflow_dispatch to sync.yml and have the guarded merge workflow dispatch it on main right after a proven merge.",
-  "base_sha": "2863805e10737d9aabd6ea7d3a6469ec16f5826f",
-  "dispatcher": "Albert's own chat instruction: \"spin up a sub-agent to do #3264\"",
-  "worker": "Claude sub-agent, dispatched from chat 3886eb83-7824-4477-a257-dd3adfd80d03 on edge-dev",
-  "branch": "claude/3264-sync-dispatch",
-  "worktree": "C:/repos/fix-3264-38439936",
+  "goal": "Make a failed reviewer-start-watch pass print its error JSON, keep the leg watching, end the leg non-zero and still relay to the next leg",
+  "base_sha": "7220a7e57a2eebb676d7d07a3dd2011f6beeb095",
+  "dispatcher": "repo-maintenance session for issue #3242 (popcre/ai-devops#401 Step 7 chain)",
+  "worker": "claude",
+  "branch": "claude/issue-3242-watch-exit-capture",
+  "worktree": "scratchpad/fix-exit",
   "allowed_paths": [
-    ".agent/completion.json",
+    ".github/workflows/reviewer-start-watch.yml",
     ".agent/contract.json",
-    ".github/workflows/guarded-migration-merge.yml",
-    ".github/workflows/sync.yml",
-    "scripts/check-guarded-merge-sync-dispatch.test.mjs"
+    ".agent/completion.json",
+    "docs/verification/throughput-guard-truth-audit-20260828.json"
   ],
   "file_writes": [
-    ".agent/completion.json",
-    ".agent/contract.json",
-    ".github/workflows/guarded-migration-merge.yml",
-    ".github/workflows/sync.yml",
-    "scripts/check-guarded-merge-sync-dispatch.test.mjs"
+    ".github/workflows/reviewer-start-watch.yml",
+    "docs/verification/throughput-guard-truth-audit-20260828.json"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "Never touch a database, preview or production target.",
-    "Never widen guarded-merge permissions beyond actions: write, scoped to this job, for the dispatch.",
-    "Never make the sync dispatch fire before the merge step is proven successful.",
-    "Never route this to the structure/schema orchestrator; it changes no database shape."
+    "do not touch any migration, script or database object",
+    "do not edit another session's handoff, worktree, branch, or claim"
   ],
   "required_checks": [
-    "node --test scripts/check-guarded-merge-sync-dispatch.test.mjs",
-    "node --test scripts/check-lane-route-sync.test.mjs",
-    "node --test scripts/lib/documents-only-change.test.mjs",
-    "node scripts/check-github-transport-conformance.mjs"
+    "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
+    "python -m pytest -q scripts/test_production_migration_guard.py",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
   ],
   "assumptions": [
-    "sync.yml's existing concurrency group (sync-shared-db, cancel-in-progress: false) safely serializes a manual dispatch against an overlapping ordinary push; no concurrency change is needed.",
-    "origin/main moved during exact-head review with unrelated, non-documentation changes; a merge-from-main (7cc559b2355ca87ed354807a0300b9b86b2623f1) was required. The reviewed non-.agent diff stayed byte-identical across the merge, so the durable APPROVE verdict recorded at ea4d3ae15b7d8bdd596a1df28baeadb7e6c4fc28 carries forward."
+    "the step shell is bash -e, as GitHub runs a run: step with no shell key"
   ],
   "stop_conditions": [
-    "Stop and report if the consumer sync still does not start after a guarded merge lands through this fix.",
-    "Stop and report on any gate refusal; never weaken a guard to proceed."
-  ]
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "generation": 5
 }
