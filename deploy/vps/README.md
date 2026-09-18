@@ -18,7 +18,7 @@ unix:///var/run/docker.sock` and stops seeing container events. New/changed cont
 then fail to route and return **502**, while existing/file-provider routes keep working
 (so it looks partial and is easy to misdiagnose). The host socket is fine; only the
 proxy's view is stale, and **only restarting `coolify-proxy` fixes it**. This has
-recurred (2026-06-18, 2026-06-22 — see AGENTS.md → Critical incidents).
+recurred (2026-06-18, 2026-06-22 — see docs/incident-log.md).
 
 **Root cause:** Both recurrences (2026-06-18, 2026-06-21) were triggered by docker/containerd
 auto-upgrades restarting the daemon, which recreates `/var/run/docker.sock` (new inode).
