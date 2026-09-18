@@ -2162,9 +2162,16 @@
       "line_sha256": "ec548c3c520dc3669076737706221eeba420a67191ae21779cbaed543a1dc4e4",
       "disposition": "excluded",
       "reason": "Test fixture that emits the literal \"<sha> missing\" line of the git cat-file --batch protocol for unknown commits; no migration or database-object state is described."
+    },
+    {
+      "site": ".github/workflows/tools-offline-tests.yml:118",
+      "semantic_key": ".github/workflows/tools-offline-tests.yml:c22603525ed4d2630a06407de00fca17ad8fb56e69673a6a493bcad40d89ac56:1",
+      "line_sha256": "c22603525ed4d2630a06407de00fca17ad8fb56e69673a6a493bcad40d89ac56",
+      "disposition": "excluded",
+      "reason": "CI presence check for the queue hygiene report test file (#3199 Phase A3). The word \"Missing\" here reports an absent TEST FILE in the workflow checkout, not an absent database object, so it carries no truth claim about catalog state and must never be enriched."
     }
   ],
-  "call_site_count": 307,
-  "call_site_sha256": "2a95fe0bfc03454edab923f94e5ea6722d6c2fcd01aa0aed19143167ca24f0ec",
+  "call_site_count": 308,
+  "call_site_sha256": "0afa30505201b21380dca77130934dab86c707dd0232d5cf78e9ff3a8803b6f8",
   "disposition": "Every discovered site has an explicit reviewed disposition bound to its source-line content; line movement alone does not require regeneration, while a content change requires review."
 }

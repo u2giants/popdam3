@@ -1,63 +1,60 @@
 {
   "schema_version": 1,
-  "generation": 9,
-  "work_issue": 3174,
-  "work_type": "structural",
-  "route": "shared-db-orchestrator",
-  "goal": "Add Coca-Cola Submissions, WWE Creative, Peanuts Creative, Sesame Workshop Creative and Sesame Workshop Submissions sections to api.db_data_admin_scraped_source_inventory, with the new landing table plm.sesame_submission_property_option.",
-  "base_sha": "f943d40410984525445267b04a677663ec89276a",
-  "dispatcher": "claude shared-db orchestrator issue #3174",
-  "worker": "Claude Opus 5 issue-3174 migration author lane (claim #3189)",
-  "branch": "claude/issue-3174-scraped-sections",
-  "worktree": "C:/repos/shared-db/.claude/worktrees/agent-aa5246435e4e6b9b3",
+  "generation": 11,
+  "work_issue": 3180,
+  "work_type": "source-data",
+  "route": "source-data-session",
+  "goal": "Refuse /proddetails identity-collision keys per key instead of aborting the whole run: live order 20344 falsified the (prod_order_no, prod_line_seq) uniqueness asserted by #2863, and one colliding order must not block the remaining population. Collisions are recorded as FAILED sync_runs carrying refused markers, counted in every reconciliation, and still fail the run non-zero; feed-shape failures stay fatal; transport failures stay retried.",
+  "base_sha": "644fe066c8122d19b9384ba36fd058855ce7462c",
+  "dispatcher": "owner task instruction to a non-orchestrator source-data session (issue #3180 db-work-scope: work_type source-data, route source-data-session, writes [])",
+  "worker": "ZCode GLM 5.3 session executing shared-db issue #3180",
+  "branch": "claude/issue-3180-prod-detail-loader",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/prod-detail-3180",
   "allowed_paths": [
     ".agent/completion.json",
     ".agent/contract.json",
-    ".github/live-proofs/3174.sql",
-    "supabase/migrations/20260917144950_db_data_admin_inventory_coke_wwe_peanuts_sesame_sections.sql",
-    "supabase/tests/sesame_landing_contracts.sql"
+    ".github/workflows/coldlion-landing-sync.yml",
+    ".github/workflows/coldlion-prod-detail-backfill.yml",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    "tools/coldlion-landing/README.md",
+    "tools/coldlion-landing/lib/prod-details.mjs",
+    "tools/coldlion-landing/sync-prod-details.mjs"
   ],
   "file_writes": [
     ".agent/completion.json",
     ".agent/contract.json",
-    ".github/live-proofs/3174.sql",
-    "supabase/migrations/20260917144950_db_data_admin_inventory_coke_wwe_peanuts_sesame_sections.sql",
-    "supabase/tests/sesame_landing_contracts.sql"
+    ".github/workflows/coldlion-landing-sync.yml",
+    ".github/workflows/coldlion-prod-detail-backfill.yml",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    "tools/coldlion-landing/README.md",
+    "tools/coldlion-landing/lib/prod-details.mjs",
+    "tools/coldlion-landing/sync-prod-details.mjs"
   ],
-  "db_reads": [
-    "table plm.coke_approval_vocabulary_value",
-    "table plm.wwe_creative_brand",
-    "table plm.peanuts_art_program",
-    "table plm.sesame_brand",
-    "table plm.dcp_opa_property_resolution",
-    "table plm.dcp_opa_property_resolution_member"
-  ],
-  "db_writes": [
-    "function api.db_data_admin_scraped_source_inventory",
-    "table plm.sesame_submission_property_option"
-  ],
+  "db_reads": [],
+  "db_writes": [],
   "prohibited_actions": [
-    "Never run direct production DDL; production reaches the database only through the governed promotion lane.",
-    "Never change existing inventory arms, row keys or grants.",
-    "Never rebase this branch; refresh from main with a merge."
+    "Never change database structure: this work owns loader code and rows only, and coldlion.prod_detail already exists from #2863.",
+    "Never run the loader against production outside the sanctioned GitHub workflows that read SUPABASE_DB_URL_PRODUCTION and COLDLION_API_KEY.",
+    "Never commit ColdLion row values, API keys, database URLs or any credential; fixtures stay synthetic and logs carry counts only.",
+    "Never close issue #3180; the originating session owns closure."
   ],
   "required_checks": [
-    "bash scripts/check-sql.sh"
+    "node --test tools/coldlion-landing-prod-details.test.mjs",
+    "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs"
   ],
   "assumptions": [
-    "The live production function body equals migration 20260917005650 (md5 verified), so it is the derivation source.",
-    "Peanuts rows without a Tenovos source id have no ledger identity and are left out on purpose; production has none today.",
-    "Generation 2 exists because main advanced to 23d6142e; the branch was refreshed by merge (a3889133) and main changed no file this PR touches.",
-    "Generation 3: refreshed by merge (fce3914f) onto main 1c81b5b6, which carries the #3195 grant-kind reader fix; the migration and live proof are unchanged.",
-    "Generation 4: the migration version was superseded 20260917112114 -> 20260917144950 (claim #3189 supersession 314adcc7) because main gained 20260917112129; claim worktree rebound (1424b1c9); the Sesame NetX landing census test now excludes the separate sesame_submission_ landing table; refreshed onto main e2c53f21.",
-    "Generation 5: refreshed by merge onto main c0238000; the PR's own diff is unchanged.",
-    "Generation 6: refreshed by merge onto main 6aff8344; the PR's own diff is unchanged.",
-    "Generation 7: refreshed by merge onto main 985e19b6; the PR's own diff is unchanged.",
-    "Generation 8: refreshed by merge onto main ccfe1371; the PR's own diff is unchanged.",
-    "Generation 9: refreshed by merge onto main f943d404; the PR's own diff is unchanged."
+    "The live /proddetails field union is the 21 fields recorded in docs/coldlion-unit-5b-grain-proof-20260915.md; it was re-derived live on 2026-09-17 (8 keys, 28 rows) and matched exactly, so the unknown-field refusal is keyed to that shape.",
+    "The complete approved prodOrderNo population is the distinct landed coldlion.prod_history_line set for EDGEHOME (live reading 2026-09-17: 3,761 distinct orders over 61,901 lines; EP001 absent because history landing already excluded it).",
+    "The scheduled ColdLion Landing Sync workflow is the sanctioned ongoing refresh vehicle, so the production-detail refresh step rides it after history and masters rather than in a new schedule.",
+    "Generation 8: answers governed review round 1 (PR #3233). H1 - refused keys re-entered the refresh recent window through the flat done-set and refusedKeys counted rows; selection now carries the refused state separately and the reconciliation counts distinct orders. L2 - omitted-field fatality pinned by test. L4 - malformed values are per-key refusals, no longer retried-forever transport.",
+    "Generation 9: files_changed now lists the complete base-to-head diff including the two .agent evidence files, as the git-evidence comparison requires once the implementation head advanced past the review-answer commit. No implementation change.",
+    "Generation 10: main advanced to 959100b6 (sibling prepack-detail fix, disjoint files); refreshed by merge at cfdd810e, only the .agent evidence files resolved. Implementation diff unchanged; the APPROVE at 093af65d carries per the content-preserving refresh rule.",
+    "Generation 11: main advanced to 644fe066 (sibling prepack refresh pacing) and touched the shared scheduled-sync workflow, so this branch merged it and added the same budget arithmetic for the production-detail refresh (PROD_DETAIL_ARGS --pause-ms 1000, requests still serialized; 2000-order limit at 3s alone would overrun the 90-minute job). A fresh exact-head review follows because main edited a file this pull request also edits."
   ],
   "stop_conditions": [
-    "Stop if the lane claim is refused for object collision.",
-    "Stop on anything other than an explicit independent APPROVE."
+    "Stop and report if the live feed changes shape: unknown or omitted fields fail the whole run before anything is written.",
+    "Stop and report if the reconciliation disagrees with the API-side evidence after a run.",
+    "Stop and report on any workflow or gate refusal; never weaken a guard to proceed.",
+    "Refuse - do not stop the run for - any single order whose response carries an identity collision or a malformed value; record it and let the population proceed."
   ]
 }

@@ -34,6 +34,7 @@ from production_catalog_verification import (  # noqa: E402
     PrivilegeExpectation,
     Targets,
     _objtype_array,
+    _strict_keys,
     assert_privileges,
     build_catalog_sql,
     build_behavior_sql,
@@ -176,6 +177,27 @@ PUBLIC_GRANTEE_EXPR = (
     "'grantee', case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end"
 )
 PUBLIC_GRANTEE_BLOCKS = 3
+
+
+class StructuralInputGuardTests(unittest.TestCase):
+    """Focused falsification coverage for issue #2373's surviving guards."""
+
+    def test_privilege_expectation_refuses_an_unknown_kind(self):
+        with self.assertRaisesRegex(GuardError, "unknown privilege expectation kind"):
+            PrivilegeExpectation(
+                "sequence",
+                "plm.widget_id_seq",
+                "anon",
+                ("USAGE",),
+                False,
+                "test",
+            )
+
+    def test_strict_keys_refuses_a_non_object_with_the_exact_allowed_keys(self):
+        # Matching the allowed-key set is deliberate: if the type guard is
+        # disabled, the remaining key checks accept and return this list.
+        with self.assertRaisesRegex(GuardError, "contract must be a JSON object"):
+            _strict_keys(["required"], {"required"}, "contract")
 
 
 class DeriveTargetsTests(unittest.TestCase):

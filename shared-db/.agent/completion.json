@@ -1,44 +1,42 @@
 {
   "schema_version": 1,
-  "work_issue": 3174,
+  "work_issue": 3180,
   "outcome": "ready-for-merge",
-  "pr": 3190,
-  "migration_versions": [
-    "20260917144950"
-  ],
-  "contract_ref": "refs/db-contracts/3174/9",
-  "contract_sha256": "d3b26dec5934e3b919c46a24db56b44a7e31abe6aa68dd400511126176b63d31",
-  "head_sha": "899b0f8b8b28adac1e6e890de24818eb2b660b32",
+  "pr": 3233,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3180/11",
+  "contract_sha256": "0053c06f2e0d023af61c446a3c6feec051e2f89fd4ce49d7f6002198d6522afd",
+  "head_sha": "6db765ce3bb5414ebcbbaa455db485a940d29346",
   "files_changed": [
     ".agent/completion.json",
     ".agent/contract.json",
-    ".github/live-proofs/3174.sql",
-    "supabase/migrations/20260917144950_db_data_admin_inventory_coke_wwe_peanuts_sesame_sections.sql",
-    "supabase/tests/sesame_landing_contracts.sql"
+    ".github/workflows/coldlion-landing-sync.yml",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    "tools/coldlion-landing/README.md",
+    "tools/coldlion-landing/lib/prod-details.mjs",
+    "tools/coldlion-landing/sync-prod-details.mjs"
   ],
-  "db_reads": [
-    "table plm.coke_approval_vocabulary_value",
-    "table plm.wwe_creative_brand",
-    "table plm.peanuts_art_program",
-    "table plm.sesame_brand",
-    "table plm.dcp_opa_property_resolution",
-    "table plm.dcp_opa_property_resolution_member"
-  ],
-  "db_writes": [
-    "function api.db_data_admin_scraped_source_inventory",
-    "table plm.sesame_submission_property_option"
-  ],
+  "db_reads": [],
+  "db_writes": [],
   "checks": [
     {
-      "command": "bash scripts/check-sql.sh",
+      "command": "node --test tools/coldlion-landing-prod-details.test.mjs",
       "exit_code": 0,
-      "evidence": "Previous head failed only the backdated-version guard (fixed by governed version supersession) and Sesame census A (20 vs 19 sesame_ tables; census now excludes the separate submissions landing). Both re-verified by CI on this head."
+      "evidence": "38 tests, 38 pass, 0 fail on head cac60a02: the H1 regression test proves a refused key is never re-selected by refresh however recent; the omitted-field fatality is pinned (L2); malformed values refuse the key (L4)."
+    },
+    {
+      "command": "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs",
+      "exit_code": 0,
+      "evidence": "The four-suite offline gate command passes on the same head; the full 48-file tools suite passed (941 tests)."
     }
   ],
   "assumptions_resolved": [
-    "Production function body md5 matched migration 20260917005650 before derivation.",
-    "Production plm.peanuts_art_program has 19 rows and none without a Tenovos source id, so the exclusion drops nothing today.",
-    "Migration version superseded to 20260917144950 through --reversion-active-claim; claim #3189 lease version updated by the tool."
+    "Live order 20344 returns 10 rows including two with distinct pkeys sharing prodLineSeq 10 (differing itemPkey, prodQty, prodCost, labelCode and timestamps) - the second proven identity is falsified by the source while pkey remains unique; diagnosed read-only on 2026-09-17 with field names only, no row values.",
+    "Backfill run 35275308013 landed 269 keys (plus 3 probe keys) before the first collision aborted it; nothing was written for the colliding order, and its sync_run carries the failure.",
+    "The unique constraint on (company_code, prod_order_no, prod_line_seq) is database STRUCTURE from #2863; changing it is filed as a separate db-work issue for the orchestrator, not smuggled into this source-data change.",
+    "Governed review round 1 (retained, non-authorizing after a wrapper evidence-publication fault; reconciled) returned REVISE with one High: the flat done-set let refused keys re-enter the refresh recent window nightly and refusedKeys counted rows not distinct orders. Both fixed, with regression tests; the contract stop_conditions no longer contradict the refusal semantics (L1); omitted-field fatality pinned (L2); malformed values reclassified from retried-forever transport to per-key refusal (L4).",
+    "Main advanced to 959100b6 (sibling prepack fix, disjoint files) before the guarded merge re-dispatch; refreshed by merge at cfdd810e touching only the .agent evidence files, so the durable APPROVE at 093af65d carries (content-preserving refresh).",
+    "Main advanced to 644fe066 and edited the shared scheduled-sync workflow (prepack pacing); this branch merged it and added the analogous production-detail pacing (1s, serialized), so a fresh exact-head review is required and follows at the pushed head."
   ],
   "stop_conditions_hit": []
 }
