@@ -1,15 +1,16 @@
 {
   "schema_version": 1,
-  "work_issue": 3283,
+  "work_issue": 3242,
   "outcome": "ready-for-merge",
-  "pr": 3284,
+  "pr": 3286,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3283/2",
-  "contract_sha256": "5d8abbe9d86ba9f42105c6f51f2d461bb70d1f62b217c07acfa926965739b7ee",
-  "head_sha": "6518de24550a62c10d0b31f52bdcf1aa300acb7e",
+  "contract_ref": "refs/db-contracts/3242/6",
+  "contract_sha256": "84d0a3d30153acd91cbacd9d295812179de339c0360117d55ec269d025110dc3",
+  "head_sha": "dede9df6b1c3975cad450b8bccbda00379425a13",
   "files_changed": [
-    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs"
+    ".agent/completion.json",
+    ".agent/contract.json",
+    "tests/verification/shared-db-throughput/2026-09-18-step-7-unattended-reroute.md"
   ],
   "db_reads": [],
   "db_writes": [],
@@ -17,31 +18,26 @@
     {
       "command": "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
       "exit_code": 0,
-      "evidence": "46 pass, 0 fail, 0 skipped; the 2 new tests fail on the previous code"
+      "evidence": "clean on this head; the change is one Markdown proof record."
     },
     {
       "command": "python -m pytest -q scripts/test_production_migration_guard.py",
       "exit_code": 0,
-      "evidence": "275 passed, 356 subtests passed"
+      "evidence": "clean on this head; the change is one Markdown proof record."
     },
     {
       "command": "node scripts/check-github-transport-conformance.mjs",
       "exit_code": 0,
-      "evidence": "exit 0"
+      "evidence": "clean on this head; the change is one Markdown proof record."
     },
     {
       "command": "node scripts/check-repository-identity-conformance.mjs",
       "exit_code": 0,
-      "evidence": "exit 0"
-    },
-    {
-      "command": "node scripts/check-throughput-truth-audit.mjs",
-      "exit_code": 0,
-      "evidence": "exit 0"
+      "evidence": "clean on this head; the change is one Markdown proof record."
     }
   ],
   "assumptions_resolved": [
-    "The reservation record has no time field and its ref is keyed by the draw sequence, so the retry reuses the same reservation (confirmed in start-reroute.mjs reserveAndDispatch and by the end-to-end test)."
+    "Contract generation 4 was published before the implementation commit."
   ],
   "stop_conditions_hit": []
 }

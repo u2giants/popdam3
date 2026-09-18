@@ -1,42 +1,42 @@
 {
   "schema_version": 1,
-  "work_issue": 3283,
+  "work_issue": 3242,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Stop the reviewer start watch counting a lease's own mooted reservation against its slot's automatic reroute budget, so a refused reroute is retried",
-  "base_sha": "f03954ce57ef41066f36f182ce65cfe0a8467af7",
+  "goal": "Record the Step 7 live proof: an unattended reviewer-start-watch pass reroutes a real unstarted governed reviewer lease after its 10-minute SLO while the other slot's lease stays intact",
+  "base_sha": "c9d50300f65020aecd14f1c2e1ba0a3f85bdded7",
   "dispatcher": "repo-maintenance session for issue #3242 (popcre/ai-devops#401 Step 7 chain)",
   "worker": "claude",
-  "branch": "claude/issue-3242-reroute-budget-own-retry",
-  "worktree": "scratchpad/fix-budget",
+  "branch": "claude/issue-3242-step7-clean-proof",
+  "worktree": "scratchpad/proof2",
   "allowed_paths": [
-    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    "tests/verification/shared-db-throughput/2026-09-18-step-7-unattended-reroute.md",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "file_writes": [
-    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
-    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs"
+    "tests/verification/shared-db-throughput/2026-09-18-step-7-unattended-reroute.md"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "do not touch any migration, workflow or database object",
+    "do not touch any migration, workflow, script or database object",
+    "do not invoke the reviewer start watcher by hand for the proof",
     "do not edit another session's handoff, worktree, branch, or claim"
   ],
   "required_checks": [
     "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
     "python -m pytest -q scripts/test_production_migration_guard.py",
     "node scripts/check-github-transport-conformance.mjs",
-    "node scripts/check-repository-identity-conformance.mjs",
-    "node scripts/check-throughput-truth-audit.mjs"
+    "node scripts/check-repository-identity-conformance.mjs"
   ],
   "assumptions": [
-    "a reservation ref is keyed by the lease's draw sequence and its record is deterministic, so re-picking the same lease reuses the same reservation"
+    "the edge-dev scheduled task runs a watcher pass every 2 minutes",
+    "a slot-2 reviewer drawn for this PR and never started is a real governed non-start"
   ],
   "stop_conditions": [
+    "stop if the watcher reroutes slot 1 or any lease other than the staged slot 2",
     "stop if the change would need to touch a file outside allowed_paths"
   ],
-  "generation": 2
+  "generation": 6
 }
