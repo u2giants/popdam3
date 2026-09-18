@@ -5,6 +5,12 @@ import {
   validateCompletionRecord, isSuccessful, parseCompletionComment, findCompletionRecord,
   findDependencyCycles, validateDependencyDeclaration, classifyDependency, classifyDependencies, COMPLETION_RECORD_REQUIRED_FROM,
 } from './work-dependencies.mjs'
+import { expectedOperatorAssociation } from './repository-identity.mjs'
+
+// The trusted association follows the resolved repository owner (#3255): OWNER
+// under a personal account, MEMBER under the popcre organization.
+const TRUSTED_ASSOCIATION = expectedOperatorAssociation()
+const OTHER_ASSOCIATION = TRUSTED_ASSOCIATION === 'OWNER' ? 'MEMBER' : 'OWNER'
 
 const merged = (over = {}) => ({
   schema_version: COMPLETION_SCHEMA_VERSION, work_issue: 10, outcome: 'merged',
@@ -14,7 +20,7 @@ const ruling = (over = {}) => ({
   schema_version: COMPLETION_SCHEMA_VERSION, work_issue: 10, outcome: 'owner-ruling-recorded',
   ruling_url: 'https://github.com/u2giants/shared-db/issues/1', resolved_by: 'https://github.com/u2giants/shared-db/commit/abc1234', ...over,
 })
-const comment = (record,over={}) => ({ body: '```db-work-completion\n' + JSON.stringify(record) + '\n```',author_association:'OWNER',author:'u2giants',...over })
+const comment = (record,over={}) => ({ body: '```db-work-completion\n' + JSON.stringify(record) + '\n```',author_association:TRUSTED_ASSOCIATION,author:'u2giants',...over })
 
 // --- ONE SCHEMA, CONDITIONAL FIELDS ----------------------------------------
 
@@ -90,7 +96,7 @@ test('two completion records on one issue is an error, not latest-wins', () => {
 })
 
 test('only an explicitly identified repository owner can publish dependency completion',()=>{
-  for(const over of [{author_association:'NONE'},{author_association:undefined},{author:'attacker'},{author:undefined},{author_association:'MEMBER'},{author_association:'COLLABORATOR'}])assert.throws(()=>findCompletionRecord([comment(merged(),over)],{requireTrustedAuthor:true}),/operator u2giants with the OWNER association/)
+  for(const over of [{author_association:'NONE'},{author_association:undefined},{author:'attacker'},{author:undefined},{author_association:OTHER_ASSOCIATION},{author_association:'COLLABORATOR'}])assert.throws(()=>findCompletionRecord([comment(merged(),over)],{requireTrustedAuthor:true}),new RegExp(`operator u2giants with the ${TRUSTED_ASSOCIATION} association`))
   assert.deepEqual(findCompletionRecord([comment(merged())],{requireTrustedAuthor:true}),merged())
 })
 

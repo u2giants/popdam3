@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
+from production_business_risk_gate import REPOSITORY, preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
 
 
 def disable_background_git_maintenance(root):
@@ -179,7 +179,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             subprocess.CompletedProcess([],0,'{"author_association":"OWNER"}',""),
         ])
         sleeps=[]
-        result=gh_json("repos/u2giants/shared-db/issues/comments/7",
+        result=gh_json(f"repos/{REPOSITORY}/issues/comments/7",
             runner=lambda *a,**k: next(responses),sleep=sleeps.append)
         self.assertEqual(result,{"author_association":"OWNER"})
         self.assertEqual(sleeps,[1])
@@ -205,15 +205,15 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             # A live owner decision, and the recursive tree read that carries the
             # producer pin for a whole promotion (#2191). Both are irreducible
             # single calls with no batched alternative.
-            "repos/u2giants/shared-db/issues/comments/7",
-            "repos/u2giants/shared-db/git/trees/abc123?recursive=1",
+            f"repos/{REPOSITORY}/issues/comments/7",
+            f"repos/{REPOSITORY}/git/trees/abc123?recursive=1",
         ]
         single_attempt = [
-            "repos/u2giants/shared-db/pulls/1108",
-            "repos/u2giants/shared-db/pulls/1108/files?per_page=100",
-            "repos/u2giants/shared-db/commits/abc123/status",
-            "repos/u2giants/shared-db/actions/runs/33920952504",
-            "repos/u2giants/shared-db/git/ref/db-claims/20260816110750",
+            f"repos/{REPOSITORY}/pulls/1108",
+            f"repos/{REPOSITORY}/pulls/1108/files?per_page=100",
+            f"repos/{REPOSITORY}/commits/abc123/status",
+            f"repos/{REPOSITORY}/actions/runs/33920952504",
+            f"repos/{REPOSITORY}/git/ref/db-claims/20260816110750",
         ]
 
         def counting_runner(calls, stderr):
@@ -264,7 +264,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         def runner(*args,**kwargs):
             calls.append(1); return subprocess.CompletedProcess([],1,"","HTTP 404: Not Found")
         with self.assertRaisesRegex(RiskGateError,"HTTP 404"):
-            gh_json("repos/u2giants/shared-db/issues/comments/7",runner=runner,
+            gh_json(f"repos/{REPOSITORY}/issues/comments/7",runner=runner,
                 sleep=lambda _: self.fail("permanent absence slept"))
         self.assertEqual(len(calls),1)
 
@@ -289,26 +289,26 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     def test_pre_lane_rate_limit_403_waits_for_the_reset_then_succeeds(self):
         calls, sleeps = [], []
         runner, clock = self.rate_limit_runner(calls, reset_in=300)
-        result = gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner, sleep=sleeps.append,
+        result = gh_json(f"repos/{REPOSITORY}/pulls/1108", runner=runner, sleep=sleeps.append,
                          rate_limit_wait_seconds=900, clock=clock)
         self.assertEqual(result, {"ok": True})
-        self.assertEqual(calls, ["repos/u2giants/shared-db/pulls/1108", "rate_limit", "repos/u2giants/shared-db/pulls/1108"])
+        self.assertEqual(calls, [f"repos/{REPOSITORY}/pulls/1108", "rate_limit", f"repos/{REPOSITORY}/pulls/1108"])
         self.assertEqual(sleeps, [301])
 
     def test_lane_held_default_fails_fast_on_a_rate_limit(self):
         calls = []
         runner, clock = self.rate_limit_runner(calls, reset_in=60)
         with self.assertRaisesRegex(RiskGateError, "rate limit exceeded"):
-            gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner,
+            gh_json(f"repos/{REPOSITORY}/pulls/1108", runner=runner,
                     sleep=lambda _: self.fail("the lane-held invocation waited"), clock=clock)
-        self.assertEqual(calls, ["repos/u2giants/shared-db/pulls/1108"])
+        self.assertEqual(calls, [f"repos/{REPOSITORY}/pulls/1108"])
 
     def test_rate_limit_wait_is_bounded_and_never_applies_to_other_403s(self):
         # A reset past 15 minutes fails closed even with a larger budget.
         calls = []
         runner, clock = self.rate_limit_runner(calls, reset_in=16 * 60)
         with self.assertRaisesRegex(RiskGateError, "rate limit exceeded"):
-            gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner,
+            gh_json(f"repos/{REPOSITORY}/pulls/1108", runner=runner,
                     sleep=lambda _: self.fail("waited past the cap"), rate_limit_wait_seconds=3600, clock=clock)
         # Any other 403, including a SECONDARY limit, costs one call and no probe.
         for stderr in ("HTTP 403: Forbidden", "HTTP 403: Resource not accessible by integration",
@@ -317,19 +317,19 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 calls = []
                 runner, clock = self.rate_limit_runner(calls, reset_in=60, failures=5, stderr=stderr)
                 with self.assertRaises(RiskGateError):
-                    gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner,
+                    gh_json(f"repos/{REPOSITORY}/pulls/1108", runner=runner,
                             sleep=lambda _: self.fail(f"{stderr} slept"), rate_limit_wait_seconds=900, clock=clock)
-                self.assertEqual(calls, ["repos/u2giants/shared-db/pulls/1108"])
+                self.assertEqual(calls, [f"repos/{REPOSITORY}/pulls/1108"])
         # An unreadable reset is never guessed; a second exhaustion is not waited on again.
         calls = []
         runner, clock = self.rate_limit_runner(calls, reset_in=60, probe_ok=False)
         with self.assertRaises(RiskGateError):
-            gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner,
+            gh_json(f"repos/{REPOSITORY}/pulls/1108", runner=runner,
                     sleep=lambda _: self.fail("guessed a reset"), rate_limit_wait_seconds=900, clock=clock)
         calls, sleeps = [], []
         runner, clock = self.rate_limit_runner(calls, reset_in=60, failures=2)
         with self.assertRaises(RiskGateError):
-            gh_json("repos/u2giants/shared-db/pulls/1108", runner=runner, sleep=sleeps.append,
+            gh_json(f"repos/{REPOSITORY}/pulls/1108", runner=runner, sleep=sleeps.append,
                     rate_limit_wait_seconds=900, clock=clock)
         self.assertEqual(sleeps, [61])
 
@@ -1015,7 +1015,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             lambda endpoint: (seen.append(endpoint) or {"truncated": False, "tree": []}),
         )
         self.assertEqual(
-            seen, [f"repos/u2giants/shared-db/git/trees/{'1' * 40}?recursive=1"]
+            seen, [f"repos/{REPOSITORY}/git/trees/{'1' * 40}?recursive=1"]
         )
 
     def test_a_producer_pin_that_compared_nothing_is_refused(self):
@@ -1255,14 +1255,14 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             return subprocess.CompletedProcess([], 0, '{"truncated": false, "tree": []}', "")
 
         self.assertEqual(
-            gh_json(f"repos/u2giants/shared-db/git/trees/{'1' * 40}?recursive=1",
+            gh_json(f"repos/{REPOSITORY}/git/trees/{'1' * 40}?recursive=1",
                     runner=runner, sleep=lambda _s: None),
             {"truncated": False, "tree": []},
         )
         self.assertEqual(len(calls), 3)
         # Spent attempts still refuse; the gate does not fail open.
         with self.assertRaisesRegex(RiskGateError, "GitHub API request failed"):
-            gh_json(f"repos/u2giants/shared-db/git/trees/{'1' * 40}?recursive=1",
+            gh_json(f"repos/{REPOSITORY}/git/trees/{'1' * 40}?recursive=1",
                     runner=lambda cmd, **k: subprocess.CompletedProcess(
                         [], 1, "", "gh: HTTP 502"),
                     sleep=lambda _s: None)
@@ -1283,7 +1283,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             applied, main,
             self.preview_api({}, [], {}, [], compare={"status": "ahead", "behind_by": 0}, seen=seen),
         )
-        self.assertEqual(seen, [f"repos/u2giants/shared-db/compare/{applied}...{main}"])
+        self.assertEqual(seen, [f"repos/{REPOSITORY}/compare/{applied}...{main}"])
 
     def test_descendant_of_main_is_refused(self):
         """Inverting the compare arguments would make this pass. It must not.
@@ -2806,7 +2806,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                     return "identical-producer-blob"
 
                 def api(endpoint):
-                    if endpoint == f"repos/u2giants/shared-db/actions/runs/{original_run}":
+                    if endpoint == f"repos/{REPOSITORY}/actions/runs/{original_run}":
                         # `__replace__` returns a NON-DICT payload, which no
                         # amount of key overriding can express.
                         if original_run_shape and "__replace__" in original_run_shape:
@@ -2820,7 +2820,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                     if endpoint.endswith(f"runs/{original_run}/artifacts?per_page=100"):
                         return {"artifacts": [self.apply_artifact(
                             original_commit, artifact_id=99, run_id=original_run)]}
-                    if endpoint == "repos/u2giants/shared-db/actions/runs/7":
+                    if endpoint == f"repos/{REPOSITORY}/actions/runs/7":
                         if run_shape and "__replace__" in run_shape:
                             return run_shape["__replace__"]
                         return {"status": "completed", "conclusion": "success",
@@ -3471,7 +3471,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             sha, authored_merge(sha), main, ancestry,
             what="original apply run 555 dispatched at " + sha,
         )
-        self.assertEqual(seen, [f"repos/u2giants/shared-db/compare/{sha}...{main}"])
+        self.assertEqual(seen, [f"repos/{REPOSITORY}/compare/{sha}...{main}"])
         # A validated exact-main target still short-circuits on identity.
         prove_preview_producer_matches_main(
             main, exact_main(main), main,

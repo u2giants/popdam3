@@ -1,46 +1,77 @@
 {
   "schema_version": 1,
-  "generation": 2,
-  "work_issue": 3235,
+  "generation": 18,
+  "work_issue": 3199,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Fold case on the prepack code in the ColdLion /prepackDetail request-identity guard, so vendor cross-feed case drift (PPk133 vs PPK133) no longer aborts the backfill while genuinely different codes still refuse.",
-  "base_sha": "079fed75949a9785cc2b61923cf672cec9751031",
-  "dispatcher": "delegated source-data session continuing issue #3179 production phase",
-  "worker": "Claude GLM 5.3 source-data session, issue #3179",
-  "branch": "claude/issue-3179-prepack-case-drift",
-  "worktree": "C:/repos/shared-db/.claude/worktrees/prepack-case-3235",
+  "goal": "Implement issue #3199 Phases B and C: the self-service additive lane (fail-closed boundary classifier over the production tokenizer, route admission across the lane machinery and admission, merge-time enforcement inside the guarded merge, route-sync guard, AGENTS.md documentation) and the #2758 ephemeral-route hop table with C2 no-code-change outcome.",
+  "base_sha": "13efcd77aec38257d4efe073ee0f729ebb647e33",
+  "dispatcher": "ZCode session executing Albert's implement instruction for #3199",
+  "worker": "ZCode (GLM 5.3) repository-maintenance session",
+  "branch": "zcode/3199-self-service-lane-v2",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/orchestrator-load-impl",
   "allowed_paths": [
-    ".agent/completion.json",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "AGENTS.md",
+    "docs/agents/ephemeral-route-hop-table.md",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
+    "plan_orchestrator_required_load_reduction.md",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/check-self-service-additive-lane.mjs",
+    "scripts/check-self-service-additive-lane.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_self_service_boundary_lexing.py",
     ".agent/contract.json",
-    "tools/coldlion-landing-prepack.test.mjs",
-    "tools/coldlion-landing/lib/prepack-detail.mjs"
+    ".agent/completion.json",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs"
   ],
   "file_writes": [
-    ".agent/completion.json",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "AGENTS.md",
+    "docs/agents/ephemeral-route-hop-table.md",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
+    "plan_orchestrator_required_load_reduction.md",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/check-self-service-additive-lane.mjs",
+    "scripts/check-self-service-additive-lane.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_self_service_boundary_lexing.py",
     ".agent/contract.json",
-    "tools/coldlion-landing-prepack.test.mjs",
-    "tools/coldlion-landing/lib/prepack-detail.mjs"
+    ".agent/completion.json",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "Never fold case on the company comparison: no company drift has been observed and one must abort loudly with both spellings named.",
-    "Never match a blank requested key to any row: the guard must not invent a match.",
-    "Never change the landed prepack_code away from the row's own spelling: identities must not split into two rows.",
-    "Never author a migration or change any database shape.",
-    "Never close issue #3179; the originating session owns closure."
+    "No database write or structure change of any kind",
+    "No production workflow dispatch",
+    "No weakening of any safety gate, required check, or caller check",
+    "NON_STRUCTURAL_EXITS stays untouched",
+    "The lane boundary never grows beyond {crm,pim,dam}"
   ],
   "required_checks": [
-    "node --test tools/coldlion-landing-prepack.test.mjs"
+    "node --test scripts/check-self-service-additive-lane.test.mjs",
+    "node --test scripts/check-lane-route-sync.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "python -m unittest scripts.test_self_service_boundary_lexing",
+    "python -m unittest scripts.test_production_preview_skip",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "bash scripts/check-sql.sh",
+    "ai-task-gates check --before pr-wait"
   ],
   "assumptions": [
-    "The drift is vendor-side cross-feed inconsistency: the harvest spelling came from a ColdLion feed this repository landed verbatim (exact-trim, no case change), and /prepackDetail echoed the same real key with different casing (run 35288752430: asked PPk133, row answers PPK133).",
-    "Landing the row's spelling keeps one identity: the on-conflict grain keys on the staged row, so a replay through either harvest spelling upserts onto the same row.",
-    "Generation 2 exists because main advanced to 079fed75 (two documentation-only pull requests, #3237 and #3238); the branch was refreshed by merge and the implementation diff is unchanged."
+    "Phase B edits the protected coordination source scripts/manage-migration-author-lanes.mjs; PR #3228 queues behind #3215 and #3217 on that file by design.",
+    "The classifier consumes the production tokenizer through new output views only; the default folded view is byte-identical for every existing consumer (pinned by tests)."
   ],
   "stop_conditions": [
-    "Stop and report a blocker if folding case ever lets two DIFFERENT real codes match (a collision other than case drift still aborts, so this would indicate a guard defect).",
-    "Stop on any unresolved guard or reviewer refusal; a new head answering it requires a fresh exact-head review."
+    "Stop if any change would weaken a safety gate or touch the database",
+    "Stop if the boundary classifier cannot be made fail-closed"
   ]
 }

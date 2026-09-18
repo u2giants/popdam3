@@ -376,13 +376,25 @@ export function selectKeys({ harvested, done, refused, mode, from, recentDays, l
   return limit === null ? selection : selection.slice(0, limit);
 }
 
-/** The reconciliation read: API-side evidence (succeeded runs) against the landed table, refusals counted. */
+/**
+ * The reconciliation read: API-side evidence against the landed table, PER KEY.
+ *
+ * The refresh regime re-reads answered orders, so one key accumulates MANY succeeded
+ * sync_run rows. Counting runs (the first live refresh, 2026-09-18, reported 7,016
+ * "keysDone" over 3,753 actual keys and failed its own agreement check) made the
+ * reconciliation permanently disagree once refresh exists. Each key is therefore
+ * counted once, at its LATEST succeeded run: the rows that run fetched are the rows
+ * that run's upsert landed, so the sums are comparable again.
+ */
 export function reconcileSql(companyCode) {
-  return `with done as (
-  select (request_params->>'prodOrderNo')::bigint as prod_order_no, rows_fetched
+  return `with runs as (
+  select (request_params->>'prodOrderNo')::bigint as prod_order_no, rows_fetched, finished_at
     from coldlion.sync_run
    where endpoint = '/proddetails' and company_code = ${sqlText(companyCode)}
      and status = 'succeeded' and request_params ? 'prodOrderNo'
+), done as (
+  select distinct on (prod_order_no) prod_order_no, rows_fetched
+    from runs order by prod_order_no, finished_at desc
 ), landed as (
   select prod_order_no, count(*) as n from coldlion.prod_detail
    where company_code = ${sqlText(companyCode)} group by 1

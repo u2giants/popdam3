@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { currentRepository, expectedOperatorAssociation } from './lib/repository-identity.mjs'
+// Fixtures follow the resolved repository identity and its operator association (#3255).
+const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import test from 'node:test'
 import { parseArgs, runGovernedReview as executeGovernedReview,resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER } from './run-governed-review.mjs'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
@@ -10,7 +13,7 @@ import { anyVerdictFor } from './lib/review-verdict.mjs'
 
 const options={issue:1824,pr:2000,headSha:'a'.repeat(40),reviewer:'glm-5.3',wrapper:'ai-glm',worktree:'C:/review',slot:1,wrapperArgs:['review']}
 const fixtureFiles=[{filename:'source.txt',status:'modified'}]
-const fixtureSource=(input)=>({repository:'u2giants/shared-db',pr:input.pr,baseRef:'develop',targetSha:'b'.repeat(40),headSha:input.headSha,mergeBase:'c'.repeat(40),files:fixtureFiles,fileSetSha256:createHash('sha256').update(JSON.stringify(fixtureFiles)).digest('hex'),sourceDigest:'d'.repeat(64)})
+const fixtureSource=(input)=>({repository:THIS_REPO,pr:input.pr,baseRef:'develop',targetSha:'b'.repeat(40),headSha:input.headSha,mergeBase:'c'.repeat(40),files:fixtureFiles,fileSetSha256:createHash('sha256').update(JSON.stringify(fixtureFiles)).digest('hex'),sourceDigest:'d'.repeat(64)})
 const fixtureReceipt=(input)=>({schema_version:1,identity:{repository:input.worktree,base:'c'.repeat(40),head:input.headSha,source_digest:'d'.repeat(64)},packet_sha256:'e'.repeat(64)})
 const fixturePaths={platform:'win32',realpath:(path)=>path,lstat:()=>({isSymbolicLink:()=>false,isDirectory:()=>true})}
 function runGovernedReview(input,deps){return executeGovernedReview(input,{recordStart:()=>'refs/db-review-started/fixture',sourceResolver:fixtureSource,sourcePathOptions:fixturePaths,receiptFactory:()=>({path:'C:/review/.ai/reviews/source.json',read:()=>fixtureReceipt(input),bind:()=> 'C:/review/.ai/reviews/source.json.binding.json'}),...deps})}
@@ -33,12 +36,12 @@ test('all qualified wrappers receive immutable source arguments without rewritin
 })
 
 function sourceIo(overrides={}){
-  const pr={number:options.pr,state:'open',merged:false,base:{ref:'develop',sha:'b'.repeat(40),repo:{full_name:'u2giants/shared-db'}},head:{sha:options.headSha},...overrides.pr}
+  const pr={number:options.pr,state:'open',merged:false,base:{ref:'develop',sha:'b'.repeat(40),repo:{full_name:THIS_REPO}},head:{sha:options.headSha},...overrides.pr}
   const seen=[]
   return {seen,digest:()=>overrides.digest??'d'.repeat(64),github:(args)=>({status:0,stdout:JSON.stringify(args[1].includes('/compare/')?{base_commit:{sha:'c'.repeat(40)},merge_base_commit:{sha:'c'.repeat(40)},files:fixtureFiles,...overrides.comparison}:pr)}),git:(_command,args)=>{
     const op=args[2];seen.push(args.slice(2))
     if(overrides.fail===op)return{status:1,stdout:''}
-    const stdout={remote:'https://github.com/u2giants/shared-db.git','rev-parse':options.headSha,status:'','cat-file':'','merge-base':'c'.repeat(40),diff:'M\0source.txt\0',...overrides.stdout}[op]
+    const stdout={remote:`https://github.com/${THIS_REPO}.git`,'rev-parse':options.headSha,status:'','cat-file':'','merge-base':'c'.repeat(40),diff:'M\0source.txt\0',...overrides.stdout}[op]
     return{status:0,stdout}
   }}
 }
@@ -47,7 +50,7 @@ test('source resolver binds live non-main PR target to local merge-base',()=>{
 })
 test('source resolver preserves Git SSH transports and refuses other users or hosts',()=>{
   const host='github.com',user='git'
-  for(const remote of [`${user}@${host}:u2giants/shared-db.git`,`ssh://${user}@${host}/u2giants/shared-db.git`])assert.deepEqual(resolveReviewSource(options,sourceIo({stdout:{remote}})),fixtureSource(options))
+  for(const remote of [`${user}@${host}:${THIS_REPO}.git`,`ssh://${user}@${host}/${THIS_REPO}.git`])assert.deepEqual(resolveReviewSource(options,sourceIo({stdout:{remote}})),fixtureSource(options))
   for(const remote of [`other@${host}:u2giants/shared-db.git`,`ssh://other@${host}/u2giants/shared-db.git`,`${user}@elsewhere:u2giants/shared-db.git`])assert.throws(()=>resolveReviewSource(options,sourceIo({stdout:{remote}})),/repository/)
 })
 test('source resolver binds exact renamed and deleted files including unquoted paths',()=>{
@@ -273,7 +276,7 @@ test('issue 2075: recording failure voids the posted findings comment so the orp
   assert.match(thrown.message,/lease changed/)
   const patch=calls.find((call)=>call.verb==='PATCH')
   assert.ok(patch,'the findings comment must be edited on the recording-failure path')
-  assert.equal(patch.url,'repos/u2giants/shared-db/issues/comments/987654')
+  assert.equal(patch.url,`repos/${THIS_REPO}/issues/comments/987654`)
   assert.equal(verdictFromOutput(patch.body,options.headSha),null)
   // ENVELOPE FIDELITY (grok r2080c Medium): a GitHub ISSUE comment carries no
   // `commit_id`. The body itself still quotes the head inside the voided line,

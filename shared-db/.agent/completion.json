@@ -1,30 +1,83 @@
 {
   "schema_version": 1,
-  "work_issue": 3235,
+  "work_issue": 3199,
   "outcome": "ready-for-merge",
-  "pr": 3236,
+  "pr": 3228,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3235/2",
-  "contract_sha256": "25b5b1b95095571d12febb947495748afcbc2ce2228c1f1e4a97fdf2947636a4",
-  "head_sha": "02a0ddd95b637894f8f388c20eb8a5c96b8dc701",
+  "contract_ref": "refs/db-contracts/3199/18",
+  "contract_sha256": "ff224f3f2fb7a0a7fcccc20ebb0743a662231646843a19597605359fedf87bee",
+  "head_sha": "16709e929b6733e9f83169204f36fff18149fd1d",
   "files_changed": [
     ".agent/completion.json",
     ".agent/contract.json",
-    "tools/coldlion-landing-prepack.test.mjs",
-    "tools/coldlion-landing/lib/prepack-detail.mjs"
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "AGENTS.md",
+    "docs/agents/ephemeral-route-hop-table.md",
+    "docs/verification/throughput-guard-truth-audit-20260828.json",
+    "plan_orchestrator_required_load_reduction.md",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/check-self-service-additive-lane.mjs",
+    "scripts/check-self-service-additive-lane.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_self_service_boundary_lexing.py"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node --test tools/coldlion-landing-prepack.test.mjs",
+      "command": "node --test scripts/check-self-service-additive-lane.test.mjs",
       "exit_code": 0,
-      "evidence": "34/34 pass, with a new test pinning the live drift shape verbatim (asked PPk133, row answers PPK133 passes; the landed key keeps the row spelling; a different code still refuses; a blank asked key refuses; the company comparison stays case-sensitive)."
+      "evidence": "20 dirty-first fixtures pass, including the Grok-review holes (FK targets, SECURITY DEFINER, RLS-before-grant, CREATE OR REPLACE, dflow/app escapes, riding-along workflows, both sides of ADD COLUMN)."
+    },
+    {
+      "command": "node --test scripts/check-lane-route-sync.test.mjs",
+      "exit_code": 0,
+      "evidence": "4/4 — route machinery, admission, workflow invocation and AGENTS.md prose agree; the B2/B3 ordering rule is enforced permanently."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "604/604 including the every-work-type-keeps-an-exit family; NON_STRUCTURAL_EXITS untouched."
+    },
+    {
+      "command": "python -m unittest scripts.test_self_service_boundary_lexing",
+      "exit_code": 0,
+      "evidence": "6/6 pinning the tokenizer spans and keep_dollar_quoted views, including default-view byte identity."
+    },
+    {
+      "command": "python -m unittest scripts.test_production_preview_skip",
+      "exit_code": 0,
+      "evidence": "31/31 — the production gate consumers of the tokenizer are unaffected by the new output-only parameters."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=309 (both new workflow guard steps registered as excluded presence checks)."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed; zero migrations added."
+    },
+    {
+      "command": "ai-task-gates check --before pr-wait",
+      "exit_code": 0,
+      "evidence": "pr-wait may start; exact-head independent review proceeds through this pull request."
     }
   ],
   "assumptions_resolved": [
-    "The drift was vendor-side cross-feed inconsistency, proved by the enriched refusal in run 35288752430 naming both spellings; the harvest stores vendor-emitted values verbatim (exact-trim, no case change), so PPk133 came from a ColdLion feed.",
-    "Generation 2 follows the documentation-only main advance to 079fed75 (#3237, #3238); the branch was refreshed by merge (02a0ddd9) and the implementation diff is unchanged."
+    "Phase B edits the protected coordination source; PR #3228 queues behind #3215 and #3217 on that file by the collision guard design, and merges only after they clear.",
+    "The tokenizer gained output-only parameters; the default view is pinned byte-identical so every existing ALLOWLIST consumer is unaffected.",
+    "Phase A merged first as PR #3216 (13efcd77); this branch is cut from that merged main, not stacked on the A3 branch.",
+    "Generation 12 follows the main advance through #3246, #3215 and #3217; the branch was refreshed by merge (3ef56c4d) — the lanes manager and test file auto-merged with those changes — and the completion was re-verified at the merged head by a successor ZCode session clearing the protected-source chain for #3232.",
+    "Review round 2 (governed Grok REVISE at 5acb1b4e) was answered in-repo at 946894e9: the Critical routing fork (derivePrOperationRoute, pinned by test), both High boundary bypasses (single-quoted bodies refuse by name; the grant role-list grammar terminates before WITH GRANT OPTION), the empty-file refusal, the {crm,pim,dam} admission confinement, the swapped truth-audit dispositions, and the python alias fallback. One recorded residual: the merge-time route is read from the live issue body rather than a pinned claim field (defense in depth; exact-head review still required).",
+    "Review round 3 (governed Qwen REVISE at dbec1c67) answered at bee7c7a7: completeOutcome accepts both structural routes (H1) with an outcome route test; comment_on requires a boundary-qualified target (M1) with fixtures; the add-column lock rationale is documented (M2); the queue audit runs dependency and admission checks for the self-service bucket (M3); the router entry, stale wordings, dead code and evidence inaccuracies (round-2 L3/L4/L5) are corrected. The lane fixture file now carries 25 tests.",
+    "Generation 16 follows a further main advance (1886fb38, coldlion work); refreshed by merge 87b8df24 with only the .agent pair resolved. The Muse APPROVE at e63ba86f covers this head by content equivalence: main touched no file this pull request touches outside the ignored .agent evidence files."
   ],
   "stop_conditions_hit": []
 }

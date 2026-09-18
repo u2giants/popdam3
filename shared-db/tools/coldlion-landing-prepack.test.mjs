@@ -225,12 +225,60 @@ test("zero-row codes are recorded, not fatal, and every other key still lands", 
   assert.equal(projected.rows.length, 3);
 });
 
+test("both harvest spellings of a drifted key are accounted for by one returned spelling", async () => {
+  // The live 2026-09-18 shape (run 35294603177): the harvest holds PPk133 AND
+  // PPK133 as distinct codes; both responses answer PPK133. The old cross-key
+  // arithmetic (2 asked ≠ 0 zero-row + 1 distinct returned) aborted this.
+  const responses = new Map([
+    ["PPk133", [sourceRow({ prePackCode: "PPK133", sequence: 1 })]],
+    ["PPK133", [sourceRow({ prePackCode: "PPK133", sequence: 1 })]],
+    ["PPK0009", []],
+  ]);
+  const collected = await collectPrepackDetail({
+    companyCode: "SYNCO", apiKey: "hidden", keys: ["PPk133", "PPK133", "PPK0009"], runId: RUN,
+    fetchOptions: { fetchImpl: fetchImplFor(responses), pauseMs: 0 },
+  });
+  assert.deepEqual(collected.zeroRowKeys, ["PPK0009"]);
+  assert.equal(collected.rowsFetched, 2);
+  // Identical rows for the same real key project onto one identity (the grain
+  // deduplicates by (company, prepack, sequence)), never two rows.
+  assert.equal(projectPrepackRows(collected.sourceRows, { runId: RUN, fetchedAt: NOW }).rows.length, 1);
+});
+
+test("a drifted spelling answered by its sibling is accounted even when it itself returns zero rows", async () => {
+  // Mixed shape: PPk133 answers PPK133; the PPK133 ask itself returns [].
+  // Per-key accounting must accept this — the code IS accounted for by rows —
+  // where the old length arithmetic would have read 2 asked ≠ 1 zero-row + 1.
+  const responses = new Map([
+    ["PPk133", [sourceRow({ prePackCode: "PPK133", sequence: 1 })]],
+    ["PPK133", []],
+  ]);
+  const collected = await collectPrepackDetail({
+    companyCode: "SYNCO", apiKey: "hidden", keys: ["PPk133", "PPK133"], runId: RUN,
+    fetchOptions: { fetchImpl: fetchImplFor(responses), pauseMs: 0 },
+  });
+  assert.deepEqual(collected.zeroRowKeys, ["PPK133"]);
+  assert.equal(collected.rowsFetched, 1);
+});
+
+test("two spellings returning DIFFERING rows for one grain refuse loudly", async () => {
+  // Identical bytes across two asks are one row; differing bytes are a real
+  // version conflict for one key and must never be collapsed silently.
+  const responses = new Map([
+    ["PPk133", [sourceRow({ prePackCode: "PPK133", sequence: 1, quantity: 1 })]],
+    ["PPK133", [sourceRow({ prePackCode: "PPK133", sequence: 1, quantity: 3 })]],
+  ]);
+  await assert.rejects(
+    collectPrepackDetail({ companyCode: "SYNCO", apiKey: "hidden", keys: ["PPk133", "PPK133"], runId: RUN, fetchOptions: { fetchImpl: fetchImplFor(responses), pauseMs: 0 } }),
+    /conflicting rows for one natural key across two requested spellings/,
+  );
+});
+
 test("a response that is not a bare array is malformed and fails loudly", async () => {
   const paged = async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ content: [], totalElements: 0 }) });
   await assert.rejects(
     collectPrepackDetail({ companyCode: "SYNCO", apiKey: "hidden", keys: ["PPK0001"], runId: RUN, fetchOptions: { fetchImpl: paged, pauseMs: 0 } }),
-    /plain array/,
-  );
+    /plain array/,  );
   await assert.rejects(fetchArrayMaster("/prepackDetail", { companyCode: "SYNCO", prepackCode: "PPK0001" }, "hidden", { fetchImpl: paged, pauseMs: 0 }), /plain array/);
 });
 

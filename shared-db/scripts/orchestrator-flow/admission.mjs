@@ -10,6 +10,14 @@ export class AdmissionError extends Error {
 }
 
 export const SERVICE_CLASSES = Object.freeze(['urgent-application', 'standard-application', 'maintenance'])
+// The two ROUTES a structural change may be admitted under (issue #3199 Phase
+// B2). `shared-db-orchestrator` is the full triage path; `self-service-additive`
+// admits the same structural work WITHOUT orchestrator triage when the merge-time
+// boundary classifier (scripts/check-self-service-additive-lane.mjs) holds —
+// additive objects confined to the app-owned {crm,pim,dam} schemas. Every other
+// gate (claim, object locks, version reservation, reviewers, serial lanes,
+// guarded merge) is unchanged for both routes.
+export const STRUCTURAL_ROUTES = Object.freeze(['shared-db-orchestrator', 'self-service-additive'])
 export const STRUCTURAL_CHANGE_TYPES = Object.freeze([
   'schema', 'table', 'column', 'type', 'view', 'function', 'trigger',
   'rls-policy', 'grant', 'index', 'constraint', 'extension', 'publication',
@@ -83,11 +91,28 @@ export function evaluateAdmission(issue, scope, impact = null) {
     ])
     throw new AdmissionError(result.reason, result)
   }
-  if (scope.workType !== 'structural' || scope.route !== 'shared-db-orchestrator') {
+  if (scope.workType !== 'structural' || !STRUCTURAL_ROUTES.includes(scope.route)) {
     const result = refusal(issue, scope, `actual structural change is misrouted as ${scope.workType}/${scope.route}`, [
-      'work_type structural', 'route shared-db-orchestrator',
+      'work_type structural', `route one of ${STRUCTURAL_ROUTES.join(' or ')}`,
     ])
     throw new AdmissionError(result.reason, result)
+  }
+  // #3199 round-2 review (Medium): the self-service lane exists ONLY for the
+  // app-owned schemas its boundary classifier enforces {crm, pim, dam}. Without
+  // this check a self-routed issue could take exclusive collision locks and a
+  // version reservation on core/plm/... without orchestrator triage; merge-time
+  // classification would later refuse the SQL, but the locks would stand until
+  // released. The write grammar is `kind schema.name`; a claim with no dotted
+  // schema (e.g. `schema core`) is outside by construction — the lane never
+  // creates schemas.
+  if (scope.route === 'self-service-additive') {
+    const outside = [...(scope.writes ?? [])].filter((value) => {
+      const schema = /^(?:[a-z]+ )?(?:"([^"]+)"|([a-z_][a-z0-9_$]*))\./i.exec(String(value).trim())
+      return !['crm', 'pim', 'dam'].includes((schema?.[1] ?? schema?.[2] ?? '').toLowerCase())
+    })
+    if (outside.length) {
+      throw new AdmissionError(`issue #${issue.number} routes self-service-additive but writes outside the {crm,pim,dam} app-owned schemas: ${outside.join(', ')} — shared-schema objects need the orchestrator route`)
+    }
   }
   if (scope.status !== 'ready') throw new AdmissionError(`issue #${issue.number} is ${scope.status}, not ready`)
   if (!scope.writes?.length) throw new AdmissionError(`issue #${issue.number} names no exact database object write`)

@@ -131,6 +131,7 @@ export function watchOnce(io, { apply = false, drawnSince = null } = {}) {
   for (const row of io.readLeases()) {
     let { assignment, decision } = leaseStartDecision(row, now)
     if (decision.action === 'governed-return-and-reroute' && drawnSince && !(Date.parse(row.heldSinceIso) >= Date.parse(drawnSince))) decision = { action: 'skip', reason: 'lease drawn before --drawn-since; left to the ordinary silence path' }
+    if (decision.action === 'governed-return-and-reroute' && apply) decision = rerouteBudgetDecision(io, row, decision)
     const entry = { lease: row.leaseRef, reviewer: row.reviewer, issue: row.issue, pr: row.pr, sequence: row.sequence, slot: row.slot, held_since: row.heldSinceIso, action: decision.action, reason: decision.reason ?? null }
     out.push(entry)
     if (decision.action !== 'governed-return-and-reroute' || !apply) continue
@@ -178,6 +179,25 @@ export function watchOnce(io, { apply = false, drawnSince = null } = {}) {
 
 export const RESUME_ATTEMPT_LIMIT = 12
 
+// A replacement lease is itself watched, so a slot whose replacements never start either would
+// otherwise be rerouted every pass, forever, once the watcher runs unattended (#3242). Each
+// (issue, PR, slot) gets this many automatic reroutes; after that the lease is left to the
+// ordinary two-hour silence path. Reroute refs do not carry the head, so the budget spans heads.
+export const AUTO_REROUTES_PER_SLOT = 2
+
+export function priorReroutesForSlot(refNames, row) {
+  const prefix = `refs/db-start-reroutes/reviewer/review-${Number(row.issue)}-${Number(row.pr)}-seq`
+  const suffix = `-slot${Number(row.slot)}`
+  return [...new Set(refNames)].filter((ref) => ref.startsWith(prefix) && ref.endsWith(suffix) && /^\d+$/.test(ref.slice(prefix.length, -suffix.length))).length
+}
+
+function rerouteBudgetDecision(io, row, decision) {
+  if (typeof io.rerouteRefs !== 'function') return decision
+  let prior
+  try { prior = priorReroutesForSlot(io.rerouteRefs(), row) } catch (error) { return { action: 'skip', reason: `reroute history is unreadable: ${String(error?.message ?? error).slice(0, 200)}` } }
+  return prior >= AUTO_REROUTES_PER_SLOT ? { action: 'skip', reason: `automatic reroute budget exhausted (${prior} for this slot); left to the ordinary silence path` } : decision
+}
+
 /** Reservations with neither a dispatch acknowledgement nor a moot marker, with failed-resume counts. */
 export function pendingFromRefNames(refs) {
   const names = new Set(refs)
@@ -192,12 +212,13 @@ export function liveWatchIo(repo, env = process.env) {
     return JSON.parse(run.stdout)
   }
   const durable = canaryLiveIo(repo).durable
-  const pendingReroutes = () => {
-    const listed = JSON.parse(runGitHubCommand(['api', '--paginate', '--slurp', `repos/${repo}/git/matching-refs/db-start-reroutes/reviewer/`]) || '[]').flat()
-    return pendingFromRefNames(listed.map((row) => row.ref))
-  }
-  return { now: () => new Date().toISOString(), readLeases: () => manager(['--reviewer-start-watch-leases']), manager, durable, pendingReroutes }
+  const rerouteRefs = () => JSON.parse(runGitHubCommand(['api', '--paginate', '--slurp', `repos/${repo}/git/matching-refs/db-start-reroutes/reviewer/`]) || '[]').flat().map((row) => row.ref)
+  const pendingReroutes = () => pendingFromRefNames(rerouteRefs())
+  return { now: () => new Date().toISOString(), readLeases: () => manager(['--reviewer-start-watch-leases']), manager, durable, rerouteRefs, pendingReroutes }
 }
+
+// An unattended pass that could not finish a reroute must fail its run, not report success.
+export const exitCodeFor = (rows) => (rows.some((row) => row.error) ? 1 : 0)
 
 export function main(argv = process.argv.slice(2)) {
   const i = argv.indexOf('--repo')
@@ -208,7 +229,7 @@ export function main(argv = process.argv.slice(2)) {
   const drawnSince = d >= 0 ? argv[d + 1] : null
   const rows = watchOnce(liveWatchIo(repo), { apply, drawnSince })
   console.log(JSON.stringify({ at: new Date().toISOString(), slo_ms: START_SLO_MS, apply, leases: rows }, null, 2))
-  return 0
+  return exitCodeFor(rows)
 }
 
 if (process.argv[1] && path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1])) process.exitCode = main()

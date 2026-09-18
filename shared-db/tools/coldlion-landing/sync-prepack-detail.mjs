@@ -45,6 +45,7 @@ import {
   projectPrepackRows,
   reduceHarvestRows,
 } from "./lib/prepack-detail.mjs";
+import { sourceHash } from "./lib/values.mjs";
 
 const REQUESTED_BY = "coldlion-landing sync-prepack-detail";
 const DEFAULT_PAUSE_MS = 3_000;
@@ -141,12 +142,49 @@ export async function collectPrepackDetail({ companyCode, apiKey, keys, runId, f
     assertRowsAnswerRequest(response, params);
     sourceRows.push(...response);
   }
-  if (keys.length !== zeroRowKeys.length + new Set(sourceRows.map((row) => row.prePackCode)).size) {
-    throw Object.assign(new Error("incomplete key coverage: the fetched rows do not account for every requested code"), {
+  // Two harvest spellings of one drifted key (#3235) can both be asked in one
+  // run and both return the SAME vendor row (the responses answer the row's
+  // own spelling). Collect each such row once: identical bytes for one grain
+  // are one row fetched twice, not a duplicate. Differing bytes for one grain
+  // are a real version conflict and refuse loudly, exactly as two conflicting
+  // rows inside a single response would.
+  const seen = new Map();
+  const dedupedRows = [];
+  for (const row of sourceRows) {
+    const grain = [row.companyCode, row.prePackCode, row.sequence].map((value) => String(value ?? "").trim()).join("\u001f");
+    const hash = sourceHash(row);
+    const prior = seen.get(grain);
+    if (prior !== undefined) {
+      if (prior !== hash) {
+        throw Object.assign(new Error(`${PREPACK_DETAIL_SPEC.endpoint} returned conflicting rows for one natural key across two requested spellings`), {
+          endpoint: PREPACK_DETAIL_SPEC.endpoint,
+        });
+      }
+      continue;
+    }
+    seen.set(grain, hash);
+    dedupedRows.push(row);
+  }
+  // Key-coverage accounting, case-folded to match the request-identity guard
+  // (#3235): the vendor emits one real key through other feeds as e.g. PPk133
+  // while /prepackDetail answers PPK133, and the harvest can hold BOTH
+  // spellings as distinct codes whose responses all answer one spelling
+  // (run 35294603177 — the old cross-key arithmetic read that as a mismatch).
+  // Per-key accounting instead: every asked code must be accounted for by
+  // either its own zero-row response or returned rows answering it
+  // case-insensitively. A row answering a code unrelated to the request never
+  // reaches this count: assertRowsAnswerRequest has already refused it.
+  const answered = new Set(dedupedRows.map((row) => String(row.prePackCode ?? "").trim().toUpperCase()));
+  const zeroRowSet = new Set(zeroRowKeys);
+  const unaccounted = keys.filter(
+    (code) => !zeroRowSet.has(code) && !answered.has(String(code ?? "").trim().toUpperCase()),
+  );
+  if (unaccounted.length) {
+    throw Object.assign(new Error(`incomplete key coverage: ${unaccounted.length} requested code(s) have neither a zero-row response nor rows answering them`), {
       endpoint: PREPACK_DETAIL_SPEC.endpoint,
     });
   }
-  return { sourceRows, zeroRowKeys, evidence, rowsFetched: sourceRows.length };
+  return { sourceRows: dedupedRows, zeroRowKeys, evidence, rowsFetched: sourceRows.length };
 }
 
 function uniformStatus(evidence, field) {

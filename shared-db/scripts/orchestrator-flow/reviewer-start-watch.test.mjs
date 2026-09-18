@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RESUME_ATTEMPT_LIMIT, leaseStartDecision, managerArgs, mootable, pendingFromRefNames, rowFromRecord, runStep, watchOnce } from './reviewer-start-watch.mjs'
+import { AUTO_REROUTES_PER_SLOT, RESUME_ATTEMPT_LIMIT, exitCodeFor, leaseStartDecision, priorReroutesForSlot, managerArgs, mootable, pendingFromRefNames, rowFromRecord, runStep, watchOnce } from './reviewer-start-watch.mjs'
 
 const head = 'b'.repeat(40)
 const drawn = '2026-09-16T12:00:00.000Z'
@@ -221,4 +221,42 @@ test('a permanently refused resume is recorded per attempt and closed with a ter
   const last = watchOnce(io, { apply: true, drawnSince: '2026-09-16T00:00:00.000Z' })
   assert.equal(last[0].gave_up, true)
   assert.match(created.get(`${ref}--moot`).reason, /resume attempts exhausted/)
+})
+
+test('prior automatic reroutes are counted per issue, PR and slot, ignoring subrefs and other slots', () => {
+  const base = 'refs/db-start-reroutes/reviewer/review-10-20-seq'
+  const refs = [`${base}3-slot1`, `${base}3-slot1--dispatch-ack`, `${base}7-slot1`, `${base}7-slot1`, `${base}4-slot2`, 'refs/db-start-reroutes/reviewer/review-10-200-seq5-slot1', 'refs/db-start-reroutes/reviewer/review-110-20-seq5-slot1']
+  assert.equal(priorReroutesForSlot(refs, { issue: 10, pr: 20, slot: 1 }), 2)
+  assert.equal(priorReroutesForSlot(refs, { issue: 10, pr: 20, slot: 2 }), 1)
+})
+
+test('an unattended watcher stops rerouting a slot whose replacements keep not starting', () => {
+  const calls = []
+  const history = Array.from({ length: AUTO_REROUTES_PER_SLOT }, (_, i) => `refs/db-start-reroutes/reviewer/review-10-20-seq${i + 1}-slot1`)
+  const io = { now: () => late, readLeases: () => [row()], manager: (args) => { calls.push(args); return {} }, durable: memoryDurable(), rerouteRefs: () => history }
+  const [entry] = watchOnce(io, { apply: true, drawnSince: drawn })
+  assert.equal(entry.action, 'skip')
+  assert.match(entry.reason, /budget exhausted/)
+  assert.equal(calls.length, 0)
+  assert.equal(entry.reroute, undefined)
+})
+
+test('an unreadable reroute history refuses the reroute instead of assuming a clean budget', () => {
+  const io = { now: () => late, readLeases: () => [row()], manager: () => { throw new Error('must not run') }, durable: memoryDurable(), rerouteRefs: () => { throw new Error('HTTP 502') } }
+  const [entry] = watchOnce(io, { apply: true, drawnSince: drawn })
+  assert.equal(entry.action, 'skip')
+  assert.match(entry.reason, /unreadable: HTTP 502/)
+})
+
+test('a slot under its budget is still rerouted', () => {
+  const io = { now: () => late, readLeases: () => [row()], manager: () => ({}), durable: memoryDurable(), rerouteRefs: () => ['refs/db-start-reroutes/reviewer/review-10-20-seq1-slot1'] }
+  const [entry] = watchOnce(io, { apply: true, drawnSince: drawn })
+  assert.equal(entry.action, 'governed-return-and-reroute')
+  assert.ok(entry.reroute?.ref)
+})
+
+test('a pass that could not finish a reroute exits non-zero', () => {
+  assert.equal(exitCodeFor([{ action: 'wait' }, { action: 'governed-return-and-reroute', reroute: {} }]), 0)
+  assert.equal(exitCodeFor([{ action: 'governed-return-and-reroute', error: 'replace refused' }]), 1)
+  assert.equal(exitCodeFor([{ resumed: 'refs/x', error: 'boom' }]), 1)
 })

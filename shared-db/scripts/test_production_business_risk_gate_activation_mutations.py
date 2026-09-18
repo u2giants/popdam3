@@ -99,7 +99,7 @@ class ProveActivationGuardTests(unittest.TestCase):
 
     def api(self, shared=None, ai=None):
         pulls = {
-            "u2giants/shared-db/pulls/": {"merged": True, "merge_commit_sha": "a" * 40, **(shared or {})},
+            f"{gate.REPOSITORY}/pulls/": {"merged": True, "merge_commit_sha": "a" * 40, **(shared or {})},
             "u2giants/ai-devops/pulls/": {"merged": True, "merge_commit_sha": "b" * 40, **(ai or {})},
         }
         def read(endpoint):

@@ -1,4 +1,7 @@
 import test from 'node:test'
+import { currentRepository, expectedOperatorAssociation } from './lib/repository-identity.mjs'
+// Fixtures follow the resolved repository identity and its operator association (#3255).
+const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import assert from 'node:assert/strict'
 import { authorizeRepositoryMaintenanceStatus, EXCLUSIVE_REFS, MUTEX_REF, selectNewestCommitStatus } from './manage-migration-author-lanes.mjs'
 
@@ -24,7 +27,7 @@ function fakeIo({files=prose,liveHead=head,production=null,releaseFails=false,pr
     readRef:(ref)=>refs.get(ref)??null,
     createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},
     deleteRef:(ref)=>{if(releaseFails&&ref===MUTEX_REF)throw new Error('release failed');refs.delete(ref)},
-    getPr:()=>prSequence?.shift()??({base:{sha:base,ref:'main',repo:{full_name:'u2giants/shared-db'}},head:{sha:liveHead}}),
+    getPr:()=>prSequence?.shift()??({base:{sha:base,ref:'main',repo:{full_name:THIS_REPO}},head:{sha:liveHead}}),
     comparePullRequestFiles:(seenBase,seenHead)=>{assert.equal(seenBase,base);assert.equal(seenHead,head);return files},
     postCommitStatus:(sha,status)=>{statuses.push({sha,...status});return status},
     getCommitStatus:()=>existingStatus,
@@ -92,7 +95,7 @@ test('a reused commit revokes only an earlier lightweight success',()=>{
 
 test('an untrusted or moved base repository and branch cannot authorize',()=>{
   for(const untrustedBase of [
-    {sha:base,ref:'release/shared-db',repo:{full_name:'u2giants/shared-db'}},
+    {sha:base,ref:'release/shared-db',repo:{full_name:THIS_REPO}},
     {sha:base,ref:'main',repo:{full_name:'attacker/shared-db'}},
   ]){
     const io=fakeIo({prSequence:[{base:untrustedBase,head:{sha:head}}]})
@@ -105,8 +108,8 @@ test('an ABA push cannot lend prose files to an executable status SHA',()=>{
   const io=fakeIo({
     files:[{filename:'scripts/change.mjs',status:'modified',patch:'@@ -1 +1 @@\n-a\n+b'}],
     prSequence:[
-      {base:{sha:base,ref:'main',repo:{full_name:'u2giants/shared-db'}},head:{sha:head}},
-      {base:{sha:base,ref:'main',repo:{full_name:'u2giants/shared-db'}},head:{sha:head}},
+      {base:{sha:base,ref:'main',repo:{full_name:THIS_REPO}},head:{sha:head}},
+      {base:{sha:base,ref:'main',repo:{full_name:THIS_REPO}},head:{sha:head}},
     ],
   })
   const result=authorizeRepositoryMaintenanceStatus(options,io)

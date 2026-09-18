@@ -85,7 +85,13 @@ AI sessions from breaking each other through the one database they all depend on
 > under §6.4. **§0.0-C is the orchestrator's own admission test**: anything that fails the shape
 > test is REJECTED (it belongs to another session) or FORKED to a fresh sub-agent — never worked
 > in the orchestrator's own context window.
-> **Any other session with a STRUCTURE change opens a GitHub issue and stops:**
+> **Any other session with a STRUCTURE change opens a GitHub issue and stops — with ONE
+> exception (issue #3199 Phase B):** an additive change whose every named object lives in
+> `{crm, pim, dam}` may instead take the **self-service additive lane** — declare
+> `route: self-service-additive` in the issue's `db-work-scope`, claim the lane yourself
+> (`--claim --admit-issue`), draw both reviewers yourself (`--assign-reviewer`), and dispatch the
+> guarded merge yourself; the merge-time boundary classifier enforces the scope. Everything else
+> (shared objects, other schemas, brand-new schemas) still hands over:
 > `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
 > ⛔ **EVERY issue this repo receives carries the `db-work` label AND a `db-work-scope`
 > block — no exceptions, including bug reports, tooling defects and CI complaints
@@ -349,6 +355,19 @@ Before opening, accepting, or acting on any item, answer one question:
 
 **Yes → accept.** It is queue work: `work_type: structural`, `route: shared-db-orchestrator`, exact
 objects listed, dispatched to a sub-agent in an isolated worktree as usual.
+
+**Structural work has a second ROUTE, never a second work type (issue #3199 Phase B):**
+`route: self-service-additive` admits the same structural work WITHOUT orchestrator triage when it
+is additive and every named object lives in the app-owned `{crm, pim, dam}` schemas. The boundary
+is enforced AT MERGE TIME by `scripts/check-self-service-additive-lane.mjs` inside the guarded
+merge, pre-lock — a declared route whose pull request fails the classifier never merges. The
+author session claims the lane (`--claim --admit-issue`), draws both reviewers itself
+(`--assign-reviewer`), and dispatches the guarded merge itself; every existing gate (collision
+locks, version reservation, exact-head review, serial preview/merge/promotion) is unchanged. The
+orchestrator never dispatches, refills or reviews this route; `--queue-audit` prints it in its own
+section. Out of the lane: `plm`/`api`/`core`/`public`/`ingest`/`storage`/`dflow`/`app`, any
+brand-new schema, any data statement, `CREATE OR REPLACE`, `SECURITY DEFINER`, and grants to
+browser roles on `crm`/`pim` objects without RLS.
 
 **No → `accept` is never one of the exits. Each non-structural work type names where it goes
 instead.** The machine-readable form of this table is `NON_STRUCTURAL_EXITS` in
@@ -754,7 +773,8 @@ rules below are the operative summary.
      team's applied work. Land or coordinate the other branch instead. A migration left
      rehearsed-but-unmerged blocks everyone, so **open its PR the same session.**
    - Every open `db-work` issue carries one authoritative `db-work-scope` block. Only
-     `ready + structural + shared-db-orchestrator` can enter an author lane, and it must name
+     `ready + structural + shared-db-orchestrator` (or `route: self-service-additive` for additive
+     work confined to `{crm,pim,dam}` — merge-time-classifier-enforced, no orchestrator triage) can enter an author lane, and it must name
      every exact object. Outside-sourced writes into curated `core.*` Master Data use
      `curated-master-data` / `curated-master-data-governance` — §6.4 governance. It normally stays
      outside author lanes, but a fork that ships `supabase/migrations/*` must claim a lane before
@@ -1310,6 +1330,7 @@ in place, the way §6.13-A supersedes §6.13. CI workflow comments and
 | [`docs/agents/runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md) | §9, §10.1–§10.3, §11 in full — credentials, CLI, hosted-Supabase traps |
 | [`docs/owner-rulings.md`](docs/owner-rulings.md) | §6.1–§6.17, §0.1-A, §4.2, §4.3 in full — every owner ruling with its reasoning, incident and measured numbers |
 | [`docs/production-promotion-procedure.md`](docs/production-promotion-procedure.md) | §5.1 in full — the bounded-checkout recipe and the production apply lane |
+| [`docs/agents/ephemeral-route-hop-table.md`](docs/agents/ephemeral-route-hop-table.md) | The self-service additive lane's end-to-end merge route — who may dispatch, the boundary classifier, and the completion hops |
 
 **Where `AGENTS.md` and a long-form file differ in wording, `AGENTS.md` wins** — it is the
 authoritative statement of policy.

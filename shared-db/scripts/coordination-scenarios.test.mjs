@@ -1,4 +1,7 @@
 // End-to-end coordination scenarios (Step 5, issue #1366).
+import { currentRepository, expectedOperatorAssociation } from './lib/repository-identity.mjs'
+// Fixtures follow the resolved repository identity and its operator association (#3255).
+const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 //
 // WHY A TABLE AND NOT MORE UNIT TESTS
 // -----------------------------------
@@ -172,7 +175,7 @@ const DEPENDENCY_SCENARIOS = [
 
 function completion(over) {
   const record = { schema_version: 1, work_issue: 10, ...over }
-  return { body: '```db-work-completion\n' + JSON.stringify(record) + '\n```', author_association:'OWNER', author:'u2giants' }
+  return { body: '```db-work-completion\n' + JSON.stringify(record) + '\n```', author_association:OPERATOR_ASSOCIATION, author:'u2giants' }
 }
 
 for (const row of DEPENDENCY_SCENARIOS) {

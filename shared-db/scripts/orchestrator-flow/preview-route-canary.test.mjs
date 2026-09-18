@@ -1,4 +1,7 @@
 import test from 'node:test'
+import { currentRepository, expectedOperatorAssociation } from '../lib/repository-identity.mjs'
+// Fixtures follow the resolved repository identity and its operator association (#3255).
+const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import assert from 'node:assert/strict'
 import { mkdtempSync } from 'node:fs'
 import os from 'node:os'
@@ -14,7 +17,7 @@ function liveFiles(headText = 'A plain prose note about the canary.') {
 function io({ body, association = 'OWNER', files = liveFiles(), head = head_sha } = {}) {
   return {
     databasePreviewClassification: githubIo.databasePreviewClassification,
-    getPr: () => ({ number: 7, state: 'open', author_association: association, body, base: { sha: base_sha, repo: { full_name: 'u2giants/shared-db' } }, head: { sha: head } }),
+    getPr: () => ({ number: 7, state: 'open', author_association: association, body, base: { sha: base_sha, repo: { full_name: THIS_REPO } }, head: { sha: head } }),
     databasePreviewFileSnapshot: () => files,
   }
 }

@@ -1,4 +1,7 @@
 import test from 'node:test'
+import { currentRepository, expectedOperatorAssociation } from './lib/repository-identity.mjs'
+// Fixtures follow the resolved repository identity and its operator association (#3255).
+const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { parseArgs, declaredInputs, normalizeDigest, pickEvidenceDigest, buildInputs, assertDeclared, plan, main, DispatchError, WORKFLOW } from './dispatch-production-apply.mjs'
@@ -56,7 +59,7 @@ test('#507(c) plan refuses a stale commit and main dispatches one JSON body only
   assert.equal(main([...argv, '--dispatch'], { gitRun, readJson, log: (l) => logs.push(l), send: (repo, body) => sent.push([repo, body]) }), 0)
   assert.equal(sent.length, 1)
   const body = JSON.parse(sent[0][1])
-  assert.equal(sent[0][0], 'u2giants/shared-db')
+  assert.equal(sent[0][0], THIS_REPO)
   assert.deepEqual(body, { ref: 'main', inputs: { target: 'production', mode: 'apply', production_allowlist: '20260101000000', commit_sha: SHA, confirmation: `APPLY ${SHA}`, review_run_id: '11', review_artifact_digest: `sha256:${HEX}`, source_pr: '2', work_issue: '3', ephemeral_check_run_id: '12' } })
   assert.match(logs.at(-1), /production environment approval/)
   assert.equal(main(['--mode', 'x'], { log: () => {} }), 1)

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
 import { currentRepository, isTrustedOperatorComment } from '../lib/repository-identity.mjs'
 import { COMPLETION_FENCE, findCompletionRecord, validateCompletionRecord } from '../lib/work-dependencies.mjs'
+import { STRUCTURAL_ROUTES } from './admission.mjs'
 
 export class OutcomeError extends Error {}
 
@@ -272,7 +273,14 @@ export function completeOutcome({ issue, evidenceRef, actor, timestamp = new Dat
   const work = io.getIssue(Number(issue))
   if (!work || !['open','closed'].includes(String(work.state).toLowerCase())) throw new OutcomeError(`outcome issue #${issue} is unreadable`)
   const scope = io.parseScope(work.body ?? '')
-  if (!scope || scope.workType !== 'structural' || scope.route !== 'shared-db-orchestrator') throw new OutcomeError('only an admitted structural outcome can complete')
+  // #3199 round-2 review (High): BOTH structural routes complete the outcome
+  // lifecycle. Admission already widened its route predicate for the
+  // self-service additive lane, but this gate still hard-coded the orchestrator
+  // route, which closed the lane's sanctioned completion path and left only a
+  // weaker reachable one. Every structural proof below (merge linkage, main
+  // history, production apply, live assertion, generated types, exact objects)
+  // runs identically for both routes.
+  if (!scope || scope.workType !== 'structural' || !STRUCTURAL_ROUTES.includes(scope.route)) throw new OutcomeError('only an admitted structural outcome can complete')
   if (!scope.applicationReturnTo || !scope.liveAssertion) throw new OutcomeError('outcome is missing its application return address or live assertion')
   const comments=trustedOutcomeComments(io.issueComments(Number(issue)))
   const history = outcomeHistory(comments,issue)

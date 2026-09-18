@@ -300,8 +300,18 @@ test("reconciliation agrees only when the API side and the table tell one story"
   assert.match(reconcileSql("SYNCO"), /count\(distinct pkey\)/);
   assert.match(reconcileSql("SYNCO"), /rows_fetched = 0/);
   assert.match(reconcileSql("SYNCO"), /count\(distinct \(request_params->>'prodOrderNo'\)::bigint\)/,
-    "refusedKeys counts DISTINCT orders, not refusal rows, so repeats can never inflate it");
+    "refusedKeys counts DISTINCT orders, so repeats can never inflate it");
   assert.match(reconcileSql("SYNCO"), /request_params->>'refused' = 'identity-collision'/);
+});
+
+test("the reconciliation counts keys, not runs, once refresh re-reads exist", () => {
+  // Regression for the first live refresh (2026-09-18, run 35312282365): 7,016
+  // succeeded runs over 3,753 keys disagreed with the landed table purely because
+  // the read summed every run. Each key must be counted once, at its latest run.
+  const sql = reconcileSql("SYNCO");
+  assert.match(sql, /distinct on \(prod_order_no\) prod_order_no, rows_fetched/);
+  assert.match(sql, /order by prod_order_no, finished_at desc/,
+    "the latest succeeded run is the one whose fetched rows its upsert landed");
 });
 
 // -------------------------------------------------------------------------------------
