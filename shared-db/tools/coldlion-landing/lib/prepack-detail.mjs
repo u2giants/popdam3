@@ -114,6 +114,17 @@ export function projectPrepackRows(sourceRows, { runId, fetchedAt } = {}) {
  * names the requested key and the code the row actually answers — short ERP
  * codes only, never other row values — so a live refusal is diagnosable from
  * the run log alone.
+ *
+ * The prepack comparison folds CASE. The vendor spells one real key two ways
+ * across its own feeds (2026-09-18, run 35288752430: the harvest asked PPk133
+ * as /itemDetails had emitted it; /prepackDetail answered PPK133) — the same
+ * key-inconsistency class as the /seasons defect, with no signal in the
+ * envelope. The landed prepack_code keeps the ROW's spelling, which is what
+ * this feed asserts as its own grain, so a replay through either spelling
+ * upserts onto one row and identities cannot split. A genuinely different
+ * code still refuses, and the company comparison stays case-sensitive: no
+ * company drift has ever been observed, and a future one must abort loudly
+ * with both spellings named.
  */
 export function assertRowsAnswerRequest(sourceRows, { companyCode, prepackCode }) {
   for (const row of sourceRows) {
@@ -123,9 +134,11 @@ export function assertRowsAnswerRequest(sourceRows, { companyCode, prepackCode }
         { endpoint: PREPACK_DETAIL_SPEC.endpoint, requestParams: { companyCode, prepackCode } },
       );
     }
-    if (String(row.prePackCode ?? "").trim() !== String(prepackCode).trim()) {
+    const asked = String(prepackCode ?? "").trim();
+    const answers = String(row.prePackCode ?? "").trim();
+    if (!asked || asked.toUpperCase() !== answers.toUpperCase()) {
       throw Object.assign(
-        new Error(`${PREPACK_DETAIL_SPEC.endpoint} returned a row for another prepack code: asked ${String(prepackCode).trim()}, row answers ${String(row.prePackCode ?? "").trim() || "(blank)"}`),
+        new Error(`${PREPACK_DETAIL_SPEC.endpoint} returned a row for another prepack code: asked ${asked}, row answers ${answers || "(blank)"}`),
         { endpoint: PREPACK_DETAIL_SPEC.endpoint, requestParams: { companyCode, prepackCode } },
       );
     }

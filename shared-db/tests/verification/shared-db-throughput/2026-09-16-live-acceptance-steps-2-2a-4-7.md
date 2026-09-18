@@ -12,7 +12,7 @@
 | Step | Requirement | Verdict |
 |---|---|---|
 | 2 | Safe version re-reservation without closing a PR | PROVEN (live, 2026-09-16) |
-| 2 | Named lease/conflict admission; no unrelated production hold | NOT PROVEN — `hold_reason` is not implemented on main |
+| 2 | Named lease/conflict admission; no unrelated production hold | PROVEN (live, 2026-09-17/18) — see "Step 2 named holds: PROVEN LIVE" below (#3241) |
 | 2A | Authenticated sender-to-receiver no-database-preview canary | PROVEN (live, PR #3022, 26 s) |
 | 2A | Ten-minute target | PROVEN for prose PRs (7 m 13 s, 59 s); not measured for no-DB code PRs |
 | 4 | Successor verifies and resumes from a live snapshot | PROVEN (live read-only canary) |
@@ -272,3 +272,16 @@ PROVEN live on 2026-09-16 from merged main `b063823f` (#3101 fix-forward, issue 
   - `refs/db-review-silence/3097-3098-1ad1380c...-3009` probe `9694f33b`, release `dfb3ea03`
   - `refs/db-review-replacements/3097-3098-1ad1380c...-3009` = `259e9410`
   - The Muse lease is gone. `refs/db-review-active-v2/glm-5.3/3097-3098-1ad1380c...` = `259e9410` is the replacement draw (seq 3014, slot 1).
+
+## 2026-09-18: Step 2 named-hold live proof (#3241)
+
+### Step 2 named holds: PROVEN LIVE
+
+This supersedes "Named lease/conflict hold and no unrelated production hold — NOT PROVEN" above.
+
+- **Live hold naming its lease holder.** Guarded Merge run [35177165797](https://github.com/u2giants/shared-db/actions/runs/35177165797) (PR #3135), 2026-09-17T03:18:17Z, step "Acquire the exclusive merge lane":
+  `REFUSED: production promotion is active; merges are frozen; hold_reason lease:production held by production lease f726fd1186e5, holder github-actions:35177514199, PR #3118, run 35177514199, acquired 2026-09-17T03:18:04.722Z`.
+  Run [35177188382](https://github.com/u2giants/shared-db/actions/runs/35177188382) (PR #3141) recorded the same holder at 03:18:55Z. The holder is real: Shared Supabase Migrations run [35177514199](https://github.com/u2giants/shared-db/actions/runs/35177514199) (success). PR #3135 merged at 03:22:04Z and #3141 at 03:31:14Z, after it released.
+- **Live refusal of a hold naming an unrelated item's production stage.** 2026-09-18T01:59Z on main `056434a9`: `--advance-outcome blocked --issue 3174 --admit-issue 3174 --hold-reason "until #3118's production run finishes"` exited 2 with
+  `REFUSED: hold_reason must be lease:<preview|merge|production>, claim:#<n>, object:#<claim>:<object>[,<object>], or dependency:#<issue>; got "until #3118's production run finishes"; a hold whose reason is another item's unrelated pipeline stage is refused (locked decision 15)`.
+  `--outcome-status 3174` afterwards still read `dispatched`, `blocked: false`, `valid: true`; no lease or mutex ref was left. Record: [#3241 comment](https://github.com/u2giants/shared-db/issues/3241#issuecomment-5723926754).

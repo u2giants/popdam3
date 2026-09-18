@@ -1,60 +1,46 @@
 {
   "schema_version": 1,
-  "generation": 11,
-  "work_issue": 3180,
-  "work_type": "source-data",
-  "route": "source-data-session",
-  "goal": "Refuse /proddetails identity-collision keys per key instead of aborting the whole run: live order 20344 falsified the (prod_order_no, prod_line_seq) uniqueness asserted by #2863, and one colliding order must not block the remaining population. Collisions are recorded as FAILED sync_runs carrying refused markers, counted in every reconciliation, and still fail the run non-zero; feed-shape failures stay fatal; transport failures stay retried.",
-  "base_sha": "644fe066c8122d19b9384ba36fd058855ce7462c",
-  "dispatcher": "owner task instruction to a non-orchestrator source-data session (issue #3180 db-work-scope: work_type source-data, route source-data-session, writes [])",
-  "worker": "ZCode GLM 5.3 session executing shared-db issue #3180",
-  "branch": "claude/issue-3180-prod-detail-loader",
-  "worktree": "C:/repos/shared-db/.claude/worktrees/prod-detail-3180",
+  "generation": 2,
+  "work_issue": 3235,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fold case on the prepack code in the ColdLion /prepackDetail request-identity guard, so vendor cross-feed case drift (PPk133 vs PPK133) no longer aborts the backfill while genuinely different codes still refuse.",
+  "base_sha": "079fed75949a9785cc2b61923cf672cec9751031",
+  "dispatcher": "delegated source-data session continuing issue #3179 production phase",
+  "worker": "Claude GLM 5.3 source-data session, issue #3179",
+  "branch": "claude/issue-3179-prepack-case-drift",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/prepack-case-3235",
   "allowed_paths": [
     ".agent/completion.json",
     ".agent/contract.json",
-    ".github/workflows/coldlion-landing-sync.yml",
-    ".github/workflows/coldlion-prod-detail-backfill.yml",
-    "tools/coldlion-landing-prod-details.test.mjs",
-    "tools/coldlion-landing/README.md",
-    "tools/coldlion-landing/lib/prod-details.mjs",
-    "tools/coldlion-landing/sync-prod-details.mjs"
+    "tools/coldlion-landing-prepack.test.mjs",
+    "tools/coldlion-landing/lib/prepack-detail.mjs"
   ],
   "file_writes": [
     ".agent/completion.json",
     ".agent/contract.json",
-    ".github/workflows/coldlion-landing-sync.yml",
-    ".github/workflows/coldlion-prod-detail-backfill.yml",
-    "tools/coldlion-landing-prod-details.test.mjs",
-    "tools/coldlion-landing/README.md",
-    "tools/coldlion-landing/lib/prod-details.mjs",
-    "tools/coldlion-landing/sync-prod-details.mjs"
+    "tools/coldlion-landing-prepack.test.mjs",
+    "tools/coldlion-landing/lib/prepack-detail.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "Never change database structure: this work owns loader code and rows only, and coldlion.prod_detail already exists from #2863.",
-    "Never run the loader against production outside the sanctioned GitHub workflows that read SUPABASE_DB_URL_PRODUCTION and COLDLION_API_KEY.",
-    "Never commit ColdLion row values, API keys, database URLs or any credential; fixtures stay synthetic and logs carry counts only.",
-    "Never close issue #3180; the originating session owns closure."
+    "Never fold case on the company comparison: no company drift has been observed and one must abort loudly with both spellings named.",
+    "Never match a blank requested key to any row: the guard must not invent a match.",
+    "Never change the landed prepack_code away from the row's own spelling: identities must not split into two rows.",
+    "Never author a migration or change any database shape.",
+    "Never close issue #3179; the originating session owns closure."
   ],
   "required_checks": [
-    "node --test tools/coldlion-landing-prod-details.test.mjs",
-    "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs"
+    "node --test tools/coldlion-landing-prepack.test.mjs"
   ],
   "assumptions": [
-    "The live /proddetails field union is the 21 fields recorded in docs/coldlion-unit-5b-grain-proof-20260915.md; it was re-derived live on 2026-09-17 (8 keys, 28 rows) and matched exactly, so the unknown-field refusal is keyed to that shape.",
-    "The complete approved prodOrderNo population is the distinct landed coldlion.prod_history_line set for EDGEHOME (live reading 2026-09-17: 3,761 distinct orders over 61,901 lines; EP001 absent because history landing already excluded it).",
-    "The scheduled ColdLion Landing Sync workflow is the sanctioned ongoing refresh vehicle, so the production-detail refresh step rides it after history and masters rather than in a new schedule.",
-    "Generation 8: answers governed review round 1 (PR #3233). H1 - refused keys re-entered the refresh recent window through the flat done-set and refusedKeys counted rows; selection now carries the refused state separately and the reconciliation counts distinct orders. L2 - omitted-field fatality pinned by test. L4 - malformed values are per-key refusals, no longer retried-forever transport.",
-    "Generation 9: files_changed now lists the complete base-to-head diff including the two .agent evidence files, as the git-evidence comparison requires once the implementation head advanced past the review-answer commit. No implementation change.",
-    "Generation 10: main advanced to 959100b6 (sibling prepack-detail fix, disjoint files); refreshed by merge at cfdd810e, only the .agent evidence files resolved. Implementation diff unchanged; the APPROVE at 093af65d carries per the content-preserving refresh rule.",
-    "Generation 11: main advanced to 644fe066 (sibling prepack refresh pacing) and touched the shared scheduled-sync workflow, so this branch merged it and added the same budget arithmetic for the production-detail refresh (PROD_DETAIL_ARGS --pause-ms 1000, requests still serialized; 2000-order limit at 3s alone would overrun the 90-minute job). A fresh exact-head review follows because main edited a file this pull request also edits."
+    "The drift is vendor-side cross-feed inconsistency: the harvest spelling came from a ColdLion feed this repository landed verbatim (exact-trim, no case change), and /prepackDetail echoed the same real key with different casing (run 35288752430: asked PPk133, row answers PPK133).",
+    "Landing the row's spelling keeps one identity: the on-conflict grain keys on the staged row, so a replay through either harvest spelling upserts onto the same row.",
+    "Generation 2 exists because main advanced to 079fed75 (two documentation-only pull requests, #3237 and #3238); the branch was refreshed by merge and the implementation diff is unchanged."
   ],
   "stop_conditions": [
-    "Stop and report if the live feed changes shape: unknown or omitted fields fail the whole run before anything is written.",
-    "Stop and report if the reconciliation disagrees with the API-side evidence after a run.",
-    "Stop and report on any workflow or gate refusal; never weaken a guard to proceed.",
-    "Refuse - do not stop the run for - any single order whose response carries an identity collision or a malformed value; record it and let the population proceed."
+    "Stop and report a blocker if folding case ever lets two DIFFERENT real codes match (a collision other than case drift still aborts, so this would indicate a guard defect).",
+    "Stop on any unresolved guard or reviewer refusal; a new head answering it requires a fresh exact-head review."
   ]
 }

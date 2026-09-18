@@ -110,6 +110,25 @@ test("every row must answer the request that fetched it, and the refusal names b
   assert.throws(() => assertRowsAnswerRequest([sourceRow({ prePackCode: "  " })], params), /row answers \(blank\)/);
 });
 
+test("the prepack identity check folds vendor case drift, and the landed key keeps the row's spelling", () => {
+  // The live 2026-09-18 collision (run 35288752430): the harvest asked PPk133
+  // as /itemDetails had emitted it; /prepackDetail answered PPK133.
+  const drifted = { companyCode: "SYNCO", prepackCode: "PPk133" };
+  const row = sourceRow({ prePackCode: "PPK133" });
+  assert.doesNotThrow(() => assertRowsAnswerRequest([row], drifted));
+  // The landed identity is the row's own spelling, so a replay through either
+  // harvest spelling upserts onto one row and identities cannot split.
+  const projected = projectPrepackRows([row], { runId: RUN, fetchedAt: NOW });
+  assert.equal(projected.rows[0].prepack_code, "PPK133");
+  // Case folding is for the SAME code only; a different code still refuses.
+  assert.throws(() => assertRowsAnswerRequest([sourceRow({ prePackCode: "PPK9999" })], drifted), /asked PPk133, row answers PPK9999/);
+  // A blank requested key refuses every row: the guard never invents a match.
+  assert.throws(() => assertRowsAnswerRequest([row], { companyCode: "SYNCO", prepackCode: "" }), /asked , row answers PPK133/);
+  // The company comparison stays case-sensitive: no drift has been observed
+  // there, and one must abort loudly with both spellings named.
+  assert.throws(() => assertRowsAnswerRequest([sourceRow({ companyCode: "synco" })], { companyCode: "SYNCO", prepackCode: "PPK0001" }), /asked SYNCO, row answers synco/);
+});
+
 // ---------------------------------------------------------------------------------
 // Harvest and coverage
 // ---------------------------------------------------------------------------------
