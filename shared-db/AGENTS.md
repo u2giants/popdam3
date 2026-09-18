@@ -1,6 +1,6 @@
 > ⚠️ **Auto-synced — do not hand-edit the copies.**
 >
-> [`u2giants/shared-db`](https://github.com/u2giants/shared-db) is the **single source of truth**. Its entire contents are mirrored into the **`shared-db/` folder** of every consumer repo (CRM, DAM, PM/PIM, DesignFlow PLM) on each push to `main`.
+> [`popcre/shared-db`](https://github.com/popcre/shared-db) (formerly `u2giants/shared-db`; moved 2026-09-18, old links redirect) is the **single source of truth**. Its entire contents are mirrored into the **`shared-db/` folder** of every consumer repo (CRM, DAM, PM/PIM, DesignFlow PLM) on each push to `main`.
 >
 > **Reading this inside a consumer repo's `shared-db/` folder?** It's a read-only copy — edits here are overwritten on the next sync. Change the canonical repo instead.
 
@@ -92,7 +92,7 @@ AI sessions from breaking each other through the one database they all depend on
 > (`--claim --admit-issue`), draw both reviewers yourself (`--assign-reviewer`), and dispatch the
 > guarded merge yourself; the merge-time boundary classifier enforces the scope. Everything else
 > (shared objects, other schemas, brand-new schemas) still hands over:
-> `gh issue create --repo u2giants/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
+> `gh issue create --repo popcre/shared-db --label db-work --title "HANDOVER: …" --body-file <file>`.
 > ⛔ **EVERY issue this repo receives carries the `db-work` label AND a `db-work-scope`
 > block — no exceptions, including bug reports, tooling defects and CI complaints
 > that feel unrelated to the queue.** `--label db-work` is not optional decoration and
@@ -139,7 +139,7 @@ AI sessions from breaking each other through the one database they all depend on
 
 > ## ⚠️ A structural migration returning to shared-db carries its live-proof probe
 >
-> When a structural outcome's `db-work-scope` says `application_return_to: u2giants/shared-db`,
+> When a structural outcome's `db-work-scope` says `application_return_to: popcre/shared-db`,
 > its migration pull request must also commit `.github/live-proofs/<work_issue>.sql`: ONE
 > read-only `SELECT`/`WITH` statement returning one row with a boolean column aliased `passed`.
 > The `Shared DB Live Proof` workflow ([`.github/workflows/shared-db-live-proof.yml`](.github/workflows/shared-db-live-proof.yml))
@@ -1116,7 +1116,7 @@ That is **GitHub hosted-runner starvation, not a collision**, and not a fault in
 
 ```bash
 gh run view <run-id> --log-failed
-gh api repos/u2giants/shared-db/actions/runs/<run-id>/jobs --jq '.jobs[] | {name, conclusion, steps: [.steps[].conclusion]}'
+gh api repos/popcre/shared-db/actions/runs/<run-id>/jobs --jq '.jobs[] | {name, conclusion, steps: [.steps[].conclusion]}'
 ```
 
 A job whose steps are all `null`/empty never ran. Re-run it; do not go looking for a code defect,

@@ -1,0 +1,2622 @@
+{
+  "schemaVersion": 1,
+  "kind": "repository-transfer-baseline",
+  "capturedAt": "2026-09-18T09:06:57.363Z",
+  "generatingCommand": "node scripts/capture-repository-transfer-baseline.mjs --repo popcre/shared-db --target popcre/shared-db-x --output C:/Users/ahazan/AppData/Local/Temp/post-20260918T090657Z.json",
+  "sourceSha": "1886fb38ac01fdaf3c1d8515b50afd6440726df1",
+  "ownerApprovalComment": null,
+  "readyToTransfer": false,
+  "blockers": [
+    "owner-authorization-not-recorded: plan Step 0 authorization comment on #2530 was not supplied (--owner-approval-comment <comment-url>)",
+    "actions-run-active: Orchestrator Marker Guard run 35299022397 (queued)",
+    "actions-run-active: Cancelled Work Guard run 35299022399 (queued)",
+    "actions-run-active: Destructive Analysis Guard run 35299022416 (queued)",
+    "actions-run-active: Queue-Sensitive Checks Aggregate run 35299022420 (queued)",
+    "actions-run-active: Domain Ownership run 35299022423 (queued)",
+    "actions-run-active: Migration Author Lease run 35299022425 (queued)",
+    "actions-run-active: Cross-PR Object Collision run 35299022428 (queued)",
+    "actions-run-active: Intake Pointer Guard run 35299022429 (queued)",
+    "actions-run-active: Tools Offline Tests run 35299022430 (queued)",
+    "actions-run-active: Historical MG Reclassification Tests run 35299022447 (queued)",
+    "actions-run-active: Database Contract Tests run 35299022455 (queued)",
+    "actions-run-active: Shared Supabase Migrations run 35299022457 (queued)",
+    "actions-run-active: Handoff Contract Guard run 35299022468 (queued)",
+    "actions-run-active: Public Data Venue Guard run 35299022500 (queued)",
+    "actions-run-active: ColdLion Promotion Contract Tests run 35299022518 (queued)",
+    "actions-run-active: Email Address Forward Guard (Partial PII Coverage) run 35299022526 (queued)",
+    "actions-run-active: Agent work contract run 35299022556 (queued)"
+  ],
+  "inventory": {
+    "repository": {
+      "id": 1275568548,
+      "nodeId": "R_kgDOTAehpA",
+      "owner": "popcre",
+      "ownerType": "Organization",
+      "name": "shared-db",
+      "visibility": "public",
+      "archived": false,
+      "defaultBranch": "main",
+      "defaultBranchSha": "1886fb38ac01fdaf3c1d8515b50afd6440726df1",
+      "topics": [],
+      "features": {
+        "hasIssues": true,
+        "hasProjects": true,
+        "hasWiki": true,
+        "hasDiscussions": false,
+        "hasPages": false
+      },
+      "mergeMethods": {
+        "allowMergeCommit": true,
+        "allowSquashMerge": true,
+        "allowRebaseMerge": true,
+        "allowAutoMerge": false,
+        "deleteBranchOnMerge": true,
+        "allowUpdateBranch": false
+      }
+    },
+    "branchProtection": {
+      "strict": false,
+      "requiredContexts": [
+        "Agent work contract",
+        "Cancelled work guard",
+        "Cross-PR object collision",
+        "Domain ownership",
+        "Handoff contract",
+        "Intake pointer guard",
+        "Migration author lease",
+        "Migration guarded merge authorization",
+        "Orchestrator marker guard",
+        "Promotion contract tests (offline)",
+        "Queue-sensitive checks (aggregate)",
+        "SQL migration guards",
+        "Tools offline tests"
+      ],
+      "enforceAdmins": true,
+      "requiredPullRequestReviews": null,
+      "requiredLinearHistory": false,
+      "allowForcePushes": false,
+      "allowDeletions": false
+    },
+    "rulesets": [],
+    "actions": {
+      "permissions": {
+        "enabled": true,
+        "allowed_actions": "all",
+        "sha_pinning_required": false
+      },
+      "workflowPermissions": {
+        "default_workflow_permissions": "read",
+        "can_approve_pull_request_reviews": false
+      },
+      "workflows": [
+        {
+          "name": "Agent work contract",
+          "path": ".github/workflows/agent-work-contract.yml",
+          "state": "active"
+        },
+        {
+          "name": "Author Lane Abandonment Audit",
+          "path": ".github/workflows/author-lane-abandonment-audit.yml",
+          "state": "active"
+        },
+        {
+          "name": "Business Rule Library",
+          "path": ".github/workflows/business-rule-library.yml",
+          "state": "active"
+        },
+        {
+          "name": "Cancelled Work Guard",
+          "path": ".github/workflows/cancelled-work-guard.yml",
+          "state": "active"
+        },
+        {
+          "name": "ColdLion History Backfill",
+          "path": ".github/workflows/coldlion-history-backfill.yml",
+          "state": "active"
+        },
+        {
+          "name": "ColdLion Landing Sync",
+          "path": ".github/workflows/coldlion-landing-sync.yml",
+          "state": "active"
+        },
+        {
+          "name": "ColdLion Licensor/Property Alert Monitor (preview)",
+          "path": ".github/workflows/coldlion-licensor-property-alert-monitor.yml",
+          "state": "active"
+        },
+        {
+          "name": "ColdLion Licensor/Property Phase 6 Parallel Run (preview)",
+          "path": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml",
+          "state": "active"
+        },
+        {
+          "name": "ColdLion Licensor/Property Recurring Feed (PRODUCTION)",
+          "path": ".github/workflows/coldlion-licensor-property-production.yml",
+          "state": "active"
+        },
+        {
+          "name": "ColdLion Prepack Detail Backfill",
+          "path": ".github/workflows/coldlion-prepack-backfill.yml",
+          "state": "active"
+        },
+        {
+          "name": "ColdLion Prod Detail Backfill",
+          "path": ".github/workflows/coldlion-prod-detail-backfill.yml",
+          "state": "active"
+        },
+        {
+          "name": "ColdLion Promotion Contract Tests",
+          "path": ".github/workflows/coldlion-promotion-contract-tests.yml",
+          "state": "active"
+        },
+        {
+          "name": "Database Contract Tests",
+          "path": ".github/workflows/database-contract-tests.yml",
+          "state": "active"
+        },
+        {
+          "name": "Destructive Analysis Guard",
+          "path": ".github/workflows/destructive-analysis-guard.yml",
+          "state": "active"
+        },
+        {
+          "name": "Documents-only merge authorization",
+          "path": ".github/workflows/documents-only-merge-authorization.yml",
+          "state": "active"
+        },
+        {
+          "name": "Domain Ownership",
+          "path": ".github/workflows/domain-ownership.yml",
+          "state": "active"
+        },
+        {
+          "name": "Generate database types",
+          "path": ".github/workflows/generate-database-types.yml",
+          "state": "active"
+        },
+        {
+          "name": "Guarded Merge",
+          "path": ".github/workflows/guarded-migration-merge.yml",
+          "state": "active"
+        },
+        {
+          "name": "Handoff Contract Guard",
+          "path": ".github/workflows/handoff-contract-guard.yml",
+          "state": "active"
+        },
+        {
+          "name": "Handoff Stale Report",
+          "path": ".github/workflows/handoff-stale-report.yml",
+          "state": "active"
+        },
+        {
+          "name": "Historical MG Reclassification Tests",
+          "path": ".github/workflows/historical-item-mg-reclassification-tests.yml",
+          "state": "active"
+        },
+        {
+          "name": "Intake Pointer Guard",
+          "path": ".github/workflows/intake-pointer-guard.yml",
+          "state": "active"
+        },
+        {
+          "name": "Issue Orchestrator Label",
+          "path": ".github/workflows/issue-orchestrator-label.yml",
+          "state": "active"
+        },
+        {
+          "name": "Merge Queue Gate",
+          "path": ".github/workflows/merge-queue-gate.yml",
+          "state": "active"
+        },
+        {
+          "name": "Migration Author Lease",
+          "path": ".github/workflows/migration-author-lease.yml",
+          "state": "active"
+        },
+        {
+          "name": "Migration Ledger Drift",
+          "path": ".github/workflows/migration-ledger-drift.yml",
+          "state": "active"
+        },
+        {
+          "name": "Orchestrator Marker Guard",
+          "path": ".github/workflows/orchestrator-marker-guard.yml",
+          "state": "active"
+        },
+        {
+          "name": "Orchestrator no-progress alarm",
+          "path": ".github/workflows/orchestrator-no-progress-alarm.yml",
+          "state": "active"
+        },
+        {
+          "name": "Email Address Forward Guard (Partial PII Coverage)",
+          "path": ".github/workflows/pii-forward-guard.yml",
+          "state": "active"
+        },
+        {
+          "name": "Cross-PR Object Collision",
+          "path": ".github/workflows/pr-object-collision.yml",
+          "state": "active"
+        },
+        {
+          "name": "Prepack Exclusion",
+          "path": ".github/workflows/prepack-exclusion.yml",
+          "state": "active"
+        },
+        {
+          "name": "Preview Ledger Orphan Reconciliation",
+          "path": ".github/workflows/preview-ledger-orphan-reconciliation.yml",
+          "state": "active"
+        },
+        {
+          "name": "Preview Maintenance Lock",
+          "path": ".github/workflows/preview-maintenance-lock.yml",
+          "state": "active"
+        },
+        {
+          "name": "Production Apply Review Evidence",
+          "path": ".github/workflows/production-apply-review-evidence.yml",
+          "state": "active"
+        },
+        {
+          "name": "Production Catalog Verification Recovery",
+          "path": ".github/workflows/production-catalog-verification-recovery.yml",
+          "state": "active"
+        },
+        {
+          "name": "Production Owner Decision Evidence",
+          "path": ".github/workflows/production-owner-decision-evidence.yml",
+          "state": "active"
+        },
+        {
+          "name": "Public Data Venue Guard",
+          "path": ".github/workflows/public-data-venue-guard.yml",
+          "state": "active"
+        },
+        {
+          "name": "Queue Hygiene Report",
+          "path": ".github/workflows/queue-hygiene-report.yml",
+          "state": "active"
+        },
+        {
+          "name": "Queue-Sensitive Checks Aggregate",
+          "path": ".github/workflows/queue-sensitive-aggregate.yml",
+          "state": "active"
+        },
+        {
+          "name": "Recover Stranded Author Mutex",
+          "path": ".github/workflows/recover-author-mutex.yml",
+          "state": "active"
+        },
+        {
+          "name": "Recover exclusive DB lane",
+          "path": ".github/workflows/recover-exclusive-db-lane.yml",
+          "state": "active"
+        },
+        {
+          "name": "Shared DB Live Proof",
+          "path": ".github/workflows/shared-db-live-proof.yml",
+          "state": "active"
+        },
+        {
+          "name": "Shared Supabase Migrations",
+          "path": ".github/workflows/shared-supabase-migrations.yml",
+          "state": "active"
+        },
+        {
+          "name": "Start reroute canary",
+          "path": ".github/workflows/start-reroute-canary.yml",
+          "state": "active"
+        },
+        {
+          "name": "Sync shared-db to consumers",
+          "path": ".github/workflows/sync.yml",
+          "state": "active"
+        },
+        {
+          "name": "task gates",
+          "path": ".github/workflows/task-gates.yml",
+          "state": "active"
+        },
+        {
+          "name": "Tools Offline Tests",
+          "path": ".github/workflows/tools-offline-tests.yml",
+          "state": "active"
+        },
+        {
+          "name": "Verify Production Ledger Recovery 1750",
+          "path": ".github/workflows/verify-production-ledger-recovery-1750.yml",
+          "state": "active"
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "COLDLION_ALERT_MONITOR_ENABLED",
+        "fingerprintSha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+        "literal": "false"
+      },
+      {
+        "name": "COOLIFY_APP_UUID",
+        "fingerprintSha256": "1b96675554a3c5c7c0423caa95668e5ba141732847be15b17e861aeb75af1f12",
+        "literal": null
+      },
+      {
+        "name": "COOLIFY_PROD_APP_UUID",
+        "fingerprintSha256": "253b0653f3c66c263a9beb8c56a5e8a424a51e21837cbff6b6eae25fde1a1693",
+        "literal": null
+      },
+      {
+        "name": "COOLIFY_URL",
+        "fingerprintSha256": "4cac9e2bdd9acbee8e129adea5f0018eb9a6f5294e71a273f111f4a50adb430e",
+        "literal": null
+      },
+      {
+        "name": "PHASE6_SCHEDULE_ENABLED",
+        "fingerprintSha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+        "literal": "false"
+      },
+      {
+        "name": "PREVIEW_PROJECT_REF",
+        "fingerprintSha256": "68569c9bc7ee14ec3b044b2038fc73aad35ad1902f6024cdb9cd452cb63b2d6b",
+        "literal": null
+      }
+    ],
+    "secretNames": [
+      "ANTHROPIC_API_KEY",
+      "COLDLION_API_KEY",
+      "COOLIFY_TOKEN",
+      "DESIGNFLOW_API_KEY",
+      "SUPABASE_ACCESS_TOKEN",
+      "SUPABASE_DB_PASSWORD_PREVIEW",
+      "SUPABASE_DB_PASSWORD_PRODUCTION",
+      "SUPABASE_DB_URL_PRODUCTION",
+      "SYNC_TOKEN"
+    ],
+    "environments": [
+      {
+        "name": "preview",
+        "protectionRules": [],
+        "deploymentBranchPolicy": null,
+        "environmentSecretNames": [],
+        "variables": []
+      },
+      {
+        "name": "production",
+        "protectionRules": [],
+        "deploymentBranchPolicy": null,
+        "environmentSecretNames": [],
+        "variables": []
+      }
+    ],
+    "collaborators": [
+      {
+        "login": "devopswithkube",
+        "roleName": "admin"
+      },
+      {
+        "login": "u2giants",
+        "roleName": "admin"
+      }
+    ],
+    "teams": [],
+    "webhooks": [],
+    "deployKeyTitles": [],
+    "releases": [],
+    "openPullRequestCount": 12,
+    "openIssueCount": 0,
+    "refs": {
+      "total": 9010,
+      "allRefsDigestSha256": "410168b8daf8c40216e5fd6bc74c0d79f392683d13830ede2ddde97416397f3f",
+      "namespaces": [
+        {
+          "namespace": "refs/db-claim-retirements",
+          "count": 14,
+          "digestSha256": "1ceb78ed61ebfa921afa2b723788060bb0120046845f4a45d0356411b574bfc6"
+        },
+        {
+          "namespace": "refs/db-claim-supersessions",
+          "count": 177,
+          "digestSha256": "40451582944291380314389b9d3d5c13e0f3af4434a1c86dcd653de162220473"
+        },
+        {
+          "namespace": "refs/db-claim-worktree-rebinds",
+          "count": 2,
+          "digestSha256": "5189ee84a1aa447dc0611eaa9ec717cd68d1bcbfa41d44b356df3503f1fabbfb"
+        },
+        {
+          "namespace": "refs/db-claims",
+          "count": 491,
+          "digestSha256": "0b41eb55b586cda89476fb468d107e3bf71014c0f1e62cbe8a8ce92a4a7bb6f8"
+        },
+        {
+          "namespace": "refs/db-contracts",
+          "count": 1005,
+          "digestSha256": "87edf39987b67b9c743a394267007ca267282f6cdf921c8bfb86a83e4b75dd5c"
+        },
+        {
+          "namespace": "refs/db-coordination",
+          "count": 2,
+          "digestSha256": "f8957e1636ffc96d0391d58f6fe2ea333b41c323767db154be508af26823e5df"
+        },
+        {
+          "namespace": "refs/db-migration-trains",
+          "count": 3,
+          "digestSha256": "2328bbcd21912789951967a82993fcc1d17e1272f4e9827f797550a3c90a3aa4"
+        },
+        {
+          "namespace": "refs/db-preview-ready",
+          "count": 145,
+          "digestSha256": "5da6086935f4e25b670afaee9c7465cd7f6d55621b893dba03ae934cc087ceac"
+        },
+        {
+          "namespace": "refs/db-preview-ready-outcomes",
+          "count": 75,
+          "digestSha256": "189f5629e6a814217ead772fcadfd7a9e819b5cb955b9a7712c7f93a16cb801e"
+        },
+        {
+          "namespace": "refs/db-review-active",
+          "count": 7,
+          "digestSha256": "d7ff5b63bb70511e398584b4e86d0835ee780cfcd2df954e7147d0e325a4c9b0"
+        },
+        {
+          "namespace": "refs/db-review-active-v2",
+          "count": 12,
+          "digestSha256": "2aa64800b219efc4f12752f10c9e7057391ef07a6a395cd6079f76a138abe3c5"
+        },
+        {
+          "namespace": "refs/db-review-archived-verdicts",
+          "count": 546,
+          "digestSha256": "2873449999e99f69ed4b259a0a2209e885b772df414da1d0776a625923f3af80"
+        },
+        {
+          "namespace": "refs/db-review-assignments",
+          "count": 2201,
+          "digestSha256": "ea6de64c8260ae77245151f2c6d66c86f2ec7eac6f30870b3f61bedd281f2d80"
+        },
+        {
+          "namespace": "refs/db-review-exclusions",
+          "count": 39,
+          "digestSha256": "5cd36d4974a2768af8126d3f98ef2a8f98abeaf5a1f2be70adf172b956e51ae2"
+        },
+        {
+          "namespace": "refs/db-review-failures",
+          "count": 632,
+          "digestSha256": "3e5b918993b362346a89668a62141ddeec26b0d86d9df08c0617326b6ecc5fd9"
+        },
+        {
+          "namespace": "refs/db-review-reinstatements",
+          "count": 1,
+          "digestSha256": "2c7c2257154fdd23a8b4b09faa498926127d0205bbe30d4af35a0f433d3fcd3e"
+        },
+        {
+          "namespace": "refs/db-review-replacements",
+          "count": 573,
+          "digestSha256": "b64cab3b20761e1312dcdfe80a10a579d5e9615896e599c36e87286d66ed1b21"
+        },
+        {
+          "namespace": "refs/db-review-returns",
+          "count": 51,
+          "digestSha256": "3c4c512fa22137753c78a0c35fa294636529fd269cff7b0bd0066313b1421b4d"
+        },
+        {
+          "namespace": "refs/db-review-silence",
+          "count": 2,
+          "digestSha256": "4807a4fe3a74e94de3d5a6cf728f7611f173a4bff4befc92d040b3c8b335d586"
+        },
+        {
+          "namespace": "refs/db-review-silences",
+          "count": 1,
+          "digestSha256": "580b3322ddd604b9cbdbe1cabb50a3cf29f77a299d41bcadc7266d619b5fea1e"
+        },
+        {
+          "namespace": "refs/db-review-started",
+          "count": 188,
+          "digestSha256": "b9977ac3375a580ca13a8606371a1a81c84715ffba54a7740b5ced1b707bb0c1"
+        },
+        {
+          "namespace": "refs/db-review-verdict-replacements",
+          "count": 135,
+          "digestSha256": "32a0c2c5e9c177b5a3672e82b7f6dbb2ed5199dd60fc01a64b6b77efb55a6173"
+        },
+        {
+          "namespace": "refs/db-review-verdicts",
+          "count": 550,
+          "digestSha256": "97f7ba4fd7201b6a57556b285f6928368acd3e251437243913f171555bbf3254"
+        },
+        {
+          "namespace": "refs/db-runner-accepted",
+          "count": 1,
+          "digestSha256": "768f9ea89faae7b52bc4b702f3dbfc7c5e3510ea63d3137bd5142e7705ffd535"
+        },
+        {
+          "namespace": "refs/db-start-reroutes",
+          "count": 7,
+          "digestSha256": "24b1fc3d286776b2e8da4979ec95b41388699dd34936912ec468c1a7b0925076"
+        },
+        {
+          "namespace": "refs/heads",
+          "count": 477,
+          "digestSha256": "6b1dcabb1505f2f984b816a5c5424e4924433fda5f71d74b661b5bf5afe65b8f"
+        },
+        {
+          "namespace": "refs/pull",
+          "count": 1673,
+          "digestSha256": "53707c26ecf9ea2eaebd7462f9ebd4cf229254a57947c0b95eb202c6ba36dc75"
+        }
+      ],
+      "branches": [
+        {
+          "name": "backup/claim-2745-worktree-20260917",
+          "sha": "73aa587918d91feb354e8ade22da0581220020fc"
+        },
+        {
+          "name": "backup/claim-2871-dirty-20260916",
+          "sha": "45e1679ebb09babafa9af7a5479fd1441697fcfa"
+        },
+        {
+          "name": "backup/pr2869-pre-rebuild-80936205",
+          "sha": "8093620566112d6973f75a7517f55b5043ba550e"
+        },
+        {
+          "name": "chore/remove-erp-customer-data",
+          "sha": "809c4b2d6620a7cc790e0b45b9de0c644407ae8e"
+        },
+        {
+          "name": "claude/1223-guard-mutation-sweep",
+          "sha": "d793204effe59964e64e1b4c003806cae578d4ac"
+        },
+        {
+          "name": "claude/1772-orderlist-input-contract",
+          "sha": "5beca9679dd01ece4563d83da39cef098c78341e"
+        },
+        {
+          "name": "claude/1984-manifest-executor",
+          "sha": "5245af1ad15da932ee938919c8e31cef997538f4"
+        },
+        {
+          "name": "claude/1984-mg-recl-doc",
+          "sha": "16fbf42846d81021bc220289eae6cda98a143e51"
+        },
+        {
+          "name": "claude/2037-refuse-applied-migration-edit",
+          "sha": "850d293a80247cfb4ef3a19930db774a9b03ebf6"
+        },
+        {
+          "name": "claude/2116-restore-frozen-authorizations",
+          "sha": "a93f191843ffcdf90c736eed896fe41d32772214"
+        },
+        {
+          "name": "claude/2123-tier2-core-character-id",
+          "sha": "366bbb153b0722c59c5a426ce06a06398d42e4d0"
+        },
+        {
+          "name": "claude/2132-property-codeless-uniqueness",
+          "sha": "64e9ae4015a77a4d98f6ac9f5ba6547339332252"
+        },
+        {
+          "name": "claude/2136-factory-customer-business-path",
+          "sha": "db4480983acb7876a4bda611b75923fb1f758143"
+        },
+        {
+          "name": "claude/2138-filter-effective-assets-regression",
+          "sha": "fdefe7023fb2def89e8a22aa6cb8af1ec93cf852"
+        },
+        {
+          "name": "claude/2146-tier1-character-fk",
+          "sha": "321e830bf4926ab4b573c0c502e3c2536690f47a"
+        },
+        {
+          "name": "claude/2147-source-resolution-wildbrain",
+          "sha": "dc03b5798f6c91292d9e44172d9df14563d50527"
+        },
+        {
+          "name": "claude/2152-matching-refs-pagination",
+          "sha": "edb21277d606148f23b52a33216e99be4179aaf5"
+        },
+        {
+          "name": "claude/2160-orchestrator-2121-closeout",
+          "sha": "8fde05fb6173f28f6f9e9b2c2a70f1c19931a281"
+        },
+        {
+          "name": "claude/2168-priority-correction",
+          "sha": "f65abeb1ad5190e070070c94e9f53e132bd70498"
+        },
+        {
+          "name": "claude/2171-coldlion-division",
+          "sha": "27dc3600b0ee02a0b04d821783b1b39292ab69e9"
+        },
+        {
+          "name": "claude/2171-preview-orphan-manifest",
+          "sha": "3fd8cdf2ae1bac9b5e0aea637e81fdf6f0720804"
+        },
+        {
+          "name": "claude/2173-coldlion-sales-history",
+          "sha": "f11e4821b5399622c1e0d426b1e43a9c42c1ed0d"
+        },
+        {
+          "name": "claude/2174-coldlion-prod-history",
+          "sha": "616176e758dc88fd9aa3511fd5f6129dd574f26a"
+        },
+        {
+          "name": "claude/2175-coldlion-unit-5a",
+          "sha": "9352961d40e18778d5dfdc8c9ed3f6a87fb917d1"
+        },
+        {
+          "name": "claude/2177-coldlion-cust-sp",
+          "sha": "cbb99f2cdab1f621a37cf004e093fba5a952c1cd"
+        },
+        {
+          "name": "claude/2196-dam-search-fillfactor",
+          "sha": "e26e735085d6819bb1245002b29cb1b0a45f10b5"
+        },
+        {
+          "name": "claude/2207-persist-refused-review",
+          "sha": "fdd7e2d32eabb261343979878aded0303a483fac"
+        },
+        {
+          "name": "claude/2213-effective-tag-set-comparison",
+          "sha": "9dc6009a85c483d3dcd734c4f4992aec74c43b5e"
+        },
+        {
+          "name": "claude/2214-style-group-count-predicate",
+          "sha": "b0b56847f3b835f29edd7a96df30817cb35befdf"
+        },
+        {
+          "name": "claude/2242-arm1t-contract",
+          "sha": "295b52de5ca724e910dc6035c8d2377573e89fab"
+        },
+        {
+          "name": "claude/2244-codex-verdict-bridge",
+          "sha": "51db03ccdb540d55b09e63ff58310214d56d6a16"
+        },
+        {
+          "name": "claude/2301-phase-a-status",
+          "sha": "799deb8f91162b02ed1e39f67e30b40f6c08f416"
+        },
+        {
+          "name": "claude/2301-step3-tombstones",
+          "sha": "cd4aa51dd35d9c8d7cb828dd215f54d798f1b34c"
+        },
+        {
+          "name": "claude/2301-step4-capacity-preview",
+          "sha": "c94a69ca93b1dc78b6753e740cfb4c575ec2c718"
+        },
+        {
+          "name": "claude/2301-step5-hourly-audit",
+          "sha": "b1f9bbc0f304ed52f9223c29c6310df2492d1f10"
+        },
+        {
+          "name": "claude/2301-step6-operating-rules",
+          "sha": "4f3f25b86a81d290467461ce53315a82ba389c72"
+        },
+        {
+          "name": "claude/2301-step7-completion",
+          "sha": "a64f233e9dbc2c6b387eb58ead84abc292404a76"
+        },
+        {
+          "name": "claude/2350-resolve-json-unverified",
+          "sha": "fe4558add8d4651b7e9c41ef858f807e8c6afcfc"
+        },
+        {
+          "name": "claude/2362-risk-gate-mutations-activation",
+          "sha": "bedc0c0cabbcb2de5790972664907cad976058ff"
+        },
+        {
+          "name": "claude/2363-risk-gate-mutations-source_identity",
+          "sha": "2fcc4a037a65c506f6d22eec05486847c6d42fd7"
+        },
+        {
+          "name": "claude/2364-risk-gate-mutations-preview_contents",
+          "sha": "2e5d28634898d4315d1c5e6a0c1f33417ef9e8f1"
+        },
+        {
+          "name": "claude/2365-risk-gate-mutations-governed_reconciliation",
+          "sha": "fea540da59bc046531151c318796dcc704a0a185"
+        },
+        {
+          "name": "claude/2366-risk-gate-mutations-governed_supersession",
+          "sha": "a53140da12b3c8bef8e22d15e1f5b2d3469339dc"
+        },
+        {
+          "name": "claude/2367-risk-gate-mutations-historical_original_runs",
+          "sha": "36b3cb9d243026b2360fc4833e658b8796175ea4"
+        },
+        {
+          "name": "claude/2459-mutex-recovery-kinds",
+          "sha": "8f60307b9b66a7bab31c89156a3b2732817ec46f"
+        },
+        {
+          "name": "claude/2467-governed-review-unknown-args",
+          "sha": "ff3a9f0668edba77d88c9c0e7e4e8f6a7af5a348"
+        },
+        {
+          "name": "claude/2572-blocked-four-handoff",
+          "sha": "0b7b91379000d3b665b5ba2fc3ee31439fef7368"
+        },
+        {
+          "name": "claude/2712-hts-rag-schema",
+          "sha": "6c363d1accb44822e2036713480ecc689fb345e4"
+        },
+        {
+          "name": "claude/2728-orchestrator-snapshot",
+          "sha": "d47817c6d39dac868b67b64d458552a06099cf92"
+        },
+        {
+          "name": "claude/2728-preflight-carry-forward",
+          "sha": "ced43bb4df3fd7a8dbcfcf4d36d6ee3fe4d85200"
+        },
+        {
+          "name": "claude/2728-step5-preflight-routine-rebuild",
+          "sha": "104d47f741cfb3b6808d1cd9396e268796c439ac"
+        },
+        {
+          "name": "claude/2729-evidence-rejection-reasons",
+          "sha": "b675ad7d8f64b9e6162f9b59479ccdf20602e0b7"
+        },
+        {
+          "name": "claude/2729-reroute-recovery",
+          "sha": "b73e772cd44f001fa25f90fcd3b859188f2cc37a"
+        },
+        {
+          "name": "claude/2729-runner-lanes",
+          "sha": "3eaf2112b174791fe02fd720b3ad1e853822494d"
+        },
+        {
+          "name": "claude/2729-step6-remaining-gaps",
+          "sha": "d296a33f58c8a3805565241509ddea6370b6cdc2"
+        },
+        {
+          "name": "claude/2792-pin-20260915023506-provenance",
+          "sha": "83c9c9ed7164b16c68106363786ffec5fba187d0"
+        },
+        {
+          "name": "claude/2792-retire-20260915015414",
+          "sha": "55eca52ac11b0e5be1bfe0674d5a1ccf4723d8f5"
+        },
+        {
+          "name": "claude/2792-sg-reconcile-bounded",
+          "sha": "789a619434080503ec361f355c5c3d749300be38"
+        },
+        {
+          "name": "claude/2792-sg-reconcile-bounded-v2",
+          "sha": "2f861b0d037ac51b94823818fa70084e684bf578"
+        },
+        {
+          "name": "claude/2797-wb-normalized-arms",
+          "sha": "1c8c0e88efc75dcd1e417dfc4851a37bcf302536"
+        },
+        {
+          "name": "claude/2860-popsg-v2-default-timeout",
+          "sha": "7b0126a0d12849e5d22ce6c6ed694d1a4279d3ac"
+        },
+        {
+          "name": "claude/2863-historical-restoration",
+          "sha": "bcc2587d6522dffca34099e2015769b7f5972014"
+        },
+        {
+          "name": "claude/2911-talent-likeness-column",
+          "sha": "6f74fe1b242999204a5e90ff0ccc35ff46b23d4d"
+        },
+        {
+          "name": "claude/2934-retire-deactivate-stale-sg-files",
+          "sha": "e29b93a19a51805f0f970c5883c2a64311d5a0cb"
+        },
+        {
+          "name": "claude/2934-retire-deactivate-stale-sg-files-v2",
+          "sha": "3895882261ced240e616390a1266a66241dcbddf"
+        },
+        {
+          "name": "claude/2988-historical-restoration",
+          "sha": "12e9fcf63020c33bd26ec32311dab4eac114e2ed"
+        },
+        {
+          "name": "claude/3009-sg-default-browse-snapshot",
+          "sha": "ac3448df611756c41183c6fcfe18465d03bc3e58"
+        },
+        {
+          "name": "claude/3023-sg-refresh-bounded",
+          "sha": "72517a6f8bc891bb818a61b75cd4104dbccaa487"
+        },
+        {
+          "name": "claude/3027-alarm-fallback",
+          "sha": "2f738adc7855678765dda40b033e61a5c1ebcc1b"
+        },
+        {
+          "name": "claude/3027-alarm-fired-evidence",
+          "sha": "ed463b835d135020ae74f2aab782c8d3d9dce2d6"
+        },
+        {
+          "name": "claude/3027-blocked-steps-tooling",
+          "sha": "b5baf1279d16fda2f473a2eaf5375e2c548ab00b"
+        },
+        {
+          "name": "claude/3027-named-hold-alarm",
+          "sha": "6983797d412c80c379141ef844875662b726405c"
+        },
+        {
+          "name": "claude/3027-reroute-ref-namespace",
+          "sha": "7fffc62b8124b415bcf1d20599338432e403dbfb"
+        },
+        {
+          "name": "claude/3027-reviewer-start-watcher",
+          "sha": "6138184a770bdcb4cd6bb86709f082a641084cbf"
+        },
+        {
+          "name": "claude/3027-start-watch-live-evidence",
+          "sha": "95598fee1e92d41f3fee5fbc48d265f394a84335"
+        },
+        {
+          "name": "claude/3027-start-watch-own-marker",
+          "sha": "849e5b2eb69554b20c8cf08d225fb46cdb52204f"
+        },
+        {
+          "name": "claude/3027-step1-canary-comment",
+          "sha": "e753ccf82d88abde6e98661331bb3e7d4e2a0637"
+        },
+        {
+          "name": "claude/3027-step1-proof-doc",
+          "sha": "0083e6be0455bcb552a46c539c7f54f44d5f0728"
+        },
+        {
+          "name": "claude/3027-step2-4-live-evidence",
+          "sha": "797b505d8e2a1a4e87518bf4418ef42fcb0feab6"
+        },
+        {
+          "name": "claude/3027-step6-train-evidence",
+          "sha": "24164127418cd192c5033bb0fa1593e0adcde01d"
+        },
+        {
+          "name": "claude/3027-step7-live-reroute-evidence",
+          "sha": "0142b12a0115275dc1633a069cf8aa9c379a06a1"
+        },
+        {
+          "name": "claude/3027-steps-2-4-evidence",
+          "sha": "6a36a4e79f3613f66c7bf59e0f0d4e8f7b13519c"
+        },
+        {
+          "name": "claude/3027-train-per-entry-gate",
+          "sha": "83b545d1d26018dc5f8c36fad972c476f88108a2"
+        },
+        {
+          "name": "claude/3027-train-predispatch-evidence",
+          "sha": "75a54e4578ecbb6758659bbc3be11020da4b9a23"
+        },
+        {
+          "name": "claude/3027-watch-drawn-since-validate",
+          "sha": "73b1ed2dbca2b432e16a0203d37a615c21879022"
+        },
+        {
+          "name": "claude/3028-sidecar-registry",
+          "sha": "c3725b11856f298e00f4c74ec28b7878b73245c3"
+        },
+        {
+          "name": "claude/3036-product-type-cols-a7",
+          "sha": "2a1688bd4315812dcdfc3d8fe2e02cbc80340704"
+        },
+        {
+          "name": "claude/3043-live-proof",
+          "sha": "32a9d1175e08d94201cbcdd5cc8e8d989cc3ff7b"
+        },
+        {
+          "name": "claude/3071-step6-train-canary",
+          "sha": "c08c3cf5a6744abcc321fe5d8250c111df8b73b7"
+        },
+        {
+          "name": "claude/3074-step6-train-canary-b",
+          "sha": "2ec71fa27d6109c4fb10e41fee55c59a712663d7"
+        },
+        {
+          "name": "claude/3091-milestone-schedule-a7f2",
+          "sha": "9d1ceb7d1810e4d8d84839e797953714083c6717"
+        },
+        {
+          "name": "claude/3104-warner-subs-mapping-b1",
+          "sha": "ee3bf2ac56fe4a785113a84de2e7f8de51baa343"
+        },
+        {
+          "name": "claude/3119-risk-gate-new-column-check",
+          "sha": "14787b327f9c5a6133e52f78be8a8532dbc6ea5f"
+        },
+        {
+          "name": "claude/3126-dispatch-stall-alarm",
+          "sha": "58749939082153112b45321a1a2b09f48c0929fa"
+        },
+        {
+          "name": "claude/3127-live-proof-probe-with-impl",
+          "sha": "ea36a7d63c67b6fc386d7f53c0b4b3e203516905"
+        },
+        {
+          "name": "claude/3128-step0-baseline-a54",
+          "sha": "463488c9a58682e8e924ffb4b7c72b16707db90e"
+        },
+        {
+          "name": "claude/3147-probe-gate-followups",
+          "sha": "210f8c39d75cf7725d44746db74acb5e447ec5f8"
+        },
+        {
+          "name": "claude/3148-r2l-sinks-af65",
+          "sha": "045019583bfb40bb36a7114ac53abc07cc7f649b"
+        },
+        {
+          "name": "claude/3154-factory-time-idx-b2",
+          "sha": "249b62b0c4e3473cb5f03cdbd18ef7f26b5edd8f"
+        },
+        {
+          "name": "claude/3158-entered-unclaimed-alarm",
+          "sha": "caaddef0b401b6e88b116c8062f3a040da36db35"
+        },
+        {
+          "name": "claude/3159-risk-gate-routine-fn",
+          "sha": "2f38677a1f6b7e1cf88af0da5874870c04a295fc"
+        },
+        {
+          "name": "claude/401-7a-reviewer-busy",
+          "sha": "7d1646de064122a3c89149281f93517b9aec194a"
+        },
+        {
+          "name": "claude/498-closeout-fastpath",
+          "sha": "fbac9c4099c26e2e0ac06c2af6f4fad485040694"
+        },
+        {
+          "name": "claude/498-review-caller-head",
+          "sha": "3027d8007595a13f1dcd2d7d51cf1d34605de632"
+        },
+        {
+          "name": "claude/507-merge-wait",
+          "sha": "97c5450e555bba40a952c3b45863b6577b162f26"
+        },
+        {
+          "name": "claude/agents-gemini-rotation-sync",
+          "sha": "41dc6731326a3038d22ae84cfb5fc90133035189"
+        },
+        {
+          "name": "claude/api-fanout-2773-a",
+          "sha": "afda8484d7e78c67fa40e6237577fc1da7aecfce"
+        },
+        {
+          "name": "claude/api-fanout-2773-b",
+          "sha": "80f6f72e0af05f9e4cec3a72e7ecba7c11816c39"
+        },
+        {
+          "name": "claude/api-fanout-2773-c",
+          "sha": "e4b37421be9f09048db60883e0d95ae61110cab4"
+        },
+        {
+          "name": "claude/api-fanout-2773-d",
+          "sha": "5fd398994c81ec58becfa7deaae50514aed4a3d6"
+        },
+        {
+          "name": "claude/api-quota-reduction",
+          "sha": "2fd33363c843d13edc7d8c012b99aabfd0a0d132"
+        },
+        {
+          "name": "claude/applied-migration-preview-identical-exception",
+          "sha": "ea413f10f02fc51bae919d5ea4e95d5ce6dbd7c6"
+        },
+        {
+          "name": "claude/author-lanes-no-cap-2775",
+          "sha": "72456c8012e98f08024811874da338275bc3c235"
+        },
+        {
+          "name": "claude/business-rules-prepacks",
+          "sha": "86eaf8f105acc3b0c1411cad66079ec37be858a1"
+        },
+        {
+          "name": "claude/catalog-verification-2029-2043",
+          "sha": "0137a6bdda2a0f420307633701a1ee86385fca5c"
+        },
+        {
+          "name": "claude/claim-column-coverage",
+          "sha": "e6b2afe39acd0109f49d6cf910371952bf1de9f9"
+        },
+        {
+          "name": "claude/cleanup-untracked-scratch-ignores",
+          "sha": "1bdc93976c91c940ed2beee82311f0e70a9873af"
+        },
+        {
+          "name": "claude/coldlion-landing-psql-file-input",
+          "sha": "6e40bcca3d4e818a94809da5257a8320fa75de54"
+        },
+        {
+          "name": "claude/coldlion-loader-secret-note-4dd6eb",
+          "sha": "781c7fa7ceaad50665d7889651db03018ef59af5"
+        },
+        {
+          "name": "claude/coldlion-orphan-item-details",
+          "sha": "6c73583d02ccb4e5d38d7b92374fc449132043da"
+        },
+        {
+          "name": "claude/coldlion-wrapup-handoff-20260831",
+          "sha": "e2b2d9ba99d3f95ebab9a43453cad2d8e1280b97"
+        },
+        {
+          "name": "claude/correct-opa-attribution",
+          "sha": "afa669eb5042a006d64c3d223325980ec8cf2a2f"
+        },
+        {
+          "name": "claude/destructive-analysis-guard-2437",
+          "sha": "14c34b84b6e7f8e5f887832a7d223c362e92318a"
+        },
+        {
+          "name": "claude/deterministic-git-fixture-cleanup",
+          "sha": "620903983e287a0677aa705c7a19abd2fd788890"
+        },
+        {
+          "name": "claude/docs-preview-branch-ref-staleness-20260903",
+          "sha": "6e1cdef5957ba42d0f38ef37541bc5d511d6ef6a"
+        },
+        {
+          "name": "claude/fix-2697-reclaim-budget",
+          "sha": "2c3cdb36e70fbd20a5aa19eb2478c19bdc2c154d"
+        },
+        {
+          "name": "claude/fix-2759-docs-diagnostic-blocks-merge",
+          "sha": "e6c405af07de40b7fd00d103a2609e7651e13498"
+        },
+        {
+          "name": "claude/fix-3039-promotion-evidence",
+          "sha": "60da741395d00756fea57dcd1689348b9c9b7f14"
+        },
+        {
+          "name": "claude/fix-auto-promotion-contents-write",
+          "sha": "9425752894ca0d6fa955975e3aa0566d966b2d26"
+        },
+        {
+          "name": "claude/fix-catalog-verifier-sql-quoting",
+          "sha": "d8092295b1e883f79c7b3b26fd1790320ceabe24"
+        },
+        {
+          "name": "claude/fix-expired-claim-recovery-2460",
+          "sha": "f3da884e97f7c72f0bc6882c4cbe7f9172d86b9e"
+        },
+        {
+          "name": "claude/fix-grant-kind-from-create",
+          "sha": "0be333d3e5e4e619aa55bd9cc3225b6b9c992480"
+        },
+        {
+          "name": "claude/fix-resume-worktree-state",
+          "sha": "6e98ecd81c41eed32ed4c85d24884112c392d6cd"
+        },
+        {
+          "name": "claude/gemini-reviewer-activation",
+          "sha": "8a5b36a47812c550c98cdb8a0ae094d9ccb8de87"
+        },
+        {
+          "name": "claude/github-issues-albert-e4caf8",
+          "sha": "196f40ac52a0f53706fc07186ea30b6a9d27d5b5"
+        },
+        {
+          "name": "claude/github-request-waste-fix",
+          "sha": "5e8d7e4d290bd53ccc7356011ae6ca9b65b1c248"
+        },
+        {
+          "name": "claude/guarded-merge-preflight-1201",
+          "sha": "2738d435c9815c91db4b91f3e8c4d4a81e8c8b90"
+        },
+        {
+          "name": "claude/handoff-2258-non-orchestrator-queue",
+          "sha": "ba03ae9bd3346d23700d28493567b31d61a7a733"
+        },
+        {
+          "name": "claude/handoff-cleanup-1663-2252",
+          "sha": "fac9671ddf60911ef2f281cbc78d176dabc2d764"
+        },
+        {
+          "name": "claude/handover-orch-2297-closeout",
+          "sha": "1873ba8b775f81aa7dc8369f9ef06a381358e7c8"
+        },
+        {
+          "name": "claude/handover-orch-2330-closeout",
+          "sha": "7fddf11462ab7e59d68e529f5f9a0d9303fb8670"
+        },
+        {
+          "name": "claude/handover-orch-5e0e7c81",
+          "sha": "5ff3fa80954376720bdea4c53a96ddc7358d1f7d"
+        },
+        {
+          "name": "claude/handover-orch-6172c135",
+          "sha": "69f1a9c266b34e7dacdf21afdcce31f986e4080f"
+        },
+        {
+          "name": "claude/inventory-canonical-licensor-2905",
+          "sha": "3138b6ae60274d5098728c10bfffa54c28dca0f1"
+        },
+        {
+          "name": "claude/inventory-exact-counts-doc-2263",
+          "sha": "74d05f57d98e41abb2a6b1a129071ee465c8f691"
+        },
+        {
+          "name": "claude/issue-2035-hts-rag-delta",
+          "sha": "73c83823bd5b15a60bcf37ae14ff3a2c2b2a7a7a"
+        },
+        {
+          "name": "claude/issue-2035-restore-applied-bytes",
+          "sha": "3f66aacc6e1940883139223e024805f046df2414"
+        },
+        {
+          "name": "claude/issue-2102-docs-reviewer-exemption",
+          "sha": "3c2fe87eaf1ef75af9dcfbe8b458425569460b77"
+        },
+        {
+          "name": "claude/issue-2103-scrub-retailer-codes",
+          "sha": "f7ff0baa431c65f472004b1af2771ca348087705"
+        },
+        {
+          "name": "claude/issue-2105-retire-stale-handoffs",
+          "sha": "dceba7a356cd4546c28d1c1bcf0796ae92f46aa6"
+        },
+        {
+          "name": "claude/issue-2151-tag-facet-counts",
+          "sha": "6455f7c5c1e1303bf85a284e3e63464f43bd561b"
+        },
+        {
+          "name": "claude/issue-2159-warner-empty-namespace",
+          "sha": "7f036a5b64961327373d459be08bc1ceafd9388b"
+        },
+        {
+          "name": "claude/issue-2307-codex-verdict-env",
+          "sha": "6d7a2058e6076f4bde0fd4700e04b3afa36eaa52"
+        },
+        {
+          "name": "claude/issue-2311-refusal-causes",
+          "sha": "6f879343483df40d5de2f638bd9b3df2b45a2612"
+        },
+        {
+          "name": "claude/issue-2318-orchestrator-admission",
+          "sha": "4d5c01065c8f909630ed6d60f5d61be893862215"
+        },
+        {
+          "name": "claude/issue-2331-style-tracker-realtime",
+          "sha": "eb1d453ca7ba55251801aa30ce61e9f303afb08f"
+        },
+        {
+          "name": "claude/issue-2333-core-franchise",
+          "sha": "85b7b0abbf17f5d9626de059102e2e1f7a26b97c"
+        },
+        {
+          "name": "claude/issue-2334-canonical-bridges",
+          "sha": "03686677b0bc605f5522a1bddb7cde9d311a6bdd"
+        },
+        {
+          "name": "claude/issue-2335-source-authority",
+          "sha": "194b4f45b038247d3e1212dd22ecbc273c58ec6c"
+        },
+        {
+          "name": "claude/issue-2355-character-alias",
+          "sha": "2b95cd2b5be98037815b021f83f7400626da9f7b"
+        },
+        {
+          "name": "claude/issue-2357-licensing-candidate-apis",
+          "sha": "74c5e2f3c2e50b6f26547903df3e7b93897bf4bb"
+        },
+        {
+          "name": "claude/issue-2403-hts-rag-split",
+          "sha": "e5252b5b11e0cded4212129b78fda1f1d9dd869d"
+        },
+        {
+          "name": "claude/issue-2408-style-group-rebuild",
+          "sha": "b16c73a50892fc26bb07ddda1185ef7cb41314cd"
+        },
+        {
+          "name": "claude/issue-2419-style-group-reconciler",
+          "sha": "222ea52a68a62a9f8396319be95f36e2d209f957"
+        },
+        {
+          "name": "claude/issue-2439-bulk-operation-runs",
+          "sha": "53937748ee2b8fdba2ada40a79219f4d62d02f77"
+        },
+        {
+          "name": "claude/issue-2449-single-resolution-ledger",
+          "sha": "776b3d21f6e765265bca1b94a909ae67953ebf9f"
+        },
+        {
+          "name": "claude/issue-2454-duplicate-claim-release",
+          "sha": "2143434da500942d300eca199ea631d14eeaa7b5"
+        },
+        {
+          "name": "claude/issue-2465-freshness-classifies-main",
+          "sha": "df5aa6734bed6be7a0cacc2cf4b6f1f568cf1625"
+        },
+        {
+          "name": "claude/issue-2478-sku-key-reissue",
+          "sha": "cfbb4b79ff0fceccdf3e9f7dabd40f52219c91f6"
+        },
+        {
+          "name": "claude/issue-2482-retire-erp-items",
+          "sha": "ff8cd9f5996e71134c7a07d73853a1863be506a0"
+        },
+        {
+          "name": "claude/issue-2576-dcp-identity",
+          "sha": "e5114758f9deb826a691b3d754bf685b6f0f8ff1"
+        },
+        {
+          "name": "claude/issue-2579-source-coverage",
+          "sha": "5c9e35431f976ac1910fef5f3f6998fe79310919"
+        },
+        {
+          "name": "claude/issue-2611-prepack-exclusion",
+          "sha": "656bf9f48215ed04d2846aad9b23fbe9d0c4159c"
+        },
+        {
+          "name": "claude/issue-2662-definer-views",
+          "sha": "38687a605cf64ac5bbb4c3da9cd15e8d3647ab01"
+        },
+        {
+          "name": "claude/issue-2662-part-a-revoke-grants",
+          "sha": "c2ee8fd7448c70a676b42fc476d9aad48d60119e"
+        },
+        {
+          "name": "claude/issue-2670-bulk-run-status",
+          "sha": "0d4777b4c19ebdf388a97f609763ef35e0046e01"
+        },
+        {
+          "name": "claude/issue-2693-reviewer-concurrency",
+          "sha": "648a2f8ef32c5adc75fc0222d1cd49618c3918ea"
+        },
+        {
+          "name": "claude/issue-2724-factory-time",
+          "sha": "17bfaad654ab17289a1b08d10c493cb303516350"
+        },
+        {
+          "name": "claude/issue-2744-narrow-asset-style",
+          "sha": "58fad78997372ed55847d3ed3c13e203bda55bdd"
+        },
+        {
+          "name": "claude/issue-2744-scraped-work-mem",
+          "sha": "ec869aaacf8eebade5331f6d97b5216520079c7f"
+        },
+        {
+          "name": "claude/issue-2744-unfiltered-perf",
+          "sha": "3d562b8e38b07a9c1ac8607bf9efaf397cd61ea3"
+        },
+        {
+          "name": "claude/issue-2769-rebuild-queue-grants",
+          "sha": "3b19eeadc0b6ad0ee817ed343a27d2f9d29c7bd6"
+        },
+        {
+          "name": "claude/issue-2794-plm-sync-retire",
+          "sha": "189067fe8f3cc6601035391d553695f0ddb1e7cd"
+        },
+        {
+          "name": "claude/issue-2796-preview-mode-apply",
+          "sha": "fb157e1c15a768571821f973844ca09ce5ad8d8a"
+        },
+        {
+          "name": "claude/issue-2797-scraped-source-inventory",
+          "sha": "929d1a022dc148f55c00c3c20a584937f5520778"
+        },
+        {
+          "name": "claude/issue-2802-admission-budget",
+          "sha": "933e998b05b1e771a08911ea3d5296b35029b695"
+        },
+        {
+          "name": "claude/issue-2802-talent-likeness",
+          "sha": "bf59b5ff0fd1dc458fb240ab1a45c1be606b45ba"
+        },
+        {
+          "name": "claude/issue-2809-guard-set-schema-ordering",
+          "sha": "fbfc3004944ae61ed46993ca769aa9cd3d38e0a8"
+        },
+        {
+          "name": "claude/issue-2817-register-20260911221304",
+          "sha": "a6790093a1973d72119c8d9c7f1d2fc9fc7b9d30"
+        },
+        {
+          "name": "claude/issue-2820-migration-target-scope",
+          "sha": "570895d7369b243f13e05d0b7a5e3cd66787b1ff"
+        },
+        {
+          "name": "claude/issue-2828-glm-preflight-repair-hint",
+          "sha": "284156784d2702fd1a9ab97b5b8c74279b6a1b5c"
+        },
+        {
+          "name": "claude/issue-2863-coldlion-detail-landing",
+          "sha": "fb46c1d62120ab12497c45578a0b74fb1f7ee03a"
+        },
+        {
+          "name": "claude/issue-2883-review-digest",
+          "sha": "0ddd32755eae1812aee2cba6e0bb3deeeed0103d"
+        },
+        {
+          "name": "claude/issue-2988-orderlist-timeout",
+          "sha": "bac58c5f49687c7911d013e1f392fcf5c356e626"
+        },
+        {
+          "name": "claude/issue-3174-scraped-sections",
+          "sha": "89f31fd18822eed45c6d7568ca750abff0c78c8a"
+        },
+        {
+          "name": "claude/issue-3179-prepack-case-drift",
+          "sha": "c0a1c6663859f27bf454bb98c92cf2fb05fc6a82"
+        },
+        {
+          "name": "claude/issue-3179-prepack-coverage-case",
+          "sha": "0270aada2e73e318ec889c467d939c53e596f0ec"
+        },
+        {
+          "name": "claude/issue-3179-prepack-detail-loader",
+          "sha": "9b5a0184c28f50310944db222d1372ad15ffc6d1"
+        },
+        {
+          "name": "claude/issue-3179-prepack-identity-evidence",
+          "sha": "3111ec8cf769129932ee5fa2935b3dce96b51367"
+        },
+        {
+          "name": "claude/issue-3179-prepack-refresh-pacing",
+          "sha": "ee60b98a2a5aa7782f70728a5cd7e084b1b85d4f"
+        },
+        {
+          "name": "claude/issue-3180-prod-detail-collision-refusal",
+          "sha": "0a0d3d8ac4b9a199e5a8d86338c56f31650168e3"
+        },
+        {
+          "name": "claude/issue-3180-prod-detail-company-code",
+          "sha": "f24a2437bf4f800268ad50281644499f6fd5379e"
+        },
+        {
+          "name": "claude/issue-3180-prod-detail-loader",
+          "sha": "e2d897915c56a258c75ca12f48778a7fd5f56a97"
+        },
+        {
+          "name": "claude/issue-3180-reconcile-per-key",
+          "sha": "6edb6dcb9726add30e2303693abe17e611cb3acf"
+        },
+        {
+          "name": "claude/issue-3180-sync-job-budget",
+          "sha": "e81264f21160379908c0b21f7d4fb6c1a4ce3330"
+        },
+        {
+          "name": "claude/issue-3182-rebind-claim-worktree",
+          "sha": "aa8ef013d0be081f11e00389b0f63332d9ca5513"
+        },
+        {
+          "name": "claude/issue-3242-step-7-production-9edc75",
+          "sha": "838f05e07aae398f910d35afa15acfc18f30f8b2"
+        },
+        {
+          "name": "claude/issue-505-ds-to-dy",
+          "sha": "d3b53134ab63f851fa37dd6b08ea7442098b6a54"
+        },
+        {
+          "name": "claude/issue-orch-label-sync",
+          "sha": "91cfac1f07e8b29b89c93a67f7fb9d265edfb496"
+        },
+        {
+          "name": "claude/issue-rehearse-applied-evidence-only",
+          "sha": "cdfb56595809ba13d52ca1bcc82a805ca2adeba3"
+        },
+        {
+          "name": "claude/item-master-non-inventory-flags-daae81",
+          "sha": "886fe470de8106f2a6353b7cf00030193be68ce6"
+        },
+        {
+          "name": "claude/item-master-noninv-exclusion",
+          "sha": "933ff47e083faae5b40c4e99b950d2860ab6e910"
+        },
+        {
+          "name": "claude/lane-object-reader-grants-k7q2",
+          "sha": "13459de81d945b4645af8accd4ec2c9ab2a2b09f"
+        },
+        {
+          "name": "claude/live-proof-probe-2506",
+          "sha": "7aff26078e9888c48f1221b3d151be400912ca89"
+        },
+        {
+          "name": "claude/live-proof-probe-2905",
+          "sha": "cd65b765dedcabe347e2e34795f6097efb7720ed"
+        },
+        {
+          "name": "claude/live-proof-workflow-2848",
+          "sha": "e451768ba7dff80d87ba86b20221595ad03634e2"
+        },
+        {
+          "name": "claude/merge-lane-claim-lookup",
+          "sha": "269551a20a1944474daaa26232a885d16eef8937"
+        },
+        {
+          "name": "claude/merged-pr-issue-binding-2506",
+          "sha": "76f7c58f847e547a26d8776bdbc8bf0af250ccc1"
+        },
+        {
+          "name": "claude/multi-pr-binding-2140",
+          "sha": "f8e670a9a14653727a1e975fca63eca23790d861"
+        },
+        {
+          "name": "claude/obvious-property-links",
+          "sha": "705f18a54ff4b393b525f509cff19810375da8c7"
+        },
+        {
+          "name": "claude/opa-submissions-authority-ruling",
+          "sha": "1c3c4c0668b4d5659c9617b8a4a19c982fcc56a2"
+        },
+        {
+          "name": "claude/orch-2629-successor",
+          "sha": "a6cc518698fc32d5fb84804dc832ad3bb4da8349"
+        },
+        {
+          "name": "claude/orch-2689-closeout",
+          "sha": "61201a74fec43c84cce4714630b1c6770b2f9785"
+        },
+        {
+          "name": "claude/orch-3004-closeout",
+          "sha": "f47fe7b18f07244cb9165f17f63275e52444cfd3"
+        },
+        {
+          "name": "claude/orch-closeout-20260909",
+          "sha": "33525d379852371f946ac0c03e13ce029d8fc0b5"
+        },
+        {
+          "name": "claude/orchestrator-2109-closeout",
+          "sha": "db9bc81e90bdd3beb605510043f73f3d4f0cf0e0"
+        },
+        {
+          "name": "claude/orchestrator-2168-closeout",
+          "sha": "6693cf07cad973ae90e7bd50683482b38a8d9185"
+        },
+        {
+          "name": "claude/orchestrator-2193-checkpoint-final",
+          "sha": "4f7289c0c70657aa7f6d99f46b139fb0b1b9b062"
+        },
+        {
+          "name": "claude/orchestrator-2193-closeout",
+          "sha": "1f8bb5252a20a5f17c7526febfc5b5da081ace47"
+        },
+        {
+          "name": "claude/orchestrator-2193-flag-2208-risk",
+          "sha": "a6bc5621fa6b64decd6321827ca691d6d5001198"
+        },
+        {
+          "name": "claude/orchestrator-2224-closeout",
+          "sha": "1e9f36aaadeeace06e7f6ebf15d2ca9b7dcd62b9"
+        },
+        {
+          "name": "claude/orchestrator-minimum-routing",
+          "sha": "242e4689b69385306bd61538fcedfb6f3bb99097"
+        },
+        {
+          "name": "claude/order-intake-plan-docs",
+          "sha": "d0579821fdb34385b868c12d8d0ce84836193979"
+        },
+        {
+          "name": "claude/outcome-owner-trust-4b8a",
+          "sha": "5ebfccb26800346b973501df9a91855d4a0a94bd"
+        },
+        {
+          "name": "claude/pass2-drop-survives-baseline",
+          "sha": "65cca888e046e1d7fd88c23487ada5b39c4dbcff"
+        },
+        {
+          "name": "claude/pass2-honor-later-drops",
+          "sha": "47c5693fdb2e9fd40bf464f18933f3fac056b808"
+        },
+        {
+          "name": "claude/pause-kimi-reviewer-24h",
+          "sha": "7446590f04838cfcdb50f0e4b3a89d8ad61f95d9"
+        },
+        {
+          "name": "claude/plan-3036-columns-locked",
+          "sha": "c64c7d369a19d27e872f235f861ab61c373b837f"
+        },
+        {
+          "name": "claude/preflight-hardening-2274",
+          "sha": "ec22c65359b40c57d5ee3bcf400bb926e33bfeb4"
+        },
+        {
+          "name": "claude/preflight-restore-merge-path",
+          "sha": "d7c047a2da063832371eb53855e0b7e959b70897"
+        },
+        {
+          "name": "claude/preview-evidence-downstream-artifact",
+          "sha": "23b54fa80fc42758c3e49185501fb16050d4f087"
+        },
+        {
+          "name": "claude/preview-gate-self-context",
+          "sha": "a4e7f782ddece8cbe6a2d997515acff227046095"
+        },
+        {
+          "name": "claude/prod-gate-config-scope-a1",
+          "sha": "4bca47eadeaa1c20a4b80b0ba8ef87ae81635ff8"
+        },
+        {
+          "name": "claude/producer-pin-custody",
+          "sha": "dfdd967f32d6ae650dfeb9022c57527e06d13764"
+        },
+        {
+          "name": "claude/product-description-extraction-118fbe",
+          "sha": "1115c9c9ae000cb4705f6e39668761283841dd84"
+        },
+        {
+          "name": "claude/production-without-preview",
+          "sha": "41112e1d5a0fbefc77fb5020e260730fed2ee982"
+        },
+        {
+          "name": "claude/property-inactive-1322",
+          "sha": "5031c6aea7467b636a3a5d1d94b0f48542447a59"
+        },
+        {
+          "name": "claude/public-data-venue-guard",
+          "sha": "c33f54841c8dc917a36fce0e0c0085e99ec3e1be"
+        },
+        {
+          "name": "claude/redact-licensor-rows",
+          "sha": "5b6bbd397f20e2cdeb7eec99b1facb4658f947c4"
+        },
+        {
+          "name": "claude/redispatch-readback",
+          "sha": "3312d7d261b44fa7f75e2b97652c4145ca8db11a"
+        },
+        {
+          "name": "claude/remove-concurrency-ceilings-7a",
+          "sha": "5bab89e52f247c1f89cf8d78923c67b856643fae"
+        },
+        {
+          "name": "claude/remove-qwen-retirement-refs",
+          "sha": "2438fd5d9f9bed54a5d43167a03fd0911e7d9c41"
+        },
+        {
+          "name": "claude/remove-throughput-caps",
+          "sha": "8cafe439c350d9bade8607c4e5d9b52fe74afdf2"
+        },
+        {
+          "name": "claude/restore-2535-run",
+          "sha": "ebdc498cd41c24e0f970e9b805c88f61f6f35598"
+        },
+        {
+          "name": "claude/restore-2744-preview-run",
+          "sha": "2ca5703e3c81ecb09ce904cb44ef57e94307afd6"
+        },
+        {
+          "name": "claude/reviewer-assign-merged-binding-2506",
+          "sha": "4c9c3d5f75a73619ebf07a321a5c182e9511d21f"
+        },
+        {
+          "name": "claude/reviewer-draw-no-fifo",
+          "sha": "e829c5dcc72c75faf3b56c01bd18bffe47c6bc32"
+        },
+        {
+          "name": "claude/reviewer-exclusion-reinstatement",
+          "sha": "347bf0065a15c8be207f237b57c5333af992146d"
+        },
+        {
+          "name": "claude/ruling-620-taxonomy",
+          "sha": "5080c4ef53bfae6a5de348bf493ce972e0fa4567"
+        },
+        {
+          "name": "claude/shared-db-2530-12815e",
+          "sha": "911cc0c2e38b307e683ded328c3f75461bec8b09"
+        },
+        {
+          "name": "claude/shared-db-2530-step2-7c41",
+          "sha": "1dad54072a61ba6a6d233f8e1de7fa8850209251"
+        },
+        {
+          "name": "claude/shared-db-blocker-issues-4ab780",
+          "sha": "b587cf544ddde540628140e5bb775e7e13244392"
+        },
+        {
+          "name": "claude/shared-db-orchestrator-ed94bd",
+          "sha": "80bdb3bcccc49dfff2d18b7c1e1a593c5b5d6bf1"
+        },
+        {
+          "name": "claude/shared-db-orchestrator-edf2f2",
+          "sha": "a97ea584ba13e61a9eb41f821d3d24cff2d467cf"
+        },
+        {
+          "name": "claude/skill-drift-no-author-cap-b2",
+          "sha": "7be9d2c9e8804857ba7b7530b02df2667dee3325"
+        },
+        {
+          "name": "claude/style-guide-character-source-2124",
+          "sha": "98667c12c2fb126aac7475a89fdfa5fa27416dbc"
+        },
+        {
+          "name": "claude/supabase-ref-config-check",
+          "sha": "196767ca0a4214399dc3825518482e95cf12543a"
+        },
+        {
+          "name": "claude/tooling-2794-rederive-truth-audit",
+          "sha": "ac75f2dcdd137cd8a5eea178cc88f01d54859ee7"
+        },
+        {
+          "name": "claude/top-5-blocking-issues-6be510",
+          "sha": "b5a504d93a23c5f2a71fbcb750f063f0522ccec9"
+        },
+        {
+          "name": "claude/top-shared-db-issues-6bc111",
+          "sha": "ca31dff234fb18dc6898645400e76bb3efe84138"
+        },
+        {
+          "name": "claude/vendors-ruling-signpost",
+          "sha": "dcaaca42149f8c035a7d1e29774f8d303e52499d"
+        },
+        {
+          "name": "claude/verify-slot-verdict-scope",
+          "sha": "b58fda1f270a167690c7311e0086f4a1fa43bbc0"
+        },
+        {
+          "name": "codex/1031-coldlion-history-puller",
+          "sha": "b7d92bb9890d83aec1b565fe73bf6be3991dc7de"
+        },
+        {
+          "name": "codex/1223-parallel-mutation-sweep",
+          "sha": "8455c488f0cd5700e662efd5c2c3ec282a0d989d"
+        },
+        {
+          "name": "codex/2212-popsg-contract",
+          "sha": "071937e1905a83e63ce5643f7581faaa39111094"
+        },
+        {
+          "name": "codex/2280-expired-claim-recovery",
+          "sha": "a6f200d6191df5c49fd47d937d4d38e777be69a8"
+        },
+        {
+          "name": "codex/2323-priority-12-handoff",
+          "sha": "54fff397e7e4586696b553d301566ec87a5657b9"
+        },
+        {
+          "name": "codex/2501-forward-performance",
+          "sha": "be8b538151d309f50f183c67d87241d0c04871a7"
+        },
+        {
+          "name": "codex/2536-preserve-2439-role-tests",
+          "sha": "bd349eaa69a4352c721bd198dd771e5197e8b54c"
+        },
+        {
+          "name": "codex/393-governed-source-contract",
+          "sha": "798bef8266d910c434c049c983b96aee112303d8"
+        },
+        {
+          "name": "codex/393-source-consumer-20260914",
+          "sha": "5cda865befcf56f86cf3139144c10ec650c5dc0a"
+        },
+        {
+          "name": "codex/394-terminal-consumer-20260914",
+          "sha": "270a982ff25e269eec1263c13a0ecf767981c643"
+        },
+        {
+          "name": "codex/396-scoped-reviewer-admission",
+          "sha": "0e5bfc4580e990fe5f26065028812ce48138be92"
+        },
+        {
+          "name": "codex/401-step10-acceptance-report",
+          "sha": "1ce86bf14b033be97f870a3ed2a2f7ed52fc6f00"
+        },
+        {
+          "name": "codex/433-no-db-preview",
+          "sha": "2056c82ac4a00c06cc6270213f26604668281283"
+        },
+        {
+          "name": "codex/coldlion-api-rules-20260910",
+          "sha": "2ac8268fd51e863591697f0b1ff977b55022aef5"
+        },
+        {
+          "name": "codex/coldlion-master-landing",
+          "sha": "9876da27ffbf853974bafa8263354910a8b01ac3"
+        },
+        {
+          "name": "codex/coldlion-schema-completion-plan",
+          "sha": "aafaa88c1988ffd171a164a24817350d628ba75a"
+        },
+        {
+          "name": "codex/coldlion-to-comment",
+          "sha": "850a9519f89f447a9559d3c100969233170ffcf7"
+        },
+        {
+          "name": "codex/continue-2700",
+          "sha": "cc3b75d31f2fe2e1d91415585388c4777cf2e8ac"
+        },
+        {
+          "name": "codex/database-efficiency-plan-20260903",
+          "sha": "9cb7ad230f13697cb9e22e60dcd0c7c7434d8ce7"
+        },
+        {
+          "name": "codex/database-efficiency-plan-status-20260903",
+          "sha": "78237b3acc14fdc2f6169d9b16359818680a34ac"
+        },
+        {
+          "name": "codex/docs-open-issues",
+          "sha": "886cdc5ff7ade68b3fcbd8f458db9ccba7c6820b"
+        },
+        {
+          "name": "codex/five-issues-closeout-2236",
+          "sha": "847907693051ba610c7d371ccbda1361cbef960b"
+        },
+        {
+          "name": "codex/fix-2705",
+          "sha": "93197bb3f51d0418aaee91e26c09d6bbaa407797"
+        },
+        {
+          "name": "codex/handoff-hygiene-2011",
+          "sha": "1ab0cfe8921219afce5ad439e04cfd3f80128b87"
+        },
+        {
+          "name": "codex/handover-latency-plan",
+          "sha": "499376615c2372ef94a103158b30d29125504f27"
+        },
+        {
+          "name": "codex/issue-1090-reconcile",
+          "sha": "426a7e1dc052560aaa398c1437f47c6f143415a4"
+        },
+        {
+          "name": "codex/issue-1224-rehearsal-coverage",
+          "sha": "7edae56044ac38534b250a0d66b91a7f8c714327"
+        },
+        {
+          "name": "codex/issue-1258-owner-ruling-baseline",
+          "sha": "49dbb948fc28fdbd92d782f1e137811593dde5af"
+        },
+        {
+          "name": "codex/issue-1285-verify-query-guard",
+          "sha": "35d64cccec803e0af78db3910f2472dde85f8b5b"
+        },
+        {
+          "name": "codex/issue-1356-preview-rehearsal",
+          "sha": "2d38ad3b912b53d767c6babb4410980af1665abd"
+        },
+        {
+          "name": "codex/issue-1435-merge-queue",
+          "sha": "3792a9688da076923d38c34c32f395ac097e61a4"
+        },
+        {
+          "name": "codex/issue-1609-source-resolution",
+          "sha": "04d0e9fdeb661de33fed3963b648b969c16fe66c"
+        },
+        {
+          "name": "codex/issue-1645-effective-filters-reissue",
+          "sha": "63c515982bcfaa3c39894ee71db86538e1984378"
+        },
+        {
+          "name": "codex/issue-1658-opa-authority-1649",
+          "sha": "1dcbce84c8a1913eea19257fe529ad1b2dcd2129"
+        },
+        {
+          "name": "codex/issue-1669-source-purpose",
+          "sha": "dfb81f45a767cd25d6f5bef46e784a6094cf87d4"
+        },
+        {
+          "name": "codex/issue-1684-character-separation",
+          "sha": "64fe6216ce926cc2cac2286fdf508f194831f2e6"
+        },
+        {
+          "name": "codex/issue-1688-freeze-enforcement",
+          "sha": "51770e23c781194198262875b0a6e2d593284c16"
+        },
+        {
+          "name": "codex/issue-1689-production-lane-order",
+          "sha": "92347c657b3bf939582325a122fe4a59e66be064"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search",
+          "sha": "adfcb13f3cfbc62eae055839dc9d4640f3e8e73a"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search-forward",
+          "sha": "91df2fb2fb2296391ffca534a17f315c7c6daf26"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search-forward-2",
+          "sha": "b00a88d1db1b1eb5f93c07e496447fc000056601"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search-forward-3",
+          "sha": "0c707caa32f1c0845e1a9ef121ed0856675af61d"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search-forward-4",
+          "sha": "f638e4c4e7458760e5019e9c5ca8cba9e81a8b77"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search-forward-5",
+          "sha": "9f893ecd42687e2b4425a28e5c7843f89ece2076"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search-forward-6",
+          "sha": "a5b12ec27c296953e5862e5dcfbd5deb22b1dc2b"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search-forward-7",
+          "sha": "f965a35270fb39cf2fbfac19fa7ca963f20dd20d"
+        },
+        {
+          "name": "codex/issue-1703-ranked-search-forward-8",
+          "sha": "4c7ce5a59a04dc91010649e77120946a29e98fbb"
+        },
+        {
+          "name": "codex/issue-1722-covering-index",
+          "sha": "afb19be56a372bcfb0ed62f952e9f42062c11968"
+        },
+        {
+          "name": "codex/issue-1852-original-apply-evidence",
+          "sha": "e89e87d5a9b412a9a6b4c4481216c20368ec59d2"
+        },
+        {
+          "name": "codex/issue-1872-contract-status",
+          "sha": "5db9b5b932a3bb406eef0567dbe2d2cfa309aaaf"
+        },
+        {
+          "name": "codex/issue-1880-dcp-lifecycle",
+          "sha": "9af9b01ddd79bb0146d6f22fb8101a89b3b08a42"
+        },
+        {
+          "name": "codex/issue-1881-wb-lifecycle",
+          "sha": "6becc5d1d399e8e85577f2d3ee29fcf80bd2c6c8"
+        },
+        {
+          "name": "codex/issue-1883-opa-lifecycle",
+          "sha": "0670f3e849b13606d0dd4d93b32e0216c1703ae0"
+        },
+        {
+          "name": "codex/issue-1936-scraped-properties-timeout",
+          "sha": "3d103311b6fea9c32a0ba8cd16cfe0abb05ea82e"
+        },
+        {
+          "name": "codex/issue-1936-timeout-forward-2",
+          "sha": "f91a36b6272ae66db7ce418702e9863d8d65a5dc"
+        },
+        {
+          "name": "codex/issue-1936-timeout-forward-3",
+          "sha": "d8faf68ee9220e5832a0f3bf77452e4bae680958"
+        },
+        {
+          "name": "codex/issue-1936-timeout-forward-4",
+          "sha": "b2344673d69717375ab857d12df0ddf337f8fe8a"
+        },
+        {
+          "name": "codex/issue-1936-timeout-forward-5",
+          "sha": "3de9f06ab37abf6dc3279be53f582a174fd142ae"
+        },
+        {
+          "name": "codex/issue-1936-timeout-forward-6",
+          "sha": "a0abcafedc727de177060afd24c820d49cc03458"
+        },
+        {
+          "name": "codex/issue-1936-timeout-forward-7",
+          "sha": "e9d007841fc578e762c7e19b766e1fd3d2d36e79"
+        },
+        {
+          "name": "codex/issue-1945-effective-filter-performance",
+          "sha": "ad03ab41d6339613310d15926a74efe83aa899f4"
+        },
+        {
+          "name": "codex/issue-1952-property-status-api",
+          "sha": "050d9dc295d311a1b38cc935bf0b5961fed08d2f"
+        },
+        {
+          "name": "codex/issue-1987-designflow-notifications",
+          "sha": "ef67acfe3e2aaa200790902c8b5782c67e7a9517"
+        },
+        {
+          "name": "codex/issue-1999-marvel-disney-tiebreaker",
+          "sha": "da8180592577ed7b4fff87b37ea31caf552aa056"
+        },
+        {
+          "name": "codex/issue-2008-property-match-rpcs",
+          "sha": "2e0fe864e7956f2713f64ef00c62a5cada440784"
+        },
+        {
+          "name": "codex/issue-2014-routine-proof",
+          "sha": "73e9a198985f1f4abc8cbc01ddb635a510e554e1"
+        },
+        {
+          "name": "codex/issue-2031-ranked-filter-parity",
+          "sha": "4ab4a76338eadcd4ea7f065ce93b5903193b59e9"
+        },
+        {
+          "name": "codex/issue-2037-applied-migration-guard",
+          "sha": "d20596b76aef717b6d9c2fb459216c5f63af791d"
+        },
+        {
+          "name": "codex/issue-2037-applied-migration-guard-v2",
+          "sha": "0acb591527a9c35a98df5f92a6983e2da02eab3f"
+        },
+        {
+          "name": "codex/issue-2044-low-findings",
+          "sha": "6dfc2e8ac92141f60659b43a3986f7521a26bbc9"
+        },
+        {
+          "name": "codex/issue-2045-operative-eligible",
+          "sha": "8f26aa2157ce35da94dd0bc651e896e98b5dc2d8"
+        },
+        {
+          "name": "codex/issue-2054-effective-count-performance",
+          "sha": "0cfc2c3240aa4bb7b1c4696eda0c0fcd0365e9f2"
+        },
+        {
+          "name": "codex/issue-2055-resume-self-pr",
+          "sha": "6e7a7a3438ff7c3ad0bf200647283329e5bab570"
+        },
+        {
+          "name": "codex/issue-2058-closeout",
+          "sha": "50eab3ebb1b34dbf896a45341d35db1d8ad98ea4"
+        },
+        {
+          "name": "codex/issue-2058-reviewer-capacity",
+          "sha": "bf2db7372c9e7f3ccd5f6d8937cf40b590901a63"
+        },
+        {
+          "name": "codex/issue-2067-hts-rag-audit-contract",
+          "sha": "213f2685f870fbbb4942bb535225a8c7d98a24d5"
+        },
+        {
+          "name": "codex/issue-2085-api-set-source-resolution",
+          "sha": "41b0d820527b7e835a8f3a519445eccd22a3e910"
+        },
+        {
+          "name": "codex/issue-2094-coldlion-master-landing",
+          "sha": "fed1c949613621f48564617f442c3cee6235be44"
+        },
+        {
+          "name": "codex/issue-2141-verify-cost",
+          "sha": "a5438417e100725e41136d81d33257378e84ee52"
+        },
+        {
+          "name": "codex/issue-2157-verdict-unknown",
+          "sha": "6179dbec97b6be085a4523e79b21c4341395dae9"
+        },
+        {
+          "name": "codex/issue-2161-temp-drop",
+          "sha": "574e38fb6decba883e74c8a47ac299860eefd758"
+        },
+        {
+          "name": "codex/issue-2188-claim-title",
+          "sha": "117ed6c30e8c38ce8341ec43ed1f37e12115feeb"
+        },
+        {
+          "name": "codex/issue-2202-canonical-workflow",
+          "sha": "80fe7e54933d033ca5ceea58dad4ee0e6ef2142e"
+        },
+        {
+          "name": "codex/issue-2244-codex-verdict",
+          "sha": "cab3117daad51bfaed021dde2e89fd67bdf53ad5"
+        },
+        {
+          "name": "codex/issue-2285-muse-1-3",
+          "sha": "3ddb43dee2745d76405e34ba7128b78e5fda2e5c"
+        },
+        {
+          "name": "codex/issue-2301-phase-a",
+          "sha": "e7619dc3e391cefa016c5cfad8510d59b41d6cbe"
+        },
+        {
+          "name": "codex/issue-2326-step3",
+          "sha": "47d86551162552c67273001aafd26705832488b5"
+        },
+        {
+          "name": "codex/issue-2326-step3-clean",
+          "sha": "b5c505b28448eae3a9796501b0523b41dea71eab"
+        },
+        {
+          "name": "codex/issue-2326-step3-closeout",
+          "sha": "709d6baa525a656822da1bce6b79a0d115c21811"
+        },
+        {
+          "name": "codex/issue-2326-step3-phase",
+          "sha": "16e52eef78386cf71b068181351d83f5ad9ce3f8"
+        },
+        {
+          "name": "codex/issue-2345-reviewer-liveness",
+          "sha": "d684ddce7df21cc81a27da689a8fff77b2edfd70"
+        },
+        {
+          "name": "codex/issue-2356-asset-freshness",
+          "sha": "b82a211faf8d3907ba2a0422795660c506888e75"
+        },
+        {
+          "name": "codex/issue-2371-owner-decision-evidence",
+          "sha": "89581bf10626abe79ce7676b6fa06c60d9b30875"
+        },
+        {
+          "name": "codex/issue-2372-artifact-proof",
+          "sha": "a8948ccae28e9dd8c8b04a00f642e9f55e260f71"
+        },
+        {
+          "name": "codex/issue-2373-catalog-guards",
+          "sha": "9cc7e01f8410771d5a793a8e312abab8661fce4a"
+        },
+        {
+          "name": "codex/issue-2406-reserved-version",
+          "sha": "7d59a0a6b6052160ac1abac571ce952ec151ba05"
+        },
+        {
+          "name": "codex/issue-2426-character-parent",
+          "sha": "33bb7bdad888d6eb20bb85ac6c6db91e420eeaaf"
+        },
+        {
+          "name": "codex/issue-2439-bulk-operation-runs-reissue",
+          "sha": "f5e28cfbcfd3cdd7e31ef3f6d7bd105338807b4c"
+        },
+        {
+          "name": "codex/issue-2466-plm-item-list",
+          "sha": "aa389f136a2f54025f1d43e882054170b8075b4e"
+        },
+        {
+          "name": "codex/issue-2478-shared-sku-key",
+          "sha": "39be641f5e909e60e7c7c63b0f72420062f443f6"
+        },
+        {
+          "name": "codex/issue-2493-source-resolution-new-kinds",
+          "sha": "13860029aec14fe358afb2c74d6df1a3a8a94b78"
+        },
+        {
+          "name": "codex/issue-2496-backend-actor",
+          "sha": "d865916cd8deb425bd41ed494078607b39986c12"
+        },
+        {
+          "name": "codex/issue-2501-popdam-tag-totals",
+          "sha": "5d772c341144e433b0cdd260617a9ea7f773cae7"
+        },
+        {
+          "name": "codex/issue-2506-popsg-search-v2",
+          "sha": "dff809bc476b64480e0761d21012dde2ba39ac8c"
+        },
+        {
+          "name": "codex/issue-2506-preview-rehearsal-reset",
+          "sha": "5629a0102544d6e62385f7ba6facd292500a90b2"
+        },
+        {
+          "name": "codex/issue-2506-production-performance-2714",
+          "sha": "feab7b9c38b51f2d6e27a42321711fa227e749d5"
+        },
+        {
+          "name": "codex/issue-2507-popsg-pdf-v2",
+          "sha": "1ea6f2e1db70d95980baf24e5959f90011c518fb"
+        },
+        {
+          "name": "codex/issue-2509-historical-restoration",
+          "sha": "2125d9464c828a1983bda53b266cd15d27d5d06e"
+        },
+        {
+          "name": "codex/issue-2509-popsg-preview-stats",
+          "sha": "1be8f325dbf1ff035bd5039638dc47c14a3eb155"
+        },
+        {
+          "name": "codex/issue-2509-selector-historical-rebind",
+          "sha": "e0ff6cd7b4b578b10b637b7db7a041a5dc6c0cbe"
+        },
+        {
+          "name": "codex/issue-2535-hts-debate",
+          "sha": "69226335c20fef57f8a7c15cd7b014a157b61484"
+        },
+        {
+          "name": "codex/issue-2543-opa-capture",
+          "sha": "d10061cd22ec4617fa1b52900d30ed7f0071c3f6"
+        },
+        {
+          "name": "codex/issue-2543-restoration-registry",
+          "sha": "18c48d05f3ef746498b908d806045a5a5a13f684"
+        },
+        {
+          "name": "codex/issue-2550-review-budget",
+          "sha": "a28e6397cd64f3733bbcaa2651eb900bb41b1c44"
+        },
+        {
+          "name": "codex/issue-2550-review-budget-current",
+          "sha": "0c3402b02e3835a1649b37af9e2be6b888112549"
+        },
+        {
+          "name": "codex/issue-2570-historical-producer-gate",
+          "sha": "76bd21de986226dd0e05a44238cfaf096ca46059"
+        },
+        {
+          "name": "codex/issue-2573-2356-historical-restoration",
+          "sha": "c3841f8dc0642e213cc3239ad83e718457b076d7"
+        },
+        {
+          "name": "codex/issue-2580-sample-shipment-notice",
+          "sha": "3557d2a4137baf23a4065d876020216a4ac7ef06"
+        },
+        {
+          "name": "codex/issue-2582-2493-historical-restoration",
+          "sha": "ad26a6a7819422c73f7b191c66367e53d4d2a87d"
+        },
+        {
+          "name": "codex/issue-2596-bounded-handover",
+          "sha": "1adbde0d0894e90c5fbf779cd2fa787e12a4519f"
+        },
+        {
+          "name": "codex/issue-2622-merch-group-detail-key",
+          "sha": "548cd688b463de34bff62e4faf696c190a1bee85"
+        },
+        {
+          "name": "codex/issue-2624-reaper-unpushed",
+          "sha": "d93eb9fc0ff90665a8eed13842b5deb34277834a"
+        },
+        {
+          "name": "codex/issue-2641-2543-historical-restoration",
+          "sha": "c3ea7f36ae44e5b40edd4709ae5a87939c4a2615"
+        },
+        {
+          "name": "codex/issue-2643-2501-historical-restoration",
+          "sha": "b1b12995a0368db98738f8d1b619c51e956c11f3"
+        },
+        {
+          "name": "codex/issue-2644-popdam-item-state",
+          "sha": "c00be30cb5438136954108cbf13ed14e9ec3be49"
+        },
+        {
+          "name": "codex/issue-2646-2580-historical-restoration",
+          "sha": "53ac96a2990533511af863ede92391cdeca06031"
+        },
+        {
+          "name": "codex/issue-2652-current-main-rebuild",
+          "sha": "100445d352cd051c686248bb41774b39361f9cc8"
+        },
+        {
+          "name": "codex/issue-2652-ledger",
+          "sha": "cc4ab5f885ecd57f0423d4945858a3412f5d1a2a"
+        },
+        {
+          "name": "codex/issue-2655-2622-historical-restoration",
+          "sha": "2ec2fd8dfea12eb8c7721a7cb3bb0a9b341b8af5"
+        },
+        {
+          "name": "codex/issue-2664-orderlist-find",
+          "sha": "2926317e1c729735123f2ab537db310d6b91e17e"
+        },
+        {
+          "name": "codex/issue-2701-property-match-access",
+          "sha": "a0f818bdbd69cb35557c2484537e350b77b5b879"
+        },
+        {
+          "name": "codex/issue-2703",
+          "sha": "47416dc056994f9736055ca5d627fc0928386710"
+        },
+        {
+          "name": "codex/issue-2705-reviewer-preflight",
+          "sha": "65723c4e816381799289e975d267e8461a2e8912"
+        },
+        {
+          "name": "codex/issue-2706",
+          "sha": "6a8ad66e134ebb5c8b58656314edd1fda6a4e6b6"
+        },
+        {
+          "name": "codex/issue-2715-docs-status",
+          "sha": "0c0982f6f08373410b3f60587c4f2fa96163316b"
+        },
+        {
+          "name": "codex/issue-2715-docs-status-v2",
+          "sha": "f5a8676c85c65903f9b2de26dc51497058879531"
+        },
+        {
+          "name": "codex/issue-2715-docs-status-v3",
+          "sha": "9b3d080085f6f9aa81e77567ef3e48aa824d8062"
+        },
+        {
+          "name": "codex/issue-2716-auto-promotion",
+          "sha": "f236f8a71cc83f0207ea7122331cb27866330c9b"
+        },
+        {
+          "name": "codex/issue-2727-steps2-3",
+          "sha": "d45fc4ec0b6fdb1d8ab913f90297cd138c1e7f37"
+        },
+        {
+          "name": "codex/issue-2728-events-preflight",
+          "sha": "1bd5750384e544bf65ec29e4d133651facb9b143"
+        },
+        {
+          "name": "codex/issue-2728-events-preflight-repair",
+          "sha": "ac74ac2f2b71f08adfdfb9eb7dbad26998176695"
+        },
+        {
+          "name": "codex/issue-2729-step6-train",
+          "sha": "b3a5b91314b8f506a51a85be3fdff1f45a3eefb7"
+        },
+        {
+          "name": "codex/issue-2729-step6-train-repair",
+          "sha": "02dd3b8d1a5d1f72c8651671d7f80d66ce13796a"
+        },
+        {
+          "name": "codex/issue-2729-train-reroute",
+          "sha": "069dab88bca3e80dc2209d89b84222a1ad8dd0e8"
+        },
+        {
+          "name": "codex/issue-2753-pim-item-picker",
+          "sha": "3ae3a08dbdae10d20cbb284f9fab88c496327af2"
+        },
+        {
+          "name": "codex/issue-2851-preview-evidence",
+          "sha": "a174291f5d8226d973ce5440e4b2a554ca9311b8"
+        },
+        {
+          "name": "codex/issue-2852-do-block-admission",
+          "sha": "e92abcb25a96e590c941bc6518144c747dcfd747"
+        },
+        {
+          "name": "codex/issue-2866-hts-insert-provenance",
+          "sha": "5e6953af0c02c38b6ca362571322f2180ebf5764"
+        },
+        {
+          "name": "codex/issue-2870-cutover-columns",
+          "sha": "24791a2f684de38d85c418d5f27dc82add4ee481"
+        },
+        {
+          "name": "codex/issue-2876-catalog-row-order",
+          "sha": "a739978a125b258195cd3f2f1cfe14c0ab642651"
+        },
+        {
+          "name": "codex/issue-2878-manifest-drift",
+          "sha": "f676c61715b2cc2ab05465f183e54592ead6af10"
+        },
+        {
+          "name": "codex/issue-2879-inventory-families",
+          "sha": "0c4048533952be536c1cd5aaa3329145c804d4f3"
+        },
+        {
+          "name": "codex/issue-2883-production-evidence-import",
+          "sha": "5d8fd4be7d88e88fb6f2413647be903f4348ecbf"
+        },
+        {
+          "name": "codex/issue-2885-dcp-inventory-provenance",
+          "sha": "ce7eff73a2f68ba9309b2b2da4a411f8fef042ae"
+        },
+        {
+          "name": "codex/issue-2887-derivation-override",
+          "sha": "61bca21d45ef11e743649d945dbf983473fdaf82"
+        },
+        {
+          "name": "codex/issue-2889-historical-restoration",
+          "sha": "5e2ee46c406c1d3c806154b3dac3de7855ebdeec"
+        },
+        {
+          "name": "codex/issue-335-phase3-task-gates-01a086",
+          "sha": "d2231a7ffb21743542f3c424beddfd14363422b8"
+        },
+        {
+          "name": "codex/issue-505-ds-dy-forward",
+          "sha": "69b13c5918beaf0c7ff78818b983425b32567d84"
+        },
+        {
+          "name": "codex/issue-552-health-live-hash-guard",
+          "sha": "61dc577185391006a1ab7814f00966f361c4c683"
+        },
+        {
+          "name": "codex/issue-652-item-null-identity",
+          "sha": "0700dfe02edadd862901734c734f4e05503ebdcc"
+        },
+        {
+          "name": "codex/issue-771-timed-rehearsal",
+          "sha": "47d22fed093390dbee48d3de1ad48669fa769e39"
+        },
+        {
+          "name": "codex/issue-870-atomic-rest",
+          "sha": "69f4fa24312eb702410ba84edbfcf4fcc22a5fe8"
+        },
+        {
+          "name": "codex/issues-2368-2370",
+          "sha": "13950dd15d627c637fc85a7e4e7be549bbc6a6cc"
+        },
+        {
+          "name": "codex/orch-2536-closeout",
+          "sha": "75cbc0e64021baea0edb4eb676273437fc39a1ee"
+        },
+        {
+          "name": "codex/orch-2629-closeout",
+          "sha": "77258e7749a3f4febb1ba14799f6fd0c58f0afbd"
+        },
+        {
+          "name": "codex/orchestrator-2061-closeout",
+          "sha": "c9f59f6bfcd029052bac9c418ea3faf1c93cda75"
+        },
+        {
+          "name": "codex/orchestrator-2249-handoff",
+          "sha": "676985686dfb4a3ce67812066f95fd559dfe0c05"
+        },
+        {
+          "name": "codex/orchestrator-2269-handoff",
+          "sha": "63f52897fbe1f62d7cb4d8a53c646dd0c25aa191"
+        },
+        {
+          "name": "codex/orchestrator-2288-handoff",
+          "sha": "d4a9bef5d1174e61fc1974e45f6a0cc70c62ffae"
+        },
+        {
+          "name": "codex/orchestrator-2625-closeout",
+          "sha": "c5979002036b7508b22298b399ff3ebfea5be470"
+        },
+        {
+          "name": "codex/orchestrator-blocker-priority",
+          "sha": "c03e561c009a3e018bdc064400edb1f382bcf10e"
+        },
+        {
+          "name": "codex/orchestrator-handoff-20260908-rapid-close",
+          "sha": "f9c8f4e27496512378578a0651644c86e6f5bb97"
+        },
+        {
+          "name": "codex/pause-kimi-reviewer-20260910-current",
+          "sha": "8d533d6ab48e260684b7367fecdc59ee0c5f4aad"
+        },
+        {
+          "name": "codex/plan-popcre-transfer-merge-queue",
+          "sha": "6ec6f0dfa0fab185ba504e2d1f9aa402861b897c"
+        },
+        {
+          "name": "codex/post-cutover-closeout",
+          "sha": "f774a91b1b84b282128452b4f885e66d26277c91"
+        },
+        {
+          "name": "codex/preview-artifact-proof-2466",
+          "sha": "ecd3404ce25dbc9d6c7957e453bd34bea230b038"
+        },
+        {
+          "name": "codex/qwen-requalify-20260910",
+          "sha": "4275bc9611853e714851b4d59c4e4cf0651bfda5"
+        },
+        {
+          "name": "codex/redact-640-ids",
+          "sha": "029e1a7d54d0e23227855c81c32d66580e0067c3"
+        },
+        {
+          "name": "codex/reviewer-concurrency-policy",
+          "sha": "206ac1704a7a54fcb56cd40a966a875d9b79fa2d"
+        },
+        {
+          "name": "codex/scraped-properties-inventory-ui",
+          "sha": "db73b8e471ad3cceb0d04ee3dbf4730fc3bb8829"
+        },
+        {
+          "name": "codex/session-closeout-20260907-1634",
+          "sha": "ca0aa813b87a13649363a2c7cf34168c5a4e8b3b"
+        },
+        {
+          "name": "codex/session-closeout-2252",
+          "sha": "b0defe5176b7a66e50a8355410023691d9f7217b"
+        },
+        {
+          "name": "coldlion-plan-review-20260901",
+          "sha": "d9b9c2171307a251c1ff012fadc297f54f8c2fbf"
+        },
+        {
+          "name": "docs/2312-unauthorized-orchestrator-handover",
+          "sha": "10f1b75f03ac78b0f1a7d07ed0667c835bd3a683"
+        },
+        {
+          "name": "docs/licensor-source-reconciliation-640",
+          "sha": "65553d2fb3ccd1e221135ff29b24e8b5e3dd3030"
+        },
+        {
+          "name": "docs/property-match-live",
+          "sha": "6abbf852d3014f6f36912dc5e177205b48b5d21f"
+        },
+        {
+          "name": "feat/2203-workflow-action-handoff-integrity",
+          "sha": "9afbb04cdcb51a2426cf456bcb9c26ecb35de5be"
+        },
+        {
+          "name": "feat/2204-canonical-notification-timestamp-and-unread-index",
+          "sha": "9c392bbbac56964a50ff1b63cd4c64fa51a93274"
+        },
+        {
+          "name": "feat/dcp-match-ui",
+          "sha": "adc538b7373c24c44f3661dbf230cee0a73673ee"
+        },
+        {
+          "name": "feat/property-match-source-labels",
+          "sha": "57359cb4fd3d2db8830e01f49c2ebd12a9c5f5fa"
+        },
+        {
+          "name": "fix/2075-neutralise-orphan-verdict-comment",
+          "sha": "e9516c97c9133f30e5cd3db8f170505cae68faf5"
+        },
+        {
+          "name": "fix/2078-reviewer-repo-access",
+          "sha": "50ee76d6af9e3ccb1b7e331394ab786e9cc1eaf2"
+        },
+        {
+          "name": "fix/2313-repeat-hts-determinations",
+          "sha": "f55cb24369eb74b486b278142c187199aa92bf34"
+        },
+        {
+          "name": "fix/718-plm-legacy-service-role-privilege-revoke",
+          "sha": "55099dfc8ab4e8ce96a559be946bf86602fa7c3b"
+        },
+        {
+          "name": "fix/reviewer-exclusion-returns-assignment",
+          "sha": "705a1e0a76c6ce6ea1876077300a88e1bf8c7635"
+        },
+        {
+          "name": "issue-1769-wwe-tables",
+          "sha": "8d3c31accd5b21ea669e65f5ae53f5f95cc57337"
+        },
+        {
+          "name": "main",
+          "sha": "1886fb38ac01fdaf3c1d8515b50afd6440726df1"
+        },
+        {
+          "name": "preserve/queue-handoff-4dd6eb",
+          "sha": "f377ef22b34d16b21d88e302f7bacc0e9d61c587"
+        },
+        {
+          "name": "recovered/hetz-untracked-ai-transcripts",
+          "sha": "6b9d5eaaab443768442b261116fd3b29d4fd89ef"
+        },
+        {
+          "name": "recovered/hetz-worktree-glm-reviews",
+          "sha": "3e687d8d2a20d297214789a14c148e627c3d42cf"
+        },
+        {
+          "name": "recovered/issue-689-cloudsql-proof",
+          "sha": "7b2d6749775cd4d938fa393f8ca3c5eac3df0340"
+        },
+        {
+          "name": "recovered/issue-689-cutover-comparisons",
+          "sha": "646d0026c9d0432cf83bf64ccd93eb0eb2a17d47"
+        },
+        {
+          "name": "zcode/3199-queue-hygiene",
+          "sha": "e9acf0fe7aec5c4775a442501e03fa69a1ba134c"
+        },
+        {
+          "name": "zcode/3199-self-service-lane-v2",
+          "sha": "e63ba86f18cef0e3599ba157764d2a7758aff025"
+        },
+        {
+          "name": "zcode/issue-3232-glm-reviewer-independence",
+          "sha": "763e2caed391ab4db20358f478212779554e73ec"
+        }
+      ],
+      "tags": []
+    }
+  },
+  "target": {
+    "source": "popcre/shared-db",
+    "destination": "popcre/shared-db-x",
+    "destinationOwner": "popcre",
+    "destinationExists": false,
+    "destinationExistsError": null,
+    "destinationOwnerType": "Organization",
+    "destinationDefaultRepositoryPermission": "read",
+    "sourceAdmin": true,
+    "destinationCanCreateRepository": true,
+    "destinationCreateEvidence": "membership state=active role=admin; members_can_create_public_repositories=true",
+    "sourceActionsPolicy": {
+      "enabled": true,
+      "allowed_actions": "all",
+      "sha_pinning_required": false
+    },
+    "destinationActionsPolicy": {
+      "enabledRepositories": "all",
+      "allowedActions": "all"
+    },
+    "destinationActionsPolicyError": null,
+    "destinationActionsDisallowed": [],
+    "actionsUsed": [
+      "actions/checkout",
+      "actions/download-artifact",
+      "actions/setup-node",
+      "actions/setup-python",
+      "actions/upload-artifact",
+      "supabase/setup-cli"
+    ]
+  },
+  "operational": {
+    "orchestrator": {
+      "state": "none",
+      "marker": null,
+      "exitCode": 3
+    },
+    "heldLanes": [],
+    "activeRuns": [
+      {
+        "id": 35299022397,
+        "workflow": "Orchestrator Marker Guard",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022399,
+        "workflow": "Cancelled Work Guard",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022416,
+        "workflow": "Destructive Analysis Guard",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022420,
+        "workflow": "Queue-Sensitive Checks Aggregate",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022423,
+        "workflow": "Domain Ownership",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022425,
+        "workflow": "Migration Author Lease",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022428,
+        "workflow": "Cross-PR Object Collision",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022429,
+        "workflow": "Intake Pointer Guard",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022430,
+        "workflow": "Tools Offline Tests",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022447,
+        "workflow": "Historical MG Reclassification Tests",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022455,
+        "workflow": "Database Contract Tests",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022457,
+        "workflow": "Shared Supabase Migrations",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022468,
+        "workflow": "Handoff Contract Guard",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022500,
+        "workflow": "Public Data Venue Guard",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022518,
+        "workflow": "ColdLion Promotion Contract Tests",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022526,
+        "workflow": "Email Address Forward Guard (Partial PII Coverage)",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      },
+      {
+        "id": 35299022556,
+        "workflow": "Agent work contract",
+        "status": "queued",
+        "event": "pull_request",
+        "headSha": "5d6d088af3a966fc01228b67e664416030d5b2a1"
+      }
+    ]
+  }
+}

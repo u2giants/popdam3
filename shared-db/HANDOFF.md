@@ -24,7 +24,7 @@ deletes it when done — is **`AGENTS.md` §2.1-H**. Read that before adding a f
 **GitHub Issues. Nothing else.**
 
 ```bash
-gh issue list --repo u2giants/shared-db --label db-work
+gh issue list --repo popcre/shared-db --label db-work
 ```
 
 An empty issue list is **not** proof there is no work. Check `HANDOFF.d/` too, and read

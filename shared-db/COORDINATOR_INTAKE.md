@@ -10,7 +10,7 @@ because the directory it archived into was never created.
 ## Where work lives now
 
 ```bash
-gh issue list --repo u2giants/shared-db --label db-work
+gh issue list --repo popcre/shared-db --label db-work
 ```
 
 Need database work done, or handing over work you started? **Open an issue** — see the
