@@ -41,13 +41,17 @@ Every topic must distinguish these four states:
 
 1. Capture the exact business question.
 2. Record the answer from Albert or the named business authority, with the date.
-3. Put the answer in the existing topic document. Create a new topic only when
+3. Record the meaning, not only the answer. In the same topic document, under a
+   clearly separated "What this changes" heading: what the ruling changes about
+   how existing rules are read, what it connects to across topics, and what it
+   leaves open. Skip this only when the ruling connects to nothing.
+4. Put the answer in the existing topic document. Create a new topic only when
    no existing topic fits.
-4. Mark conflicting older text Historical or add a correction at the point a
+5. Mark conflicting older text Historical or add a correction at the point a
    reader would encounter it. Never leave two statements both looking current.
-5. Update [`application-map.md`](application-map.md) when the rule becomes
+6. Update [`application-map.md`](application-map.md) when the rule becomes
    relevant to another application, role, workflow, or task.
-6. Keep evidence and implementation detail in their own documents. Link them
+7. Keep evidence and implementation detail in their own documents. Link them
    from the rule when they help explain or verify it.
 
 Data, code, and screens may reveal a question or show that a documented rule is
@@ -63,6 +67,9 @@ not being followed. They cannot establish a new business rule by themselves.
   belong in a clearly separated implementation-reference section.
 - Keep owner decisions, effective dates, superseded statements, and unresolved
   questions visible in the topic document.
+- Explanation lives in a clearly separated block and is marked as such; it is
+  never authority. Only the four statuses carry authority, and a meaning note
+  never changes a rule's status or upgrades it to Settled.
 - Plans and handoffs are not permanent rulebooks. When a proposal becomes a
   settled rule, promote it here and leave the plan as history.
 
