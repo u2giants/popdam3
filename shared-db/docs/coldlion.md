@@ -99,7 +99,7 @@ Owner ruling 2026-08-09.
 
 ---
 
-## The six traps that have already cost us
+## The seven traps that have already cost us
 
 Each of these was learned the expensive way. They are stated in full in the documents
 above; this list exists so you recognise one before it costs you the same afternoon.
@@ -132,6 +132,20 @@ above; this list exists so you recognise one before it costs you the same aftern
    Subtracting prepacks and non-inventory entries still does not leave a
    catalogue - there is no prepack marker on the item row, and the junk records
    are untouched by either exclusion.
+7. **A keyed endpoint can echo your request key with different letter casing.** The
+   vendor spells one real key two ways across its own feeds: the harvest asked
+   `PPk133` exactly as `/itemDetails` had emitted it, while `/prepackDetail`
+   answered `PPK133` (2026-09-18, issues #3235/#3236/#3246 — the same class as the
+   `/seasons` defect, on a request key). A loader whose identity check compares
+   case-sensitively aborts the whole load; one that ignores casing entirely can
+   split one real key into two rows. The working pattern is in the prepack loader
+   (`tools/coldlion-landing/lib/prepack-detail.mjs` and `sync-prepack-detail.mjs`):
+   fold case in the request-identity guard, land the row's OWN spelling so
+   identities cannot split, account coverage per key case-insensitively, collect
+   a byte-identical row seen through two spellings exactly once, and still refuse
+   a genuinely different code or differing rows for one grain. Every behaviour is
+   pinned by `tools/coldlion-landing-prepack.test.mjs`. A new keyed loader should
+   copy that pattern from day one.
 ---
 
 ## Adding to this page
