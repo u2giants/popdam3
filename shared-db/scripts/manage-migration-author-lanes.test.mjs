@@ -6,10 +6,11 @@ import test from 'node:test'
 import { namedHold, urgentHoldDetail, urgentHoldReason } from './manage-migration-author-lanes.mjs'
 import { rebindClaimWorktree, claimWorktreeRebindRef } from './manage-migration-author-lanes.mjs'
 import { validateHoldReasonRecord } from './lib/hold-reason.mjs'
+import { ENGINES } from './lib/orchestrator-routing.mjs'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { REVIEW_VERDICT_REF_PREFIX, verdictRef } from './lib/review-verdict-artifact.mjs'
-import { OWN_START_ONLY_ACTIVITY } from './manage-migration-author-lanes.mjs'
+import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-migration-author-lanes.mjs'
 import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
 import { readyRecord, persistInitialReady } from './orchestrator-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
@@ -1368,7 +1369,7 @@ test('the orchestrator engine is never eligible to review its own work',()=>{
   // ACTIVE_REVIEWERS, and since the 2026-09-06 retirement that list cannot hold
   // codex whatever the engine filter does -- so the default form proves nothing
   // any more. The filter is now asserted against REVIEWERS, which still carries
-  // the only row with an orchestratorEngine, plus the synthetic list below.
+  // the codex row's orchestratorEngine plus the synthetic list below.
   assert.ok(REVIEWERS.some((row)=>row.name==='codex-gpt-5.6-sol'&&row.orchestratorEngine==='codex'))
   assert.ok(!reviewersForOrchestrator('codex',REVIEWERS).some((row)=>row.name==='codex-gpt-5.6-sol'))
   const future=[{name:'claude-opus',orchestratorEngine:'claude'},{name:'deepseek-chat'}]
@@ -1376,13 +1377,71 @@ test('the orchestrator engine is never eligible to review its own work',()=>{
   assert.throws(()=>reviewersForOrchestrator('',future),/engine is unreadable/)
 })
 
+// ---------------------------------------------------------------------------
+// Issue #3232: the owner ruled on 2026-09-17 that GLM must never review GLM
+// code. ZCode's engine is GLM-5.3, so a ZCode orchestrator must exclude the glm
+// reviewers exactly the way a Codex orchestrator excludes the codex reviewer.
+// The exclusion follows the MODEL ENGINE behind the harness, mapped through
+// ENGINES[...].reviewerExclusionEngine in lib/orchestrator-routing.mjs.
+
+test('a GLM-engine (ZCode) orchestrator never draws the glm reviewers (#3232)',()=>{
+  // Both glm rows declare the family -- including the retained glm-5.2 label,
+  // so a historical name that ever becomes drawable again inherits the exclusion.
+  assert.equal(REVIEWERS.find((row)=>row.name==='glm-5.3').orchestratorEngine,'glm')
+  assert.equal(REVIEWERS.find((row)=>row.name==='glm-5.2').orchestratorEngine,'glm')
+  // The coupling between the two files this change touches: the routing
+  // module's engine vocabulary and the draw's exclusion map must agree
+  // key-for-key, and zcode's family must be the one the glm rows carry, or
+  // the exclusion silently misses and GLM reviews GLM code again.
+  assert.deepEqual(Object.keys(ENGINE_REVIEWER_EXCLUSION).sort(),Object.keys(ENGINES).sort(),'every engine a marker can declare must have a reviewer-exclusion family')
+  assert.equal(ENGINE_REVIEWER_EXCLUSION.zcode,'glm')
+  // 'zcode' (the harness a marker can declare) and 'glm' (the family itself)
+  // must both exclude every glm row, and no one else.
+  for(const engine of ['zcode','glm']){
+    const drawable=reviewersForOrchestrator(engine,REVIEWERS)
+    assert.ok(!drawable.some((row)=>row.name==='glm-5.3'),`glm-5.3 must not be drawable for a ${engine} orchestrator`)
+    assert.ok(!drawable.some((row)=>row.name==='glm-5.2'),`glm-5.2 must not be drawable for a ${engine} orchestrator`)
+    assert.deepEqual(drawable.map((row)=>row.name),REVIEWERS.filter((row)=>row.provider!=='glm').map((row)=>row.name))
+  }
+  // The declared-marker path chains the same way: a marker declaring
+  // `engine: zcode` resolves to 'zcode', which excludes glm through the family.
+  const resolved=orchestratorEngineFromResolution({state:'declared',routing:{engine:'Zcode'}})
+  assert.equal(resolved,'zcode')
+  assert.ok(!reviewersForOrchestrator(resolved,REVIEWERS).some((row)=>row.provider==='glm'))
+  // A marker declaring no engine still refuses reviewer assignment, unchanged.
+  assert.throws(()=>orchestratorEngineFromResolution({state:'declared',routing:{}}),/declares no engine/)
+})
+
+test('a ZCode orchestrator walks a full draw cycle without ever drawing glm (#3232)',()=>{
+  const io=reviewIo();io.resolveOrchestratorEngine=()=> 'zcode'
+  const assigned=[]
+  for(let n=1;n<=ACTIVE_REVIEWERS.length;n++)assigned.push(assignNextReviewer({issue:7300+n,pr:8300+n,headSha:n.toString(16).padStart(40,'e')},io).reviewer)
+  for(const name of assigned)assert.ok(!name.startsWith('glm-'),`a ZCode orchestrator drew ${name}`)
+  for(const row of ACTIVE_REVIEWERS.filter((row)=>row.provider!=='glm'))assert.ok(assigned.includes(row.name),`${row.name} must stay drawable for a ZCode orchestrator`)
+})
+
+test('codex and claude orchestrations behave exactly as before #3232',()=>{
+  // The family mapping is the identity for both engines, so the new glm
+  // exclusion must NOT narrow their rotation: glm-5.3 stays drawable, exactly
+  // as before the glm rows declared an orchestratorEngine.
+  for(const engine of ['claude','codex']){
+    assert.ok(reviewersForOrchestrator(engine,REVIEWERS).some((row)=>row.name==='glm-5.3'),`glm-5.3 must stay drawable for a ${engine} orchestrator`)
+  }
+  assert.ok(!reviewersForOrchestrator('codex',REVIEWERS).some((row)=>row.name==='codex-gpt-5.6-sol'))
+  // A glm-family row introduced for some other engine vocabulary still only
+  // excludes under its own family.
+  const future=[{name:'glm-9',orchestratorEngine:'glm'},{name:'deepseek-chat'}]
+  assert.deepEqual(reviewersForOrchestrator('claude',future).map((row)=>row.name),['glm-9','deepseek-chat'])
+})
+
 test('a Codex orchestrator draws the whole active roster and still refuses the retired Codex reviewer',()=>{
   // grok-4.6, PR #2484: asserting that a Codex orchestrator does not DRAW codex
   // became tautological once codex was retired -- retirement alone satisfies it.
-  // The invariant worth pinning now is the other one: no ACTIVE reviewer carries
-  // an orchestrator engine, so a live Codex orchestrator must cost the rotation
-  // nothing at all. If a future roster adds an engine-carrying reviewer, this
-  // assertion is the one that notices.
+  // The invariant worth pinning now is the other one: since #3232 the active
+  // roster DOES carry an engine family (glm-5.3/glm-5.2 -> 'glm'), but codex and
+  // claude map to themselves, so a live Codex or Claude orchestrator must still
+  // cost the rotation nothing at all. If a future roster adds a reviewer whose
+  // family is codex or claude, this assertion is the one that notices.
   const io=reviewIo();io.resolveOrchestratorEngine=()=> 'codex'
   const assigned=[]
   for(let n=1;n<=ACTIVE_REVIEWERS.length;n++)assigned.push(assignNextReviewer({issue:700+n,pr:800+n,headSha:n.toString(16).padStart(40,'a')},io).reviewer)
@@ -1396,12 +1455,14 @@ test('a Codex orchestrator draws the whole active roster and still refuses the r
   // resolves through `reviewersForOrchestrator()` with its ACTIVE_REVIEWERS
   // default and takes no roster argument, so the case it used to cover -- an
   // ACTIVE, engine-matching reviewer refused at execution time -- cannot be
-  // built at this call site at all while no active reviewer carries an engine.
-  // Swapping the resolver to 'claude' below would throw the same error. The
-  // engine filter itself is covered non-vacuously in 'the orchestrator engine is
-  // never eligible to review its own work', against REVIEWERS and a synthetic
-  // roster; the assertion above is what would notice an engine-carrying name
-  // re-entering the active roster and make this call site meaningful again.
+  // built at this call site for a codex or claude orchestrator, because no
+  // active reviewer's family is codex or claude (the glm family since #3232 is
+  // covered by the zcode tests above). Swapping the resolver to 'claude' below
+  // would throw the same error. The engine filter itself is covered
+  // non-vacuously in 'the orchestrator engine is never eligible to review its
+  // own work', against REVIEWERS and a synthetic roster; the assertion above is
+  // what would notice an engine-carrying name re-entering the active roster and
+  // make this call site meaningful again.
   const preflight={...preflightIo(),resolveOrchestratorEngine:()=> 'codex'}
   assert.throws(()=>reviewerExecutionPreflight({reviewer:'codex-gpt-5.6-sol',wrapper:'ai-codex-review',worktree:'C:/review',headSha:failedReview.headSha},preflight),/approved reviewer/)
 })

@@ -271,13 +271,13 @@ export function isCommandSizeFailure(error){
 export const REVIEWERS = Object.freeze([
   { name:'grok-4.6', provider:'grok', wrapper:'ai-grok-review', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-grok-review: grok --cwd <checkout> with a read-only permission set' } },
-  { name:'glm-5.3', provider:'glm', wrapper:'ai-glm', readsRepository:true,
+  { name:'glm-5.3', provider:'glm', wrapper:'ai-glm', orchestratorEngine:'glm', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-glm: OpenCode session pinned to the review directory, read-only agent' } },
   { name:'kimi-k3', provider:'kimi', wrapper:'ai-kimi', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-kimi: read-only agent profile over the checkout/worktree' } },
   { name:'qwen-3.8-max', provider:'qwen', wrapper:'ai-qwen', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-07', evidence:'ai-devops/bin/ai-qwen: read-only review over a sealed evidence packet copy of the checkout; the live qualification review of merged commit 795902d8 cited specific file lines from it and returned a well-formed verdict' } },
-  { name:'glm-5.2', provider:'glm', wrapper:'ai-glm', readsRepository:true,
+  { name:'glm-5.2', provider:'glm', wrapper:'ai-glm', orchestratorEngine:'glm', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-01', evidence:'historical label for the ai-glm wrapper above; same checkout' } },
   { name:'muse-spark-1.2-contributor', provider:'muse', wrapper:'ai-muse', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-01', evidence:'historical label for the ai-muse wrapper; durable assignments and verdicts recorded before issue #2285 still resolve through this row' } },
@@ -550,11 +550,25 @@ export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>!RETIRED_R
 // load-bearing: every call site reaches this through `io.resolveOrchestratorEngine?.()`,
 // which yields `undefined` when the io object has no resolver at all, and that
 // must never be mistaken for "no orchestrator is running".
+//
+// THE EXCLUSION FOLLOWS THE MODEL ENGINE, NOT THE HARNESS NAME (#3232). A ZCode
+// orchestrator is a GLM-engine session, and the owner ruled on 2026-09-17 that
+// GLM must never review GLM code, so a `zcode` orchestrator must exclude the
+// `glm` rows even though no row carries the string 'zcode'. This map is the
+// reviewer-draw's own vocabulary: it MUST cover every engine
+// `lib/orchestrator-routing.mjs` lets a marker declare, which the lane test
+// suite asserts key-for-key. It lives HERE, beside the rows it filters, rather
+// than as an import from the routing module, so editing the routing contract
+// does not enter this manager's import closure and become a global evidence
+// invalidator (config/orchestrator-global-invalidators-v1.json).
+export const ENGINE_REVIEWER_EXCLUSION=Object.freeze({codex:'codex',claude:'claude',zcode:'glm'})
+
 export function reviewersForOrchestrator(engine, reviewers=ACTIVE_REVIEWERS){
   if(engine===null)return reviewers.filter(()=>true)
   const normalized=String(engine??'').trim().toLowerCase()
   if(!normalized)throw new LaneError('live orchestrator engine is unreadable; reviewer assignment refused')
-  return reviewers.filter((row)=>String(row.orchestratorEngine??'').toLowerCase()!==normalized)
+  const excluded=String(ENGINE_REVIEWER_EXCLUSION[normalized]??normalized).trim().toLowerCase()
+  return reviewers.filter((row)=>String(row.orchestratorEngine??'').toLowerCase()!==excluded)
 }
 
 export function reviewerAdmissionAllowed(row,overrides={},now=Date.now()){

@@ -1,45 +1,45 @@
 {
   "schema_version": 1,
-  "work_issue": 3253,
+  "work_issue": 3264,
   "outcome": "ready-for-merge",
-  "pr": 3254,
+  "pr": 3268,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3253/5",
-  "contract_sha256": "9b69414dcecff8dea0f5a1ca716448b616e3ea0cb3dd56295363d0186473781f",
-  "head_sha": "c27fd1de9fb96b7839e7ebd82a2416b34747476f",
+  "contract_ref": "refs/db-contracts/3264/7",
+  "contract_sha256": "783e824590d7e6e1a4bc347ed105f73bb3a2890f3f3ada905d313f7d0c94acc9",
+  "head_sha": "7cc559b2355ca87ed354807a0300b9b86b2623f1",
   "files_changed": [
     ".agent/completion.json",
     ".agent/contract.json",
-    ".github/workflows/pii-forward-guard.yml",
-    ".github/workflows/shared-db-live-proof.yml",
+    ".github/workflows/guarded-migration-merge.yml",
     ".github/workflows/sync.yml",
-    "AGENTS.md",
-    "COORDINATOR_INTAKE.md",
-    "HANDOFF.md",
-    "README.md",
-    "docs/ai-session-instructions/shared-supabase-branch-workflow.md",
-    "docs/verification/shared-db-popcre-transfer-postcheck-20260918T090657Z.json",
-    "docs/verification/shared-db-popcre-transfer-preflight-20260917T194909Z.json",
-    "docs/verification/shared-db-popcre-transfer-preflight-20260918T090454Z.json",
-    "plan_shared_db_popcre_transfer_merge_queue.md",
-    "scripts/check-repository-identity-conformance.mjs"
+    "scripts/check-guarded-merge-sync-dispatch.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "command": "node --test scripts/check-guarded-merge-sync-dispatch.test.mjs",
       "exit_code": 0,
-      "evidence": "Repository identity conformance OK: every remaining literal slug is allowlisted with an exact count (45 entries), on head 4c11455f."
+      "evidence": "tests 6, pass 6, fail 0"
     },
     {
-      "command": "node --test scripts/check-repository-identity-conformance.test.mjs",
+      "command": "node --test scripts/check-lane-route-sync.test.mjs",
       "exit_code": 0,
-      "evidence": "tests 5, pass 5, fail 0 on head 4c11455f."
+      "evidence": "tests 4, pass 4, fail 0"
+    },
+    {
+      "command": "node --test scripts/lib/documents-only-change.test.mjs",
+      "exit_code": 0,
+      "evidence": "tests 22, pass 22, fail 0"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "GitHub transport conformance: 295 files scanned, every GitHub call goes through scripts/lib/github-transport.mjs."
     }
   ],
   "assumptions_resolved": [
-    "Post-transfer check (docs/verification/shared-db-popcre-transfer-postcheck-20260918T090657Z.json): popcre/shared-db keeps repository ID 1275568548, public, main 1886fb38, every ref identical to the pre-transfer mirror."
+    "sync.yml's existing concurrency group (sync-shared-db, cancel-in-progress: false) safely serializes a manual dispatch against an overlapping ordinary push."
   ],
   "stop_conditions_hit": []
 }

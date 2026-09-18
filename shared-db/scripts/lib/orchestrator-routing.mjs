@@ -62,6 +62,11 @@ export const ROUTING_BLOCK = 'orchestrator-routing'
  * could be sent to", never "proven reachable". Nothing here can prove the
  * session exists or is running. Narrowed 2026-08-26 after independent Codex
  * GPT-5.6 review found the word doing more work than the code supports.
+ *
+ * Which reviewer family an engine's orchestrator must never draw does NOT live
+ * here: it is reviewer-draw knowledge and lives in ENGINE_REVIEWER_EXCLUSION in
+ * manage-migration-author-lanes.mjs (issue #3232). The lane test suite asserts
+ * this vocabulary and that map agree key-for-key.
  */
 export const ENGINES = {
   codex: {
@@ -80,6 +85,20 @@ export const ENGINES = {
      */
     idPattern: /^(local|remote)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     idDescription: 'a Claude `sessionId` such as `local_<uuid>`, as reported by the session itself',
+  },
+  zcode: {
+    /**
+     * A ZCode session id as the harness reports it (`ZCODE_SESSION_ID`), e.g.
+     * `sess_<uuid>`. The `sess_` prefix is part of the id.
+     *
+     * ZCode runs on the GLM engine (GLM-5.3), which matters one hop away in
+     * manage-migration-author-lanes.mjs: the owner ruled on 2026-09-17 (issue
+     * #3232) that GLM must never review GLM code, so a zcode orchestrator must
+     * never draw the glm reviewers. ZCode is NOT a reviewer — adding it as one
+     * was rejected by the same ruling.
+     */
+    idPattern: /^sess_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    idDescription: 'a ZCode session id such as `sess_<uuid>`, as reported by the harness (`ZCODE_SESSION_ID`)',
   },
 }
 
@@ -284,7 +303,9 @@ function freeze(fields, engine, routeId) {
     howToReach:
       engine === 'codex'
         ? `Codex \`codex-reply\` with threadId ${routeId}`
-        : `Claude cross-session message to sessionId ${routeId}`,
+        : engine === 'zcode'
+          ? `ZCode \`zcode --resume\` with session id ${routeId} — the same headless resume ai-blocker-watch uses to wake a waiting zcode session`
+          : `Claude cross-session message to sessionId ${routeId}`,
   }
 }
 
