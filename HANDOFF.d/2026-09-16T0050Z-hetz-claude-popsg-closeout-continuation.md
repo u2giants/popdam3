@@ -8,6 +8,19 @@ owner: claude/hetz-codex-popsg-closeout-628782
 
 Canonical plan: [`plan_popsg_production_readiness.md`](../plan_popsg_production_readiness.md). Read it after `AGENTS.md`, including its STATUS table and every execution-drift entry — the newest is dated 2026-09-16 00:55Z and is this session's. Read this file and its direct predecessor, [`2026-09-15T1117Z-hetz-codex-popsg-production-closeout.md`](2026-09-15T1117Z-hetz-codex-popsg-production-closeout.md), before touching this workstream. The predecessor is **kept, not retired**: several of its obligations are still open.
 
+## ⏩ UPDATE 2026-09-18 18:00Z — read this before the rest
+
+The body below was written 2026-09-16. Since then, verified against production today:
+
+- **shared-db moved to `popcre/shared-db`.** Old `u2giants/shared-db` URLs redirect, but `gh search` against the old name fails. Every issue number in this file lives there.
+- **#3009 is CLOSED and genuinely fixed.** Snapshot-backed default browse; re-measured today at 17–223 ms in both `files` and `guides` modes. **Step 4 of §6 (app cutover) is now UNBLOCKED and is the next app work.**
+- **#3023 is CLOSED** (queue-driven matview refresh, merged 2026-09-18 17:50Z). The Sept 15, 16 and 17 crawls all failed at that step, so the three-clean-night proof restarts from tonight's ordinary crawl. Its end-to-end proof is that crawl completing with non-null `refresh_completed_at`.
+- **`claim_pdf_backfill_batch(10)` still fails at 8.007 s** (SQLSTATE 57014, re-measured today). #2792 and #3009 each closed on a different function's proof, so this was re-filed as **#3282** and routed to active marker **#3275**. PopDAM PDF job remains `paused`; PopSG PDFs 0 of 4,318.
+- Bridge `1.16.12` and the Windows render agent `0.16.3.161` are both online and healthy.
+- `AGENTS.md` was split under its size cap: quirks now live in `docs/idiosyncrasies.md`, incidents in `docs/incident-log.md`.
+
+Where §0 and §3–§6 below disagree with this block, this block wins.
+
 ## 0. ⚠️ DECISIONS ONLY THE OWNER CAN MAKE
 
 Put all of these to the owner in ONE message before starting work. Do not raise them one at a time.
@@ -22,9 +35,9 @@ Put all of these to the owner in ONE message before starting work. Do not raise 
 
 ### Blocking, but nobody can act on it here — it is in the database team's lane
 
-3. **The nightly crawl is now failing too, and it is the same ceiling.** Last night's ordinary crawl found and accepted all 217,047 files cleanly, then failed on the final step that rebuilds the summary tables behind the Guides view. So the library data is right but its summaries are stale, the run counts as a failure, and the "three clean nights in a row" evidence this project needs has reset to zero. It will happen again tonight. *Recommendation: none needed beyond awareness — filed as shared-db #3023 and escalated to marker #3004.* Blocks final acceptance.
+3. **The nightly crawl is now failing too, and it is the same ceiling.** Last night's ordinary crawl found and accepted all 217,047 files cleanly, then failed on the final step that rebuilds the summary tables behind the Guides view. So the library data is right but its summaries are stale, the run counts as a failure, and the "three clean nights in a row" evidence this project needs has reset to zero. It will happen again tonight. *Update 2026-09-18: #3023 fixed and closed; awaiting tonight's crawl as proof.* Blocks final acceptance until three clean nights.
 
-4. **The PDF queue is broken in production and the fix is not ours to make.** With the render machine back on, the PopDAM PDF queue was resumed and failed on every single attempt: the database refuses the "give me the next batch of files" call after 8 seconds, every 30 seconds, forever. Shared-db #2792 was closed as fixed, but its proof only ever tested a different function; this one was never measured. Because the style-guide PDFs are deliberately queued behind the PopDAM ones, all 4,318 of them are stuck too. The job has been paused again so it stops hammering production. *Recommendation: none needed from the owner beyond awareness — it is filed as shared-db #3009 and escalated to marker #3004. Raise it if that lane goes quiet.* Blocks plan step 3 completely.
+4. **The PDF queue is broken in production and the fix is not ours to make.** With the render machine back on, the PopDAM PDF queue was resumed and failed on every single attempt: the database refuses the "give me the next batch of files" call after 8 seconds, every 30 seconds, forever. Shared-db #2792 was closed as fixed, but its proof only ever tested a different function; this one was never measured. Because the style-guide PDFs are deliberately queued behind the PopDAM ones, all 4,318 of them are stuck too. The job has been paused again so it stops hammering production. *Update 2026-09-18: #3009 fixed search but not this claim; re-filed as #3282 under marker #3275. Raise it if that lane goes quiet.* Blocks plan step 3 completely.
 
 ### A wrong guess is recoverable, but confirm
 

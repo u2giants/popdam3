@@ -40,7 +40,7 @@ createSnapshot() — copies file to Snapshots/checkoutId/
           Bridge agent (on Synology) polls via claim-checkin-verifications,
           checks on-disk size + quick-hash, calls report-checkin-verification
           → status: complete, asset unlocked
-          (T1=30min flag, T2=2h auto-resolve; see AGENTS.md § Seafile verifying)
+          (T1=30min flag, T2=2h auto-resolve; see docs/idiosyncrasies.md § Seafile check-ins park in verifying)
 ```
 
 ---
