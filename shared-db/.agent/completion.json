@@ -1,43 +1,27 @@
 {
   "schema_version": 1,
-  "work_issue": 3242,
+  "work_issue": 3024,
   "outcome": "ready-for-merge",
-  "pr": 3286,
+  "pr": 3281,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3242/6",
-  "contract_sha256": "84d0a3d30153acd91cbacd9d295812179de339c0360117d55ec269d025110dc3",
-  "head_sha": "dede9df6b1c3975cad450b8bccbda00379425a13",
+  "contract_ref": "refs/db-contracts/3024/2",
+  "contract_sha256": "d0eaac4a5b61f463dced02e88ef5d1dd5f42afde254172372ad4ad562e7dfe8a",
+  "head_sha": "8e4269e533a730e667703c4aaa7261e69e71857d",
   "files_changed": [
-    ".agent/completion.json",
-    ".agent/contract.json",
-    "tests/verification/shared-db-throughput/2026-09-18-step-7-unattended-reroute.md"
+    "HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md",
+    "plan_product_type_reader.md"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
+      "command": "git diff --check origin/main...HEAD",
       "exit_code": 0,
-      "evidence": "clean on this head; the change is one Markdown proof record."
-    },
-    {
-      "command": "python -m pytest -q scripts/test_production_migration_guard.py",
-      "exit_code": 0,
-      "evidence": "clean on this head; the change is one Markdown proof record."
-    },
-    {
-      "command": "node scripts/check-github-transport-conformance.mjs",
-      "exit_code": 0,
-      "evidence": "clean on this head; the change is one Markdown proof record."
-    },
-    {
-      "command": "node scripts/check-repository-identity-conformance.mjs",
-      "exit_code": 0,
-      "evidence": "clean on this head; the change is one Markdown proof record."
+      "evidence": "no whitespace errors on the branch diff"
     }
   ],
   "assumptions_resolved": [
-    "Contract generation 4 was published before the implementation commit."
+    "GitHub evidence gathered 2026-09-18 in the audit session: issue #3036 state CLOSED with stateReason COMPLETED; PR #3108 merged 2026-09-16T23:34:50Z; migration 20260916231639 present on origin/main and absent from the 2026-09-18 ledger-drift listing"
   ],
   "stop_conditions_hit": []
 }

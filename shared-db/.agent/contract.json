@@ -1,42 +1,41 @@
 {
   "schema_version": 1,
-  "work_issue": 3242,
+  "generation": 2,
+  "work_issue": 3024,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Record the Step 7 live proof: an unattended reviewer-start-watch pass reroutes a real unstarted governed reviewer lease after its 10-minute SLO while the other slot's lease stays intact",
-  "base_sha": "c9d50300f65020aecd14f1c2e1ba0a3f85bdded7",
-  "dispatcher": "repo-maintenance session for issue #3242 (popcre/ai-devops#401 Step 7 chain)",
-  "worker": "claude",
-  "branch": "claude/issue-3242-step7-clean-proof",
-  "worktree": "scratchpad/proof2",
+  "goal": "Correct the stale execution state recorded by the 2026-09-16 plan session: mark plan_product_type_reader.md STATUS step 7 done (orchestrator issue #3036 closed COMPLETED 2026-09-17; PR #3108 merged 2026-09-16, migration 20260916231639) and fix the handoff's two stale lines (live #3024 scope is status: ready, not blocked; columns landed, not pending). Prose corrections only.",
+  "base_sha": "7220a7e57a2eebb676d7d07a3dd2011f6beeb095",
+  "dispatcher": "Albert's chat request in the 2026-09-18 ZCode session: audit the product-type-reader handoff, then correct its stale lines",
+  "worker": "ZCode GLM-5.3 session (handoff audit + plan correction) on edge-dev",
+  "branch": "docs/3024-plan-step7-done",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/3024-plan-step7",
   "allowed_paths": [
-    "tests/verification/shared-db-throughput/2026-09-18-step-7-unattended-reroute.md",
+    "plan_product_type_reader.md",
+    "HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md",
     ".agent/contract.json",
     ".agent/completion.json"
   ],
   "file_writes": [
-    "tests/verification/shared-db-throughput/2026-09-18-step-7-unattended-reroute.md"
+    "plan_product_type_reader.md",
+    "HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "do not touch any migration, workflow, script or database object",
-    "do not invoke the reviewer start watcher by hand for the proof",
-    "do not edit another session's handoff, worktree, branch, or claim"
+    "No database read or write of any kind",
+    "No migration, script, workflow, or configuration change",
+    "No edit beyond the two named prose files and the evidence pair",
+    "Never work in a shared checkout or on another session's branch"
   ],
   "required_checks": [
-    "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
-    "python -m pytest -q scripts/test_production_migration_guard.py",
-    "node scripts/check-github-transport-conformance.mjs",
-    "node scripts/check-repository-identity-conformance.mjs"
+    "git diff --check origin/main...HEAD"
   ],
   "assumptions": [
-    "the edge-dev scheduled task runs a watcher pass every 2 minutes",
-    "a slot-2 reviewer drawn for this PR and never started is a real governed non-start"
+    "GitHub evidence gathered 2026-09-18 in the audit session: issue #3036 state CLOSED with stateReason COMPLETED; PR #3108 merged 2026-09-16T23:34:50Z; migration 20260916231639 present on origin/main and absent from the 2026-09-18 ledger-drift listing",
+    "The live production column count is re-verified at step 8 start, per the plan's own gate"
   ],
   "stop_conditions": [
-    "stop if the watcher reroutes slot 1 or any lease other than the staged slot 2",
-    "stop if the change would need to touch a file outside allowed_paths"
-  ],
-  "generation": 6
+    "Stop and report if the change set grows beyond the two prose files and the evidence pair"
+  ]
 }
