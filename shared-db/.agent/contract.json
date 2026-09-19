@@ -1,41 +1,46 @@
 {
   "schema_version": 1,
   "generation": 2,
-  "work_issue": 3024,
-  "work_type": "repo-maintenance",
-  "route": "repo-maintenance",
-  "goal": "Correct the stale execution state recorded by the 2026-09-16 plan session: mark plan_product_type_reader.md STATUS step 7 done (orchestrator issue #3036 closed COMPLETED 2026-09-17; PR #3108 merged 2026-09-16, migration 20260916231639) and fix the handoff's two stale lines (live #3024 scope is status: ready, not blocked; columns landed, not pending). Prose corrections only.",
-  "base_sha": "7220a7e57a2eebb676d7d07a3dd2011f6beeb095",
-  "dispatcher": "Albert's chat request in the 2026-09-18 ZCode session: audit the product-type-reader handoff, then correct its stale lines",
-  "worker": "ZCode GLM-5.3 session (handoff audit + plan correction) on edge-dev",
-  "branch": "docs/3024-plan-step7-done",
-  "worktree": "C:/repos/shared-db/.claude/worktrees/3024-plan-step7",
+  "work_issue": 3191,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Fix #3191: grant EXECUTE on plm.prepack_role(text,text,text) to supabase_read_only_user so the #2611 live proof can count plm.item_missing_attribution on production. No role membership.",
+  "base_sha": "b32c435a722c5f5f37425de2c9c303e4065830d6",
+  "dispatcher": "shared-db orchestrator (marker #3275), relaying Albert chat instruction: \"clear #3218, #3104, #3091, #3023, #3036, #3174, #3264, #3191, #3091, #2870\"",
+  "worker": "Claude sub-agent, chat e81e0ac2-472a-4227-92b3-16fce6a866ee on edge-dev",
+  "branch": "claude/3191-prepack-proof-grant",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/wt-3191-prepack-grant",
   "allowed_paths": [
-    "plan_product_type_reader.md",
-    "HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md",
+    ".agent/completion.json",
     ".agent/contract.json",
-    ".agent/completion.json"
+    ".github/live-proofs/3191.sql",
+    "supabase/migrations/20260918180012_prepack_role_read_only_proof_grant.sql"
   ],
   "file_writes": [
-    "plan_product_type_reader.md",
-    "HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md"
+    ".agent/completion.json",
+    ".agent/contract.json",
+    ".github/live-proofs/3191.sql",
+    "supabase/migrations/20260918180012_prepack_role_read_only_proof_grant.sql"
   ],
   "db_reads": [],
-  "db_writes": [],
+  "db_writes": [
+    "function plm.prepack_role"
+  ],
   "prohibited_actions": [
-    "No database read or write of any kind",
-    "No migration, script, workflow, or configuration change",
-    "No edit beyond the two named prose files and the evidence pair",
-    "Never work in a shared checkout or on another session's branch"
+    "Never grant role membership (e.g. authenticated) to supabase_read_only_user.",
+    "Never run a manual production command; production only through the automatic promotion lane.",
+    "Never grant anything beyond EXECUTE on this one function."
   ],
   "required_checks": [
-    "git diff --check origin/main...HEAD"
+    "supabase/tests against an ephemeral database",
+    "SQL migration guards"
   ],
   "assumptions": [
-    "GitHub evidence gathered 2026-09-18 in the audit session: issue #3036 state CLOSED with stateReason COMPLETED; PR #3108 merged 2026-09-16T23:34:50Z; migration 20260916231639 present on origin/main and absent from the 2026-09-18 ledger-drift listing",
-    "The live production column count is re-verified at step 8 start, per the plan's own gate"
+    "Author lane claim #3276 reserved version 20260918180012. This contract was published after the implementation commit 379e7913 (author missed the publish-first step); scope is unchanged from the #3191 db-work-scope and the claim.",
+    "Generation 2 adds .github/live-proofs/3191.sql, the read-only production probe the guarded merge lane requires for an issue that returns to shared-db."
   ],
   "stop_conditions": [
-    "Stop and report if the change set grows beyond the two prose files and the evidence pair"
+    "Stop on any gate refusal; never weaken a guard.",
+    "Stop if the production proof still reports a permission error."
   ]
 }

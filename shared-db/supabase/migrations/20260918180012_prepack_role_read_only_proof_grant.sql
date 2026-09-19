@@ -1,0 +1,29 @@
+-- Issue #3191 (for the #2611 live proof).
+--
+-- The read-only proof identity supabase_read_only_user already reads
+-- plm.item_missing_attribution (via pg_read_all_data), but the view calls
+-- plm.prepack_role, and function EXECUTE is checked against the querying
+-- role, so the proof fails with "permission denied for function prepack_role".
+--
+-- Narrowest fix: EXECUTE on this one function only. No role membership
+-- (e.g. in authenticated) is granted. prepack_role is a STABLE, read-only SQL
+-- function returning 'head' / 'member' / null; it writes nothing.
+--
+-- What this confers: prepack_role is SECURITY DEFINER, so it reads the
+-- coldlion prod_history_component landing tables as its owner. Those tables are
+-- RLS-enabled with no policies, so supabase_read_only_user cannot read their
+-- rows directly (pg_read_all_data does not bypass RLS). After this grant it can
+-- learn one derived fact per item number it asks about: whether that item is a
+-- prepack head, a prepack member, or neither. No component row is returned.
+--
+-- supabase_read_only_user is provisioned by the Supabase platform, not by any
+-- migration in this repository. It exists on production, on the preview
+-- branch, and on the local CLI stack the ephemeral contract tests use (the
+-- run at 7cd94d8 applied this same statement with no "role does not exist"
+-- error). The grant is deliberately a plain top-level statement, not wrapped
+-- in a role-existence guard: a guarded grant inside a do-block is invisible to
+-- production catalog verification (which must see the grant to prove it
+-- landed), and a guard would let a target without the role skip silently.
+-- If the role is ever missing, this migration fails loudly, which is correct.
+
+grant execute on function plm.prepack_role(text, text, text) to supabase_read_only_user;
