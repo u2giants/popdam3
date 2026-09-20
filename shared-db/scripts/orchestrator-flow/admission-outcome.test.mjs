@@ -514,6 +514,9 @@ test('claim admission and dispatched event share one author-mutex ownership inte
   try{assert.equal(managerMain(['--claim','--admit-issue','41','--task','x','--owner','o','--branch','b','--worktree','w','--objects','table core.example'],new Date('2026-09-11T00:00:00Z'),io),0)}finally{console.log=old}
   assert.deepEqual(labels,['lock','event','event','claim','event','unlock'])
   assert.equal(outcomeHistory(comments,41).state,'dispatched')
+  const history=outcomeHistory(comments,41)
+  assert.equal(history.valid,true)
+  assert.ok(Date.parse(history.events.at(-1).timestamp)>=Date.parse(history.events[1].timestamp),'claim dispatch must follow admission publication, not command-start clock')
 })
 
 test('lost dispatched-comment response tolerates delayed exact-event visibility and preserves the claim',()=>{
@@ -913,4 +916,81 @@ test('the outcome lifecycle completes BOTH structural routes (#3199 round-2 revi
   // A non-structural scope is still refused at the gate, by name. parseScope
   // is stubbed so the gate itself is what is under test, not the fence parser.
   assert.throws(() => completeOutcome({ issue: 41, evidenceRef: 'x', actor: 't' }, { getIssue: () => issue('body'), parseScope: () => ({ workType: 'repo-maintenance', route: 'repo-maintenance' }), issueComments: () => [], readOutcomeEvidence: () => '' }), /only an admitted structural outcome can complete/)
+})
+
+
+test('combined fresh admission advances with a post-prerequisite timestamp (#3313)',()=>{
+  const comments=[],refs=new Map()
+  const io={enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>comments,
+    makeOwnerCommit:()=> 'timestamp-owner',readRef:ref=>refs.get(ref)??null,
+    listRefs:prefix=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
+    createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:ref=>refs.delete(ref),
+    commentIssue:(_n,body)=>comments.push(ownerComment(body)),wait:()=>{}}
+  const log=console.log;console.log=()=>{}
+  try{assert.equal(managerMain(['--advance-outcome','dispatched','--admit-issue','41','--issue','41','--owner','o','--evidence','https://github.com/popcre/shared-db/issues/3313'],new Date('2026-01-01T00:00:00Z'),io),0)}finally{console.log=log}
+  const history=outcomeHistory(comments,41)
+  assert.equal(history.valid,true);assert.equal(history.state,'dispatched')
+  assert.deepEqual(history.events.map(e=>e.event_type),['entered','classified','dispatched'])
+  assert.ok(Date.parse(history.events[2].timestamp)>=Date.parse(history.events[1].timestamp))
+})
+
+test('configured timestamp incident is repaired append-only and can then advance normally (#3313)',async()=>{
+  const {readFileSync}=await import('node:fs')
+  const record=JSON.parse(readFileSync(new URL('../../config/outcome-timestamp-recovery.json',import.meta.url),'utf8'))
+  const comments=structuredClone(record.comments),before=structuredClone(comments)
+  const io={issueComments:()=>comments,commentIssue:(_n,body)=>comments.push(ownerComment(body)),wait:()=>{}}
+  assert.equal(outcomeHistory(comments,2611).valid,false)
+  const result=repairOutcomeHistory({issue:2611,actor:'recovery',reason:'approved incident3313',evidenceUrls:[record.evidence_url]},io)
+  assert.deepEqual(result.supersedes,['716e9f6122866e84'])
+  assert.deepEqual(comments.slice(0,3),before)
+  assert.equal(outcomeHistory(comments,2611).state,'classified')
+  assert.equal(outcomeHistory(comments,2611).valid,true)
+  advanceOutcome({issue:2611,state:'dispatched',actor:'recovery',evidenceUrls:[record.evidence_url]},io)
+  assert.equal(outcomeHistory(comments,2611).valid,true)
+  assert.equal(outcomeHistory(comments,2611).state,'dispatched')
+})
+
+test('timestamp recovery refuses forged, missing, reordered, edited, foreign and extra history (#3313)',async()=>{
+  const {readFileSync}=await import('node:fs')
+  const record=JSON.parse(readFileSync(new URL('../../config/outcome-timestamp-recovery.json',import.meta.url),'utf8'))
+  const mutations=[c=>c.pop(),c=>{c[0].id++},c=>{c[1].author='impostor'},c=>{c[2].updated_at='2026-09-20T15:17:00Z'},
+    c=>{c[2].created_at=c[0].created_at},c=>{c[2].body=c[2].body.replace('15:16:08.910','15:10:08.910')},
+    c=>{c[2].body=c[2].body.replace('5750669933','5750669934')},
+    c=>c.push(ownerComment(formatEventComment(outcomeEvent({issue:2611,state:'entered',actor:'other',timestamp:'2026-09-20T15:16:18Z'})))),
+    c=>{c[0].body=c[0].body.replace('2611','2612')}]
+  for(const mutate of mutations){
+    const comments=structuredClone(record.comments);mutate(comments);let writes=0
+    assert.throws(()=>repairOutcomeHistory({issue:2611,actor:'test',reason:'forged',evidenceUrls:[record.evidence_url]},{issueComments:()=>comments,commentIssue:()=>writes++,wait:()=>{}}),/configured timestamp incident|already valid|lifecycle violation/)
+    assert.equal(writes,0)
+  }
+  let writes=0
+  assert.throws(()=>repairOutcomeHistory({issue:2611,actor:'test',reason:'missing authority',evidenceUrls:[]},{issueComments:()=>record.comments,commentIssue:()=>writes++}),/lifecycle violation/)
+  assert.equal(writes,0)
+})
+
+test('a repaired timestamp incident does not block later ordinary race repair (#3354)',async()=>{
+  const {readFileSync}=await import('node:fs')
+  const record=JSON.parse(readFileSync(new URL('../../config/outcome-timestamp-recovery.json',import.meta.url),'utf8'))
+  for(const evidenceUrls of [[],[record.evidence_url]]){
+    const comments=structuredClone(record.comments)
+    const io={issueComments:()=>comments,commentIssue:(_n,body)=>comments.push(ownerComment(body)),wait:()=>{}}
+    repairOutcomeHistory({issue:2611,actor:'recovery',reason:'approved incident3313',evidenceUrls:[record.evidence_url]},io)
+    advanceOutcome({issue:2611,state:'dispatched',actor:'recovery',evidenceUrls:[record.evidence_url]},io)
+    const repost=outcomeEvent({issue:2611,state:'dispatched',actor:'raced-writer',timestamp:new Date(Date.now()+1000).toISOString()})
+    comments.push(ownerComment(formatEventComment(repost)))
+    assert.equal(outcomeHistory(comments,2611).valid,false)
+    const result=repairOutcomeHistory({issue:2611,actor:'recovery',reason:'ordinary dispatch repost',evidenceUrls},io)
+    assert.deepEqual(result.supersedes,[repost.event_id])
+    assert.equal(outcomeHistory(comments,2611).valid,true)
+    assert.equal(outcomeHistory(comments,2611).state,'dispatched')
+    assert.deepEqual(comments.slice(0,3),record.comments)
+    const backward=outcomeEvent({issue:2611,state:'entered',actor:'bad-writer',timestamp:new Date(Date.now()+2000).toISOString()})
+    comments.push(ownerComment(formatEventComment(backward)))
+    const before=comments.length
+    assert.throws(()=>repairOutcomeHistory({issue:2611,actor:'recovery',reason:'must not hide backward move',evidenceUrls},io),/lifecycle violation/)
+    assert.equal(comments.length,before)
+    comments[0].updated_at='2026-09-20T15:17:00Z'
+    assert.throws(()=>repairOutcomeHistory({issue:2611,actor:'recovery',reason:'explicit tampered publication',evidenceUrls:[record.evidence_url]},io),/configured timestamp incident/)
+    assert.equal(comments.length,before)
+  }
 })

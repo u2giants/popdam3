@@ -394,6 +394,32 @@ instead.** The machine-readable form of this table is `NON_STRUCTURAL_EXITS` in
 - **RETURN-TO-OWNER** — `security-settings`. It needs authority the orchestrator does not have.
   Put it to Albert; do not dispatch it to any session.
 
+### Every dispatch carries the waiting instruction (issue #2998 item 4, added 2026-09-20)
+
+**Copy this into every dispatch prompt, in these words:**
+
+> Keep polling. Do not stop while waiting. Poll every 5 minutes. Never use `gh run watch`.
+
+**Why it is in the rulebook and not left to each dispatcher's judgement.** Dispatched agents
+**ended their turns mid-wait**, treating "waiting for a check" as "finished". The work was
+neither done nor handed back, and the lane looked busy while nothing was running — the worst of
+both, because the next session cannot tell a live wait from an abandoned one.
+
+The two specifics are not decoration:
+
+- **The 5-minute floor** keeps parallel agents off the GitHub burst limit. Several sessions run
+  this repo at once; a tight poll loop from each is how the whole fleet hits a secondary rate
+  limit together, and §5.2-B item 4 explains why a rate-limited gate read is dangerous rather
+  than merely slow.
+- **The `gh run watch` ban** exists because it holds a connection open for the whole run and
+  returns nothing a poll would not, while being the command most likely to be sitting there when
+  a session's turn ends.
+
+A wait with no end in sight is not waited on forever: set a threshold before starting it, and
+when the threshold passes, diagnose the stall — read the log, name the hanging step — instead of
+waiting on. Ending a turn to report "still waiting, nothing changed" is the failure this rule
+exists to stop.
+
 ### OWNER RULING, 2026-08-21 (issue #1366) — the orchestrator does structure and schema ONLY
 
 Albert ruled on 2026-08-21 that **repository-maintenance work is not an orchestrator job**. This

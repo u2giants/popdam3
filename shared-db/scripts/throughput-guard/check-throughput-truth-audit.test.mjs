@@ -129,16 +129,53 @@ test('an aggregate call_site_count and call_site_sha256 are no longer an input',
   assert.match(run(root), /^truth audit OK: call_sites=1 /);
 });
 
-test('disposition_partition_complete_equivalence', () => {
-  // The repository's own partitioned catalogues must carry exactly the dispositions the retained
-  // historical aggregate carried: same identities, same line hashes, same verdicts, same reasons.
+test('historical_disposition_loader_preserves_review_records', () => {
+  // Historical conversion evidence is a fixed input, not a ceiling on the live catalogue.
   const repoRoot = path.resolve(import.meta.dirname, '../..');
   const historical = JSON.parse(fs.readFileSync(path.join(repoRoot, HISTORICAL_AUDIT), 'utf8'));
-  const partitioned = [...readCatalogues(repoRoot).values()].flatMap((catalogue) => catalogue.sites);
+  const root = tempRoot();
+  const grouped = new Map();
+  for (const row of historical.sites) {
+    const source = row.semantic_key.split(':')[0];
+    if (!grouped.has(source)) grouped.set(source, []);
+    grouped.get(source).push(row);
+  }
+  for (const [source, sites] of grouped) {
+    fs.writeFileSync(catalogueFor(root, source), JSON.stringify({ schema_version: DISPOSITION_SCHEMA_VERSION, source, sites }));
+  }
+  const loaded = [...readCatalogues(root).values()].flatMap((catalogue) => catalogue.sites);
   const shape = (rows) => rows.map((row) => `${row.semantic_key}|${row.line_sha256}|${row.disposition}|${row.reason}`).sort();
-  assert.equal(partitioned.length, historical.sites.length);
-  assert.deepEqual(shape(partitioned), shape(historical.sites));
-  assert.match(run(repoRoot), new RegExp(`call_sites=${historical.sites.length} `));
+  assert.equal(loaded.length, historical.sites.length);
+  assert.deepEqual(shape(loaded), shape(historical.sites));
+});
+
+test('current_repository_catalogues_follow_current_discovery', () => {
+  const repoRoot = path.resolve(import.meta.dirname, '../..');
+  const found = discover(repoRoot);
+  assert.match(run(repoRoot), new RegExp(`^truth audit OK: call_sites=${found.length} sources=${groupBySource(found).size} `));
+});
+
+test('reviewed_catalogues_may_evolve_without_rewriting_history', () => {
+  const root = tempRoot();
+  const oldSource = 'scripts/old.py', newSource = 'scripts/new.py';
+  const put = (source, text) => fs.writeFileSync(path.join(root, source), text);
+  const review = (source) => {
+    const sites = discover(root).filter((row) => row.source === source).map((row) => ({ ...row, disposition: 'excluded', reason: REASON }));
+    fs.writeFileSync(catalogueFor(root, source), JSON.stringify({ schema_version: DISPOSITION_SCHEMA_VERSION, source, sites }));
+  };
+  put(oldSource, 'print("missing first")\nprint("missing second")'); review(oldSource);
+  const historical = fs.readFileSync(catalogueFor(root, oldSource), 'utf8');
+  fs.writeFileSync(path.join(root, 'historical.json'), historical);
+  put(newSource, 'print("missing new")');
+  assert.throws(() => run(root), /no reviewed disposition catalogue/);
+  review(newSource); assert.match(run(root), /call_sites=3 /);
+  put(oldSource, 'print("missing changed")\nprint("missing second")');
+  assert.throws(() => run(root), /semantic inventory drift/);
+  review(oldSource); assert.match(run(root), /call_sites=3 /);
+  put(oldSource, 'print("missing changed")');
+  assert.throws(() => run(root), /semantic inventory drift/);
+  review(oldSource); assert.match(run(root), /call_sites=2 /);
+  assert.equal(fs.readFileSync(path.join(root, 'historical.json'), 'utf8'), historical);
 });
 
 test('independent_source_dispositions_merge_without_global_edit', () => {

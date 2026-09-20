@@ -89,6 +89,29 @@ test('a files_changed mismatch says which list is Git and exactly what to add or
   )
 })
 
+// ISSUE #2998 item 2 — the two derivable completion fields come from git, not typing.
+import { deriveGitFacts } from './agent-work-contract-git-evidence.mjs'
+test('#2998-2 head_sha and files_changed are derived from git and nothing else is touched',()=>{
+  const head='f'.repeat(40)
+  const io={mergeBase:()=>'a'.repeat(40),revParse:()=>head.toUpperCase(),changedFiles:()=>['b.txt','a.txt']}
+  const report={schema_version:1,work_issue:2998,outcome:'ready-for-merge',head_sha:'0'.repeat(40),files_changed:['typed-wrong.txt'],db_reads:[],checks:[{command:'x',exit_code:0}]}
+  const derived=deriveGitFacts(report,{base:'origin/main',head:'HEAD'},io)
+  // The two derivable fields are replaced with what git actually contains, normalised.
+  assert.equal(derived.head_sha,head)
+  assert.deepEqual(derived.files_changed,['a.txt','b.txt'])
+  // Everything git cannot know is carried through untouched and still must be authored.
+  assert.equal(derived.outcome,'ready-for-merge')
+  assert.equal(derived.work_issue,2998)
+  assert.deepEqual(derived.checks,[{command:'x',exit_code:0}])
+  // The input is not mutated.
+  assert.deepEqual(report.files_changed,['typed-wrong.txt'])
+  // It fails closed rather than writing a plausible-looking wrong answer.
+  assert.throws(()=>deriveGitFacts(report,{base:'origin/main',head:'HEAD'},{...io,mergeBase:()=>'not-a-sha'}),/could not resolve an exact merge base/)
+  assert.throws(()=>deriveGitFacts(report,{base:'origin/main',head:'HEAD'},{...io,revParse:()=>'short'}),/could not resolve HEAD to an exact 40-character implementation commit/)
+  assert.throws(()=>deriveGitFacts(report,{base:'origin/main',head:'HEAD'},{...io,changedFiles:()=>null}),/did not return a readable changed-file list/)
+  assert.throws(()=>deriveGitFacts(null,{base:'origin/main',head:'HEAD'},io),/needs a readable completion report object/)
+})
+
 // --- #2708: disjoint, generation-keyed evidence paths -------------------------
 
 test('#2708: a pull request may carry its own generation-keyed pair instead of the shared one', () => {

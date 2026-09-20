@@ -11,6 +11,7 @@ import { lineOpensWithVerdictWord, isVerdictFor } from './lib/review-verdict.mjs
 import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
 // Issue #2729 Step 7: one lifecycle source of truth decides retry versus reroute.
 import { reviewerStartDecision, NON_VERDICT_TERMINAL_REASONS } from './orchestrator-flow/start-reroute.mjs'
+import { REVIEW_CALLER_VARIABLES, reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
 
 export const GOVERNED_REVIEW_OPTIONS=Object.freeze(['issue','pr','headSha','reviewer','wrapper','worktree','reviewSlot','replacementSequence','assignmentId','skipDoctor'])
 export function parseArgs(argv){
@@ -434,7 +435,16 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   // recorded is not started, so the watcher can never reroute a review that is running.
   if(typeof deps.recordStart!=='function')throw new Error('review start recorder is required; no reviewer was started')
   lifecycle.push(lifecycleEvent(deps,assignment,'review_started',{marker:deps.recordStart(options)}))
-  const run=deps.spawn(plan.file,plan.args,{cwd:options.worktree,env:{...process.env,AI_REVIEW_SOURCE_RECEIPT_FILE:receipt.path},encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']})
+  // Issue #2678: the wrapper is told WHO is calling it in the environment this
+  // runner spawns, not left to whatever an operator happened to export first. A
+  // programmatic caller of this function now gets the same environment the CLI does.
+  // `required:false`: the CLI path already refused up front, in
+  // `prepareGovernedReview`, when the caller could not be determined. Refusing a
+  // SECOND time here -- after the start marker is written and the reviewer is
+  // committed -- would turn an environment question into a started-but-failed
+  // review, so this only carries the caller through when there is one to carry.
+  const callerEnv=reviewCallerEnvironment(options.wrapper,process.env,{required:false})
+  const run=deps.spawn(plan.file,plan.args,{cwd:options.worktree,env:{...process.env,...callerEnv,AI_REVIEW_SOURCE_RECEIPT_FILE:receipt.path},encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']})
   let rawBody=String(run.stdout??'').trim()
   // Issue #2244: the codex wrapper's verdict lives in its published report, not on
   // standard output. Transcribe it into this runner's grammar BEFORE parsing, and
@@ -621,16 +631,12 @@ export function governedReviewDeps(env=process.env){
 }
 // #498 items 16-17 (popcre/ai-devops): refuse or repair paperwork faults BEFORE any
 // reviewer starts, so no review round is spent without a recordable verdict.
-export const REVIEW_CALLER_VARIABLES=Object.freeze({'ai-muse':'AI_MUSE_CALLER','ai-grok-review':'AI_GROK_CALLER','ai-glm':'AI_GLM_CALLER','ai-kimi':'AI_KIMI_CALLER','ai-qwen':'AI_QWEN_CALLER','ai-gemini':'AI_GEMINI_CALLER','ai-deepseek-agent':'AI_DEEPSEEK_CALLER','ai-codex-review':'AI_CODEX_REVIEW_CALLER'})
-export function reviewCallerEnvironment(wrapper,env=process.env){
-  const variable=REVIEW_CALLER_VARIABLES[wrapperBaseName(wrapper)]
-  if(!variable)return {}
-  const current=String(env[variable]??'').trim()
-  if(current)return {[variable]:current}
-  const detected=env.CLAUDECODE==='1'?'claude':(env.CODEX_THREAD_ID||env.CODEX_SANDBOX)?'codex':''
-  if(!detected)throw new Error(`${wrapperBaseName(wrapper)} needs ${variable} set to the assistant running this review, and it could not be detected. No reviewer was started. Rerun with ${variable}=claude (or codex) in the environment.`)
-  return {[variable]:detected}
-}
+// Issue #2678: the mapping and the caller decision now live in
+// `lib/reviewer-caller-env.mjs`, so the author-lane `doctor` probe answers to the
+// very same rule instead of spawning a credentialed wrapper with no caller at
+// all. Re-exported from here because callers and tests already import them from
+// this module.
+export { REVIEW_CALLER_VARIABLES, reviewCallerEnvironment }
 export function readLivePullRequestHead(pr,github=readGitHub){
   const response=github(['api',`repos/${REPO}/pulls/${Number(pr)}`])
   if(response.error||response.status!==0)throw new Error(`could not read the live head of pull request #${Number(pr)}; no reviewer was started`)
@@ -640,10 +646,41 @@ export function readLivePullRequestHead(pr,github=readGitHub){
   if(!/^[0-9a-f]{40}$/.test(head))throw new Error(`pull request #${Number(pr)} has no valid live head; no reviewer was started`)
   return head
 }
-export function promptHeadContract(wrapperArgs,head,{readFile=(path)=>readFileSync(path,'utf8'),writeFile=writeFileSync,tempDir=()=>mkdtempSync(join(tmpdir(),'governed-review-'))}={}){
-  const list=[...wrapperArgs]
-  const instruction=`
+// ISSUE #2923 -- the reviewer brief, not the reviewer, was the throughput problem.
+//
+// Observed 2026-09-14 on the #2922 live-proof probe: each governed review round
+// surfaced exactly ONE more gap, so a small read-only probe needed three rounds. Grok
+// returned REVISE twice for loose index / function-volatility / exact-object checks in
+// the probe SQL -- each fixed, each re-reviewed. Grok was not broken; the brief never
+// said those were things to check, so they could only be found one at a time.
+//
+// Front-loading the checklist makes one round find all three classes of gap instead of
+// one per round. This ADDS to what a reviewer must check. It removes nothing, makes
+// nothing optional, and lowers no bar -- the reviewer still reaches their own verdict
+// and REVISE/REJECT still mean exactly what they meant before. Fewer rounds here comes
+// from asking for everything up front, never from asking for less.
+export const PROBE_REVIEW_CHECKLIST = `
+Check all of the following in this single round, and report every gap you find at once.
+Do not stop at the first problem -- a partial list costs another full review round.
 
+1. Index usage. Does every predicate and join the change relies on have an index that
+   actually serves it? Call out loose or unused index assumptions explicitly, including
+   an index that exists but cannot be used as written.
+2. Function volatility. Is every function's volatility marker (IMMUTABLE / STABLE /
+   VOLATILE) correct for what its body actually does? A body that reads tables is not
+   IMMUTABLE; a marker looser than the body is a correctness bug, not a style note.
+3. Exact object checks. Does the change assert the exact objects it depends on --
+   schema, table, view, function signature, column -- rather than inferring existence?
+   A check that a name merely exists is not a check that the right object exists.
+
+These three are mandatory and additional to your normal review. Report everything else
+you would normally raise as well; this list is a floor, never a ceiling.
+`
+export function promptHeadContract(wrapperArgs,head,{readFile=(path)=>readFileSync(path,'utf8'),writeFile=writeFileSync,tempDir=()=>mkdtempSync(join(tmpdir(),'governed-review-'))}={},wrapper=null){
+  const list=[...wrapperArgs]
+  let carried=false
+  const instruction=`
+${PROBE_REVIEW_CHECKLIST}
 Authoritative pull request head (injected by the governed review runner): ${head}
 Your final line must be exactly one of: VERDICT: APPROVE ${head} | VERDICT: REVISE ${head} | VERDICT: REJECT ${head}
 `
@@ -653,12 +690,48 @@ Your final line must be exactly one of: VERDICT: APPROVE ${head} | VERDICT: REVI
       if(!head.startsWith(named))throw new Error(`the review prompt names head ${named} in a VERDICT line, but the live pull request head is ${head}. No reviewer was started. Remove the head from the prompt (the runner injects the live head) or update it.`)
     }
   }
+  // Both spellings of each flag are handled. The governed review of PR #3338 found the
+  // equals form unrecognised: `--prompt=x` fell through the exact-token match, so the
+  // brief silently carried no checklist and no verdict contract. That is the same
+  // defect as the missing-prompt case, so it is closed the same way rather than left
+  // to the refusal below.
   for(let i=0;i<list.length;i++){
-    if(list[i]==='--prompt-file'&&i+1<list.length){
+    const arg=list[i]
+    const inlineFile=/^--prompt-file=/.test(arg),inlinePrompt=/^--prompt=/.test(arg)
+    if(inlineFile){
+      const text=readFile(arg.slice('--prompt-file='.length));stale(text)
+      const copy=join(tempDir(),'prompt.md');writeFile(copy,`${text}${instruction}`);list[i]=`--prompt-file=${copy}`;carried=true
+    }else if(inlinePrompt){
+      const text=arg.slice('--prompt='.length);stale(text);list[i]=`--prompt=${text}${instruction}`;carried=true
+    }else if(arg==='--prompt-file'&&i+1<list.length){
       const text=readFile(list[i+1]);stale(text)
-      const copy=join(tempDir(),'prompt.md');writeFile(copy,`${text}${instruction}`);list[i+1]=copy;i++
-    }else if(list[i]==='--prompt'&&i+1<list.length){stale(list[i+1]);list[i+1]=`${list[i+1]}${instruction}`;i++}
+      const copy=join(tempDir(),'prompt.md');writeFile(copy,`${text}${instruction}`);list[i+1]=copy;i++;carried=true
+    }else if(arg==='--prompt'&&i+1<list.length){stale(list[i+1]);list[i+1]=`${list[i+1]}${instruction}`;i++;carried=true}
   }
+  // ISSUE #2998 item 1 -- validate the terminal VERDICT instruction BEFORE a reviewer
+  // draw is consumed.
+  //
+  // Observed: an approval was given TWICE and could not be recorded either time,
+  // because the prompt that was actually sent never carried the terminal VERDICT line.
+  // The reviewer did the work, said yes, and the verdict was unrecordable. Two draws
+  // spent for zero recorded verdicts.
+  //
+  // The injection loop above only rewrites `--prompt` / `--prompt-file`. If the wrapper
+  // args carry NEITHER, nothing is injected and the contract silently rides on a prompt
+  // that does not exist -- which is precisely the observed failure. This refuses that
+  // handoff here, before anything irreversible, instead of discovering it afterwards.
+  //
+  // This makes no verdict optional and weakens no gate: it turns a silent, unrecordable
+  // review into a named refusal with no reviewer started and no capacity spent.
+  // `ai-codex-review` TAKES NO PROMPT ARGUMENT BY DESIGN (issue #2244, see CODEX_WRAPPER
+  // above): its recordable decision is transcribed from the report it publishes, not
+  // injected into a prompt. Requiring an injected contract from it would refuse a
+  // supported wrapper for failing to accept an argument it never accepted -- a
+  // regression the governed review of PR #3338 caught. Exempting it relaxes NOTHING:
+  // the transcription bridge still restates the decision as this runner's own terminal
+  // verdict line bound to the head the runner pinned, and every other wrapper must
+  // still carry the contract.
+  if(!carried&&wrapperBaseName(wrapper)!==CODEX_WRAPPER)throw new Error('the outbound reviewer prompt carries no terminal VERDICT instruction, because the wrapper arguments contain neither --prompt nor --prompt-file. No reviewer was started and no reviewer capacity was spent. A reviewer sent a prompt without the terminal "VERDICT: <DECISION> <head>" line can approve the work and still leave nothing recordable. Pass the brief with --prompt or --prompt-file so the runner can bind it to the live head.')
   return list
 }
 export function prepareGovernedReview(options,{env=process.env,github=readGitHub,files}={}){
@@ -666,7 +739,7 @@ export function prepareGovernedReview(options,{env=process.env,github=readGitHub
   const named=String(options.headSha??'').trim().toLowerCase()
   if(named&&named!==live)throw new Error(`--head-sha ${named} is stale: pull request #${Number(options.pr)} is now at ${live}. No reviewer was started. Omit --head-sha to use the live head, after the reviewer assignment is moved to it.`)
   const callerEnv=reviewCallerEnvironment(options.wrapper,env)
-  return {options:{...options,headSha:live,wrapperArgs:promptHeadContract(options.wrapperArgs??[],live,files)},callerEnv}
+  return {options:{...options,headSha:live,wrapperArgs:promptHeadContract(options.wrapperArgs??[],live,files,options.wrapper)},callerEnv}
 }
 export function main(argv=process.argv.slice(2)){
   try{const prepared=prepareGovernedReview(parseArgs(argv));Object.assign(process.env,prepared.callerEnv);const result=runGovernedReview(prepared.options,governedReviewDeps());process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\nSOURCE EVIDENCE: ${JSON.stringify(result.sourceEvidence)}\n`);return 0}catch(error){if(error?.startDecision)process.stderr.write(`REROUTE: ${JSON.stringify(error.startDecision)}\n`);process.stderr.write(`REFUSED: ${error.message}\n`);return 2}

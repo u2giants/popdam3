@@ -3,6 +3,13 @@
   "source": "scripts/run-governed-review.mjs",
   "sites": [
     {
+      "site": "scripts/run-governed-review.mjs:690",
+      "semantic_key": "scripts/run-governed-review.mjs:a94750588b1ca95c97d6ba47f5de511d5321380b02fdf8d2f5f15f15ac95a428:1",
+      "line_sha256": "a94750588b1ca95c97d6ba47f5de511d5321380b02fdf8d2f5f15f15ac95a428",
+      "disposition": "excluded",
+      "reason": "Prose in an explanatory comment in scripts/run-governed-review.mjs. The word 'missing' appears in the phrase 'the missing-prompt case', describing why equals-form prompt arguments are handled in the injection loop (governed review of PR #3338). It asserts nothing about a migration being missing, never created, or not applied, and changes no behavior."
+    },
+    {
       "site": "scripts/run-governed-review.mjs:151",
       "semantic_key": "scripts/run-governed-review.mjs:adc27317ab55f760c19af233e4abe0dcc73f007cc7e3057b83464ff32c845932:1",
       "line_sha256": "adc27317ab55f760c19af233e4abe0dcc73f007cc7e3057b83464ff32c845932",

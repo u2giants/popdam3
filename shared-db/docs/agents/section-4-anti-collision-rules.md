@@ -275,6 +275,84 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    Completion is immutable. A second record on one issue is an error, not
    latest-wins.
 
+   **THE REPORT FILE (issue #2824).** `--complete-work` is the only publishing
+   path for a `db-work-completion` record, and a missing record is what stalled
+   #2357 for a day. Sessions used to reach the end of merged work, find no
+   schema here, and write prose where the record belonged. The schema is:
+
+   | Field | Required | Meaning |
+   | --- | --- | --- |
+   | `schema_version` | always, must be `1` | the record schema |
+   | `work_issue` | always | the issue number; must equal `--issue` |
+   | `outcome` | always | one of `merged`, `live_verified`, `ready-for-merge`, `owner-ruling-recorded`, `returned`, `cancelled`, `superseded`, `failed` |
+   | `pr` | `merged`, `live_verified`, `ready-for-merge` | the pull request number |
+   | `merge_sha` | `merged`, `live_verified` | GitHub's `merge_commit_sha` |
+   | `migration_versions` | `merged`, `ready-for-merge` | the 14-digit versions the PR added; `[]` when it added none |
+   | `application_repository`, `application_commit_sha`, `live_evidence` | `live_verified` | where the outcome was proved live |
+   | `ruling_url`, `resolved_by` | `owner-ruling-recorded` | the durable ruling, and the commit or issue-comment URL that resolved it |
+   | `reason` | `returned`, `cancelled`, `superseded`, `failed` | free text; downstream work is told this exact wording |
+   | `invalidates`, `supersedes` | optional | advisory issue-number lists; they surface in an audit and never auto-block anything |
+
+   Three rules the schema alone does not tell you:
+
+   - **Only `merged` and `owner-ruling-recorded` RELEASE a dependent.** Every
+     other outcome is a legitimate ending that releases nothing.
+   - **`ready-for-merge` must NOT carry a `merge_sha`.** GitHub has not created
+     one yet, so naming it is refused rather than accepted and ignored.
+   - **`merge_sha` is GitHub's `merge_commit_sha`**, which is the squash commit.
+     The source branch head is NOT what lands on `main`, and a branch head here
+     is refused against the live pull request.
+
+   A worked example, for merged repository-maintenance work that shipped no
+   migration:
+
+   ```json
+   {
+     "schema_version": 1,
+     "work_issue": 2824,
+     "outcome": "merged",
+     "pr": 3321,
+     "merge_sha": "0f5d93e8c1a24b6f7e8d9a0b1c2d3e4f5a6b7c8d",
+     "migration_versions": []
+   }
+   ```
+
+   Record it, confirm the read-back, then close:
+
+   ```bash
+   node scripts/manage-migration-author-lanes.mjs --complete-work --issue 2824 --report-file report.json
+   ```
+
+   #### Changing a scope `status:` — `--set-scope-status` (issue #2824)
+
+   Moving a db-work issue from `blocked` to `ready` is the single most
+   consequential edit in the queue: it is what makes the work dispatchable. It
+   used to be an unaudited hand edit through `gh issue edit --body-file`, which
+   took no mutex, got no read-back, and left no machine-readable trail. It was
+   also error-prone — the recorded #2212 attempt lost its multiline body to
+   PowerShell argument splitting, a follow-up `gh api` attempt sent an array
+   instead of a string, and the remote never changed with nothing to say so.
+
+   Hand editing a scope block is no longer the sanctioned route. Use:
+
+   ```bash
+   node scripts/manage-migration-author-lanes.mjs --set-scope-status --issue <n> --status <ready|blocked|owner-decision> --reason "<one line>"
+   ```
+
+   It takes the author mutex, re-parses the block, writes exactly the one
+   `status:` line (a rewrite that moves any other line is refused), reads the
+   body back from GitHub, and comments an audit line naming the old status, the
+   new status, the reason, and its mutex owner commit.
+
+   **It cannot mark work complete.** It writes one queue field and nothing else:
+   it publishes no completion record, closes no issue, touches no lease, and
+   releases no dependent. A `ready` transition is refused unless every
+   `depends_on` entry satisfies the same `classifyDependencies` gate the queue
+   itself uses — so a dependency that is still open, or closed with no
+   `db-work-completion` record, refuses the write. A dependency that could not be
+   read refuses it too: "I could not check" is never "nothing to check".
+
+
    Dependencies closed before **2026-08-23** are GRANDFATHERED: they could not have
    carried a record, so they are accepted and listed under
    `GRANDFATHERED DEPENDENCIES` to stay countable. The cutoff never rescues a

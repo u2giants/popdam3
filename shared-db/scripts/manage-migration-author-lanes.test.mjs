@@ -7,19 +7,20 @@ import { namedHold, urgentHoldDetail, urgentHoldReason } from './manage-migratio
 import { rebindClaimWorktree, claimWorktreeRebindRef } from './manage-migration-author-lanes.mjs'
 import { validateHoldReasonRecord } from './lib/hold-reason.mjs'
 import { ENGINES } from './lib/orchestrator-routing.mjs'
-import { spawn, spawnSync } from 'node:child_process'
+import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { REVIEW_VERDICT_REF_PREFIX, verdictRef } from './lib/review-verdict-artifact.mjs'
 import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-migration-author-lanes.mjs'
 import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
 import { canonicalReviewerAllowlist } from './manage-migration-author-lanes.mjs'
+import { setScopeStatus, wrongOwnerMessage } from './manage-migration-author-lanes.mjs'
 import { readyRecord, persistInitialReady } from './orchestrator-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, readOrchestratorResolution, orchestratorEngineFromResolution, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases } from './manage-migration-author-lanes.mjs'
+import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, readOrchestratorResolution, orchestratorEngineFromResolution, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO } from './manage-migration-author-lanes.mjs'
 import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
@@ -5126,6 +5127,50 @@ test('completeWork publishes a fully proven merged report and reads it back', ()
   assert.equal(io.posted.length, 1)
 })
 
+function typedCompletionIo(options = {}, structural = false) {
+  const io = completionIo({ pr: { merged_at: 'x', merge_commit_sha: 'abc1234' }, ...options })
+  io.getIssue = () => ({ body: '```db-work-scope\n' + [
+    'status: ready', `work_type: ${structural ? 'structural' : 'repo-maintenance'}`,
+    `route: ${structural ? 'shared-db-orchestrator' : 'repo-maintenance'}`,
+    `change_type: ${structural ? 'function' : 'reviewer-tooling'}`, 'priority: 1',
+    'writes:', ...(structural ? ['- function public.example'] : []),
+  ].join('\n') + '\n```' })
+  return io
+}
+
+test('typed nonstructural maintenance completes only with authentic merged evidence', () => {
+  const io = typedCompletionIo()
+  assert.equal(completeWork({ issue: 5, report: mergedRecord(5) }, io).outcome, 'merged')
+  assert.equal(io.posted.length, 1)
+  assert.match(io.posted[0], /db-work-completion/)
+})
+
+for (const [name, options, expected] of [
+  ['unmerged PR', { pr: { merged_at: null } }, /is not merged/],
+  ['wrong merge SHA', { pr: { merged_at: 'x', merge_commit_sha: 'deadbee' } }, /does not match GitHub's merge_commit_sha/],
+  ['merge outside main', { ancestry: false }, /not contained in the history of main/],
+  ['undeclared migration', { files: [{ filename: 'supabase/migrations/20260823120000_a.sql' }] }, /do not match the versions/],
+  ['existing immutable completion', { comments: [completionComment(mergedRecord(5))] }, /completion is immutable/],
+]) {
+  test(`typed maintenance still refuses ${name} without publishing`, () => {
+    const io = typedCompletionIo(options)
+    assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), expected)
+    assert.equal(io.posted.length, 0)
+  })
+}
+
+test('typed structural work still cannot complete at merge even with authentic evidence', () => {
+  const io = typedCompletionIo({}, true)
+  assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), /authoritative outcome lifecycle/)
+  assert.equal(io.posted.length, 0)
+})
+
+test('typed maintenance cannot complete without reading back its published evidence', () => {
+  const io = typedCompletionIo()
+  io.issueComments = () => []
+  assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), /could not be read back/)
+})
+
 // --activate-review-cutover (issue #1777 handover)
 
 function freshCutoverIo(){const io=reviewIo();io.refs.delete(REVIEW_ACTIVE_CUTOVER_REF);return io}
@@ -5992,6 +6037,41 @@ test('archived unnamed steps require an exact artifact receipt and never overrid
   evidence.logs+='\npreview\tReport the preview ledger delta\t- added: 20260101000000'
   io.verifyPreviewApplyArtifact=()=>assert.fail('contradictory named proof must not use artifact fallback')
   assert.throws(()=>validateOriginalPreviewApplyEvidence(input,io),/found 0/)
+})
+
+// #2549. The workflow DISPATCH identity and the APPLIED CHECKOUT identity are
+// different commits. A supported merged-main rehearsal dispatches from current
+// main B while checking out the merged commit A, and names its artifact for A.
+test('a merged-main rehearsal may be dispatched from a later main than the checkout it applied',()=>{
+  const merge='b'.repeat(40),applied='a1'.repeat(20),dispatch='d2'.repeat(20)
+  const input={issue:1769,pr:1809,versions:['20260828232207'],mergeCommitSha:merge}
+  const separated=({compareCommits,appliedCommit=applied,artifactName=`preview-migration-apply-${applied}`,artifactHead=dispatch}={})=>{
+    const fixture=immutablePreviewApplyIo(),evidence=fixture.previewApplyRun()
+    evidence.run.head_sha=dispatch
+    evidence.artifacts.artifacts[0].name=artifactName
+    evidence.artifacts.artifacts[0].workflow_run.head_sha=artifactHead
+    evidence.logs=evidence.logs.replace(/"appliedCommit":"[0-9a-f]+"/,`"appliedCommit":"${appliedCommit}"`)
+    return {...fixture,previewApplyRun:()=>evidence,compareCommits}
+  }
+  // Merge commit <= applied checkout <= dispatch head, and the artifact is named
+  // for the checkout while its producer is still the dispatch head.
+  const lineage=(base,head)=>{
+    if(base===merge&&head===applied)return {status:'ahead'}
+    if(base===applied&&head===dispatch)return {status:'ahead'}
+    return {status:'diverged'}
+  }
+  assert.deepEqual(validateOriginalPreviewApplyEvidence(input,separated({compareCommits:lineage})),{type:'preview-apply',run_id:'33308168016'})
+  // NEGATIVES. Without a comparison nothing is proven; a checkout off the
+  // lineage, an artifact named for the dispatch head, and a forged artifact
+  // producer all still refuse.
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,separated()),/found 0/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,separated({compareCommits:()=>({status:'diverged'})})),/found 0/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,separated({compareCommits:(base,head)=>base===merge&&head===applied?{status:'ahead'}:{status:'behind'}})),/found 0/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,separated({compareCommits:(base,head)=>base===applied&&head===dispatch?{status:'ahead'}:{status:'behind'}})),/found 0/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,separated({compareCommits:lineage,artifactName:`preview-migration-apply-${dispatch}`})),/found 0/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,separated({compareCommits:lineage,artifactHead:applied})),/found 0/)
+  // A same-commit merged-main rehearsal still validates with no comparison at all.
+  assert.deepEqual(validateOriginalPreviewApplyEvidence(input,immutablePreviewApplyIo()),{type:'preview-apply',run_id:'33308168016'})
 })
 
 test('immutable original preview-apply evidence validates only the exact run',()=>{
@@ -8749,6 +8829,128 @@ test('#3187 mutex release still refuses when the lock keeps naming our owner com
   assert.throws(()=>assignNextReviewer({issue:1767,pr:1800,headSha:"a".repeat(40),admissionOptions:{pr:1800}},io),/could not be proved after atomic deletion/)
 })
 
+test('#2457/#2844 a lagging replica read of a deleted mutex no longer refuses a successful draw',()=>{
+  // A real compare-and-swap deletion DID remove the ref; only the replica read lags.
+  let releasedOwner=null,staleMutexReads=3
+  const io=reviewIo();let attempts=0,baseLoaded=false;io.enforceAdmission=true
+  const rawGetCommit=io.getCommit
+  const active=new Map(),states=new Map()
+  ACTIVE_REVIEWERS.slice(0,-1).forEach((reviewer,index)=>{
+    const issue=2000+index,pr=2100+index,headSha=`c${index}`.padEnd(40,'0')
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${reviewer.name} issue=${issue} pr=${pr} head=${headSha}`)
+    io.refs.set(reviewActiveRef(reviewer.name),sha);active.set(reviewActiveRef(reviewer.name),{sha,commit:io.getCommit(sha)})
+    states.set(`${issue}:${pr}`,{pr:{state:'open',head:{sha:headSha}},evidence:[]})
+  })
+  states.set('1767:1800',{issue:{state:'open'},pr:{state:'open',head:{sha:'a'.repeat(40)}},evidence:[]})
+  // Multiple durable exclusions must remain one fixed-cost exact-record read.
+  // The former prefix scan paid an unreserved getCommit request for every row
+  // after the mutex was acquired and could exhaust the global wire ceiling.
+  REVIEWERS.slice(0,4).forEach((reviewer,index)=>{
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-exclusion reviewer=${reviewer.name} issue=1767 pr=1800 reason=independence-conflict evidence=${String(index+1).repeat(40).slice(0,40)}`)
+    io.refs.set(`${REVIEW_EXCLUSION_REF_PREFIX}/1767-1800-${reviewer.name}`,sha)
+  })
+  const wire=(n=1)=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})}
+  io.getRateLimit=()=>{wire(2);return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readReviewerOperationRoute=()=>{wire();return {pr:{state:'open',head:{sha:'a'.repeat(40)}},files:[{filename:'scripts/reviewer-tool.mjs',status:'modified'}],linkedIssues:[{number:1767,state:'open',createdAt:'2026-09-11T17:00:00Z',body:['```db-work-scope','status: ready','work_type: repo-maintenance','route: repo-maintenance','service_class: maintenance','change_type: reviewer-tooling','priority: 5','depends_on:','objects:','```'].join('\n')}]}}
+  io.readActiveReviewLeases=()=>{wire();const snapshot=new Map(active);for(const [ref,sha] of io.refs)if(ref.startsWith(REVIEW_ACTIVE_REF_PREFIX))snapshot.set(ref,{sha,commit:rawGetCommit(sha)});return snapshot}
+  io.readReviewStates=()=>{wire();return states}
+  io.readReviewRefs=(refs)=>{wire();return new Map(refs.map((ref)=>[ref,(ref===MUTEX_REF&&releasedOwner&&staleMutexReads-->0)?releasedOwner:(io.refs.get(ref)??null)]))}
+  io.readReviewRecords=(refs)=>{wire();return new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewMutexRelease=(ownerSha)=>{assert.equal(io.refs.get(MUTEX_REF),ownerSha);io.refs.delete(MUTEX_REF);releasedOwner=ownerSha}
+  io.wait=()=>{}
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){
+    const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}
+  }
+  const make=io.makeOwnerCommit
+  io.makeOwnerCommit=(message)=>{wire(1);baseLoaded=true;return make(message)}
+  const result=assignNextReviewer({issue:1767,pr:1800,headSha:"a".repeat(40),admissionOptions:{pr:1800}},io)
+  assert.ok(result.reviewer)
+  assert.equal(staleMutexReads,-1) // 3 stale replica reads, then the 4th saw the deletion
+  assert.equal(io.refs.get(MUTEX_REF),undefined)
+})
+
+test('#2457/#2844 an endlessly lagging replica read is confirmed over the ref API instead of refusing',()=>{
+  // A real compare-and-swap deletion DID remove the ref; only the replica read lags.
+  let releasedOwner=null,staleMutexReads=3
+  const io=reviewIo();let attempts=0,baseLoaded=false;io.enforceAdmission=true
+  const rawGetCommit=io.getCommit
+  const active=new Map(),states=new Map()
+  ACTIVE_REVIEWERS.slice(0,-1).forEach((reviewer,index)=>{
+    const issue=2000+index,pr=2100+index,headSha=`c${index}`.padEnd(40,'0')
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${reviewer.name} issue=${issue} pr=${pr} head=${headSha}`)
+    io.refs.set(reviewActiveRef(reviewer.name),sha);active.set(reviewActiveRef(reviewer.name),{sha,commit:io.getCommit(sha)})
+    states.set(`${issue}:${pr}`,{pr:{state:'open',head:{sha:headSha}},evidence:[]})
+  })
+  states.set('1767:1800',{issue:{state:'open'},pr:{state:'open',head:{sha:'a'.repeat(40)}},evidence:[]})
+  // Multiple durable exclusions must remain one fixed-cost exact-record read.
+  // The former prefix scan paid an unreserved getCommit request for every row
+  // after the mutex was acquired and could exhaust the global wire ceiling.
+  REVIEWERS.slice(0,4).forEach((reviewer,index)=>{
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-exclusion reviewer=${reviewer.name} issue=1767 pr=1800 reason=independence-conflict evidence=${String(index+1).repeat(40).slice(0,40)}`)
+    io.refs.set(`${REVIEW_EXCLUSION_REF_PREFIX}/1767-1800-${reviewer.name}`,sha)
+  })
+  const wire=(n=1)=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})}
+  io.getRateLimit=()=>{wire(2);return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readReviewerOperationRoute=()=>{wire();return {pr:{state:'open',head:{sha:'a'.repeat(40)}},files:[{filename:'scripts/reviewer-tool.mjs',status:'modified'}],linkedIssues:[{number:1767,state:'open',createdAt:'2026-09-11T17:00:00Z',body:['```db-work-scope','status: ready','work_type: repo-maintenance','route: repo-maintenance','service_class: maintenance','change_type: reviewer-tooling','priority: 5','depends_on:','objects:','```'].join('\n')}]}}
+  io.readActiveReviewLeases=()=>{wire();const snapshot=new Map(active);for(const [ref,sha] of io.refs)if(ref.startsWith(REVIEW_ACTIVE_REF_PREFIX))snapshot.set(ref,{sha,commit:rawGetCommit(sha)});return snapshot}
+  io.readReviewStates=()=>{wire();return states}
+  io.readReviewRefs=(refs)=>{wire();return new Map(refs.map((ref)=>[ref,(ref===MUTEX_REF&&releasedOwner&&(staleMutexReads=Number.MAX_SAFE_INTEGER)>0)?releasedOwner:(io.refs.get(ref)??null)]))}
+  io.readReviewRecords=(refs)=>{wire();return new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewMutexRelease=(ownerSha)=>{assert.equal(io.refs.get(MUTEX_REF),ownerSha);io.refs.delete(MUTEX_REF);releasedOwner=ownerSha}
+  io.wait=()=>{}
+  io.readRefOverApi=(ref)=>{wire();return io.refs.get(ref)??null}
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){
+    const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}
+  }
+  const make=io.makeOwnerCommit
+  io.makeOwnerCommit=(message)=>{wire(1);baseLoaded=true;return make(message)}
+  const result=assignNextReviewer({issue:1767,pr:1800,headSha:"a".repeat(40),admissionOptions:{pr:1800}},io)
+  assert.ok(result.reviewer)
+  assert.equal(io.refs.get(MUTEX_REF),undefined)
+})
+
+test('#2457 a refused mutex release still reports the completed assignment instead of losing it',()=>{
+  // A real compare-and-swap deletion DID remove the ref; only the replica read lags.
+  let releasedOwner=null,staleMutexReads=3
+  const io=reviewIo();let attempts=0,baseLoaded=false;io.enforceAdmission=true
+  const rawGetCommit=io.getCommit
+  const active=new Map(),states=new Map()
+  ACTIVE_REVIEWERS.slice(0,-1).forEach((reviewer,index)=>{
+    const issue=2000+index,pr=2100+index,headSha=`c${index}`.padEnd(40,'0')
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${index+1} reviewer=${reviewer.name} issue=${issue} pr=${pr} head=${headSha}`)
+    io.refs.set(reviewActiveRef(reviewer.name),sha);active.set(reviewActiveRef(reviewer.name),{sha,commit:io.getCommit(sha)})
+    states.set(`${issue}:${pr}`,{pr:{state:'open',head:{sha:headSha}},evidence:[]})
+  })
+  states.set('1767:1800',{issue:{state:'open'},pr:{state:'open',head:{sha:'a'.repeat(40)}},evidence:[]})
+  // Multiple durable exclusions must remain one fixed-cost exact-record read.
+  // The former prefix scan paid an unreserved getCommit request for every row
+  // after the mutex was acquired and could exhaust the global wire ceiling.
+  REVIEWERS.slice(0,4).forEach((reviewer,index)=>{
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-exclusion reviewer=${reviewer.name} issue=1767 pr=1800 reason=independence-conflict evidence=${String(index+1).repeat(40).slice(0,40)}`)
+    io.refs.set(`${REVIEW_EXCLUSION_REF_PREFIX}/1767-1800-${reviewer.name}`,sha)
+  })
+  const wire=(n=1)=>{for(let i=0;i<n;i++)runGitHubCommand(['api','fixture'],{executor:()=>{attempts++;return '{}'}})}
+  io.getRateLimit=()=>{wire(2);return {remaining:5000,limit:5000,reset:1787943986,graphRemaining:5000,graphLimit:5000,graphReset:1787943986}}
+  io.readReviewerOperationRoute=()=>{wire();return {pr:{state:'open',head:{sha:'a'.repeat(40)}},files:[{filename:'scripts/reviewer-tool.mjs',status:'modified'}],linkedIssues:[{number:1767,state:'open',createdAt:'2026-09-11T17:00:00Z',body:['```db-work-scope','status: ready','work_type: repo-maintenance','route: repo-maintenance','service_class: maintenance','change_type: reviewer-tooling','priority: 5','depends_on:','objects:','```'].join('\n')}]}}
+  io.readActiveReviewLeases=()=>{wire();const snapshot=new Map(active);for(const [ref,sha] of io.refs)if(ref.startsWith(REVIEW_ACTIVE_REF_PREFIX))snapshot.set(ref,{sha,commit:rawGetCommit(sha)});return snapshot}
+  io.readReviewStates=()=>{wire();return states}
+  io.readReviewRefs=(refs)=>{wire();return new Map(refs.map((ref)=>[ref,(ref===MUTEX_REF&&releasedOwner&&(staleMutexReads=Number.MAX_SAFE_INTEGER)>0)?releasedOwner:(io.refs.get(ref)??null)]))}
+  io.readReviewRecords=(refs)=>{wire();return new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:rawGetCommit(sha)}:null]}))}
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  io.atomicReviewMutexRelease=(ownerSha)=>{assert.equal(io.refs.get(MUTEX_REF),ownerSha);releasedOwner=ownerSha}
+  io.wait=()=>{}
+  io.readRefOverApi=(ref)=>{wire();return io.refs.get(ref)??null}
+  for(const name of ['readRef','listRefs','getCommit','getPr','getIssueComments','getPrReviews','createRef','updateRef','deleteRef']){
+    const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}
+  }
+  const make=io.makeOwnerCommit
+  io.makeOwnerCommit=(message)=>{wire(1);baseLoaded=true;return make(message)}
+  assert.throws(()=>assignNextReviewer({issue:1767,pr:1800,headSha:"a".repeat(40),admissionOptions:{pr:1800}},io),(error)=>/could not be proved after atomic deletion/.test(error.message)&&/THE OPERATION ITSELF COMPLETED/.test(error.message)&&/"sequence":\d+/.test(error.message)&&/"reviewer":"/.test(error.message)&&Boolean(error.completedResult?.reviewer))
+})
+
+
 
 // Issue #3182: guarded --rebind-claim-worktree.
 function rebindIo(overrides={}){
@@ -8866,4 +9068,500 @@ test('issue 3182: REAL main command wires --rebind-claim-worktree with every ide
   const io=rebindIo(),args=['--rebind-claim-worktree','--issue','764','--claim-number','1056','--owner',rebindArgs.owner,'--branch',rebindArgs.branch,'--worktree',rebindArgs.worktree,'--target-worktree',rebindArgs.targetWorktree,'--pr','1047','--head-sha',rebindArgs.headSha]
   assert.equal(main(args,NOW,io),0)
   assert.equal(parseAuthorLease(io.issue.body,NOW).worktree,rebindArgs.targetWorktree)
+})
+
+// ISSUE #2678 -- A HEALTHY REVIEWER MUST NOT LOOK LIKE A BROKEN MACHINE.
+// On 2026-09-10 `ai-kimi` and `ai-muse` both refused governed reviews with
+// `doctor could not be run (exit 1) and named no check -- this is a LOCAL
+// dependency fault on this machine`. Neither was faulty: the wrapper exits 1
+// before any check line when its own `AI_<PROVIDER>_CALLER` is unset, because
+// credentialed execution never guesses its caller. These tests spawn a real
+// wrapper shim with exactly that behaviour, so the probe is proved end to end.
+import { unnamedDoctorFailure } from './manage-migration-author-lanes.mjs'
+
+const callerWrapperDir=()=>{
+  const dir=mkdtempSync(path.join(tmpdir(),'reviewer-caller-'))
+  const win=process.platform==='win32'
+  const file=path.join(dir,win?'ai-muse.cmd':'ai-muse')
+  writeFileSync(file,win
+    ?'@echo off\r\nif "%AI_MUSE_CALLER%"=="" (\r\n echo AI_MUSE_CALLER must be set explicitly to codex or claude; credentialed execution never guesses the caller 1>&2\r\n exit /b 1\r\n)\r\necho auth : OK\r\n'
+    :'#!/bin/sh\nif [ -z "$AI_MUSE_CALLER" ]; then\n  echo "AI_MUSE_CALLER must be set explicitly to codex or claude; credentialed execution never guesses the caller" >&2\n  exit 1\nfi\necho "auth : OK"\n')
+  if(!win)execFileSync('chmod',['755',file])
+  return dir
+}
+
+test('issue 2678: the doctor probe tells the wrapper who is calling, so a healthy reviewer passes',()=>{
+  const dir=callerWrapperDir(), PATH_KEY=Object.keys(process.env).find((k)=>k.toLowerCase()==='path')??'PATH'
+  const originalPath=process.env[PATH_KEY], originalCaller=process.env.AI_MUSE_CALLER, originalClaude=process.env.CLAUDECODE
+  try{
+    process.env[PATH_KEY]=`${dir}${path.delimiter}${originalPath}`
+    delete process.env.AI_MUSE_CALLER
+    process.env.CLAUDECODE='1'
+    // BEFORE THE FIX this probe spawned the wrapper with no caller variable, the
+    // wrapper refused, and the probe called a healthy reviewer a local fault.
+    const doctor=githubIo.reviewerDoctor('ai-muse')
+    assert.equal(doctor.ok,true,`doctor should pass with a detected caller; got ${JSON.stringify(doctor)}`)
+    assert.deepEqual(doctor.failingChecks,[])
+  }finally{
+    process.env[PATH_KEY]=originalPath
+    if(originalCaller===undefined)delete process.env.AI_MUSE_CALLER;else process.env.AI_MUSE_CALLER=originalCaller
+    if(originalClaude===undefined)delete process.env.CLAUDECODE;else process.env.CLAUDECODE=originalClaude
+    rmSync(dir,{recursive:true,force:true})
+  }
+})
+
+test('issue 2678: an explicitly exported caller is never overruled by detection',()=>{
+  const dir=callerWrapperDir(), PATH_KEY=Object.keys(process.env).find((k)=>k.toLowerCase()==='path')??'PATH'
+  const originalPath=process.env[PATH_KEY], originalCaller=process.env.AI_MUSE_CALLER
+  try{
+    process.env[PATH_KEY]=`${dir}${path.delimiter}${originalPath}`
+    process.env.AI_MUSE_CALLER='codex'
+    assert.equal(githubIo.reviewerDoctor('ai-muse').ok,true)
+  }finally{
+    process.env[PATH_KEY]=originalPath
+    if(originalCaller===undefined)delete process.env.AI_MUSE_CALLER;else process.env.AI_MUSE_CALLER=originalCaller
+    rmSync(dir,{recursive:true,force:true})
+  }
+})
+
+test('issue 2678: a doctor that names no check quotes the wrapper instead of blaming the machine',()=>{
+  const said='AI_MUSE_CALLER must be set explicitly to codex or claude; credentialed execution never guesses the caller'
+  const message=unnamedDoctorFailure('ai-muse',{status:1},`\n${said}\n`)
+  assert.match(message,/doctor could not be run \(exit 1\)/)
+  assert.match(message,/never guesses the caller/)
+  assert.doesNotMatch(message,/named no check/)
+  // Only when the wrapper truly said nothing does the old wording stand.
+  assert.match(unnamedDoctorFailure('ai-muse',{status:1},''),/named no check/)
+  // Wrapper diagnostics travel into refusals, so one line, length-capped.
+  const long=unnamedDoctorFailure('ai-muse',{status:1},'x'.repeat(900))
+  assert.equal(long.includes('\n'),false)
+  assert.ok(long.length<400,`refusal text should be capped; got ${long.length}`)
+})
+
+// ---------------------------------------------------------------------------
+// Issues #2448 (2), #3125 and #2491 -- migration-author-lane tooling repairs.
+// Each test below was run against the UNFIXED script first and observed to
+// fail; see the pull request body for the recorded failure lines.
+// ---------------------------------------------------------------------------
+
+// #2448 defect 2. `CLAIM: #2433 HANDOVER: preview rehearsal owed for merged PR
+// #2423` was dead on arrival: the second reference came from the work issue's
+// own title, nothing warned at claim time, and the claim had already spent a
+// permanent migration version before a later command refused it.
+test('#2448 a second issue reference in a claim title is refused at --claim time, before any version is spent',async()=>{
+  const {outcomeEvent}=await import('./orchestrator-flow/outcome-lifecycle.mjs')
+  const {formatEventComment}=await import('./db-coordination-events.mjs')
+  const {io}=admittedReviewIo()
+  // A COMPLETE fixture on purpose: without the guard this claim would otherwise
+  // SUCCEED and spend a permanent migration version, which is the defect. A
+  // fixture that merely crashed first would make this test vacuous.
+  io.issueComments=()=>['entered','classified','dispatched'].map((state,index)=>({author_association:OPERATOR_ASSOCIATION,author:'u2giants',body:formatEventComment(outcomeEvent({issue:41,state,actor:'test',timestamp:new Date(Date.UTC(2026,8,11,0,index)).toISOString(),evidenceUrls:state==='dispatched'?['artifact:dispatch-fixture-2929']:[]}))}))
+  io.commentIssue=()=>{}
+  let reservations=0
+  const reserve=io.reserveVersion
+  io.reserveVersion=(...args)=>{reservations++;return reserve?.(...args)}
+  let mutexes=0
+  const createRef=io.createRef
+  io.createRef=(ref,sha)=>{if(ref===MUTEX_REF)mutexes++;return createRef(ref,sha)}
+  assert.throws(
+    ()=>acquireAuthorLane({...opts,task:'#41 HANDOVER: preview rehearsal owed for merged PR #2423',objects:['table core.example'],admitIssue:41,claim:true},NOW,io),
+    /also names #2423/,
+    'a borrowed title carrying a second issue reference must refuse by name')
+  assert.equal(reservations,0,'an ambiguous title must not spend a migration version')
+  assert.equal(mutexes,0,'an ambiguous title must refuse before the coordination mutex')
+  assert.equal(io.refs.has(MUTEX_REF),false)
+  // Scope is exactly the SECOND reference. A single reference still works, and a
+  // title with none is unchanged -- such claims already exist and the surrounding
+  // code handles them; refusing those here would be a new rule, not this repair.
+  assert.equal(assertUnambiguousClaimTitle('#41 ordinary work'),'#41')
+  assert.equal(assertUnambiguousClaimTitle('race-1'),null)
+})
+
+// #3125. `--claim --objects` refused a valid claim whose writes were listed in a
+// different order from the admitted issue's (already sorted) writes.
+async function twoWriteAdmittedIo(){
+  const {outcomeEvent}=await import('./orchestrator-flow/outcome-lifecycle.mjs')
+  const {formatEventComment}=await import('./db-coordination-events.mjs')
+  const {io}=admittedReviewIo()
+  const body=['```db-work-scope','status: ready','work_type: structural','route: shared-db-orchestrator','service_class: standard-application','change_type: migration','application_return_to: u2giants/example-app','live_assertion: authenticated create-and-read succeeds','generated_types: not-applicable','outcome_stage: entered','priority: 5','depends_on:','writes:','  - table core.zeta','  - table core.alpha','```'].join('\n')
+  io.getIssue=()=>({number:41,state:'open',title:'ordered writes',body,createdAt:'2026-09-11T00:00:00Z'})
+  io.getPrFiles=()=>[{filename:'supabase/migrations/20260911120000_example.sql',status:'added',content:'create table core.zeta(id bigint);create table core.alpha(id bigint);'}]
+  io.getFileAt=()=> 'create table core.zeta(id bigint);create table core.alpha(id bigint);'
+  const history=['entered','classified','dispatched'].map((state,index)=>({author_association:OPERATOR_ASSOCIATION,author:'u2giants',body:formatEventComment(outcomeEvent({issue:41,state,actor:'test',timestamp:new Date(Date.UTC(2026,8,11,0,index)).toISOString(),evidenceUrls:state==='dispatched'?['artifact:dispatch-fixture-2929']:[]}))}))
+  io.issueComments=()=>history
+  io.commentIssue=()=>{}
+  return io
+}
+test('#3125 --claim --objects admits the admitted writes in any order and still refuses a wrong object',async()=>{
+  const sorted=acquireAuthorLane({...opts,task:'#41',objects:['table core.alpha','table core.zeta'],admitIssue:41,claim:true},NOW,await twoWriteAdmittedIo())
+  assert.ok(sorted.claim,'sorted order must be admitted')
+  const reversed=acquireAuthorLane({...opts,task:'#41',objects:['table core.zeta','table core.alpha'],admitIssue:41,claim:true},NOW,await twoWriteAdmittedIo())
+  assert.ok(reversed.claim,'the SAME writes in another order must be admitted, not refused')
+  // Set semantics only: a different object, a missing one and a duplicate all still refuse.
+  for(const objects of [['table core.zeta','table core.other'],['table core.zeta'],['table core.zeta','table core.zeta','table core.alpha']]){
+    const refusalIo=await twoWriteAdmittedIo()
+    assert.throws(
+      ()=>acquireAuthorLane({...opts,task:'#41',objects,admitIssue:41,claim:true},NOW,refusalIo),
+      /must exactly match admitted issue #41 writes|duplicate|exactly one/,
+      `objects ${JSON.stringify(objects)} must still refuse`)
+  }
+})
+
+// #2491. An ordinary claim apply binds and names its artifact after the CLAIM
+// head it checked out, never the dispatch run head, so preparation could never
+// match a version that was already applied.
+test('#2491 an already-applied version matches its original claim-head apply when the caller proves that head',()=>{
+  const appliedCommit='bcc2603977678db73b4ca12d3ed1312a1bff64e2'
+  const input={issue:2491,pr:2500,versions:['20260907131728'],mergeCommitSha:null}
+  const io=pinnedHistoricalClaimApplyIo()
+  assert.deepEqual(
+    validateOriginalPreviewApplyEvidence({...input,claimHeadSha:appliedCommit},io),
+    {type:'preview-apply',run_id:'34157812748'},
+    'the claim-head apply is the evidence; preparation must accept it')
+  // Nothing is relaxed. Without a proven claim head the old refusal stands, a
+  // different proven head refuses, and a non-claim binding is never admitted
+  // on this path.
+  assert.throws(()=>validateOriginalPreviewApplyEvidence(input,io),/found 0|no acceptable/)
+  assert.throws(()=>validateOriginalPreviewApplyEvidence({...input,claimHeadSha:'c'.repeat(40)},io),/found 0|no acceptable/)
+  const merged=immutablePreviewApplyIo()
+  assert.throws(()=>validateOriginalPreviewApplyEvidence({...input,claimHeadSha:appliedCommit},merged),/found 0|no acceptable/)
+})
+
+// ISSUE #2998 item 3 — READINESS IS ASSERTED BEFORE THE DRAW, NOT AFTER IT.
+//
+// Observed: a merge was declined twice with no reason given; the real cause was that
+// the PR was still a DRAFT, and two reviewer draws were spent discovering it. This
+// drives the real CLI branch, exactly as the #2102 guard above does, because a guard
+// that no test drives can be deleted from the CLI without failing CI.
+//
+// It also proves the guard REFUSES rather than approves: the draw must never be
+// reached, and a refusal is never recorded as a verdict.
+import { assertReviewerDrawReadiness } from './manage-migration-author-lanes.mjs'
+function readinessRun(pr){
+  let drew=false
+  const io={
+    pullRequestFiles(){return [{filename:'supabase/migrations/20260920000000_x.sql'}]},
+    getPr(){return pr},
+    listIssues(){drew=true;throw new Error('the reviewer draw must not be reached')}
+  }
+  const errors=[],original=console.error
+  console.error=(message)=>errors.push(String(message))
+  let code
+  try{code=main(['--assign-reviewer','--issue','2998','--pr','2112','--head-sha','d'.repeat(40)],NOW,io)}
+  finally{console.error=original}
+  return {code,stderr:errors.join('\n'),drew}
+}
+
+test('#2998-3 a DRAFT pull request refuses before any reviewer draw is consumed',()=>{
+  const refused=readinessRun({draft:true,mergeable:true,state:'open'})
+  assert.equal(refused.code,2)
+  assert.match(refused.stderr,/still a DRAFT/)
+  assert.match(refused.stderr,/no reviewer was drawn and no reviewer capacity was spent/)
+  assert.equal(refused.drew,false)
+  // The refusal is a refusal. It never reads as an approval or a recorded verdict.
+  assert.ok(!/APPROVE|VERDICT/.test(refused.stderr))
+})
+
+test('#2998-3 a conflicted pull request refuses, and unknown mergeability still proceeds',()=>{
+  const conflicted=readinessRun({draft:false,mergeable:false,state:'open'})
+  assert.equal(conflicted.code,2)
+  assert.match(conflicted.stderr,/conflicts with its base branch/)
+  assert.equal(conflicted.drew,false)
+  // GitHub computes `mergeable` asynchronously. A null must NOT refuse — otherwise a
+  // timing race becomes a false refusal. It proceeds to the draw exactly as before,
+  // and the guarded merge lane still refuses a real conflict later.
+  assert.deepEqual(assertReviewerDrawReadiness(1,{getPr:()=>({draft:false,mergeable:null})}),{draft:false,mergeable:null})
+  // A ready, mergeable PR is cleared.
+  assert.deepEqual(assertReviewerDrawReadiness(1,{getPr:()=>({draft:false,mergeable:true})}),{draft:false,mergeable:true})
+  // An unreadable PR proceeds exactly as before: a transport fault is never silently
+  // converted into a reviewer refusal.
+  assert.equal(assertReviewerDrawReadiness(1,{getPr:()=>{throw new Error('boom')}}),null)
+  assert.equal(assertReviewerDrawReadiness(1,{}),null)
+})
+
+// GOVERNED REVIEW OF PR #3338 — the readiness guard covers BOTH draw paths.
+// A replacement draw spends reviewer capacity exactly like a first draw. Wiring the
+// guard to only --assign-reviewer left the waste class #2998 was filed to stop wide
+// open on --replace-failed-reviewer.
+test('#3338 review: a replacement draw asserts the same readiness as a first draw',()=>{
+  let drew=false
+  const io={
+    pullRequestFiles(){return [{filename:'supabase/migrations/20260920000000_x.sql'}]},
+    getPr(){return {draft:true,mergeable:true,state:'open'}},
+    listIssues(){drew=true;throw new Error('the replacement draw must not be reached')}
+  }
+  const errors=[],original=console.error
+  console.error=(message)=>errors.push(String(message))
+  let code
+  try{code=main(['--replace-failed-reviewer','--issue','2998','--pr','2112','--head-sha','d'.repeat(40),'--reviewer','muse-spark-1.3-contributor','--reason','x'],NOW,io)}
+  finally{console.error=original}
+  assert.equal(code,2)
+  assert.match(errors.join('\n'),/still a DRAFT/)
+  assert.equal(drew,false)
+})
+
+// A MERGED pull request must still be drawable. Issue #2915 (cdc74cb5, 3cef6b68) exists
+// so a merged PR bound by the verified merged-PR issue binding can be assigned a
+// reviewer and receive an exact-head verdict. The readiness guard must not undo that.
+test('#3338 review: readiness does not refuse a merged pull request (#2915 stays delivered)',()=>{
+  assert.deepEqual(assertReviewerDrawReadiness(1,{getPr:()=>({draft:false,mergeable:true,state:'closed',merged_at:'2026-09-14T00:00:00Z'})}),{draft:false,mergeable:true})
+  assert.deepEqual(assertReviewerDrawReadiness(1,{getPr:()=>({draft:false,mergeable:null,state:'closed'})}),{draft:false,mergeable:null})
+})
+
+// GOVERNED REVIEW ROUND 3 OF PR #3338 — the replacement draw also honours the
+// documents-only pool guard (#2102). A replacement draw spends reviewer-pool capacity
+// exactly like a first draw, so BOTH pre-draw guards belong on both paths.
+test('#3338 review: a replacement draw refuses a documents-only pull request (#2102)',()=>{
+  let drew=false
+  const io={
+    pullRequestFiles(){return [{filename:'docs/notes.md'},{filename:'HANDOFF.d/2026-09-02T0000Z-note.md'}]},
+    getPr(){return {draft:false,mergeable:true,state:'open'}},
+    listIssues(){drew=true;throw new Error('the replacement draw must not be reached')}
+  }
+  const errors=[],original=console.error
+  console.error=(message)=>errors.push(String(message))
+  let code
+  try{code=main(['--replace-failed-reviewer','--issue','2998','--pr','2112','--head-sha','d'.repeat(40),'--review-slot','1','--failed-sequence','1','--failure-code','turn_limit_cancelled','--confirm-no-verdict','--confirm-no-artifact'],NOW,io)}
+  finally{console.error=original}
+  assert.equal(code,2)
+  assert.match(errors.join('\n'),/documents-only change/)
+  assert.equal(drew,false)
+})
+
+
+// Issue #2836. A same-repo `return_to` filed the reject back into this queue and
+// the already-returned guard (comments only) never saw the copy, so every
+// generation minted the next one. The loop is bounded here: without the guard
+// this test runs to the bound and fails instead of hanging the suite.
+test('a same-repo return_to cannot mint an endless chain of returned copies (#2836)',()=>{
+  const RETURN_LOOP_BOUND=8
+  const issues=new Map()
+  const body=scope('ready','application-data','application-session',6)
+    .replace('route: application-session',`route: application-session\nreturn_to: ${REPO}`)
+  issues.set(700,{number:700,title:'source rows are wrong',body,state:'open'})
+  const comments=new Map([[700,[]]])
+  let next=701
+  const io={
+    getIssue:(n)=>issues.get(n),
+    getIssueComments:(n)=>comments.get(n)??[],
+    createIssueIn:(repo,title,newBody)=>{
+      assert.equal(repo,REPO)
+      const number=next++
+      issues.set(number,{number,title,body:newBody,state:'open'})
+      comments.set(number,[])
+      return `https://github.com/${repo}/issues/${number}`
+    },
+    commentIssue:(n,b)=>comments.get(n).push({body:b}),
+    closeIssue:(n)=>{issues.get(n).state='closed'},
+  }
+  let current=700, generations=0, stopped=null
+  while(generations<RETURN_LOOP_BOUND){
+    let result
+    try { result=returnIssueToOwner(current,io) }
+    catch(error){ stopped=error; break }
+    generations++
+    current=Number(result.url.split('/').pop())
+  }
+  assert.ok(stopped,`returning kept minting copies for ${RETURN_LOOP_BOUND} generations; the return loop is unbounded`)
+  assert.match(stopped.message,/returned copy/)
+  assert.equal(generations,1)
+  assert.equal(issues.size,2)
+})
+
+test('an already-filed returned copy is recognised by its legacy provenance line (#2836)',()=>{
+  const legacy=`Returned from ${REPO}#2619 by the shared-db orchestrator.\n\nOriginal issue: https://github.com/${REPO}/issues/2619`
+  assert.match(returnedCopyProvenance(legacy),/^Returned from/)
+  assert.equal(returnedCopyProvenance(`${RETURNED_COPY_MARKER} https://github.com/${REPO}/issues/1`),`${RETURNED_COPY_MARKER} https://github.com/${REPO}/issues/1`)
+  assert.equal(returnedCopyProvenance(scope('ready','application-data','application-session',6)),null)
+})
+
+test('the queue audit stops asking for a return address on an already-returned copy (#2836)',()=>{
+  // The PRODUCTION copy shape: #2690/#2691/#2692 open with the legacy provenance
+  // sentence and carry a return_to of their own inside the embedded original.
+  const legacyCopy=[
+    `Returned from ${REPO}#2619 by the shared-db orchestrator.`,
+    '',
+    `Original issue: https://github.com/${REPO}/issues/2619`,
+    '',
+    '---',
+    '',
+    scope('ready','source-data','source-data-session',100).replace('route: source-data-session',`route: source-data-session\nreturn_to: ${REPO}`),
+  ].join('\n')
+  const newCopy=[
+    `Returned from ${REPO}#2619 by the shared-db orchestrator.`,
+    `${RETURNED_COPY_MARKER} https://github.com/${REPO}/issues/2619`,
+    '',
+    scope('ready','source-data','source-data-session',100),
+  ].join('\n')
+  for(const [number,body,pattern] of [[2692,legacyCopy,/^Returned from/],[2693,newCopy,/RETURNED COPY OF/]]){
+    const result=buildDynamicQueues([{number,title:'copy',body}],[],NOW,[number])
+    const row=result.notOrchestratorWork.find((item)=>item.issue===number)
+    assert.equal(row.exit,'reject')
+    assert.equal(row.needsReturnAddress,false)
+    assert.match(row.returnedCopyOf,pattern)
+  }
+})
+
+test('provenance is read at the head of the body, never from a quoted example (#2836)',()=>{
+  const quoting=['A fresh reject that QUOTES the sentence in its description:','','```',`Returned from ${REPO}#2619 by the shared-db orchestrator.`,'```','',scope('ready','application-data','application-session',6)].join('\n')
+  assert.equal(returnedCopyProvenance(quoting),null)
+  const io={
+    getIssue:()=>({number:80,title:'t',body:quoting.replace('route: application-session','route: application-session\nreturn_to: u2giants/popdam3'),state:'open'}),
+    getIssueComments:()=>[],
+    createIssueIn:()=>'https://github.com/u2giants/popdam3/issues/12',
+    commentIssue:()=>{},
+    closeIssue:()=>{},
+  }
+  assert.equal(returnIssueToOwner(80,io).url,'https://github.com/u2giants/popdam3/issues/12')
+})
+
+// --- popcre/ai-devops#498 item 12 (issue #3050) -----------------------------
+//
+// A wrong-owner refusal must still REFUSE. These tests assert the exit code is
+// still 2 and that nothing closed, AND assert the MESSAGE TEXT, so the wording
+// cannot silently regress back to the bare "belongs to a different owner".
+function refusalText(argv, io, now = NOW) {
+  const messages = [], oldError = console.error, oldLog = console.log
+  console.error = (value) => messages.push(String(value))
+  console.log = () => {}
+  let code
+  try { code = main(argv, now, io) } finally { console.error = oldError; console.log = oldLog }
+  return { code, text: messages.join('\n') }
+}
+
+test('#498-12 a wrong-owner claim release names the owner on record and the corrected command', () => {
+  const io = memoryIo(); let closed = null
+  io.openClaims = () => [{ number: 7, body: body(['table core.x'], '7') }]
+  io.closeClaim = (n) => { closed = n }
+  const { code, text } = refusalText(['--release-claim', '7', '--owner', 'agent-9', '--confirm-finished'], io)
+  assert.equal(code, 2, 'the refusal must still refuse')
+  assert.equal(closed, null, 'nothing may close on a wrong-owner release')
+  assert.match(text, /the owner on record is "agent-7"/)
+  assert.match(text, /--owner supplied "agent-9"/)
+  assert.match(text, /This claim is not yours to change\./)
+  assert.match(text, /--release-claim 7 --owner "agent-7" --confirm-finished/)
+})
+
+test('#498-12 a wrong-owner duplicate release names the owner on record and the corrected command', () => {
+  const io = duplicateIo(); let closed = null
+  io.closeClaim = (n) => { closed = n }
+  const { code, text } = refusalText(['--release-duplicate-claim', '8', '--owner', 'agent-9', '--confirm-finished'], io)
+  assert.equal(code, 2)
+  assert.equal(closed, null)
+  assert.match(text, /the owner on record is "agent-7"/)
+  assert.match(text, /--release-duplicate-claim 8 --owner "agent-7" --confirm-finished/)
+})
+
+test('#498-12 wrongOwnerMessage never turns a refusal into advice, and names both owners', () => {
+  const message = wrongOwnerMessage({ claim: 12, onRecord: 'agent-a', supplied: 'agent-b', command: 'node scripts/manage-migration-author-lanes.mjs --release-claim 12 --owner "agent-a" --confirm-finished' })
+  assert.match(message, /belongs to a different owner/)
+  assert.match(message, /the owner on record is "agent-a"/)
+  assert.match(message, /--owner supplied "agent-b"/)
+  assert.match(message, /This claim is not yours to change\./)
+  assert.match(message, /re-run with the owner on record/)
+  // A blank owner on either side must still read as a refusal, not as an empty
+  // command the caller can paste.
+  assert.match(wrongOwnerMessage({ claim: 1, onRecord: null, supplied: 'x', command: 'cmd' }), /the owner on record is \(none recorded\)/)
+  assert.match(wrongOwnerMessage({ claim: 1, onRecord: 'x', supplied: '', command: 'cmd' }), /--owner supplied \(none supplied\)/)
+})
+
+test('#498-12 a legacy lease and a wrong owner are two different refusals on resume', () => {
+  const claimBodyText = body(['table core.x'], '7')
+  const io = memoryIo()
+  io.openClaims = () => [{ number: 7, body: claimBodyText }]
+  io.getIssue = () => ({ state: 'open', body: claimBodyText })
+  const { code, text } = refusalText(['--resume-author-lease', '--claim-number', '7', '--owner', 'agent-9', '--lease-hours', '4'], io)
+  assert.equal(code, 2)
+  // It must not be the old combined "is legacy or belongs to a different owner".
+  assert.doesNotMatch(text, /is legacy or belongs to a different owner/)
+  assert.match(text, /the owner on record is "agent-7"/)
+  assert.match(text, /--resume-author-lease --claim-number 7 --owner "agent-7" --lease-hours <1-24>/)
+})
+
+// --- issue #2824 hole 1: the sanctioned scope-status writer -----------------
+function scopeBody(status, dependsOn = '') {
+  return ['Some prose.', '', '```db-work-scope', `status: ${status}`, 'work_type: repo-maintenance', 'route: repo-maintenance', 'priority: 80', `depends_on:${dependsOn ? ` ${dependsOn}` : ''}`, '```', ''].join('\n')
+}
+
+function scopeIo(status = 'blocked', { dependsOn = '', states = {} } = {}) {
+  const io = memoryIo()
+  let current = scopeBody(status, dependsOn)
+  io.comments = []
+  io.getIssue = () => ({ number: 4242, state: 'open', body: current })
+  io.updateIssue = (_n, patch) => { current = patch.body }
+  io.commentIssue = (_n, text) => { io.comments.push(text) }
+  io.dependencyStates = () => states
+  io.currentBody = () => current
+  return io
+}
+
+test('#2824 --set-scope-status writes exactly the status field, reads it back, and leaves an audit comment', () => {
+  const io = scopeIo('blocked')
+  const result = setScopeStatus({ issue: 4242, status: 'ready', reason: 'the blocking dependency merged' }, NOW, io)
+  assert.equal(result.previousStatus, 'blocked')
+  assert.equal(result.status, 'ready')
+  assert.equal(parseQueueScope(io.currentBody()).status, 'ready')
+  // EXACTLY ONE FIELD moved.
+  const before = scopeBody('blocked').split('\n'), after = io.currentBody().split('\n')
+  assert.equal(before.length, after.length)
+  assert.deepEqual(before.map((line, i) => i).filter((i) => before[i] !== after[i]), [3])
+  assert.equal(io.comments.length, 1)
+  assert.match(io.comments[0], /status` changed from `blocked` to `ready`/)
+  assert.match(io.comments[0], /reason: the blocking dependency merged/)
+  assert.match(io.comments[0], /It is not a completion record and it releases no dependent task\./)
+  assert.equal(io.refs.has(MUTEX_REF), false, 'the mutex must be released')
+})
+
+test('#2824 --set-scope-status refuses ready while a dependency is unsatisfied, and writes nothing', () => {
+  // #99 is CLOSED but carries no db-work-completion record: closure alone is not
+  // success, and this is the exact case the queue gate already refuses.
+  const io = scopeIo('blocked', { dependsOn: '99', states: { 99: { exists: true, open: false, closedAt: '2026-09-01T00:00:00Z', comments: [] } } })
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'ready', reason: 'I believe it is done' }, NOW, io), (error) => {
+    assert.match(error.message, /refusing to set issue #4242 to ready/)
+    assert.match(error.message, /#99 \(waiting\): dependency #99 is closed but has no db-work-completion record; closure alone is not success/)
+    assert.match(error.message, /released only by a merged or owner-ruling-recorded db-work-completion record/)
+    return true
+  })
+  assert.equal(parseQueueScope(io.currentBody()).status, 'blocked', 'the body must be untouched')
+  assert.equal(io.comments.length, 0)
+  assert.equal(io.refs.has(MUTEX_REF), false)
+})
+
+test('#2824 --set-scope-status cannot mark work complete: it fails closed on unreadable evidence', () => {
+  const io = scopeIo('blocked', { dependsOn: '99', states: { 99: { exists: true, unreadable: 'API down' } } })
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'ready', reason: 'trying anyway for now' }, NOW, io), /NOT "no dependency"/)
+  assert.equal(parseQueueScope(io.currentBody()).status, 'blocked')
+  // No dependency reader at all is also a refusal, never a pass.
+  const blind = scopeIo('blocked', { dependsOn: '99' })
+  delete blind.dependencyStates
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'ready', reason: 'trying anyway for now' }, NOW, blind), /cannot prove the dependency closure without a dependency reader/)
+  assert.equal(parseQueueScope(blind.currentBody()).status, 'blocked')
+})
+
+test('#2824 --set-scope-status refuses a bad status, a thin reason, a closed issue, and a failed readback', () => {
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'done', reason: 'a good long reason' }, NOW, scopeIo()), /--status must be one of ready, blocked, owner-decision/)
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'blocked', reason: 'short' }, NOW, scopeIo('ready')), /--reason must be at least 12 characters/)
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'blocked', reason: 'line one\nline two here' }, NOW, scopeIo('ready')), /--reason must be a single line/)
+  const closedIssue = scopeIo('ready'); closedIssue.getIssue = () => ({ number: 4242, state: 'closed', body: scopeBody('ready') })
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'blocked', reason: 'reopening this work' }, NOW, closedIssue), /is not open/)
+  // A write that silently did not land -- the #2212 failure mode -- must refuse.
+  const lying = scopeIo('ready'); lying.updateIssue = () => {}
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'blocked', reason: 'a genuinely blocked thing' }, NOW, lying), /readback failed/)
+  assert.equal(lying.refs.has(MUTEX_REF), false)
+})
+
+test('#2824 --set-scope-status is idempotent and refuses an absent scope block', () => {
+  const io = scopeIo('ready')
+  assert.deepEqual(setScopeStatus({ issue: 4242, status: 'ready', reason: 'already dispatchable' }, NOW, io), { issue: 4242, status: 'ready', previousStatus: 'ready', idempotent: true })
+  assert.equal(io.comments.length, 0, 'an idempotent no-op must not spam an audit comment')
+  const none = scopeIo('ready'); none.getIssue = () => ({ number: 4242, state: 'open', body: 'no scope block here' })
+  assert.throws(() => setScopeStatus({ issue: 4242, status: 'blocked', reason: 'a genuinely blocked thing' }, NOW, none), /carries no db-work-scope block; add exactly one before setting its status/)
+})
+
+test('#2824 --set-scope-status is reachable from the CLI and reports the transition', () => {
+  const io = scopeIo('blocked')
+  const { code, text } = refusalText(['--set-scope-status', '--issue', '4242', '--status', 'ready', '--reason', 'the blocking dependency merged'], io)
+  assert.equal(code, 0)
+  assert.match(text, /status: blocked -> ready/)
+  assert.equal(parseQueueScope(io.currentBody()).status, 'ready')
 })

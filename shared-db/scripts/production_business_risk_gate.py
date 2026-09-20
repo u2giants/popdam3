@@ -702,6 +702,9 @@ PREVIEW_PRODUCER_PATHS = (
     # select the exact issue/claim/source/orphan/replacement tuple. Bind those
     # bytes to the same exact-main producer proof as the workflow and tool.
     "config/preview-ledger-orphan-reconciliations.json",
+    # Loaded by the outcome lifecycle imported by the lane manager. Bind the
+    # exact incident authorization to the same producer identity as its reader.
+    "config/outcome-timestamp-recovery.json",
     # READ, NOT EXECUTED -- and therefore invisible to the executed-closure
     # walk, which follows invocations and imports. The Supabase CLI reads this
     # file on every `link`, `migration list` and `db push` the preview job runs,

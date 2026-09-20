@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
 import { currentRepository, isTrustedOperatorComment } from '../lib/repository-identity.mjs'
 import { COMPLETION_FENCE, findCompletionRecord, validateCompletionRecord } from '../lib/work-dependencies.mjs'
-import { STRUCTURAL_ROUTES } from './admission.mjs'
+import { STRUCTURAL_ROUTES, structuralWritesMatch } from './admission.mjs'
 
 export class OutcomeError extends Error {}
 
@@ -222,13 +223,52 @@ export function advanceOutcome({issue,state,actor,timestamp=new Date().toISOStri
 // longer count and records who ran it and why. No existing coordination comment
 // is edited or deleted — that would be audit-history tampering.
 
+// Explicit incident authorization, never a heuristic for arbitrary out-of-order events.
+const TIMESTAMP_RECOVERY = JSON.parse(readFileSync(new URL('../../config/outcome-timestamp-recovery.json', import.meta.url), 'utf8'))
+export function authorizedTimestampRecovery(comments, issue, evidenceUrls) {
+  const record = TIMESTAMP_RECOVERY
+  if (record.schema_version !== 1 || Number(issue) !== record.work_issue) return null
+  const refuse = () => { throw new OutcomeError('configured timestamp incident does not match immutable publication evidence; no recovery authorized') }
+  if (!evidenceUrls.includes(record.evidence_url)) return null
+  const trusted = trustedOutcomeComments(comments)
+  const parsed = trusted.flatMap(c => parseEventComment(c.body ?? ''))
+  const events = parsed.filter(e => OUTCOME_STATES.includes(e.event_type))
+  const matched = record.comments.map(expected => {
+    const found = trusted.filter(c => c.id === expected.id)
+    if (found.length !== 1) refuse()
+    const actual = found[0]
+    for (const key of ['body', 'author', 'author_association', 'created_at', 'updated_at']) if (actual[key] !== expected[key]) refuse()
+    if (actual.created_at !== actual.updated_at) refuse()
+    const one = parseEventComment(actual.body)
+    if (one.length !== 1) refuse()
+    return { comment: actual, event: one[0] }
+  })
+  // Explicit incident evidence must retain its publication integrity even after
+  // recovery. Later race repairs use the ordinary path, never another special drop.
+  if (parsed.some(e => e.event_type === OUTCOME_REPAIR_EVENT_TYPE) || events.length !== 3) return null
+  if (events.some(e => e.work_issue !== Number(issue))) refuse()
+  const [entered, classified, dispatched] = matched
+  if (matched.map(x => x.event.event_type).join(',') !== 'entered,classified,dispatched') refuse()
+  if (!(Date.parse(entered.comment.created_at) < Date.parse(classified.comment.created_at) && Date.parse(classified.comment.created_at) < Date.parse(dispatched.comment.created_at))) refuse()
+  const skew = Date.parse(classified.event.timestamp) - Date.parse(dispatched.event.timestamp)
+  if (!(skew > 0 && skew <= record.max_skew_ms && Date.parse(dispatched.event.timestamp) < Date.parse(entered.event.timestamp))) refuse()
+  if (dispatched.event.evidence_urls?.length !== 1 || dispatched.event.evidence_urls[0] !== record.evidence_url) refuse()
+  const remaining = comments.filter(c => c.id !== dispatched.comment.id)
+  const replay = outcomeHistory(remaining, issue)
+  if (!replay.valid || replay.state !== 'classified' || replay.superseded.length) refuse()
+  return dispatched.event.event_id
+}
+
 export function repairOutcomeHistory({issue,actor,reason,timestamp=new Date().toISOString(),evidenceUrls=[]},io){
   if(typeof actor!=='string'||!actor.trim())throw new OutcomeError('outcome history repair must record the actor that ran it')
   if(typeof reason!=='string'||!reason.trim())throw new OutcomeError('outcome history repair must record why it was run')
   if(!Array.isArray(evidenceUrls)||evidenceUrls.some((value)=>typeof value!=='string'||!EVIDENCE_REF.test(value)))throw new OutcomeError('outcome history repair evidence must be durable GitHub or artifact references')
-  const history=outcomeHistory(io.issueComments(Number(issue)),issue)
+  const comments=io.issueComments(Number(issue))
+  const history=outcomeHistory(comments,issue)
   if(history.valid)throw new OutcomeError(`outcome history for #${issue} is already valid; repair refuses to append to a healthy ledger`)
   const dropped=new Set(history.superseded)
+  const timestampIncident=authorizedTimestampRecovery(comments,issue,evidenceUrls)
+  if(timestampIncident)dropped.add(timestampIncident)
   for(let attempt=0;attempt<=history.events.length;attempt+=1){
     const replay=replayOutcomeEvents(history.events,dropped)
     if(!replay.problems.length)break
@@ -302,9 +342,11 @@ export function completeOutcome({ issue, evidenceRef, actor, timestamp = new Dat
   }
   const linked=io.closingIssuesForPr(evidence.merge_pr)
   if(!Array.isArray(linked)||linked.length!==1||Number(linked[0]?.number)!==Number(issue))throw new OutcomeError(`merge PR #${evidence.merge_pr} is not linked exclusively to outcome issue #${issue}`)
-  const actualObjects=io.prStructuralObjects(evidence.merge_pr,evidence.merge_sha)
+  const inspection=typeof io.prStructuralInspection==='function'
+    ?io.prStructuralInspection(evidence.merge_pr,evidence.merge_sha)
+    :{objects:io.prStructuralObjects(evidence.merge_pr,evidence.merge_sha)}
   const declared=[...scope.writes].sort()
-  if(!Array.isArray(actualObjects)||actualObjects.length!==declared.length||actualObjects.some((value,index)=>value!==declared[index]))throw new OutcomeError('merge PR structural objects do not match the admitted issue writes')
+  if(!structuralWritesMatch(inspection,declared))throw new OutcomeError('merge PR structural objects do not match the admitted issue writes')
   const pr = io.getPr(evidence.merge_pr)
   if (!pr?.merged_at || !sameSha(evidence.merge_sha, pr.merge_commit_sha ?? '')) throw new OutcomeError('merge evidence does not match GitHub')
   if (!io.mergeCommitInMain(evidence.merge_sha)) throw new OutcomeError('merge commit is not in current shared-db main history')

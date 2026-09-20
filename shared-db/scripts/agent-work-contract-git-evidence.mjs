@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { contractHash, contractRef, validateContract } from './agent-work-contract.mjs'
 import { acceptableEvidencePairs, LEGACY_PAIR, resolveEvidencePair } from './lib/agent-evidence-paths.mjs'
@@ -87,6 +87,9 @@ export const gitIo = {
   mergeBase(base, head) {
     return execFileSync('git', ['merge-base', base, head], { encoding: 'utf8' }).trim()
   },
+  revParse(ref) {
+    return execFileSync('git', ['rev-parse', ref], { encoding: 'utf8' }).trim()
+  },
   readPublishedContract(ref) {
     execFileSync('git', ['fetch', '--quiet', '--no-tags', 'origin', ref], { stdio: 'ignore' })
     const message = execFileSync('git', ['show', '--format=%B', '--no-patch', 'FETCH_HEAD'], { encoding: 'utf8' })
@@ -95,8 +98,51 @@ export const gitIo = {
   },
 }
 
+// ISSUE #2998 item 2 -- derive the two git-derivable completion fields instead of
+// typing them.
+//
+// Observed: roughly FIVE separate PR failures in one session, every one a mismatch
+// between a hand-written `files_changed` / `head_sha` and what git actually contained.
+// None was a real defect in the work; each cost a full red-check cycle to discover and
+// a push to fix. A value that can be derived should never be typed.
+//
+// Only those two fields are touched. Everything else in the report -- outcome, checks,
+// db_reads, db_writes, assumptions -- is a claim about the work that git cannot know,
+// so it is carried through untouched and still has to be authored and still has to
+// satisfy `--validate-completion`. This makes NO check optional; it removes a
+// transcription step that was only ever a source of wrong answers.
+export function deriveGitFacts(report, { base, head }, io = gitIo) {
+  if (!report || typeof report !== 'object' || Array.isArray(report)) throw new GitEvidenceError('--derive-git-facts needs a readable completion report object')
+  const mergeBase = io.mergeBase(base, head)
+  if (!SHA_PATTERN.test(mergeBase)) throw new GitEvidenceError(`could not resolve an exact merge base between ${base} and ${head}`)
+  const resolved = io.revParse ? io.revParse(head) : head
+  if (!SHA_PATTERN.test(String(resolved))) throw new GitEvidenceError(`could not resolve ${head} to an exact 40-character implementation commit`)
+  const files = io.changedFiles(mergeBase, head)
+  if (!Array.isArray(files)) throw new GitEvidenceError('git did not return a readable changed-file list')
+  return { ...report, head_sha: String(resolved).toLowerCase(), files_changed: [...files].sort() }
+}
+
 export function main(argv, io = gitIo) {
   try {
+    if (argv[0] === '--derive-git-facts') {
+      const values = {}
+      for (let i = 1; i < argv.length; i += 1) {
+        if (argv[i] === '--write') { values['--write'] = true; continue }
+        values[argv[i]] = argv[i + 1]; i += 1
+      }
+      const reportFile = values['--report-file'] ?? '.agent/completion.json'
+      const base = values['--base'] ?? 'origin/main'
+      const head = values['--head'] ?? 'HEAD'
+      let report
+      try { report = JSON.parse(readFileSync(reportFile, 'utf8')) }
+      catch (readError) { throw new GitEvidenceError(`${reportFile} is not readable JSON: ${readError.message}`) }
+      const derived = deriveGitFacts(report, { base, head }, io)
+      const text = `${JSON.stringify(derived, null, 2)}
+`
+      if (values['--write']) { writeFileSync(reportFile, text); console.log(`Derived head_sha and files_changed from git into ${reportFile}.`) }
+      else console.log(text.trimEnd())
+      return 0
+    }
     if (argv[0] === '--classify-evidence-pair') {
       const baseIndex = argv.indexOf('--pr-base-sha')
       const headIndex = argv.indexOf('--pr-head-sha')
