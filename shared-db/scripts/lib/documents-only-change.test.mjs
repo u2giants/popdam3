@@ -23,8 +23,6 @@ for (const path of [
   '.claude/skills/shared-db-change/SKILL.md',
   'skills/claude/shared-db-orchestrator/SKILL.md',
   '.claude/agents/reviewer.md',
-  'plan_reviewer_lease_capacity_truth.md',
-  'docs/plans/plan_orchestrator-workflow-gaps.md',
 ]) {
   test(`a rulebook file is never a document: ${path}`, () => {
     assert.equal(isRulebookPath(path), true)
@@ -36,6 +34,14 @@ for (const path of [
     assert.match(verdict.reason, /rulebook file/)
   })
 }
+
+test('standalone implementation plans are documents', () => {
+  for (const path of ['plan_reviewer_lease_capacity_truth.md', 'docs/plans/plan_orchestrator-workflow-gaps.md']) {
+    assert.equal(isRulebookPath(path), false)
+    assert.equal(isDocumentPath(path), true)
+    assert.equal(isDocumentsOnlyChange([path]), true)
+  }
+})
 
 // ONE non-document file removes the exemption for the whole pull request.
 for (const path of [

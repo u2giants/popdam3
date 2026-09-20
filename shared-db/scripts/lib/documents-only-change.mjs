@@ -15,9 +15,10 @@
 //
 // RULEBOOK FILES ARE NOT DOCUMENTS HERE, and that is the whole safety of this
 // module. `AGENTS.md`, anything under `.claude/skills/` or `skills/`, and
-// `plan_*.md` files are prose by extension but they are INSTRUCTIONS TO AGENTS:
+// agent command files are prose by extension but they are INSTRUCTIONS TO AGENTS:
 // a bad edit to one of them is as dangerous as a bad migration, because every
-// later session obeys it. They keep the full treatment.
+// later session obeys it. They keep the full treatment. Standalone plan_*.md
+// proposals are documents; plans inside protected instruction directories are not.
 //
 // Everything here is deterministic and path-based. It never reads file content,
 // never calls GitHub, and never guesses: anything it does not positively
@@ -29,7 +30,6 @@
 // check the list against the rule without running anything.
 const RULEBOOK_BASENAMES = new Set(['agents.md', 'claude.md'])
 const RULEBOOK_DIRECTORY_SEGMENTS = ['.claude/skills/', 'skills/', '.claude/agents/', '.claude/commands/']
-const RULEBOOK_BASENAME_PATTERN = /^plan_.*\.md$/
 
 // Prose document extensions. Deliberately short: a new extension is a decision,
 // not an oversight, and the safe default for an unlisted one is "not a document".
@@ -47,7 +47,6 @@ export function isRulebookPath(path) {
   if (!normalized) return true
   const basename = normalized.slice(normalized.lastIndexOf('/') + 1)
   if (RULEBOOK_BASENAMES.has(basename)) return true
-  if (RULEBOOK_BASENAME_PATTERN.test(basename)) return true
   const probe = `/${normalized}`
   return RULEBOOK_DIRECTORY_SEGMENTS.some((segment) => probe.includes(`/${segment}`))
 }

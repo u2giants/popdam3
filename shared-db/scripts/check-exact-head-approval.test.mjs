@@ -562,7 +562,7 @@ test('a reviewer that does read the repository still authorizes and still blocks
 test('a documents-only pull request authorizes with no reviewer assignment at all', () => {
   const result = evaluateExactHeadApproval({
     pr: 2102, headSha: NEW, assignments: [], verdicts: [],
-    changedFiles: ['HANDOFF.d/2026-09-02T0000Z-note.md', 'docs/verification/run.md'],
+    changedFiles: ['HANDOFF.d/2026-09-02T0000Z-note.md', 'docs/verification/run.md', 'plan_reviewer_lease_capacity_truth.md'],
   })
   assert.equal(result.approved, true)
   assert.equal(result.documents_only, true)
@@ -571,7 +571,7 @@ test('a documents-only pull request authorizes with no reviewer assignment at al
 
 // The exclusions are the safety of the whole rule. Each of these keeps the full
 // treatment, so with no assignment the gate must still refuse.
-for (const path of ['AGENTS.md', '.claude/skills/shared-db-change/SKILL.md', 'skills/claude/shared-db-orchestrator/SKILL.md', 'plan_reviewer_lease_capacity_truth.md']) {
+for (const path of ['AGENTS.md', '.claude/skills/shared-db-change/SKILL.md', 'skills/claude/shared-db-orchestrator/SKILL.md']) {
   test(`a rulebook file is not a document and still needs a reviewer: ${path}`, () => {
     assert.throws(() => evaluateExactHeadApproval({
       pr: 2102, headSha: NEW, assignments: [], verdicts: [], changedFiles: ['docs/notes.md', path],

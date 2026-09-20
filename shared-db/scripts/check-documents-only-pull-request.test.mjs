@@ -31,7 +31,7 @@ test('adding the agent evidence pair makes the change non-exempt', () => {
 })
 
 test('rulebook prose is never documents-only', () => {
-  for (const path of ['AGENTS.md', 'CLAUDE.md', '.claude/skills/x/SKILL.md', 'plan_thing.md']) {
+  for (const path of ['AGENTS.md', 'CLAUDE.md', '.claude/skills/x/SKILL.md']) {
     assert.equal(run(JSON.stringify([{ filename: path }])).code, 1, `${path} must not be exempt`)
   }
 })

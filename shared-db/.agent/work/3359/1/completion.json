@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 3359,
+  "outcome": "ready-for-merge",
+  "pr": 3357,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3359/1",
+  "contract_sha256": "4b9fe587147f4bbb58b4f668a356cd080ba72d52605d4c005f10e9688b824310",
+  "head_sha": "70eb42888ffca40958f41f9f0fd6838979fceefd",
+  "base_sha": "905ec8e29d1175ce8e312d9fb1c90dbff02e17ca",
+  "files_changed": [
+    "scripts/check-documents-only-pull-request.test.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/lib/documents-only-change.mjs",
+    "scripts/lib/documents-only-change.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "evidence": "94 tests passed; 0 failed, cancelled, skipped or todo",
+      "exit_code": 0,
+      "command": "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/check-exact-head-approval.test.mjs scripts/check-documents-only-merge-authorization.test.mjs"
+    }
+  ],
+  "assumptions_resolved": [
+    "Standalone plans accepted; executable rulebooks and mixed code changes retain protected checks"
+  ],
+  "stop_conditions_hit": []
+}

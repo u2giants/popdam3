@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3359,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Incorporate existing PR 3357 and complete standalone-plan classification regression coverage",
+  "base_sha": "20641bc6bbcd4e6e8fe1e2211126837456c045ab",
+  "dispatcher": "Codex workflow refactor parent",
+  "worker": "01a0c04d-1e52-7440-834a-f7fa6d88c395",
+  "branch": "codex/lightweight-plan-publication",
+  "worktree": "D:/repos/shared-db-pr3357-agent",
+  "allowed_paths": [
+    "scripts/lib/documents-only-change.mjs",
+    "scripts/lib/documents-only-change.test.mjs",
+    "scripts/check-documents-only-pull-request.test.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    ".agent/work/3359/1/contract.json",
+    ".agent/work/3359/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/documents-only-change.mjs",
+    "scripts/lib/documents-only-change.test.mjs",
+    "scripts/check-documents-only-pull-request.test.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    ".agent/work/3359/1/contract.json",
+    ".agent/work/3359/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes or migration changes",
+    "Preserve executable rulebook and mixed-change protections"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/check-exact-head-approval.test.mjs scripts/check-documents-only-merge-authorization.test.mjs"
+  ],
+  "assumptions": [
+    "PR 3357 implementation predates this contract and is incorporated as existing work; this contract governs corrective follow-up and validation"
+  ],
+  "stop_conditions": [
+    "Unreviewed executable changes"
+  ],
+  "generation": 1
+}
