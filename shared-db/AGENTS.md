@@ -796,13 +796,18 @@ rules below are the operative summary.
      only when there is no verdict and no progress, or a concrete transport, coverage, or
      truncated-output failure. Never replace `REVISE` or reduce coverage: exhaust active providers
     not failed on the exact head, then fail closed with the exact blocker. The configured rotation is
-    Grok 4.6, GLM 5.3, Kimi K3, Qwen 3.8 Max, Muse Spark 1.3 Contributor, and
+    Grok 4.6, Kimi K3, Qwen 3.8 Max, Muse Spark 1.3 Contributor, and
     Gemini 3.8 Flash High, minus the live orchestrator's own engine — exactly
     `ACTIVE_REVIEWERS` in `scripts/manage-migration-author-lanes.mjs`. Gemini
     re-entered on 2026-09-06 (PR #2438) after a live re-qualification. Kimi K3
     was unpaused on 2026-09-07 (PR #2483) after a passing wrapper doctor and is
     drawable again. Qwen 3.8 Max was unquarantined on 2026-09-07 by owner
     instruction (ai-devops PR #316, merge `795902d8`) and is drawable again.
+    **GLM 5.3 is paused as of 2026-09-18** (owner instruction, chat directive —
+    weekly account-usage rotation, no provider fault; Kimi verified healthy the
+    same day) and is not drawable until it is removed from `RETIRED_REVIEWERS`;
+    restoring it is a one-line deletion. The 2026-09-17 ruling that GLM never
+    reviews GLM-orchestrated work still binds when it returns.
     DeepSeek is inactive: it was RETIRED on 2026-09-01 (issue #2078) and is not drawable.
     **Codex GPT-5.6 Sol is NOT in the rotation:** the owner retired it
     permanently on 2026-09-06 (issue #2485) once the other providers were

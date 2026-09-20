@@ -1,46 +1,47 @@
 {
   "schema_version": 1,
-  "generation": 2,
-  "work_issue": 3191,
-  "work_type": "structural",
-  "route": "shared-db-orchestrator",
-  "goal": "Fix #3191: grant EXECUTE on plm.prepack_role(text,text,text) to supabase_read_only_user so the #2611 live proof can count plm.item_missing_attribution on production. No role membership.",
-  "base_sha": "b32c435a722c5f5f37425de2c9c303e4065830d6",
-  "dispatcher": "shared-db orchestrator (marker #3275), relaying Albert chat instruction: \"clear #3218, #3104, #3091, #3023, #3036, #3174, #3264, #3191, #3091, #2870\"",
-  "worker": "Claude sub-agent, chat e81e0ac2-472a-4227-92b3-16fce6a866ee on edge-dev",
-  "branch": "claude/3191-prepack-proof-grant",
-  "worktree": "C:/repos/shared-db/.claude/worktrees/wt-3191-prepack-grant",
+  "work_issue": 3261,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Pause glm-5.3 in the shared-db reviewer rotation for the owner's weekly account-usage rotation (chat directive 2026-09-18), with kimi-k3 confirmed drawable and doctor-verified the same day, updating the roster, its pinned tests and the AGENTS.md rotation sentence",
+  "base_sha": "8d107ee8826d45b53c958ad54e0aa2b554191d79",
+  "dispatcher": "ZCode repo-maintenance session on owner chat instruction 2026-09-18 (issue #3261)",
+  "worker": "zcode",
+  "branch": "chore/pause-glm-5.3-reviewer-rotation",
+  "worktree": ".claude/worktrees/pause-glm-5.3",
   "allowed_paths": [
-    ".agent/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "AGENTS.md",
     ".agent/contract.json",
-    ".github/live-proofs/3191.sql",
-    "supabase/migrations/20260918180012_prepack_role_read_only_proof_grant.sql"
+    ".agent/completion.json"
   ],
   "file_writes": [
-    ".agent/completion.json",
-    ".agent/contract.json",
-    ".github/live-proofs/3191.sql",
-    "supabase/migrations/20260918180012_prepack_role_read_only_proof_grant.sql"
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "AGENTS.md"
   ],
   "db_reads": [],
-  "db_writes": [
-    "function plm.prepack_role"
-  ],
+  "db_writes": [],
   "prohibited_actions": [
-    "Never grant role membership (e.g. authenticated) to supabase_read_only_user.",
-    "Never run a manual production command; production only through the automatic promotion lane.",
-    "Never grant anything beyond EXECUTE on this one function."
+    "do not touch any migration or database object",
+    "do not change draw, replacement, capacity or preflight behaviour beyond roster membership",
+    "do not delete or rename glm-5.3 from REVIEWERS; durable verdict evidence must keep resolving",
+    "do not unpause glm-5.3 without a new owner instruction",
+    "do not edit another session's handoff, worktree, branch, claim or pull request"
   ],
   "required_checks": [
-    "supabase/tests against an ephemeral database",
-    "SQL migration guards"
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/run-governed-review.test.mjs scripts/record-review-verdict.test.mjs scripts/repair-voided-findings.test.mjs scripts/refresh-code-pr-branch.test.mjs"
   ],
   "assumptions": [
-    "Author lane claim #3276 reserved version 20260918180012. This contract was published after the implementation commit 379e7913 (author missed the publish-first step); scope is unchanged from the #3191 db-work-scope and the claim.",
-    "Generation 2 adds .github/live-proofs/3191.sql, the read-only production probe the guarded merge lane requires for an issue that returns to shared-db."
+    "kimi-k3 is drawable (unpaused 2026-09-07, PR #2483) and its wrapper doctor passed read-only, preflight and auth when re-verified on 2026-09-18",
+    "pausing via RETIRED_REVIEWERS membership with a dated comment is the established mechanism, matching the 2026-09-03 kimi-k3 usage pause and the 2026-09-06 codex-gpt-5.6-sol usage retirement"
   ],
   "stop_conditions": [
-    "Stop on any gate refusal; never weaken a guard.",
-    "Stop if the production proof still reports a permission error."
-  ]
+    "stop if removing glm-5.3 from the active rotation breaks any durable reviewer-name lookup",
+    "stop if open pull requests #3228 or #3247 editing the same script cannot be merged or closed, leaving this branch unable to rebase cleanly",
+    "stop if making the suite green would require changing reviewer draw or replacement behaviour rather than test expectations"
+  ],
+  "generation": 1
 }
