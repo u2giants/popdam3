@@ -4,7 +4,7 @@ import type { CellValueChangedEvent, ColDef, ColumnState, DefaultMenuItem, GetCo
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import { AgGridReact, type CustomCellEditorProps, type CustomCellRendererProps, type CustomHeaderProps } from "ag-grid-react";
-import { Check, ChevronDown, Clock3, Columns3, Database, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Star, Table2, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Clock3, Columns3, Database, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Sparkles, Star, Table2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -22,13 +22,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAppearance } from "@/hooks/useAppearance";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
+  applyStyleTrackerJevRanking,
   filterStyleTrackerCandidates,
   normalizeStyleTrackerValue,
   type StyleTrackerFieldKey,
+  type StyleTrackerJevRanking,
   type StyleTrackerLinkCandidate,
 } from "@/lib/style-tracker-candidates";
 import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
@@ -120,6 +123,12 @@ type ReviewItem = {
 
 type LinkCandidate = StyleTrackerLinkCandidate;
 
+type JevRankingResponse = {
+  ok: true;
+  model: string;
+  ranking: StyleTrackerJevRanking;
+};
+
 type PickerOption = {
   id: string;
   name: string;
@@ -173,6 +182,7 @@ type SavedView = {
 };
 
 const MANUAL_CANDIDATE_LIMIT = 100;
+const JEV_MATCH_FIELDS = new Set<FieldKey>(["customer", "licensor", "designer", "factory"]);
 
 const APPROVED_LICENSOR_PROPERTY_OPTIONS = [
   "ATLA",
@@ -1136,6 +1146,7 @@ function RfqGroupCell(params: CustomCellRendererProps<StyleRow>) {
 
 export default function StylesPage() {
   const queryClient = useQueryClient();
+  const { call: callAdminApi } = useAdminApi();
   const { theme } = useAppearance();
   const { isAdmin } = useIsAdmin();
   const { user } = useAuth();
@@ -1294,6 +1305,29 @@ export default function StylesPage() {
     queryFn: () => searchCandidates(selectedReviewItem),
     enabled: isAdmin && Boolean(selectedReviewItem),
   });
+  const jevCandidateKey = (candidateQuery.data ?? [])
+    .map((candidate) => `${candidate.target_id}:${candidate.target_label}`)
+    .join("|");
+  const jevRankingQuery = useQuery({
+    queryKey: ["style-candidates-jev", selectedReviewItem?.key, jevCandidateKey],
+    queryFn: async () => await callAdminApi("rank-master-data-match-candidates", {
+      field_key: selectedReviewItem!.fieldKey,
+      raw_value: selectedReviewItem!.rawValue,
+      candidates: (candidateQuery.data ?? []).map((candidate) => ({
+        target_id: candidate.target_id,
+        target_label: candidate.target_label,
+      })),
+    }, { maxRetries: 0 }) as JevRankingResponse,
+    enabled: isAdmin && Boolean(selectedReviewItem) &&
+      JEV_MATCH_FIELDS.has(selectedReviewItem?.fieldKey ?? "sku") &&
+      (candidateQuery.data?.length ?? 0) >= 2,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const displayedCandidates = useMemo(
+    () => applyStyleTrackerJevRanking(candidateQuery.data ?? [], jevRankingQuery.data?.ranking),
+    [candidateQuery.data, jevRankingQuery.data?.ranking],
+  );
   const manualCandidateQuery = useQuery({
     queryKey: ["style-manual-candidates", selectedReviewItem?.key, manualCandidateSearch, showAllManualCandidates],
     queryFn: () => searchManualCandidates(selectedReviewItem, manualCandidateSearch, showAllManualCandidates),
@@ -1963,7 +1997,7 @@ export default function StylesPage() {
                   </select>
                   <div className="max-h-32 min-w-0 overflow-y-auto rounded-md border border-border bg-muted/20 p-1.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      {(candidateQuery.data ?? []).map((candidate) => (
+                      {displayedCandidates.map((candidate) => (
                         <Button
                           key={`${candidate.target_schema}.${candidate.target_table}.${candidate.target_id}`}
                           type="button"
@@ -1972,13 +2006,23 @@ export default function StylesPage() {
                           className="h-8 max-w-72 justify-start text-xs"
                           disabled={resolveCanonical.isPending || resolveLocal.isPending}
                           onClick={() => resolveCanonical.mutate({ item: selectedReviewItem, candidate })}
-                          title={`Approve ${candidate.target_label} and remove ${selectedReviewItem.rawValue} from the review list`}
+                          title={`${candidate.jev_recommended ? "Jev's advisory first choice. " : ""}Approve ${candidate.target_label} and remove ${selectedReviewItem.rawValue} from the review list`}
                         >
-                          <Check className="h-3.5 w-3.5" />
+                          {candidate.jev_recommended ? <Sparkles className="h-3.5 w-3.5 text-primary" /> : <Check className="h-3.5 w-3.5" />}
+                          {candidate.jev_recommended && <span className="sr-only">Jev suggests this choice. </span>}
                           <span className="truncate">Approve: {candidate.target_label}</span>
                         </Button>
                       ))}
+                      {displayedCandidates.find((candidate) => candidate.jev_recommended) && (
+                        <span className="flex w-full items-center gap-1 text-xs text-primary" aria-live="polite">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Jev suggests: {displayedCandidates.find((candidate) => candidate.jev_recommended)?.target_label}
+                        </span>
+                      )}
                       {candidateQuery.isFetching && <span className="text-xs text-muted-foreground">Searching...</span>}
+                      {!candidateQuery.isFetching && jevRankingQuery.isFetching && <span className="text-xs text-muted-foreground">Jev is ranking these choices...</span>}
+                      {!jevRankingQuery.isFetching && jevRankingQuery.data?.ranking.choice_index === null && <span className="text-xs text-muted-foreground">Jev found no clear match; review the original choices.</span>}
+                      {jevRankingQuery.isError && <span className="text-xs text-amber-700 dark:text-amber-300">Jev ranking is unavailable; original order shown.</span>}
                       {!candidateQuery.isFetching && (candidateQuery.data ?? []).length === 0 && (
                         <div className="grid w-full min-w-0 gap-2">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

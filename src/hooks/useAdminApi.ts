@@ -6,7 +6,11 @@ import { supabase } from "@/integrations/supabase/client";
  * Surfaces real error details (status + body) instead of generic messages.
  */
 export function useAdminApi() {
-  const call = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
+  const call = useCallback(async (
+    action: string,
+    payload: Record<string, unknown> = {},
+    options: { maxRetries?: number } = {},
+  ) => {
     // Use getUser() to force token refresh if expired, then fall back to getSession()
     let accessToken: string | undefined;
     try {
@@ -32,7 +36,7 @@ export function useAdminApi() {
     }
     if (!accessToken) throw new Error("Not authenticated");
 
-    const MAX_RETRIES = 2;
+    const MAX_RETRIES = options.maxRetries ?? 2;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
