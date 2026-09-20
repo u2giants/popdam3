@@ -309,8 +309,20 @@ def _lookup_signature(target: str, kind: str) -> str:
     (`f(in p text, q uuid default null)`); PostgreSQL accepts that in DROP, but
     `to_regprocedure` resolves only argument TYPES, so the guard would never find
     the routine and would drop one a later migration re-created (GLM Low finding
-    on #2948). OUT arguments are not part of a function's identity and are left
-    out; a procedure keeps them.
+    on #2948).
+
+    OUT arguments are left out for EVERY routine kind, procedures included
+    (#3001). `to_regprocedure` resolves against `pg_proc.proargtypes`, which
+    holds INPUT types only -- a procedure's OUT parameters live in `proallargtypes`
+    and appear in `pg_get_function_identity_arguments`, a different API. Proved on
+    a live cluster by `test_procedure_out_argument_resolves_on_input_types_only`:
+    for `procedure p(in a text, out r int)`, `to_regprocedure('p(text)')` resolves
+    and `to_regprocedure('p(text, int)')` is NULL. The previous code kept OUT
+    arguments for `kind == "procedure"`, so that guard could never resolve and the
+    drop replayed over a procedure a later migration had re-created -- the same
+    fail-open defect #2948 fixed for named parameters. `kind` is retained in the
+    signature because every caller passes the drop's own keyword; it no longer
+    changes the result.
     """
     if "(" not in target:
         return target
@@ -320,8 +332,7 @@ def _lookup_signature(target: str, kind: str) -> str:
         arg = re.split(r"(?is)\s+default\s+|\s*=", arg, maxsplit=1)[0].strip()
         tokens = arg.split()
         if tokens and tokens[0].lower() in _ARG_MODES:
-            mode = tokens.pop(0).lower()
-            if mode == "out" and kind != "procedure":
+            if tokens.pop(0).lower() == "out":
                 continue
         if (
             len(tokens) > 1

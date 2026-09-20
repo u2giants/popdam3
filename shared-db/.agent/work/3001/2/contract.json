@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 3001,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Close #3001: confirm the single sidecar declaration registry is on main, add direct tests for the two edge cases left untested by PR #2980 (multiword argument types, procedure OUT arguments), and repair the ambiguous DROP ROUTINE form so a procedure re-created after the drop is no longer wrongly dropped on replay.",
+  "base_sha": "51b0591c7fe862158d3fde0d5d7933b43f6aac12",
+  "dispatcher": "Owner Albert Hazan chat authorization to resolve open non-orchestrator issues",
+  "worker": "Claude Opus 5 subagent on 916-alien",
+  "branch": "claude/3001-sidecar-registry",
+  "worktree": "D:/repos/shared-db-worktrees/claude-3001-sidecar-registry",
+  "allowed_paths": [
+    ".agent/contract.json",
+    ".agent/completion.json",
+    "scripts/check_pass2_routine_supersession.py",
+    "scripts/test_check_pass2_routine_supersession.py"
+  ],
+  "file_writes": [
+    ".agent/contract.json",
+    ".agent/completion.json",
+    "scripts/check_pass2_routine_supersession.py",
+    "scripts/test_check_pass2_routine_supersession.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database, migration, preview, production, claim or marker mutation.",
+    "No weakening of any delivery-preflight or risk-gate refusal; the drop-replay guard may only become more conservative.",
+    "No workflow, repository setting or branch protection change."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "python -m unittest scripts.test_check_pass2_routine_supersession",
+    "node --test scripts/orchestrator-flow/delivery-preflight-gate.test.mjs scripts/orchestrator-flow/delivery-preflight.test.mjs"
+  ],
+  "assumptions": [
+    "The single sidecar declaration registry asked for by #3001 was already delivered to main under #3028 (config/production-verification-sidecar-registry.json plus load_sidecar_registry in scripts/production_business_risk_gate.py); it is verified and reported, not reimplemented.",
+    "PR #2970, which owned scripts/production_business_risk_gate.py when #3001 was filed, is merged, and no open pull request touches the risk-gate or preflight files.",
+    "Generation 2 republishes generation 1 unchanged in substance after the branch was refreshed from main by merge; only base_sha moves to the current merge base, as #2845 requires."
+  ],
+  "stop_conditions": [
+    "Stop if consolidating or changing the guard would drop any existing preflight refusal.",
+    "Stop if the drop-guard change blocks existing main migrations without a real rebuild defect."
+  ]
+}

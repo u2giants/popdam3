@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3001,
+  "outcome": "ready-for-merge",
+  "pr": 3321,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3001/2",
+  "contract_sha256": "949183071a25b45aa2c58e9896d0adaba1fdae8fb7839eaf92495773c4914ea8",
+  "head_sha": "708c83118f66e06901f7d11462ea4d1a3a3fe9e1",
+  "files_changed": [
+    "scripts/check_pass2_routine_supersession.py",
+    "scripts/test_check_pass2_routine_supersession.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check origin/main...HEAD clean at 708c8311"
+    },
+    {
+      "command": "python -m unittest scripts.test_check_pass2_routine_supersession",
+      "exit_code": 0,
+      "evidence": "44 passed, 0 failed at 708c8311 (39 before this change); PostgreSQL 18.3 catalog tests ran, none skipped"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/delivery-preflight-gate.test.mjs scripts/orchestrator-flow/delivery-preflight.test.mjs",
+      "exit_code": 0,
+      "evidence": "31 pass, 0 fail, 0 skipped at 708c8311"
+    }
+  ],
+  "assumptions_resolved": [
+    "Sidecar registry verified already on main: commit 1eac6a8227c0c3b7741335bb8f3cf10cbfd3ab02 (#3028) is an ancestor of main; config/production-verification-sidecar-registry.json declares 60 sidecars and check_production_verification_sidecars.py reports status OK. Not reimplemented.",
+    "Risk-gate contention cleared: PR #2970 merged as dae4becb79ae; no open pull request touches production_business_risk_gate.py, delivery-preflight*, or check_pass2_routine_supersession.py.",
+    "Independent REJECT at head 6b9ce0b9 was correct and is answered: measured on a live PostgreSQL 18.3 cluster, to_regprocedure resolves a procedure on INPUT types only (to_regprocedure('p(text)') resolves, to_regprocedure('p(text, int)') is NULL, oidvectortypes(proargtypes) is 'text'). OUT arguments are therefore excluded for every routine kind and the both-candidate conjunct was removed.",
+    "No refusal narrowed: the guard now resolves the object it was always meant to resolve; scripts.test_production_business_risk_gate 187 passed unchanged and the delivery preflight's 31 gate tests pass unchanged.",
+    "Refreshed onto current main by MERGE (never rebase), so the approved head stays an ancestor and the exact-head APPROVE carries forward; all three required checks re-proved at the merged implementation head.",
+    "Evidence moved to the generation-keyed pair .agent/work/3001/1/{contract,completion}.json introduced by #2708/#3323; the legacy fixed pair is restored to main's content so only one pair is carried."
+  ],
+  "stop_conditions_hit": []
+}

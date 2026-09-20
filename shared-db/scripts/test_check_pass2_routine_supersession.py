@@ -416,6 +416,67 @@ class Pass2LaterDropTests(unittest.TestCase):
                 "to_regprocedure('public.deactivate_stale_sg_files(text, uuid)') is null", query
             )
 
+    def test_multiword_type_arguments_keep_both_words_in_the_guard(self):
+        """Edge case 1 recorded as untested by #2728 / PR #2980.
+
+        `double precision` and `character varying` are written as two words. The
+        leading word must be read as part of the TYPE, never stripped as a
+        parameter name, or the guard resolves nothing and the drop replays over
+        a routine a later migration re-created.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            root, old = self._replay(
+                temp,
+                "drop function public.deactivate_stale_sg_files("
+                "p double precision, q character varying, r timestamp with time zone);\n",
+            )
+            drops = later_drops(old, root, {self.DROP})
+            query = snapshot_query({}, set(), drops)
+            self.assertIn(
+                "to_regprocedure('public.deactivate_stale_sg_files("
+                "double precision, character varying, timestamp with time zone)') is null",
+                query,
+            )
+
+    def test_procedure_drop_guard_excludes_out_arguments(self):
+        """Edge case 2 recorded as untested by #2728 / PR #2980, and a real defect.
+
+        `to_regprocedure` resolves against `pg_proc.proargtypes`, which holds
+        INPUT types only -- for procedures too. Keeping the OUT argument built a
+        guard that could never resolve, so the drop replayed over a procedure a
+        later migration had re-created. Proved on a live cluster by
+        `Pass2LaterDropCatalogTests.test_procedure_out_argument_resolves_on_input_types_only`.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            root, old = self._replay(
+                temp,
+                "drop procedure public.deactivate_stale_sg_files(in p text, out r int);\n",
+            )
+            drops = later_drops(old, root, {self.DROP})
+            query = snapshot_query({}, set(), drops)
+            self.assertIn(
+                "to_regprocedure('public.deactivate_stale_sg_files(text)') is null", query
+            )
+            self.assertNotIn(
+                "to_regprocedure('public.deactivate_stale_sg_files(text, int)') is null", query
+            )
+
+    def test_drop_routine_guard_excludes_out_arguments(self):
+        """`DROP ROUTINE` names neither kind, and the answer is the same either way."""
+        with tempfile.TemporaryDirectory() as temp:
+            root, old = self._replay(
+                temp,
+                "drop routine public.deactivate_stale_sg_files(in p text, out r int);\n",
+            )
+            drops = later_drops(old, root, {self.DROP})
+            query = snapshot_query({}, set(), drops)
+            self.assertIn(
+                "to_regprocedure('public.deactivate_stale_sg_files(text)') is null", query
+            )
+            self.assertNotIn(
+                "to_regprocedure('public.deactivate_stale_sg_files(text, int)') is null", query
+            )
+
     def test_unapplied_later_drop_is_not_replayed(self):
         with tempfile.TemporaryDirectory() as temp:
             root, old = self._replay(
@@ -522,6 +583,57 @@ class Pass2LaterDropCatalogTests(unittest.TestCase):
         db = self.replay(f"drop function if exists {self.OLD_SIG};\n" + new)
         self.assertFalse(self.exists(db, self.OLD_SIG))
         self.assertTrue(self.exists(db, "public.deactivate_stale_sg_files(text, uuid, integer)"))
+
+    def test_procedure_out_argument_resolves_on_input_types_only(self):
+        """#3001: which signature text actually finds a PROCEDURE in the catalog.
+
+        This is the ground truth the drop guard is built on, asserted against a
+        real cluster rather than against emitted SQL. `proargtypes` holds input
+        types only, for procedures as well as functions, so the OUT-inclusive
+        form never resolves and must never be used as a guard.
+        """
+        db = "p" + next(tempfile._get_candidate_names()).lower().replace("_", "")
+        self.psql(f"create database {db}")
+        self.psql(
+            "create procedure public.out_probe(in a text, out r int) language plpgsql"
+            " as $$ begin r := 1; end $$;",
+            db,
+        )
+        self.assertTrue(self.exists(db, "public.out_probe(text)"))
+        self.assertFalse(self.exists(db, "public.out_probe(text, int)"))
+        self.assertEqual(self.psql(
+            "select oidvectortypes(proargtypes) from pg_proc where proname = 'out_probe'", db
+        ), "text")
+
+    def test_procedure_drop_naming_out_argument_then_recreate_keeps_procedure(self):
+        """The fail-open case the guard repair closes.
+
+        A later `drop procedure ... (in p text, out r int)` whose target is
+        re-created afterwards must NOT be replayed. With OUT kept in the guard the
+        lookup never resolved, so the drop replayed and removed the live procedure.
+        """
+        create = (
+            "create or replace procedure public.staged_cleanup(in p text, out r int)"
+            " language plpgsql as $$ begin r := 1; end $$;\n"
+        )
+        db = "q" + next(tempfile._get_candidate_names()).lower().replace("_", "")
+        self.psql(f"create database {db}")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / self.OLD).write_text(create, encoding="utf-8")
+            later = "20260915111317_later.sql"
+            later_sql = "drop procedure if exists public.staged_cleanup(in p text, out r int);\n" + create
+            (root / later).write_text(later_sql, encoding="utf-8")
+            self.psql(later_sql, db)
+            query = snapshot_query(
+                {}, set(), later_drops(root / self.OLD, root, {later}),
+                redeclared_after_drop(root / self.OLD, root, {later}),
+            )
+            rows = self.psql(query, db) if query else ""
+            self.psql(create, db)
+            if rows:
+                self.psql(rows, db)
+        self.assertTrue(self.exists(db, "public.staged_cleanup(text)"))
 
     def test_named_parameter_drop_leaves_routine_absent(self):
         # GLM Low finding on #2948: a later DROP that names its parameters.
