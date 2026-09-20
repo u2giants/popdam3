@@ -1,51 +1,44 @@
 {
-  "schema_version": 1,
-  "work_issue": 3305,
-  "work_type": "repo-maintenance",
-  "route": "repo-maintenance",
-  "goal": "Accept only provenance-verified automatic-review companion artifacts without weakening preview evidence checks",
-  "base_sha": "843bc60de498edadbb3276b2fffa30a5898aab05",
-  "dispatcher": "Codex orchestrator parent 01a0bf00-fa7b-73d1-b447-fc4c89c50b96",
-  "worker": "01a0bf43-3c49-7812-b4d9-b3cb6e89e1c1",
-  "branch": "codex/sku2478-recovery-audit-0920",
-  "worktree": "D:\\repos\\shared-db-worktrees\\sku2478-recovery-audit-0920",
-  "allowed_paths": [
-    "scripts/orchestrator-flow/preview-artifact-selection.mjs",
-    "scripts/orchestrator-flow/preview-artifact-selection.test.mjs",
-    ".agent/contract.json",
-    ".agent/completion.json",
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs"
-  ],
-  "file_writes": [
-    "scripts/orchestrator-flow/preview-artifact-selection.mjs",
-    "scripts/orchestrator-flow/preview-artifact-selection.test.mjs",
-    ".agent/contract.json",
-    ".agent/completion.json",
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs"
-  ],
-  "db_reads": [],
-  "db_writes": [],
-  "prohibited_actions": [
-    "No database or production writes",
-    "Lane-manager edits only import and validateOriginalPreviewApplyEvidence artifact-selection block; tests only related fixtures",
-    "Do not weaken manifest or ledger evidence"
-  ],
-  "required_checks": [
-    "node --test scripts/orchestrator-flow/preview-artifact-selection.test.mjs",
-    "node --test scripts/manage-migration-author-lanes.test.mjs"
-  ],
+  "work_issue": 3302,
   "assumptions": [
-    "Existing successful preview with automatic companion is reproducibly rejected",
-    "Current-main refresh d5285ef3 preserves implementation; 639 tests re-run successfully before final evidence binding",
-    "Refreshed onto70b0cad2 reviewer allowlist changes without overlapping selector code;673 tests passed",
-    "Refreshed onto current main c477c8e8 (docs-only movement, no overlap with this diff); selector tests re-run green before evidence binding",
-    "Refreshed onto current main 473ba697 (no overlap with this diff outside .agent evidence); selector tests re-run green before evidence binding",
-    "Refreshed onto current main 843bc60d; 30 selector tests and 643 lane-manager tests re-run green on 916-alien at implementation head c3462769"
+    "Existing loader records may preserve authentic replay evidence"
   ],
   "stop_conditions": [
-    "Stop before overlapping another agent files"
+    "Request parent exact extra paths if evidence producer needed",
+    "Stop if retained replay evidence cannot prove the original assertion"
   ],
-  "generation": 8
+  "schema_version": 1,
+  "allowed_paths": [
+    ".github/live-proofs/2863.sql",
+    "scripts/issue-2863-live-proof.test.mjs",
+    ".agent/contract.json",
+    ".agent/completion.json"
+  ],
+  "worktree": "D:/repos/worktrees/proof-2863-20260920",
+  "file_writes": [
+    ".github/live-proofs/2863.sql",
+    "scripts/issue-2863-live-proof.test.mjs",
+    ".agent/contract.json",
+    ".agent/completion.json"
+  ],
+  "base_sha": "57269b19416ccca6c20a0053ed05e397b1bd0e19",
+  "work_type": "repo-maintenance",
+  "db_reads": [],
+  "dispatcher": "Codex root orchestrator marker3297",
+  "db_writes": [],
+  "worker": "Codex coldlion_dependency_proof",
+  "route": "repo-maintenance",
+  "branch": "codex/proof-2863-20260920",
+  "prohibited_actions": [
+    "No database mutation or production write dispatch",
+    "No migration or edits outside allowed paths",
+    "No manufactured replay evidence, fixed-count proof or scope weakening",
+    "No merge or close issue2863"
+  ],
+  "goal": "Create authentic retained-evidence live replay proof for issue2863 without database mutation or weakening its assertion",
+  "required_checks": [
+    "node --test scripts/issue-2863-live-proof.test.mjs",
+    "Read-only live probe with false controls"
+  ],
+  "generation": 1
 }

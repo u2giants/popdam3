@@ -1,36 +1,38 @@
 {
-  "schema_version": 1,
-  "work_issue": 3305,
-  "outcome": "ready-for-merge",
-  "pr": 3308,
-  "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3305/8",
-  "contract_sha256": "ce60ceaf53e6c6df21a375a1a86d8c6585bd1dc0c92d45888d28d9ee95346702",
-  "head_sha": "4534892bac8f71153f8757259b870146f9641565",
-  "files_changed": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "scripts/orchestrator-flow/preview-artifact-selection.mjs",
-    "scripts/orchestrator-flow/preview-artifact-selection.test.mjs"
-  ],
   "db_reads": [],
-  "db_writes": [],
+  "assumptions_resolved": [
+    "Retained transactional loader records establish stable source and unique-row counts across repeated successful captures; exact-byte case-variant source duplicates are counted separately and never treated as distinct landed identities"
+  ],
+  "contract_ref": "refs/db-contracts/3302/1",
+  "schema_version": 1,
+  "stop_conditions_hit": [],
+  "work_issue": 3302,
   "checks": [
     {
-      "command": "node --test scripts/orchestrator-flow/preview-artifact-selection.test.mjs",
       "exit_code": 0,
-      "evidence": "tests 30 pass 30 fail 0 cancelled 0 skipped 0 todo 0 on 916-alien at implementation head 4534892bac8f71153f8757259b870146f9641565"
+      "evidence": "Current-main integration: focused proof tests 2 passed and live-proof guard tests 10 passed; zero failed, skipped, cancelled or todo.",
+      "command": "node --test scripts/issue-2863-live-proof.test.mjs"
     },
     {
-      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
       "exit_code": 0,
-      "evidence": "tests 643 pass 643 fail 0 cancelled 0 skipped 0 todo 0 on 916-alien at implementation head 4534892bac8f71153f8757259b870146f9641565"
+      "evidence": "Parent orchestrator production verification retained unchanged: actual read-only probe true, absent-prepack control false, absent-prod control false. Probe bytes checked identical to reviewed head db6b9daed14ba15c412848b46a22c2178cb6af8e; refresh changes no SQL.",
+      "command": "Read-only live probe with false controls"
+    },
+    {
+      "evidence": "truth audit OK: call_sites=311 sources=69 derived_digest=871e1ed90397; no companion disposition required for this SQL probe or its targeted test",
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0
     }
   ],
-  "assumptions_resolved": [
-    "Authentic run35228140178 reproduced artifact-count refusal; selector now selects correct artifact10499394912",
-    "Parent explicitly authorized isolated integration hunk; reviewer code unchanged"
+  "db_writes": [],
+  "contract_sha256": "1994731accc3a210ac378e67cdfbe134854054fdecd00b31f14ded99bcf148b7",
+  "files_changed": [
+    ".github/live-proofs/2863.sql",
+    "scripts/issue-2863-live-proof.test.mjs"
   ],
-  "stop_conditions_hit": [],
-  "base_sha": "f1fef4575edb0b27575dd0a20838384e1cf66db0"
+  "pr": 3303,
+  "migration_versions": [],
+  "head_sha": "5a94afd71636d046081ef80785d997a591642175",
+  "outcome": "ready-for-merge",
+  "base_sha": "8cf89c5ea6684d68b5cb433b12dd0542fe71cf0b"
 }
