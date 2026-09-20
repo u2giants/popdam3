@@ -492,6 +492,18 @@ Maximum 50 images per call.
 
 ColdLion (`http://x5.coldlion.com/EhpApi`) is an external API used for merchandise group code lookups.
 
+The Edge Function credential is read only from
+`admin_config.COLDLION_API_KEY`; there is no source-code fallback. The separate
+landing loader requires protected environment injection. A former fallback was
+removed in `d2bdbe6d`. On 2026-09-20 Albert confirmed that POP does not control
+ColdLion's system and has no way to rotate this credential, and directed that
+rotation be removed from the active task. The resulting historical exposure is
+an owner-accepted external risk, not a remediated secret. Never restore a
+literal fallback. If ColdLion adds rotation or revocation support,
+reopen the security work and first inventory every consumer, including
+`admin_config`, protected runtime injection, and the shared 1Password item.
+Update and verify every consumer before revoking the old credential.
+
 ### Direct prepack landing loader
 
 `npm run sync:coldlion-prepacks -- --apply` performs the guarded server-side
@@ -501,6 +513,17 @@ Virginia project `qsllyeztdwjgirsysgai`, proves the terminal `/items` page,
 requires the complete bare-array `/itemDetails` response, probes every distinct
 code through `/prepackDetail`, and writes all landing rows plus three durable
 probe records in one transaction. Never pass credential values in arguments.
+
+Operational lessons from the production loader:
+
+- Pass large SQL through a mode-0600 temporary file; streaming it to `psql`
+  stdin can surface only `EPIPE` and hide the database error.
+- The ingest terminal status is `succeeded`, not `completed`.
+- Temporary merchandise rows require internal UUIDs, but those temporary IDs
+  must not replace production identity during upsert.
+- Mark current rows with a run ID and delete untouched rows; a correlated stale
+  anti-join approached the fixed statement ceiling even with indexes.
+- Extract the scalar from JSONB before applying text functions such as `btrim`.
 
 ### `debug-coldlion-lookup`
 Performs a test lookup against the ColdLion API and returns the raw response. Used for diagnosing integration issues.
