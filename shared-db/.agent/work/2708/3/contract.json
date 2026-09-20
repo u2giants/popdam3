@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "generation": 3,
+  "work_issue": 2708,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Give every pull request a disjoint, generation-keyed agent evidence path (#2708) and refuse an evidence pair anchored to a superseded base after a refresh (#2845), without relaxing any evidence standard and without breaking the approval carry-forward rule.",
+  "base_sha": "7d98876e072a6ec6d55548264cef2d7ca6acf769",
+  "dispatcher": "Owner Albert Hazan authorized resolving all open non-orchestrator issues in this repository",
+  "worker": "Claude chat 2e3c24d5-f6b8-44f8-b49f-3c67c1647d13 on 916-alien",
+  "branch": "claude/2708-2845-agent-evidence-paths",
+  "worktree": "D:/repos/shared-db-worktrees/claude-2708-2845-agent-evidence-paths",
+  "allowed_paths": [
+    "AGENTS.md",
+    "docs/agents/agent-work-contract-repo-maintenance-evidence.md",
+    ".github/workflows/agent-work-contract.yml",
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/check-live-proof-probe.mjs",
+    "scripts/check-main-tip-freshness.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/refresh-code-pr-branch.mjs",
+    "scripts/refresh-code-pr-branch.test.mjs",
+    ".agent/work/2708/3/contract.json",
+    ".agent/work/2708/3/completion.json"
+  ],
+  "file_writes": [
+    "AGENTS.md",
+    "docs/agents/agent-work-contract-repo-maintenance-evidence.md",
+    ".github/workflows/agent-work-contract.yml",
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/check-live-proof-probe.mjs",
+    "scripts/check-main-tip-freshness.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/refresh-code-pr-branch.mjs",
+    "scripts/refresh-code-pr-branch.test.mjs",
+    ".agent/work/2708/3/contract.json",
+    ".agent/work/2708/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration, function, view, role, grant, index, or timeout change.",
+    "Do not relax any evidence standard; this changes the filename, never the standard.",
+    "Do not exempt .agent files from conflict resolution, freeze main during reviews, or relax the exact-head review rule.",
+    "Do not touch another session's uncommitted work in this worktree (scripts/manage-migration-author-lanes.mjs, scripts/run-governed-review.mjs and scripts/lib/reviewer-caller-env.mjs carry issue #2678 work that is not mine)."
+  ],
+  "required_checks": [
+    "node --test on every changed scripts test file",
+    "git diff --check origin/main...HEAD"
+  ],
+  "assumptions": [
+    "The legacy fixed evidence pair stays valid, so no open pull request is forced to rewrite its evidence and trigger the very re-review storm #2708 exists to stop.",
+    "The published contract is immutable, so the current merge base is recorded by the completion report rather than by republishing the contract at a new generation.",
+    "This contract was published before any commit existed on this branch; the working tree held the change and nothing had been committed."
+  ],
+  "stop_conditions": [
+    "Stop if resolving either issue would require relaxing the exact-head approval rule or the .agent/ exclusion that carries an APPROVE across a refresh.",
+    "Stop if a backwards-compatible path cannot be kept for pull requests that already carry the legacy pair."
+  ]
+}

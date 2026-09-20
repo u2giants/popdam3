@@ -32,25 +32,64 @@ heads, and documents-only fails by construction for a change touching scripts or
 
 So a `repo-maintenance` change to a script or workflow must publish a contract. It can.
 
+## Where the pair lives (#2708, 2026-09-20)
+
+Each pull request writes its evidence to its own generation-keyed directory:
+
+```
+.agent/work/<work_issue>/<generation>/contract.json
+.agent/work/<work_issue>/<generation>/completion.json
+```
+
+mirroring `refs/db-contracts/<work_issue>/<generation>`. Until 2026-09-20 every pull
+request wrote the same two fixed paths, so any merge to main put every other open
+pull request into conflict on files that had nothing to do with it -- and because a
+governed review is pinned to an exact head, resolving that conflict voided every
+durable verdict and forced a full re-review. One unrelated merge cost every other
+open pull request a re-review round, and with more than a couple open it did not
+converge.
+
+The legacy pair, `.agent/contract.json` and `.agent/completion.json`, is still
+accepted, so a pull request that already carries it does not have to be rewritten.
+New work uses the keyed path. A pull request may carry one pair or the other, never
+both: two pairs fail closed, because a gate that cannot tell which pair to judge must
+not pick one.
+
+Nothing about the standard changed. This is the filename, never the standard.
+
+## Binding the pair to the head under review (#2845, 2026-09-20)
+
+The completion report carries `base_sha`, the merge base its recorded checks were
+measured against, beside `head_sha`, the implementation commit they describe. The
+gate refuses when that base is not this pull request's current merge base with main.
+Before this, refreshing a branch from main left the pair naming a base and a head
+nobody was reviewing while its recorded results still read as current -- coverage
+that is false only in its currency, which is exactly the shape that survives a skim.
+
+`node scripts/refresh-code-pr-branch.mjs --issue <n> --pr <n>` rebinds both fields
+and re-runs the checks. A report carrying no `base_sha` is judged on its contract's
+`base_sha`, so a branch that never refreshed passes exactly as it did before.
+
 ## The path, in order
 
 Publication is create-if-absent and therefore immutable: a mistake is corrected by publishing a
 new generation, never by replacing one.
 
-1. **Write `.agent/contract.json`.** Set `work_type: repo-maintenance` and
+1. **Write the contract at `.agent/work/<work_issue>/<generation>/contract.json`.** Set `work_type: repo-maintenance` and
    `route: repo-maintenance`. Set `base_sha` to the exact 40-character commit the branch was cut
    from. Leave `db_reads` and `db_writes` empty. List every path the change may touch in
    `allowed_paths`. See `docs/examples/agent-work-contract-zero-database.json` for the shape.
 2. **Publish it, before writing any implementation code:**
 
 ```bash
-node scripts/agent-work-contract.mjs --publish-contract --contract-file .agent/contract.json
+node scripts/agent-work-contract.mjs --publish-contract --contract-file .agent/work/<work_issue>/<generation>/contract.json
 ```
 
 3. **Do the work and commit it.** This is the implementation commit; note its SHA.
-4. **Commit the evidence pair on top, alone.** Only `.agent/contract.json` and
-   `.agent/completion.json` may follow the implementation commit. In the completion report set
-   `head_sha` to the implementation commit, `contract_ref` to
+4. **Commit the evidence pair on top, alone.** Only this pull request's own two
+   evidence files may follow the implementation commit. In the completion report set
+   `head_sha` to the implementation commit, `base_sha` to the current merge base with
+   main, `contract_ref` to
    `refs/db-contracts/<work_issue>/<generation>`, and `files_changed` to exactly the output of
    `git diff --name-only <pr_base_sha> <implementation_head>`.
 

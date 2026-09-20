@@ -22,7 +22,10 @@ test('#507(b) only re-run checks are restamped; any other check refuses', () => 
   assert.throws(() => summarizeNodeTest('nothing'), RefreshError)
 })
 
-function repo() {
+function repo({ keyed = false } = {}) {
+  const pair = keyed
+    ? ['.agent/work/7/1/contract.json', '.agent/work/7/1/completion.json']
+    : ['.agent/contract.json', '.agent/completion.json']
   const root = mkdtempSync(join(tmpdir(), 'refresh-pr-'))
   const g = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' }).trim()
   const origin = join(root, 'origin.git'), work = join(root, 'w')
@@ -30,15 +33,19 @@ function repo() {
   execFileSync('git', ['clone', '-q', origin, work])
   for (const [k, v] of [['user.name', 't'], ['user.email', 't@t'], ['core.autocrlf', 'false']]) g(work, 'config', k, v)
   const put = (f, s) => { mkdirSync(join(work, f, '..'), { recursive: true }); writeFileSync(join(work, f), s) }
-  put('.agent/contract.json', '{"work_issue":0}\n'); put('.agent/completion.json', '{"pr":0}\n'); put('scripts/agent-work-contract.mjs', 'process.exit(0)\n'); put('base.txt', '1\n')
+  // #2708: a generation-keyed pair does not exist on main at all. Only the
+  // legacy fixed pair was ever there, which is exactly why every pull request
+  // collided with every other one.
+  if (!keyed) { put('.agent/contract.json', '{"work_issue":0}\n'); put('.agent/completion.json', '{"pr":0}\n') }
+  put('scripts/agent-work-contract.mjs', 'process.exit(0)\n'); put('base.txt', '1\n')
   g(work, 'add', '-A'); g(work, 'commit', '-qm', 'base'); g(work, 'push', '-q', 'origin', 'main')
   g(work, 'checkout', '-q', '-b', 'feature')
   put('scripts/x.test.mjs', "import test from 'node:test'\ntest('ok',()=>{})\n")
   g(work, 'add', '-A'); g(work, 'commit', '-qm', 'impl')
-  put('.agent/contract.json', '{"work_issue":7}\n')
-  put('.agent/completion.json', JSON.stringify({ pr: 8, head_sha: 'old', checks: [{ command: TEST_CHECK, exit_code: 0, evidence: 'old' }, { command: DIFF_CHECK, exit_code: 0, evidence: 'old' }] }) + '\n')
+  put(pair[0], '{"work_issue":7,"generation":1}\n')
+  put(pair[1], JSON.stringify({ pr: 8, head_sha: 'old', base_sha: 'old', checks: [{ command: TEST_CHECK, exit_code: 0, evidence: 'old' }, { command: DIFF_CHECK, exit_code: 0, evidence: 'old' }] }) + '\n')
   g(work, 'add', '-A'); g(work, 'commit', '-qm', 'evidence')
-  return { root, work, g, put }
+  return { root, work, g, put, pair }
 }
 function moveMain(r, file, text) {
   const other = join(r.root, 'o'); execFileSync('git', ['clone', '-q', join(r.root, 'origin.git'), other])
@@ -118,4 +125,31 @@ test('#507(b) a recorded assignment survives a stale-readback error (#2844); an 
       }
     } finally { rmSync(r.root, { recursive: true, force: true }) }
   }
+})
+
+test('#2708/#2845 a generation-keyed pair refreshes although main has no copy of it, and rebinds base and head', () => {
+  const r = repo({ keyed: true })
+  try {
+    moveMain(r, 'base.txt', '2\n')
+    const result = refresh({ issue: 7, pr: 8, worktree: r.work, push: false, assign: false }, { log: () => {} })
+    // The implementation head carries the code and none of its own evidence.
+    assert.equal(r.g(r.work, 'diff', '--name-only', 'origin/main', result.head), 'scripts/x.test.mjs')
+    // Only this pull request's own two evidence files follow it, at paths no
+    // other pull request can write (#2708).
+    assert.deepEqual(r.g(r.work, 'diff', '--name-only', result.head, result.tip).split('\n').sort(), [...r.pair].sort())
+    const report = JSON.parse(readFileSync(join(r.work, r.pair[1]), 'utf8'))
+    assert.equal(report.head_sha, result.head)
+    assert.equal(report.base_sha, r.g(r.work, 'rev-parse', 'origin/main'))
+    assert.equal(r.g(r.work, 'status', '--porcelain'), '')
+  } finally { rmSync(r.root, { recursive: true, force: true }) }
+})
+
+test('#2845 a legacy pair is rebound to the refreshed base as well', () => {
+  const r = repo()
+  try {
+    moveMain(r, 'base.txt', '2\n')
+    refresh({ issue: 7, pr: 8, worktree: r.work, push: false, assign: false }, { log: () => {} })
+    const report = JSON.parse(readFileSync(join(r.work, '.agent/completion.json'), 'utf8'))
+    assert.equal(report.base_sha, r.g(r.work, 'rev-parse', 'origin/main'))
+  } finally { rmSync(r.root, { recursive: true, force: true }) }
 })

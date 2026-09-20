@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 2708,
+  "outcome": "ready-for-merge",
+  "pr": 3323,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2708/3",
+  "contract_sha256": "eb20fee9cd808c2034e6a7cf53774c901a50a4c777c8aa10e2ea23e772e6b27f",
+  "head_sha": "aabb226285f0ace377dc2ec53afda6c32fe0fe0d",
+  "base_sha": "473ba697d5d449721de113fc0cd82acc6a052eb2",
+  "files_changed": [
+    ".github/workflows/agent-work-contract.yml",
+    "AGENTS.md",
+    "docs/agents/agent-work-contract-repo-maintenance-evidence.md",
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/check-live-proof-probe.mjs",
+    "scripts/check-main-tip-freshness.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/refresh-code-pr-branch.mjs",
+    "scripts/refresh-code-pr-branch.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test on every changed scripts test file",
+      "exit_code": 0,
+      "evidence": "agent-work-contract-git-evidence, lib/agent-evidence-paths, refresh-code-pr-branch 29/29 pass, 0 fail, 0 skipped at aabb2262 after refreshing onto origin/main."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "Exit 0 with no output at aabb2262."
+    }
+  ],
+  "assumptions_resolved": [
+    "The legacy fixed pair remains accepted, so no open pull request is forced to rewrite its evidence; only a branch that refreshes from main must regenerate its report.",
+    "The current merge base is recorded by the completion report, not by republishing the immutable contract; generations 1 and 2 of this issue were superseded before any commit existed and generation 3 is the one this pull request carries.",
+    "The approval carry-forward exclusion is the whole .agent/ tree by prefix, so it already covers the keyed paths and no reviewer rule was touched."
+  ],
+  "stop_conditions_hit": []
+}

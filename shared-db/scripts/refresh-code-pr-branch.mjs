@@ -8,13 +8,14 @@
 // It never carries an old review forward, never edits the published contract, and
 // refuses (leaving the branch as it was) on any real merge conflict or failing check.
 import { spawnSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { REVIEWERS } from './manage-migration-author-lanes.mjs'
+import { LEGACY_COMPLETION_PATH, LEGACY_CONTRACT_PATH, resolveEvidencePair } from './lib/agent-evidence-paths.mjs'
 
 export class RefreshError extends Error {}
-const EVIDENCE = ['.agent/contract.json', '.agent/completion.json']
+const LEGACY_EVIDENCE = [LEGACY_CONTRACT_PATH, LEGACY_COMPLETION_PATH]
 export const TEST_CHECK = 'node --test on every changed scripts test file'
 export const DIFF_CHECK = 'git diff --check origin/main...HEAD'
 
@@ -34,15 +35,37 @@ export function parseArgs(argv) {
   return out
 }
 
+/**
+ * Find this branch's own evidence pair at `ref` (#2708). A branch may carry the
+ * generation-keyed pair or the legacy fixed pair; it may never carry both.
+ */
+export function evidencePairAt(ref, { show, ownChanges }) {
+  // The branch OWN evidence changes, never the whole tree: main still carries
+  // the legacy pair, and inheriting that is not this branch holding two pairs.
+  const resolved = resolveEvidencePair(ownChanges(ref))
+  if (resolved.state === 'conflicted') throw new RefreshError(`the branch carries more than one evidence pair (${resolved.key}); exactly one may be present (#2708)`)
+  if (resolved.state === 'partial') throw new RefreshError('the branch carries half an evidence pair; a contract and a completion report travel together')
+  if (resolved.state === 'inherited') throw new RefreshError('the branch carries no agent evidence pair to refresh')
+  return {
+    contract: JSON.parse(show(`${ref}:${resolved.contract}`)),
+    report: JSON.parse(show(`${ref}:${resolved.completion}`)),
+    paths: [resolved.contract, resolved.completion],
+  }
+}
+
 // Only the two standard checks can be re-proved mechanically. Any other check in the
 // report is refused by name, so no evidence is ever restamped without being re-run.
-export function rebindCompletion(report, { head, testSummary }) {
+export function rebindCompletion(report, { head, base, testSummary }) {
   const checks = (report.checks ?? []).map((check) => {
     if (check.command === TEST_CHECK) return { ...check, exit_code: 0, evidence: `${testSummary} at ${head.slice(0, 8)} after refreshing onto origin/main.` }
     if (check.command === DIFF_CHECK) return { ...check, exit_code: 0, evidence: `Exit 0 with no output at ${head.slice(0, 8)}.` }
     throw new RefreshError(`completion check "${check.command}" cannot be re-run by this helper; refresh by hand and re-prove it`)
   })
-  return { ...report, head_sha: head, checks }
+  // #2845: the pair must name the base its checks were measured against, not
+  // the base the branch was cut from. Without this a refreshed branch kept the
+  // old base and the old head while presenting its recorded results as current
+  // -- coverage that reads true and survives a skim.
+  return { ...report, head_sha: head, base_sha: base, checks }
 }
 
 export function summarizeNodeTest(output) {
@@ -58,21 +81,31 @@ export function refresh(options, { run = defaultRun, log = (l) => console.log(l)
   const ok = (r, what) => { if (r.status !== 0) throw new RefreshError(`${what} failed: ${String(r.stderr || r.stdout).trim().split('\n').slice(-3).join(' | ')}`); return String(r.stdout ?? '').trim() }
   if (ok(git('status', '--porcelain'), 'git status')) throw new RefreshError('the worktree has uncommitted changes; commit or remove them first')
   const before = ok(git('rev-parse', 'HEAD'), 'git rev-parse')
-  const contract = JSON.parse(ok(git('show', `${before}:.agent/contract.json`), 'reading the branch contract'))
-  const report = JSON.parse(ok(git('show', `${before}:.agent/completion.json`), 'reading the branch completion report'))
-  if (Number(contract.work_issue) !== options.issue || Number(report.pr) !== options.pr) throw new RefreshError(`the branch evidence is for issue #${contract.work_issue} / PR #${report.pr}, not #${options.issue} / #${options.pr}`)
   ok(git('fetch', '-q', 'origin', 'main'), 'git fetch origin main')
+  const { contract, report, paths: EVIDENCE } = evidencePairAt(before, {
+    show: (spec) => ok(git('show', spec), `reading ${spec}`),
+    ownChanges: (ref) => ok(git('diff', '--name-only', `${ok(git('merge-base', 'origin/main', ref), 'resolving the merge base')}...${ref}`, '--', '.agent'), 'listing the branch evidence').split('\n').filter(Boolean),
+  })
+  if (Number(contract.work_issue) !== options.issue || Number(report.pr) !== options.pr) throw new RefreshError(`the branch evidence is for issue #${contract.work_issue} / PR #${report.pr}, not #${options.issue} / #${options.pr}`)
   // Until the implementation head is committed, any refusal puts the branch back exactly as it was
   // (the tree was proved clean above), so a retry never meets a half-finished merge.
   try {
     const merge = git('merge', '--no-edit', '--no-commit', 'origin/main')
     if (merge.status !== 0) {
       const conflicts = ok(git('diff', '--name-only', '--diff-filter=U'), 'git diff').split('\n').filter(Boolean)
-      const real = conflicts.filter((f) => !EVIDENCE.includes(f))
+      const real = conflicts.filter((f) => !EVIDENCE.includes(f) && !LEGACY_EVIDENCE.includes(f))
       if (real.length) throw new RefreshError(`merging origin/main conflicts outside .agent/: ${real.join(', ')}. The branch is unchanged at ${before}; resolve those by hand.`)
       if (!conflicts.length) throw new RefreshError(`merging origin/main failed without a conflict: ${String(merge.stderr || merge.stdout).trim().split('\n').at(-1)}. The branch is unchanged at ${before}.`)
     }
-    ok(git('checkout', 'origin/main', '--', ...EVIDENCE), 'restoring .agent from origin/main')
+    // The implementation head must carry no evidence of its own, so the pair is
+    // the only thing that follows it. A legacy path exists on main and goes back
+    // to main's copy; a generation-keyed path does not exist on main at all --
+    // that is exactly what stops two pull requests colliding (#2708) -- so it is
+    // removed here and re-added by the evidence commit below.
+    for (const file of EVIDENCE) {
+      if (git('cat-file', '-e', `origin/main:${file}`).status === 0) ok(git('checkout', 'origin/main', '--', file), `restoring ${file} from origin/main`)
+      else ok(git('rm', '-q', '-f', '--', file), `clearing ${file} from the implementation head`)
+    }
     ok(git('commit', '-q', '--allow-empty', '-m', `Merge origin/main; implementation head for #${options.issue} without evidence files`), 'committing the implementation head')
   } catch (e) {
     git('merge', '--abort')
@@ -90,10 +123,13 @@ export function refresh(options, { run = defaultRun, log = (l) => console.log(l)
     testSummary = `${tests.map((f) => f.replace(/^scripts\/|\.test\.mjs$/g, '')).join(', ')} ${s.pass}/${s.pass + s.fail} pass, ${s.fail} fail, ${s.skipped} skipped`
   }
   ok(git('diff', '--check', 'origin/main...HEAD'), 'git diff --check')
-  writeFileSync(join(cwd, '.agent/contract.json'), JSON.stringify(contract, null, 2) + '\n')
-  writeFileSync(join(cwd, '.agent/completion.json'), JSON.stringify(rebindCompletion(report, { head, testSummary }), null, 2) + '\n')
-  ok(run('node', ['scripts/agent-work-contract.mjs', '--validate-completion', '--report-file', '.agent/completion.json', '--contract-file', '.agent/contract.json', '--expected-pr', String(options.pr), '--expected-head-sha', head], { cwd }), 'validating the rebound completion report')
-  ok(git('add', ...EVIDENCE), 'git add')
+  const [contractPath, completionPath] = EVIDENCE
+  const base = ok(git('merge-base', 'origin/main', 'HEAD'), 'resolving the refreshed merge base')
+  mkdirSync(dirname(join(cwd, contractPath)), { recursive: true })
+  writeFileSync(join(cwd, contractPath), JSON.stringify(contract, null, 2) + '\n')
+  writeFileSync(join(cwd, completionPath), JSON.stringify(rebindCompletion(report, { head, base, testSummary }), null, 2) + '\n')
+  ok(run('node', ['scripts/agent-work-contract.mjs', '--validate-completion', '--report-file', completionPath, '--contract-file', contractPath, '--expected-pr', String(options.pr), '--expected-head-sha', head], { cwd }), 'validating the rebound completion report')
+  ok(git('add', '--', ...EVIDENCE), 'git add')
   ok(git('commit', '-q', '-m', `chore(evidence): bind #${options.issue} contract pair to implementation head`), 'committing evidence')
   const tip = ok(git('rev-parse', 'HEAD'), 'git rev-parse')
   log(`Refreshed: implementation head ${head}, evidence head ${tip}. ${testSummary}.`)

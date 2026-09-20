@@ -91,7 +91,11 @@ export function isDocumentationPath(path) {
 // `.agent/` pair. The rule stays narrow and fail-closed: migrations, workflows,
 // config, SQL, and every non-test script still refuse. It applies only where a
 // caller passes `--production`; merge and preview lanes are unchanged.
-const PRODUCTION_INERT_EVIDENCE = /^\.agent\/[^/]+\.json$/
+// #2708 moved the pair to `.agent/work/<work_issue>/<generation>/`, so the
+// production-inert rule follows it down the tree. Both shapes stay inert for the
+// same unchanged reason -- no production step reads `.agent/` at all -- which
+// does not depend on how deep the path is.
+const PRODUCTION_INERT_EVIDENCE = /^\.agent\/(?:work\/[1-9]\d*\/[1-9]\d*\/)?[^/]+\.json$/
 const PRODUCTION_INERT_TEST_FILE = /^scripts\/(?:[^/]+\/)*(?:test_[^/]+\.py|[^/]+\.test\.mjs)$/
 
 export function isProductionInertPath(path) {
