@@ -3360,6 +3360,21 @@ export type Database = {
           },
         ]
       }
+      style_guide_search_sync_queue: {
+        Row: {
+          queued_at: string
+          style_guide_file_id: string
+        }
+        Insert: {
+          queued_at?: string
+          style_guide_file_id: string
+        }
+        Update: {
+          queued_at?: string
+          style_guide_file_id?: string
+        }
+        Relationships: []
+      }
       style_guide_tag_aliases: {
         Row: {
           alias: string
@@ -3852,6 +3867,24 @@ export type Database = {
         Row: {
           licensor_name: string | null
           property_folder: string | null
+        }
+        Relationships: []
+      }
+      style_guide_library_default_guides: {
+        Row: {
+          entity_key: string | null
+          group_id: string | null
+          modified_at: string | null
+          result: Json | null
+          sort_name: string | null
+        }
+        Relationships: []
+      }
+      style_guide_library_default_summary: {
+        Row: {
+          facets: Json | null
+          result_mode: string | null
+          total: number | null
         }
         Relationships: []
       }
@@ -4738,6 +4771,10 @@ export type Database = {
           next_cursor: string
           relationships_written: number
         }[]
+      }
+      refresh_style_guide_library_default_snapshot: {
+        Args: never
+        Returns: undefined
       }
       refresh_style_guide_matviews: {
         Args: { p_run_id?: string; p_search_batch_size?: number }
