@@ -1320,7 +1320,7 @@ export default function StylesPage() {
     }, { maxRetries: 0 }) as JevRankingResponse,
     enabled: isAdmin && Boolean(selectedReviewItem) &&
       JEV_MATCH_FIELDS.has(selectedReviewItem?.fieldKey ?? "sku") &&
-      (candidateQuery.data?.length ?? 0) >= 2,
+      (candidateQuery.data?.length ?? 0) >= 1,
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -2020,7 +2020,7 @@ export default function StylesPage() {
                         </span>
                       )}
                       {candidateQuery.isFetching && <span className="text-xs text-muted-foreground">Searching...</span>}
-                      {!candidateQuery.isFetching && jevRankingQuery.isFetching && <span className="text-xs text-muted-foreground">Jev is ranking these choices...</span>}
+                      {!candidateQuery.isFetching && jevRankingQuery.isFetching && <span className="text-xs text-muted-foreground">Jev is assessing the available choice...</span>}
                       {!jevRankingQuery.isFetching && jevRankingQuery.data?.ranking.choice_index === null && <span className="text-xs text-muted-foreground">Jev found no clear match; review the original choices.</span>}
                       {jevRankingQuery.isError && <span className="text-xs text-amber-700 dark:text-amber-300">Jev ranking is unavailable; original order shown.</span>}
                       {!candidateQuery.isFetching && (candidateQuery.data ?? []).length === 0 && (
