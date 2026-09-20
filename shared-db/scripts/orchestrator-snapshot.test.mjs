@@ -4,12 +4,18 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import os from 'node:os'
 import path from 'node:path'
 import { coordinationEvent, formatEventComment } from './db-coordination-events.mjs'
+import { expectedOperatorAssociation } from './lib/repository-identity.mjs'
 import { buildOrchestratorSnapshot, verifyOrchestratorSnapshot } from './orchestrator-flow/orchestrator-snapshot.mjs'
 import { claimTitleIssues, fileEventStore, gatherLiveInput, gh, main, outcomeEventsFromComments, readyRequestCandidates, runSnapshotCycle, stalledOutcomes, stalledRequests } from './orchestrator-snapshot.mjs'
 
 const NOW = '2026-09-15T12:00:00.000Z'
 const minutesAgo = (m) => new Date(Date.parse(NOW) - m * 60000).toISOString()
-const ownerComment = (event) => ({ author_association: 'OWNER', author: 'u2giants', body: formatEventComment(event) })
+// The association a trusted operator comment carries is a property of the CURRENT
+// repository owner, not a constant: after the popcre transfer (#2530) u2giants is a
+// MEMBER, not the OWNER. Deriving it here keeps the fixture honest wherever the
+// repository lives, and leaves the login the only thing these tests reject on.
+const TRUSTED_ASSOCIATION = expectedOperatorAssociation()
+const ownerComment = (event) => ({ author_association: TRUSTED_ASSOCIATION, author: 'u2giants', body: formatEventComment(event) })
 const event = (issue, state, minutes) => coordinationEvent({ eventType: state, workIssue: issue, actor: 'test', timestamp: minutesAgo(minutes) })
 
 function fakeIo({ comments = {}, claims = [[900, 'CLAIM: #800 thing'], [901, 'CLAIM: issue-802-columns']], leases = [], locks = [] } = {}) {
