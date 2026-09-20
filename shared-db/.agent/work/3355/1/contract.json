@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3355,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Remove unnecessary default branch REST lookup while preserving mandatory skills checkout and drift validation",
+  "base_sha": "faed5557befa7d0ae3318e7406ad3774fce56aa2",
+  "dispatcher": "Parent Codex session; scoped checkout request reduction",
+  "worker": "Codex chat 01a0c027-f064-72c0-85ae-087a3f8687c8 on 916-ALIEN",
+  "branch": "codex/checkout-explicit-main-20260920",
+  "worktree": "D:\\repos\\shared-db-checkout-explicit-main",
+  "allowed_paths": [
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/3355/1/contract.json",
+    ".agent/work/3355/1/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/3355/1/contract.json",
+    ".agent/work/3355/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database, token, permissions, limiter, checkout removal or skill check weakening",
+    "Parent owns review and merge"
+  ],
+  "required_checks": [
+    "node --test scripts/check-skill-drift.test.mjs",
+    "node scripts/check-skill-drift.mjs --require-skills",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Canonical public popcre/ai-devops default branch main verified live",
+    "actions/checkout v4 skips default branch lookup when explicit ref is supplied"
+  ],
+  "stop_conditions": [
+    "Stop if any capability reduction or out-of-scope write is needed"
+  ]
+}

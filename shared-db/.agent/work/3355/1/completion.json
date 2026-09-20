@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3355,
+  "outcome": "ready-for-merge",
+  "pr": 3356,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3355/1",
+  "contract_sha256": "db3e46d2759c8503f3f1d9ccd6fe82973b45a823e8bc20ce523839145b667030",
+  "head_sha": "1a84db5f5e0ce612356c92d353119d1772f442ae",
+  "base_sha": "faed5557befa7d0ae3318e7406ad3774fce56aa2",
+  "files_changed": [
+    ".github/workflows/tools-offline-tests.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "evidence": "3 tests passed; 0 failed, cancelled, skipped, todo",
+      "command": "node --test scripts/check-skill-drift.test.mjs",
+      "exit_code": 0
+    },
+    {
+      "evidence": "Checked 3 canonical skills from D:/repos/ai-devops; no contradictions",
+      "command": "node scripts/check-skill-drift.mjs --require-skills",
+      "exit_code": 0
+    },
+    {
+      "evidence": "No whitespace errors",
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "Live repository metadata: popcre/ai-devops is public and defaultBranchRef.name is main",
+    "Official actions/checkout v4 git-source-provider.ts only invokes default branch lookup when ref and commit are absent"
+  ],
+  "stop_conditions_hit": []
+}
