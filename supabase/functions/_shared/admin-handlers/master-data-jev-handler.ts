@@ -85,7 +85,7 @@ export async function handleRankMasterDataMatchCandidates(body: Record<string, u
     }));
 
   if (!FIELD_GUIDANCE[fieldKey]) return err("This Master Data field does not support Jev ranking", 400);
-  if (!rawValue || candidates.length < 2) return err("A raw value and at least two candidates are required", 400);
+  if (!rawValue || candidates.length < 1) return err("A raw value and at least one candidate are required", 400);
   if (candidates.some((candidate) => !candidate.target_id || !candidate.target_label)) {
     return err("Every candidate needs an id and label", 400);
   }

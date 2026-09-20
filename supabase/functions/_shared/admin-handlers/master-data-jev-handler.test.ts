@@ -136,6 +136,41 @@ describe("handleRankMasterDataMatchCandidates", () => {
     expect(response.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("assesses one existing candidate against no-match", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          model: "typesafe/jev-1.13-20260917",
+          answers: {
+            match: {
+              type: "choice",
+              choice: "candidate_0",
+              probabilities: { candidate_0: 0.9, no_match: 0.1 },
+              confidence: 0.9,
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await handleRankMasterDataMatchCandidates({
+      field_key: "customer",
+      raw_value: "Disney Products",
+      candidates: [candidates[0]],
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ranking: { choice_index: 0, probabilities: [0.9], confidence: 0.9 },
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).questions.match.criteria).toEqual({
+      candidate_0: "Disney",
+      no_match: "None of the candidates is clearly the same entity as the raw value.",
+    });
+  });
 });
 
 describe("OpenRouter Decisions live contract", () => {
@@ -160,7 +195,6 @@ describe("OpenRouter Decisions live contract", () => {
               instructions: "Choose the candidate that identifies the same company, or no_match.",
               criteria: {
                 candidate_0: "ACME Inc",
-                candidate_1: "Globex",
                 no_match: "No credible match",
               },
             },
