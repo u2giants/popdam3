@@ -1,38 +1,43 @@
 {
   "schema_version": 1,
-  "work_issue": 3299,
+  "work_issue": 3291,
   "outcome": "ready-for-merge",
-  "pr": 3293,
+  "pr": 3292,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3299/1",
-  "contract_sha256": "fa281599c14ffd85d9d727342054c2b08cc04c734894e583185e9378b489ef59",
-  "head_sha": "7e178c70667cd5cd7df698eb21616957381d333d",
+  "contract_ref": "refs/db-contracts/3291/1",
+  "contract_sha256": "e01d79cc41093604e893c4c0c5bc1305477bfa6939ffea794370b9b0794b6788",
+  "head_sha": "6dc429a07fda21219c6d9592c00ac759a287e0f2",
   "files_changed": [
-    ".github/live-proofs/2611.sql"
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "python -m unittest scripts.test_shared_db_live_proof",
       "exit_code": 0,
-      "evidence": "6 passed 0 skipped after main integration at7e178c70"
+      "evidence": "Verified on 916-ALIEN 2026-09-20 after merging main b1d4be2ef30862db0f5df4fddd83479815adfa99: syntax and 756 manager/governed-review/verdict/refresh tests passed; zero failures, cancelled, skipped or todo.",
+      "command": "node --check scripts/manage-migration-author-lanes.mjs"
     },
     {
-      "command": "node --test scripts/check-live-proof-probe.test.mjs",
       "exit_code": 0,
-      "evidence": "10 passed 0 failed 0 skipped after main integration at7e178c70"
+      "evidence": "Verified on 916-ALIEN 2026-09-20 after merging main b1d4be2ef30862db0f5df4fddd83479815adfa99: syntax and 756 manager/governed-review/verdict/refresh tests passed; zero failures, cancelled, skipped or todo.",
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs"
     },
     {
-      "command": "git diff --check",
       "exit_code": 0,
-      "evidence": "git diff --check origin/main...HEAD passed after main integration"
+      "evidence": "Verified on 916-ALIEN 2026-09-20 after merging main b1d4be2ef30862db0f5df4fddd83479815adfa99: syntax and 756 manager/governed-review/verdict/refresh tests passed; zero failures, cancelled, skipped or todo.",
+      "command": "node --test --test-reporter=spec scripts/run-governed-review.test.mjs scripts/record-review-verdict.test.mjs scripts/repair-voided-findings.test.mjs scripts/refresh-code-pr-branch.test.mjs"
     }
   ],
   "assumptions_resolved": [
-    "Recovered existing proof implementation unchanged; prospective contract3299/1 governs evidence rebind only.",
-    "Fresh six Python tests and ten probe tests passed; original production timing remains prior-session evidence.",
-    "Grant proof3191 verified via durable successful run35479619996; new proof2611 awaits merged main."
+    "Recovered source retained by ancestry from c63fe706d7b447e75208658de7c3729afcf08496. Backup branch codex/recover-edge-3292 preserves original recovery copy.",
+    "Contract refs/db-contracts/3291/1 was published before this prospective reconstruction merge and repairs. It does not claim to predate the original EDGE-DEV source.",
+    "Fresh slot2 and same-head redraw after exclusion were reproduced selecting glm outside the grok,muse permission set before repair. Both now inherit the stored set.",
+    "Returned policy lookup runs only when immutable exclusion history exists, including lifted exclusions. Normal19-request path and hard25-request ceiling unchanged; exclusion-bearing fixture adds one justified history read,23 total.",
+    "No database reads or writes. Independent exact-head review and guarded merge remain required; this report is local completion evidence, not merge authorization.",
+    "Audit now verifies slot-one record identity on batched and fallback paths; original and all surviving replacement policies must agree; returned legacy slotless replacements use checked return provenance.27 regressions added,26 failed the pre-fix source as expected. The legacy positive compatibility fixture proves both old and explicit slot formats reach the same downstream release-evidence guard, not that an otherwise incomplete fixture can finish a redraw."
   ],
   "stop_conditions_hit": []
 }

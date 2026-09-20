@@ -1,44 +1,51 @@
 {
   "schema_version": 1,
   "generation": 1,
-  "work_issue": 3299,
+  "work_issue": 3291,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Repair the #2611 production live-proof query plan so its seven recorded prepack heads are filtered before expensive function evaluation, without weakening any metadata, exclusion, or positive catch-control assertion.",
+  "goal": "Prospectively reconstruct and complete the published EDGE-DEV reviewer allowlist change: preserve durable permissions across initial allocation, retry, later slots, returned assignments and replacements, while preserving preflight, independence, exact-head and unlimited-concurrency rules.",
   "base_sha": "7c5c4680e2f844d1311163766b7194bc3ee42975",
-  "dispatcher": "Parent orchestrator authorized prospective recovery of PR3293; preserve prior implementation history",
-  "worker": "Codex chat 01a0bf3e-3a02-7242-bd2c-07007f1994e9 on 916-ALIEN",
-  "branch": "codex/recover-prepack-proof-20260920",
-  "worktree": "D:/repos/worktrees/shared-db-prepack-proof-20260920",
+  "dispatcher": "Albert authorized recovery in Codex chat 01a0bf01-4e8c-7b02-bcc7-2f6e7cd69543 on 2026-09-20",
+  "worker": "Codex chat 01a0bf01-4e8c-7b02-bcc7-2f6e7cd69543 on 916-ALIEN",
+  "branch": "codex/reconstruct-reviewer-allowlist-3291",
+  "worktree": "C:\\Users\\ahazan2\\.codex\\worktrees\\recover-edge-reviewer-allowlist\\shared-db",
   "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
     ".agent/contract.json",
-    ".agent/completion.json",
-    ".github/live-proofs/2611.sql"
+    ".agent/completion.json"
   ],
   "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
     ".agent/contract.json",
-    ".agent/completion.json",
-    ".github/live-proofs/2611.sql"
+    ".agent/completion.json"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "No database write, migration, function, view, role, grant, index, or timeout change.",
-    "Do not remove or weaken any original #2611 proof assertion, identifier, or catch control.",
-    "Do not merge PR #3293; the parent owns merge and outcome closure."
+    "No database writes or migrations",
+    "No fabricated pre-work evidence for the original EDGE-DEV implementation",
+    "No bypass of collision, reviewer, exact-head, request-budget or guarded-merge checks",
+    "No provider disablement or invented provider failures"
   ],
   "required_checks": [
-    "python -m unittest scripts.test_shared_db_live_proof",
-    "node --test scripts/check-live-proof-probe.test.mjs",
-    "git diff --check"
+    "node --check scripts/manage-migration-author-lanes.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
   ],
   "assumptions": [
-    "Existing proof SQL was authored before this recovery contract under issue2611 generation11. This prospective contract governs evidence rebinding and validation, not retroactive authorship.",
-    "Production grant proof3191 verified in successful run35479619996; no grant repeat authorized.",
-    "Original ordinary Muse approval applies old head592c26b and requires new governed exact-head review after evidence update."
+    "Original source PR3292 head c63fe706d7b447e75208658de7c3729afcf08496 predates this contract and had no published contract. This record is prospective authority for reconstruction and repair, not retrospective authority for that implementation.",
+    "Original source and repaired atomic-return behavior may be reused transparently after this publication.",
+    "Two executed in-memory tests proved widening on fresh slot2 and same-head redraw following exclusion; both require regression coverage.",
+    "EDGE-DEV is permanently inaccessible by owner statement. Only published evidence can be recovered.",
+    "Conflicting PR3258 must finish independently before this PR may merge."
   ],
   "stop_conditions": [
-    "Stop if the repair requires any database object or timeout change.",
-    "Stop if any of the seven identifiers or either data catch control cannot be preserved."
+    "Stop on unverifiable durable policy or conflicting permission sets",
+    "Stop before merge unless independent exact-head review and all required guards pass",
+    "Stop if scope requires files outside the published allowed paths"
   ]
 }
