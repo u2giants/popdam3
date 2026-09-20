@@ -10,6 +10,26 @@ Production rows below were verified against `qsllyeztdwjgirsysgai` on **2026-07-
 and Vendor counts refreshed against a live read on **2026-07-31** (see the note under the
 scoreboard table — the 929/529 canonical counts below were stale and have been corrected).
 
+> ### ⚠️ Counts on this page are STALE as of 2026-09-20 — re-verify before quoting (#2450)
+>
+> Issue #2450 ("CORRECTED: Master Data rationalization status register") recorded a read-only
+> production register on 2026-09-06 in which several figures on this page had already moved:
+> `plm.erp_property` 0 → 10, taxonomy source refs 0 → 10, and `core.customer` 862 → 826.
+> Treat **every** row count below as a historical reading with the date attached to it, not as
+> current state. Re-measure read-only against production before relying on any of them.
+>
+> Two further corrections the register established, which the older text on this page and in
+> [`plan_licensing_master_data_implementation.md`](../plan_licensing_master_data_implementation.md)
+> contradict:
+>
+> - **`core.franchise` exists** (0 rows). Older wording saying it is absent predates its creation.
+> - **`plm.item` is not empty.** It holds the ColdLion-fed item master. The application-facing
+>   item list was repointed at it under #2466; do not repeat the claim that `plm.item` is unused.
+>
+> **The standing trap this page already warns about still applies:** a landing table and its
+> canonical twin existing side by side is the tell for a *completed* cutover, not a defect.
+> #2450 was originally filed on exactly that misreading and withdrawn by its author.
+
 > ### ✅ Re-verified read-only against production `qsllyeztdwjgirsysgai` — 2026-08-11 (#533)
 >
 > **Why this note exists.** [PR #337](https://github.com/u2giants/shared-db/pull/337) merged
