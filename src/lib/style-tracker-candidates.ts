@@ -6,6 +6,14 @@ export type StyleTrackerLinkCandidate = {
   target_id: string;
   target_label: string;
   score: number;
+  jev_probability?: number;
+  jev_recommended?: boolean;
+};
+
+export type StyleTrackerJevRanking = {
+  choice_index: number | null;
+  probabilities: number[];
+  confidence: number;
 };
 
 const MIN_REVIEW_CANDIDATE_SCORE = 0.65;
@@ -86,4 +94,17 @@ export function filterStyleTrackerCandidates(
     }))
     .filter((candidate) => candidate.score >= minScore)
     .sort((a, b) => b.score - a.score || a.target_label.localeCompare(b.target_label));
+}
+
+export function applyStyleTrackerJevRanking(
+  candidates: StyleTrackerLinkCandidate[],
+  ranking: StyleTrackerJevRanking | null | undefined,
+) {
+  if (!ranking || ranking.probabilities.length !== candidates.length) return candidates;
+  const annotated = candidates.map((candidate, index) => ({
+    ...candidate,
+    jev_probability: ranking.probabilities[index],
+    jev_recommended: ranking.choice_index === index,
+  }));
+  return annotated;
 }

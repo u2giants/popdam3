@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { filterStyleTrackerCandidates, scoreStyleTrackerCandidate } from "@/lib/style-tracker-candidates";
+import {
+  applyStyleTrackerJevRanking,
+  filterStyleTrackerCandidates,
+  scoreStyleTrackerCandidate,
+} from "@/lib/style-tracker-candidates";
 
 const candidate = (label: string, score = 0, table = "licensor") => ({
   target_schema: "core",
@@ -62,5 +66,42 @@ describe("style tracker candidate filtering", () => {
   ])("keeps plausible customer matches for %s", (rawValue, labels, expected) => {
     const results = filterStyleTrackerCandidates(rawValue, labels.map((label) => candidate(label, 0, "customer")));
     expect(results.map((item) => item.target_label)).toEqual(expected);
+  });
+});
+
+describe("Jev candidate ranking", () => {
+  it("marks the advisory choice without moving approval buttons", () => {
+    const candidates = [candidate("Disney", 0.9), candidate("Disney Consumer Products", 0.8)];
+    const ranked = applyStyleTrackerJevRanking(candidates, {
+      choice_index: 1,
+      probabilities: [0.2, 0.75],
+      confidence: 0.7,
+    });
+
+    expect(ranked.map((item) => item.target_label)).toEqual(["Disney", "Disney Consumer Products"]);
+    expect(ranked[1]).toMatchObject({ jev_recommended: true, jev_probability: 0.75 });
+    expect(ranked[0].jev_recommended).toBe(false);
+    expect(ranked).toHaveLength(candidates.length);
+  });
+
+  it("keeps the deterministic order when Jev says no match", () => {
+    const candidates = [candidate("NBC", 0.9), candidate("NBC Universal", 0.8)];
+    const ranked = applyStyleTrackerJevRanking(candidates, {
+      choice_index: null,
+      probabilities: [0.2, 0.1],
+      confidence: 0.8,
+    });
+
+    expect(ranked.map((item) => item.target_label)).toEqual(["NBC", "NBC Universal"]);
+    expect(ranked.every((item) => item.jev_recommended === false)).toBe(true);
+  });
+
+  it("ignores a malformed response instead of changing the candidate list", () => {
+    const candidates = [candidate("A"), candidate("B")];
+    expect(applyStyleTrackerJevRanking(candidates, {
+      choice_index: 0,
+      probabilities: [1],
+      confidence: 1,
+    })).toBe(candidates);
   });
 });
