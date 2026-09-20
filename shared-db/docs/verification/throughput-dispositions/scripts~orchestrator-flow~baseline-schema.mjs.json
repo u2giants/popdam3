@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/orchestrator-flow/baseline-schema.mjs",
+  "sites": [
+    {
+      "site": "scripts/orchestrator-flow/baseline-schema.mjs:8",
+      "semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02:1",
+      "line_sha256": "53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/baseline-schema.mjs:28",
+      "semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc:1",
+      "line_sha256": "ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    }
+  ]
+}

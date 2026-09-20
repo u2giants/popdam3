@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml",
+  "sites": [
+    {
+      "site": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:174",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:023090bbf64bdd58f16cf71a04a671241ab8dbcb4173cda19f59da180e68eda7:1",
+      "line_sha256": "023090bbf64bdd58f16cf71a04a671241ab8dbcb4173cda19f59da180e68eda7",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:204",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:7fdcedcfa410a8186a55d216fb113dd25dddface71466bab2860c3e93742e93a:1",
+      "line_sha256": "7fdcedcfa410a8186a55d216fb113dd25dddface71466bab2860c3e93742e93a",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:178",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-phase6-parallel.yml:dbef81770fdad8a775d3a0d35e0ee5ad8dd004fd0fe9eed1f06fd766e7647f77:1",
+      "line_sha256": "dbef81770fdad8a775d3a0d35e0ee5ad8dd004fd0fe9eed1f06fd766e7647f77",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

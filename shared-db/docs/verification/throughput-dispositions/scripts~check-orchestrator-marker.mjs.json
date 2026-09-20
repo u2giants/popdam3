@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-orchestrator-marker.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-orchestrator-marker.mjs:70",
+      "semantic_key": "scripts/check-orchestrator-marker.mjs:91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0:1",
+      "line_sha256": "91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

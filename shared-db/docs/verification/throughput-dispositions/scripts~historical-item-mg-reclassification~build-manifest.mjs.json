@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source": "scripts/historical-item-mg-reclassification/build-manifest.mjs",
+  "sites": [
+    {
+      "site": "scripts/historical-item-mg-reclassification/build-manifest.mjs:47",
+      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:32f88a3b3183e197eaa5ac7707cbaef8d6b3f10525cf802e98d3b397f3b5c3a3:1",
+      "line_sha256": "32f88a3b3183e197eaa5ac7707cbaef8d6b3f10525cf802e98d3b397f3b5c3a3",
+      "disposition": "excluded",
+      "reason": "Guard branch of the new source-header proof; it refuses a mismatched export rather than emitting throughput."
+    },
+    {
+      "site": "scripts/historical-item-mg-reclassification/build-manifest.mjs:45",
+      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:6d403170ce1b398dac734927e8e96312a1b7fb05c19ea031f9d9b7ac9bb9a4bd:1",
+      "line_sha256": "6d403170ce1b398dac734927e8e96312a1b7fb05c19ea031f9d9b7ac9bb9a4bd",
+      "disposition": "excluded",
+      "reason": "Computes the list of missing source columns for the new header proof; it is the input to a refusal, not a throughput message of its own."
+    },
+    {
+      "site": "scripts/historical-item-mg-reclassification/build-manifest.mjs:49",
+      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:e741a15e3f6317fa60bd735d0a0b99440b8deb73b261293ea7bbd893098bd440:1",
+      "line_sha256": "e741a15e3f6317fa60bd735d0a0b99440b8deb73b261293ea7bbd893098bd440",
+      "disposition": "enriched",
+      "reason": "Refusal text naming the missing source columns; enriched by construction because it names the exact columns that failed."
+    }
+  ]
+}

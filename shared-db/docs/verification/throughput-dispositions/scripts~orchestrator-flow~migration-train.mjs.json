@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/orchestrator-flow/migration-train.mjs",
+  "sites": [
+    {
+      "site": "scripts/orchestrator-flow/migration-train.mjs:13",
+      "semantic_key": "scripts/orchestrator-flow/migration-train.mjs:541b28cdb1c7dd1613b65347ca55750369dbd25bc1e77b5b54c27b934e8b7282:1",
+      "line_sha256": "541b28cdb1c7dd1613b65347ca55750369dbd25bc1e77b5b54c27b934e8b7282",
+      "disposition": "excluded",
+      "reason": "Validates required migration manifest fields; missing refers to input metadata, not absent database objects."
+    },
+    {
+      "site": "scripts/orchestrator-flow/migration-train.mjs:43",
+      "semantic_key": "scripts/orchestrator-flow/migration-train.mjs:9a8d81ef3443aadebdc6cf2cf35ad546f6928849a281bbe19ce9e1b4c1468111:1",
+      "line_sha256": "9a8d81ef3443aadebdc6cf2cf35ad546f6928849a281bbe19ce9e1b4c1468111",
+      "disposition": "excluded",
+      "reason": "Checks declared dependency versions against supplied ledger and ordered train entries; this is manifest compatibility, not a catalog existence inference."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/throughput-guard/ledger-lib.mjs",
+  "sites": [
+    {
+      "site": "scripts/throughput-guard/ledger-lib.mjs:13",
+      "semantic_key": "scripts/throughput-guard/ledger-lib.mjs:6955ea33b304374eb35c78c2dba231778dcd139d78c0c46d6f44b416356b42ad:1",
+      "line_sha256": "6955ea33b304374eb35c78c2dba231778dcd139d78c0c46d6f44b416356b42ad",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

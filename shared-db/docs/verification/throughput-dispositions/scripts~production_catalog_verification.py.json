@@ -1,0 +1,279 @@
+{
+  "schema_version": 1,
+  "source": "scripts/production_catalog_verification.py",
+  "sites": [
+    {
+      "site": "scripts/production_catalog_verification.py:3352",
+      "semantic_key": "scripts/production_catalog_verification.py:03c896706f76fbdca2ed9993bc4bccfc796ea786ceb58ee6cabf1f46155f8e61:1",
+      "line_sha256": "03c896706f76fbdca2ed9993bc4bccfc796ea786ceb58ee6cabf1f46155f8e61",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3183",
+      "semantic_key": "scripts/production_catalog_verification.py:0affce0deacc19865075d37b82173f3f3c8928c8dd9b15bba438f61f86309652:1",
+      "line_sha256": "0affce0deacc19865075d37b82173f3f3c8928c8dd9b15bba438f61f86309652",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3253",
+      "semantic_key": "scripts/production_catalog_verification.py:165775d3699b5c3d4afdc2b0d5bb9e67323404dd2a89667b395614ddd1de1863:1",
+      "line_sha256": "165775d3699b5c3d4afdc2b0d5bb9e67323404dd2a89667b395614ddd1de1863",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:135",
+      "semantic_key": "scripts/production_catalog_verification.py:1a63f73f1be312dbf24e0f6193c2842efbbc2ad1367566fc15b55f5ac4db2dcd:1",
+      "line_sha256": "1a63f73f1be312dbf24e0f6193c2842efbbc2ad1367566fc15b55f5ac4db2dcd",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3182",
+      "semantic_key": "scripts/production_catalog_verification.py:251e29372aa89719998ef9d26a5322e11351aefe2834c5d43c92f1ded805e2ac:1",
+      "line_sha256": "251e29372aa89719998ef9d26a5322e11351aefe2834c5d43c92f1ded805e2ac",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3152",
+      "semantic_key": "scripts/production_catalog_verification.py:2773d1a7d7dcd0e9419f932321e020840ecd4af9f52e6816b7f992dd7516714d:1",
+      "line_sha256": "2773d1a7d7dcd0e9419f932321e020840ecd4af9f52e6816b7f992dd7516714d",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:219",
+      "semantic_key": "scripts/production_catalog_verification.py:2aa50f895ee18369d7f630258d69cbb62cdf081defbf7f6dc4ed203b84d12315:1",
+      "line_sha256": "2aa50f895ee18369d7f630258d69cbb62cdf081defbf7f6dc4ed203b84d12315",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3348",
+      "semantic_key": "scripts/production_catalog_verification.py:2b26af6aa7e5ad7428075b5646b69ce450d4eca387fb6fb07e7f747512074a4a:1",
+      "line_sha256": "2b26af6aa7e5ad7428075b5646b69ce450d4eca387fb6fb07e7f747512074a4a",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3756",
+      "semantic_key": "scripts/production_catalog_verification.py:331b788a16bf20ab5c9a46313b6f22a37dd9f74b93375787071bca228116a7df:1",
+      "line_sha256": "331b788a16bf20ab5c9a46313b6f22a37dd9f74b93375787071bca228116a7df",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3550",
+      "semantic_key": "scripts/production_catalog_verification.py:333e334755e707c5b15b82609147fa49117fe53b6a8a915d63caa07bbf0353bd:1",
+      "line_sha256": "333e334755e707c5b15b82609147fa49117fe53b6a8a915d63caa07bbf0353bd",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:2822",
+      "semantic_key": "scripts/production_catalog_verification.py:3384653b96436848500cb8b94cbc06baecca551e008cc212fde9cf2c91b3f40a:1",
+      "line_sha256": "3384653b96436848500cb8b94cbc06baecca551e008cc212fde9cf2c91b3f40a",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:2699",
+      "semantic_key": "scripts/production_catalog_verification.py:456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620:1",
+      "line_sha256": "456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3347",
+      "semantic_key": "scripts/production_catalog_verification.py:45ec36a52ccff8b6ade08c25a93e0e9eabd22cda793e580f875de700a5e960a3:1",
+      "line_sha256": "45ec36a52ccff8b6ade08c25a93e0e9eabd22cda793e580f875de700a5e960a3",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3521",
+      "semantic_key": "scripts/production_catalog_verification.py:460c7118f13850498cad4c513bfe74c6fe8f18010f0ed653dd13f5f3d7e32ad8:1",
+      "line_sha256": "460c7118f13850498cad4c513bfe74c6fe8f18010f0ed653dd13f5f3d7e32ad8",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3260",
+      "semantic_key": "scripts/production_catalog_verification.py:628554b3fce1a187086011cdbf451b00824d31f5b560a88934b95b4c81a891b1:1",
+      "line_sha256": "628554b3fce1a187086011cdbf451b00824d31f5b560a88934b95b4c81a891b1",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3415",
+      "semantic_key": "scripts/production_catalog_verification.py:688c6abaee7e032ba4dc8ed68d05d142b0ee9c1f4173d78fcb47edff00d8a3f2:1",
+      "line_sha256": "688c6abaee7e032ba4dc8ed68d05d142b0ee9c1f4173d78fcb47edff00d8a3f2",
+      "disposition": "excluded",
+      "reason": "Report prose telling the reader that a surviving object under a catalog_absence check fails exactly like a missing expected one. It is artifact text, not a derivation site."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3519",
+      "semantic_key": "scripts/production_catalog_verification.py:6c692515220a0f59388ac7e4df694866256f2a8fa8b0328759e368e7f97e1b50:1",
+      "line_sha256": "6c692515220a0f59388ac7e4df694866256f2a8fa8b0328759e368e7f97e1b50",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3481",
+      "semantic_key": "scripts/production_catalog_verification.py:6f51b444f73e93f144387f80677b2284b8ed83b1e31d6d9a2b94656e2df1b758:1",
+      "line_sha256": "6f51b444f73e93f144387f80677b2284b8ed83b1e31d6d9a2b94656e2df1b758",
+      "disposition": "enriched",
+      "reason": "This comment states the defect the change repairs: a behavioural query that errored was rendered as MISSING, which reads as a proven absence of the contract. It is documentation of the enrichment, not a detection site."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:1799",
+      "semantic_key": "scripts/production_catalog_verification.py:7b17708e75492fed94b2988bdb1ace9f702e9163146080d48303fca0e40c126d:1",
+      "line_sha256": "7b17708e75492fed94b2988bdb1ace9f702e9163146080d48303fca0e40c126d",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:72",
+      "semantic_key": "scripts/production_catalog_verification.py:8325a3f7cf5f41c7da778e49ea84ba8a0171b9c13f8920ed28a1e9cc626db48e:1",
+      "line_sha256": "8325a3f7cf5f41c7da778e49ea84ba8a0171b9c13f8920ed28a1e9cc626db48e",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3932",
+      "semantic_key": "scripts/production_catalog_verification.py:89f1b4e17307ead19bce82c0f01f411a51810d0a3203d33ae9710bfc5d40d0b3:1",
+      "line_sha256": "89f1b4e17307ead19bce82c0f01f411a51810d0a3203d33ae9710bfc5d40d0b3",
+      "disposition": "excluded",
+      "reason": "A comment explaining that superseded checks are excluded from the assertable set and therefore never produce ERROR/MISSING rows. It describes existing behaviour and creates no new refusal."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3841",
+      "semantic_key": "scripts/production_catalog_verification.py:8b448bcea84f5ea005ad45006696eda66a8c2048e9fea70752e796faab5da8f7:1",
+      "line_sha256": "8b448bcea84f5ea005ad45006696eda66a8c2048e9fea70752e796faab5da8f7",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3681",
+      "semantic_key": "scripts/production_catalog_verification.py:8bbb485b39d8759fa011737fbdce1dd19424532f9301a21cfa3d391ef84d2e94:1",
+      "line_sha256": "8bbb485b39d8759fa011737fbdce1dd19424532f9301a21cfa3d391ef84d2e94",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:4074",
+      "semantic_key": "scripts/production_catalog_verification.py:9529176a75aa1c6a518a1d009fe4b4a4065a87fe38489e8ed32782980662cf50:1",
+      "line_sha256": "9529176a75aa1c6a518a1d009fe4b4a4065a87fe38489e8ed32782980662cf50",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:443",
+      "semantic_key": "scripts/production_catalog_verification.py:a43bd0b08e38dd8d5fb3177319fafe696cbf1fdfbd2a4d1bfd5104284ae84406:1",
+      "line_sha256": "a43bd0b08e38dd8d5fb3177319fafe696cbf1fdfbd2a4d1bfd5104284ae84406",
+      "disposition": "excluded",
+      "reason": "A comment stating that the catalog_absence result pipeline reuses the existing actual-vs-expected/MISSING/ERROR rendering unchanged. It names the existing dispositions rather than introducing a new one."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:2951",
+      "semantic_key": "scripts/production_catalog_verification.py:abfc3737e6f888aaf8fca35a209e680fc5f574901d42b90b19b0fee004dc7273:1",
+      "line_sha256": "abfc3737e6f888aaf8fca35a209e680fc5f574901d42b90b19b0fee004dc7273",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3213",
+      "semantic_key": "scripts/production_catalog_verification.py:b5525d61a12e30af96d49030c2f843643fdd4cd51d176c39a9d64cddee170525:1",
+      "line_sha256": "b5525d61a12e30af96d49030c2f843643fdd4cd51d176c39a9d64cddee170525",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3489",
+      "semantic_key": "scripts/production_catalog_verification.py:c00f2f086cbbabff9a20231f4b5cd5a1e52e73eca0224a7437c7e87da2929b8a:1",
+      "line_sha256": "c00f2f086cbbabff9a20231f4b5cd5a1e52e73eca0224a7437c7e87da2929b8a",
+      "disposition": "enriched",
+      "reason": "Enriched: this render line now distinguishes a failed behavioural query (ERROR) from a genuinely absent row (MISSING), so the word MISSING is only emitted when the query ran and returned nothing."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:2916",
+      "semantic_key": "scripts/production_catalog_verification.py:c3f1650695742d004c940db2fb05fff03914dceba5ed15835b697078a00cff0d:1",
+      "line_sha256": "c3f1650695742d004c940db2fb05fff03914dceba5ed15835b697078a00cff0d",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:111",
+      "semantic_key": "scripts/production_catalog_verification.py:c8f3bd67b1690f72a4d8289bac6de721763d9d906360a67f0e0b087209ac0af0:1",
+      "line_sha256": "c8f3bd67b1690f72a4d8289bac6de721763d9d906360a67f0e0b087209ac0af0",
+      "disposition": "excluded",
+      "reason": "Prose in the module docstring describing what a catalog_absence check is for (issue #2043). It is documentation of the ABSENT-object assertion, not a derivation call site, and asserts nothing about a missing object itself."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3862",
+      "semantic_key": "scripts/production_catalog_verification.py:cb41aacde1a3f1cf0a76a50d228f0ea45cab4c641398601b272d1059a051911d:1",
+      "line_sha256": "cb41aacde1a3f1cf0a76a50d228f0ea45cab4c641398601b272d1059a051911d",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3384",
+      "semantic_key": "scripts/production_catalog_verification.py:d7851ffb4b4b07d1b444e88db24e91bf0ebae3df15c1cc2d63409d3114bffab3:1",
+      "line_sha256": "d7851ffb4b4b07d1b444e88db24e91bf0ebae3df15c1cc2d63409d3114bffab3",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:1539",
+      "semantic_key": "scripts/production_catalog_verification.py:d827572c3a9ffb59ecb6667436ff294813951f974e0fbb25f8a9da5d715c4dc9:1",
+      "line_sha256": "d827572c3a9ffb59ecb6667436ff294813951f974e0fbb25f8a9da5d715c4dc9",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:1538",
+      "semantic_key": "scripts/production_catalog_verification.py:ddd4154e072aa71661ba0ed4dd00d6c9a08d58b1f49353a1aa0860e6150aa699:1",
+      "line_sha256": "ddd4154e072aa71661ba0ed4dd00d6c9a08d58b1f49353a1aa0860e6150aa699",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:2950",
+      "semantic_key": "scripts/production_catalog_verification.py:deaa69a8035dc79a5b0fef5a50e1757d0446fc1c7dd7f8b8944dafabaa3c4203:1",
+      "line_sha256": "deaa69a8035dc79a5b0fef5a50e1757d0446fc1c7dd7f8b8944dafabaa3c4203",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3187",
+      "semantic_key": "scripts/production_catalog_verification.py:e2231de89ad5cc2215030db57177c6893d09bb895eb19859b5f3e45045b6208b:1",
+      "line_sha256": "e2231de89ad5cc2215030db57177c6893d09bb895eb19859b5f3e45045b6208b",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:1541",
+      "semantic_key": "scripts/production_catalog_verification.py:e3716573c76754db558c86af0cbf3a41285956cffd1d8fa0ecfaa6738841bd5a:1",
+      "line_sha256": "e3716573c76754db558c86af0cbf3a41285956cffd1d8fa0ecfaa6738841bd5a",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3683",
+      "semantic_key": "scripts/production_catalog_verification.py:e449b410c134afc9df71ee9419acd80700588a0a2670dd5828ddd792351c0443:1",
+      "line_sha256": "e449b410c134afc9df71ee9419acd80700588a0a2670dd5828ddd792351c0443",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:54",
+      "semantic_key": "scripts/production_catalog_verification.py:e748322a7132254d79ac48f1c8dcd2858097e841631b7ac5a2c37149d9700a27:1",
+      "line_sha256": "e748322a7132254d79ac48f1c8dcd2858097e841631b7ac5a2c37149d9700a27",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

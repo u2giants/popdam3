@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-migration-pr-lease.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-migration-pr-lease.mjs:59",
+      "semantic_key": "scripts/check-migration-pr-lease.mjs:73d7c325096b7eb2b1e3485fa8463e0d5394ed36d6fd15412b1f2adbb9801f6c:1",
+      "line_sha256": "73d7c325096b7eb2b1e3485fa8463e0d5394ed36d6fd15412b1f2adbb9801f6c",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/check-migration-pr-lease.mjs:69",
+      "semantic_key": "scripts/check-migration-pr-lease.mjs:f3fb62b3fc4b23ff0b6e6ab6d6692b9d6e04118df8f780c4b41503c79d7d41ac:1",
+      "line_sha256": "f3fb62b3fc4b23ff0b6e6ab6d6692b9d6e04118df8f780c4b41503c79d7d41ac",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

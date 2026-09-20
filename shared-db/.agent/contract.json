@@ -1,51 +1,52 @@
 {
   "schema_version": 1,
-  "generation": 1,
-  "work_issue": 3291,
+  "generation": 3,
+  "work_issue": 2832,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Prospectively reconstruct and complete the published EDGE-DEV reviewer allowlist change: preserve durable permissions across initial allocation, retry, later slots, returned assignments and replacements, while preserving preflight, independence, exact-head and unlimited-concurrency rules.",
-  "base_sha": "7c5c4680e2f844d1311163766b7194bc3ee42975",
-  "dispatcher": "Albert authorized recovery in Codex chat 01a0bf01-4e8c-7b02-bcc7-2f6e7cd69543 on 2026-09-20",
-  "worker": "Codex chat 01a0bf01-4e8c-7b02-bcc7-2f6e7cd69543 on 916-ALIEN",
-  "branch": "codex/reconstruct-reviewer-allowlist-3291",
-  "worktree": "C:\\Users\\ahazan2\\.codex\\worktrees\\recover-edge-reviewer-allowlist\\shared-db",
+  "goal": "Remove the global call_site_count and call_site_sha256 from the throughput truth audit by partitioning reviewed dispositions into one catalogue per source file, so two unrelated pull requests no longer serialise on a single artifact, while preserving every hand-written disposition and every refusal the guard makes today.",
+  "base_sha": "b1d4be2ef30862db0f5df4fddd83479815adfa99",
+  "dispatcher": "Owner Albert Hazan authorized resolving open non-orchestrator issues through to production",
+  "worker": "Claude chat 2e3c24d5-f6b8-44f8-b49f-3c67c1647d13 on 916-alien",
+  "branch": "claude/throughput-2832-3002-a7f1",
+  "worktree": "D:/repos/shared-db-worktrees/throughput-2832-3002-a7f1",
   "allowed_paths": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "docs/agents/section-4-anti-collision-rules.md",
     ".agent/contract.json",
-    ".agent/completion.json"
+    ".agent/completion.json",
+    "scripts/check-throughput-truth-audit.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "docs/verification/throughput-dispositions/**",
+    "docs/verification/throughput-guard-truth-audit-20260828.json"
   ],
   "file_writes": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "docs/agents/section-4-anti-collision-rules.md",
     ".agent/contract.json",
-    ".agent/completion.json"
+    ".agent/completion.json",
+    "scripts/check-throughput-truth-audit.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "docs/verification/throughput-dispositions/**",
+    "docs/verification/throughput-guard-truth-audit-20260828.json"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "No database writes or migrations",
-    "No fabricated pre-work evidence for the original EDGE-DEV implementation",
-    "No bypass of collision, reviewer, exact-head, request-budget or guarded-merge checks",
-    "No provider disablement or invented provider failures"
+    "No database write, migration, function, view, role, grant, index, or timeout change.",
+    "Do not add a bulk regenerate or --update flag; every call site keeps its hand-written disposition and substantive reason.",
+    "Do not weaken, skip or make optional any existing refusal: unknown, stale, retired, duplicate, short-reason and uncatalogued sites must all still fail.",
+    "Do not edit another session's worktree or force any other lane to recompute."
   ],
   "required_checks": [
-    "node --check scripts/manage-migration-author-lanes.mjs",
-    "node --test scripts/manage-migration-author-lanes.test.mjs"
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/*.test.mjs",
+    "git diff --check"
   ],
   "assumptions": [
-    "Original source PR3292 head c63fe706d7b447e75208658de7c3729afcf08496 predates this contract and had no published contract. This record is prospective authority for reconstruction and repair, not retrospective authority for that implementation.",
-    "Original source and repaired atomic-return behavior may be reused transparently after this publication.",
-    "Two executed in-memory tests proved widening on fresh slot2 and same-head redraw following exclusion; both require regression coverage.",
-    "EDGE-DEV is permanently inaccessible by owner statement. Only published evidence can be recovered.",
-    "Conflicting PR3258 must finish independently before this PR may merge."
+    "Issue 2832 is also Step 2 of the concurrently open planning PR 3318 under tracker 3306; this implementation follows that published design rather than a competing shape, and no implementation work had started there.",
+    "The pre-partition aggregate is retained as historical evidence only and is never read by the checker.",
+    "Generation 2 supersedes generation 1 only to express the disposition directory as a scoped glob; the goal, prohibitions and required checks are unchanged.",
+    "The evidence pair is rebound in a single commit on top of implementation head 9ce37888, which already carries the merge of main c477c8e8."
   ],
   "stop_conditions": [
-    "Stop on unverifiable durable policy or conflicting permission sets",
-    "Stop before merge unless independent exact-head review and all required guards pass",
-    "Stop if scope requires files outside the published allowed paths"
+    "Stop if the partition cannot preserve every existing disposition byte for byte.",
+    "Stop if hitting the throughput goal would require dropping any safeguard."
   ]
 }

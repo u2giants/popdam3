@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/benchmark_popsg_search_v2_production.py",
+  "sites": [
+    {
+      "site": "scripts/benchmark_popsg_search_v2_production.py:14",
+      "semantic_key": "scripts/benchmark_popsg_search_v2_production.py:692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc:1",
+      "line_sha256": "692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc",
+      "disposition": "excluded",
+      "reason": "Synthetic disposable benchmark fixture uses the missing preview-state enum as an input; it makes no claim that a live schema object or source capture is absent."
+    }
+  ]
+}

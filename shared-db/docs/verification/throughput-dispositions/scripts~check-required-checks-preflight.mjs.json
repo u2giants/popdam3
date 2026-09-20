@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-required-checks-preflight.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:197",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978:1",
+      "line_sha256": "0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978",
+      "disposition": "excluded",
+      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:282",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:24c3c0ab70095b05c8c27076eedee14fc9f7ef9edaf6a02f199e1ecf00b43773:1",
+      "line_sha256": "24c3c0ab70095b05c8c27076eedee14fc9f7ef9edaf6a02f199e1ecf00b43773",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2282: this comment explains why the required-checks pre-flight refuses when GitHub does not report how many status checks or check runs exist on a reviewed head. It is about the completeness of a GitHub API read, not about a migration, an applied object, or dynamic DDL, so it carries no throughput truth claim to enrich."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:187",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:29652be90fbcc2eec5eb9f25bf44c1c18331319f9ee021f4cd9b6c274f323233:1",
+      "line_sha256": "29652be90fbcc2eec5eb9f25bf44c1c18331319f9ee021f4cd9b6c274f323233",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:209",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd:1",
+      "line_sha256": "2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd",
+      "disposition": "excluded",
+      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:200",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:2e3c133d668757bf510f45c8234cf7b2b196353f3460adadfc5ab9f5fcce392b:1",
+      "line_sha256": "2e3c133d668757bf510f45c8234cf7b2b196353f3460adadfc5ab9f5fcce392b",
+      "disposition": "excluded",
+      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:205",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6:1",
+      "line_sha256": "4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6",
+      "disposition": "excluded",
+      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:6",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:61ec8f44dc141ae3970cb5343d71aadba699b9800a50a5617a0634e433b097e5:1",
+      "line_sha256": "61ec8f44dc141ae3970cb5343d71aadba699b9800a50a5617a0634e433b097e5",
+      "disposition": "excluded",
+      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:181",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:a5c77fa0f468d5583e09bca38394e0787568ff230ed257b9c4061f315e10b1ec:1",
+      "line_sha256": "a5c77fa0f468d5583e09bca38394e0787568ff230ed257b9c4061f315e10b1ec",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:153",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:ae42c3fa7107cafbec1a45ca6c9819483e07b222a0ea0a66d569287d76088751:1",
+      "line_sha256": "ae42c3fa7107cafbec1a45ca6c9819483e07b222a0ea0a66d569287d76088751",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2274: this line refuses a stale required-status-check mirror. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:69",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:b65134d98e50a3e578da4927db4b15921f1db0e3db0bf57e073e1effbd43fa40:1",
+      "line_sha256": "b65134d98e50a3e578da4927db4b15921f1db0e3db0bf57e073e1effbd43fa40",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:185",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:baafb62dbb21385ffc4ae5d682fbd346ad32e3b1203332e5942b8d7faafcda90:1",
+      "line_sha256": "baafb62dbb21385ffc4ae5d682fbd346ad32e3b1203332e5942b8d7faafcda90",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:115",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:c5d54e7fa56d7d31627f29752aefcede778aadb2df4ea5b570a886c7001e4b2f:1",
+      "line_sha256": "c5d54e7fa56d7d31627f29752aefcede778aadb2df4ea5b570a886c7001e4b2f",
+      "disposition": "excluded",
+      "reason": "This is the refusal raised when the trusted origin/main copy of the pre-flight source cannot be read, so the pinned floor is unknown. It reports the pre-flight's own missing input and has nothing to do with a database object that was never created, which is what the throughput truth audit enriches."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:76",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:c741c6200efcc2bf28b7c20e44ae8a68be4eef0e80ea9262d44cf9193ddaf065:1",
+      "line_sha256": "c741c6200efcc2bf28b7c20e44ae8a68be4eef0e80ea9262d44cf9193ddaf065",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:179",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:f2678a5e3f2f88032a4500f6592894f87ac27e141ec33e7db2c4b866b070a392:1",
+      "line_sha256": "f2678a5e3f2f88032a4500f6592894f87ac27e141ec33e7db2c4b866b070a392",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2274: this line is about a required STATUS CHECK that has not reported on a head, or about the committed required-checks mirror being absent. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
+    },
+    {
+      "site": "scripts/check-required-checks-preflight.mjs:144",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:ff3afcf6c7d2681f3a02c901ae3b0ead1e5a9901bd9b38c3180bf0805805f591:1",
+      "line_sha256": "ff3afcf6c7d2681f3a02c901ae3b0ead1e5a9901bd9b38c3180bf0805805f591",
+      "disposition": "excluded",
+      "reason": "Reviewed for issue 2274: this line refuses an unreadable required-status-check mirror. It makes no claim about a migration, an applied object or dynamic DDL, so it carries no throughput truth claim to enrich."
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-skill-drift.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-skill-drift.mjs:176",
+      "semantic_key": "scripts/check-skill-drift.mjs:ac8f5b57123f148e64245ef362d33feb6bdabf3e824b83c4715e9f90689375da:1",
+      "line_sha256": "ac8f5b57123f148e64245ef362d33feb6bdabf3e824b83c4715e9f90689375da",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/check-skill-drift.mjs:192",
+      "semantic_key": "scripts/check-skill-drift.mjs:f121eb3ac56ec6c232e199395d606f7f588b1af0d7a6f2a2f16c574de9499759:1",
+      "line_sha256": "f121eb3ac56ec6c232e199395d606f7f588b1af0d7a6f2a2f16c574de9499759",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

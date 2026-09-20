@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/test-fixtures/github-wire-fake.mjs",
+  "sites": [
+    {
+      "site": "scripts/test-fixtures/github-wire-fake.mjs:80",
+      "semantic_key": "scripts/test-fixtures/github-wire-fake.mjs:ec548c3c520dc3669076737706221eeba420a67191ae21779cbaed543a1dc4e4:1",
+      "line_sha256": "ec548c3c520dc3669076737706221eeba420a67191ae21779cbaed543a1dc4e4",
+      "disposition": "excluded",
+      "reason": "Test fixture that emits the literal \"<sha> missing\" line of the git cat-file --batch protocol for unknown commits; no migration or database-object state is described."
+    }
+  ]
+}

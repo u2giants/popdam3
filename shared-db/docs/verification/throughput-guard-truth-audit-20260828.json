@@ -1,5 +1,8 @@
 {
   "schema_version": 3,
+  "status": "historical",
+  "superseded_by": "docs/verification/throughput-dispositions/",
+  "superseded_note": "Retained as historical evidence of the reviewed dispositions as of the partition cutover (issue #2832). It is no longer read by scripts/check-throughput-truth-audit.mjs and is not a second source of truth; the active reviewed catalogues are one JSON file per source file. call_site_count and call_site_sha256 were removed because a repo-wide count and digest forced every unrelated pull request to edit one file.",
   "discovery_roots": [
     "scripts",
     ".github/workflows"
@@ -2185,7 +2188,5 @@
       "reason": "Workflow-local guard (#3271): when the watcher pass wrote no pass.json, the step writes an error object so the summary and relay still report a failed pass. It is a statement about a CI scratch file, not about any database object, so no truth enrichment applies."
     }
   ],
-  "call_site_count": 310,
-  "call_site_sha256": "df45b8e61f6a8709ba04c8ab827f46b525c3804d62c01c159d3dccd023886aa5",
   "disposition": "Every discovered site has an explicit reviewed disposition bound to its source-line content; line movement alone does not require regeneration, while a content change requires review."
 }

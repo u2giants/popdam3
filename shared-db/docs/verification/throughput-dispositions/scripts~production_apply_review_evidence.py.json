@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/production_apply_review_evidence.py",
+  "sites": [
+    {
+      "site": "scripts/production_apply_review_evidence.py:193",
+      "semantic_key": "scripts/production_apply_review_evidence.py:c94f5c0e416d51e275ded86dee311874353bbc6d9a66f5cab507082e02618b62:1",
+      "line_sha256": "c94f5c0e416d51e275ded86dee311874353bbc6d9a66f5cab507082e02618b62",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_apply_review_evidence.py:195",
+      "semantic_key": "scripts/production_apply_review_evidence.py:dc18fdc66092ec95c9458b6b3a30237ceb9c604aa4d8b5572e7c154b5efec9fc:1",
+      "line_sha256": "dc18fdc66092ec95c9458b6b3a30237ceb9c604aa4d8b5572e7c154b5efec9fc",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

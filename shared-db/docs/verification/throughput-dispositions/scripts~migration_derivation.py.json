@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "source": "scripts/migration_derivation.py",
+  "sites": [
+    {
+      "site": "scripts/migration_derivation.py:232",
+      "semantic_key": "scripts/migration_derivation.py:13e755d6a1129cd3add09846c60ce788d0ff8d72386e995c222739c0c177d35f:1",
+      "line_sha256": "13e755d6a1129cd3add09846c60ce788d0ff8d72386e995c222739c0c177d35f",
+      "disposition": "excluded",
+      "reason": "Fail-closed immutable metadata validation; the word missing describes a changed migration file, not database or migration-ledger state."
+    },
+    {
+      "site": "scripts/migration_derivation.py:297",
+      "semantic_key": "scripts/migration_derivation.py:26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1:1",
+      "line_sha256": "26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/migration_derivation.py:163",
+      "semantic_key": "scripts/migration_derivation.py:38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5:1",
+      "line_sha256": "38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/migration_derivation.py:301",
+      "semantic_key": "scripts/migration_derivation.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
+      "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/migration_derivation.py:399",
+      "semantic_key": "scripts/migration_derivation.py:718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4:1",
+      "line_sha256": "718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/migration_derivation.py:305",
+      "semantic_key": "scripts/migration_derivation.py:b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68:1",
+      "line_sha256": "b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/migration_derivation.py:121",
+      "semantic_key": "scripts/migration_derivation.py:b78696969399f6eafee5c119a8969ec38eccc971411af3ef7b8050158c0f6458:1",
+      "line_sha256": "b78696969399f6eafee5c119a8969ec38eccc971411af3ef7b8050158c0f6458",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/migration_derivation.py:292",
+      "semantic_key": "scripts/migration_derivation.py:e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b:1",
+      "line_sha256": "e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/migration_derivation.py:403",
+      "semantic_key": "scripts/migration_derivation.py:e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5:1",
+      "line_sha256": "e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/scan_apply_time_ddl.py",
+  "sites": [
+    {
+      "site": "scripts/scan_apply_time_ddl.py:107",
+      "semantic_key": "scripts/scan_apply_time_ddl.py:e21af329f52876332f4c8e4d45f269e64cd222871049fbd9e5f5270509eec255:1",
+      "line_sha256": "e21af329f52876332f4c8e4d45f269e64cd222871049fbd9e5f5270509eec255",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

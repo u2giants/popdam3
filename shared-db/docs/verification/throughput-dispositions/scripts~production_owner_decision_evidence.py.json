@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source": "scripts/production_owner_decision_evidence.py",
+  "sites": [
+    {
+      "site": "scripts/production_owner_decision_evidence.py:60",
+      "semantic_key": "scripts/production_owner_decision_evidence.py:370be1ed748d7e6f99edb34f15d9635863b334cdc0d6470f474e0f56aa40e6f1:1",
+      "line_sha256": "370be1ed748d7e6f99edb34f15d9635863b334cdc0d6470f474e0f56aa40e6f1",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_owner_decision_evidence.py:18",
+      "semantic_key": "scripts/production_owner_decision_evidence.py:cd09a918aadf805a95865bd87fd2d56566459696788dc0823fe32e8cfed4e0ba:1",
+      "line_sha256": "cd09a918aadf805a95865bd87fd2d56566459696788dc0823fe32e8cfed4e0ba",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/production_owner_decision_evidence.py:82",
+      "semantic_key": "scripts/production_owner_decision_evidence.py:f010232fb7b0901307eb75632d90e05e6047a63a5567211a50c796562175da05:1",
+      "line_sha256": "f010232fb7b0901307eb75632d90e05e6047a63a5567211a50c796562175da05",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

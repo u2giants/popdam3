@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/experiment_611_db_push_atomicity.sh",
+  "sites": [
+    {
+      "site": "scripts/experiment_611_db_push_atomicity.sh:140",
+      "semantic_key": "scripts/experiment_611_db_push_atomicity.sh:03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d:1",
+      "line_sha256": "03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d",
+      "disposition": "excluded",
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

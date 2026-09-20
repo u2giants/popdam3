@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "source": ".github/workflows/shared-supabase-migrations.yml",
+  "sites": [
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:272",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca:1",
+      "line_sha256": "12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:382",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9:1",
+      "line_sha256": "5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:1504",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:5fd92e821d3c2ec01d3a92482d4bca5354e6cd62f4dd1acd2f488a1c127ab9a4:1",
+      "line_sha256": "5fd92e821d3c2ec01d3a92482d4bca5354e6cd62f4dd1acd2f488a1c127ab9a4",
+      "disposition": "excluded",
+      "reason": "Issue 2789 early refusal: with the automatic risk policy active, a production apply review dispatched without a numeric source_pr is refused by name before any credential is used. It adds a refusal and changes no existing check."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:1667",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14:1",
+      "line_sha256": "6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14",
+      "disposition": "excluded",
+      "reason": "Issue 2796 refusal naming: the production gate previously used bare test -n calls that died with only \"exit code 1\", which is indistinguishable from a rehearsal that silently dry-ran. This comment introduces a named refusal for an absent preview input and changes no existing check."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:1878",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14:2",
+      "line_sha256": "6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14",
+      "disposition": "excluded",
+      "reason": "Issue 2796 refusal naming: the production gate previously used bare test -n calls that died with only \"exit code 1\", which is indistinguishable from a rehearsal that silently dry-ran. This comment introduces a named refusal for an absent preview input and changes no existing check."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:2066",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45:1",
+      "line_sha256": "a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:875",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c:1",
+      "line_sha256": "ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:874",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1:1",
+      "line_sha256": "c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:260",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2:1",
+      "line_sha256": "d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:873",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637:1",
+      "line_sha256": "e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:558",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7:1",
+      "line_sha256": "e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

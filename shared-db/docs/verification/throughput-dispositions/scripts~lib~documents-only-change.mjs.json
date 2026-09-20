@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/documents-only-change.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/documents-only-change.mjs:102",
+      "semantic_key": "scripts/lib/documents-only-change.mjs:59b3cbf2519d9937a18c077956f4328dd978a7a28681bc93c44e6a4845d7ea69:1",
+      "line_sha256": "59b3cbf2519d9937a18c077956f4328dd978a7a28681bc93c44e6a4845d7ea69",
+      "disposition": "enriched",
+      "reason": "The comment documents a fail-closed classifier rule: a missing or truncated patch is rejected, not treated as evidence that an instruction change is safe."
+    }
+  ]
+}

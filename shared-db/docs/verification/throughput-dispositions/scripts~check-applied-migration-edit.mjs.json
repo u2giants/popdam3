@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-applied-migration-edit.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-applied-migration-edit.mjs:48",
+      "semantic_key": "scripts/check-applied-migration-edit.mjs:e6719ff8d6382390495d51b24dc424affb58a8db4f2e8d505cafc4bef6debb09:1",
+      "line_sha256": "e6719ff8d6382390495d51b24dc424affb58a8db4f2e8d505cafc4bef6debb09",
+      "disposition": "excluded",
+      "reason": "This comment documents the preview-only exception's fail-closed refusal on absent or unreadable ledger evidence and makes no throughput or derivation claim."
+    },
+    {
+      "site": "scripts/check-applied-migration-edit.mjs:35",
+      "semantic_key": "scripts/check-applied-migration-edit.mjs:eea90ebb6704b333bda8c31dab907dc4d9d086fa20cd901465707c1aea303fb3:1",
+      "line_sha256": "eea90ebb6704b333bda8c31dab907dc4d9d086fa20cd901465707c1aea303fb3",
+      "disposition": "excluded",
+      "reason": "This line documents the guard's fail-closed result and does not make a throughput or derivation claim."
+    }
+  ]
+}

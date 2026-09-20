@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-intake-pointer.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-intake-pointer.mjs:27",
+      "semantic_key": "scripts/check-intake-pointer.mjs:e0430a2af2d2a805642a31eeeb01a5fd220012465aee90f7e1bf0596431bbae4:1",
+      "line_sha256": "e0430a2af2d2a805642a31eeeb01a5fd220012465aee90f7e1bf0596431bbae4",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/check-intake-pointer.mjs:82",
+      "semantic_key": "scripts/check-intake-pointer.mjs:eeb8dded1d42c210577e0f9d9bf7948a7691878c83cf7213f3c370007a4ddca8:1",
+      "line_sha256": "eeb8dded1d42c210577e0f9d9bf7948a7691878c83cf7213f3c370007a4ddca8",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

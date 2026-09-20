@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-migration-verify-cost.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-migration-verify-cost.mjs:76",
+      "semantic_key": "scripts/check-migration-verify-cost.mjs:316698f328ab07fad23616809dd9f7b261b728c219764da79dea6debb3c97f42:1",
+      "line_sha256": "316698f328ab07fad23616809dd9f7b261b728c219764da79dea6debb3c97f42",
+      "disposition": "excluded",
+      "reason": "Illustrative prose inside a source comment explaining what the verify-cost scanner masks; it emits no diagnostic and reports nothing about an object being absent, so there is no throughput claim to enrich."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/catalog-truth.mjs",
+  "sites": [
+    {
+      "site": "scripts/catalog-truth.mjs:14",
+      "semantic_key": "scripts/catalog-truth.mjs:dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa:1",
+      "line_sha256": "dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa",
+      "disposition": "enriched",
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+    }
+  ]
+}

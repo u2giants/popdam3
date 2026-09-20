@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source": "scripts/historical_preview_recovery.py",
+  "sites": [
+    {
+      "site": "scripts/historical_preview_recovery.py:122",
+      "semantic_key": "scripts/historical_preview_recovery.py:059ddfaa9bc2681385b08bedcb8d7c3bfe65d383d595dd4bf8dfea21a4b52a85:1",
+      "line_sha256": "059ddfaa9bc2681385b08bedcb8d7c3bfe65d383d595dd4bf8dfea21a4b52a85",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/historical_preview_recovery.py:102",
+      "semantic_key": "scripts/historical_preview_recovery.py:7d0f0f7443e657f961669221c2e509194c130623d3b565bd3ca45e55e180a3b3:1",
+      "line_sha256": "7d0f0f7443e657f961669221c2e509194c130623d3b565bd3ca45e55e180a3b3",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/historical_preview_recovery.py:31",
+      "semantic_key": "scripts/historical_preview_recovery.py:cc5fe0d1f54bb8415b7b1592e5806f9f343c1ee0adb24fb5da8ce0a61579b227:1",
+      "line_sha256": "cc5fe0d1f54bb8415b7b1592e5806f9f343c1ee0adb24fb5da8ce0a61579b227",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

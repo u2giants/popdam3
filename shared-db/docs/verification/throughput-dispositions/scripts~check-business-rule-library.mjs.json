@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-business-rule-library.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-business-rule-library.mjs:44",
+      "semantic_key": "scripts/check-business-rule-library.mjs:0832def5bd571339fd83b3ddac83b66125ef29045101ca67c58ce6e11cda55a6:1",
+      "line_sha256": "0832def5bd571339fd83b3ddac83b66125ef29045101ca67c58ce6e11cda55a6",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/check-business-rule-library.mjs:60",
+      "semantic_key": "scripts/check-business-rule-library.mjs:ad3382829a1922889c2a9a5f3262bcc8cfdf34dbb775fb4b58f74654fc5ff808:1",
+      "line_sha256": "ad3382829a1922889c2a9a5f3262bcc8cfdf34dbb775fb4b58f74654fc5ff808",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

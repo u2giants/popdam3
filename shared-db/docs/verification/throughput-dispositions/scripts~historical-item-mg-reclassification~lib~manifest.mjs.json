@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/historical-item-mg-reclassification/lib/manifest.mjs",
+  "sites": [
+    {
+      "site": "scripts/historical-item-mg-reclassification/lib/manifest.mjs:115",
+      "semantic_key": "scripts/historical-item-mg-reclassification/lib/manifest.mjs:383930d550f6ebb301f15bc25209f14376bb43fd21a3046f3cbfbbf31e2b2fdc:1",
+      "line_sha256": "383930d550f6ebb301f15bc25209f14376bb43fd21a3046f3cbfbbf31e2b2fdc",
+      "disposition": "excluded",
+      "reason": "Documentation comment on the new manifest-to-target binder; it explains a refusal and emits no throughput message of its own."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "source": "scripts/orchestrator-flow/evidence-bundle.mjs",
+  "sites": [
+    {
+      "site": "scripts/orchestrator-flow/evidence-bundle.mjs:27",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba:1",
+      "line_sha256": "3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/evidence-bundle.mjs:37",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323:1",
+      "line_sha256": "4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/evidence-bundle.mjs:86",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56:1",
+      "line_sha256": "5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/evidence-bundle.mjs:47",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a:1",
+      "line_sha256": "a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+    }
+  ]
+}

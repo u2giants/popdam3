@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/import-order-list-xlsx.py",
+  "sites": [
+    {
+      "site": "scripts/import-order-list-xlsx.py:2006",
+      "semantic_key": "scripts/import-order-list-xlsx.py:5560c9ab100c1352c8ac0a4f359309c8c16136587314ad30427cdb21db279012:1",
+      "line_sha256": "5560c9ab100c1352c8ac0a4f359309c8c16136587314ad30427cdb21db279012",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/import-order-list-xlsx.py:2448",
+      "semantic_key": "scripts/import-order-list-xlsx.py:6793e0744b3bc7e963d234159762aed335583a0e27f9184e440908d1e719e23f:1",
+      "line_sha256": "6793e0744b3bc7e963d234159762aed335583a0e27f9184e440908d1e719e23f",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

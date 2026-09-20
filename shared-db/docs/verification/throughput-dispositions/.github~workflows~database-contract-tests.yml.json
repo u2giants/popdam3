@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source": ".github/workflows/database-contract-tests.yml",
+  "sites": [
+    {
+      "site": ".github/workflows/database-contract-tests.yml:506",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7:1",
+      "line_sha256": "055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/database-contract-tests.yml:366",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f:1",
+      "line_sha256": "86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/database-contract-tests.yml:329",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b:1",
+      "line_sha256": "bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-paused-worktrees.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-paused-worktrees.mjs:60",
+      "semantic_key": "scripts/check-paused-worktrees.mjs:11930dbb1a360e6625e8f1cc10495ecb0fed79719a581576d6353506a655594a:1",
+      "line_sha256": "11930dbb1a360e6625e8f1cc10495ecb0fed79719a581576d6353506a655594a",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check_production_verification_sidecars.py",
+  "sites": [
+    {
+      "site": "scripts/check_production_verification_sidecars.py:61",
+      "semantic_key": "scripts/check_production_verification_sidecars.py:6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876:1",
+      "line_sha256": "6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876",
+      "disposition": "enriched",
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+    },
+    {
+      "site": "scripts/check_production_verification_sidecars.py:53",
+      "semantic_key": "scripts/check_production_verification_sidecars.py:e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97:1",
+      "line_sha256": "e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97",
+      "disposition": "enriched",
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+    }
+  ]
+}

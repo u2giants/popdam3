@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/preview_instance_binding.py",
+  "sites": [
+    {
+      "site": "scripts/preview_instance_binding.py:23",
+      "semantic_key": "scripts/preview_instance_binding.py:ec85288c9ced65a47b730606c9d3e0fdc3e6aeaebe529aa0950c7b180567d684:1",
+      "line_sha256": "ec85288c9ced65a47b730606c9d3e0fdc3e6aeaebe529aa0950c7b180567d684",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

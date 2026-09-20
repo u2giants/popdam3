@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/orchestrator-admission.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/orchestrator-admission.mjs:147",
+      "semantic_key": "scripts/lib/orchestrator-admission.mjs:0f06679d47f437f9de9a51e6db390446cbe39075c2e8fa1a038690a0e78fc773:1",
+      "line_sha256": "0f06679d47f437f9de9a51e6db390446cbe39075c2e8fa1a038690a0e78fc773",
+      "disposition": "excluded",
+      "reason": "Issue #2318. This is a refusal message about a missing orchestrator `authorization:` field, not a claim about a missing database object; it reports no throughput or verification state and is outside the truth-audit subject matter."
+    },
+    {
+      "site": "scripts/lib/orchestrator-admission.mjs:240",
+      "semantic_key": "scripts/lib/orchestrator-admission.mjs:490dfba463a004c4b2ac1b81705f8d94f40939a4f557f1409d6c2b8632caf8f2:1",
+      "line_sha256": "490dfba463a004c4b2ac1b81705f8d94f40939a4f557f1409d6c2b8632caf8f2",
+      "disposition": "excluded",
+      "reason": "Issue #2318. This is the grandfathering warning for a marker opened before admission took effect, naming a missing routing-block field; it makes no assertion about a database object being missing or not applied."
+    }
+  ]
+}

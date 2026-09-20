@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/orchestrator-flow/start-reroute.mjs",
+  "sites": [
+    {
+      "site": "scripts/orchestrator-flow/start-reroute.mjs:48",
+      "semantic_key": "scripts/orchestrator-flow/start-reroute.mjs:5d4ecdb39527639dae88b2f1cfffd192708860aca3f2ca688964dbcfdc8ba3ce:1",
+      "line_sha256": "5d4ecdb39527639dae88b2f1cfffd192708860aca3f2ca688964dbcfdc8ba3ce",
+      "disposition": "excluded",
+      "reason": "Refuses missing or corrupt durable reroute queue records; this describes coordination evidence, not database schema existence."
+    }
+  ]
+}

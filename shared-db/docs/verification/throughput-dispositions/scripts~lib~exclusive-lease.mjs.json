@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/exclusive-lease.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/exclusive-lease.mjs:67",
+      "semantic_key": "scripts/lib/exclusive-lease.mjs:69e45ccdf5566ec57dc68c464ca98ed9d71e34063e6d1b17372f420a4a73b7a9:1",
+      "line_sha256": "69e45ccdf5566ec57dc68c464ca98ed9d71e34063e6d1b17372f420a4a73b7a9",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/lib/exclusive-lease.mjs:112",
+      "semantic_key": "scripts/lib/exclusive-lease.mjs:c9e8f3f57271b36efcefc1a1bbce9b5f3e9b87590e592db04def218c8668e352:1",
+      "line_sha256": "c9e8f3f57271b36efcefc1a1bbce9b5f3e9b87590e592db04def218c8668e352",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

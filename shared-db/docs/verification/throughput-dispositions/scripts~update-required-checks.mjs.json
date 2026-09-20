@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "source": "scripts/update-required-checks.mjs",
+  "sites": [
+    {
+      "site": "scripts/update-required-checks.mjs:131",
+      "semantic_key": "scripts/update-required-checks.mjs:07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721:1",
+      "line_sha256": "07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/update-required-checks.mjs:253",
+      "semantic_key": "scripts/update-required-checks.mjs:12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec:1",
+      "line_sha256": "12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/update-required-checks.mjs:252",
+      "semantic_key": "scripts/update-required-checks.mjs:4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1:1",
+      "line_sha256": "4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/update-required-checks.mjs:247",
+      "semantic_key": "scripts/update-required-checks.mjs:78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6:1",
+      "line_sha256": "78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/update-required-checks.mjs:137",
+      "semantic_key": "scripts/update-required-checks.mjs:b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0:1",
+      "line_sha256": "b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

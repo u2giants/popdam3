@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-throughput-truth-audit.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-throughput-truth-audit.mjs:9",
+      "semantic_key": "scripts/check-throughput-truth-audit.mjs:18d9cfec88695095d91b29464232d1a2a90d9d39f17d7826be420a41bd13309c:1",
+      "line_sha256": "18d9cfec88695095d91b29464232d1a2a90d9d39f17d7826be420a41bd13309c",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

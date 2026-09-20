@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-prepack-exclusion.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:35",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:40741b3b5fba773ff603bb2ce2f9c80e61dda2718e224280a3e7148cc08670f1:1",
+      "line_sha256": "40741b3b5fba773ff603bb2ce2f9c80e61dda2718e224280a3e7148cc08670f1",
+      "disposition": "excluded",
+      "reason": "Comment labelling the fixture list as prepack heads in a licensed division lacking attribution on 2026-09-11. Provenance for the regression fixture."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:160",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:4d53ef3350edae3d40bb888c744b9cb4a194fdcc094ecc0df5bcd705950118af:1",
+      "line_sha256": "4d53ef3350edae3d40bb888c744b9cb4a194fdcc094ecc0df5bcd705950118af",
+      "disposition": "excluded",
+      "reason": "Length test on that set difference, guarding the provenance check. Control flow with no throughput-truth meaning."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:14",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:4ff58149ec68a16bf18d32bd8da44bf3e2c8a83bef0af3d8672f4584cf26d030:1",
+      "line_sha256": "4ff58149ec68a16bf18d32bd8da44bf3e2c8a83bef0af3d8672f4584cf26d030",
+      "disposition": "excluded",
+      "reason": "Comment requiring any missing-attribution population to route its assortment test through the shared role function. Names the population by its business name only."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:159",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:5402fcffcb4c43201666b69a9dc0f4463cea21e482d7faa63bc84089382ae05c:1",
+      "line_sha256": "5402fcffcb4c43201666b69a9dc0f4463cea21e482d7faa63bc84089382ae05c",
+      "disposition": "excluded",
+      "reason": "Local variable holding fixture head item numbers not found in the verification note. Ordinary identifier for a set difference."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:162",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:74d20c62980f9da6ba1bf1f31383ceb914da82941e21223dd4d5bb27e7538676:1",
+      "line_sha256": "74d20c62980f9da6ba1bf1f31383ceb914da82941e21223dd4d5bb27e7538676",
+      "disposition": "excluded",
+      "reason": "Failure message naming which fixture heads the verification note no longer records. Reports drift in our own evidence file."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:9",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:872c6d4a2ad5bb9bb1ee70293febf4b51dd4dfabe265224d91ca7da8ab4c9bca:1",
+      "line_sha256": "872c6d4a2ad5bb9bb1ee70293febf4b51dd4dfabe265224d91ca7da8ab4c9bca",
+      "disposition": "excluded",
+      "reason": "Comment stating the regression guarded against, namely an assortment head quietly reappearing in a missing-attribution population. Describes intent and makes no throughput-truth claim."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:5",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:93bcc73c750e36de5c363fc3cb2dfa132674cde15025d229a0b57908ea001c61:1",
+      "line_sha256": "93bcc73c750e36de5c363fc3cb2dfa132674cde15025d229a0b57908ea001c61",
+      "disposition": "excluded",
+      "reason": "Quotes the settled owner ruling that prepacks must be excluded from any population assessed for missing Licensor or Property. Prose restating the rule, not a claim that an object is absent."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:156",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:a71cb3dec9b387cacc777c24d0ff89ac5077642a25fe267bb968247f873c1970:1",
+      "line_sha256": "a71cb3dec9b387cacc777c24d0ff89ac5077642a25fe267bb968247f873c1970",
+      "disposition": "excluded",
+      "reason": "Failure message raised when the verification note is absent and the fixture heads lose their recorded provenance. Refers to a repository document, not a database object."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:77",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:c12d8d6cffc77710f271cba8dce50f61f76f10d2b7de8fcd384c0fbf0f09def5:1",
+      "line_sha256": "c12d8d6cffc77710f271cba8dce50f61f76f10d2b7de8fcd384c0fbf0f09def5",
+      "disposition": "excluded",
+      "reason": "Failure message warning that a named fixture head would reappear as a missing-attribution row if the exclusion were dropped. Describes the defect the guard detects."
+    },
+    {
+      "site": "scripts/check-prepack-exclusion.mjs:20",
+      "semantic_key": "scripts/check-prepack-exclusion.mjs:c76790e1ffffc33545a21548fd086251adfafc88bab1bfbc25e3a876e6bf4742:1",
+      "line_sha256": "c76790e1ffffc33545a21548fd086251adfafc88bab1bfbc25e3a876e6bf4742",
+      "disposition": "excluded",
+      "reason": "Comment recording that the fixture heads sit in a licensed division and lack attribution today. A measured property of the data, not an absent database object."
+    }
+  ]
+}

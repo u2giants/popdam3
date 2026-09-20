@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-migration-ledger-drift.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-migration-ledger-drift.mjs:26",
+      "semantic_key": "scripts/check-migration-ledger-drift.mjs:8f8882f7ffbab0e536ca9cab5ff090dbec60ffede1b7498e92f1a1e721bafceb:1",
+      "line_sha256": "8f8882f7ffbab0e536ca9cab5ff090dbec60ffede1b7498e92f1a1e721bafceb",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/check-migration-ledger-drift.mjs:266",
+      "semantic_key": "scripts/check-migration-ledger-drift.mjs:b6eb5e5e2dccbc82f9e7f21de952814cdef2773c9da1eeb462fca246c00becb9:1",
+      "line_sha256": "b6eb5e5e2dccbc82f9e7f21de952814cdef2773c9da1eeb462fca246c00becb9",
+      "disposition": "excluded",
+      "reason": "Re-reviewed for issue #2820: this MERGED BUT NOT APPLIED header now counts the promotable slice rather than every merged-not-applied version, because foreign-target migrations are reported in their own clearly-labelled section instead. It still reports presence and is never a derivability claim, so it stays excluded."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-sql.sh",
+  "sites": [
+    {
+      "site": "scripts/check-sql.sh:92",
+      "semantic_key": "scripts/check-sql.sh:8c1934ea03670d80cfb615f77d78354d3eba6393c1819e6cd1723091b6a14973:1",
+      "line_sha256": "8c1934ea03670d80cfb615f77d78354d3eba6393c1819e6cd1723091b6a14973",
+      "disposition": "excluded",
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/check-sql.sh:376",
+      "semantic_key": "scripts/check-sql.sh:96ea7f5365173267d1d944413fdabdd4f02fb1970bd2728f23ec3c6a2e065923:1",
+      "line_sha256": "96ea7f5365173267d1d944413fdabdd4f02fb1970bd2728f23ec3c6a2e065923",
+      "disposition": "excluded",
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/check-sql.sh:437",
+      "semantic_key": "scripts/check-sql.sh:9c7ef0c6cd127aec5b71494c4e652c21ca13b1051fca9edf52b9c254231839b9:1",
+      "line_sha256": "9c7ef0c6cd127aec5b71494c4e652c21ca13b1051fca9edf52b9c254231839b9",
+      "disposition": "excluded",
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/check-sql.sh:436",
+      "semantic_key": "scripts/check-sql.sh:e6d2f1426b07a7fd66c574b060ce06cc95b439cfa6b3f3824ef011aa23f8477d:1",
+      "line_sha256": "e6d2f1426b07a7fd66c574b060ce06cc95b439cfa6b3f3824ef011aa23f8477d",
+      "disposition": "excluded",
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": ".github/workflows/migration-ledger-drift.yml",
+  "sites": [
+    {
+      "site": ".github/workflows/migration-ledger-drift.yml:33",
+      "semantic_key": ".github/workflows/migration-ledger-drift.yml:aeecd7b3981bb1b74603e7d21a81ecf47e0d6bfc822960459334e7786deed31a:1",
+      "line_sha256": "aeecd7b3981bb1b74603e7d21a81ecf47e0d6bfc822960459334e7786deed31a",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": ".github/workflows/migration-ledger-drift.yml:155",
+      "semantic_key": ".github/workflows/migration-ledger-drift.yml:d08e3c90a9b0faf4812afbd9987fc93665e131ffe4ecdf6cb6372bb067f20361:1",
+      "line_sha256": "d08e3c90a9b0faf4812afbd9987fc93665e131ffe4ecdf6cb6372bb067f20361",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}
