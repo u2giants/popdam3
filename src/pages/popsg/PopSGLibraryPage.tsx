@@ -37,6 +37,20 @@ import {
 import { cn } from "@/lib/utils";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
+import {
+  buildPopSGV2Args,
+  buildPopSGSummaryIdentityFilters,
+  buildPopSGV2WebsearchQuery,
+  canUsePopSGV2,
+  enrichPopSGV2Guides,
+  getPopSGV2ContinuationOffsets,
+  getPopSGSummaryContinuationOffsets,
+  mapPopSGV2File,
+  mapPopSGV2Guide,
+  parsePopSGV2Payload,
+  POPSG_SEARCH_RPC_LIMIT,
+  POPSG_SUMMARY_PAGE_SIZE,
+} from "./popsgSearchV2";
 
 // Columns available in PopDAM's style_guide_files table.
 // licensor_name is a generated column: split_part(relative_path, '/', 1)
@@ -55,6 +69,7 @@ interface StyleGuideFile {
   modified_at: string | null;
   thumbnail_url: string | null;
   thumbnail_error: string | null;
+  render_exception_state?: string | null;
   // NULL = the source gave no answer; shown as Unknown, never as No (#132).
   has_talent_likeness?: boolean | null;
 }
@@ -71,6 +86,7 @@ interface StyleGuideGroup {
   latest_modified_at: string | null;
   total_size_bytes: number | null;
   sample_thumbnail_url: string | null;
+  member_directory_paths?: string[];
 }
 
 interface TreeNode {
@@ -99,6 +115,96 @@ function formatBytes(n: number | null): string {
   let v = n, u = 0;
   while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[u]}`;
+}
+
+interface LibraryFilters {
+  licensor: string;
+  property: string;
+  nameSearch: string;
+  fileTypes: string[];
+  thumbStatus: ThumbStatus;
+}
+
+async function fetchPopSGV2Page(
+  mode: PopSGDisplayMode,
+  filters: LibraryFilters,
+  sortField: PopSGSortField,
+  sortDirection: SortDirection,
+  page: number,
+  pageSize: PageSize,
+) {
+  const pageOffset = page * pageSize;
+  const expandedTerms = filters.nameSearch
+    ? await expandFallbackTerms(filters.nameSearch)
+    : [];
+  const searchFilters = {
+    licensor: filters.licensor,
+    property: filters.property,
+    query: buildPopSGV2WebsearchQuery(expandedTerms),
+    extensions: filters.fileTypes,
+    preview: filters.thumbStatus,
+  };
+  const fetchChunk = async (offset: number, limit: number) => {
+    const { data, error } = await supabase.rpc("search_style_guide_library_v2", buildPopSGV2Args({
+      mode,
+      filters: searchFilters,
+      sortField,
+      sortDirection,
+      limit,
+      offset,
+    }));
+    if (error) throw error;
+    const payload = parsePopSGV2Payload(data);
+    if (payload.result_mode !== mode) {
+      throw new Error("PopSG search returned results for the wrong display mode.");
+    }
+    return payload;
+  };
+
+  const first = await fetchChunk(pageOffset, Math.min(pageSize, POPSG_SEARCH_RPC_LIMIT));
+  const continuationOffsets = getPopSGV2ContinuationOffsets(pageOffset, pageSize, first.total);
+  const continuations = await Promise.all(
+    continuationOffsets.map((offset) => fetchChunk(
+      offset,
+      Math.min(POPSG_SEARCH_RPC_LIMIT, Math.max(1, first.total - offset)),
+    )),
+  );
+  const results = [first, ...continuations].flatMap((payload) => payload.results);
+
+  if (mode === "guides") {
+    const guides = results.map(mapPopSGV2Guide);
+    // v2 owns membership, filters, order, totals, and paging. Its guide rows do
+    // not include total bytes, so enrich only visible guide identities from the
+    // materialized summary, never the entire root or the 217k file table.
+    const summaryColumns = "root_label,directory_path,licensor_name,property_folder,style_guide_folder,style_guide_name,file_count,total_size_bytes";
+    const fetchSummaryChunk = async (identityFilter: string, from: number, to: number, includeCount = false) => {
+      const { data, error, count } = await supabase
+        .from("style_guide_file_groups")
+        .select(summaryColumns, includeCount ? { count: "exact" } : undefined)
+        .or(identityFilter)
+        .order("group_key", { ascending: true })
+        .range(from, to);
+      if (error) throw error;
+      return { rows: data ?? [], total: count ?? 0 };
+    };
+    const summaryBatches = await Promise.all(buildPopSGSummaryIdentityFilters(guides).map(async (identityFilter) => {
+      const firstSummary = await fetchSummaryChunk(identityFilter, 0, POPSG_SUMMARY_PAGE_SIZE - 1, true);
+      const summaryOffsets = getPopSGSummaryContinuationOffsets(firstSummary.total);
+      const summaryContinuations = await Promise.all(summaryOffsets.map((offset) => fetchSummaryChunk(
+        identityFilter,
+        offset,
+        Math.min(offset + POPSG_SUMMARY_PAGE_SIZE - 1, firstSummary.total - 1),
+      )));
+      return [firstSummary, ...summaryContinuations].flatMap((chunk) => chunk.rows);
+    }));
+    const summaryRows = summaryBatches.flat();
+    return {
+      rows: enrichPopSGV2Guides(guides, summaryRows) as StyleGuideGroup[],
+      total: first.total,
+    };
+  }
+
+  return { rows: results.map(mapPopSGV2File) as StyleGuideFile[], total: first.total };
 }
 
 
@@ -323,23 +429,52 @@ function GuideDetailSheet({
   onClose: () => void;
   onOpenFile: (file: StyleGuideFile) => void;
 }) {
-  const { data: files = [], isLoading } = useQuery({
+  const { data: files = [], isLoading, error: filesError } = useQuery({
     queryKey: ["popsg", "guide-files", group?.group_key],
     enabled: !!group,
     queryFn: async () => {
       if (!group) return [];
-      const { data, error } = await supabase
-        .from("style_guide_files")
-        .select(
-          "id,filename,relative_path,directory_path,file_extension,licensor_name,property_folder,thumbnail_url,thumbnail_error,size_bytes,modified_at,has_talent_likeness",
-        )
-        .eq("is_active", true)
-        .eq("root_label", group.root_label)
-        .eq("directory_path", group.directory_path)
-        .order("modified_at", { ascending: false, nullsFirst: false })
-        .order("filename", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as StyleGuideFile[];
+      const chunkSize = 1_000;
+      const maxFiles = 5_000;
+      const memberPaths = group.member_directory_paths?.length
+        ? group.member_directory_paths
+        : [group.directory_path];
+      const fetchChunk = async (from: number, to: number) => {
+        let q = supabase
+          .from("style_guide_files")
+          .select(
+            "id,filename,relative_path,directory_path,file_extension,licensor_name,property_folder,thumbnail_url,thumbnail_error,size_bytes,modified_at,has_talent_likeness",
+            { count: "exact" },
+          )
+          .eq("is_active", true);
+
+        q = group.root_label === null ? q.is("root_label", null) : q.eq("root_label", group.root_label);
+        q = q.in("directory_path", memberPaths);
+
+        const { data, error, count } = await q
+          .order("modified_at", { ascending: false, nullsFirst: false })
+          .order("filename", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to);
+        if (error) throw error;
+        return { rows: (data ?? []) as StyleGuideFile[], total: count ?? 0 };
+      };
+
+      // v2 guide identity intentionally spans every matching directory. Fetch
+      // that exact root/licensor/property/folder identity in bounded chunks;
+      // directory_path would incorrectly show only one part of the guide.
+      const first = await fetchChunk(0, chunkSize - 1);
+      if (first.total > maxFiles) {
+        throw new Error("This style guide exceeds the bounded detail limit.");
+      }
+      const offsets = Array.from(
+        { length: Math.max(0, Math.ceil(first.total / chunkSize) - 1) },
+        (_, index) => (index + 1) * chunkSize,
+      );
+      const remaining = await Promise.all(
+        offsets.map((offset) => fetchChunk(offset, Math.min(offset + chunkSize - 1, first.total - 1))),
+      );
+      return [first, ...remaining].flatMap((chunk) => chunk.rows);
     },
   });
 
@@ -368,6 +503,10 @@ function GuideDetailSheet({
             {isLoading ? (
               <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
                 Loading files…
+              </div>
+            ) : filesError ? (
+              <div className="flex h-24 items-center justify-center text-xs text-destructive">
+                Unable to load this style guide.
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -627,7 +766,14 @@ export default function PopSGLibraryPage() {
     queryKey: ["popsg", "groups", filters, sortField, sortDirection, page, pageSize],
     enabled: displayMode === "guides",
     queryFn: async () => {
-      let q = (supabase as any)
+      if (canUsePopSGV2("guides", filters.thumbStatus, sortField, sortDirection, filters.nameSearch)) {
+        return fetchPopSGV2Page("guides", filters, sortField, sortDirection, page, pageSize);
+      }
+
+      // search_style_guide_library_v2 does not yet expose size ordering or
+      // descending name ordering. Keep those explicit user choices on the
+      // legacy view so paging remains truthful instead of silently reordering.
+      let q = supabase
         .from("style_guide_file_groups")
         .select(
           "group_key,root_label,directory_path,licensor_name,property_folder,style_guide_folder,style_guide_name,file_count,latest_modified_at,total_size_bytes,sample_thumbnail_url",
@@ -670,6 +816,12 @@ export default function PopSGLibraryPage() {
     queryKey: ["popsg", "files", filters, sortField, sortDirection, page, pageSize],
     enabled: displayMode === "files",
     queryFn: async () => {
+      if (canUsePopSGV2("files", filters.thumbStatus, sortField, sortDirection, filters.nameSearch)) {
+        return fetchPopSGV2Page("files", filters, sortField, sortDirection, page, pageSize);
+      }
+
+      // See the guide-mode compatibility note above. These are the only
+      // remaining whole-library view reads after the v2 cutover.
       let q = supabase
         .from("style_guide_files")
         .select(
@@ -807,7 +959,7 @@ export default function PopSGLibraryPage() {
             {/* Thumbnail status */}
             <div className="border-b border-border px-3 py-3">
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Preview
+                {displayMode === "guides" && !!nameSearch.trim() ? "Matching file preview" : "Preview"}
               </p>
               <div className="space-y-1">
                 {([
@@ -922,32 +1074,44 @@ export default function PopSGLibraryPage() {
                 className="h-8 w-48 pl-8 text-xs"
                 placeholder={displayMode === "guides" ? "Search guides…" : "Search filename…"}
                 value={nameSearch}
-                onChange={(e) => { setNameSearch(e.target.value); setPage(0); }}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNameSearch(value);
+                  setPage(0);
+                }}
               />
             </div>
 
-            <Select value={sortField} onValueChange={(v) => { setSortField(v as PopSGSortField); setPage(0); }}>
-              <SelectTrigger className="h-8 w-24 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SORT_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {nameSearch.trim() ? (
+              <Button variant="outline" size="sm" disabled className="h-8 w-24 text-xs">
+                Relevance
+              </Button>
+            ) : (
+              <>
+                <Select value={sortField} onValueChange={(v) => { setSortField(v as PopSGSortField); setPage(0); }}>
+                  <SelectTrigger className="h-8 w-24 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setSortDirection((v) => v === "asc" ? "desc" : "asc"); setPage(0); }}
-              className="h-8 w-10 px-0 font-mono text-xs"
-              title={sortDirection === "asc" ? "Ascending" : "Descending"}
-            >
-              {sortDirection === "asc" ? "↑" : "↓"}
-            </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setSortDirection((v) => v === "asc" ? "desc" : "asc"); setPage(0); }}
+                  className="h-8 w-10 px-0 font-mono text-xs"
+                  title={sortDirection === "asc" ? "Ascending" : "Descending"}
+                >
+                  {sortDirection === "asc" ? "↑" : "↓"}
+                </Button>
+              </>
+            )}
 
             {/* Page size */}
             <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
