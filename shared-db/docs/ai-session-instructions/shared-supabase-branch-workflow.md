@@ -2,6 +2,8 @@
 
 Use this guide for AI sessions rewriting POP app frontends from Directus to Supabase.
 
+- [plan_shared_db_workflow_refactor.md](../../plan_shared_db_workflow_refactor.md)
+
 ## Goal
 
 CRM and PM/PIM are being rewritten to use Supabase directly. Their new backend tables, views, RPCs, RLS changes, and realtime configuration must land in the shared Supabase database design owned by this repo.
