@@ -1,43 +1,51 @@
 {
   "schema_version": 1,
-  "generation": 11,
-  "work_issue": 3331,
+  "work_issue": 3305,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Stop scripts/orchestrator-snapshot.test.mjs asserting the pre-transfer OWNER association: derive the trusted fixture association from expectedOperatorAssociation() so the five tests that went red after the popcre transfer (#2530, bf0744f6) pass again without weakening the login check they exist to prove.",
+  "goal": "Accept only provenance-verified automatic-review companion artifacts without weakening preview evidence checks",
   "base_sha": "843bc60de498edadbb3276b2fffa30a5898aab05",
-  "dispatcher": "Albert Hazan, owner chat authorization: resolve through to production all open non-orchestrator GitHub Issues in this repo, resolve any and all blockers yourself",
-  "worker": "Claude chat 2e3c24d5-f6b8-44f8-b49f-3c67c1647d13 on 916-alien",
-  "branch": "claude/3331-snapshot-fixture-association",
-  "worktree": "D:/repos/shared-db-worktrees/verify-3081-3048-a7f2c1",
+  "dispatcher": "Codex orchestrator parent 01a0bf00-fa7b-73d1-b447-fc4c89c50b96",
+  "worker": "01a0bf43-3c49-7812-b4d9-b3cb6e89e1c1",
+  "branch": "codex/sku2478-recovery-audit-0920",
+  "worktree": "D:\\repos\\shared-db-worktrees\\sku2478-recovery-audit-0920",
   "allowed_paths": [
-    "scripts/orchestrator-snapshot.test.mjs",
+    "scripts/orchestrator-flow/preview-artifact-selection.mjs",
+    "scripts/orchestrator-flow/preview-artifact-selection.test.mjs",
     ".agent/contract.json",
-    ".agent/completion.json"
+    ".agent/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
   ],
   "file_writes": [
-    "scripts/orchestrator-snapshot.test.mjs",
+    "scripts/orchestrator-flow/preview-artifact-selection.mjs",
+    "scripts/orchestrator-flow/preview-artifact-selection.test.mjs",
     ".agent/contract.json",
-    ".agent/completion.json"
+    ".agent/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "No database read or write of any kind",
-    "No migration file change",
-    "No production command or workflow dispatch",
-    "No change to production trust logic in scripts/lib/repository-identity.mjs"
+    "No database or production writes",
+    "Lane-manager edits only import and validateOriginalPreviewApplyEvidence artifact-selection block; tests only related fixtures",
+    "Do not weaken manifest or ledger evidence"
   ],
   "required_checks": [
-    "node --test scripts/orchestrator-snapshot.test.mjs",
-    "node --test scripts/lib/repository-identity.test.mjs"
+    "node --test scripts/orchestrator-flow/preview-artifact-selection.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
   ],
   "assumptions": [
-    "Production trust is correct: u2giants is MEMBER on popcre/shared-db, verified live against repos/popcre/shared-db/issues/3081/comments",
-    "Generation 2 rebases the contract onto the pull request's current merge base after main moved; scope, prohibitions and checks are unchanged from generation 1.",
-    "Generation 3 rebases the contract onto the pull request's merge base after main moved again; scope, prohibitions and checks are unchanged."
+    "Existing successful preview with automatic companion is reproducibly rejected",
+    "Current-main refresh d5285ef3 preserves implementation; 639 tests re-run successfully before final evidence binding",
+    "Refreshed onto70b0cad2 reviewer allowlist changes without overlapping selector code;673 tests passed",
+    "Refreshed onto current main c477c8e8 (docs-only movement, no overlap with this diff); selector tests re-run green before evidence binding",
+    "Refreshed onto current main 473ba697 (no overlap with this diff outside .agent evidence); selector tests re-run green before evidence binding",
+    "Refreshed onto current main 843bc60d; 30 selector tests and 643 lane-manager tests re-run green on 916-alien at implementation head c3462769"
   ],
   "stop_conditions": [
-    "Stop if the repair would need a change to production trust logic rather than the test fixture"
-  ]
+    "Stop before overlapping another agent files"
+  ],
+  "generation": 8
 }

@@ -14,6 +14,7 @@ import { assertLease, evaluateRecovery, formatLeaseMessage, parseLeaseMessage, r
 import { coordinationEvent, formatEventComment, parseEventComment, auditTimeline, renderTimeline } from './db-coordination-events.mjs'
 import { reconcileFlow, persistInitialReady, preparePreviewDispatch, repairPreviewReady, terminalizeReady, readyRecord, MODE_SEQUENCE, parseAbandonmentAudit, reportOnlyFlowIo, abandonmentAuditExit, AUDIT_EXIT_UNVERIFIABLE } from './orchestrator-flow/reconcile.mjs'
 import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
+import { selectPreviewArtifacts } from './orchestrator-flow/preview-artifact-selection.mjs'
 import { currentRepository, isThisRepositoryOrHistorical, isTrustedOperatorComment, repositoryCommentApiPath } from './lib/repository-identity.mjs'
 
 // `Migration guarded merge authorization` is posted by the guarded merge ITSELF,
@@ -9078,13 +9079,10 @@ export function validateOriginalPreviewApplyEvidence({issue,pr,versions,mergeCom
     if(!mergeCommitSha&&binding.appliedCommit!==run.head_sha){reject(runId,lane,`binding applied commit ${binding.appliedCommit} is not the run head ${run.head_sha}`);continue}
     const appliedCommit=(pinnedClaimApply||hashBoundClaimApply)?binding.appliedCommit:run.head_sha
     const allRows=Array.isArray(artifacts?.artifacts)?artifacts.artifacts:[]
-    // The failed downstream dispatcher may upload exactly one extra artifact,
-    // its own review-evidence file, from the same run. Admit that single known
-    // artifact only when the job graph proves the dispatcher was the sole
-    // failure; every other extra artifact still refuses.
-    const downstreamEvidence=allRows.filter((row)=>row?.name==='automatic-production-apply-review-evidence')
-    const tolerated=previewSucceededBeforeDownstreamFailure&&Number(artifacts?.total_count)===2&&allRows.length===2&&downstreamEvidence.length===1&&String(downstreamEvidence[0].workflow_run?.id)===String(runId)&&downstreamEvidence[0].workflow_run?.head_sha===run.head_sha
-    const rows=tolerated?allRows.filter((row)=>row!==downstreamEvidence[0]):allRows
+    // A fully proven automatic dispatcher may leave its review companion after
+    // success or failure. Selecting it never substitutes for the proof below.
+    const rows=selectPreviewArtifacts({run,jobs,artifacts})
+    const tolerated=allRows.length===2&&rows.length===1
     if(tolerated?rows.length!==1:(Number(artifacts?.total_count)!==1||rows.length!==1)){reject(runId,lane,`run has ${artifacts?.total_count} artifacts (${allRows.length} listed), not exactly one preview apply artifact`);continue}
     if(rows[0].expired!==false){reject(runId,lane,'preview apply artifact is expired or its expiry is unknown');continue}
     if(!/^sha256:[0-9a-f]{64}$/i.test(String(rows[0].digest??''))){reject(runId,lane,'preview apply artifact has no sha256 digest');continue}

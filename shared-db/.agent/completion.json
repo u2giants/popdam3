@@ -1,43 +1,36 @@
 {
   "schema_version": 1,
-  "work_issue": 3331,
+  "work_issue": 3305,
   "outcome": "ready-for-merge",
-  "pr": 3333,
+  "pr": 3308,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3331/11",
-  "contract_sha256": "62254fb17d1b698a31dea86229781ab53d4284ac8b471e2f430d49a636af8c22",
-  "head_sha": "37de551b21cb0bb3f570b23a85bc176bf74d638c",
+  "contract_ref": "refs/db-contracts/3305/8",
+  "contract_sha256": "ce60ceaf53e6c6df21a375a1a86d8c6585bd1dc0c92d45888d28d9ee95346702",
+  "head_sha": "4534892bac8f71153f8757259b870146f9641565",
   "files_changed": [
-    ".agent/completion.json",
-    ".agent/contract.json",
-    "scripts/orchestrator-snapshot.test.mjs"
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/preview-artifact-selection.mjs",
+    "scripts/orchestrator-flow/preview-artifact-selection.test.mjs"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node --test scripts/orchestrator-snapshot.test.mjs",
+      "command": "node --test scripts/orchestrator-flow/preview-artifact-selection.test.mjs",
       "exit_code": 0,
-      "evidence": "tests 18 pass 18 fail 0 after current main integration; the same file is red with 5 failures on unmodified origin/main b1d4be2e"
+      "evidence": "tests 30 pass 30 fail 0 cancelled 0 skipped 0 todo 0 on 916-alien at implementation head 4534892bac8f71153f8757259b870146f9641565"
     },
     {
-      "command": "node --test scripts/lib/repository-identity.test.mjs",
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
       "exit_code": 0,
-      "evidence": "tests 10 pass 10 fail 0"
-    },
-    {
-      "command": "node --test scripts/orchestrator-flow/no-progress-alarm.test.mjs scripts/lib/hold-reason.test.mjs scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/db-coordination-events.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs",
-      "exit_code": 0,
-      "evidence": "tests 141 pass 141 fail 0 (run together with repository-identity)"
-    },
-    {
-      "command": "git diff --check origin/main...HEAD",
-      "exit_code": 0,
-      "evidence": "clean"
+      "evidence": "tests 643 pass 643 fail 0 cancelled 0 skipped 0 todo 0 on 916-alien at implementation head 4534892bac8f71153f8757259b870146f9641565"
     }
   ],
   "assumptions_resolved": [
-    "Production trust is correct and unchanged: repos/popcre/shared-db/issues/3081/comments returns u2giants with association MEMBER, which is what expectedOperatorAssociation() requires."
+    "Authentic run35228140178 reproduced artifact-count refusal; selector now selects correct artifact10499394912",
+    "Parent explicitly authorized isolated integration hunk; reviewer code unchanged"
   ],
-  "stop_conditions_hit": []
+  "stop_conditions_hit": [],
+  "base_sha": "f1fef4575edb0b27575dd0a20838384e1cf66db0"
 }
