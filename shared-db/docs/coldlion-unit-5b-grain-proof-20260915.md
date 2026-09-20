@@ -108,7 +108,7 @@ total.
 | candidate key | distinct | of 166 | duplicate groups | verdict |
 |---|---|---|---|---|
 | `pkey` | 166 | 166 | 0 | **unique on its own — real vendor row id, chosen as PK** |
-| `prodOrderNo + prodLineSeq` | 166 | 166 | 0 | **independently unique — asserted as a unique constraint** |
+| `prodOrderNo + prodLineSeq` | 166 | 166 | 0 | ~~independently unique — asserted as a unique constraint~~ **FALSIFIED on the full population 2026-09-20 — see the note below this table** |
 | `prodOrderNo + itemPkey` | 158 | 166 | 4 | **not unique** — one item appears on several lines of an order |
 
 Two identities were proven independently and **both are asserted**: `pkey` as the primary
@@ -121,19 +121,39 @@ The payload carries **no `companyCode`** even though the request requires one, s
 `company_code` is stamped from the request and leads the primary key.
 
 **Chosen grain: `(company_code, pkey)`, with `(company_code, prod_order_no,
-prod_line_seq)` unique. Zero duplicate collapse on either.**
+prod_line_seq)` unique. Zero duplicate collapse on either.** *(The second half of this
+sentence is falsified — see the note below.)*
 
-> **SUPERSEDED IN PART, 2026-09-18 (issue #3234, backfill #3180):** the
-> `(prodOrderNo, prodLineSeq)` uniqueness below is a fact about THIS SAMPLE only.
-> The full production backfill (3,761 orders) found **8 orders** whose live
-> `/proddetails` response carries two rows with **distinct `pkey`s sharing one
-> `prodLineSeq`** (different item, quantities and costs — real distinct lines, not
-> echoes). The second identity is falsified by the source at depth; **`pkey`
-> remains unique**, and the landed table enforces no collapse on either. The
-> loader (#3180) refuses those 8 keys durably (`sync_run` `refused:
-> identity-collision`) and the constraint decision — drop it, re-key it, or rule
-> the refusals permanent — is #3234 (needs-albert). The tables and verdicts on
-> this page stand as the 2026-09-15 measurement.
+> **SUPERSEDED IN PART — first noted 2026-09-18 (issue #3234), re-measured and
+> CORRECTED 2026-09-20.** The `(prodOrderNo, prodLineSeq)` uniqueness measured below
+> is a fact about THIS 166-row SAMPLE only. A full read-only scan of the population on
+> 2026-09-20 (every `prodOrderNo` 1–60000 for EDGEHOME, the only company code;
+> **3,819 orders return rows**) found **11 groups across 9 orders** — 20344, 20959,
+> 21907, 21918, 21928, 23465 (×2), 23475 (×3), 23587 — where two or more rows share one
+> `prodOrderNo` + `prodLineSeq`. **`pkey` remains distinct in every group and unique
+> across the whole population.**
+>
+> **The 2026-09-18 note on this page and the body of #3234 both said the collisions were
+> "two real distinct lines, not an echo". That is wrong, and the correction matters.**
+> The groups take five distinct shapes and only some are distinct lines: an exact
+> duplicate in every business field created 140 ms apart (20959 line 1); a quantity split
+> across two rows of one item (23465 lines 1 and 2, 21918 line 3, 21928 line 7); one item
+> on one line at many different costs (23475 line 1 carries seven rows); two different
+> `itemNo` on one line (21907 line 22, 23587 line 1); and a zero-quantity row with a
+> different `itemPkey` shadowing a real one (20344 line 10).
+>
+> **What this page may still be used for:** `pkey` as the identity, and the field
+> dispositions below. **What it may NOT be used for:** asserting `(prodOrderNo,
+> prodLineSeq)` as an identity, or concluding what a colliding group means.
+>
+> The loader refuses the colliding keys durably (`sync_run` `refused:
+> identity-collision`) so nothing is recorded wrongly. The constraint decision (#3234)
+> is **blocked on ColdLion** — the question was sent 2026-09-20 and is registered as
+> open question 2.36 in [`coldlion-open-questions.md`](coldlion-open-questions.md),
+> with blocker ticket #3351. Do not drop, re-key or keep the constraint before that
+> answer: dropping it would land the exact-duplicate and split-quantity shapes as
+> separate lines, and if either should have been summed the landed cost for that order
+> is wrong.
 
 ### Disposition — all 21 fields land, plus the request-stamped `company_code`
 
