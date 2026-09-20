@@ -1,47 +1,44 @@
 {
   "schema_version": 1,
-  "work_issue": 3261,
+  "generation": 1,
+  "work_issue": 3299,
   "work_type": "repo-maintenance",
   "route": "repo-maintenance",
-  "goal": "Pause glm-5.3 in the shared-db reviewer rotation for the owner's weekly account-usage rotation (chat directive 2026-09-18), with kimi-k3 confirmed drawable and doctor-verified the same day, updating the roster, its pinned tests and the AGENTS.md rotation sentence",
-  "base_sha": "8d107ee8826d45b53c958ad54e0aa2b554191d79",
-  "dispatcher": "ZCode repo-maintenance session on owner chat instruction 2026-09-18 (issue #3261)",
-  "worker": "zcode",
-  "branch": "chore/pause-glm-5.3-reviewer-rotation",
-  "worktree": ".claude/worktrees/pause-glm-5.3",
+  "goal": "Repair the #2611 production live-proof query plan so its seven recorded prepack heads are filtered before expensive function evaluation, without weakening any metadata, exclusion, or positive catch-control assertion.",
+  "base_sha": "7c5c4680e2f844d1311163766b7194bc3ee42975",
+  "dispatcher": "Parent orchestrator authorized prospective recovery of PR3293; preserve prior implementation history",
+  "worker": "Codex chat 01a0bf3e-3a02-7242-bd2c-07007f1994e9 on 916-ALIEN",
+  "branch": "codex/recover-prepack-proof-20260920",
+  "worktree": "D:/repos/worktrees/shared-db-prepack-proof-20260920",
   "allowed_paths": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "AGENTS.md",
     ".agent/contract.json",
-    ".agent/completion.json"
+    ".agent/completion.json",
+    ".github/live-proofs/2611.sql"
   ],
   "file_writes": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "AGENTS.md"
+    ".agent/contract.json",
+    ".agent/completion.json",
+    ".github/live-proofs/2611.sql"
   ],
   "db_reads": [],
   "db_writes": [],
   "prohibited_actions": [
-    "do not touch any migration or database object",
-    "do not change draw, replacement, capacity or preflight behaviour beyond roster membership",
-    "do not delete or rename glm-5.3 from REVIEWERS; durable verdict evidence must keep resolving",
-    "do not unpause glm-5.3 without a new owner instruction",
-    "do not edit another session's handoff, worktree, branch, claim or pull request"
+    "No database write, migration, function, view, role, grant, index, or timeout change.",
+    "Do not remove or weaken any original #2611 proof assertion, identifier, or catch control.",
+    "Do not merge PR #3293; the parent owns merge and outcome closure."
   ],
   "required_checks": [
-    "node --test scripts/manage-migration-author-lanes.test.mjs",
-    "node --test scripts/run-governed-review.test.mjs scripts/record-review-verdict.test.mjs scripts/repair-voided-findings.test.mjs scripts/refresh-code-pr-branch.test.mjs"
+    "python -m unittest scripts.test_shared_db_live_proof",
+    "node --test scripts/check-live-proof-probe.test.mjs",
+    "git diff --check"
   ],
   "assumptions": [
-    "kimi-k3 is drawable (unpaused 2026-09-07, PR #2483) and its wrapper doctor passed read-only, preflight and auth when re-verified on 2026-09-18",
-    "pausing via RETIRED_REVIEWERS membership with a dated comment is the established mechanism, matching the 2026-09-03 kimi-k3 usage pause and the 2026-09-06 codex-gpt-5.6-sol usage retirement"
+    "Existing proof SQL was authored before this recovery contract under issue2611 generation11. This prospective contract governs evidence rebinding and validation, not retroactive authorship.",
+    "Production grant proof3191 verified in successful run35479619996; no grant repeat authorized.",
+    "Original ordinary Muse approval applies old head592c26b and requires new governed exact-head review after evidence update."
   ],
   "stop_conditions": [
-    "stop if removing glm-5.3 from the active rotation breaks any durable reviewer-name lookup",
-    "stop if open pull requests #3228 or #3247 editing the same script cannot be merged or closed, leaving this branch unable to rebase cleanly",
-    "stop if making the suite green would require changing reviewer draw or replacement behaviour rather than test expectations"
-  ],
-  "generation": 1
+    "Stop if the repair requires any database object or timeout change.",
+    "Stop if any of the seven identifiers or either data catch control cannot be preserved."
+  ]
 }

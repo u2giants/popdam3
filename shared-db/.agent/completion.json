@@ -1,33 +1,38 @@
 {
   "schema_version": 1,
-  "work_issue": 3261,
+  "work_issue": 3299,
   "outcome": "ready-for-merge",
-  "pr": 3258,
+  "pr": 3293,
   "migration_versions": [],
-  "contract_ref": "refs/db-contracts/3261/1",
-  "contract_sha256": "e25d24d9b6b87b38332beab0dca9a467e68f121263fd669772eb9c75a2b238f9",
-  "head_sha": "ae53f8eca1d385fa02e048514c001343c7831404",
+  "contract_ref": "refs/db-contracts/3299/1",
+  "contract_sha256": "fa281599c14ffd85d9d727342054c2b08cc04c734894e583185e9378b489ef59",
+  "head_sha": "7e178c70667cd5cd7df698eb21616957381d333d",
   "files_changed": [
-    "scripts/manage-migration-author-lanes.mjs",
-    "scripts/manage-migration-author-lanes.test.mjs",
-    "AGENTS.md"
+    ".github/live-proofs/2611.sql"
   ],
   "db_reads": [],
   "db_writes": [],
   "checks": [
     {
-      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "command": "python -m unittest scripts.test_shared_db_live_proof",
       "exit_code": 0,
-      "evidence": "Recovered current-main implementation ae53f8eca1d385fa02e048514c001343c7831404: 609 tests passed, 0 failed, 0 cancelled, 0 skipped, 0 todo."
+      "evidence": "6 passed 0 skipped after main integration at7e178c70"
     },
     {
-      "command": "node --test scripts/run-governed-review.test.mjs scripts/record-review-verdict.test.mjs scripts/repair-voided-findings.test.mjs scripts/refresh-code-pr-branch.test.mjs",
+      "command": "node --test scripts/check-live-proof-probe.test.mjs",
       "exit_code": 0,
-      "evidence": "Recovered current-main implementation ae53f8eca1d385fa02e048514c001343c7831404: 113 tests passed, 0 failed, 0 cancelled, 0 skipped, 0 todo."
+      "evidence": "10 passed 0 failed 0 skipped after main integration at7e178c70"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check origin/main...HEAD passed after main integration"
     }
   ],
   "assumptions_resolved": [
-    "PR #3247 merged (2026-09-18T14:51:07Z) and this branch rebased cleanly onto merged main; no stop condition fired — the same-file collision was resolved by that merge, not by weakening anything here. Later main movement (reviewer-start-watch and reroute-budget work) touched none of this branch's three files."
+    "Recovered existing proof implementation unchanged; prospective contract3299/1 governs evidence rebind only.",
+    "Fresh six Python tests and ten probe tests passed; original production timing remains prior-session evidence.",
+    "Grant proof3191 verified via durable successful run35479619996; new proof2611 awaits merged main."
   ],
   "stop_conditions_hit": []
 }
