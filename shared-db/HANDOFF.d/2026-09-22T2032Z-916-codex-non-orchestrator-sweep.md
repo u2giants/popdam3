@@ -23,7 +23,7 @@ Put this whole list to Albert in one message before any step that needs it. Do n
 
 - 2026-09-20: this sweep excludes issues touched by the Claude session named **Open GitHub Issues to production**.
 - 2026-09-20: twenty database-shape or curated-data issues were not closed or rewritten; only their incorrect `non-orchestrator` label was removed so the orchestrator can see their true classification.
-- 2026-09-20: this Codex session was not the shared-db orchestrator and did not close marker issue #3297 (orchestrator coordination). At the final 2026-09-22 21:29 UTC check, #3297 had closed and `check-orchestrator-marker --resolve` reported zero active markers. Do not route structural work until a successor claims a new marker.
+- 2026-09-20: this Codex session was not the shared-db orchestrator and did not close marker issue #3297 (orchestrator coordination). At 2026-09-22 21:29 UTC, #3297 had closed and `check-orchestrator-marker --resolve` reported zero markers; by 21:57 UTC, successor marker #3405 (orchestrator coordination) had opened for Codex thread `01a0cb03-daa2-79d2-85fd-6a8904abfc53` on `edge-dev`. This is a dated timeline, not permanent routing authority—re-resolve immediately before every structural handover.
 
 ## 1. What this application is
 
@@ -45,7 +45,7 @@ The objective was not to alter Supabase. It was to close repository-maintenance 
 - Highest migration filename on main is `supabase/migrations/20260918180012_prepack_role_read_only_proof_grant.sql`.
 - This session made no database, preview, production, or infrastructure change. Preview state was intentionally not inspected or mutated.
 - The canonical checkout `D:\repos\shared-db` was clean when closeout began.
-- There is no active orchestrator marker. `node scripts/check-orchestrator-marker.mjs --resolve` reported: `NO ACTIVE ORCHESTRATOR: zero open markers.` Queue structural work until a successor opens a marker; zero markers is not permission to dispatch.
+- The marker changed during closeout: zero markers at 21:29 UTC, then open successor marker #3405 (orchestrator coordination) at the 21:57 UTC refresh. At that refresh it named `shared-db.orch EDGE-DEV production resume`, Codex thread `01a0cb03-daa2-79d2-85fd-6a8904abfc53`, with handover #3297 (orchestrator coordination). Do not route from this snapshot; always run `node scripts/check-orchestrator-marker.mjs --resolve` again and require a reply.
 - Git committer identity is `Albert Hazan <u2giants@users.noreply.github.com>`.
 
 ### Completed and merged by this sweep
