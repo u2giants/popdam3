@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import { modelAllowedForTask } from "@/lib/ai-model-options";
+import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 const SLOTS = ["a", "b", "c", "d", "e"] as const;
 type Slot = typeof SLOTS[number];
@@ -277,6 +279,7 @@ export default function AiTagBakeoffTab() {
     staleTime: 30_000,
   });
   const savedOpenRouterKey = unwrapConfigString(openRouterConfig?.config?.OPENROUTER_API_KEY);
+  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
 
   const {
     data: modelData,
@@ -285,10 +288,11 @@ export default function AiTagBakeoffTab() {
     error: modelsError,
     refetch: refetchModels,
   } = useQuery<VisionModel[]>({
-    queryKey: ["openrouter-vision-models-bakeoff", savedOpenRouterKey],
-    enabled: !!savedOpenRouterKey,
+    queryKey: ["openrouter-vision-models-bakeoff", openRouterAccountFingerprint],
+    enabled: !!savedOpenRouterKey && openRouterAccountFingerprint !== null,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
+      if (typeof data?.catalog_warning === "string") throw new Error(data.catalog_warning);
       const items = (data?.models ?? []) as Array<OpenRouterModelResponse & { supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[] }>;
       return items.map((m) => ({
         id: m.id,
@@ -306,7 +310,7 @@ export default function AiTagBakeoffTab() {
   });
 
   const visionModels = useMemo(() => {
-    const list = (modelData ?? []).filter(supportsImageTaggingContract);
+    const list = (modelData ?? []).filter((model) => supportsImageTaggingContract(model) && modelAllowedForTask(model.id, "vision_tagging", true));
     return [...list].sort((a, b) => {
       if (a.supports_tools !== b.supports_tools) return a.supports_tools ? -1 : 1;
       if (a.supports_structured_outputs !== b.supports_structured_outputs) return a.supports_structured_outputs ? -1 : 1;

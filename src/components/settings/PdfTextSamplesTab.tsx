@@ -11,6 +11,8 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, RefreshCw, Trash2, Check, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import { modelAllowedForTask } from "@/lib/ai-model-options";
+import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 import RichPdfExtractCard from "./RichPdfExtractCard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -394,20 +396,29 @@ function AiVisionConfigCard() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
+  const { data: configData } = useQuery({
+    queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY"],
+    queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY"] }),
+  });
+  const savedOpenRouterKey = ((configData?.config?.OPENROUTER_API_KEY as Record<string, unknown> | undefined)?.value
+    ?? configData?.config?.OPENROUTER_API_KEY
+    ?? "") as string;
+  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
+
   // Fetch vision models live from OpenRouter and saved selection in parallel
   const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery({
-    queryKey: ["openrouter-vision-models"],
-    queryFn: () => call("get-openrouter-vision-models"),
+    queryKey: ["openrouter-vision-models", openRouterAccountFingerprint],
+    enabled: !!savedOpenRouterKey && openRouterAccountFingerprint !== null,
+    queryFn: async () => {
+      const data = await call("get-openrouter-vision-models");
+      if (typeof data?.catalog_warning === "string") throw new Error(data.catalog_warning);
+      return data;
+    },
     staleTime: 5 * 60_000,
   });
 
-  const { data: configData } = useQuery({
-    queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG"],
-    queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG"] }),
-  });
-
   const visionModels: OpenRouterModel[] = ((modelsData?.models ?? []) as OpenRouterModel[])
-    .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing));
+    .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing) && modelAllowedForTask(m.id, "pdf_extraction"));
 
   const savedModelId: string = (() => {
     const raw = configData?.config?.PDF_EXTRACTION_CONFIG?.value ?? configData?.config?.PDF_EXTRACTION_CONFIG;

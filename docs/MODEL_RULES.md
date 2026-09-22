@@ -31,16 +31,19 @@ This document covers two distinct things: (1) which AI models are used inside th
 
 ### Production Image Tagging (Railway worker)
 - Code path: `apps/worker/src/handlers/ai-tagging.ts` plus the shared contract in `apps/worker/src/handlers/ai-tagging-shared.ts`.
-- Uses OpenRouter through the worker's `OPENROUTER_API_KEY` for normal model IDs. Selecting `meta-direct/muse-spark-1.3-contributor` uses Meta Model API directly through the worker's `META_API_KEY`; the Contributor tier permits Meta to use submitted thumbnails, prompts, and outputs for model training. The worker no longer falls back to `GOOGLE_AI_API_KEY` (removed 2026-07-14 — a Google key cannot authenticate against openrouter.ai). `GOOGLE_AI_API_KEY` is still live, but only for the on-prem agents' direct-Google PDF text extraction (see PDF Text Extraction below and `docs/KNOWN_QUIRKS.md` #63).
+- Uses OpenRouter through `OPENROUTER_API_KEY` for normal model IDs. Selecting `meta-direct/muse-spark-1.3-contributor` uses Meta Model API directly. Selecting `google-direct/<model>:batch` uses Google's multimodal Batch API directly through `GOOGLE_AI_API_KEY`; it never sends that key to OpenRouter. The on-prem agents also use the Google key for PDF text extraction (see `docs/KNOWN_QUIRKS.md` #63).
 - **Exacto routing (default):** every OpenRouter call is sent with the `:exacto` model variant (`withExactoRouting()` in `openrouter.ts`, applied inside `chatCompletion`), routing to the provider endpoint with the best measured tool-calling accuracy. Free virtual variant, no price premium. A slug with an explicit `:variant` suffix opts out. This is the routing-layer fix for the endpoint-flip failures; see `docs/KNOWN_QUIRKS.md` #62. Applies to all OpenRouter paths (tagging, bake-off, ERP). **Exception:** `minimax/minimax-m3` is excluded from Exacto and hard-pinned to the `minimax` provider via `MODEL_ROUTING_OVERRIDES` (Exacto regressed it ~14%→89% because its only tool-capable endpoint truncates JSON; commit `f532c08`, see #62).
 - Model config: `admin_config.AI_TASK_MODELS.vision_tagging`, cached by the worker for 60 seconds. Optional fallback: `vision_tagging_fallback`.
-- A production model ending in `:batch` uses OpenRouter's asynchronous Batch API.
+- A production model ending in `:batch` uses a provider asynchronous Batch API.
   The worker saves the provider job ID and exact asset mapping in
   `BULK_OPERATIONS`, then reconnects after a Railway restart. It never submits
   from a generic successful lease response; a newly issued receipt is required.
-  Vision Bake-Off excludes `:batch` variants because it has no durable job state.
+  OpenRouter models retain their existing route; `google-direct/*:batch` uses Google's
+  inline multimodal requests. Image bytes and prompts exist only in the submission
+  request and are never saved in `BULK_OPERATIONS`. Vision Bake-Off excludes
+  `:batch` variants because it has no durable job state.
 - Default when unset: `qwen/qwen3-vl-32b-instruct` — a hardcoded last-resort in `ai-tagging.ts`, NOT the configured default (the DB row is what runs). Live config as of 2026-07-14: `vision_tagging` = `qwen/qwen3-vl-32b-instruct`, `vision_tagging_fallback` = `minimax/minimax-m3`, `pdf_extraction` = `deepseek/deepseek-v4-flash`, `text_classification` = `deepseek/deepseek-v4-pro`. No Google/Gemini model runs through the worker.
-- To change the model: Settings → AI Models. This updates `admin_config.AI_TASK_MODELS`; the Railway worker still needs its own `OPENROUTER_API_KEY` env var set in Railway.
+- To change the model: Settings → AI Models. This updates `admin_config.AI_TASK_MODELS`; the selected provider key must be present in Settings → APIs (Railway environment remains the fallback).
 - Output contract: every model must return `tags`, `ai_description`, `scene_description`, and `content_type`. The worker accepts OpenRouter tool calling, JSON-schema structured outputs, or JSON mode, then validates the required fields before storing a result.
 - Description contract: `ai_description` is not a creative caption; it is a concise, search-friendly sentence for designers/salespeople looking for reusable licensed product assets. `scene_description` is a literal visual sentence.
 - Tag contract: return 6-18 distinct lowercase search tags. The worker rejects blank tags, case-insensitive duplicates, and results outside that range. Avoid filler such as `image`, `design`, `art`, `asset`, `colorful`, and `product` by themselves. Visual categories and views must be supported by the image; filename/path/ERP evidence may supply product context but must not invent a visual classification.
@@ -65,7 +68,7 @@ This document covers two distinct things: (1) which AI models are used inside th
 
 ### PDF Text Extraction (`pdf-text-sampler.ts` in bridge/windows agents)
 - Uses a cascade: mupdf text extraction → OCR (tesseract.js) → AI vision fallback.
-- The AI vision fallback calls Google's `generativelanguage.googleapis.com` **directly** (not through OpenRouter) using `GOOGLE_AI_API_KEY`, which the agents read via `agent-api`'s config passthrough. This is the only live consumer of `GOOGLE_AI_API_KEY` — keep it configured. See `docs/KNOWN_QUIRKS.md` #63.
+- The AI vision fallback calls Google's `generativelanguage.googleapis.com` **directly** (not through OpenRouter) using `GOOGLE_AI_API_KEY`, which the agents read via `agent-api`'s config passthrough. The Railway worker also uses this key only when a `google-direct/*:batch` Image Tagging model is selected. See `docs/KNOWN_QUIRKS.md` #63.
 - The AI vision fallback is configurable separately from production image tagging. See `admin_config.AI_TASK_MODELS.pdf_extraction` and the bridge/windows sampler code before changing it.
 - The AI prompt requires literal transcription of visually legible text in reading order. It forbids inferring, completing, correcting, or inventing unclear text, omits unreadable text, and requests only the transcription. Keep this contract aligned in the bridge sample, bridge backfill, and Windows sample paths.
 - **Hard limit**: files larger than 100 MB are skipped (logged as warnings, surfaced in the PDF text sample progress UI).

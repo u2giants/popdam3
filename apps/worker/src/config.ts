@@ -31,6 +31,10 @@ export const config = {
   // OpenRouter API key — single gateway for most AI providers
   openRouterApiKey: optional("OPENROUTER_API_KEY", ""),
 
+  // Direct Google Gemini key. The database-managed value is authoritative;
+  // this environment value is only a worker fallback during config outages.
+  googleAiApiKey: optional("GOOGLE_AI_API_KEY", ""),
+
   // Meta Model API direct key — used when an AI task selects a
   // "meta-direct/..." model such as Muse Spark 1.3 Contributor.
   metaApiKey: optional("META_API_KEY", ""),

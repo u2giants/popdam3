@@ -13,8 +13,10 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import { modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { toast } from "sonner";
 import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
+import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -594,14 +596,18 @@ export function AiModelsConfigSection() {
   });
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
+  const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
+  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
 
+  const modelQueryKey = ["vision-models", openRouterAccountFingerprint, Boolean(savedGoogleKey)] as const;
   const {
-    data: openRouterModels,
+    data: visionCatalog,
     isFetching: fetchingModels,
     isLoading: loadingModels,
     error: modelsError,
     refetch: refetchOpenRouterModels,
-  } = useQuery<Array<{
+  } = useQuery<{
+    models: Array<{
     id: string;
     name: string;
     supportsTools: boolean;
@@ -610,13 +616,15 @@ export function AiModelsConfigSection() {
     toolChoiceModes: string[];
     inputModalities: string[];
     pricing?: OpenRouterPricing;
-  }>>({
-    queryKey: ["openrouter-models", savedOpenRouterKey],
-    enabled: !!savedOpenRouterKey,
+    }>;
+    warning?: string | null;
+  }>({
+    queryKey: modelQueryKey,
+    enabled: (!!savedOpenRouterKey || !!savedGoogleKey) && (!savedOpenRouterKey || openRouterAccountFingerprint !== null),
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
       const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
-      return items
+      const incoming = items
         .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing))
         .map((m) => ({
           id: m.id,
@@ -629,6 +637,9 @@ export function AiModelsConfigSection() {
           pricing: m.pricing,
         }))
         .sort((a, b) => a.id.localeCompare(b.id));
+      const warning = typeof data?.catalog_warning === "string" ? data.catalog_warning : null;
+      const previous = queryClient.getQueryData<{ models: typeof incoming }>(modelQueryKey)?.models;
+      return { models: preserveCatalogOnWarning(previous, incoming, warning), warning };
     },
     staleTime: 5 * 60 * 1000,
     retry: 1,
@@ -639,13 +650,12 @@ export function AiModelsConfigSection() {
     try {
       const result = await refetchOpenRouterModels();
       if (result.error) throw result.error;
-      toast.success(`OpenRouter models refreshed (${result.data?.length ?? 0})`, { id: toastId });
+      toast.success(`OpenRouter models refreshed (${result.data?.models.length ?? 0})`, { id: toastId });
     } catch (e) {
       toast.error(`Failed to refresh models: ${(e as Error).message}`, { id: toastId });
     }
   }
 
-  const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
   const savedAnthropicKey = unwrap(configData?.config?.ANTHROPIC_API_KEY);
   const savedOpenaiKey = unwrap(configData?.config?.OPENAI_API_KEY);
   const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
@@ -726,14 +736,17 @@ export function AiModelsConfigSection() {
                 Failed to load models: {(modelsError as Error).message}
               </span>
             )}
-            {!savedOpenRouterKey && (
-              <span className="text-[10px] text-muted-foreground">Save an OpenRouter API key to load model list</span>
+            {visionCatalog?.warning && (
+              <span className="text-[10px] text-amber-600">{visionCatalog.warning}; showing the last available catalog.</span>
+            )}
+            {!savedOpenRouterKey && !savedGoogleKey && (
+              <span className="text-[10px] text-muted-foreground">Save an OpenRouter or Google AI API key to load model list</span>
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, requiresVision, requiresStructuredOutput, fallbackKey, providerPinKey }]) => {
               const currentVal = taskModels[key] || "";
-              const modelList = openRouterModels ?? [];
+              const modelList = visionCatalog?.models ?? [];
               const modelMeetsRequirements = (m: typeof modelList[number] | undefined) => {
                 if (!m) return false;
                 if (requiresTools && !m.supportsTools) return false;
@@ -748,20 +761,23 @@ export function AiModelsConfigSection() {
                   : requiresVision
                     ? "image input"
                     : "";
+              const taskModelList = modelList.filter((model) => modelAllowedForTask(model.id, key));
               const filteredList = (requiresTools || requiresStructuredOutput || requiresVision)
-                ? modelList.filter(modelMeetsRequirements)
-                : modelList;
+                ? taskModelList.filter(modelMeetsRequirements)
+                : taskModelList;
               // If currentVal is set but not in filteredList, still show it (with a warning)
-              const currentModelMeetsRequirements = !currentVal || !(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal));
-              const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
+              const currentModelMeetsRequirements = !currentVal || (modelAllowedForTask(currentVal, key)
+                && (!(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal))));
+              const allOptions = currentVal && modelAllowedForTask(currentVal, key) && !filteredList.some((m) => m.id === currentVal)
                 ? [{ id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...filteredList]
                 : filteredList;
 
               const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
+              const fallbackModelList = filteredList.filter((model) => modelAllowedForTask(model.id, key, true));
               const fallbackOptions = fallbackKey
-                ? (fallbackVal && !filteredList.some((m) => m.id === fallbackVal)
-                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...filteredList]
-                  : filteredList)
+                ? (fallbackVal && modelAllowedForTask(fallbackVal, key, true) && !fallbackModelList.some((m) => m.id === fallbackVal)
+                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...fallbackModelList]
+                  : fallbackModelList)
                 : [];
 
               const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string) => (
@@ -822,6 +838,11 @@ export function AiModelsConfigSection() {
                       Contributor pricing allows Meta to use submitted thumbnails, prompts, and model outputs to train its models.
                     </p>
                   )}
+                  {key === "vision_tagging" && currentVal.startsWith("google-direct/") && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Uses the existing Google AI API key and the restart-safe provider batch path.
+                    </p>
+                  )}
                   {!currentModelMeetsRequirements && requirementLabel && (
                     <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. Select a different model.</p>
                   )}
@@ -855,7 +876,7 @@ export function AiModelsConfigSection() {
           </div>
         </div>
 
-        {/* Legacy Keys (collapsed) */}
+        {/* Direct and legacy provider keys (collapsed) */}
         <div className="border-t pt-3">
           <button
             type="button"
@@ -863,7 +884,7 @@ export function AiModelsConfigSection() {
             onClick={() => setShowLegacyKeys((v) => !v)}
           >
             {showLegacyKeys ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            Legacy Direct API Keys (fallback)
+            Direct and Legacy Provider API Keys
           </button>
           {showLegacyKeys && (
             <div className="grid gap-3 sm:grid-cols-3 mt-3">

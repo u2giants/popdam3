@@ -197,12 +197,15 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 |-----|----------|---------|
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
-| `OPENROUTER_API_KEY` | Yes | AI tagging and ERP classification — **not the same as admin_config.OPENROUTER_API_KEY** |
+| `OPENROUTER_API_KEY` | No | Fallback when database-managed `OPENROUTER_API_KEY` is empty or unreadable |
 | `META_API_KEY` | No | Meta Model API direct access when Image Tagging selects `meta-direct/muse-spark-1.3-contributor` |
-| `GOOGLE_AI_API_KEY` | No | Legacy fallback if no OpenRouter key |
+| `GOOGLE_AI_API_KEY` | No | Fallback when database-managed `GOOGLE_AI_API_KEY` is empty or unreadable |
 | `BULK_OPERATION_ALERT_WEBHOOK_URL` | Yes once the `bulk-operation-alert` function is deployed | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success. Set it to the deployed `bulk-operation-alert` function URL including its `?key=` shared secret (see below). |
 
-**Critical:** `OPENROUTER_API_KEY` in Railway and `OPENROUTER_API_KEY` in `admin_config` are two separate things. Setting the key in the admin UI (Settings → AI Models) only updates `admin_config`. The Railway worker reads exclusively from Railway ENV variables.
+**Critical:** the worker resolves OpenRouter and Google keys from `admin_config`
+first, with a 60-second cache. Matching Railway environment variables are only
+fallbacks during an empty or failed database read. Meta direct access remains
+Railway-environment-only.
 
 ---
 

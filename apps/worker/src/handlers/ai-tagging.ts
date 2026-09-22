@@ -16,13 +16,20 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import {
   buildProviderPin,
-  getOpenRouterBatch,
   OpenRouterError,
-  parseOpenRouterBatchResult,
-  submitOpenRouterBatch,
   type ChatCompletionRequest,
-  type OpenRouterBatchResultItem,
 } from "../openrouter.js";
+import {
+  batchProviderForModel,
+  assertProviderSubmissionLeaseBudget,
+  getProviderBatch,
+  parseProviderBatchResult,
+  prepareProviderBatch,
+  providerBatchPageLimit,
+  submitPreparedProviderBatch,
+  type PreparedProviderBatch,
+  type ProviderBatchResultItem,
+} from "../batch-provider.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
@@ -280,18 +287,25 @@ interface AiTagHandlerDependencies {
   concurrency?: number;
 }
 
+interface PreparedAssetBatchSubmission {
+  batch: PreparedProviderBatch;
+  submittedIds: string[];
+  visualAnalysisUnavailable: number;
+}
+
 async function handleDurableBatchTag(
   opState: OpState,
   tagAll: boolean,
   client: AiTagRpcClient,
   batchSize: number,
 ): Promise<BatchResult> {
-  const apiKey = await getAiTaggingApiKey();
-  if (!apiKey) return { ok: false, done: false, error: "No OpenRouter API key configured" };
   const models = await getVisionModels();
   const model = opState.external_job?.model ?? models.primary;
-  const provider = buildProviderPin(models.providerPin);
   const job = opState.external_job;
+  const batchProvider = job?.provider ?? batchProviderForModel(model);
+  const apiKey = await getAiTaggingApiKey(model);
+  if (!apiKey) return { ok: false, done: false, error: batchProvider === "google-gemini" ? "No Google AI API key configured" : "No OpenRouter API key configured" };
+  const provider = batchProvider === "openrouter" ? buildProviderPin(models.providerPin) : undefined;
 
   if (!job) {
     const capabilities = await getRuntimeModelCapabilities(apiKey, model);
@@ -301,14 +315,18 @@ async function handleDurableBatchTag(
     const assetIds = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
     let candidates: Array<{ id: string; filename?: string; relative_path?: string; primary_sort_tier?: number }>;
     let nextCursor: number | string = opState.cursor ?? 0;
+    const pageLimit = providerBatchPageLimit(batchProvider, "asset");
     if (assetIds?.length) {
-      candidates = assetIds.slice(0, 100).map((id) => ({ id }));
+      const assetOffset = typeof opState.cursor === "number" ? opState.cursor : 0;
+      candidates = assetIds.slice(assetOffset, assetOffset + pageLimit).map((id) => ({ id }));
+      if (!candidates.length) return { ok: true, done: true, tagged: 0, skipped: 0, failed: 0, nextOffset: assetOffset };
+      nextCursor = assetOffset + candidates.length;
     } else {
       const cursor = decodeAiTagCursor(opState.cursor);
       const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;
       const response = await client.rpc("get_ai_tag_candidates", {
         p_mode: tagAll ? "all" : "untagged",
-        p_limit: Math.min(batchSize, 100),
+        p_limit: Math.min(batchSize, pageLimit),
         p_after_tier: cursor?.tier ?? null,
         p_after_id: cursor?.id ?? null,
         p_group_ids: groupIds?.length ? groupIds : null,
@@ -326,13 +344,14 @@ async function handleDurableBatchTag(
       nextOffset: opState.cursor ?? 0,
       external_job: {
         version: 1,
+        provider: batchProvider,
         phase: "prepared",
         model,
         output_method: outputMethod,
         prepared_at: new Date().toISOString(),
         page_cursor: opState.cursor ?? 0,
         next_cursor: nextCursor,
-        operation_done_after_clear: Boolean(assetIds?.length),
+        operation_done_after_clear: Boolean(assetIds?.length && typeof nextCursor === "number" && nextCursor >= assetIds.length),
         items: candidates.map((asset) => ({
           asset_id: asset.id,
           custom_id: `popdam:${runId}:${asset.id}:${outputMethod}:0`,
@@ -347,26 +366,10 @@ async function handleDurableBatchTag(
 
   const action = nextBatchAction(job);
   if (action.type === "blocked") return { ok: false, done: false, error: action.reason, error_code: "contract_error" };
-  if (action.type === "claim") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
-  if (action.type === "wait") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "yield_without_save", last_stage: "model_inference" };
-  if (action.type === "clear") {
-    return {
-      ok: true,
-      done: job.operation_done_after_clear === true,
-      nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
-      tagged: 0,
-      skipped: 0,
-      failed: 0,
-      external_job: {
-        ...job,
-        lease_token: action.leaseToken,
-        clear_after_reconciliation: true,
-      },
-      last_stage: "state_persist",
-    };
-  }
-
-  if (action.type === "submit") {
+  if (action.type === "claim") {
+    if (job.phase !== "prepared") {
+      return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
+    }
     const outputMethod = job.output_method ?? "json_schema";
     const submissions = [];
     let visualAnalysisUnavailable = 0;
@@ -392,8 +395,44 @@ async function handleDurableBatchTag(
         visual_analysis_unavailable: visualAnalysisUnavailable,
       };
     }
-    const created = await submitOpenRouterBatch(apiKey, submissions);
-    const submittedIds = new Set(submissions.map((submission) => submission.customId));
+    const transientPreparedBatch: PreparedAssetBatchSubmission = {
+      batch: await prepareProviderBatch(batchProvider, submissions),
+      submittedIds: submissions.map((submission) => submission.customId),
+      visualAnalysisUnavailable,
+    };
+    return {
+      ok: true,
+      done: false,
+      nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+      state_transition: "claim_submission",
+      transient_prepared_batch: transientPreparedBatch,
+      visual_analysis_unavailable: visualAnalysisUnavailable,
+    };
+  }
+  if (action.type === "wait") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "yield_without_save", last_stage: "model_inference" };
+  if (action.type === "clear") {
+    return {
+      ok: true,
+      done: job.operation_done_after_clear === true,
+      nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
+      tagged: 0,
+      skipped: 0,
+      failed: 0,
+      external_job: {
+        ...job,
+        lease_token: action.leaseToken,
+        clear_after_reconciliation: true,
+      },
+      last_stage: "state_persist",
+    };
+  }
+
+  if (action.type === "submit") {
+    const preparedSubmission = opState.transient_prepared_batch as PreparedAssetBatchSubmission | undefined;
+    if (!preparedSubmission || preparedSubmission.batch.provider !== batchProvider) throw new Error("Prepared provider batch is unavailable before submission");
+    assertProviderSubmissionLeaseBudget(job.lease_expires_at);
+    const created = await submitPreparedProviderBatch(apiKey, preparedSubmission.batch);
+    const submittedIds = new Set(preparedSubmission.submittedIds);
     return {
       ok: true,
       done: false,
@@ -407,14 +446,14 @@ async function handleDurableBatchTag(
         next_poll_at: new Date(Date.now() + 10_000).toISOString(),
         items: job.items?.filter((item) => submittedIds.has(item.custom_id)).map((item) => ({ ...item, status: "submitted" })),
       },
-      visual_analysis_unavailable: visualAnalysisUnavailable,
+      visual_analysis_unavailable: preparedSubmission.visualAnalysisUnavailable,
       last_stage: "model_inference",
     };
   }
 
   let record;
   try {
-    record = await getOpenRouterBatch(apiKey, action.batchId);
+    record = await getProviderBatch(batchProvider, apiKey, action.batchId);
   } catch (error) {
     if (error instanceof OpenRouterError && isNewBatchVisibilityDelay(error.status, job.submitted_at)) {
       return {
@@ -441,7 +480,7 @@ async function handleDurableBatchTag(
   if (record.status !== "completed") return {
     ok: false,
     done: false,
-    error: `OpenRouter batch ${action.batchId} ${record.status}`,
+    error: `Provider batch ${action.batchId} ${record.status}`,
     error_code: "provider_terminal",
     external_job: {
       ...job,
@@ -469,17 +508,17 @@ async function handleDurableBatchTag(
 
   const results = indexBatchResults(
     (job.items ?? []).map((item) => item.custom_id),
-    (record.results ?? []) as OpenRouterBatchResultItem[],
+    (record.results ?? []) as ProviderBatchResultItem[],
   );
   let tagged = 0, failed = 0;
   const failureSamples = [];
   for (const item of job.items ?? []) {
-    const raw = results.get(item.custom_id) as OpenRouterBatchResultItem | undefined;
+    const raw = results.get(item.custom_id) as ProviderBatchResultItem | undefined;
     try {
-      if (!raw) throw new Error("OpenRouter result missing");
-      const completion = await parseOpenRouterBatchResult(apiKey, raw);
+      if (!raw) throw new Error("Provider batch result missing");
+      const completion = await parseProviderBatchResult(batchProvider, apiKey, raw);
       const tagData = completion.toolCalls?.find((call) => call.name === "tag_asset")?.arguments ?? parseJsonObject(completion.content);
-      if (!tagData) throw new Error("OpenRouter result contains no structured tag data");
+      if (!tagData) throw new Error("Provider batch result contains no structured tag data");
       await applyBatchTagResult(item.asset_id, tagData, model);
       tagged++;
     } catch (error) {
@@ -645,7 +684,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
 
   // If the primary model failed with a model-specific error and a fallback is configured, retry once
   const rawMsg = primaryResult._rawMsg ?? primaryResult.error ?? "";
-  if (fallbackModel && isModelSpecificError(rawMsg)) {
+  if (fallbackModel && batchProviderForModel(fallbackModel) !== "google-gemini" && isModelSpecificError(rawMsg)) {
     logger.info("ai-tag: primary model failed with model-specific error — trying fallback", { assetId, primaryModel, fallbackModel, error: rawMsg.slice(0, 200) });
     const fallbackResult = await attemptTag(fallbackModel);
     if (fallbackResult.outcome === "tagged") return fallbackResult;

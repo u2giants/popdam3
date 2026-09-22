@@ -2,6 +2,7 @@ import { baseModelId } from "./openrouter.js";
 import { logger } from "./logger.js";
 import { db } from "./supabase.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
+import { isDirectGeminiBatchModel } from "./gemini-batch.js";
 
 export type StructuredOutputMethod = "json_schema" | "json_object" | "tool_named" | "tool_required" | "tool_auto" | "json_repair";
 export type CapabilitySource = "live" | "stale_cache" | "override" | "unknown";
@@ -106,6 +107,20 @@ export async function getModelCapabilities(apiKey: string, modelId: string, over
 }
 
 export async function getRuntimeModelCapabilities(apiKey: string, modelId: string): Promise<ModelCapabilities> {
+  if (isDirectGeminiBatchModel(modelId)) {
+    return {
+      modelId,
+      imageInput: true,
+      tools: false,
+      toolChoice: false,
+      toolChoiceModes: [],
+      structuredOutputs: true,
+      jsonObject: true,
+      prefer: ["json_schema", "json_object"],
+      source: "override",
+      fetchedAt: new Date().toISOString(),
+    };
+  }
   if (!overrideCache || Date.now() - overrideCache.fetchedAt > 60_000) {
     const { data, error } = await withDependencyTimeout(
       "AI capability override config read",

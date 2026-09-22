@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildResultMessage, classifyError, interruptionReason, mergeProgress, nextAutoResumeAt, normalizeBatchError, scopeSingleAssetTag } from "./operation-loop.js";
+import { readFileSync } from "node:fs";
+import { buildResultMessage, classifyError, definitiveProviderSubmissionFailureState, interruptionReason, mergeProgress, nextAutoResumeAt, normalizeBatchError, normalizeProviderSubmissionError, scopeSingleAssetTag } from "./operation-loop.js";
+import { OpenRouterError } from "./openrouter.js";
 
 const ASSET_ID = "123e4567-e89b-42d3-a456-426614174000";
 
@@ -65,4 +67,29 @@ test("configuration reads fail into a resumable dependency timeout", () => {
 
   assert.equal(reason, "dependency_timeout");
   assert.ok(nextAutoResumeAt(reason, { status: "interrupted", auto_resume_attempts: 0 }));
+});
+
+test("pre-submission thumbnail timeouts remain auto-resumable", () => {
+  const reason = classifyError("Gemini thumbnail fetch timed out before submission");
+  assert.equal(reason, "dependency_timeout");
+  assert.ok(nextAutoResumeAt(reason, { status: "interrupted", auto_resume_attempts: 0 }));
+});
+
+test("vendored lease contract keeps ambiguity database-owned and phase changes receipt-protected", () => {
+  const migration = readFileSync(new URL("../../../shared-db/supabase/migrations/20260824004025_popdam_terminal_external_job_clear.sql", import.meta.url), "utf8");
+  assert.match(migration, /Only this function ever declares a submission ambiguous/);
+  assert.match(migration, /v_in_phase[\s\S]*ambiguous_submission[\s\S]*phase_protected/);
+  assert.match(migration, /v_token_ok[\s\S]*lease_token/);
+  const state = definitiveProviderSubmissionFailureState({
+    status: "running",
+    external_job: { phase: "submitting", provider: "google-gemini", items: [] },
+  }, "minted-receipt", new Error("invalid image"));
+  assert.equal(state.external_job?.phase, "prepared");
+  assert.equal(state.external_job?.lease_token, "minted-receipt");
+});
+
+test("OpenRouter submission bodies are redacted before operation persistence or logs", () => {
+  const message = normalizeProviderSubmissionError(new OpenRouterError(400, "private prompt https://signed.example/key=secret"));
+  assert.equal(message, "OpenRouter batch submission failed (HTTP 400)");
+  assert.doesNotMatch(message, /private prompt|signed\.example|secret/);
 });

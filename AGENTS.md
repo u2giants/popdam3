@@ -261,9 +261,9 @@ model can flip pass/fail per call. Three things follow, detailed in
   primary mitigation for the flip-per-call problem — pin an explicit `:variant`
   in a model slug to opt out. Applies to all OpenRouter paths. See #62.
 
-`GOOGLE_AI_API_KEY` looks dead after the direct-Gemini `ai-tag` edge function was
-deleted (2026-07-14), but it is **live**: the on-prem bridge/windows agents use it
-for direct-Google PDF text extraction. Do not remove it, the `agent-api`
+`GOOGLE_AI_API_KEY` is **live**: the Railway worker uses it for explicitly selected
+`google-direct/*:batch` Image Tagging models, and the on-prem bridge/windows agents
+use it for direct-Google PDF text extraction. Do not remove it, the `agent-api`
 passthrough, or the ApisTab "Google AI API Key" field. See `docs/KNOWN_QUIRKS.md` #63.
 
 ---
@@ -511,7 +511,7 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 | `SUPABASE_SERVICE_ROLE_KEY` | Worker → Supabase service role | Railway env vars | No | Yes (Railway) |
 | `OPENROUTER_API_KEY` | Worker AI calls | `admin_config.OPENROUTER_API_KEY` (primary); Railway env var is a fallback only | No | No — set it in Settings → APIs |
 | `ANTHROPIC_API_KEY` | Worker ERP classification fallback/alternative; listed in `apps/worker/.env.example` | Railway env vars | No | Optional |
-| `GOOGLE_AI_API_KEY` | Legacy Gemini AI tagging fallback and `supabase/functions/ai-tag` | Railway env vars / Supabase function secrets | No | Optional unless using legacy AI tag path |
+| `GOOGLE_AI_API_KEY` | Direct Gemini Image Tagging batches and agent PDF text extraction | `admin_config` (primary); Railway env fallback; agent passthrough | No | Optional unless either direct-Google path is selected |
 | `WORKER_POLL_INTERVAL_MS` / `AI_BATCH_CONCURRENCY` / `AI_BATCH_SIZE` | Worker tuning knobs | Railway env vars | No | Optional |
 | `SUPABASE_ACCESS_TOKEN` | CI → Supabase CLI for edge-function deploys/types | GitHub secret | No | Yes |
 | `EXTERNAL_SUPABASE_PROJECT_ID` | CI → Supabase CLI target project | GitHub secret | No | Yes |
