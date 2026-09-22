@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildOpenRouterBatchPayload, chatCompletion, getOpenRouterBatch, isToolChoiceCompatibilityError, submitOpenRouterBatch, withExactoRouting } from "./openrouter.js";
+import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
 
 test("appends :exacto to a bare model slug", () => {
   assert.equal(withExactoRouting("qwen/qwen3-vl-32b-instruct"), "qwen/qwen3-vl-32b-instruct:exacto");
@@ -38,6 +39,33 @@ test("stateless submit performs one POST and returns without polling", async () 
     assert.equal(result.id, "batch-1");
     assert.deepEqual(calls, ["https://openrouter.ai/api/beta/batches"]);
   } finally { globalThis.fetch = original; }
+});
+
+test("OpenRouter batch distinguishes definitive validation/HTTP errors from ambiguous transport", async () => {
+  const dataUriRequest = {
+    model: "google/gemini:batch",
+    messages: [{ role: "user" as const, content: [{ type: "image_url" as const, image_url: { url: "data:image/jpeg;base64,AA==" } }] }],
+  };
+  await assert.rejects(
+    submitOpenRouterBatch("key", [{ customId: "asset", request: dataUriRequest }]),
+    (error: unknown) => error instanceof Error && !(error instanceof AmbiguousBatchSubmissionError) && /public http\(s\)/.test(error.message),
+  );
+
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response("invalid request", { status: 400 });
+    await assert.rejects(
+      submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),
+      (error: unknown) => error instanceof Error && !(error instanceof AmbiguousBatchSubmissionError) && /OpenRouter 400/.test(error.message),
+    );
+    globalThis.fetch = async () => { throw new TypeError("connection reset after write"); };
+    await assert.rejects(
+      submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),
+      AmbiguousBatchSubmissionError,
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test("stateless get reads only the supplied saved batch", async () => {

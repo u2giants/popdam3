@@ -813,13 +813,13 @@ pin today; ERP classification and PDF extraction do not (add a sibling
 
 ## 63. `GOOGLE_AI_API_KEY` Is Still Live — Do Not Treat It as Dead (2026-07-14)
 
-**Files**: `apps/bridge-agent/src/pdf-text-sampler.ts`, `apps/bridge-agent/src/pdf-backfill.ts`, and the `windows-agent` equivalents; `agent-api` `google_ai_api_key` passthrough; the ApisTab "Google AI API Key" settings field.
+**Files**: `apps/worker/src/gemini-batch.ts`, `apps/worker/src/google-ai-key.ts`, bridge/windows PDF samplers, `agent-api` `google_ai_api_key` passthrough, and the ApisTab "Google AI API Key" field.
 
-**What it looks like**: After the direct-Gemini `ai-tag` edge function was deleted and the worker's `googleAiApiKey` fallback removed (both 2026-07-14), `GOOGLE_AI_API_KEY` can look fully dead — nothing in the worker or edge functions calls Google anymore.
+**What it looks like**: The old direct-Gemini `ai-tag` edge function was deleted, so the Google key can look obsolete.
 
-**Actually**: The on-prem bridge/windows agents call Google's `generativelanguage.googleapis.com` **directly** (not through OpenRouter) as the AI-vision fallback in PDF text extraction. They read the key via `agent-api`'s config passthrough, which is set through the admin ApisTab field.
+**Actually**: The on-prem agents call Google directly for PDF text extraction. The Railway worker also calls Google's multimodal Batch API when Image Tagging explicitly selects a `google-direct/*:batch` model. Its durable state stores only the provider name, batch ID, and item mapping—not prompts or image bytes.
 
-**Future sessions should**: Keep `GOOGLE_AI_API_KEY`, the `agent-api` passthrough, the ApisTab field, and the `google`-provider entries in the `AI_MODELS` catalog. Removing any of them breaks agent PDF text extraction. The deleted `ai-tag` edge function was a *different*, genuinely dead path (direct-Gemini batch tagging superseded by the OpenRouter worker); its removal did not affect this one. The now-unused `toGeminiSchema` in the tag-asset contract can be pruned once that contract mirror is no longer being concurrently edited.
+**Future sessions should**: Keep `GOOGLE_AI_API_KEY`, the worker resolver, agent passthrough, ApisTab field, and Google model entries. Removing them breaks the selected direct-batch route and agent PDF extraction. Never silently fall back between Google and OpenRouter after a non-idempotent batch submission.
 
 ## 64. The `dam` Schema Is NOT Exposed to PostgREST — Reach `dam.*` via `public` RPCs (2026-07-15)
 

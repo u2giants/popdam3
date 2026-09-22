@@ -11,6 +11,20 @@ test("restart with a saved batch ID claims polling ownership instead of submitti
   });
 });
 
+test("restart claims resume paid pending, applying, and completed jobs without changing their phase", () => {
+  for (const [phase, expected] of [
+    ["pending", "poll"],
+    ["applying", "apply"],
+    ["completed", "clear"],
+  ] as const) {
+    const saved = { phase, provider_batch_id: "paid-batch" };
+    assert.equal(nextBatchAction(saved).type, "claim");
+    const resumed = nextBatchAction({ ...saved, lease_token: "restart-receipt" });
+    assert.equal(resumed.type, expected);
+    assert.equal("batchId" in resumed ? resumed.batchId : null, "paid-batch");
+  }
+});
+
 test("expired wait becomes a poll while a future wait remains idle", () => {
   assert.equal(nextBatchAction({ phase: "pending", provider_batch_id: "batch-1", lease_token: "receipt", next_poll_at: "2026-01-01T00:00:00Z" }, Date.now()).type, "poll");
   assert.equal(nextBatchAction({ phase: "pending", provider_batch_id: "batch-1", lease_token: "receipt", next_poll_at: "2999-01-01T00:00:00Z" }, Date.now()).type, "wait");
@@ -18,6 +32,10 @@ test("expired wait becomes a poll while a future wait remains idle", () => {
 
 test("ambiguous submission never resubmits", () => {
   assert.equal(nextBatchAction({ phase: "ambiguous_submission" }).type, "blocked");
+});
+
+test("submitting without an in-memory receipt reclaims only through the guarded database lease", () => {
+  assert.equal(nextBatchAction({ phase: "submitting" }).type, "claim");
 });
 
 test("maximum page recovery mapping stays below the 100 KB state limit", () => {
