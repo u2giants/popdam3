@@ -967,11 +967,21 @@ async function handleIngest(
   skuFields.property_code = licensing.property_code;
   skuFields.property_name = licensing.property_name;
 
-  const { data: existingByPath } = await db
+  // assets<->style_groups has two FKs (assets.style_group_id and
+  // style_groups.primary_asset_id), so the embed must name one or PostgREST
+  // rejects it (PGRST201). Never treat a failed lookup as "no row": that
+  // turned every re-scan into a duplicate-key insert and a 500.
+  const { data: existingByPath, error: existingByPathErr } = await db
     .from("assets")
-    .select(`id, style_group_id, style_groups(${STYLE_GROUP_ASSIGNMENT_COLUMNS.join(", ")})`)
+    .select(
+      `id, style_group_id, style_groups!assets_style_group_id_fkey(${STYLE_GROUP_ASSIGNMENT_COLUMNS.join(", ")})`,
+    )
     .eq("relative_path", relativePath)
     .maybeSingle();
+  if (existingByPathErr) {
+    console.error("ingest: existing-by-path lookup failed:", existingByPathErr.code, existingByPathErr.message);
+    return err(`Existing asset lookup failed: ${existingByPathErr.message}`, 502);
+  }
 
   // ── 1) Move detection: same file relocated ──
   //
