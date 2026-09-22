@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/proofs/shared-db-2870-observation.mjs",
+  "sites": [
+    {
+      "site": "scripts/proofs/shared-db-2870-observation.mjs:94",
+      "semantic_key": "scripts/proofs/shared-db-2870-observation.mjs:eed9acd8d1e13c9984ba1429a123aadfd7dfe251d144c99233ee04d22445145b:1",
+      "line_sha256": "eed9acd8d1e13c9984ba1429a123aadfd7dfe251d144c99233ee04d22445145b",
+      "disposition": "excluded",
+      "reason": "Comment describing exact JSON key-set validation: absent or extra fields fail whole-object equality. It reports no database object as absent and makes no migration-history claim; catalog observation still requires the two exact live column definitions."
+    }
+  ]
+}

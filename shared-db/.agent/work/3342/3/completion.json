@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 3342,
+  "outcome": "ready-for-merge",
+  "pr": 3345,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3342/3",
+  "contract_sha256": "d02f70eda2acc53c9629487efa850c00af55479db5f21d2ae54cf88811b990f6",
+  "head_sha": "b2e0849b2cd71dcec69197b269b5766406614b2f",
+  "files_changed": [
+    ".agent/work/3342/3/completion.json",
+    ".agent/work/3342/3/contract.json",
+    ".github/workflows/shared-db-2870-observation.yml",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json",
+    "scripts/proofs/2870-catalog.sql",
+    "scripts/proofs/2870-contract.json",
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "evidence": "Current integrated audit passed: 312 call sites, 70 sources, derived digest 5adcf9278b54 at e3a34f0511f7e1e143f4240cc3ef3a24a8b2cd5c.",
+      "exit_code": 0,
+      "command": "node scripts/check-throughput-truth-audit.mjs"
+    },
+    {
+      "evidence": "Combined audit and producer test execution passed 28 tests, 0 failures, 0 skipped at e3a34f0511f7e1e143f4240cc3ef3a24a8b2cd5c.",
+      "exit_code": 0,
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs"
+    },
+    {
+      "evidence": "Combined audit and producer test execution passed 28 tests, 0 failures, 0 skipped; 12 producer tests included at e3a34f0511f7e1e143f4240cc3ef3a24a8b2cd5c.",
+      "exit_code": 0,
+      "command": "node --test scripts/proofs/shared-db-2870-observation.test.mjs"
+    },
+    {
+      "command": "Independent exact-head review",
+      "exit_code": 0,
+      "evidence": "Governed Grok 4.6 APPROVE of implementation head 951435c57a0ad6f97ea7b9d94f2f812c45e09470, sequence 3456, durable refs/db-review-verdicts/3342-3345-951435c57a0ad6f97ea7b9d94f2f812c45e09470 commit 4ea61b4fd24ed57cd65fcba3e72dd23c303ef11c. Refresh merge e3a34f0511f7e1e143f4240cc3ef3a24a8b2cd5c adds current main only; reviewed observer source bytes are unchanged. Current merged head passed the focused tests. No new independent review of merge commit is claimed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation2 prospective contract published before its two source correction edits; original producer source was prospectively covered by generation1.",
+    "Four producer Git blobs remain equal to backend PR102 pins at0fa7647524042fdda47be7078b14b409173e3908; no backend source changed.",
+    "Production audit checker and frozen historical aggregate unchanged against current main. Regression retains missing/stale refusal for additions, changes and removals.",
+    "Legacy root evidence restored exactly to main; only keyed3342 generation2 evidence pair is changed.",
+    "No live database queries/writes, secret provisioning, dispatch or lifecycle acceptance. Root owns central merge/live acceptance; Uma owns backend merge."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "c384c26cc7865419c37f6b1520028e1053f65c23"
+}

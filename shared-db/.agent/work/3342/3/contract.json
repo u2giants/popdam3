@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 3342,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Refresh exact-head evidence for the already reviewed fixed read-only catalog observation after current main integration, with no observer behavior change",
+  "base_sha": "c384c26cc7865419c37f6b1520028e1053f65c23",
+  "dispatcher": "Codex root authorized design v4",
+  "worker": "codex",
+  "branch": "codex/2870-central-observation-916",
+  "worktree": "C:/repos/shared-db-3345-evidence-0922",
+  "allowed_paths": [
+    ".github/workflows/shared-db-2870-observation.yml",
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/2870-catalog.sql",
+    "scripts/proofs/2870-contract.json",
+    "scripts/proofs/shared-db-2870-observation.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json",
+    "scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    ".agent/work/3342/3/contract.json",
+    ".agent/work/3342/3/completion.json"
+  ],
+  "file_writes": [
+    ".agent/work/3342/3/contract.json",
+    ".agent/work/3342/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No live dispatch or database mutations",
+    "No credentials provisioning",
+    "No lifecycle or manager changes",
+    "No other agents files"
+  ],
+  "required_checks": [
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "node --test scripts/proofs/shared-db-2870-observation.test.mjs",
+    "Independent exact-head review"
+  ],
+  "assumptions": [
+    "No observer source bytes change after governed implementation review at 951435c57a0ad6f97ea7b9d94f2f812c45e09470.",
+    "Current main integration and focused tests support the refreshed evidence; any fresh review requirement is separately decided by the merge owner.",
+    "This generation only refreshes immutable contract and completion evidence; no live dispatch, database write, or acceptance claim."
+  ],
+  "stop_conditions": [
+    "Any production write or scope expansion is required"
+  ],
+  "generation": 3
+}
