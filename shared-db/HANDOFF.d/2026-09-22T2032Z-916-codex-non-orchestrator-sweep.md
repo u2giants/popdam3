@@ -41,7 +41,7 @@ The objective was not to alter Supabase. It was to close repository-maintenance 
 
 ### Verified repository state at 2026-09-22 20:32 UTC
 
-- `origin/main` is `b055a4141bf91450adacd3a1383decdef9693402` (the merged handoff PR #3404).
+- At the original 2026-09-22 20:32 UTC snapshot, `origin/main` was `d2c79ca17b5cb5edc653fb9aa54645c6333694b4`. The handoff first landed through PR #3404 at `b055a4141bf91450adacd3a1383decdef9693402`, and its zero-marker correction landed through PR #3406; refresh `origin/main` before implementation instead of treating any recorded SHA as permanently current.
 - Highest migration filename on main is `supabase/migrations/20260918180012_prepack_role_read_only_proof_grant.sql`.
 - This session made no database, preview, production, or infrastructure change. Preview state was intentionally not inspected or mutated.
 - The canonical checkout `D:\repos\shared-db` was clean when closeout began.
