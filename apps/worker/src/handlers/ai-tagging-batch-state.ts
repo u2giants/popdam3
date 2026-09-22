@@ -19,31 +19,31 @@ export type BatchNextAction =
 
 export function nextBatchAction(job: OpenRouterBatchJobState, nowMs = Date.now()): BatchNextAction {
   if (job.phase === "ambiguous_submission") {
-    return { type: "blocked", reason: "OpenRouter submission is ambiguous; automatic resubmission is disabled" };
+    return { type: "blocked", reason: "Provider submission is ambiguous; automatic resubmission is disabled" };
   }
   if (job.phase === "prepared") return { type: "claim" };
   if (job.phase === "submitting") {
     if (job.provider_batch_id) return { type: "poll", batchId: job.provider_batch_id };
     if (job.lease_token) return { type: "submit", leaseToken: job.lease_token };
-    return { type: "wait" };
+    return { type: "claim" };
   }
   if (job.phase === "pending") {
-    if (!job.provider_batch_id) return { type: "blocked", reason: "Pending OpenRouter job has no batch ID" };
+    if (!job.provider_batch_id) return { type: "blocked", reason: "Pending provider job has no batch ID" };
     if (!job.lease_token) return { type: "claim" };
     const due = !job.next_poll_at || new Date(job.next_poll_at).getTime() <= nowMs;
     return due ? { type: "poll", batchId: job.provider_batch_id } : { type: "wait" };
   }
   if (job.phase === "applying") {
-    if (!job.provider_batch_id) return { type: "blocked", reason: "Applying OpenRouter job has no batch ID" };
+    if (!job.provider_batch_id) return { type: "blocked", reason: "Applying provider job has no batch ID" };
     if (!job.lease_token) return { type: "claim" };
     return { type: "apply", batchId: job.provider_batch_id };
   }
   if (job.phase === "completed") {
-    if (!job.provider_batch_id) return { type: "blocked", reason: "Completed OpenRouter job has no batch ID" };
+    if (!job.provider_batch_id) return { type: "blocked", reason: "Completed provider job has no batch ID" };
     if (!job.lease_token) return { type: "claim" };
     return { type: "clear", batchId: job.provider_batch_id, leaseToken: job.lease_token };
   }
-  return { type: "blocked", reason: "Unknown OpenRouter batch state" };
+  return { type: "blocked", reason: "Unknown provider batch state" };
 }
 
 export function indexBatchResults<T extends { custom_id?: string }>(
@@ -54,15 +54,15 @@ export function indexBatchResults<T extends { custom_id?: string }>(
   const indexed = new Map<string, T>();
   for (const result of results) {
     if (!result.custom_id || !expected.has(result.custom_id)) {
-      throw new Error("OpenRouter batch returned an unknown result ID");
+      throw new Error("Provider batch returned an unknown result ID");
     }
     if (indexed.has(result.custom_id)) {
-      throw new Error("OpenRouter batch returned a duplicate result ID");
+      throw new Error("Provider batch returned a duplicate result ID");
     }
     indexed.set(result.custom_id, result);
   }
   for (const customId of expected) {
-    if (!indexed.has(customId)) throw new Error("OpenRouter batch result is missing");
+    if (!indexed.has(customId)) throw new Error("Provider batch result is missing");
   }
   return indexed;
 }

@@ -20,15 +20,23 @@ import { db } from "../supabase.js";
 import { logger } from "../logger.js";
 import {
   buildProviderPin,
-  getOpenRouterBatch,
   imageContent,
+  publicImageContent,
   OpenRouterError,
-  parseOpenRouterBatchResult,
-  submitOpenRouterBatch,
   type ChatCompletionRequest,
   type ChatMessage,
-  type OpenRouterBatchResultItem,
 } from "../openrouter.js";
+import {
+  batchProviderForModel,
+  assertProviderSubmissionLeaseBudget,
+  getProviderBatch,
+  parseProviderBatchResult,
+  prepareProviderBatch,
+  providerBatchPageLimit,
+  submitPreparedProviderBatch,
+  type PreparedProviderBatch,
+  type ProviderBatchResultItem,
+} from "../batch-provider.js";
 import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type StructuredOutputMethod } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
 import {
@@ -359,6 +367,7 @@ export function buildGroupProfileMessages(
   group: StyleGroupProfileRow,
   representatives: StyleGroupRepresentativeCandidate[],
   images: ImageData[],
+  publicImages = false,
 ): ChatMessage[] {
   const prompt = buildStyleGroupTaggingPrompt({
     styleGroup: group as unknown as Record<string, unknown>,
@@ -374,7 +383,9 @@ export function buildGroupProfileMessages(
     {
       role: "user",
       content: [
-        ...images.map((image) => imageContent(image.base64, image.mimeType)),
+        ...(publicImages
+          ? representatives.map((representative) => publicImageContent(representative.thumbnail_url!))
+          : images.map((image) => imageContent(image.base64, image.mimeType))),
         {
           type: "text" as const,
           text:
@@ -472,7 +483,7 @@ export async function profileOneStyleGroup(
   return { outcome: "profiled" };
 }
 
-// ── Durable (OpenRouter batch) path ──────────────────────────────────────────
+// ── Durable provider-batch path ──────────────────────────────────────────────
 
 type GroupJobItem = {
   style_group_id: string;
@@ -481,6 +492,12 @@ type GroupJobItem = {
   sku?: string | null;
   error?: string;
 };
+
+interface PreparedGroupBatchSubmission {
+  batch: PreparedProviderBatch;
+  submittedIds: string[];
+  visualAnalysisUnavailable: number;
+}
 
 function groupItems(job: OpenRouterBatchJobState): GroupJobItem[] {
   return Array.isArray(job.group_items) ? job.group_items as GroupJobItem[] : [];
@@ -494,9 +511,10 @@ async function handleDurableGroupProfiles(
 ): Promise<BatchResult> {
   const models = dependencies.models ?? await getVisionModels();
   const model = opState.external_job?.model ?? models.primary;
+  const batchProvider = opState.external_job?.provider ?? batchProviderForModel(model);
   const apiKey = dependencies.apiKey ?? await getAiTaggingApiKey(model);
-  if (!apiKey) return { ok: false, done: false, error: "No OpenRouter API key configured" };
-  const provider = buildProviderPin(models.providerPin);
+  if (!apiKey) return { ok: false, done: false, error: "No batch provider API key configured" };
+  const providerPin = batchProvider === "openrouter" ? buildProviderPin(models.providerPin) : undefined;
   const fetchGroups = dependencies.fetchGroups ?? defaultFetchGroups;
   const fetchMembers = dependencies.fetchMembers ?? defaultFetchMembers;
   const fetchImages = dependencies.fetchImages ??
@@ -512,8 +530,17 @@ async function handleDurableGroupProfiles(
     if (!outputMethod) return { ok: false, done: false, error: `Model ${model} has no supported structured-output method` };
     const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;
     const cursor = typeof opState.cursor === "string" && opState.cursor ? opState.cursor : null;
-    const groups = await fetchGroups({ cursor, limit: batchSize, force, groupIds });
-    if (!groups.length) return { ok: true, done: true, profiled: 0, skipped: 0, failed: 0, nextOffset: opState.cursor ?? 0 };
+    const pageLimit = Math.min(batchSize, providerBatchPageLimit(batchProvider, "style_group"));
+    const groupOffset = groupIds && typeof opState.cursor === "number" ? opState.cursor : 0;
+    const selectedGroupIds = groupIds?.slice(groupOffset, groupOffset + pageLimit) ?? null;
+    const groups = await fetchGroups({ cursor, limit: pageLimit, force, groupIds: selectedGroupIds });
+    const requestedCount = selectedGroupIds?.length ?? groups.length;
+    const nextExplicitOffset = groupOffset + requestedCount;
+    if (!groups.length) {
+      return groupIds
+        ? { ok: true, done: nextExplicitOffset >= groupIds.length, profiled: 0, skipped: requestedCount, failed: 0, nextOffset: nextExplicitOffset }
+        : { ok: true, done: true, profiled: 0, skipped: 0, failed: 0, nextOffset: opState.cursor ?? 0 };
+    }
     const runId = opState.run_id ?? "unassigned";
     return {
       ok: true,
@@ -522,12 +549,13 @@ async function handleDurableGroupProfiles(
       external_job: {
         version: 1,
         phase: "prepared",
+        provider: batchProvider,
         model,
         output_method: outputMethod,
         prepared_at: new Date().toISOString(),
         page_cursor: opState.cursor ?? 0,
-        next_cursor: groups[groups.length - 1].id,
-        operation_done_after_clear: Boolean(groupIds?.length),
+        next_cursor: groupIds ? nextExplicitOffset : groups[groups.length - 1].id,
+        operation_done_after_clear: Boolean(groupIds?.length && nextExplicitOffset >= groupIds.length),
         scope: "style_group",
         group_items: groups.map((group) => ({
           style_group_id: group.id,
@@ -537,28 +565,17 @@ async function handleDurableGroupProfiles(
         })),
         items: [],
       },
+      skipped: Math.max(0, requestedCount - groups.length),
       last_stage: "state_persist",
     };
   }
 
   const action = nextBatchAction(job);
   if (action.type === "blocked") return { ok: false, done: false, error: action.reason, error_code: "contract_error" };
-  if (action.type === "claim") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
-  if (action.type === "wait") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "yield_without_save", last_stage: "model_inference" };
-  if (action.type === "clear") {
-    return {
-      ok: true,
-      done: job.operation_done_after_clear === true,
-      nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
-      profiled: 0,
-      skipped: 0,
-      failed: 0,
-      external_job: { ...job, lease_token: action.leaseToken, clear_after_reconciliation: true },
-      last_stage: "state_persist",
-    };
-  }
-
-  if (action.type === "submit") {
+  if (action.type === "claim") {
+    if (job.phase !== "prepared") {
+      return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
+    }
     const outputMethod = job.output_method ?? "json_schema";
     const submissions = [];
     let visualAnalysisUnavailable = 0;
@@ -581,9 +598,9 @@ async function handleDurableGroupProfiles(
       }
       const request: ChatCompletionRequest = {
         model,
-        messages: buildGroupProfileMessages(group, prepared.representatives, prepared.images),
+        messages: buildGroupProfileMessages(group, prepared.representatives, prepared.images, batchProvider === "openrouter"),
         max_tokens: 3000,
-        provider,
+        provider: providerPin,
       };
       applyStructuredOutputMethod(request, outputMethod);
       submissions.push({ customId: item.custom_id, request });
@@ -598,8 +615,40 @@ async function handleDurableGroupProfiles(
         visual_analysis_unavailable: visualAnalysisUnavailable,
       };
     }
-    const created = await submitOpenRouterBatch(apiKey, submissions);
-    const submittedIds = new Set(submissions.map((submission) => submission.customId));
+    const transientPreparedBatch: PreparedGroupBatchSubmission = {
+      batch: await prepareProviderBatch(batchProvider, submissions),
+      submittedIds: submissions.map((submission) => submission.customId),
+      visualAnalysisUnavailable,
+    };
+    return {
+      ok: true,
+      done: false,
+      nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+      state_transition: "claim_submission",
+      transient_prepared_batch: transientPreparedBatch,
+      visual_analysis_unavailable: visualAnalysisUnavailable,
+    };
+  }
+  if (action.type === "wait") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "yield_without_save", last_stage: "model_inference" };
+  if (action.type === "clear") {
+    return {
+      ok: true,
+      done: job.operation_done_after_clear === true,
+      nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
+      profiled: 0,
+      skipped: 0,
+      failed: 0,
+      external_job: { ...job, lease_token: action.leaseToken, clear_after_reconciliation: true },
+      last_stage: "state_persist",
+    };
+  }
+
+  if (action.type === "submit") {
+    const preparedSubmission = opState.transient_prepared_batch as PreparedGroupBatchSubmission | undefined;
+    if (!preparedSubmission || preparedSubmission.batch.provider !== batchProvider) throw new Error("Prepared provider batch is unavailable before submission");
+    assertProviderSubmissionLeaseBudget(job.lease_expires_at);
+    const created = await submitPreparedProviderBatch(apiKey, preparedSubmission.batch);
+    const submittedIds = new Set(preparedSubmission.submittedIds);
     return {
       ok: true,
       done: false,
@@ -615,14 +664,14 @@ async function handleDurableGroupProfiles(
           .filter((item) => submittedIds.has(item.custom_id))
           .map((item) => ({ ...item, status: "submitted" as const })),
       },
-      visual_analysis_unavailable: visualAnalysisUnavailable,
+      visual_analysis_unavailable: preparedSubmission.visualAnalysisUnavailable,
       last_stage: "model_inference",
     };
   }
 
   let record;
   try {
-    record = await getOpenRouterBatch(apiKey, action.batchId);
+    record = await getProviderBatch(batchProvider, apiKey, action.batchId);
   } catch (error) {
     if (error instanceof OpenRouterError && isNewBatchVisibilityDelay(error.status, job.submitted_at)) {
       return {
@@ -646,7 +695,7 @@ async function handleDurableGroupProfiles(
     return {
       ok: false,
       done: false,
-      error: `OpenRouter batch ${action.batchId} ${record.status}`,
+      error: `Provider batch ${action.batchId} ${record.status}`,
       error_code: "provider_terminal",
       external_job: { ...job, provider_status: record.status, lease_token: job.lease_token, last_checked_at: new Date().toISOString() },
     };
@@ -663,17 +712,17 @@ async function handleDurableGroupProfiles(
 
   const results = indexBatchResults(
     groupItems(job).map((item) => item.custom_id),
-    (record.results ?? []) as OpenRouterBatchResultItem[],
+    (record.results ?? []) as ProviderBatchResultItem[],
   );
   let profiled = 0, failed = 0;
   const failureSamples = [];
   for (const item of groupItems(job)) {
-    const raw = results.get(item.custom_id) as OpenRouterBatchResultItem | undefined;
+    const raw = results.get(item.custom_id) as ProviderBatchResultItem | undefined;
     try {
-      if (!raw) throw new Error("OpenRouter result missing");
-      const completion = await parseOpenRouterBatchResult(apiKey, raw);
+      if (!raw) throw new Error("Provider batch result missing");
+      const completion = await parseProviderBatchResult(batchProvider, apiKey, raw);
       const parsed = completion.toolCalls?.find((call) => call.name === SCHEMA_NAME)?.arguments ?? parseJsonObject(completion.content);
-      if (!parsed) throw new Error("OpenRouter result contains no structured group profile");
+      if (!parsed) throw new Error("Provider batch result contains no structured group profile");
       const profile = validateStyleGroupProfileData(parsed, "batch");
       const groups = await fetchGroups({ cursor: null, limit: 1, force: true, groupIds: [item.style_group_id] });
       const group = groups[0];

@@ -46,6 +46,8 @@ export interface OpState {
   last_substage?: string;
   state_revision?: number;
   external_job?: OpenRouterBatchJobState;
+  /** In-memory only; operation-loop never writes this provider payload to the database. */
+  transient_prepared_batch?: unknown;
 }
 
 export type OpenRouterBatchPhase =
@@ -58,6 +60,8 @@ export type OpenRouterBatchPhase =
 
 export interface OpenRouterBatchJobState {
   version?: 1;
+  /** Missing means OpenRouter for compatibility with already-persisted jobs. */
+  provider?: "openrouter" | "google-gemini";
   phase: OpenRouterBatchPhase;
   model?: string;
   output_method?: "json_schema" | "json_object" | "tool_named" | "tool_required" | "tool_auto";
