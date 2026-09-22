@@ -23,7 +23,7 @@ Put this whole list to Albert in one message before any step that needs it. Do n
 
 - 2026-09-20: this sweep excludes issues touched by the Claude session named **Open GitHub Issues to production**.
 - 2026-09-20: twenty database-shape or curated-data issues were not closed or rewritten; only their incorrect `non-orchestrator` label was removed so the orchestrator can see their true classification.
-- 2026-09-20: this Codex session is not the shared-db orchestrator and must not close marker issue #3297 (orchestrator coordination). The live marker on 2026-09-22 still names Codex thread `01a0bf00-fa7b-73d1-b447-fc4c89c50b96`.
+- 2026-09-20: this Codex session was not the shared-db orchestrator and did not close marker issue #3297 (orchestrator coordination). At the final 2026-09-22 21:29 UTC check, #3297 had closed and `check-orchestrator-marker --resolve` reported zero active markers. Do not route structural work until a successor claims a new marker.
 
 ## 1. What this application is
 
@@ -41,11 +41,11 @@ The objective was not to alter Supabase. It was to close repository-maintenance 
 
 ### Verified repository state at 2026-09-22 20:32 UTC
 
-- `origin/main` is `d2c79ca17b5cb5edc653fb9aa54645c6333694b4`.
+- `origin/main` is `b055a4141bf91450adacd3a1383decdef9693402` (the merged handoff PR #3404).
 - Highest migration filename on main is `supabase/migrations/20260918180012_prepack_role_read_only_proof_grant.sql`.
 - This session made no database, preview, production, or infrastructure change. Preview state was intentionally not inspected or mutated.
 - The canonical checkout `D:\repos\shared-db` was clean when closeout began.
-- The current orchestrator marker resolves from open issue #3297 (orchestrator coordination) to Codex thread `01a0bf00-fa7b-73d1-b447-fc4c89c50b96`. That marker belongs to another session.
+- There is no active orchestrator marker. `node scripts/check-orchestrator-marker.mjs --resolve` reported: `NO ACTIVE ORCHESTRATOR: zero open markers.` Queue structural work until a successor opens a marker; zero markers is not permission to dispatch.
 - Git committer identity is `Albert Hazan <u2giants@users.noreply.github.com>`.
 
 ### Completed and merged by this sweep
