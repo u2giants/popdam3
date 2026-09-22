@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "work_issue": 2995,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Add leased HTS classification jobs matching existing worker least privilege and determination turn idempotency",
+  "base_sha": "51b0591c7fe862158d3fde0d5d7933b43f6aac12",
+  "dispatcher": "Codex orchestrator 3297",
+  "worker": "Codex hts2995_author_recovery",
+  "branch": "codex/hts2995-ready-20260920",
+  "worktree": "D:/repos/worktrees/hts2995-ready-20260920",
+  "allowed_paths": [
+    "supabase/migrations/20260920202755_hts_rag_classification_jobs.sql",
+    "supabase/tests/hts_rag_classification_jobs_contract.sql",
+    "scripts/production-verification-sidecars/20260920202755.json",
+    ".agent/work/2995/1/contract.json",
+    ".agent/work/2995/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260920202755_hts_rag_classification_jobs.sql",
+    "supabase/tests/hts_rag_classification_jobs_contract.sql",
+    "scripts/production-verification-sidecars/20260920202755.json",
+    ".agent/work/2995/1/contract.json",
+    ".agent/work/2995/1/completion.json"
+  ],
+  "db_reads": [
+    "table hts_rag.hts_rag_determinations",
+    "table hts_rag.hts_rag_debate_runs",
+    "table hts_rag.hts_rag_provider_responses"
+  ],
+  "db_writes": [
+    "table hts_rag.hts_rag_classification_jobs",
+    "index hts_rag.hts_rag_classification_jobs_status_idx",
+    "index hts_rag.hts_rag_classification_jobs_owner_idx",
+    "index hts_rag.hts_rag_classification_jobs_rfq_idx",
+    "policy hts_rag_prod_worker_access on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_prod_worker_insert on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_prod_worker_update on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_alsand_worker_access on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_alsand_worker_insert on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_alsand_worker_update on hts_rag.hts_rag_classification_jobs"
+  ],
+  "prohibited_actions": [
+    "No preview or production writes",
+    "No merge",
+    "Do not change existing tables or roles"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "PostgreSQL rollback contract tests",
+    "Two governed independent reviews"
+  ],
+  "assumptions": [
+    "estimated_cost_usd mutable lifecycle; max_attempts immutable per root design approval",
+    "Generated types follow actual preview application and are not fabricated"
+  ],
+  "stop_conditions": [
+    "Exact object claim invalid or collision",
+    "Existing role contract differs from approved issue"
+  ],
+  "generation": 1
+}

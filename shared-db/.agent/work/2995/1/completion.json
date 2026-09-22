@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "work_issue": 2995,
+  "outcome": "ready-for-merge",
+  "pr": 3382,
+  "migration_versions": [
+    "20260920202755"
+  ],
+  "contract_ref": "refs/db-contracts/2995/1",
+  "contract_sha256": "1677ea762614aeadcff9e4294ca3f95827226a2a9559e6fed58bddd5fd7f7b74",
+  "head_sha": "b536a080093ea78948fdae345078d8bdfbfcd33c",
+  "base_sha": "4e422915aedf6b6b16d7dfccf2e582e1a1989c6d",
+  "files_changed": [
+    "supabase/migrations/20260920202755_hts_rag_classification_jobs.sql",
+    "supabase/tests/hts_rag_classification_jobs_contract.sql"
+  ],
+  "db_reads": [
+    "table hts_rag.hts_rag_determinations",
+    "table hts_rag.hts_rag_debate_runs",
+    "table hts_rag.hts_rag_provider_responses"
+  ],
+  "db_writes": [
+    "table hts_rag.hts_rag_classification_jobs",
+    "index hts_rag.hts_rag_classification_jobs_status_idx",
+    "index hts_rag.hts_rag_classification_jobs_owner_idx",
+    "index hts_rag.hts_rag_classification_jobs_rfq_idx",
+    "policy hts_rag_prod_worker_access on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_prod_worker_insert on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_prod_worker_update on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_alsand_worker_access on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_alsand_worker_insert on hts_rag.hts_rag_classification_jobs",
+    "policy hts_rag_alsand_worker_update on hts_rag.hts_rag_classification_jobs"
+  ],
+  "checks": [
+    {
+      "exit_code": 0,
+      "evidence": "Re-ran on refreshed implementation b536a080 against origin/main 4e422915: static SQL guards passed; live ledger not configured locally.",
+      "command": "bash scripts/check-sql.sh"
+    },
+    {
+      "exit_code": 0,
+      "evidence": "Re-ran actual HTS foundation, provenance and jobs migrations on fresh disposable PostgreSQL 18.6; jobs and shared-schema contracts each passed inside BEGIN/ROLLBACK. CI ephemeral database run 35788726696 passed on identical SQL/test bytes at head 0912d631.",
+      "command": "PostgreSQL rollback contract tests"
+    },
+    {
+      "exit_code": 0,
+      "evidence": "Re-ran scan on refreshed implementation b536a080: no dynamic markers; no sidecar required.",
+      "command": "python scripts/check_production_verification_sidecars.py --scan-version 20260920202755"
+    },
+    {
+      "exit_code": 0,
+      "evidence": "Re-ran exact-head approval checker at refreshed PR head 0912d631: two content-bound APPROVE verdicts carried from reviewed implementation 1c3501e, digest 3cd1946a15c76c3e4d2aaa443346e5eaf6738c01e217918f68154b7471e89975; no reviewed SQL/test byte changed.",
+      "command": "Two governed independent reviews"
+    }
+  ],
+  "assumptions_resolved": [
+    "Estimated cost is mutable as root approved; maximum attempts is immutable",
+    "Actual preview-generated types and sandbox connection proof follow governed deployment",
+    "Root corrigendum isolates operational jobs by environment; shared learning tables remain untouched",
+    "Global determination/turn uniqueness can disclose duplicate-job existence across environments, but no job payload; approved global grain is retained"
+  ],
+  "stop_conditions_hit": []
+}
