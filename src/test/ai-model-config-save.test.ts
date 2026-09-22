@@ -48,4 +48,23 @@ describe("saveAiModelConfig", () => {
       "AI model selection was not persisted",
     );
   });
+
+  it("rejects direct Gemini Batch outside the Image Tagging primary field", async () => {
+    const call = vi.fn();
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      taskModels: { ...draft.taskModels, pdf_extraction: "google-direct/gemini-3.8-flash:batch" },
+    })).rejects.toThrow("only be selected as the primary Image Tagging model");
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("rejects direct Gemini Batch until a Google key is present", async () => {
+    const call = vi.fn();
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      taskModels: { ...draft.taskModels, vision_tagging: "google-direct/gemini-3.8-flash:batch" },
+      googleKey: "",
+    })).rejects.toThrow("Save a Google AI API key");
+    expect(call).not.toHaveBeenCalled();
+  });
 });

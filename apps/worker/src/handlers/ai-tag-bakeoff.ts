@@ -502,6 +502,9 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   let failed = 0;
   const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
   const runModels = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e];
+  if (runModels.some((modelId) => typeof modelId === "string" && modelId.startsWith("google-direct/") && modelId.endsWith(":batch"))) {
+    return { ok: false, done: false, error: "Direct Gemini Batch is only supported for production Image Tagging" };
+  }
   const models: Array<[Slot, string]> = SLOTS
     .map((slot, index): [Slot, string | null] => [slot, runModels[index] ?? null])
     .filter((entry): entry is [Slot, string] => typeof entry[1] === "string" && entry[1].trim().length > 0)

@@ -4,6 +4,7 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalString, requireString } from "../_shared/validators.ts";
+import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, isDirectGeminiBatchModelId, safeSecretFingerprint } from "../_shared/direct-batch-model.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
@@ -331,8 +332,40 @@ async function handleSetConfig(
   if (Object.prototype.hasOwnProperty.call(entries, "BULK_OPERATIONS")) {
     return err("BULK_OPERATIONS must be changed through update-bulk-op", 400);
   }
+  const taskModels = entries.AI_TASK_MODELS;
+  const selectsDirectGemini = taskModels && typeof taskModels === "object" && !Array.isArray(taskModels)
+    && isDirectGeminiBatchModelId((taskModels as Record<string, unknown>).vision_tagging);
+  if (taskModels && typeof taskModels === "object" && !Array.isArray(taskModels)) {
+    for (const [taskKey, modelId] of Object.entries(taskModels as Record<string, unknown>)) {
+      if (!directGeminiBatchAllowedForServerConsumer(modelId, taskKey === "vision_tagging" ? "vision_tagging_primary" : taskKey)) {
+        return err("Direct Gemini Batch may only be selected as the primary Image Tagging model", 400);
+      }
+    }
+  }
+  const pdfConfig = entries.PDF_EXTRACTION_CONFIG;
+  if (pdfConfig && typeof pdfConfig === "object" && !Array.isArray(pdfConfig)) {
+    const pdfModel = (pdfConfig as Record<string, unknown>).ai_vision_model_id;
+    if (!directGeminiBatchAllowedForServerConsumer(pdfModel, "pdf_extraction")) {
+      return err("Direct Gemini Batch is not supported by PDF extraction", 400);
+    }
+  }
 
   const db = serviceClient();
+  if (selectsDirectGemini) {
+    let googleKey = entries.GOOGLE_AI_API_KEY;
+    if (googleKey === undefined) {
+      const { data: keyRow, error: keyError } = await db
+        .from("admin_config")
+        .select("value")
+        .eq("key", "GOOGLE_AI_API_KEY")
+        .maybeSingle();
+      if (keyError) return err(`Could not verify Google AI API key: ${keyError.message}`, 500);
+      googleKey = keyRow?.value;
+    }
+    if (!directGeminiBatchSelectionHasKey(taskModels, googleKey)) {
+      return err("Save a Google AI API key before selecting Direct Gemini Batch", 400);
+    }
+  }
   const now = new Date().toISOString();
   const upserts = Object.entries(entries).map(
     ([key, value]) => ({
@@ -892,24 +925,74 @@ const BUILTIN_AI_MODEL_CAPABILITY_OVERRIDES: Record<string, Record<string, unkno
   },
 };
 
+const DIRECT_VISION_MODELS = [
+  {
+    id: "meta-direct/muse-spark-1.3-contributor",
+    name: "Meta Muse Spark 1.3 Contributor (direct API; training data enabled)",
+    context_length: 1_048_576,
+    input_modalities: ["text", "image"],
+    image_input: true,
+    supports_tools: true,
+    supports_tool_choice: true,
+    tool_choice_modes: ["auto"],
+    supports_structured_outputs: true,
+    supports_response_format: true,
+    capability_source: "direct_provider",
+    applied_override: null,
+    pricing: { prompt: "0.0000001", completion: "0.0000002", input_cache_read: "0.000000002" },
+  },
+  {
+    id: "google-direct/gemini-3.8-flash:batch",
+    name: "Google Gemini 3.8 Flash Batch (direct API)",
+    context_length: null,
+    input_modalities: ["text", "image"],
+    image_input: true,
+    supports_tools: false,
+    supports_tool_choice: false,
+    tool_choice_modes: [],
+    supports_structured_outputs: true,
+    supports_response_format: true,
+    capability_source: "direct_provider",
+    applied_override: null,
+    pricing: null,
+  },
+];
+const openRouterVisionCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
+
 async function handleGetOpenrouterVisionModels() {
   const db = serviceClient();
-  const { data: configRows } = await db
+  const { data: configRows, error: configError } = await db
     .from("admin_config")
     .select("key,value")
     .in("key", ["OPENROUTER_API_KEY", "AI_MODEL_CAPABILITY_OVERRIDES"]);
 
   const apiKey = (configRows?.find((row) => row.key === "OPENROUTER_API_KEY")?.value as string | null) ?? null;
   const overrides = (configRows?.find((row) => row.key === "AI_MODEL_CAPABILITY_OVERRIDES")?.value as Record<string, Record<string, unknown>> | null) ?? {};
-  if (!apiKey) return err("OPENROUTER_API_KEY not configured in admin_config", 400);
+  if (configError) return json({ ok: true, models: DIRECT_VISION_MODELS, catalog_warning: `AI model configuration unavailable: ${configError.message}` });
+  if (!apiKey) return json({ ok: true, models: DIRECT_VISION_MODELS });
+  const accountFingerprint = await safeSecretFingerprint(apiKey);
 
-  const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!resp.ok) return err(`OpenRouter API error: ${resp.status} ${resp.statusText}: ${await resp.text()}`, 502);
-
-  const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-  const items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+  let items: Array<Record<string, unknown>> = [];
+  let catalogWarning: string | null = null;
+  try {
+    const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (resp.ok) {
+      const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+      openRouterVisionCatalogByAccount.set(accountFingerprint, items);
+      if (openRouterVisionCatalogByAccount.size > 4) {
+        const oldest = openRouterVisionCatalogByAccount.keys().next().value;
+        if (oldest) openRouterVisionCatalogByAccount.delete(oldest);
+      }
+    } else {
+      catalogWarning = `OpenRouter catalog unavailable (HTTP ${resp.status})`;
+    }
+  } catch {
+    catalogWarning = "OpenRouter catalog unavailable (network error)";
+  }
+  if (catalogWarning) items = openRouterVisionCatalogByAccount.get(accountFingerprint) ?? [];
   const models = items.map((m) => {
     const id = m.id as string;
     const params = Array.isArray(m.supported_parameters) ? m.supported_parameters as string[] : [];
@@ -935,23 +1018,7 @@ async function handleGetOpenrouterVisionModels() {
     });
   });
 
-  models.push({
-    id: "meta-direct/muse-spark-1.3-contributor",
-    name: "Meta Muse Spark 1.3 Contributor (direct API; training data enabled)",
-    context_length: 1_048_576,
-    input_modalities: ["text", "image"],
-    image_input: true,
-    supports_tools: true,
-    supports_tool_choice: true,
-    tool_choice_modes: ["auto"],
-    supports_structured_outputs: true,
-    supports_response_format: true,
-    capability_source: "direct_provider",
-    applied_override: null,
-    pricing: { prompt: "0.0000001", completion: "0.0000002", input_cache_read: "0.000000002" },
-  });
-
-  return json({ ok: true, models });
+  return json({ ok: true, models: [...models, ...DIRECT_VISION_MODELS], catalog_warning: catalogWarning });
 }
 
 // ── Routes: AI tag bake-off ────────────────────────────────────────
@@ -1072,6 +1139,9 @@ async function handleCreateAiTagBakeoffRun(body: Record<string, unknown>, userId
   const db = serviceClient();
   const modelIds = stringArray(body.model_ids).slice(0, 5);
   if (modelIds.length !== 5) return err("model_ids must contain exactly 5 models", 400);
+  if (modelIds.some((modelId) => !directGeminiBatchAllowedForServerConsumer(modelId, "bakeoff"))) {
+    return err("Direct Gemini Batch is only supported for production Image Tagging", 400);
+  }
 
   const requestedSampleSize = typeof body.sample_size === "number" ? Math.floor(body.sample_size) : 30;
   const sampleSize = Math.min(500, Math.max(1, requestedSampleSize));

@@ -30,6 +30,7 @@ import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
+import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -279,8 +280,37 @@ export function normalizeBatchError(error: unknown, fallback = "Batch failed (ha
   return fallback;
 }
 
+export function normalizeProviderSubmissionError(error: unknown): string {
+  if (error instanceof Error && error.name === "OpenRouterError") {
+    const status = (error as Error & { status?: unknown }).status;
+    return `OpenRouter batch submission failed${typeof status === "number" ? ` (HTTP ${status})` : ""}`;
+  }
+  return normalizeBatchError(error, "Provider batch submission failed without an error message");
+}
+
+export function definitiveProviderSubmissionFailureState(
+  state: OpState,
+  leaseToken: string,
+  error: unknown,
+): OpState {
+  const message = normalizeProviderSubmissionError(error);
+  const reason = classifyError(message);
+  return {
+    ...state,
+    status: isTransientInterruption(reason) ? "interrupted" : "failed",
+    interruption_reason_code: reason,
+    error: message,
+    next_auto_resume_at: nextAutoResumeAt(reason, state),
+    external_job: state.external_job
+      ? { ...state.external_job, phase: "prepared", lease_token: leaseToken }
+      : state.external_job,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 export function classifyError(msg: string): string {
   const m = msg.toLowerCase();
+  if (m.includes("thumbnail fetch timed out before submission")) return "dependency_timeout";
   if (m.includes("config read timed out") || m.includes("dependency timed out")) return "dependency_timeout";
   if (m.includes("57014") || m.includes("statement timeout")) return "statement_timeout";
   if (m.includes("handler supplied no message")) return "missing_error_message";
@@ -773,19 +803,43 @@ export async function tick(): Promise<void> {
       const claimedState = claim.operation as OpState;
       submissionLeaseRetryAfter.delete(opKey);
       submissionLeaseTokens.set(opKey, claim.lease_token);
-      result = await dispatch(opKey, {
-        ...claimedState,
-        external_job: { ...claimedState.external_job!, lease_token: claim.lease_token ?? undefined },
-      });
+      try {
+        result = await dispatch(opKey, {
+          ...claimedState,
+          external_job: { ...claimedState.external_job!, lease_token: claim.lease_token ?? undefined },
+          // This payload was fully built before claiming the one-time receipt.
+          // It exists only for this in-process dispatch and is never persisted.
+          transient_prepared_batch: result.transient_prepared_batch,
+        });
+      } catch (error) {
+        submissionLeaseTokens.delete(opKey);
+        if (error instanceof AmbiguousBatchSubmissionError) {
+          const leaseEnd = claimedState.external_job?.lease_expires_at
+            ? new Date(claimedState.external_job.lease_expires_at).getTime()
+            : Date.now() + 120_000;
+          submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
+          // Preserve the database-owned `submitting` state. After this receipt's
+          // lease expires, the next guarded claim is what durably transitions it
+          // to ambiguous_submission; callers are forbidden from creating it.
+          logger.error("tick: provider batch submission outcome indeterminate; waiting for database lease reconciliation", { opKey });
+          return;
+        }
+        const failureState = definitiveProviderSubmissionFailureState(claimedState, claim.lease_token, error);
+        const saved = await guardedPersistOpState(opKey, failureState, { expectedRevision: claim.state_revision });
+        if (!saved.ok) throw new Error(`Protected provider submission failure save refused: ${saved.reason}`);
+        if (failureState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
+        logger.error("tick: provider batch submission failed before a provider ID was accepted", { opKey, error: failureState.error });
+        return;
+      }
       if (!result.ok) {
         // Previously this threw straight out of tick(). index.ts only logs, so
         // the operation stayed "running" in admin_config with no error visible
         // in the UI and with this worker still holding the submission lease.
         // Persist the same interrupted state the dispatch-throw path writes.
-        const errMsg = normalizeBatchError(result.error, "OpenRouter submission failed without an error message");
+        const errMsg = normalizeBatchError(result.error, "Provider batch submission failed without an error message");
         const reason = classifyError(errMsg);
         submissionLeaseTokens.delete(opKey);
-        logger.error("tick: OpenRouter submission failed", { opKey, error: errMsg });
+        logger.error("tick: provider batch submission failed", { opKey, error: errMsg });
         await persistOpState(opKey, {
           ...claimedState,
           cursor,
@@ -811,10 +865,10 @@ export async function tick(): Promise<void> {
         expectedRevision: claim.state_revision,
       });
       if (!saved.ok || saved.provider_batch_id !== submittedState.external_job?.provider_batch_id) {
-        throw new Error("OpenRouter accepted the batch but its ID could not be safely saved");
+        throw new Error("The provider accepted the batch but its ID could not be safely saved");
       }
       if (result.done) submissionLeaseTokens.delete(opKey);
-      logger.info("tick: durable OpenRouter batch saved", {
+      logger.info("tick: durable provider batch saved", {
         opKey,
         batchId: submittedState.external_job?.provider_batch_id,
       });
@@ -829,7 +883,7 @@ export async function tick(): Promise<void> {
         status: "interrupted",
         cursor,
         progress,
-        error: result.error ?? "OpenRouter batch failed",
+        error: result.error ?? "Provider batch failed",
         interruption_reason_code: interruptionReason(result),
         external_job: resultJob ?? currentState.external_job,
         updated_at: new Date().toISOString(),
@@ -837,7 +891,7 @@ export async function tick(): Promise<void> {
       const saved = await guardedPersistOpState(opKey, protectedErrorState, {
         expectedRevision: currentState.state_revision ?? 0,
       });
-      if (!saved.ok) throw new Error(`Protected OpenRouter failure save refused: ${saved.reason}`);
+      if (!saved.ok) throw new Error(`Protected provider failure save refused: ${saved.reason}`);
       return;
     }
     if (resultJob?.lease_token && currentState.external_job) {
@@ -852,7 +906,7 @@ export async function tick(): Promise<void> {
       const saved = await guardedPersistOpState(opKey, guardedState, {
         expectedRevision: currentState.state_revision ?? 0,
       });
-      if (!saved.ok) throw new Error(`Protected OpenRouter state save refused: ${saved.reason}`);
+      if (!saved.ok) throw new Error(`Protected provider state save refused: ${saved.reason}`);
       if (result.done || resultJob.clear_after_reconciliation) submissionLeaseTokens.delete(opKey);
       return;
     }

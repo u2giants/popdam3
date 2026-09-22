@@ -1,3 +1,5 @@
+import { modelAllowedForTask } from "./ai-model-options";
+
 export type AdminApiCall = (
   action: string,
   payload?: Record<string, unknown>,
@@ -40,6 +42,14 @@ export async function saveAiModelConfig(
   // The click handler passes a snapshot so a later React render cannot change
   // which task-model selection is sent while the request is in flight.
   const expectedTaskModels = { ...draft.taskModels };
+  for (const [taskKey, modelId] of Object.entries(expectedTaskModels)) {
+    if (!modelAllowedForTask(modelId, taskKey, taskKey.endsWith("_fallback"))) {
+      throw new Error("Direct Gemini Batch may only be selected as the primary Image Tagging model.");
+    }
+  }
+  if (expectedTaskModels.vision_tagging?.startsWith("google-direct/") && expectedTaskModels.vision_tagging.endsWith(":batch") && !draft.googleKey.trim()) {
+    throw new Error("Save a Google AI API key before selecting Direct Gemini Batch.");
+  }
   const entries: Record<string, unknown> = {
     AI_MODELS: models,
     AI_TASK_MODELS: expectedTaskModels,

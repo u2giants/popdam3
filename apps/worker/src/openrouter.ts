@@ -14,6 +14,7 @@
  */
 
 import { logger } from "./logger.js";
+import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
@@ -150,19 +151,47 @@ function assertBatchCompatibleMedia(messages: ChatMessage[]): void {
   }
 }
 
-export async function submitOpenRouterBatch(apiKey: string, items: OpenRouterBatchSubmission[]): Promise<OpenRouterBatchRecord> {
-  const payload = buildOpenRouterBatchPayload(items);
-  const response = await fetch(OPENROUTER_BATCH_URL, {
-    method: "POST",
-    headers: openRouterHeaders(apiKey),
-    signal: AbortSignal.timeout(30_000),
-    body: JSON.stringify(payload),
-  });
-  const text = await response.text();
+export interface PreparedOpenRouterBatch {
+  provider: "openrouter";
+  body: string;
+}
+
+export function prepareOpenRouterBatch(items: OpenRouterBatchSubmission[]): PreparedOpenRouterBatch {
+  return { provider: "openrouter", body: JSON.stringify(buildOpenRouterBatchPayload(items)) };
+}
+
+export async function submitPreparedOpenRouterBatch(apiKey: string, prepared: PreparedOpenRouterBatch): Promise<OpenRouterBatchRecord> {
+  let response: Response;
+  try {
+    response = await fetch(OPENROUTER_BATCH_URL, {
+      method: "POST",
+      headers: openRouterHeaders(apiKey),
+      signal: AbortSignal.timeout(30_000),
+      body: prepared.body,
+    });
+  } catch {
+    throw new AmbiguousBatchSubmissionError("OpenRouter");
+  }
+  let text: string;
+  try {
+    text = await response.text();
+  } catch {
+    if (response.ok) throw new AmbiguousBatchSubmissionError("OpenRouter");
+    throw new OpenRouterError(response.status, "provider response body unavailable");
+  }
   if (!response.ok) throw new OpenRouterError(response.status, text);
-  const record = unwrapBatchRecord(parseJsonRecord(text));
-  if (!record.id) throw new Error("OpenRouter Batch API returned no batch ID");
+  let record: OpenRouterBatchRecord;
+  try {
+    record = unwrapBatchRecord(parseJsonRecord(text));
+  } catch {
+    throw new AmbiguousBatchSubmissionError("OpenRouter");
+  }
+  if (!record.id) throw new AmbiguousBatchSubmissionError("OpenRouter");
   return record;
+}
+
+export async function submitOpenRouterBatch(apiKey: string, items: OpenRouterBatchSubmission[]): Promise<OpenRouterBatchRecord> {
+  return submitPreparedOpenRouterBatch(apiKey, prepareOpenRouterBatch(items));
 }
 
 export async function getOpenRouterBatch(apiKey: string, batchId: string): Promise<OpenRouterBatchRecord> {

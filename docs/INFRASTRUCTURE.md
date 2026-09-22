@@ -60,23 +60,26 @@ seconds; OpenRouter retains batch inputs and outputs for 30 days.
 
 ### Railway Environment Variables
 
-The worker reads configuration from Railway environment variables, **not from `admin_config`**. The following must be set in Railway → your worker service → Variables:
+The worker reads service credentials from Railway. For OpenRouter and Google AI,
+the existing `admin_config` value is authoritative and the Railway value is a
+fallback during a bounded configuration-read outage.
 
 | Variable | Required | Purpose |
 |---|---|---|
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
-| `OPENROUTER_API_KEY` | Yes | OpenRouter key for AI tagging and ERP classification |
-| `GOOGLE_AI_API_KEY` | No | Legacy fallback if no OpenRouter key |
+| `OPENROUTER_API_KEY` | No | Fallback for the database-managed OpenRouter key |
+| `GOOGLE_AI_API_KEY` | No | Fallback for the database-managed Google key used by direct Gemini batches |
 
-**Critical:** `OPENROUTER_API_KEY` in Railway and `OPENROUTER_API_KEY` in `admin_config` are **two separate things** that serve different consumers:
+**Critical:** provider keys in `admin_config` are the normal worker source; matching
+Railway values are outage fallbacks, not separate provider routes:
 
 | Location | Consumer | How it gets there |
 |---|---|---|
-| `admin_config.OPENROUTER_API_KEY` | Bridge/Windows agents | Sent in agent-api heartbeat response |
-| Railway ENV `OPENROUTER_API_KEY` | Railway worker | Read directly from `process.env` at startup |
+| `admin_config.OPENROUTER_API_KEY` / `GOOGLE_AI_API_KEY` | Worker and agents | Set in Settings → APIs; worker reads with a bounded 60-second cache |
+| Matching Railway environment value | Worker only | Used only when the database-managed key is empty or temporarily unreadable |
 
-If you set the key in the popdam admin UI (Settings → AI Models), it only updates `admin_config`. The Railway worker will NOT pick it up until you also set it in Railway's dashboard.
+Saving a provider key in Settings is sufficient for the worker; Railway fallback values are optional.
 
 ### AI Model Configuration
 

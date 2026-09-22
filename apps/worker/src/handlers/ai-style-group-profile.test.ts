@@ -416,6 +416,57 @@ test("a restarted worker polls the saved batch ID instead of submitting a replac
   }
 });
 
+test("a restarted pending job claims polling ownership without re-reading changed thumbnails", async () => {
+  const restarted: OpState = {
+    status: "running",
+    cursor: 0,
+    run_id: "run1",
+    external_job: {
+      version: 1,
+      phase: "pending",
+      provider: "google-gemini",
+      model: "google-direct/gemini-3.8-flash:batch",
+      provider_batch_id: "batches/paid-batch",
+      page_cursor: 0,
+      next_cursor: GROUP_ID,
+      scope: "style_group",
+      group_items: [{ style_group_id: GROUP_ID, custom_id: "saved-result", status: "submitted" }],
+      items: [],
+    },
+  } as unknown as OpState;
+  const result = await handleStyleGroupProfiles(restarted, deps({
+    client: recordingClient(),
+    apiKey: "test-key",
+    models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
+    fetchGroups: async () => { throw new Error("changed group must not be re-read"); },
+    fetchMembers: async () => { throw new Error("changed thumbnails must not be re-read"); },
+    fetchImages: async () => { throw new Error("paid job must not be prepared again"); },
+  }));
+  assert.equal(result.state_transition, "claim_submission");
+  assert.equal(result.transient_prepared_batch, undefined);
+  assert.equal((restarted.external_job as { provider_batch_id: string }).provider_batch_id, "batches/paid-batch");
+});
+
+test("explicit missing group IDs advance by requested IDs, not returned rows", async () => {
+  const missing = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const later = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const result = await handleStyleGroupProfiles({
+    status: "running",
+    cursor: 0,
+    run_id: "run1",
+    params: { group_ids: [missing, later] },
+  }, deps({
+    client: recordingClient(),
+    apiKey: "test-key",
+    models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
+    fetchGroups: async ({ groupIds }) => groupIds?.includes(missing) ? [] : [GROUP],
+  }));
+  assert.equal(result.nextOffset, 1);
+  assert.equal(result.done, false);
+  assert.equal(result.skipped, 1);
+  assert.equal(result.external_job, undefined);
+});
+
 test("a prepared durable job asks the loop for a submission lease before any provider POST", async () => {
   {
     const prepared: OpState = {
@@ -425,7 +476,8 @@ test("a prepared durable job asks the loop for a submission lease before any pro
       external_job: {
         version: 1,
         phase: "prepared",
-        model: "test/vision-model:batch",
+        provider: "google-gemini",
+        model: "google-direct/gemini-3.8-flash:batch",
         output_method: "json_schema",
         page_cursor: 0,
         next_cursor: GROUP_ID,
@@ -437,10 +489,68 @@ test("a prepared durable job asks the loop for a submission lease before any pro
     const result = await handleStyleGroupProfiles(prepared, deps({
       client: recordingClient(),
       apiKey: "test-key",
-      models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+      models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
     }));
     assert.equal(result.state_transition, "claim_submission");
+    assert.ok(result.transient_prepared_batch, "provider payload must be prepared in memory before the lease claim");
   }
+});
+
+test("a prepared job with no usable images clears before claiming a submission receipt", async () => {
+  const prepared: OpState = {
+    status: "running",
+    cursor: 0,
+    run_id: "run1",
+    external_job: {
+      version: 1,
+      phase: "prepared",
+      model: "test/vision-model:batch",
+      output_method: "json_schema",
+      page_cursor: 0,
+      next_cursor: GROUP_ID,
+      scope: "style_group",
+      group_items: [{ style_group_id: GROUP_ID, custom_id: "popdam-group:run1:g:json_schema:0", status: "prepared" }],
+      items: [],
+    },
+  } as unknown as OpState;
+  const result = await handleStyleGroupProfiles(prepared, deps({
+    client: recordingClient(),
+    apiKey: "test-key",
+    models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+    fetchMembers: async () => [],
+  }));
+  assert.equal(result.clear_external_job, true);
+  assert.equal(result.state_transition, undefined);
+  assert.equal(result.transient_prepared_batch, undefined);
+  assert.equal(result.visual_analysis_unavailable, 1);
+});
+
+test("a transient image-preparation failure occurs before any submission claim", async () => {
+  const prepared: OpState = {
+    status: "running",
+    cursor: 0,
+    run_id: "run1",
+    external_job: {
+      version: 1,
+      phase: "prepared",
+      model: "test/vision-model:batch",
+      output_method: "json_schema",
+      page_cursor: 0,
+      next_cursor: GROUP_ID,
+      scope: "style_group",
+      group_items: [{ style_group_id: GROUP_ID, custom_id: "popdam-group:run1:g:json_schema:0", status: "prepared" }],
+      items: [],
+    },
+  } as unknown as OpState;
+  await assert.rejects(
+    handleStyleGroupProfiles(prepared, deps({
+      client: recordingClient(),
+      apiKey: "test-key",
+      models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+      fetchImages: async () => { throw new Error("thumbnail fetch timed out"); },
+    })),
+    /thumbnail fetch timed out/,
+  );
 });
 
 test("an ambiguous durable submission fails closed and never resubmits", async () => {

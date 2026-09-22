@@ -2,6 +2,8 @@ import { config } from "../config.js";
 import { isMetaDirectModel, isTerminalMetaModelApiError, metaChatCompletion } from "../meta-model-api.js";
 import { db } from "../supabase.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
+import { getGoogleAiApiKey } from "../google-ai-key.js";
+import { isDirectGeminiBatchModel } from "../gemini-batch.js";
 import { imageContent, publicImageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput, type OutputAttempt } from "../structured-output.js";
@@ -380,5 +382,6 @@ export async function callTagAssetModel(
 }
 
 export function getAiTaggingApiKey(model?: string): Promise<string> {
+  if (model && isDirectGeminiBatchModel(model)) return getGoogleAiApiKey();
   return model && isMetaDirectModel(model) ? Promise.resolve(config.metaApiKey) : getOpenRouterApiKey();
 }
