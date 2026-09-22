@@ -7,20 +7,22 @@ Planning date: **2026-09-20**. Tracker: [#3306 — non-orchestrator repository-m
 | Step | Independently verifiable outcome | Status | Updated | Acceptance artifact |
 |---|---|---|---|---|
 | 0 | Fresh baseline, overlapping-work ownership and explicit acceptance contracts | Complete | 2026-09-20 | [Dated baseline and ownership map](docs/verification/workflow-refactor-baseline-20260920T1932Z.md) |
-| 1 | Task evidence no longer conflicts between unrelated pull requests | Partial | 2026-09-20 | PR 3323 merged; canonical identity, metadata exclusions, immutable-generation and full delivery acceptance remain |
-| 2 | Per-source audit dispositions replace the shared global digest bottleneck | Partial | 2026-09-20 | PR 3330 merged; enclosing-symbol identity and whitespace-only reason regressions remain |
-| 3 | Maintenance and structural completion use truthful, compatible evidence | ⬜ open | 2026-09-20 | Required: lifecycle regressions and accepted maintenance closeout trace |
-| 4 | Dependencies resume from proven stages; reports separate delivery from paperwork | ⬜ open | 2026-09-20 | Required: event replay tests and recovered dependency trace |
-| 5 | One current procedure replaces contradictory operational instructions | ⬜ open | 2026-09-20 | Required: policy matrix checks, canonical skill links and route walkthrough |
-| 6 | Required-check discovery is authoritative; advisories remain advisory | ⬜ open | 2026-09-20 | Required: configuration readback and shadow/enforced comparison |
-| 7 | Acceptance probes qualify permissions, shape and execution before promotion | ⬜ open | 2026-09-20 | Required: negative fixtures and exact-probe qualification/live proof pair |
-| 8 | Existing native merge-queue work is completed and accepted | ⬜ open | 2026-09-20 | Required: existing transfer plan's remaining acceptance artifacts |
-| 9 | Merge preparation no longer occupies the serial mutation lane | ⬜ open | 2026-09-20 | Required: lock-race tests and bounded workflow concurrency trace |
-| 10 | Preview and production have separate target queues with intact interlocks | ⬜ open | 2026-09-20 | Required: independent-target trace and conflicting-write refusal |
-| 11 | Qualified low-risk work uses isolated rehearsal; evidence retries are idempotent | ⬜ open | 2026-09-20 | Required: baseline/closure tests and real eligible delivery trace |
-| 12 | Review briefs discover whole risk classes and produce valid verdicts | ⬜ open | 2026-09-20 | Required: brief regression corpus and governed review trace |
-| 13 | Second-review policy is decided from measured defect yield and risk | ⬜ open | 2026-09-20 | Required: decision artifact; if adopted, classifier and activation proof |
-| 14 | End-to-end delivery and sustained safety are measured and accepted | ⬜ open | 2026-09-20 | Required: comparable before/after report, live traces and residual register |
+| 1 | Task evidence no longer conflicts between unrelated pull requests | Partial | 2026-09-22 | Partial: PR3363 and3386 open; immutable generations local at a4519de7; real independent delivery traces remain |
+| 2 | Per-source audit dispositions replace the shared global digest bottleneck | Partial | 2026-09-22 | Partial: PR3374 tested and reviewed, still open; refresh after Step1 |
+| 3 | Maintenance and structural completion use truthful, compatible evidence | Partial | 2026-09-22 | Partial: PR3366 open; later local20d46ce6 needs recovery simplification and fresh review |
+| 4 | Dependencies resume from proven stages; reports separate delivery from paperwork | Partial | 2026-09-22 | Partial: stage/hygiene PR3396 and ai-devops670 preparation; actual resume proof remains |
+| 5 | One current procedure replaces contradictory operational instructions | Partial | 2026-09-22 | Partial: PR3379 and ai-devops667 open; docs-fast helpers unwired; installer669 merged, installation unproven |
+| 6 | Required-check discovery is authoritative; advisories remain advisory | Partial | 2026-09-22 | Partial: PR3369 reviewed; workflow-token authority proof and under-lock integration remain |
+| 7 | Acceptance probes qualify permissions, shape and execution before promotion | Partial | 2026-09-22 | Partial: PR3371 and lexer3395 open; calibrated transport is not genuine acceptance; Muse recovery674 blocks review |
+| 8 | Existing native merge-queue work is completed and accepted | Open | 2026-09-22 | Open: PR3279 ownership release and queue interlock race unresolved |
+| 9 | Merge preparation no longer occupies the serial mutation lane | Open | 2026-09-22 | Open: read-only audit complete; no workflow split implemented |
+| 10 | Preview and production have separate target queues with intact interlocks | Open | 2026-09-22 | Open: target/interlock audit complete; no queue split implemented |
+| 11 | Qualified low-risk work uses isolated rehearsal; evidence retries are idempotent | Partial | 2026-09-22 | Partial: PR3394 plus local retry d9947062 prepared; actual adapters and delivery trace missing |
+| 12 | Review briefs discover whole risk classes and produce valid verdicts | Partial | 2026-09-22 | Partial: PR3390 prepared; complete-brief binding and runner ownership3341 unresolved |
+| 13 | Second-review policy is decided from measured defect yield and risk | Partial | 2026-09-22 | Partial: PR3368 retains two reviewers on insufficient evidence; not merged |
+| 14 | End-to-end delivery and sustained safety are measured and accepted | Partial | 2026-09-22 | Partial: PR3368 measurement helper reviewed; functional acceptance and comparable observations remain |
+
+**Closeout verified 2026-09-22:** PR3357 and PR3318 are merged; ai-devops installer669 is also merged. The implementation PRs remain open. Prepared helpers and historical tests below are not completed outcomes. Start with current-main/ownership revalidation and remaining Step1 acceptance. Full resumable state: [September22 closeout](HANDOFF.d/2026-09-22T2033Z-916-codex-workflow-refactor-closeout.md). The earlier runner backlog is historical: PR3363 checks now pass, but guarded merge and fresh evidence still remain.
 
 **Implementation baseline refreshed 2026-09-20 19:32 UTC. Start at the remaining Step 1 requirements.** The original planning publication implemented none of these fixes. The [fresh baseline](docs/verification/workflow-refactor-baseline-20260920T1932Z.md) identifies intervening merged work and active owners; do not rebuild those changes. After Step 0, choose a ready step from the dependency map in §9; this is not a mandatory fifteen-step serial train. Re-read this table and all downstream phases before starting each phase. A done row must link an actual commit, test artifact and live result where required, not merely an issue number or a claimed count. A landed-but-unproven step must name exactly one owned live-proof issue opened at landing, and remains partial.
 
@@ -74,6 +76,8 @@ Included: all seven audit findings; the same-class shared audit-artifact conflic
 Most implementation steps are **non-orchestrator repository maintenance**. If a step discovers a genuine structural requirement, isolate it into its own shape issue and follow the currently resolved structural route. Do not route the whole maintenance program through the orchestrator. Do not let optional review-policy or automation changes become prerequisites for unrelated artifact and documentation fixes.
 
 ## 5. Current state: what exists and what does not
+
+The comparison below is the original design baseline. The September22 STATUS table and linked closeout supersede its implementation-status claims. Do not reimplement the prepared branches; inspect their exact current heads and finish the missing integrations and acceptance proofs.
 
 Line references below are anchored to the baseline above; locate symbols after refreshing upstream. There is no root `package.json`; use the checked-in Node/Python test workflows, not an invented `npm test` command.
 
