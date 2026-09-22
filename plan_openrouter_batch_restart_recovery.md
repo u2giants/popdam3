@@ -1,14 +1,27 @@
 # OpenRouter Batch Restart Recovery Implementation Plan
 
-Linked handoff: [`HANDOFF.d/2026-08-27T2258Z-hetz-codex-openrouter-batch-live-proof.md`](HANDOFF.d/2026-08-27T2258Z-hetz-codex-openrouter-batch-live-proof.md)
+Linked handoff: [`HANDOFF.d/2026-09-22T2124Z-hetz-codex-open-issues-closeout.md`](HANDOFF.d/2026-09-22T2124Z-hetz-codex-open-issues-closeout.md)
 
 Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues/92)
 
 ## STATUS
 
-Implementation is deployed in PopDAM issue #92. The shared database lease contract
-and terminal-clear follow-up (#1211) are live. Only the controlled production
-batch-across-restart artifact remains before the issue and handoff may retire.
+The original OpenRouter restart-safe implementation is deployed, and the shared
+database lease contract plus terminal-clear follow-up (#1211) are live. Production
+acceptance is still blocked because the account's only advertised OpenRouter vision
+batch route rejects images. A direct Gemini Batch alternative was implemented and
+tested locally on 2026-09-22, but independent review found that definitive provider
+submission failures cannot be recovered safely under the current lease contract.
+That work is durably preserved in WIP commit `653cb150` on remote branch
+`codex/issue-92-direct-gemini-batch` and at local worktree
+`/worksp/popdam-issue92-gemini-batch`; do not open a PR, merge or deploy it until
+the lease-reset contract and remaining terminal-state findings in the newest
+handoff are resolved and independently approved.
+
+**Next session starts with the Step 9 prerequisite:** route the narrow definitive-
+failure lease-reset contract through `popcre/shared-db`, then finish the direct
+Gemini review findings. Only after that route passes review and deploys should the
+session resume Step 8's controlled production proof.
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
@@ -20,6 +33,7 @@ batch-across-restart artifact remains before the issue and handoff may retire.
 | 6. Complete recovery/failure test matrix | ✅ done | 2026-08-24 | 63 worker tests, worker build, frontend build, and lint pass |
 | 7. Update operating documentation and diagnostics | ✅ done | 2026-08-20 | Four operating docs updated; waiting-state visual proof captured |
 | 8. Land, deploy, and prove a controlled production restart | 🟨 partial | 2026-08-24 | `1c042fb9` is green and live on Railway deployment `6061715659`; automated restart simulation passed, but the tiny live batch-across-restart/log artifact is still required |
+| 9. Add a settings-exposed compatible provider route | 🟨 partial | 2026-09-22 | Direct Gemini Batch is preserved in WIP commit `653cb150` on remote branch `codex/issue-92-direct-gemini-batch`; 190 worker tests, 10 settings tests, and both builds pass, but independent review rejected shipment because definitive submission failures need a governed lease-reset contract and terminal provider/polling paths still need repair |
 
 ## 1. The ultimate goal
 
@@ -44,16 +58,23 @@ Runtime flow:
 
 “Durable” means saved in Supabase inside the existing operation object, not held only in Railway process memory.
 
-## 3. What triggered this work
+## 3. What triggered this work — historical, fixed by Steps 1-7
 
 On 2026-08-18 `google/gemini-3.7-flash:batch` exposed two earlier bugs:
 
 1. Catalog validation removed `:batch`; commit `57b60673` fixed exact-ID lookup.
 2. Normal chat completion returned OpenRouter 404 requiring `/api/beta/batches`; commit `c1ac8443` added true batch submission/polling.
 
-The second fix remains process-bound. `runOpenRouterBatch()` holds `created.id`, `custom_id` mappings and promise resolvers only in memory (`apps/worker/src/openrouter.ts:433-533`); `batchChatCompletion()` queues them in `pendingBatchQueues` (`:543-555`). A deploy/crash discards them while OpenRouter may still finish and bill the job. Auto-resume can then submit the same assets again.
+At that time, the second fix remained process-bound. `runOpenRouterBatch()` held
+`created.id`, `custom_id` mappings and promise resolvers only in memory, while
+`batchChatCompletion()` queued them in `pendingBatchQueues`. A deploy/crash could
+discard them while OpenRouter still finished and billed the job. Steps 1-7 replaced
+this design with the deployed durable state machine described in §5; do not recreate
+the old process-bound path.
 
-Reproduce: select the batch model; start enough image tags to create a pending job; capture `openrouter batch: submitted`; restart Railway before completion. The new process has no saved ID and no reconnect path.
+The original reproduction was to restart Railway after submission and observe that
+the new process had no saved ID. That reproduction is historical and no longer
+describes current main.
 
 ## 4. Scope
 
@@ -76,56 +97,65 @@ Reproduce: select the batch model; start enough image tags to create a pending j
 
 ## 5. Current state of the code
 
-Committed, pushed and deployed:
+Deployed and verified as of 2026-09-22:
 
-- `57b60673`: exact batch-variant guardrail lookup.
-- `c1ac8443`: Batch API support. CI run `32144096107` passed; Railway deployment `5964010747` succeeded.
-- Planning baseline after fetch: `bbfaeee7` on 2026-08-18. Use then-current `origin/main` during implementation.
-
-Working pieces:
-
-- `model-capabilities.ts:getModelCapabilities()` accepts the exact variant and detects image/structured output.
-- `structured-output.ts:executeStructuredOutput()` builds JSON-schema/JSON-object/tool fallback plans.
-- `openrouter.ts:433-533` submits, polls, maps by `custom_id`, parses results; `:543-555` combines concurrent calls; `:560-567` routes `:batch`.
-- `openrouter.test.ts:29-85` proves concurrent requests combine and map.
-- `ai-tagging.ts:140-311` prepares/writes one asset; writes at `:205-276` update asset, replace AI tags, upsert characters and conditional source rows.
-- `operation-loop.ts:349-364` atomically saves an operation; `:632-647` saves after a handler page returns.
-- `src/hooks/usePersistentOperation.ts` Start and Queue construct replacement operation objects rather than spreading all live state; Resume can erase a future `external_job`. Stop currently spreads state.
-- The admin API and UI writers ultimately replace an operation object. Every writer must be audited, not just the Railway loop.
+- The restart-safe OpenRouter state machine shipped at `1c042fb9`; the permanent
+  preparation/starvation repairs shipped at `f6714b1a` and `1b065171`; public-URL
+  batch media handling shipped at `25232c60`. All four commits are ancestors of
+  current `origin/main`.
+- Provider identity, deterministic `custom_id` mapping, cursor position, phases,
+  polling times and compact per-item state now persist in `BULK_OPERATIONS`.
+- The shared-db guarded updater enforces revision/lease ownership, protects an
+  unbound expired lease as ambiguous, and protects terminal provider pointers.
+- Worker restart simulations prove one POST followed by same-ID GET after state
+  reconstruction. Waiting-state diagnostics and safe stop/stale handling are live.
+- Three bounded production attempts durably saved provider IDs without replacement
+  submission, but OpenRouter terminally rejected all before a Railway restart could
+  prove recovery. The final one used a public URL and established that the account's
+  only advertised vision batch route rejects image input in its actual batch path.
 
 Half-done/gaps:
 
-- Provider identity/mapping exists only in process memory.
-- `updated_at` cannot advance during a long await; another worker can invoke the 10-minute stale detector at `operation-loop.ts:84-89`.
-- `OpState` (`types.ts:22-42`) has no external-job field.
-- AI `mergeProgress()` (`operation-loop.ts:93-112`) keeps only counters/samples, silently dropping arbitrary state.
-- `persistOpState()` currently treats RPC error or missing response as success (`operation-loop.ts:358-360`). That fail-open behavior is unacceptable when saving a newly accepted provider batch ID.
-- If a pending handler return omits `nextOffset`, numeric cursor `0` becomes `1` (`operation-loop.ts:625-630`), and `decodeAiTagCursor(1)` later rejects it as legacy.
-- Current running UI displays only “Running”; a waiting batch message requires an explicit UI change.
-- `railway.toml` does not pin a single replica and a deploy can overlap worker processes. `run_id` alone is not compare-and-swap ownership.
+- Step 8 still lacks the required live same-ID-across-Railway-restart and
+  exactly-once application artifact.
+- The remote WIP direct Gemini Batch alternative at
+  `/worksp/popdam-issue92-gemini-batch` commit `653cb150` passes its local tests/
+  builds but is not shippable. A definitive provider POST rejection consumes the one-use receipt,
+  and the current shared-db contract has no narrow safe reset for that known-not-
+  accepted outcome. The newest linked handoff lists every remaining review finding.
+- Production Image Tagging remains on Muse, not a batch route. Re-verify the exact
+  saved model before acting because Settings can change it.
 
-No restart-safety implementation has begun. Every STATUS row is open. The shared-db function contract described in Step 1 is expected unless inspection proves equivalent protection already exists.
+## 6. Historical root cause and locked design findings
 
-## 6. Key findings and root cause
-
-1. Root cause: submission, polling and resolution are one long promise; provider ID never crosses the operation-state boundary.
-2. `pendingBatchQueues` is necessarily lost on restart.
+1. Original root cause, now fixed: submission, polling and resolution were one long
+   promise, so the provider ID never crossed the operation-state boundary.
+2. The old `pendingBatchQueues` memory was necessarily lost on restart; current main
+   no longer relies on it for durable recovery.
 3. `BULK_OPERATIONS` is already the correct durable store (`docs/BULK_JOBS.md:111-130`) and is atomically updated.
-4. Since operation state saves only after `dispatch()` returns, production batch work must be a handler state machine that returns after submit and each poll.
+4. Production batch work therefore uses a handler state machine that returns after
+   submit and each poll; this is implemented and must be preserved.
 5. External state belongs top-level in `OpState`, not inside progress that strips unknown fields.
 6. Persisting each poll prevents false 10-minute stale failures.
 7. Keep the original cursor fixed while pending; advance once only when all page results are reconciled.
 8. Official OpenRouter batch material documents POST, GET-by-ID, terminal `completed/failed/cancelled/expired`, and 30-day retention; it does not document idempotent submit/search.
-9. Existing writes appear replay-safe (overwrites, delete/upsert, upsert, ignore duplicates) but tests must prove recovery replay.
+9. Writes are replay-safe through overwrites/delete-upserts and tested result-ID
+   reconciliation; new provider routes must extend the recovery replay tests.
 10. `p_only_if_status="running"` remains mandatory so stale saves cannot overwrite user stop.
-11. UI Start/Queue/Resume replacement is a second loss path independent of Railway restart. A restart-safe worker is insufficient until every writer preserves or deliberately refuses to clear a live external job.
-12. Row writes can converge on replay, but progress counters are additive. Per-item persisted terminal/applied state is required so only newly terminal items emit counters.
-13. Every pending/not-due/applying handler return must explicitly return the unchanged `nextOffset`, including numeric `0`.
-14. Current `persistOpState` is fail-open. Saving submission ownership and returned batch IDs requires a hard checked result whose returned row contains the expected revision/owner/ID.
+11. Every UI/admin writer must continue preserving or deliberately refusing to
+    clear a live external job; this deployed protection is part of restart safety.
+12. Per-item persisted terminal/applied state keeps additive progress counters
+    replay-safe; preserve it for every provider route.
+13. Every pending/not-due/applying return must keep the unchanged `nextOffset`,
+    including numeric `0`.
+14. Submission ownership and returned batch IDs require a hard-checked guarded save
+    containing the expected revision, owner and ID; never restore the old fail-open
+    behavior.
 
 ## 7. Approaches considered and rejected
 
-- **Keep awaiting inside `chatCompletion()`:** current design; cannot persist ID, reconnect or avoid stale risk.
+- **Keep awaiting inside `chatCompletion()`:** pre-fix design; could not persist ID,
+  reconnect or avoid stale risk.
 - **Module-global map:** lost exactly like current memory.
 - **Resubmit every interrupted page:** abandons already-billed work and may double charge/results.
 - **Hide state in progress:** AI `mergeProgress()` silently discards it.
@@ -258,13 +288,52 @@ Update `docs/BULK_JOBS.md`, `INFRASTRUCTURE.md`, `MODEL_RULES.md`, and a prescri
 ### Step 8. Land, deploy and prove restart
 
 - First deployment is a cutover: drain any old in-memory batch and do not start a large batch during the deploy window. Confirm no old worker can keep processing before enabling new batch runs.
-- Verify commit identity, stage only own files, commit directly to `main`, reconcile concurrent pushes, push, await CI.
+- Verify commit identity, stage only owned files, create a current-main feature
+  branch and pull request, pass required checks/review, then merge through the
+  repository's protected-main workflow. Never push directly to protected `main`.
 - Verify Railway exact-SHA deployment success.
 - Controlled production test on a tiny, already-tagged, re-tag-safe asset set via normal UI, never the whole library. Record operation key, run ID, batch ID, asset IDs and pre-state in a secrets-free ignored artifact.
 - Once batch ID is durable, restart only Railway through normal owner. Prove after restart: same ID GET, zero replacement POST/ID for same run/page, each asset applied once, cursor once.
 - Prove production logs show one submitted ID followed by GETs for that same ID. Update/close issue #92 only with commit, CI, deployment and restart artifacts. Retire handoff only when complete.
 
 **You'll know it worked when** exact SHA is green/deployed and controlled restart proves same ID/no duplicate/correct mapping.
+
+### Step 9. Finish the settings-exposed direct Gemini Batch route
+
+This step is partial and is preserved in WIP commit `653cb150` in
+`/worksp/popdam-issue92-gemini-batch` and remote branch
+`codex/issue-92-direct-gemini-batch`. The worktree is clean and safely rebaseable.
+Do not open a PR, merge or deploy that commit until every item below passes.
+
+1. Route a narrow structural request through `popcre/shared-db`: the original
+   receipt holder may reset an unbound submission lease only when a provider
+   response proves the POST was definitively rejected. Preserve ambiguity for
+   timeouts, disconnects and unknown outcomes; never remint authority to another
+   caller. Require current receipt, revision, no provider ID, a narrow reason enum
+   and a still-live lease. Preview-test and merge through shared-db governance.
+2. Rebase WIP commit `653cb150` onto current `origin/main`. Use the
+   governed reset contract for definitive failures. Make
+   failed/cancelled/expired provider batches terminate once rather than poll forever;
+   keep poll timeouts/5xx resumable with the same provider ID; reject every
+   unsupported `:batch` fallback/PDF/bake-off selection; retain cached catalogs
+   while visibly surfacing warnings.
+3. Add database-round-trip reset tests, terminal-provider-state tests, transient
+   poll failure tests, non-Google batch-selection tests and cached-warning tests.
+   Run full worker tests/build, focused UI tests, frontend build, diff/secret scan
+   and exact-current-base independent review until APPROVE.
+4. Ship through a feature branch and protected-main pull request, verify CI and
+   the exact Railway/live frontend SHA, then proceed to Step 8 using the immutable
+   Style Group IDs and exact re-tag-safe asset ID authorized by Albert. Before
+   changing `vision_tagging`, prove both AI tagging and Style Group profiling lanes
+   are idle. After selecting Direct Gemini and after restoring Muse, wait beyond
+   the worker's 60-second model-config cache and verify the worker's effective model
+   before starting or releasing work.
+
+**You'll know it worked when** the direct route is still selected through the
+existing Image Tagging chooser, every definitive/ambiguous/terminal/transient state
+has a tested safe outcome, independent review approves the exact shipped head, and
+Step 8's live proof completes with the same saved provider ID and no replacement
+POST.
 
 ## 10. Tests required
 
@@ -337,7 +406,9 @@ Also run current commands from `.github/workflows/ci.yml`; workflow wins if this
 ## 11. Constraints, standing rules and gotchas
 
 - Plain business English for user errors/reporting.
-- Main-only. Correct identity: `Albert Hazan <u2giants@users.noreply.github.com>`. Never stage unrelated files.
+- Protected `main`: use a current-main feature branch and pull request; never push
+  directly. Correct identity: `Albert Hazan <u2giants@users.noreply.github.com>`.
+  Never stage unrelated files.
 - Production/shared infrastructure read-only except normal authorized GitHub→Railway app deployment and controlled normal app behavior.
 - Shared DB structure only through `/worksp/shared-db`; the backward-compatible revision/lease function enhancement must land there first unless inspection proves an equivalent already exists.
 - Prove project `qsllyeztdwjgirsysgai` before any manual production data write; controlled proof should avoid ad hoc SQL.
@@ -355,7 +426,8 @@ Also run current commands from `.github/workflows/ci.yml`; workflow wins if this
 ## 12. Access and environment
 
 - `/worksp/popdam`, `u2giants/popdam3`, `main`; fetch before work.
-- `/worksp/shared-db`, `u2giants/shared-db`; read its `AGENTS.md`, require a clean checkout, then use its branch/PR/preview/merge workflow for the lease contract.
+- `/worksp/shared-db`, `popcre/shared-db`; read its `AGENTS.md`, require a clean
+  checkout, then use its branch/PR/preview/merge workflow for the lease contract.
 - `gh` authenticated on this machine; verify with `gh auth status` and real read.
 - Railway deploys worker from `main`, environment `popdam / production`.
 - URLs: `https://dam.designflow.app`, `https://sg.designflow.app`.
@@ -367,16 +439,28 @@ Also run current commands from `.github/workflows/ci.yml`; workflow wins if this
 
 ## 13. Definition of done, risks and open questions
 
-### Done checklist
+### Legacy OpenRouter route — completed Steps 1-7
 
 - [x] Shared-db revision/lease contract is preview-tested, merged, applied, and backward-compatible before dependent app code.
 - [x] STATUS evidence current; typed/validated per-item state; stateless helpers; two-tick intent/lease/ID protocol.
 - [x] Automated restart simulation GETs the saved ID with zero normal replacement POST.
-- [x] Pending runs/yields/no false stale; stop/failure/expiry/malformed/missing/ambiguity proven.
+- [x] Legacy OpenRouter pending runs/yields/no false stale; its stop/failure/expiry/
+  malformed/missing/ambiguity paths are proven.
 - [x] Replay-safe writes; cursor/counters once; non-batch unchanged.
-- [x] Tests/build/CI-equivalent commands green; docs/plan current.
-- [x] Correct commit pushed to `main`; CI green; Railway exact SHA success.
-- [ ] Controlled restart proof linked on #92; issue closed only then; handoff retired under successor rule.
+- [x] Legacy-route tests/build/CI-equivalent commands green; original docs deployed.
+- [x] Legacy-route commits are on `main`; CI and Railway exact-SHA deployment passed.
+
+### Direct Gemini route — unfinished Step 9
+
+- [ ] Governed shared-db definitive-rejection lease reset is preview-tested, merged,
+  applied and backward-compatible after Albert explicitly authorizes the orchestrator.
+- [ ] Terminal provider states, transient poll failures, unsupported batch selections,
+  catalog warnings and database-round-trip reset tests pass.
+- [ ] Exact-current-base independent review APPROVES; reviewed commit is pushed by
+  feature branch/PR; CI, Railway and frontend exact SHA are verified.
+- [ ] Controlled restart proof is linked on #92; Muse restoration is effective after
+  the 60-second cache; issue closes only then and the handoff retires under the
+  successor rule.
 
 ### Risks/mitigations
 
