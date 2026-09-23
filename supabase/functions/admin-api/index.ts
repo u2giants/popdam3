@@ -4,7 +4,7 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalString, requireString } from "../_shared/validators.ts";
-import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, isDirectGeminiBatchModelId, safeSecretFingerprint, upsertConfigRowsAtomically } from "../_shared/direct-batch-model.ts";
+import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, isDirectGeminiBatchModelId, safeSecretFingerprint, upsertConfigRowsAtomically, withValidatedCounterparts } from "../_shared/direct-batch-model.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
@@ -351,6 +351,10 @@ async function handleSetConfig(
   }
 
   const db = serviceClient();
+  // The model/key invariant is checked against the counterpart row we read,
+  // and that validated counterpart is rewritten in the SAME single upsert.
+  // Concurrent saves then leave one request's validated pair, never a mix.
+  const counterpartRows: Record<string, unknown> = {};
   // Clearing the Google key while Direct Gemini stays selected (from an
   // earlier save) would leave production tagging without credentials.
   if (!selectsDirectGemini && entries.GOOGLE_AI_API_KEY !== undefined && entries.AI_TASK_MODELS === undefined) {
@@ -363,6 +367,7 @@ async function handleSetConfig(
     if (!directGeminiBatchSelectionHasKey(modelsRow?.value, entries.GOOGLE_AI_API_KEY)) {
       return err("Select a different Image Tagging model before clearing the Google AI API key", 400);
     }
+    counterpartRows.AI_TASK_MODELS = modelsRow?.value ?? null;
   }
   if (selectsDirectGemini) {
     let googleKey = entries.GOOGLE_AI_API_KEY;
@@ -374,13 +379,14 @@ async function handleSetConfig(
         .maybeSingle();
       if (keyError) return err(`Could not verify Google AI API key: ${keyError.message}`, 500);
       googleKey = keyRow?.value;
+      counterpartRows.GOOGLE_AI_API_KEY = keyRow?.value ?? null;
     }
     if (!directGeminiBatchSelectionHasKey(taskModels, googleKey)) {
       return err("Save a Google AI API key before selecting Direct Gemini Batch", 400);
     }
   }
   const now = new Date().toISOString();
-  const upserts = Object.entries(entries).map(
+  const upserts = Object.entries(withValidatedCounterparts(entries, counterpartRows)).map(
     ([key, value]) => ({
       key,
       value,

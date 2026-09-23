@@ -315,144 +315,16 @@ Update `docs/BULK_JOBS.md`, `INFRASTRUCTURE.md`, `MODEL_RULES.md`, and a prescri
 
 ### Step 9. Finish the settings-exposed direct Gemini Batch route
 
-This step is partial and is preserved in WIP commit `653cb150` in
-`/worksp/popdam-issue92-gemini-batch` and remote branch
-`codex/issue-92-direct-gemini-batch`. The worktree is clean and safely rebaseable.
-Do not open a PR, merge or deploy that commit until every item below passes.
-
-1. Route a narrow structural request through `popcre/shared-db`: the original
-   receipt holder may reset an unbound submission lease only when a provider
-   response proves the POST was definitively rejected. Preserve ambiguity for
-   timeouts, disconnects and unknown outcomes; never remint authority to another
-   caller. Require current receipt, revision, no provider ID, a narrow reason enum
-   and a still-live lease. Preview-test and merge through shared-db governance.
-2. Rebase WIP commit `653cb150` onto current `origin/main`. Use the
-   governed reset contract for definitive failures. Make
-   failed/cancelled/expired provider batches terminate once rather than poll forever;
-   keep poll timeouts/5xx resumable with the same provider ID; reject every
-   unsupported `:batch` fallback/PDF/bake-off selection; retain cached catalogs
-   while visibly surfacing warnings.
-3. Add database-round-trip reset tests, terminal-provider-state tests, transient
-   poll failure tests, non-Google batch-selection tests and cached-warning tests.
-   Run full worker tests/build, focused UI tests, frontend build, diff/secret scan
-   and exact-current-base independent review until APPROVE.
-4. Ship through a feature branch and protected-main pull request, verify CI and
-   the exact Railway/live frontend SHA, then proceed to Step 8 using the immutable
-   Style Group IDs and exact re-tag-safe asset ID authorized by Albert. Before
-   changing `vision_tagging`, prove both AI tagging and Style Group profiling lanes
-   are idle. After selecting Direct Gemini and after restoring Muse, wait beyond
-   the worker's 60-second model-config cache and verify the worker's effective model
-   before starting or releasing work.
-
-**You'll know it worked when** the direct route is still selected through the
-existing Image Tagging chooser, every definitive/ambiguous/terminal/transient state
-has a tested safe outcome, independent review approves the exact shipped head, and
-Step 8's live proof completes with the same saved provider ID and no replacement
-POST.
-
-## 10. Tests required
-
-Provider tests (`openrouter.test.ts` or new `openrouter-batch.test.ts`):
-
-1. `submit performs one POST and returns without polling`.
-2. `get performs one GET for supplied ID`.
-3. `builder strips :batch and unsupported temperature but preserves messages/schema`.
-4. `parser maps custom_id regardless of order`.
-5. `parser rejects duplicate unknown missing malformed and per-item failed results`.
-6. `normalizes completed failed cancelled canceled expired`.
-7. `errors/logs omit key and base64`.
-8. `captured inline or file-backed fixture is decoded exactly`.
-9. `unknown nonterminal remains pending; completed without results is contract error`.
-10. `batch builder rejects more than 100 items`.
-11. `chatCompletion batch variant throws asynchronous-only guidance`.
-
-Tagging tests (`handlers/ai-tagging.test.ts`):
-
-12. `pending durable batch survives process restart and resumes GET without POST`.
-13. `persist error after POST becomes ambiguity and produces zero second POSTs`.
-14. `pending/validating yield with explicit unchanged cursor including numeric zero`.
-15. `next_poll_at prevents early GET and early persistence`.
-16. `healthy pending cannot go stale after ten minutes with at most 60-second heartbeat`.
-17. `completion maps shuffled results by persisted custom_id not order`.
-18. `cursor advances once after every item terminal`.
-19. `restart during application converges rows and emits counters once`.
-20. `repair restart re-prepares unfinished items only`.
-21. `invalid subset enters durable JSON repair; valid peers not resubmitted`.
-22. `full live method/same-model/fallback ladder survives restart and remains bounded`.
-23. `failed/cancelled/expired retain batch ID and interrupt loudly`.
-24. `malformed or ambiguous state is contract error and never resubmits`.
-25. `stop before poll makes no provider call`.
-26. `stop after completion before apply makes no writes`.
-27. `single dynamic operation uses the same durable state machine`.
-28. `non-batch stays synchronous`.
-
-Operation-loop tests (create `operation-loop.test.ts` if needed):
-
-29. `external_job persists outside progress and clears explicitly`.
-30. `yield returns only after hard-checked persistence`.
-31. `guarded save cannot overwrite stop or a newer revision`.
-32. `auto-resume retains external state/original cursor`.
-
-UI/API and shared-db tests:
-
-33. `Resume and Queue preserve external job through hook and admin API`.
-34. `Start and Start Fresh refuse a live or ambiguous external job`.
-35. `only one worker can claim a prepared revision and lease`.
-36. `expired submission lease without batch ID becomes ambiguity`.
-37. `existing update_bulk_operation callers remain compatible`.
-38. `Vision Bake-Off rejects batch-only variants clearly`.
-39. `second single-asset click cannot replace a live or ambiguous job`.
-40. `set-config cannot clobber BULK_OPERATIONS protected state`.
-41. `stale Resume/Queue/Stop/reset cannot overwrite a newer revision or batch ID`.
-42. `single-asset completion cannot write idle over a live external job`.
-
-Commands:
-
-```bash
-cd /worksp/popdam/apps/worker
-npm test
-npm run build
-cd /worksp/popdam
-git diff --check
-```
-
-Also run current commands from `.github/workflows/ci.yml`; workflow wins if this plan becomes stale.
-
-## 11. Constraints, standing rules and gotchas
-
-- Plain business English for user errors/reporting.
-- Protected `main`: use a current-main feature branch and pull request; never push
-  directly. Correct identity: `Albert Hazan <u2giants@users.noreply.github.com>`.
-  Never stage unrelated files.
-- Production/shared infrastructure read-only except normal authorized GitHub→Railway app deployment and controlled normal app behavior.
-- Shared DB structure only through `/worksp/shared-db`; the backward-compatible revision/lease function enhancement must land there first unless inspection proves an equivalent already exists.
-- Prove project `qsllyeztdwjgirsysgai` before any manual production data write; controlled proof should avoid ad hoc SQL.
-- OpenRouter key is Railway `OPENROUTER_API_KEY`; never print/persist it. 1Password vault `vibe_coding`, search existing AI provider item; never invent/record values.
-- Never persist/log keys, auth headers, images, prompts or full bodies.
-- Batch API is beta and retains data 30 days; unknown contracts fail loudly.
-- Pending is not failure. Cursor fixed until reconciliation. `custom_id` authoritative. Guard status writes.
-- Healthy polling must avoid 10-minute stale rule and yield to other lanes.
-- Preserve batch temperature removal and synchronous non-batch behavior.
-- No silent fallback on ambiguity/malformed/missing/unknown state.
-- Audit every full-state writer. Preserve external state on Resume/Queue and refuse new starts while live/ambiguous.
-- Keep serialized external state under 100 KB at the maximum 100-item page; exceeding it stops implementation for a separate governed storage design.
-- Keep this plan current as steps execute.
-
-## 12. Access and environment
-
-- `/worksp/popdam`, `u2giants/popdam3`, `main`; fetch before work.
-- `/worksp/shared-db`, `popcre/shared-db`; read its `AGENTS.md`, require a clean
-  checkout, then use its branch/PR/preview/merge workflow for the lease contract.
-- `gh` authenticated on this machine; verify with `gh auth status` and real read.
-- Railway deploys worker from `main`, environment `popdam / production`.
-- URLs: `https://dam.designflow.app`, `https://sg.designflow.app`.
-- Supabase prod `qsllyeztdwjgirsysgai`; reads allowed, structure governed separately.
-- Worker commands in `apps/worker/package.json`; CI in `.github/workflows/ci.yml`.
-- Official Batch endpoints: `POST https://openrouter.ai/api/beta/batches`; `GET .../batches/{id}`; results/inputs retained 30 days.
-- Secrets: 1Password `vibe_coding`, existing AI-provider/OpenRouter item; Railway owns runtime key.
-- Final controlled test needs existing PopDAM admin session. Ask for access to do it yourself before asking Albert to click.
-
-## 13. Definition of done, risks and open questions
+Implemented on branch `codex/issue-92-direct-gemini-batch` (see STATUS). The
+governed reset contract (shared-db #3418 / PR #3426) is used for parsed 400/422
+rejections; terminal provider states, transient polling, batch-model scope,
+cached catalogs, same-model JSON repair for batch results, pre-POST receipt
+handling and the missing-RPC (PGRST202) failure are covered by worker and
+settings tests. Remaining: an APPROVE exact-head review, the reset RPC live in
+production, then ship through a feature branch and protected-main pull request
+and continue with Step 8 under Albert's exact authorization (prove both
+`vision_tagging` lanes idle, select Direct Gemini Batch only for Image Tagging,
+capture one saved batch ID across a Railway restart, then restore Muse).
 
 ### Legacy OpenRouter route — completed Steps 1-7
 

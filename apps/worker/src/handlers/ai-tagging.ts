@@ -31,7 +31,7 @@ import {
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
-import { RepairUnavailableError, safeRepairReason, structuredBatchResult } from "../batch-result-repair.js";
+import { RepairNotAuthorizedError, RepairUnavailableError, safeRepairReason, structuredBatchResult } from "../batch-result-repair.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
@@ -399,7 +399,7 @@ async function handleDurableBatchTag(
     visualAnalysisUnavailable += excluded.size;
     const includedSubmissions = submissions.filter((submission) => !excluded.has(submission.customId));
     if (!preparedBatch || !includedSubmissions.length) {
-      if (reprepareHeldReceipt) throw new PreSubmissionError("Provider batch re-preparation produced no requests");
+      if (reprepareHeldReceipt) throw new PreSubmissionError("Provider batch re-preparation produced no usable requests", true);
       return {
         ok: true,
         done: job.operation_done_after_clear === true,
@@ -560,10 +560,21 @@ async function handleDurableBatchTag(
         schema: TAG_ASSET_SCHEMA as Record<string, unknown>,
         validate: (value) => { validateTagAssetData(value, "batch"); return value; },
         maxTokens: 4000,
+        provider: provider,
       });
       await applyBatchTagResult(item.asset_id, tagData, model);
       tagged++;
     } catch (error) {
+      if (error instanceof RepairNotAuthorizedError) {
+        // Stop immediately; the saved results stay applicable after resume.
+        return {
+          ok: false,
+          done: false,
+          error: error.message,
+          error_code: "repair_not_authorized",
+          external_job: { ...job, phase: "applying", lease_token: job.lease_token, last_checked_at: new Date().toISOString() },
+        };
+      }
       if (error instanceof RepairUnavailableError) {
         // Pause the whole apply pass and retry the same saved results later.
         // Every write is a replacement, so re-applying earlier items is safe;

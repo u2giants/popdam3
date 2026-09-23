@@ -38,7 +38,7 @@ import {
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
-import { RepairUnavailableError, safeRepairReason, structuredBatchResult } from "../batch-result-repair.js";
+import { RepairNotAuthorizedError, RepairUnavailableError, safeRepairReason, structuredBatchResult } from "../batch-result-repair.js";
 import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type StructuredOutputMethod } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
 import {
@@ -627,7 +627,7 @@ async function handleDurableGroupProfiles(
     visualAnalysisUnavailable += excluded.size;
     const includedSubmissions = submissions.filter((submission) => !excluded.has(submission.customId));
     if (!preparedBatch || !includedSubmissions.length) {
-      if (reprepareHeldReceipt) throw new PreSubmissionError("Provider batch re-preparation produced no requests");
+      if (reprepareHeldReceipt) throw new PreSubmissionError("Provider batch re-preparation produced no usable requests", true);
       return {
         ok: true,
         done: job.operation_done_after_clear === true,
@@ -771,6 +771,7 @@ async function handleDurableGroupProfiles(
         toolName: SCHEMA_NAME,
         schema: TAG_STYLE_GROUP_SCHEMA as Record<string, unknown>,
         validate: (value) => validateStyleGroupProfileData(value, "batch"),
+        provider: providerPin,
       });
       const groups = await fetchGroups({ cursor: null, limit: 1, force: true, groupIds: [item.style_group_id] });
       const group = groups[0];
@@ -787,6 +788,16 @@ async function handleDurableGroupProfiles(
       });
       profiled++;
     } catch (error) {
+      if (error instanceof RepairNotAuthorizedError) {
+        // Stop immediately; the saved results stay applicable after resume.
+        return {
+          ok: false,
+          done: false,
+          error: error.message,
+          error_code: "repair_not_authorized",
+          external_job: { ...job, phase: "applying", lease_token: job.lease_token, last_checked_at: new Date().toISOString() },
+        };
+      }
       if (error instanceof RepairUnavailableError) {
         // Pause the whole apply pass and retry the same saved results later.
         // Every write is a replacement, so re-applying earlier items is safe;

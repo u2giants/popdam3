@@ -43,3 +43,19 @@ export async function upsertConfigRowsAtomically(
   const { error } = await client.from("admin_config").upsert(rows);
   return { error };
 }
+
+/**
+ * Add the counterpart rows that were read to validate the Direct Gemini
+ * model/key invariant, so they are rewritten in the same single statement.
+ * Rows the caller is already writing always win.
+ */
+export function withValidatedCounterparts(
+  entries: Record<string, unknown>,
+  counterparts: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...entries };
+  for (const [key, value] of Object.entries(counterparts)) {
+    if (!(key in merged) && value !== null && value !== undefined) merged[key] = value;
+  }
+  return merged;
+}
