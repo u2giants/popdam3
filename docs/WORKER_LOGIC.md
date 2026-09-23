@@ -205,6 +205,11 @@ The worker never uploads to Supabase Storage.
 ### 7.1 Heartbeat Interval
 - Worker sends heartbeat every **30 seconds**
 - Heartbeat must run on its own timer and not be blocked by scanning or thumbnailing.
+- **Auth backoff (issue #141, bridge 1.16.13 / windows 0.16.4):** after repeated
+  401s the heartbeat slows (30s → 2m → 5m). A stale/revoked `x-agent-key` is
+  permanent until re-pair; hammering only floods `agent-api` logs. Successful
+  calls reset the streak. Windows also skips its crash-restart loop while the
+  failure is auth (restart cannot fix a bad key).
 
 ### 7.2 Offline Rule
 If the cloud misses 3 heartbeats, it marks the worker Offline in the UI.
