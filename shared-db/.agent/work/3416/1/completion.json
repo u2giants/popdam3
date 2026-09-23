@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3416,
+  "outcome": "ready-for-merge",
+  "pr": 3417,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3416/1",
+  "contract_sha256": "24ffe5fc7101eba5ba2918e02b368cf1f7ff12add77f78687fb70d7fc870e7c8",
+  "head_sha": "6efbe0c96b1ebacd66d299bf8bbf57023ea38647",
+  "base_sha": "7d1687c83dce4fcf94b1152cebc23f27fbd89adb",
+  "files_changed": [
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/proofs/shared-db-2870-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "13 tests passed, 0 failed, 0 cancelled, 0 skipped, 0 todo at implementation head 6efbe0c96b1ebacd66d299bf8bbf57023ea38647. Includes valid 201, invalid 201 body, and valid-body 202, 401, and 500 refusal."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=312 sources=70 derived_digest=5adcf9278b54"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors in the implementation diff against base 7d1687c83dce4fcf94b1152cebc23f27fbd89adb."
+    }
+  ],
+  "assumptions_resolved": [
+    "The original exact read-only Management API response was HTTP 201 with the expected two metadata rows and no redirect.",
+    "The exploratory uncommitted edit was restored before publishing this contract; implementation commit 6efbe0c96b1ebacd66d299bf8bbf57023ea38647 followed immutable ref refs/db-contracts/3416/1.",
+    "No database write, production dispatch, or application acceptance is claimed."
+  ],
+  "stop_conditions_hit": []
+}

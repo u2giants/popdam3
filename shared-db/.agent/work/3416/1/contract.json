@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3416,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Accept Supabase Management API HTTP 201 for the fixed read-only 2870 catalog observation while retaining all exact response and environment refusals",
+  "base_sha": "7d1687c83dce4fcf94b1152cebc23f27fbd89adb",
+  "dispatcher": "Codex orchestrator root chat 01a0cb03-daa2-79d2-85fd-6a8904abfc53",
+  "worker": "codex",
+  "branch": "codex/2870-observation-http201-01a0cb03",
+  "worktree": "C:/Users/ahazan/.codex/worktrees/shared-db-2870-diagnose-01a0cb03",
+  "allowed_paths": [
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json",
+    ".agent/work/3416/1/contract.json",
+    ".agent/work/3416/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json",
+    ".agent/work/3416/1/contract.json",
+    ".agent/work/3416/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database mutation or production dispatch",
+    "No relaxation of catalog body, project, source, redirect, timeout, or response size validation",
+    "No edits to other agents' branches, claims, or files"
+  ],
+  "required_checks": [
+    "node --test scripts/proofs/shared-db-2870-observation.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The 2026-09-22 read-only Management API reproduction returned HTTP 201 and exactly two valid catalog metadata rows.",
+    "The discarded, uncommitted exploratory edit was restored before publishing this prospective contract."
+  ],
+  "stop_conditions": [
+    "Any implementation needs a database write, workflow change, or source beyond allowed_paths",
+    "The fixed response validator cannot still refuse malformed or wrong-target results"
+  ],
+  "generation": 1
+}

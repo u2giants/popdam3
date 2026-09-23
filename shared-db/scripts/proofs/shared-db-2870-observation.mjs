@@ -143,7 +143,7 @@ export async function queryCatalog(sql, token, { fetchImpl = fetch, timeoutMs = 
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: sql, read_only: true }),
       });
-      if (response.status !== 200 || response.redirected || (response.url && response.url !== QUERY_URL)) refuse();
+      if (![200, 201].includes(response.status) || response.redirected || (response.url && response.url !== QUERY_URL)) refuse();
       return validateCatalog(parseStrictJson(await readBounded(response)));
     })()]);
   } catch { refuse(); }

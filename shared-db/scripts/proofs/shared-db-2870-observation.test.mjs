@@ -99,11 +99,20 @@ test('query uses one exact target, read_only, redirect refusal and abort signal'
   assert.equal(calls, 1); assert.deepEqual(result, rows);
 });
 
-test('302 off-host, 307 same-origin, failed HTTP and fetch errors refuse without retry', async () => {
-  for (const [status, location] of [[302, 'https://attacker.invalid/'], [307, QUERY_URL], [401, ''], [500, '']]) {
+test('Supabase HTTP 201 succeeds only with the exact catalog body', async () => {
+  assert.deepEqual(await queryCatalog('fixed sql', 'token', {
+    fetchImpl: async () => new Response(JSON.stringify(rows), { status: 201 }),
+  }), rows);
+  await assert.rejects(queryCatalog('fixed sql', 'token', {
+    fetchImpl: async () => new Response(JSON.stringify([{ ...rows[0], nullable: false }, rows[1]]), { status: 201 }),
+  }), failure);
+});
+
+test('other 2xx, redirects, failed HTTP and fetch errors refuse without retry', async () => {
+  for (const [status, location] of [[202, ''], [302, 'https://attacker.invalid/'], [307, QUERY_URL], [401, ''], [500, '']]) {
     let calls = 0;
     await assert.rejects(queryCatalog('fixed sql', 'sentinel-secret', { fetchImpl: async () => {
-      calls++; return new Response('SENSITIVE_RESPONSE', { status, headers: { location } });
+      calls++; return new Response(JSON.stringify(rows), { status, headers: { location } });
     } }), error => error.message === 'SHARED_DB_2870_OBSERVATION_REFUSED');
     assert.equal(calls, 1);
   }
