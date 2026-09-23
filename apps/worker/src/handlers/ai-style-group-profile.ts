@@ -38,7 +38,7 @@ import {
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
-import { RepairUnavailableError, structuredBatchResult } from "../batch-result-repair.js";
+import { RepairUnavailableError, safeRepairReason, structuredBatchResult } from "../batch-result-repair.js";
 import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type StructuredOutputMethod } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
 import {
@@ -344,6 +344,13 @@ export async function prepareGroupImages(
       if (/Thumbnail fetch HTTP (403|404)\b/.test(message)) {
         unavailable++;
         continue;
+      }
+      // Timeouts, network drops, 429 and 5xx are temporary: surface them under
+      // the resumable dependency-timeout classification, not as terminal.
+      const name = error instanceof Error ? error.name : "";
+      if (name === "TimeoutError" || name === "AbortError" || name === "TypeError"
+        || /Thumbnail fetch HTTP (429|5\d\d)\b/.test(message)) {
+        throw new Error("Style group thumbnail fetch temporarily failed before submission");
       }
       throw error;
     }
@@ -805,7 +812,7 @@ async function handleDurableGroupProfiles(
         at: new Date().toISOString(),
         style_group_id: item.style_group_id,
         sku: item.sku ?? "",
-        error: String(error).slice(0, 500),
+        error: safeRepairReason(error),
       });
     }
   }
