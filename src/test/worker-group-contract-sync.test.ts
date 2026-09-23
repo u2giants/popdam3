@@ -49,7 +49,7 @@ describe("Style Group contract scope enforcement", () => {
           properties: {
             category: { enum: string[] };
             confidence: { minimum: number; maximum: number };
-            evidence_asset_ids: { uniqueItems: boolean };
+            evidence_asset_ids: { uniqueItems?: boolean };
           };
         };
       };
@@ -76,7 +76,8 @@ describe("Style Group contract scope enforcement", () => {
     expect(item.required).toEqual(["tag", "category", "confidence", "evidence_asset_ids"]);
     expect(item.properties.confidence.minimum).toBe(0);
     expect(item.properties.confidence.maximum).toBe(1);
-    expect(item.properties.evidence_asset_ids.uniqueItems).toBe(true);
+    // Meta direct structured outputs reject `uniqueItems`; the worker de-duplicates evidence IDs instead.
+    expect(item.properties.evidence_asset_ids.uniqueItems).toBeUndefined();
     expect(schema.properties.group_tags.maxItems).toBe(18);
   });
 });
