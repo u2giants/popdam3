@@ -81,7 +81,7 @@ test("vendored lease contract keeps ambiguity database-owned and phase changes r
   assert.match(migration, /v_token_ok[\s\S]*lease_token/);
 });
 
-test("pre-POST failures always keep the held receipt", async () => {
+test("pre-POST failures keep the receipt, then fail visibly when permanent or repeated", async () => {
   const { holdReceiptAfterPreSubmissionFailure } = await import("./operation-loop.js");
   const { PreSubmissionError } = await import("./batch-submission-error.js");
   const { assertProviderSubmissionLeaseBudget } = await import("./batch-provider.js");
@@ -91,10 +91,14 @@ test("pre-POST failures always keep the held receipt", async () => {
   const { rememberSubmissionReceipt, holdsSubmissionReceipt } = await import("./operation-loop.js");
   rememberSubmissionReceipt("op-pre", "receipt");
   // Nothing was sent, so the receipt is never given up, however many retries.
-  for (let attempt = 0; attempt < 10; attempt++) {
+  for (let attempt = 0; attempt < 20; attempt++) {
     assert.equal(holdReceiptAfterPreSubmissionFailure("op-pre", error, lease), true);
     assert.equal(holdsSubmissionReceipt("op-pre"), true);
   }
+  // Repeating past the bound, or a permanent failure, fails visibly instead.
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-pre", error, lease), false);
+  rememberSubmissionReceipt("op-perm", "receipt");
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-perm", new PreSubmissionError("no usable requests", true), lease), false);
   assert.equal(classifyError("Style group thumbnail fetch temporarily failed before submission"), "dependency_timeout");
 });
 

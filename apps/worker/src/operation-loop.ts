@@ -31,7 +31,7 @@ import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
-import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failOperationWithoutResetContract, persistDefinitiveRejectionFailure, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
+import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failClaimedOperation, failOperationWithoutResetContract, persistDefinitiveRejectionFailure, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -72,17 +72,43 @@ export function holdsSubmissionReceipt(opKey: string): boolean {
  * Keep the receipt after a failure that provably happened before any provider
  * request. Returns true while retries remain.
  */
+export const MAX_PRE_SUBMISSION_RETRIES = 20;
+
+/**
+ * Decide what a proven pre-POST failure does. true: keep the receipt and retry
+ * through the same-owner renewal. false: the failure is permanent (or has
+ * repeated too often); the caller fails the operation visibly on its current
+ * revision. The receipt is never silently discarded into a false ambiguity.
+ */
 export function holdReceiptAfterPreSubmissionFailure(
   opKey: string,
   error: unknown,
   _leaseExpiresAt: string | undefined,
 ): boolean {
   const attempts = (preSubmissionRetries.get(opKey) ?? 0) + 1;
-  preSubmissionRetries.set(opKey, attempts);
   const message = normalizeBatchError(error, "Pre-submission failure without an error message").slice(0, 300);
-  // Keep retrying through the same-owner lease renewal on the next tick.
-  logger.warn("tick: provider batch not sent; keeping the receipt and retrying after a same-owner lease renewal", { opKey, attempts, error: message });
-  return true;
+  const permanent = error instanceof PreSubmissionError && error.permanent;
+  if (!permanent && attempts <= MAX_PRE_SUBMISSION_RETRIES) {
+    preSubmissionRetries.set(opKey, attempts);
+    logger.warn("tick: provider batch not sent; keeping the receipt and retrying after a same-owner lease renewal", { opKey, attempts, error: message });
+    return true;
+  }
+  preSubmissionRetries.delete(opKey);
+  submissionLeaseTokens.delete(opKey);
+  logger.error("tick: provider batch was never sent and cannot be prepared; failing the operation visibly", { opKey, attempts, error: message });
+  return false;
+}
+
+async function failNeverSentSubmission(opKey: string, state: OpState, revision: number, error: unknown): Promise<void> {
+  const failed = await failClaimedOperation(
+    (fn, params) => db().rpc(fn, params),
+    opKey,
+    state,
+    revision,
+    "pre_submission_failed",
+    `Provider batch was never sent: ${normalizeBatchError(error, "pre-submission failure").slice(0, 200)}`,
+  );
+  await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
 }
 /** Yield after this many batches so the round-robin can serve other operations.
  *  Under the old 45s edge function, 5 was the max that fit safely. The persistent
@@ -815,7 +841,9 @@ export async function tick(): Promise<void> {
       if (submissionLeaseTokens.has(opKey) && heldJob?.phase === "submitting" && !heldJob.provider_batch_id) {
         // With a held receipt on an unbound submitting job, this dispatch only
         // rebuilds the payload; no provider request was sent.
-        holdReceiptAfterPreSubmissionFailure(opKey, e, heldJob.lease_expires_at);
+        if (!holdReceiptAfterPreSubmissionFailure(opKey, e, heldJob.lease_expires_at)) {
+          await failNeverSentSubmission(opKey, currentState, currentState.state_revision ?? 0, e);
+        }
         return;
       }
       const errMsg = normalizeBatchError(e, "Dispatch failed without an error message");
@@ -883,7 +911,9 @@ export async function tick(): Promise<void> {
         });
       } catch (error) {
         if (error instanceof PreSubmissionError) {
-          holdReceiptAfterPreSubmissionFailure(opKey, error, claimedState.external_job?.lease_expires_at);
+          if (!holdReceiptAfterPreSubmissionFailure(opKey, error, claimedState.external_job?.lease_expires_at)) {
+            await failNeverSentSubmission(opKey, claimedState, claim.state_revision, error);
+          }
           return;
         }
         submissionLeaseTokens.delete(opKey);
