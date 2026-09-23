@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3384,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Prospectively incorporate reviewed source implementation3ac4ecc4 from PR3381 for original3324; scoped merged PR evidence reader with complete ownership validation",
+  "base_sha": "fdb4c3a8ecc75e53253b280f77cb180261b2fc2f",
+  "dispatcher": "Owner-authorized workflow-refactor Step 1 successor",
+  "worker": "codex",
+  "branch": "codex/merged-evidence-incorporation",
+  "worktree": "D:/repos/.worktrees/shared-db-merged-reader-3384",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    "docs/agents/agent-work-contract-repo-maintenance-evidence.md",
+    ".agent/work/3384/1/contract.json",
+    ".agent/work/3384/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    "docs/agents/agent-work-contract-repo-maintenance-evidence.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database mutation or new issue-closure authority",
+    "Do not resolve from all inherited tree files or guess the newest generation",
+    "Do not modify another active worktree or its changes"
+  ],
+  "required_checks": [
+    "node --test scripts/merged-pr-issue-binding.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "PR3354 has merged and no active successor edits this function",
+    "Legacy pairs remain accepted when owned by the source PR"
+  ],
+  "stop_conditions": [
+    "Refuse unreadable or incomplete PR inventories",
+    "Refuse ambiguous current evidence pairs"
+  ]
+}

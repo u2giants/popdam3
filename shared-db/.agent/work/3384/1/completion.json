@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3384,
+  "outcome": "ready-for-merge",
+  "pr": 3386,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3384/1",
+  "contract_sha256": "b36457d3483d65d4a3df546cdd515e204f7f666017ca5e3dc1e34e7e98b74ecd",
+  "head_sha": "eb76fda9c6617944c2bd59648a500cef9d5128f3",
+  "base_sha": "d0f49c9652378dc07f88d82a13beab66a997f026",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    "docs/agents/agent-work-contract-repo-maintenance-evidence.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/merged-pr-issue-binding.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "694 tests passed;0 failures,0 skipped,0 cancelled,0 todo at implementation head eb76fda9c after refreshing onto origin/main"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=312 sources=70 derived_digest=5adcf9278b54 at implementation head eb76fda9c"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff check passed at implementation head eb76fda9c"
+    }
+  ],
+  "assumptions_resolved": [
+    "Prospective incorporation of existing source3ac4ecc4 was published before copying code",
+    "Only complete PR-owned pairs bind; no inherited fallback"
+  ],
+  "stop_conditions_hit": []
+}

@@ -91,7 +91,7 @@ node scripts/agent-work-contract.mjs --publish-contract --contract-file .agent/w
    `head_sha` to the implementation commit, `base_sha` to the current merge base with
    main, `contract_ref` to
    `refs/db-contracts/<work_issue>/<generation>`, and `files_changed` to exactly the output of
-   `git diff --name-only <pr_base_sha> <implementation_head>`.
+   `git diff --name-only <pr_base_sha>...<implementation_head>`.
 
 Step 2 is the one that cannot be moved. Publishing after the work is finished and back-dating
 the claim is fabricating pre-work evidence, and #2830 was right to refuse it. Publishing first

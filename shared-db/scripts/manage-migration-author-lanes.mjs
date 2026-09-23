@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveEvidencePair, isEvidencePath } from './lib/agent-evidence-paths.mjs'
 
 import { execFileSync } from 'node:child_process'
 import { runGitHubCommand as sharedRunGitHubCommand, isTransientGitHubTransport, hostQuotaLatch } from './lib/github-transport.mjs'
@@ -7208,15 +7209,24 @@ export function verifyMergedPrIssueBinding({pr,issue}, io = githubIo) {
   const work=io.getIssue(issue)
   if(!work||Number(work.number)!==issue)throw new LaneError(`merged PR issue binding refused: issue #${issue} is unreadable`)
   if(String(work.state??'').toLowerCase()!=='open')throw new LaneError(`merged PR issue binding refused: issue #${issue} is not open; a binding never reopens closed work`)
-  let completion
-  try{completion=JSON.parse(io.getFileAt('.agent/completion.json',livePr.head.sha))}catch{throw new LaneError(`merged PR issue binding refused: .agent/completion.json at pull request #${pr} head is unreadable`)}
-  if(Number(completion?.work_issue)!==issue||Number(completion?.pr)!==pr)throw new LaneError(`merged PR issue binding refused: completion record names issue #${completion?.work_issue} and PR #${completion?.pr}`)
   const prFiles=io.getPrFiles(pr)
   if(!Array.isArray(prFiles)||!prFiles.length)throw new LaneError(`merged PR issue binding refused: pull request #${pr} file inventory is unreadable`)
   for(const file of prFiles){
     const migration=[file?.filename,file?.previous_filename].some((value)=>MIGRATION_PATH.test(String(value??'').replace(/\\/g,'/')))
     if(migration&&(file?.previous_filename!==undefined||!['added','modified'].includes(String(file?.status).toLowerCase())))throw new LaneError(`merged PR issue binding refused: migration file ${file?.filename} is ${file?.status}; only added or modified migrations can be bound`)
   }
+  for(const file of prFiles){
+    if(typeof file?.filename!=='string'||!file.filename||typeof file?.status!=='string')throw new LaneError(`merged PR issue binding refused: pull request #${pr} file inventory is unreadable`)
+    if([file.filename,file.previous_filename].some(isEvidencePath)&&(file.previous_filename!==undefined||!['added','modified'].includes(file.status.toLowerCase())))throw new LaneError(`merged PR issue binding refused: evidence file ${file.filename} is ${file.status}; only added or modified evidence can be bound`)
+  }
+  if(!Number.isSafeInteger(livePr.changed_files)||livePr.changed_files!==prFiles.length||new Set(prFiles.map((file)=>file.filename)).size!==prFiles.length)throw new LaneError(`merged PR issue binding refused: pull request #${pr} file inventory is incomplete or duplicated`)
+  const pair=resolveEvidencePair(prFiles.map((file)=>file.filename),{readFile:(path)=>io.getFileAt(path,livePr.head.sha)})
+  if(pair.state!=='current')throw new LaneError(`merged PR issue binding refused: pull request #${pr} evidence is ${pair.state}; exactly one PR-owned complete pair is required`)
+  if(pair.key!=='legacy'&&pair.key.split('/')[0]!==String(issue))throw new LaneError(`merged PR issue binding refused: evidence path names issue #${pair.key.split('/')[0]}`)
+  let completion
+  try{completion=JSON.parse(io.getFileAt(pair.completion,livePr.head.sha))}catch{throw new LaneError(`merged PR issue binding refused: ${pair.completion} at pull request #${pr} head is unreadable`)}
+  if(Number(completion?.work_issue)!==issue||Number(completion?.pr)!==pr)throw new LaneError(`merged PR issue binding refused: completion record names issue #${completion?.work_issue} and PR #${completion?.pr}`)
+  if(pair.key!=='legacy'&&completion.contract_ref!==`refs/db-contracts/${pair.key}`)throw new LaneError(`merged PR issue binding refused: completion contract_ref does not match evidence key ${pair.key}`)
   const versions=migrationVersions(prFiles).sort()
   const recorded=Array.isArray(completion.migration_versions)?completion.migration_versions.map(String).sort():[]
   if(!versions.length||versions.length!==recorded.length||versions.some((v,i)=>v!==recorded[i]))throw new LaneError(`merged PR issue binding refused: PR migrations ${versions.join(',')||'none'} do not equal completion record ${recorded.join(',')||'none'}`)
