@@ -31,7 +31,7 @@ import {
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
-import { RepairUnavailableError, structuredBatchResult } from "../batch-result-repair.js";
+import { RepairUnavailableError, safeRepairReason, structuredBatchResult } from "../batch-result-repair.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
@@ -585,7 +585,7 @@ async function handleDurableBatchTag(
         };
       }
       failed++;
-      failureSamples.push({ at: new Date().toISOString(), asset_id: item.asset_id, filename: item.filename ?? "", relative_path: item.relative_path ?? "", error: String(error).slice(0, 500) });
+      failureSamples.push({ at: new Date().toISOString(), asset_id: item.asset_id, filename: item.filename ?? "", relative_path: item.relative_path ?? "", error: safeRepairReason(error) });
     }
   }
   return {
