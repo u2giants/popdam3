@@ -64,7 +64,7 @@ This document covers two distinct things: (1) which AI models are used inside th
 ### Legacy `ai-tag` Edge Function (REMOVED 2026-07-14)
 - Deleted from `supabase/functions/ai-tag/` (source + `config.toml` entry) and from the Supabase project (`supabase functions delete ai-tag`). It was a direct-Gemini batch tagging path with no remaining callers; production batch tagging is the Railway worker.
 - Its old note claimed it backed "Windows-agent / PDF text extraction" — that was **wrong**. PDF text extraction is the separate agent path below, which calls Google directly and never invoked this function.
-- Do not recreate it. Batch tagging belongs in the Railway worker via OpenRouter.
+- Do not recreate it. Batch tagging belongs in the Railway worker: OpenRouter `:batch` models, or the settings-selected direct Gemini Batch route (`google-direct/<model>:batch`, primary Image Tagging only) that uses the durable provider-batch state machine.
 
 ### PDF Text Extraction (`pdf-text-sampler.ts` in bridge/windows agents)
 - Uses a cascade: mupdf text extraction → OCR (tesseract.js) → AI vision fallback.

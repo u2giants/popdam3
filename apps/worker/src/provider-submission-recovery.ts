@@ -65,21 +65,49 @@ export async function failOperationAfterDefinitiveRejection(
     throw new Error("Submission lease reset returned an unexpected provider job state");
   }
 
+  return persistDefinitiveRejectionFailure(rpc, receipt.opKey, resetOperation, envelope.state_revision, rejection.message, now);
+}
+
+/**
+ * A reset operation left `running`/`prepared` with the database's rejection
+ * marker. This happens between the two writes if the worker crashed or the
+ * second write failed; it must be failed, never resubmitted.
+ */
+export function awaitsDefinitiveRejectionFailure(state: OpState): boolean {
+  const job = state.external_job;
+  return state.status === "running" && job?.phase === "prepared" && !job.provider_batch_id
+    && typeof job.last_definitive_rejection_at === "string" && job.last_definitive_rejection_at.length > 0;
+}
+
+/**
+ * Second, idempotent half of the rejection path: fail the reset operation on
+ * its current revision. Safe to repeat after a crash; the guard makes it apply
+ * exactly once.
+ */
+export async function persistDefinitiveRejectionFailure(
+  rpc: RpcCall,
+  opKey: string,
+  resetOperation: OpState,
+  stateRevision: number,
+  message?: string,
+  now = () => new Date().toISOString(),
+): Promise<DefinitiveRejectionOutcome> {
+  const status = resetOperation.external_job?.last_definitive_rejection_status;
   // The rejection is deterministic for this payload, so auto-resuming would
   // only repeat it. Carry the database's reset external_job forward exactly.
   const failedState: OpState = {
     ...resetOperation,
     status: "failed",
     interruption_reason_code: "provider_definitive_rejection",
-    error: rejection.message,
+    error: message ?? `Provider rejected the batch submission${typeof status === "number" ? ` (HTTP ${status})` : ""}`,
     next_auto_resume_at: undefined,
     updated_at: now(),
   };
   const saved = await rpc("update_bulk_operation", {
-    p_op_key: receipt.opKey,
+    p_op_key: opKey,
     p_op_state: failedState,
     p_only_if_status: "running",
-    p_expected_revision: envelope.state_revision,
+    p_expected_revision: stateRevision,
   });
   if (saved.error) throw new Error(`Protected operation save failed: ${saved.error.message}`);
   if (!isGuardedEnvelope(saved.data) || !(saved.data as BulkOperationWriteEnvelope).ok) {
