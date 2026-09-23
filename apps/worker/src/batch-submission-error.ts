@@ -75,3 +75,24 @@ export class PreSubmissionError extends Error {
     this.name = "PreSubmissionError";
   }
 }
+
+/**
+ * A provider status GET that never produced a complete, parseable answer:
+ * connect/DNS failure, timeout, a body stream cut off mid-read ("terminated"),
+ * or an unparseable 200 body. The saved batch ID stays authoritative.
+ */
+export class ProviderPollTransportError extends Error {
+  constructor(provider: string) {
+    super(`${provider} batch status read did not complete; will poll the same batch again`);
+    this.name = "ProviderPollTransportError";
+  }
+}
+
+/** Run one poll transport step, mapping any failure to ProviderPollTransportError. */
+export async function pollTransport<T>(provider: string, step: () => Promise<T> | T): Promise<T> {
+  try {
+    return await step();
+  } catch {
+    throw new ProviderPollTransportError(provider);
+  }
+}

@@ -120,3 +120,21 @@ test("synchronous callers cannot use batch-only models", async () => {
     messages: [{ role: "user", content: "blocked" }],
   }), /durable asynchronous Batch API path/);
 });
+
+test("an OpenRouter status read cut off mid-body stays a transient poll failure", async () => {
+  const { getOpenRouterBatch } = await import("./openrouter.js");
+  const { isTransientProviderPollError } = await import("./handlers/ai-tagging-batch-state.js");
+  const original = globalThis.fetch;
+  try {
+    for (const respond of [
+      async () => new Response(new ReadableStream({ pull(controller) { controller.error(new TypeError("terminated")); } }), { status: 200 }),
+      async () => new Response("<html>", { status: 200 }),
+      async () => { throw new TypeError("fetch failed"); },
+    ]) {
+      globalThis.fetch = respond as typeof fetch;
+      await assert.rejects(getOpenRouterBatch("key", "batch_saved"), (error: unknown) => isTransientProviderPollError(error));
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
