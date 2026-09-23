@@ -1,5 +1,5 @@
 import type { ChatCompletionRequest, ChatCompletionResult, OpenRouterBatchSubmission } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure } from "./batch-submission-error.js";
 
 const GEMINI_API_ROOT = "https://generativelanguage.googleapis.com/v1beta";
 const DIRECT_PREFIX = "google-direct/";
@@ -237,9 +237,11 @@ export async function submitPreparedGeminiBatch(apiKey: string, prepared: Prepar
     text = await response.text();
   } catch {
     if (response.ok) throw new AmbiguousBatchSubmissionError("Gemini");
-    throw new GeminiBatchError(response.status, "provider request failed");
+    throw classifySubmissionHttpFailure("google-gemini", response.status, undefined);
   }
-  if (!response.ok) throw new GeminiBatchError(response.status, safeErrorMessage(text));
+  // Only a parsed Google 400/422 error envelope is definitive; timeouts,
+  // disconnects, 5xx and every other status stay ambiguous.
+  if (!response.ok) throw classifySubmissionHttpFailure("google-gemini", response.status, text);
   let parsed: { name?: unknown };
   try {
     parsed = JSON.parse(text) as { name?: unknown };

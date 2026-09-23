@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildOpenRouterBatchPayload, chatCompletion, getOpenRouterBatch, isToolChoiceCompatibilityError, submitOpenRouterBatch, withExactoRouting } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
 
 test("appends :exacto to a bare model slug", () => {
   assert.equal(withExactoRouting("qwen/qwen3-vl-32b-instruct"), "qwen/qwen3-vl-32b-instruct:exacto");
@@ -53,11 +53,21 @@ test("OpenRouter batch distinguishes definitive validation/HTTP errors from ambi
 
   const original = globalThis.fetch;
   try {
-    globalThis.fetch = async () => new Response("invalid request", { status: 400 });
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 400, message: "private prompt" } }), { status: 400 });
     await assert.rejects(
       submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),
-      (error: unknown) => error instanceof Error && !(error instanceof AmbiguousBatchSubmissionError) && /OpenRouter 400/.test(error.message),
+      (error: unknown) => error instanceof DefinitiveBatchRejectionError && error.status === 400 && !/private prompt/.test(String(error)),
     );
+    for (const respond of [
+      () => new Response("invalid request", { status: 400 }),
+      () => new Response(JSON.stringify({ error: { code: 502, message: "upstream" } }), { status: 502 }),
+    ]) {
+      globalThis.fetch = async () => respond();
+      await assert.rejects(
+        submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),
+        AmbiguousBatchSubmissionError,
+      );
+    }
     globalThis.fetch = async () => { throw new TypeError("connection reset after write"); };
     await assert.rejects(
       submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),

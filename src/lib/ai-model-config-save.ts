@@ -44,7 +44,7 @@ export async function saveAiModelConfig(
   const expectedTaskModels = { ...draft.taskModels };
   for (const [taskKey, modelId] of Object.entries(expectedTaskModels)) {
     if (!modelAllowedForTask(modelId, taskKey, taskKey.endsWith("_fallback"))) {
-      throw new Error("Direct Gemini Batch may only be selected as the primary Image Tagging model.");
+      throw new Error("Batch-only models (including Direct Gemini Batch) may only be selected as the primary Image Tagging model.");
     }
   }
   if (expectedTaskModels.vision_tagging?.startsWith("google-direct/") && expectedTaskModels.vision_tagging.endsWith(":batch") && !draft.googleKey.trim()) {

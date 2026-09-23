@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { modelAllowedForTask } from "@/lib/ai-model-options";
+import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 const SLOTS = ["a", "b", "c", "d", "e"] as const;
@@ -281,20 +281,21 @@ export default function AiTagBakeoffTab() {
   const savedOpenRouterKey = unwrapConfigString(openRouterConfig?.config?.OPENROUTER_API_KEY);
   const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
 
+  const bakeoffModelQueryKey = ["openrouter-vision-models-bakeoff", openRouterAccountFingerprint] as const;
   const {
-    data: modelData,
+    data: modelCatalog,
     isFetching: modelsFetching,
     isLoading: modelsLoading,
     error: modelsError,
     refetch: refetchModels,
-  } = useQuery<VisionModel[]>({
-    queryKey: ["openrouter-vision-models-bakeoff", openRouterAccountFingerprint],
+  } = useQuery<{ models: VisionModel[]; warning: string | null }>({
+    queryKey: bakeoffModelQueryKey,
     enabled: !!savedOpenRouterKey && openRouterAccountFingerprint !== null,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
-      if (typeof data?.catalog_warning === "string") throw new Error(data.catalog_warning);
+      const warning = catalogWarningOf(data);
       const items = (data?.models ?? []) as Array<OpenRouterModelResponse & { supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[] }>;
-      return items.map((m) => ({
+      const incoming: VisionModel[] = items.map((m) => ({
         id: m.id,
         name: m.name ?? m.id,
         supports_tools: m.supports_tools,
@@ -304,11 +305,16 @@ export default function AiTagBakeoffTab() {
         architecture: { input_modalities: m.input_modalities ?? m.architecture?.input_modalities },
         pricing: m.pricing,
       }));
+      // A warning means the server fell back to a cached/partial catalog.
+      // Keep it (merged with the last good one) and surface the warning.
+      const previous = queryClient.getQueryData<{ models: VisionModel[] }>(bakeoffModelQueryKey)?.models;
+      return { models: preserveCatalogOnWarning(previous, incoming, warning), warning };
     },
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
+  const modelData = modelCatalog?.models;
   const visionModels = useMemo(() => {
     const list = (modelData ?? []).filter((model) => supportsImageTaggingContract(model) && modelAllowedForTask(model.id, "vision_tagging", true));
     return [...list].sort((a, b) => {
@@ -490,6 +496,11 @@ export default function AiTagBakeoffTab() {
           {modelsError && (
             <div className="text-[10px] text-destructive">
               Failed to load OpenRouter models: {(modelsError as Error).message}
+            </div>
+          )}
+          {modelCatalog?.warning && (
+            <div className="text-[10px] text-amber-600">
+              {modelCatalog.warning}; showing the last available catalog.
             </div>
           )}
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">

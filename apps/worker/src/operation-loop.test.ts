@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildResultMessage, classifyError, definitiveProviderSubmissionFailureState, interruptionReason, mergeProgress, nextAutoResumeAt, normalizeBatchError, normalizeProviderSubmissionError, scopeSingleAssetTag } from "./operation-loop.js";
-import { OpenRouterError } from "./openrouter.js";
+import { buildResultMessage, classifyError, interruptionReason, mergeProgress, nextAutoResumeAt, normalizeBatchError, scopeSingleAssetTag } from "./operation-loop.js";
 
 const ASSET_ID = "123e4567-e89b-42d3-a456-426614174000";
 
@@ -80,16 +79,4 @@ test("vendored lease contract keeps ambiguity database-owned and phase changes r
   assert.match(migration, /Only this function ever declares a submission ambiguous/);
   assert.match(migration, /v_in_phase[\s\S]*ambiguous_submission[\s\S]*phase_protected/);
   assert.match(migration, /v_token_ok[\s\S]*lease_token/);
-  const state = definitiveProviderSubmissionFailureState({
-    status: "running",
-    external_job: { phase: "submitting", provider: "google-gemini", items: [] },
-  }, "minted-receipt", new Error("invalid image"));
-  assert.equal(state.external_job?.phase, "prepared");
-  assert.equal(state.external_job?.lease_token, "minted-receipt");
-});
-
-test("OpenRouter submission bodies are redacted before operation persistence or logs", () => {
-  const message = normalizeProviderSubmissionError(new OpenRouterError(400, "private prompt https://signed.example/key=secret"));
-  assert.equal(message, "OpenRouter batch submission failed (HTTP 400)");
-  assert.doesNotMatch(message, /private prompt|signed\.example|secret/);
 });
