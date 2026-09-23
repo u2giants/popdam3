@@ -224,7 +224,7 @@ export async function parseOpenRouterBatchResult(
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new Error("OpenRouter batch returned an invalid response body");
   }
-  return parseChatCompletionResult(apiKey, body as Record<string, unknown>, new Headers(), timeoutMs);
+  return parseChatCompletionResult(apiKey, body as Record<string, unknown>, new Headers(), timeoutMs, true);
 }
 
 
@@ -487,6 +487,7 @@ async function parseChatCompletionResult(
   data: Record<string, unknown>,
   headers: Headers,
   timeoutMs: number,
+  malformedToolArgsAsContent = false,
 ): Promise<ChatCompletionResult> {
   const choices = data.choices as Array<{
     message?: {
@@ -506,6 +507,17 @@ async function parseChatCompletionResult(
         arguments: JSON.parse(tc.function.arguments),
       }));
     } catch (error) {
+      if (malformedToolArgsAsContent) {
+        // Batch results cannot be re-requested; hand the raw arguments to the
+        // same-model JSON repair step instead of discarding the answer.
+        return {
+          id: typeof data.id === "string" ? data.id : undefined,
+          model: typeof data.model === "string" ? data.model : undefined,
+          content: choice.tool_calls.map((tc) => tc.function?.arguments ?? "").join("\n"),
+          providerInfo,
+          usage: data.usage as ChatCompletionResult["usage"],
+        };
+      }
       const message = error instanceof Error ? error.message : String(error);
       const parseError = new Error(`Malformed tool call JSON: ${message}`);
       (parseError as Error & { providerInfo?: OpenRouterProviderInfo }).providerInfo = providerInfo;

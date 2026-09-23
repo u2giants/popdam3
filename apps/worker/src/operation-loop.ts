@@ -358,6 +358,7 @@ export function providerJobErrorState(
 export function classifyError(msg: string): string {
   const m = msg.toLowerCase();
   if (m.includes("thumbnail fetch timed out before submission")) return "dependency_timeout";
+  if (m.includes("thumbnail fetch temporarily failed before submission")) return "dependency_timeout";
   if (m.includes("config read timed out") || m.includes("dependency timed out")) return "dependency_timeout";
   if (m.includes("57014") || m.includes("statement timeout")) return "statement_timeout";
   if (m.includes("handler supplied no message")) return "missing_error_message";

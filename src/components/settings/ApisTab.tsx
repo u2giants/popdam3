@@ -681,7 +681,8 @@ export function AiModelsConfigSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          AI calls normally go through OpenRouter. Image Tagging can also use Meta Model API directly.
+          AI calls normally go through OpenRouter. Image Tagging can also use Meta Model API directly,
+          or Direct Gemini Batch with the Google AI API key below.
           Direct Muse requires <code className="text-[10px]">META_API_KEY</code> in Railway.
         </p>
 

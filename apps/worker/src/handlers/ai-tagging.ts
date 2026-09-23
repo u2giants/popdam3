@@ -31,7 +31,7 @@ import {
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
-import { structuredBatchResult } from "../batch-result-repair.js";
+import { RepairUnavailableError, structuredBatchResult } from "../batch-result-repair.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
@@ -392,7 +392,13 @@ async function handleDurableBatchTag(
         throw error;
       }
     }
-    if (!submissions.length) {
+    // Direct Gemini drops items whose image is unusable; they count as
+    // visual-analysis-unavailable exactly like items skipped above.
+    const preparedBatch = submissions.length ? await prepareProviderBatch(batchProvider, submissions) : undefined;
+    const excluded = new Set(preparedBatch && "excludedCustomIds" in preparedBatch ? preparedBatch.excludedCustomIds : []);
+    visualAnalysisUnavailable += excluded.size;
+    const includedSubmissions = submissions.filter((submission) => !excluded.has(submission.customId));
+    if (!preparedBatch || !includedSubmissions.length) {
       if (reprepareHeldReceipt) throw new PreSubmissionError("Provider batch re-preparation produced no requests");
       return {
         ok: true,
@@ -404,8 +410,8 @@ async function handleDurableBatchTag(
       };
     }
     const transientPreparedBatch: PreparedAssetBatchSubmission = {
-      batch: await prepareProviderBatch(batchProvider, submissions),
-      submittedIds: submissions.map((submission) => submission.customId),
+      batch: preparedBatch,
+      submittedIds: includedSubmissions.map((submission) => submission.customId),
       visualAnalysisUnavailable,
     };
     return {
@@ -558,6 +564,26 @@ async function handleDurableBatchTag(
       await applyBatchTagResult(item.asset_id, tagData, model);
       tagged++;
     } catch (error) {
+      if (error instanceof RepairUnavailableError) {
+        // Pause the whole apply pass and retry the same saved results later.
+        // Every write is a replacement, so re-applying earlier items is safe;
+        // nothing is counted until a pass completes.
+        const failures = (job.transient_poll_failures ?? 0) + 1;
+        return {
+          ok: true,
+          done: false,
+          nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+          external_job: {
+            ...job,
+            phase: "applying",
+            lease_token: job.lease_token,
+            transient_poll_failures: failures,
+            last_checked_at: new Date().toISOString(),
+            next_poll_at: new Date(Date.now() + transientPollDelayMs(failures - 1)).toISOString(),
+          },
+          last_stage: "tag_write",
+        };
+      }
       failed++;
       failureSamples.push({ at: new Date().toISOString(), asset_id: item.asset_id, filename: item.filename ?? "", relative_path: item.relative_path ?? "", error: String(error).slice(0, 500) });
     }
@@ -566,7 +592,7 @@ async function handleDurableBatchTag(
     ok: true, done: false, tagged, failed, skipped: 0,
     failure_samples: failureSamples,
     nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
-    external_job: { ...job, phase: "completed", lease_token: job.lease_token, last_checked_at: new Date().toISOString() },
+    external_job: { ...job, phase: "completed", lease_token: job.lease_token, transient_poll_failures: undefined, next_poll_at: undefined, last_checked_at: new Date().toISOString() },
     last_stage: "tag_write",
   };
 }
