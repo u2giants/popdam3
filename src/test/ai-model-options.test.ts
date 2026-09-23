@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
-import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint, upsertConfigRowsAtomically } from "../../supabase/functions/_shared/direct-batch-model";
+import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint, upsertConfigRowsAtomically, withValidatedCounterparts } from "../../supabase/functions/_shared/direct-batch-model";
 
 describe("direct Gemini batch model scope", () => {
   const direct = "google-direct/gemini-3.8-flash:batch";
@@ -84,5 +84,19 @@ describe("direct Gemini batch model scope", () => {
     expect(directGeminiBatchSelectionHasKey(stored, "")).toBe(false);
     expect(directGeminiBatchSelectionHasKey(stored, "   ")).toBe(false);
     expect(directGeminiBatchSelectionHasKey({ vision_tagging: "openrouter/model" }, "")).toBe(true);
+  });
+
+  it("rewrites the validated counterpart in the same statement so concurrent saves cannot mix", async () => {
+    // Request A selects Direct Gemini after reading a present key; request B
+    // clears the key after reading a non-Gemini model. Each writes its pair.
+    const table: Record<string, unknown> = { AI_TASK_MODELS: { vision_tagging: "openrouter/m" }, GOOGLE_AI_API_KEY: "k" };
+    const client = { from: () => ({ upsert: async (rows: Array<Record<string, unknown>>) => { for (const row of rows) table[row.key as string] = row.value; return { error: null }; } }) };
+    const requestA = withValidatedCounterparts({ AI_TASK_MODELS: { vision_tagging: direct } }, { GOOGLE_AI_API_KEY: "k" });
+    const requestB = withValidatedCounterparts({ GOOGLE_AI_API_KEY: "" }, { AI_TASK_MODELS: { vision_tagging: "openrouter/m" } });
+    for (const order of [[requestA, requestB], [requestB, requestA]]) {
+      for (const entries of order) await upsertConfigRowsAtomically(client, Object.entries(entries).map(([key, value]) => ({ key, value })));
+      expect(directGeminiBatchSelectionHasKey(table.AI_TASK_MODELS, table.GOOGLE_AI_API_KEY)).toBe(true);
+    }
+    expect(withValidatedCounterparts({ A: 1 }, { A: 2, B: null })).toEqual({ A: 1 });
   });
 });

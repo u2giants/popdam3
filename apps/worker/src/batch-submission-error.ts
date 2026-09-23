@@ -70,7 +70,8 @@ export function classifySubmissionHttpFailure(
  * payload and retries; it never resets or abandons the lease for this.
  */
 export class PreSubmissionError extends Error {
-  constructor(message: string) {
+  /** `permanent`: retrying cannot help (e.g. nothing usable left to submit). */
+  constructor(message: string, public permanent = false) {
     super(message);
     this.name = "PreSubmissionError";
   }
