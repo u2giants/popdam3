@@ -9,19 +9,21 @@ Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues
 The original OpenRouter restart-safe implementation is deployed, and the shared
 database lease contract plus terminal-clear follow-up (#1211) are live. Production
 acceptance is still blocked because the account's only advertised OpenRouter vision
-batch route rejects images. A direct Gemini Batch alternative was implemented and
-tested locally on 2026-09-22, but independent review found that definitive provider
-submission failures cannot be recovered safely under the current lease contract.
-That work is durably preserved in WIP commit `653cb150` on remote branch
-`codex/issue-92-direct-gemini-batch` and at local worktree
-`/worksp/popdam-issue92-gemini-batch`; do not open a PR, merge or deploy it until
-the lease-reset contract and remaining terminal-state findings in the newest
-handoff are resolved and independently approved.
+batch route rejects images. A direct Gemini Batch alternative is implemented on branch
+`codex/issue-92-direct-gemini-batch` (worktree `/worksp/popdam-issue92-gemini-batch`).
+On 2026-09-23 it was rebased onto main and the prior review findings were fixed:
+parsed provider 400/422 submission rejections now consume the receipt through the
+governed `reset_bulk_operation_submission_lease` RPC (popcre/shared-db #3418, PR
+#3426 — merged but **not yet applied to production**); pre-POST local failures keep
+the held receipt and retry through a same-owner lease renewal; failed/cancelled/
+expired provider batches fail the operation once; temporary poll failures keep the
+same saved batch ID; every `:batch` model is limited to primary Image Tagging; and
+PDF/bake-off settings keep cached catalogs on warnings.
 
-**Next session starts with the Step 9 prerequisite:** route the narrow definitive-
-failure lease-reset contract through `popcre/shared-db`, then finish the direct
-Gemini review findings. Only after that route passes review and deploys should the
-session resume Step 8's controlled production proof.
+**Next session:** confirm the branch's latest exact-head independent review verdict,
+confirm the reset RPC is applied to production (otherwise definitive rejections
+fall back to the ambiguous-submission path), then ship through PopDAM's branch
+policy and resume Step 8's controlled production proof with owner authorization.
 
 **2026-09-24 update:** the lease-reset contract merged (shared-db PR #3426, not yet in production). The #92 branch is at `4db3c4bd` with every listed finding fixed (222 worker tests pass). Codex's remaining REJECT needs the widened reset in shared-db #3464. Ship only after #3418 and #3464 are live in production and an exact-head APPROVE. At the end of each phase, re-read Steps 8-9 and the linked handoff §6, and report drift.
 
@@ -35,7 +37,7 @@ session resume Step 8's controlled production proof.
 | 6. Complete recovery/failure test matrix | ✅ done | 2026-08-24 | 63 worker tests, worker build, frontend build, and lint pass |
 | 7. Update operating documentation and diagnostics | ✅ done | 2026-08-20 | Four operating docs updated; waiting-state visual proof captured |
 | 8. Land, deploy, and prove a controlled production restart | 🟨 partial | 2026-08-24 | `1c042fb9` is green and live on Railway deployment `6061715659`; automated restart simulation passed, but the tiny live batch-across-restart/log artifact is still required |
-| 9. Add a settings-exposed compatible provider route | 🟨 partial | 2026-09-22 | Direct Gemini Batch is preserved in WIP commit `653cb150` on remote branch `codex/issue-92-direct-gemini-batch`; 190 worker tests, 10 settings tests, and both builds pass, but independent review rejected shipment because definitive submission failures need a governed lease-reset contract and terminal provider/polling paths still need repair |
+| 9. Add a settings-exposed compatible provider route | 🟨 partial | 2026-09-23 | Branch `codex/issue-92-direct-gemini-batch` implements the governed reset contract and all 2026-09-22 review findings with worker, settings and build verification; not yet shipped, and the reset RPC is not yet applied to production |
 
 ## 1. The ultimate goal
 

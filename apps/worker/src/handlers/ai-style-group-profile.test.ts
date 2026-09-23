@@ -627,3 +627,120 @@ test("the profile pass and the refresh agree on the authoritative provenance", a
   assert.ok(!/=\s*"derived"/.test(edge), "the edge path must import the shared constant, not redeclare it");
   assert.match(edge, /AUTHORITATIVE_TAG_SOURCE/);
 });
+
+function pendingGroupJob(overrides: Record<string, unknown> = {}): OpState {
+  return {
+    status: "running",
+    cursor: 0,
+    run_id: "run1",
+    state_revision: 3,
+    external_job: {
+      version: 1,
+      phase: "pending",
+      model: "test/vision-model:batch",
+      output_method: "json_schema",
+      provider_batch_id: "batch_saved",
+      submitted_at: new Date(Date.now() - 600_000).toISOString(),
+      lease_token: "lease-1",
+      page_cursor: 0,
+      next_cursor: GROUP_ID,
+      scope: "style_group",
+      group_items: [{ style_group_id: GROUP_ID, custom_id: "popdam-group:run1:g:json_schema:0", status: "submitted" }],
+      items: [],
+      ...overrides,
+    },
+  } as unknown as OpState;
+}
+
+test("temporary provider poll failures keep the same saved batch ID pending with backoff", async () => {
+  const originalFetch = globalThis.fetch;
+  const responders: Array<() => Promise<Response>> = [
+    async () => new Response("upstream", { status: 502 }),
+    async () => { throw new DOMException("timed out", "TimeoutError"); },
+    async () => { throw new TypeError("fetch failed"); },
+  ];
+  try {
+    for (const respond of responders) {
+      const methods: string[] = [];
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        methods.push((init?.method ?? "GET").toUpperCase());
+        return respond();
+      }) as typeof fetch;
+      const result = await handleStyleGroupProfiles(pendingGroupJob({ transient_poll_failures: 1 }), deps({
+        client: recordingClient(),
+        apiKey: "test-key",
+        models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+      }));
+      assert.equal(result.ok, true);
+      const job = result.external_job as { provider_batch_id: string; phase: string; transient_poll_failures: number; next_poll_at: string; lease_token: string };
+      assert.equal(job.provider_batch_id, "batch_saved");
+      assert.equal(job.phase, "pending");
+      assert.equal(job.lease_token, "lease-1");
+      assert.equal(job.transient_poll_failures, 2);
+      assert.ok(new Date(job.next_poll_at).getTime() - Date.now() >= 55_000);
+      assert.deepEqual(methods, ["GET"]);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("failed, cancelled and expired provider batches report a terminal error", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const status of ["failed", "cancelled", "expired"]) {
+      globalThis.fetch = (async () => new Response(JSON.stringify({ id: "batch_saved", status }), {
+        status: 200, headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+      const result = await handleStyleGroupProfiles(pendingGroupJob(), deps({
+        client: recordingClient(),
+        apiKey: "test-key",
+        models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+      }));
+      assert.equal(result.ok, false, status);
+      assert.equal(result.error_code, "provider_terminal", status);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a held receipt whose payload was lost is rebuilt and sent back through the lease renewal, never POSTed blind", async () => {
+  const originalFetch = globalThis.fetch;
+  const posts: string[] = [];
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    posts.push((init?.method ?? "GET").toUpperCase());
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const held: OpState = {
+      status: "running",
+      cursor: 0,
+      run_id: "run1",
+      external_job: {
+        version: 1,
+        phase: "submitting",
+        provider: "google-gemini",
+        model: "google-direct/gemini-3.8-flash:batch",
+        output_method: "json_schema",
+        lease_token: "held-receipt",
+        lease_expires_at: new Date(Date.now() + 60_000).toISOString(),
+        page_cursor: 0,
+        next_cursor: GROUP_ID,
+        scope: "style_group",
+        group_items: [{ style_group_id: GROUP_ID, custom_id: "popdam-group:run1:g:json_schema:0", status: "prepared" }],
+        items: [],
+      },
+    } as unknown as OpState;
+    const result = await handleStyleGroupProfiles(held, deps({
+      client: recordingClient(),
+      apiKey: "test-key",
+      models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
+    }));
+    assert.equal(result.state_transition, "claim_submission");
+    assert.ok(result.transient_prepared_batch);
+    assert.ok(!posts.includes("POST"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

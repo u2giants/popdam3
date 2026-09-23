@@ -30,6 +30,7 @@ import {
   type PreparedProviderBatch,
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
+import { PreSubmissionError } from "../batch-submission-error.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
@@ -302,7 +303,8 @@ async function handleDurableBatchTag(
   const models = await getVisionModels();
   const model = opState.external_job?.model ?? models.primary;
   const job = opState.external_job;
-  const batchProvider = job?.provider ?? batchProviderForModel(model);
+  // A persisted job without `provider` predates direct Gemini and is OpenRouter.
+  const batchProvider = job ? (job.provider ?? "openrouter") : batchProviderForModel(model);
   const apiKey = await getAiTaggingApiKey(model);
   if (!apiKey) return { ok: false, done: false, error: batchProvider === "google-gemini" ? "No Google AI API key configured" : "No OpenRouter API key configured" };
   const provider = batchProvider === "openrouter" ? buildProviderPin(models.providerPin) : undefined;
@@ -366,8 +368,12 @@ async function handleDurableBatchTag(
 
   const action = nextBatchAction(job);
   if (action.type === "blocked") return { ok: false, done: false, error: action.reason, error_code: "contract_error" };
-  if (action.type === "claim") {
-    if (job.phase !== "prepared") {
+  // A pre-POST local failure after the receipt was minted leaves the receipt
+  // with this worker but drops the in-process payload: rebuild it from the
+  // durable item mapping and go back through the same-owner lease renewal.
+  const reprepareHeldReceipt = action.type === "submit" && !opState.transient_prepared_batch;
+  if (action.type === "claim" || reprepareHeldReceipt) {
+    if (action.type === "claim" && job.phase !== "prepared") {
       return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
     }
     const outputMethod = job.output_method ?? "json_schema";
@@ -386,6 +392,7 @@ async function handleDurableBatchTag(
       }
     }
     if (!submissions.length) {
+      if (reprepareHeldReceipt) throw new PreSubmissionError("Provider batch re-preparation produced no requests");
       return {
         ok: true,
         done: job.operation_done_after_clear === true,
@@ -429,7 +436,7 @@ async function handleDurableBatchTag(
 
   if (action.type === "submit") {
     const preparedSubmission = opState.transient_prepared_batch as PreparedAssetBatchSubmission | undefined;
-    if (!preparedSubmission || preparedSubmission.batch.provider !== batchProvider) throw new Error("Prepared provider batch is unavailable before submission");
+    if (!preparedSubmission || preparedSubmission.batch.provider !== batchProvider) throw new PreSubmissionError("Prepared provider batch is unavailable before submission");
     assertProviderSubmissionLeaseBudget(job.lease_expires_at);
     const created = await submitPreparedProviderBatch(apiKey, preparedSubmission.batch);
     const submittedIds = new Set(preparedSubmission.submittedIds);

@@ -80,3 +80,18 @@ test("vendored lease contract keeps ambiguity database-owned and phase changes r
   assert.match(migration, /v_in_phase[\s\S]*ambiguous_submission[\s\S]*phase_protected/);
   assert.match(migration, /v_token_ok[\s\S]*lease_token/);
 });
+
+test("pre-POST failures keep the held receipt for a bounded number of retries", async () => {
+  const { holdReceiptAfterPreSubmissionFailure } = await import("./operation-loop.js");
+  const { PreSubmissionError } = await import("./batch-submission-error.js");
+  const { assertProviderSubmissionLeaseBudget } = await import("./batch-provider.js");
+  assert.throws(() => assertProviderSubmissionLeaseBudget(new Date(Date.now() + 10_000).toISOString()), PreSubmissionError);
+  const error = new PreSubmissionError("Provider batch preparation left insufficient submission lease time");
+  const lease = new Date(Date.now() + 60_000).toISOString();
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-pre", error, lease), true);
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-pre", error, lease), true);
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-pre", error, lease), true);
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-pre", error, lease), false);
+  // The counter resets after release.
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-pre", error, lease), true);
+});

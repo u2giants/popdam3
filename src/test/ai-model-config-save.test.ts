@@ -67,4 +67,23 @@ describe("saveAiModelConfig", () => {
     })).rejects.toThrow("Save a Google AI API key");
     expect(call).not.toHaveBeenCalled();
   });
+
+  it("does not let whitespace padding bypass the Google key check", async () => {
+    const call = vi.fn();
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      taskModels: { ...draft.taskModels, vision_tagging: "  google-direct/gemini-3.8-flash:batch " },
+      googleKey: "",
+    })).rejects.toThrow("Save a Google AI API key");
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("rejects an OpenRouter :batch variant as a fallback", async () => {
+    const call = vi.fn();
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      taskModels: { ...draft.taskModels, vision_tagging_fallback: "google/gemini-3.7-flash:batch" },
+    })).rejects.toThrow("only be selected as the primary Image Tagging model");
+    expect(call).not.toHaveBeenCalled();
+  });
 });
