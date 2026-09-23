@@ -351,6 +351,19 @@ async function handleSetConfig(
   }
 
   const db = serviceClient();
+  // Clearing the Google key while Direct Gemini stays selected (from an
+  // earlier save) would leave production tagging without credentials.
+  if (!selectsDirectGemini && entries.GOOGLE_AI_API_KEY !== undefined && entries.AI_TASK_MODELS === undefined) {
+    const { data: modelsRow, error: modelsError } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", "AI_TASK_MODELS")
+      .maybeSingle();
+    if (modelsError) return err(`Could not verify the Image Tagging model: ${modelsError.message}`, 500);
+    if (!directGeminiBatchSelectionHasKey(modelsRow?.value, entries.GOOGLE_AI_API_KEY)) {
+      return err("Select a different Image Tagging model before clearing the Google AI API key", 400);
+    }
+  }
   if (selectsDirectGemini) {
     let googleKey = entries.GOOGLE_AI_API_KEY;
     if (googleKey === undefined) {

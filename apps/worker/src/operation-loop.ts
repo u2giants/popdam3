@@ -59,6 +59,11 @@ export function releaseReceiptAfterPost(opKey: string, leaseExpiresAt: string | 
   submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
 }
 
+/** Record the one-time receipt this worker was issued (never persisted). */
+export function rememberSubmissionReceipt(opKey: string, leaseToken: string): void {
+  submissionLeaseTokens.set(opKey, leaseToken);
+}
+
 /** True while this worker holds an in-memory receipt for the operation. */
 export function holdsSubmissionReceipt(opKey: string): boolean {
   return submissionLeaseTokens.has(opKey);
@@ -874,7 +879,7 @@ export async function tick(): Promise<void> {
       }
       const claimedState = claim.operation as OpState;
       submissionLeaseRetryAfter.delete(opKey);
-      submissionLeaseTokens.set(opKey, leaseToken);
+      rememberSubmissionReceipt(opKey, leaseToken);
       try {
         result = await dispatch(opKey, {
           ...claimedState,
