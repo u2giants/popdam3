@@ -12,7 +12,7 @@ import {
 } from "./gemini-batch.js";
 import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./handlers/ai-tagging-batch-state.js";
 import type { ChatCompletionRequest } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError, ProviderRefusedSubmissionError } from "./batch-submission-error.js";
 import { TAG_ASSET_SCHEMA } from "./handlers/ai-tagging-shared.js";
 import { TAG_STYLE_GROUP_SCHEMA } from "./tag-style-group-contract.js";
 import { assertProviderSubmissionLeaseBudget, providerBatchPageLimit } from "./batch-provider.js";
@@ -275,10 +275,19 @@ test("only a parsed Google 400/422 envelope is definitive; everything else is am
     () => new Response(JSON.stringify({ error: { message: "no code" } }), { status: 400 }),
     () => new Response("<html>proxy</html>", { status: 400 }),
     () => new Response(JSON.stringify({ error: { code: 500, message: "mismatch" } }), { status: 400 }),
-    () => new Response(JSON.stringify({ error: { code: 403, status: "PERMISSION_DENIED" } }), { status: 403 }),
+    () => new Response("<html>forbidden</html>", { status: 403 }),
     () => new Response(JSON.stringify({ error: { code: 500, status: "INTERNAL" } }), { status: 500 }),
     () => new Response("unavailable", { status: 503 }),
   ];
+  for (const status of [401, 402, 403, 429] as const) {
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: status, status: "PERMISSION_DENIED", message: "secret" } }), { status });
+    await assert.rejects(submit(), (error: unknown) => {
+      assert.ok(error instanceof ProviderRefusedSubmissionError);
+      assert.equal(error.status, status);
+      assert.doesNotMatch(error.message, /secret/);
+      return true;
+    });
+  }
   for (const respond of ambiguousResponses) {
     globalThis.fetch = async () => respond();
     await assert.rejects(submit(), AmbiguousBatchSubmissionError);

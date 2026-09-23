@@ -28,6 +28,20 @@ export class DefinitiveBatchRejectionError extends Error {
 }
 
 /**
+ * The provider itself refused the submission for account reasons: auth (401/
+ * 403), billing (402) or rate limit (429), proven by its own error envelope.
+ * No batch was created, but the governed reset accepts only 400/422, so the
+ * operation stops immediately and visibly instead of waiting as ambiguous.
+ */
+export class ProviderRefusedSubmissionError extends Error {
+  constructor(public provider: string, public status: 401 | 402 | 403 | 429) {
+    const kind = status === 402 ? "billing" : status === 429 ? "rate limit" : "authorization";
+    super(`${provider} refused the batch submission (HTTP ${status}, ${kind}); fix the key, billing or quota, then start a new run`);
+    this.name = "ProviderRefusedSubmissionError";
+  }
+}
+
+/**
  * Classify a non-2xx submission response. Returns a definitive rejection only
  * when the status is 400/422 AND the body parses as the provider's own error
  * envelope (`{ "error": { "code": <same status>, ... } }`); a proxy or gateway
@@ -39,8 +53,8 @@ export function classifySubmissionHttpFailure(
   provider: string,
   status: number,
   bodyText: string | undefined,
-): DefinitiveBatchRejectionError | AmbiguousBatchSubmissionError {
-  if ((status === 400 || status === 422) && typeof bodyText === "string") {
+): DefinitiveBatchRejectionError | ProviderRefusedSubmissionError | AmbiguousBatchSubmissionError {
+  if ([400, 422, 401, 402, 403, 429].includes(status) && typeof bodyText === "string") {
     let parsed: unknown;
     try {
       parsed = JSON.parse(bodyText);
@@ -53,10 +67,13 @@ export function classifySubmissionHttpFailure(
     if (envelope && typeof envelope === "object" && !Array.isArray(envelope)) {
       const record = envelope as Record<string, unknown>;
       const code = typeof record.code === "string" ? Number(record.code) : record.code;
-      if (code === status) {
+      if (code === status && (status === 401 || status === 402 || status === 403 || status === 429)) {
+        return new ProviderRefusedSubmissionError(provider, status);
+      }
+      if (code === status && (status === 400 || status === 422)) {
         const summary: Record<string, string | number> = { provider, code: status };
         if (typeof record.status === "string" && /^[A-Z_]{1,64}$/.test(record.status)) summary.status = record.status;
-        return new DefinitiveBatchRejectionError(provider, status, summary);
+        return new DefinitiveBatchRejectionError(provider, status as DefinitiveRejectionStatus, summary);
       }
     }
   }
