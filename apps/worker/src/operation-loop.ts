@@ -30,7 +30,8 @@ import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
+import { failOperationAfterDefinitiveRejection } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -280,30 +281,29 @@ export function normalizeBatchError(error: unknown, fallback = "Batch failed (ha
   return fallback;
 }
 
-export function normalizeProviderSubmissionError(error: unknown): string {
-  if (error instanceof Error && error.name === "OpenRouterError") {
-    const status = (error as Error & { status?: unknown }).status;
-    return `OpenRouter batch submission failed${typeof status === "number" ? ` (HTTP ${status})` : ""}`;
-  }
-  return normalizeBatchError(error, "Provider batch submission failed without an error message");
-}
-
-export function definitiveProviderSubmissionFailureState(
-  state: OpState,
-  leaseToken: string,
-  error: unknown,
+/**
+ * State for a provider-batch handler error. A provider batch that finished as
+ * failed/cancelled/expired (`provider_terminal`) will never produce results, so
+ * the operation fails durably instead of being left resumable to re-poll the
+ * same dead batch forever. Other errors stay interrupted.
+ */
+export function providerJobErrorState(
+  currentState: OpState,
+  result: BatchResult,
+  resultJob: OpState["external_job"] | undefined,
+  cursor: OpState["cursor"],
+  progress: OpState["progress"],
 ): OpState {
-  const message = normalizeProviderSubmissionError(error);
-  const reason = classifyError(message);
+  const terminal = result.error_code === "provider_terminal";
   return {
-    ...state,
-    status: isTransientInterruption(reason) ? "interrupted" : "failed",
-    interruption_reason_code: reason,
-    error: message,
-    next_auto_resume_at: nextAutoResumeAt(reason, state),
-    external_job: state.external_job
-      ? { ...state.external_job, phase: "prepared", lease_token: leaseToken }
-      : state.external_job,
+    ...currentState,
+    status: terminal ? "failed" : "interrupted",
+    cursor,
+    progress,
+    error: result.error ?? "Provider batch failed",
+    interruption_reason_code: terminal ? "provider_terminal" : interruptionReason(result),
+    ...(terminal ? { next_auto_resume_at: undefined } : {}),
+    external_job: resultJob ?? currentState.external_job,
     updated_at: new Date().toISOString(),
   };
 }
@@ -813,22 +813,38 @@ export async function tick(): Promise<void> {
         });
       } catch (error) {
         submissionLeaseTokens.delete(opKey);
-        if (error instanceof AmbiguousBatchSubmissionError) {
-          const leaseEnd = claimedState.external_job?.lease_expires_at
-            ? new Date(claimedState.external_job.lease_expires_at).getTime()
-            : Date.now() + 120_000;
-          submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
-          // Preserve the database-owned `submitting` state. After this receipt's
-          // lease expires, the next guarded claim is what durably transitions it
-          // to ambiguous_submission; callers are forbidden from creating it.
-          logger.error("tick: provider batch submission outcome indeterminate; waiting for database lease reconciliation", { opKey });
+        if (error instanceof DefinitiveBatchRejectionError) {
+          // The provider itself parsed and refused the payload, so no batch
+          // exists. Consume this receipt through the governed reset RPC, then
+          // fail the operation durably on the next revision (exactly once:
+          // both writes are revision- and receipt-guarded).
+          const outcome = await failOperationAfterDefinitiveRejection(
+            (fn, params) => db().rpc(fn, params),
+            { opKey, expectedRevision: claim.state_revision, submissionOwner: owner, leaseToken: claim.lease_token },
+            error,
+          );
+          await recordStyleGroupTerminalOutcome(opKey, outcome.state, "failed");
+          logger.error("tick: provider definitively rejected the batch submission", { opKey, error: outcome.state.error });
           return;
         }
-        const failureState = definitiveProviderSubmissionFailureState(claimedState, claim.lease_token, error);
-        const saved = await guardedPersistOpState(opKey, failureState, { expectedRevision: claim.state_revision });
-        if (!saved.ok) throw new Error(`Protected provider submission failure save refused: ${saved.reason}`);
-        if (failureState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
-        logger.error("tick: provider batch submission failed before a provider ID was accepted", { opKey, error: failureState.error });
+        // Everything else -- a timeout, disconnect, 5xx, any other status, an
+        // unparseable response, or a local error after the receipt was
+        // minted -- cannot prove the provider created nothing. Never reset
+        // the lease here.
+        if (!(error instanceof AmbiguousBatchSubmissionError)) {
+          logger.error("tick: provider submission failed after the receipt was minted; treating as ambiguous", {
+            opKey,
+            error: normalizeBatchError(error, "Provider batch submission failed without an error message").slice(0, 300),
+          });
+        }
+        const leaseEnd = claimedState.external_job?.lease_expires_at
+          ? new Date(claimedState.external_job.lease_expires_at).getTime()
+          : Date.now() + 120_000;
+        submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
+        // Preserve the database-owned `submitting` state. After this receipt's
+        // lease expires, the next guarded claim is what durably transitions it
+        // to ambiguous_submission; callers are forbidden from creating it.
+        logger.error("tick: provider batch submission outcome indeterminate; waiting for database lease reconciliation", { opKey });
         return;
       }
       if (!result.ok) {
@@ -878,20 +894,14 @@ export async function tick(): Promise<void> {
 
     const resultJob = result.external_job as OpState["external_job"] | undefined;
     if (!result.ok && currentState.external_job) {
-      const protectedErrorState: OpState = {
-        ...currentState,
-        status: "interrupted",
-        cursor,
-        progress,
-        error: result.error ?? "Provider batch failed",
-        interruption_reason_code: interruptionReason(result),
-        external_job: resultJob ?? currentState.external_job,
-        updated_at: new Date().toISOString(),
-      };
+      const protectedErrorState = providerJobErrorState(currentState, result, resultJob, cursor, progress);
       const saved = await guardedPersistOpState(opKey, protectedErrorState, {
         expectedRevision: currentState.state_revision ?? 0,
       });
       if (!saved.ok) throw new Error(`Protected provider failure save refused: ${saved.reason}`);
+      // The guarded write only applies to a still-running operation at the
+      // expected revision, so the terminal outcome is recorded exactly once.
+      if (protectedErrorState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, protectedErrorState, "failed");
       return;
     }
     if (resultJob?.lease_token && currentState.external_job) {

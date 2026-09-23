@@ -819,7 +819,7 @@ pin today; ERP classification and PDF extraction do not (add a sibling
 
 **Actually**: The on-prem agents call Google directly for PDF text extraction. The Railway worker also calls Google's multimodal Batch API when Image Tagging explicitly selects a `google-direct/*:batch` model. Its durable state stores only the provider name, batch ID, and item mapping—not prompts or image bytes.
 
-**Future sessions should**: Keep `GOOGLE_AI_API_KEY`, the worker resolver, agent passthrough, ApisTab field, and Google model entries. Removing them breaks the selected direct-batch route and agent PDF extraction. Never silently fall back between Google and OpenRouter after a non-idempotent batch submission.
+**Future sessions should**: Keep `GOOGLE_AI_API_KEY`, the worker resolver, agent passthrough, ApisTab field, and Google model entries. Removing them breaks the selected direct-batch route and agent PDF extraction. Never silently fall back between Google and OpenRouter after a non-idempotent batch submission. Only a parsed provider 400/422 error envelope may consume the submission receipt (worker → `reset_bulk_operation_submission_lease`, shared-db #3418); timeouts, disconnects, 5xx and other statuses stay ambiguous. A failed/cancelled/expired provider batch fails the operation once; temporary poll failures keep polling the same saved batch ID with backoff. Any `:batch` model (OpenRouter or direct) is valid only as the primary Image Tagging model — never a fallback, PDF or bake-off model.
 
 ## 64. The `dam` Schema Is NOT Exposed to PostgREST — Reach `dam.*` via `public` RPCs (2026-07-15)
 

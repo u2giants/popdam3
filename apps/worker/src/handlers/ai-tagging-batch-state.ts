@@ -66,3 +66,24 @@ export function indexBatchResults<T extends { custom_id?: string }>(
   }
   return indexed;
 }
+
+/**
+ * A provider GET that failed for a temporary reason: network/disconnect,
+ * timeout, an unparseable body, HTTP 408/429 or any 5xx. The saved provider
+ * job ID is still authoritative, so the caller keeps the job pending and polls
+ * the same ID later instead of failing the operation.
+ */
+export function isTransientProviderPollError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const status = (error as Error & { status?: unknown }).status;
+  if (typeof status === "number") return status === 408 || status === 429 || status >= 500;
+  if (error.name === "TimeoutError" || error.name === "AbortError" || error.name === "SyntaxError") return true;
+  // Node's fetch reports DNS/socket failures as TypeError("fetch failed").
+  return error.name === "TypeError" && /fetch failed|network|socket|ECONN|ETIMEDOUT|EAI_AGAIN/i.test(error.message);
+}
+
+/** 30 s doubling to a 10 min ceiling; the job stays resumable indefinitely. */
+export function transientPollDelayMs(consecutiveFailures: number): number {
+  const exponent = Math.max(0, Math.min(consecutiveFailures, 10));
+  return Math.min(30_000 * 2 ** exponent, 600_000);
+}

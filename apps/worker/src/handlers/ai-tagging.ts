@@ -48,7 +48,7 @@ import {
   TAG_ASSET_TOOL,
   validateTagAssetData,
 } from "./ai-tagging-shared.js";
-import { indexBatchResults, isNewBatchVisibilityDelay, nextBatchAction } from "./ai-tagging-batch-state.js";
+import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
 // Last-resort fallback only, used if admin_config.AI_TASK_MODELS is missing.
@@ -468,12 +468,29 @@ async function handleDurableBatchTag(
         last_stage: "model_inference",
       };
     }
+    if (isTransientProviderPollError(error)) {
+      // Keep the same saved provider job ID and poll it again later; a
+      // temporary outage must never turn a live batch into a failure.
+      const failures = (job.transient_poll_failures ?? 0) + 1;
+      return {
+        ok: true,
+        done: false,
+        nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+        external_job: {
+          ...job,
+          transient_poll_failures: failures,
+          last_checked_at: new Date().toISOString(),
+          next_poll_at: new Date(Date.now() + transientPollDelayMs(failures - 1)).toISOString(),
+        },
+        last_stage: "model_inference",
+      };
+    }
     throw error;
   }
   if (!["completed", "failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
     return {
       ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-      external_job: { ...job, last_checked_at: new Date().toISOString(), next_poll_at: new Date(Date.now() + 10_000).toISOString() },
+      external_job: { ...job, transient_poll_failures: undefined, last_checked_at: new Date().toISOString(), next_poll_at: new Date(Date.now() + 10_000).toISOString() },
       last_stage: "model_inference",
     };
   }
