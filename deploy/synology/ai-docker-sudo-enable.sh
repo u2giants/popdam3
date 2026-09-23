@@ -23,7 +23,9 @@ chmod 0440 "$T"
 chown root:root "$T"
 
 # Never install a sudoers file that does not parse - that can lock sudo out.
-if ! visudo -c -f "$T" >/dev/null 2>&1; then
+# DSM ships without visudo; there, validate by having sudo itself parse the
+# installed set (below) and roll back if it cannot.
+if command -v visudo >/dev/null 2>&1 && ! visudo -c -f "$T" >/dev/null 2>&1; then
   echo "FAIL: generated sudoers file did not validate; nothing was changed"
   rm -f "$T"
   exit 1
@@ -33,7 +35,12 @@ cp -p "$T" "$F"
 rm -f "$T"
 chmod 0440 "$F"
 
-if ! visudo -c >/dev/null 2>&1; then
+if command -v visudo >/dev/null 2>&1; then
+  CHECK="visudo -c"
+else
+  CHECK="sudo -l -U ahazan"
+fi
+if ! $CHECK >/dev/null 2>&1; then
   echo "FAIL: sudoers set did not validate after install; removing"
   rm -f "$F"
   exit 1
