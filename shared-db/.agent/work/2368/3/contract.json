@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 2368,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Recover PR #3186 by preserving and strengthening focused falsification coverage for every production refusal guard assigned by issues #2368, #2369, and #2370 without weakening any refusal.",
+  "base_sha": "905ec8e29d1175ce8e312d9fb1c90dbff02e17ca",
+  "dispatcher": "Albert Hazan: resolve all non-orchestrator issues that claude is not touching. work on as many at the same time as possible.",
+  "worker": "Codex chat 01a0c035-8240-79e2-9d29-abecdd1eb6c4",
+  "branch": "codex/issues-2368-2370",
+  "worktree": "D:/repos/worktrees/pr3186-recovery-20260920-1918",
+  "allowed_paths": [
+    ".agent/work/2368/3/contract.json",
+    ".agent/work/2368/3/completion.json",
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_migration_guard.py"
+  ],
+  "file_writes": [
+    ".agent/work/2368/3/contract.json",
+    ".agent/work/2368/3/completion.json",
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_migration_guard.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not weaken, remove, bypass, or replace any production refusal guard.",
+    "Do not modify production code or database state.",
+    "Do not touch tests outside the two assigned guard suites."
+  ],
+  "required_checks": [
+    "python -m unittest scripts.test_production_apply_review_evidence scripts.test_production_migration_guard"
+  ],
+  "assumptions": [
+    "Issues #2368, #2369, and #2370 are one bounded test-only outcome because they cover adjacent survivors in the same production guard suites.",
+    "The original PR implementation is recovered onto current main and the governed review's two coverage findings are corrected before exact-head re-review."
+  ],
+  "stop_conditions": [
+    "Stop if any assigned survivor requires changing production behavior rather than testing the existing refusal.",
+    "Stop if the fresh exact-head independent reviewer does not approve."
+  ],
+  "generation": 3
+}
