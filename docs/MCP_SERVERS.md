@@ -88,6 +88,14 @@ and confirm the configured project ref before any database call.
   missing after this fix + a session restart, this environment's placeholder resolution may
   not extend to stdio `env` blocks either — fall back to `op run` (above) or ask the user.
 
+**Permanent fix (2026-09-22):** the `supabase` server now launches through
+`scripts/mcp/supabase-mcp.sh`, which injects `SUPABASE_ACCESS_TOKEN` into the
+child process only: existing env var, else the Supabase CLI token file
+`~/.supabase/access-token`, else `op run` against 1Password item
+"Supabase CLI Personal Access Token" (vault `vibe_coding`). No secret lives in
+`.mcp.json`. If it still reports Unauthorized, run `supabase login` to refresh
+the token file.
+
 **Reconfirmed 2026-07-14** that the `supabase` MCP can still land in this
 unauthorized state (`Unauthorized. Please provide a valid access token…`) in a
 session where the `.bashrc` token block wasn't sourced. **This is not a
