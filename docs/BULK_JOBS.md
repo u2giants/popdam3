@@ -141,6 +141,16 @@ that same job; it never treats a generic `ok` response as permission to submit.
 
 ### Rebuild outcome history and alerts
 
+The separate `Observe Style Group Drift` GitHub Actions workflow calls the existing
+read-only `reconcile_style_group_drift` RPC as `service_role` each day at 10:15 UTC,
+after the rebuild outcome monitor. It retains one aggregate JSON report per run for
+90 days and opens a PopDAM alert issue if any whole-population assignment counter is
+nonzero or the measurement fails. Sampled effective-tag drift counts and rate are
+retained for trend review; a single sampled row is not treated as a regression.
+The workflow does not repair rows or alter the existing clear/rebuild cycle. Before
+any cutover under shared-db issues #2420 or #2421, review at least one full weekly
+cycle of successful aggregate reports and the worker's rebuild outcomes.
+
 After a `rebuild-style-groups` run reaches a non-retryable failure or completes, the
 worker appends one immutable row to `public.bulk_operation_runs`. A later success has a
 new `run_id` and cannot overwrite the earlier failure. Transient interruptions remain
