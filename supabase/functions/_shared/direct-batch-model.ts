@@ -27,3 +27,19 @@ export async function safeSecretFingerprint(secret: string): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
   return `sha256:${Array.from(new Uint8Array(digest)).slice(0, 12).map((value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
+
+interface ConfigUpsertClient {
+  from(table: "admin_config"): {
+    upsert(rows: Array<Record<string, unknown>>): PromiseLike<{ error: { message: string } | null }>;
+  };
+}
+
+/** Write every config row in one statement: all rows apply or none do. */
+export async function upsertConfigRowsAtomically(
+  client: ConfigUpsertClient,
+  rows: Array<Record<string, unknown>>,
+): Promise<{ error: { message: string } | null }> {
+  if (rows.length === 0) return { error: null };
+  const { error } = await client.from("admin_config").upsert(rows);
+  return { error };
+}
