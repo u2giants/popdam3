@@ -27,6 +27,22 @@ function branchFixture() {
 }
 const branch = (repo, headSha, tipSha) => classifyBranchFreshness({ headSha, tipSha, gitRunner: (args) => git(repo, args) })
 
+test('arbitrary .agent code overlap refuses even when distant hunks merge cleanly', () => {
+  const { repo } = makeRepo()
+  try {
+    const lines = Array.from({ length: 40 }, (_, i) => `// line ${i}`)
+    commitFiles(repo, { '.agent/hook.mjs': lines.join('\n') }, 'shared agent code')
+    git(repo, ['switch', '-q', '-c', 'pr'])
+    const authored = [...lines]; authored[1] = '// PR change'
+    const head = commitFiles(repo, { '.agent/hook.mjs': authored.join('\n') }, 'PR changes agent code')
+    git(repo, ['switch', '-q', 'main'])
+    const main = [...lines]; main[38] = '// main change'
+    const tip = commitFiles(repo, { '.agent/hook.mjs': main.join('\n') }, 'main changes agent code')
+    const result = branch(repo, head, tip)
+    assert.equal(result.ok, false); assert.match(result.reason, /main also changed \.agent\/hook.mjs/)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
 test('#2758: main moved by unrelated code, PR merges cleanly and touches none of it: accepted', () => {
   const { repo, head } = branchFixture()
   try {

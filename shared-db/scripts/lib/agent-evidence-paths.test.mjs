@@ -2,6 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { acceptableEvidencePairs, EvidencePathError, evidencePaths, isEvidencePath, LEGACY_PAIR, resolveEvidencePair } from './agent-evidence-paths.mjs'
 
+test('canonical task identifiers reject numeric aliases and precision loss', () => {
+  for (const bad of ['01', '1e2', ' 1', '+1', true, 9007199254740992, '9007199254740993']) {
+    assert.throws(() => evidencePaths(bad, 1), EvidencePathError)
+    assert.throws(() => evidencePaths(1, bad), EvidencePathError)
+  }
+  assert.throws(() => resolveEvidencePair(['.agent/work/9007199254740993/1/contract.json', '.agent/work/9007199254740993/1/completion.json']), EvidencePathError)
+})
+
 test('#2708: the pair is keyed by work issue and generation, mirroring the contract ref', () => {
   assert.deepEqual(evidencePaths(2708, 1), {
     key: '2708/1',

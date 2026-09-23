@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "base_sha": "3a607c8662d24541acaca0e24764cd5d6f5e74cf",
+  "db_writes": [],
+  "stop_conditions_hit": [],
+  "assumptions_resolved": [
+    "Prerequisite PR3357 merged; current main incorporated"
+  ],
+  "head_sha": "fb35d6f5dbdf11f4fb9b1ee2244d1d3bb04b4cb7",
+  "checks": [
+    {
+      "command": "node --test scripts/lib/agent-evidence-paths.test.mjs scripts/lib/pr-content-equivalence.test.mjs scripts/check-main-tip-freshness.test.mjs",
+      "evidence": "54 pass, 0 fail, 0 skipped at fb35d6f5 after refreshing onto origin/main.",
+      "exit_code": 0
+    },
+    {
+      "exit_code": 0,
+      "evidence": "6 passed;0 failed;0 skipped at fb35d6f5 after refreshing onto origin/main.",
+      "command": "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs"
+    }
+  ],
+  "outcome": "ready-for-merge",
+  "contract_sha256": "e46859a23891ccff0843b4d66965db3768c2fabf8a08233ff31e7963bd01827d",
+  "contract_ref": "refs/db-contracts/3360/2",
+  "pr": 3363,
+  "files_changed": [
+    "config/orchestrator-global-invalidators-v1.json",
+    "scripts/check-main-tip-freshness.mjs",
+    "scripts/check-main-tip-freshness.test.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/lib/pr-content-equivalence.mjs",
+    "scripts/lib/pr-content-equivalence.test.mjs"
+  ],
+  "work_issue": 3360,
+  "migration_versions": [],
+  "db_reads": []
+}

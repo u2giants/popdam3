@@ -38,8 +38,9 @@ export const KEYED_EVIDENCE_PATTERN = /^\.agent\/work\/([1-9]\d*)\/([1-9]\d*)\/(
 export class EvidencePathError extends Error {}
 
 function positiveInteger(value, what) {
+  if ((typeof value !== 'number' && typeof value !== 'string') || !/^[1-9]\d*$/.test(String(value))) throw new EvidencePathError(`${what} must be a canonical positive integer, not ${JSON.stringify(value)}`)
   const number = Number(value)
-  if (!Number.isInteger(number) || number < 1) throw new EvidencePathError(`${what} must be a positive integer, not ${JSON.stringify(value)}`)
+  if (!Number.isSafeInteger(number) || number < 1) throw new EvidencePathError(`${what} must be a safe positive integer, not ${JSON.stringify(value)}`)
   return number
 }
 
@@ -52,7 +53,10 @@ export function evidencePaths(workIssue, generation = 1) {
 }
 
 export function isEvidencePath(path) {
-  return path === LEGACY_CONTRACT_PATH || path === LEGACY_COMPLETION_PATH || KEYED_EVIDENCE_PATTERN.test(String(path ?? ''))
+  if (path === LEGACY_CONTRACT_PATH || path === LEGACY_COMPLETION_PATH) return true
+  const match = KEYED_EVIDENCE_PATTERN.exec(String(path ?? ''))
+  if (!match) return false
+  try { evidencePaths(match[1], match[2]); return true } catch { return false }
 }
 
 /**

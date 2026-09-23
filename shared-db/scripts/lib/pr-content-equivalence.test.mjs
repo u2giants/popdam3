@@ -29,6 +29,40 @@ function fixture() {
 }
 const check = (repo, approvedHead, head) => isContentPreservingRefresh({ approvedHead, head, mainRef: 'main', gitRunner: (args) => git(repo, args) })
 
+test('arbitrary .agent code, JSON and malformed evidence need renewed review', () => {
+  for (const [path, body] of [['.agent/hook.mjs', 'export default 1'], ['.agent/settings.json', '{}'], ['.agent/completion.json', 'console.log(1)'], ['.agent/completion.json', '[]']]) {
+    const { repo, approved } = fixture()
+    try { const head = commit(repo, { [path]: body }, 'unreviewed agent content'); assert.equal(check(repo, approved, head).ok, false, path) }
+    finally { rmSync(repo, { recursive: true, force: true }) }
+  }
+})
+
+test('executable and symlink evidence are never inert', () => {
+  for (const mode of ['100755', '120000']) {
+    const { repo, approved } = fixture()
+    try {
+      write(repo, { '.agent/completion.json': '{}' })
+      const blob = git(repo, ['hash-object', '-w', '.agent/completion.json'])
+      git(repo, ['update-index', '--add', '--cacheinfo', `${mode},${blob.trim()},.agent/completion.json`])
+      git(repo, ['commit', '-q', '-m', 'non-regular evidence'])
+      assert.equal(check(repo, approved, git(repo, ['rev-parse', 'HEAD']).trim()).ok, false, mode)
+    } finally { rmSync(repo, { recursive: true, force: true }) }
+  }
+})
+
+test('scoped evidence refresh is inert only when its identity matches the canonical path', () => {
+  for (const workIssue of [42, 99]) {
+    const { repo, approved } = fixture()
+    try {
+      const head = commit(repo, {
+        '.agent/work/42/1/contract.json': JSON.stringify({ work_issue: workIssue, generation: 1 }),
+        '.agent/work/42/1/completion.json': JSON.stringify({ work_issue: workIssue, contract_ref: `refs/db-contracts/${workIssue}/1` }),
+      }, 'scoped evidence')
+      assert.equal(check(repo, approved, head).ok, workIssue === 42)
+    } finally { rmSync(repo, { recursive: true, force: true }) }
+  }
+})
+
 test('a merge-only refresh from main keeps the approval', () => {
   const { repo, approved, refreshed } = fixture()
   try { const proof = check(repo, approved, refreshed); assert.equal(proof.ok, true, proof.reason) } finally { rmSync(repo, { recursive: true, force: true }) }

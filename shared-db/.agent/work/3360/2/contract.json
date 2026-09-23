@@ -1,0 +1,51 @@
+{
+  "allowed_paths": [
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/lib/pr-content-equivalence.mjs",
+    "scripts/lib/pr-content-equivalence.test.mjs",
+    "scripts/check-main-tip-freshness.mjs",
+    "scripts/check-main-tip-freshness.test.mjs",
+    "config/orchestrator-global-invalidators-v1.json"
+  ],
+  "assumptions": [
+    "Legacy and keyed evidence remain supported",
+    "PR3357 prerequisite is incorporated"
+  ],
+  "base_sha": "edb475a48003773de694a056ea4726da11857c22",
+  "branch": "codex/step1-acceptance-audit-20260920",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex workflow-refactor parent",
+  "file_writes": [
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/lib/pr-content-equivalence.mjs",
+    "scripts/lib/pr-content-equivalence.test.mjs",
+    "scripts/check-main-tip-freshness.mjs",
+    "scripts/check-main-tip-freshness.test.mjs",
+    "config/orchestrator-global-invalidators-v1.json"
+  ],
+  "generation": 2,
+  "goal": "Narrow evidence exclusions and reject identifier aliasing while preserving legitimate metadata refresh",
+  "prohibited_actions": [
+    "No database changes",
+    "No edits to other owners files",
+    "No concurrency limits",
+    "No append-only policy change to active generations"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/agent-evidence-paths.test.mjs scripts/lib/pr-content-equivalence.test.mjs scripts/check-main-tip-freshness.test.mjs",
+    "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Scope extends beyond owned files",
+    "Evidence exclusion cannot preserve active valid records"
+  ],
+  "work_issue": 3360,
+  "work_type": "repo-maintenance",
+  "worker": "codex",
+  "worktree": "D:\\repos\\shared-db-step1-acceptance-audit-20260920"
+}
