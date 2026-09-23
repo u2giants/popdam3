@@ -1,6 +1,6 @@
 # OpenRouter Batch Restart Recovery Implementation Plan
 
-Linked handoff: [`HANDOFF.d/2026-09-22T2124Z-hetz-codex-open-issues-closeout.md`](HANDOFF.d/2026-09-22T2124Z-hetz-codex-open-issues-closeout.md)
+Linked handoff: [`HANDOFF.d/2026-09-24T0005Z-hetz-claude-issue-143-continuation.md`](HANDOFF.d/2026-09-24T0005Z-hetz-claude-issue-143-continuation.md)
 
 Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues/92)
 
@@ -22,6 +22,8 @@ handoff are resolved and independently approved.
 failure lease-reset contract through `popcre/shared-db`, then finish the direct
 Gemini review findings. Only after that route passes review and deploys should the
 session resume Step 8's controlled production proof.
+
+**2026-09-24 update:** the lease-reset contract merged (shared-db PR #3426, not yet in production). The #92 branch is at `4db3c4bd` with every listed finding fixed (222 worker tests pass). Codex's remaining REJECT needs the widened reset in shared-db #3464. Ship only after #3418 and #3464 are live in production and an exact-head APPROVE. At the end of each phase, re-read Steps 8-9 and the linked handoff §6, and report drift.
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
