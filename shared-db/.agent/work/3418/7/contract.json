@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 3418,
+  "generation": 7,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Permit only the current PopDAM submission receipt holder to reset an unbound live lease after a parsed definitive provider rejection, while preserving all ambiguity and provider-pointer guards",
+  "base_sha": "1d2a0db59104514e31507f96fd401c3925995086",
+  "dispatcher": "Codex orchestrator chat 01a0cb03-daa2-79d2-85fd-6a8904abfc53, claim #3425",
+  "worker": "Codex chat 01a0cc6b-070f-7c32-b31a-827428e36332",
+  "branch": "codex/3418-definitive-rejection",
+  "worktree": "C:/Users/ahazan/.codex/worktrees/shared-db-3418-definitive-rejection/shared-db",
+  "allowed_paths": [
+    "supabase/migrations/20260923040630_popdam_definitive_rejection_lease_reset.sql",
+    "supabase/tests/popdam_bulk_operation_definitive_rejection_contracts.sql",
+    ".agent/work/3418/7/contract.json",
+    ".agent/work/3418/7/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260923040630_popdam_definitive_rejection_lease_reset.sql",
+    "supabase/tests/popdam_bulk_operation_definitive_rejection_contracts.sql",
+    ".agent/work/3418/7/contract.json",
+    ".agent/work/3418/7/completion.json"
+  ],
+  "db_reads": [
+    "table public.admin_config"
+  ],
+  "db_writes": [
+    "function public.reset_bulk_operation_submission_lease"
+  ],
+  "prohibited_actions": [
+    "No shared preview or production database write from this author session",
+    "No merge or manual production dispatch",
+    "Do not reset expired, ambiguous or provider-bound submissions",
+    "Do not change public.update_bulk_operation or its grants"
+  ],
+  "required_checks": [
+    "Local PostgreSQL current-writer and new-migration contract rollback test",
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "PopDAM calls this function only after it authenticates and parses a definitive provider HTTP 4xx rejection; SQL cannot authenticate the external response",
+    "Only the existing guarded writer may issue the next receipt after the reset bumps the revision"
+  ],
+  "stop_conditions": [
+    "Any path that grants a receipt to a different caller without a fresh guarded claim",
+    "Any path that turns timeout, disconnect, 5xx or expired-lease ambiguity into resubmission"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 3418,
+  "outcome": "ready-for-merge",
+  "pr": 3426,
+  "migration_versions": [
+    "20260923040630"
+  ],
+  "contract_ref": "refs/db-contracts/3418/7",
+  "contract_sha256": "31e1ddf38c45ced189d5e516b802028a964d4b1018f8f1dfa47c332d4ebf8b4f",
+  "head_sha": "5365bf92833004e779b99f2b37289637f5f2808b",
+  "base_sha": "5653b760e445ff27264b82e42596c84afc101ee5",
+  "files_changed": [
+    "supabase/migrations/20260923040630_popdam_definitive_rejection_lease_reset.sql",
+    "supabase/tests/popdam_bulk_operation_definitive_rejection_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.admin_config"
+  ],
+  "db_writes": [
+    "function public.reset_bulk_operation_submission_lease"
+  ],
+  "checks": [
+    {
+      "command": "Local PostgreSQL current-writer and new-migration contract rollback test",
+      "exit_code": 0,
+      "evidence": "Disposable PostgreSQL loaded the batch and current single-operation writers, exact admin_config table/PK, and repaired migration. Transactional rollback suite passed: exact catalog pins, 4xx sweep, receipt/lease/binding guards, post-reset legacy and batch phase/proof/provider-ID refusals, and real SET ROLE anon denial plus authenticated and service_role successful resets. Local server stopped."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed against origin/main; Guard B accepted version 20260923040630 after base newest 20260920202755. Live-ledger B2 lacked a local source and remains a CI/preview gate."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check origin/main...5365bf92833004e779b99f2b37289637f5f2808b returned no whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "The consumer owns authenticated provider-response parsing; SQL refuses unparsed, empty, timeout, disconnect and non-definitive status inputs but cannot authenticate an external response",
+    "The existing writer remains byte-identical and is the sole path that can mint a new receipt after the reset's revision bump",
+    "report.head_sha names the strict implementation parent; the sole two-file evidence sealing commit is bound to the exact final pull-request head by agent-work-contract-git-evidence"
+  ],
+  "stop_conditions_hit": []
+}
