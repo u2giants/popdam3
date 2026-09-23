@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "generation": 5,
+  "work_issue": 3282,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Restore bounded PDF backfill claim and remaining-count without changing eligible rows or timeouts.",
+  "base_sha": "5653b760e445ff27264b82e42596c84afc101ee5",
+  "dispatcher": "Claude orchestrator marker 3434",
+  "worker": "codex:pdf-3282-916",
+  "branch": "codex/issue-3282-pdf-claim-analysis",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/issue-3282-resume-aa4791",
+  "allowed_paths": [
+    "supabase/migrations/20260923173715_pdf_backfill_indexed_candidates.sql",
+    "supabase/tests/pdf_backfill_indexed_candidates_contracts.sql",
+    "docs/verification/3282-pdf-backfill/catalog-before.json",
+    "docs/verification/3282-pdf-backfill/local-proof.txt",
+    "docs/verification/3282-pdf-backfill/README.md",
+    ".agent/work/3282/5/contract.json",
+    ".agent/work/3282/5/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260923173715_pdf_backfill_indexed_candidates.sql",
+    "supabase/tests/pdf_backfill_indexed_candidates_contracts.sql",
+    "docs/verification/3282-pdf-backfill/catalog-before.json",
+    "docs/verification/3282-pdf-backfill/local-proof.txt",
+    "docs/verification/3282-pdf-backfill/README.md",
+    ".agent/work/3282/5/contract.json",
+    ".agent/work/3282/5/completion.json"
+  ],
+  "db_reads": [
+    "table public.assets",
+    "table public.pdf_text_samples",
+    "function public.is_style_guide_source_pdf"
+  ],
+  "db_writes": [
+    "function public.claim_pdf_backfill_batch",
+    "function public.count_pdf_backfill_remaining",
+    "index public.idx_assets_licensing_pdf_backfill_candidates",
+    "table public.assets"
+  ],
+  "prohibited_actions": [
+    "No production writes, preview applies, or merges by author.",
+    "No timeout increase, data deletion, signature change, grant change, or eligibility change.",
+    "public.assets write lock authorizes only named index creation; no column or row changes."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "PDF backfill SQL behavioral contracts",
+    "SQL migration guards"
+  ],
+  "assumptions": [
+    "Claim 3300 reserves version 20260923173715 (sanctioned supersession of 20260920144819, ref refs/db-claim-supersessions/3300-20260920144819).",
+    "Production catalog confirms helper is immutable and file_type is public.file_type enum.",
+    "Application return repository is u2giants/popdam3, verified through GitHub.",
+    "Generation2 adds parser-required parent-table index lock after guarded claim3300 expansion; SQL bytes unchanged.",
+    "Generation3 authorizes schema-only predecessor catalog and local execution evidence to resolve independent reviewer findings; no production row contents.",
+    "Generation4 changes only evidence storage to issue-keyed paths after upstream refresh; reviewed migration bytes unchanged.",
+    "Generation5 resumes abandoned 916 work after lease renewal and worktree rebind; renames migration to the superseding version and refreshes from main; SQL bytes unchanged."
+  ],
+  "stop_conditions": [
+    "Stop on scope or claim collision.",
+    "Stop if preview plan and timing fail to show bounded performance below existing eight second ceiling."
+  ]
+}

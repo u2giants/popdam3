@@ -1,0 +1,70 @@
+{
+  "columns": [
+    {
+      "name": "file_type",
+      "type": "file_type",
+      "not_null": true
+    },
+    {
+      "name": "filename",
+      "type": "text",
+      "not_null": true
+    },
+    {
+      "name": "is_deleted",
+      "type": "boolean",
+      "not_null": false
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_pdf_text_samples_asset_id",
+      "definition": "CREATE INDEX idx_pdf_text_samples_asset_id ON public.pdf_text_samples USING btree (asset_id)"
+    },
+    {
+      "name": "pdf_text_samples_asset_id_unique",
+      "definition": "CREATE UNIQUE INDEX pdf_text_samples_asset_id_unique ON public.pdf_text_samples USING btree (asset_id)"
+    },
+    {
+      "name": "idx_assets_pdf_not_deleted",
+      "definition": "CREATE INDEX idx_assets_pdf_not_deleted ON public.assets USING btree (file_type, id) WHERE (is_deleted = false)"
+    }
+  ],
+  "functions": [
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "signature": "claim_pdf_backfill_batch(integer)",
+      "definition": "CREATE OR REPLACE FUNCTION public.claim_pdf_backfill_batch(p_limit integer DEFAULT 25)\n RETURNS TABLE(id uuid, filename text, relative_path text, needs_thumbnail boolean)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT\n    a.id,\n    a.filename,\n    a.relative_path,\n    (a.thumbnail_url IS NULL) AS needs_thumbnail\n  FROM assets a\n  WHERE a.is_deleted = false\n    AND public.is_style_guide_source_pdf(a.file_type::text, a.filename)\n    AND NOT EXISTS (\n      SELECT 1 FROM pdf_text_samples pts WHERE pts.asset_id = a.id\n    )\n  ORDER BY a.id\n  LIMIT p_limit;\n$function$\n",
+      "volatility": "s"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "signature": "count_pdf_backfill_remaining()",
+      "definition": "CREATE OR REPLACE FUNCTION public.count_pdf_backfill_remaining()\n RETURNS bigint\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\n  SELECT COUNT(*)\n  FROM assets a\n  WHERE a.is_deleted = false\n    AND public.is_style_guide_source_pdf(a.file_type::text, a.filename)\n    AND NOT EXISTS (\n      SELECT 1 FROM pdf_text_samples pts WHERE pts.asset_id = a.id\n    );\n$function$\n",
+      "volatility": "s"
+    },
+    {
+      "acl": [
+        "=X/postgres",
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "signature": "is_style_guide_source_pdf(text,text)",
+      "definition": "CREATE OR REPLACE FUNCTION public.is_style_guide_source_pdf(p_file_type text, p_filename text)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE\nAS $function$\n  SELECT p_file_type = 'pdf' AND p_filename IS NOT NULL AND (\n    p_filename ILIKE '%licensing sheet%' OR p_filename ILIKE '%licensing_sheet%' OR\n    p_filename ILIKE '%license sheet%'   OR p_filename ILIKE '%license_sheet%'   OR\n    p_filename ILIKE '%tech pack%'       OR p_filename ILIKE '%tech_pack%'       OR\n    p_filename ILIKE '%techpack%'\n  );\n$function$\n",
+      "volatility": "i"
+    }
+  ],
+  "captured_at": "2026-09-20T12:16:06.411108-04:00",
+  "current_user": "supabase_read_only_user",
+  "project_url": "https://qsllyeztdwjgirsysgai.supabase.co"
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 3282,
+  "outcome": "ready-for-merge",
+  "pr": 3301,
+  "migration_versions": [
+    "20260923173715"
+  ],
+  "contract_ref": "refs/db-contracts/3282/5",
+  "contract_sha256": "f18d1d823935b3ab7898eb239b356e33f9d95b3f4020af8f3381ad3ccf64d63e",
+  "head_sha": "f352edbbccc653f7b26358d7df64ed8fb10bf3ec",
+  "files_changed": [
+    "docs/verification/3282-pdf-backfill/README.md",
+    "docs/verification/3282-pdf-backfill/catalog-before.json",
+    "docs/verification/3282-pdf-backfill/local-proof.txt",
+    "supabase/migrations/20260923173715_pdf_backfill_indexed_candidates.sql",
+    "supabase/tests/pdf_backfill_indexed_candidates_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.assets",
+    "table public.pdf_text_samples",
+    "function public.is_style_guide_source_pdf"
+  ],
+  "db_writes": [
+    "function public.claim_pdf_backfill_batch",
+    "function public.count_pdf_backfill_remaining",
+    "index public.idx_assets_licensing_pdf_backfill_candidates",
+    "table public.assets"
+  ],
+  "checks": [
+    {
+      "evidence": "git diff --check origin/main...HEAD exit0 after current upstream refresh at8cf89c5ea6684d68b5cb433b12dd0542fe71cf0b; SQL unchanged.",
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "evidence": "2026-09-20 fresh PostgreSQL18 localhost55482 behavioral test: BEGIN,DO,ROLLBACK exit0. Local fixture only; preview-scale and production cold-call proof still pending.",
+      "command": "PDF backfill SQL behavioral contracts",
+      "exit_code": 0
+    },
+    {
+      "evidence": "2026-09-20 current-tree SQL static guards exit0; python -m pytest scripts/test_migration_derivation.py -q:44passed,6subtests passed.",
+      "command": "SQL migration guards",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "Production catalog read as supabase_read_only_user on qsllyeztdwjgirsysgai confirms immutable helper, enum type and unique pdf_text_samples.asset_id index.",
+    "u2giants/popdam3 is the verified application repository.",
+    "ready-for-merge is author handoff vocabulary; independent reviews, preview rehearsal and production proof are still mandatory and owned by orchestrator.",
+    "Independent Muse findings resolved with catalog-only production definitions, nullability, ACLs and helper truth table; derivation bases declared. Separate implementation/evidence head remains required by repo validator.",
+    "Generation4 keyed evidence preserves upstream legacy files. Production-scale preview index build/lock measurements, repeated cold and warm claim/count calls below8seconds, and PopDAM3 real queue completion remain parent/application-owned and are not proved by catalog verification."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "5653b760e445ff27264b82e42596c84afc101ee5"
+}

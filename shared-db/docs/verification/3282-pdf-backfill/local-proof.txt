@@ -1,0 +1,57 @@
+Local disposable PostgreSQL18, 127.0.0.1:55482. psql ON_ERROR_STOP=1. Schema fixture reproduces captured helper and named columns/index; not full historical migration replay.
+Behavioral SQL contracts:
+BEGIN
+DO
+ROLLBACK
+Synthetic volume:100000 assets,100 licensing candidates,98 completed:
+INSERT 0 100000
+INSERT 0 98
+ANALYZE
+ANALYZE
+                                                                QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.121..0.123 rows=2.00 loops=1)
+   Buffers: shared hit=110
+   ->  Merge Anti Join (actual time=0.120..0.122 rows=2.00 loops=1)
+         Merge Cond: (a.id = p.asset_id)
+         Buffers: shared hit=110
+         ->  Index Only Scan using idx_assets_licensing_pdf_backfill_candidates on assets a (actual time=0.004..0.088 rows=100.00 loops=1)
+               Heap Fetches: 104
+               Index Searches: 1
+               Buffers: shared hit=105
+         ->  Index Only Scan using pdf_text_samples_asset_id_key on pdf_text_samples p (actual time=0.009..0.021 rows=98.00 loops=1)
+               Heap Fetches: 99
+               Index Searches: 1
+               Buffers: shared hit=5
+ Planning:
+   Buffers: shared hit=74
+ Planning Time: 2.441 ms
+ Execution Time: 0.145 ms
+(17 rows)
+
+SET
+Timing is on.
+ count
+-------
+     2
+(1 row)
+
+Time: 0.604 ms
+ count_pdf_backfill_remaining
+------------------------------
+                            2
+(1 row)
+
+Time: 0.446 ms
+ count
+-------
+     2
+(1 row)
+
+Time: 0.441 ms
+ count_pdf_backfill_remaining
+------------------------------
+                            2
+(1 row)
+
+Time: 0.203 ms
