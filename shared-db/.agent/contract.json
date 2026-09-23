@@ -1,44 +1,45 @@
 {
-  "work_issue": 3302,
+  "schema_version": 1,
+  "generation": 5,
+  "work_issue": 3295,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Validate recovered ColdLion timeout repair against current main, preserving source repair, with fresh tests and truthful evidence. Prior production investigation remains historical evidence.",
+  "base_sha": "70b0cad2ff730732866e6cd1c9f9b128262877b6",
+  "dispatcher": "Codex non-orchestrator repository-maintenance session for issue #3295",
+  "worker": "Codex chat 01a0bf3f-596f-7e20-be04-2d2d8eb12320 on 916-ALIEN (coldlion_recovery subagent)",
+  "branch": "codex/3295-recovery-01a0bf00",
+  "worktree": "D:\\repos\\shared-db-coldlion-recovery-01a0bf00",
+  "allowed_paths": [
+    ".agent/completion.json",
+    ".agent/contract.json",
+    "tools/coldlion-landing/lib/load-masters.mjs",
+    "tools/coldlion-landing-masters.test.mjs"
+  ],
+  "file_writes": [
+    ".agent/completion.json",
+    ".agent/contract.json",
+    "tools/coldlion-landing/lib/load-masters.mjs",
+    "tools/coldlion-landing-masters.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change any migration, database object, timeout, workflow schedule, or live database row.",
+    "Do not weaken or remove change-log audit payloads, target proof, transaction atomicity, or failure reporting.",
+    "Do not touch issue #3179, issue #3180, or the prepack loader."
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-landing-masters.test.mjs",
+    "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs"
+  ],
   "assumptions": [
-    "Existing loader records may preserve authentic replay evidence"
+    "Production keeps its existing 120-second statement timeout.",
+    "The latest prior new_raw row remains the preferred previous_raw audit payload, falling back to the current table projection when no prior change exists."
   ],
   "stop_conditions": [
-    "Request parent exact extra paths if evidence producer needed",
-    "Stop if retained replay evidence cannot prove the original assertion"
-  ],
-  "schema_version": 1,
-  "allowed_paths": [
-    ".github/live-proofs/2863.sql",
-    "scripts/issue-2863-live-proof.test.mjs",
-    ".agent/contract.json",
-    ".agent/completion.json"
-  ],
-  "worktree": "D:/repos/worktrees/proof-2863-20260920",
-  "file_writes": [
-    ".github/live-proofs/2863.sql",
-    "scripts/issue-2863-live-proof.test.mjs",
-    ".agent/contract.json",
-    ".agent/completion.json"
-  ],
-  "base_sha": "57269b19416ccca6c20a0053ed05e397b1bd0e19",
-  "work_type": "repo-maintenance",
-  "db_reads": [],
-  "dispatcher": "Codex root orchestrator marker3297",
-  "db_writes": [],
-  "worker": "Codex coldlion_dependency_proof",
-  "route": "repo-maintenance",
-  "branch": "codex/proof-2863-20260920",
-  "prohibited_actions": [
-    "No database mutation or production write dispatch",
-    "No migration or edits outside allowed paths",
-    "No manufactured replay evidence, fixed-count proof or scope weakening",
-    "No merge or close issue2863"
-  ],
-  "goal": "Create authentic retained-evidence live replay proof for issue2863 without database mutation or weakening its assertion",
-  "required_checks": [
-    "node --test scripts/issue-2863-live-proof.test.mjs",
-    "Read-only live probe with false controls"
-  ],
-  "generation": 1
+    "Stop if preserving audit semantics requires a database-structure change.",
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the implementation needs a file outside allowed_paths."
+  ]
 }

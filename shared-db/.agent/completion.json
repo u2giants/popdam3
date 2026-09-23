@@ -1,38 +1,36 @@
 {
-  "db_reads": [],
-  "assumptions_resolved": [
-    "Retained transactional loader records establish stable source and unique-row counts across repeated successful captures; exact-byte case-variant source duplicates are counted separately and never treated as distinct landed identities"
-  ],
-  "contract_ref": "refs/db-contracts/3302/1",
   "schema_version": 1,
-  "stop_conditions_hit": [],
-  "work_issue": 3302,
+  "work_issue": 3295,
+  "outcome": "ready-for-merge",
+  "pr": 3296,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3295/5",
+  "contract_sha256": "d25cd9a0863ea900fe8bf0f90261e94a73dc4e4ad104fb77d2f773e813cc3e4e",
+  "base_sha": "1d2a0db59104514e31507f96fd401c3925995086",
+  "head_sha": "e4397fe612055d1cca7e19e0512f396ac6e3f21f",
+  "files_changed": [
+    "tools/coldlion-landing-masters.test.mjs",
+    "tools/coldlion-landing/lib/load-masters.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
   "checks": [
     {
+      "command": "node --test tools/coldlion-landing-masters.test.mjs",
       "exit_code": 0,
-      "evidence": "Current-main integration: focused proof tests 2 passed and live-proof guard tests 10 passed; zero failed, skipped, cancelled or todo.",
-      "command": "node --test scripts/issue-2863-live-proof.test.mjs"
+      "evidence": "42 passed, 0 failed"
     },
     {
+      "command": "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs",
       "exit_code": 0,
-      "evidence": "Parent orchestrator production verification retained unchanged: actual read-only probe true, absent-prepack control false, absent-prod control false. Probe bytes checked identical to reviewed head db6b9daed14ba15c412848b46a22c2178cb6af8e; refresh changes no SQL.",
-      "command": "Read-only live probe with false controls"
-    },
-    {
-      "evidence": "truth audit OK: call_sites=311 sources=69 derived_digest=871e1ed90397; no companion disposition required for this SQL probe or its targeted test",
-      "command": "node scripts/check-throughput-truth-audit.mjs",
-      "exit_code": 0
+      "evidence": "176 passed, 0 failed"
     }
   ],
-  "db_writes": [],
-  "contract_sha256": "1994731accc3a210ac378e67cdfbe134854054fdecd00b31f14ded99bcf148b7",
-  "files_changed": [
-    ".github/live-proofs/2863.sql",
-    "scripts/issue-2863-live-proof.test.mjs"
+  "assumptions_resolved": [
+    "Both required suites passed after integrating current main: focused 42 and full 176 passed, 0 failed/skipped/cancelled.",
+    "Implementation SQL still preserves atomic transaction, target checks, timeout and prior-raw fallback; no timeout or database structure changed.",
+    "Original production investigation and cost comparison are historical evidence recorded by the prior worker, not a new live measurement by this recovery.",
+    "This completion reports offline repair validation only. A future scheduled-run result remains separate live proof."
   ],
-  "pr": 3303,
-  "migration_versions": [],
-  "head_sha": "5a94afd71636d046081ef80785d997a591642175",
-  "outcome": "ready-for-merge",
-  "base_sha": "8cf89c5ea6684d68b5cb433b12dd0542fe71cf0b"
+  "stop_conditions_hit": []
 }
