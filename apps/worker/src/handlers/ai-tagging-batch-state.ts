@@ -1,4 +1,5 @@
 import type { OpenRouterBatchJobState } from "../types.js";
+import { ProviderPollTransportError } from "../batch-submission-error.js";
 
 const BATCH_VISIBILITY_GRACE_MS = 120_000;
 
@@ -74,12 +75,13 @@ export function indexBatchResults<T extends { custom_id?: string }>(
  * the same ID later instead of failing the operation.
  */
 export function isTransientProviderPollError(error: unknown): boolean {
+  if (error instanceof ProviderPollTransportError) return true;
   if (!(error instanceof Error)) return false;
   const status = (error as Error & { status?: unknown }).status;
   if (typeof status === "number") return status === 408 || status === 429 || status >= 500;
   if (error.name === "TimeoutError" || error.name === "AbortError" || error.name === "SyntaxError") return true;
   // Node's fetch reports DNS/socket failures as TypeError("fetch failed").
-  return error.name === "TypeError" && /fetch failed|network|socket|ECONN|ETIMEDOUT|EAI_AGAIN/i.test(error.message);
+  return error.name === "TypeError" && /fetch failed|terminated|network|socket|ECONN|ETIMEDOUT|EAI_AGAIN/i.test(error.message);
 }
 
 /** 30 s doubling to a 10 min ceiling; the job stays resumable indefinitely. */

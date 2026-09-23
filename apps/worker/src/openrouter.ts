@@ -14,7 +14,7 @@
  */
 
 import { logger } from "./logger.js";
-import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, PreSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
@@ -198,13 +198,17 @@ export async function submitOpenRouterBatch(apiKey: string, items: OpenRouterBat
 }
 
 export async function getOpenRouterBatch(apiKey: string, batchId: string): Promise<OpenRouterBatchRecord> {
-  const response = await fetch(`${OPENROUTER_BATCH_URL}/${encodeURIComponent(batchId)}`, {
+  const response = await pollTransport("OpenRouter", () => fetch(`${OPENROUTER_BATCH_URL}/${encodeURIComponent(batchId)}`, {
     headers: openRouterHeaders(apiKey),
     signal: AbortSignal.timeout(30_000),
-  });
-  const text = await response.text();
+  }));
+  const text = await pollTransport("OpenRouter", () => response.text());
   if (!response.ok) throw new OpenRouterError(response.status, text);
-  return unwrapBatchRecord(parseJsonRecord(text));
+  return pollTransport("OpenRouter", () => {
+    const parsed = parseJsonRecord(text);
+    if (!parsed) throw new Error("unparseable batch status");
+    return unwrapBatchRecord(parsed);
+  });
 }
 
 export async function parseOpenRouterBatchResult(
