@@ -485,14 +485,23 @@ export const REVIEWERS = Object.freeze([
 // PAUSED 2026-09-18 (owner instruction, chat directive, no issue): 'glm-5.3'.
 // No provider fault is alleged and no health check failed -- the owner is
 // rotating providers in and out of the active pool through the week to spread
-// account usage, and this week GLM sits out. Kimi K3 stays in and was verified
+// account usage, and this week GLM sits out. Kimi K3 stayed in then and was verified
 // the same day (`AI_KIMI_CALLER=claude ai-kimi doctor`: read-only PASS,
-// preflight PASS, auth OK). This is a PAUSE, not a retirement: restoring GLM is
+// preflight PASS, auth OK); Kimi was itself paused on 2026-09-22 (below). This is a PAUSE, not a retirement: restoring GLM is
 // a one-line deletion from this list once the owner asks for it back, and its
 // REVIEWERS row stays so every durable verdict it already recorded still
 // authorizes a merge. The 2026-09-17 owner ruling -- GLM never reviews
 // GLM-orchestrated work -- is unaffected and keeps binding when GLM returns.
-export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contributor', 'deepseek-chat', 'codex-gpt-5.6-sol', 'glm-5.3'])
+//
+// PAUSED 2026-09-22 (owner instruction, issue #3423): 'kimi-k3'.
+// The Kimi account has been out of credit and suspended since 2026-09-17, so
+// every draw that landed on it failed and left the PR "waiting for a reviewer"
+// until a replacement round. The owner confirmed the live pool is exactly four:
+// Grok, Qwen, Muse and Gemini (GLM stays paused above). This is a PAUSE, not a
+// retirement: restoring Kimi is a one-line deletion from this list once the
+// account has credit AND `AI_KIMI_CALLER=claude ai-kimi doctor` passes. Its
+// REVIEWERS row stays so every durable verdict it recorded still authorizes.
+export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contributor', 'deepseek-chat', 'codex-gpt-5.6-sol', 'glm-5.3', 'kimi-k3'])
 
 // Not retired -- quarantined pending a passing live qualification. Kept separate
 // from RETIRED_REVIEWERS on purpose: retirement is a permanent disposition,
@@ -2077,8 +2086,10 @@ export function buildDatabasePreviewFileSnapshot(files,base,head,readContent){
 export const githubIo = {
   enforceAdmission:true,
   // Owner ruling 2026-09-11 (marker #2758): no global FIFO for reviewer draws. Any PR
-  // draws any free usable provider immediately; the per-provider lease, engine
-  // exclusions, and exact-head binding in assignNextReviewerOperation still apply.
+  // draws any usable provider immediately. There is NO per-reviewer concurrency
+  // limit (owner rule): a provider already holding live leases is drawn again,
+  // because the exact-head protocol below keeps one lease ref per review. Engine
+  // exclusions and exact-head binding in assignNextReviewerOperation still apply.
   enableReviewerQueue:false,
   enableReviewerSilence:true,
   requiresExactReviewHeadSha: true,

@@ -8,7 +8,7 @@ Reviewer availability is the bounded active-lease index. Before the parallel-rev
 
 An exact-head verdict, terminal failure/replacement, moved head, merged PR, or closed PR makes a lease stale; a verdict additionally releases the lease it was recorded against, so the stale classification is the fallback for leases no verdict path reclaimed. Stale leases are deleted only while the global mutex is owned and the fixed ref still matches its expected SHA. If release cannot be proved, preserve the named ref/SHA and use the guarded `recover-author-mutex.yml` procedure.
 
-Phase 2 rules: protected object claims and active-author capacity are separate; relinquishment never releases a claim. The follow-on abandonment/recovery lifecycle is planned in [`../../plan_author_lane_abandonment_lifecycle.md`](../../plan_author_lane_abandonment_lifecycle.md); read its STATUS table before changing author-capacity behavior. Preview dependencies produce `PREVIEW_WAIT`, never a successful workflow. Immediately before manual preview dispatch, resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and dispatch only its matching stored instruction. Historical recovery is `mode=apply` only; historical dry-run proves nothing. Use `--repair-preview-ready <ready-id> --issue <n>` only for a v2-bound stale wrong digest; a corrupt live digest requires an owner decision and no mutation. Reviewer reservations are per exact review, never per provider: one reviewer may run any number of reviews at once and there is no busy state or `review-wait` (issue #3130). The live orchestrator engine is excluded from review; Gemini 3.8 Flash High re-entered the active rotation on 2026-09-06 (PR #2438, ai-devops issue #285) after a recorded live re-qualification, Kimi K3 was unpaused on 2026-09-07 (PR #2483) and is drawable again, and Codex GPT-5.6 Sol was retired on 2026-09-06 (issue #2485) by owner instruction so it is not drawable. **With zero open orchestrator markers (`state: none`) the exclusion list is empty and the whole rotation stays drawable** (issue #2127): the exclusion is a same-engine conflict guard, and with no live engine there is no conflict, so closing a marker must not freeze merging repository-wide. `ambiguous`, `invalid` and `unsafe` marker states still refuse. The marker resolver exits non-zero for answers it is certain of (3 for `none`, 1 for the refusing states), so a non-zero exit carrying parseable JSON is an ANSWER; only unreadable output is a resolver fault, and the refusal names which it was.
+Phase 2 rules: protected object claims and active-author capacity are separate; relinquishment never releases a claim. The follow-on abandonment/recovery lifecycle is planned in [`../../plan_author_lane_abandonment_lifecycle.md`](../../plan_author_lane_abandonment_lifecycle.md); read its STATUS table before changing author-capacity behavior. Preview dependencies produce `PREVIEW_WAIT`, never a successful workflow. Immediately before manual preview dispatch, resolve the live marker, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and dispatch only its matching stored instruction. Historical recovery is `mode=apply` only; historical dry-run proves nothing. Use `--repair-preview-ready <ready-id> --issue <n>` only for a v2-bound stale wrong digest; a corrupt live digest requires an owner decision and no mutation. Reviewer reservations are per exact review, never per provider: one reviewer may run any number of reviews at once and there is no busy state or `review-wait` (issue #3130). The live orchestrator engine is excluded from review; Gemini 3.8 Flash High re-entered the active rotation on 2026-09-06 (PR #2438, ai-devops issue #285) after a recorded live re-qualification, Kimi K3 was unpaused on 2026-09-07 (PR #2483) but is paused again as of 2026-09-22 (issue #3423), and Codex GPT-5.6 Sol was retired on 2026-09-06 (issue #2485) by owner instruction so it is not drawable. **With zero open orchestrator markers (`state: none`) the exclusion list is empty and the whole rotation stays drawable** (issue #2127): the exclusion is a same-engine conflict guard, and with no live engine there is no conflict, so closing a marker must not freeze merging repository-wide. `ambiguous`, `invalid` and `unsafe` marker states still refuse. The marker resolver exits non-zero for answers it is certain of (3 for `none`, 1 for the refusing states), so a non-zero exit carrying parseable JSON is an ANSWER; only unreadable output is a resolver fault, and the refusal names which it was.
 
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212) so the router stays under its
 80 KB ceiling. **Text unchanged, section number unchanged.** `AGENTS.md` §4 carries the operative
@@ -24,8 +24,9 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    issue #2775), and the cap was removed. Concurrent authors must use isolated
    worktrees, exact object claims and centrally reserved versions. Protected
    blocked claims continue blocking every overlapping object and version.
-   Reviewer draws have no global queue: any pull request draws any free usable
-   reviewer immediately.
+   Reviewer draws have no global queue: any pull request draws any usable
+   reviewer immediately; a reviewer holding other live leases is not busy and
+   is never a reason to wait (no per-reviewer concurrency limit).
 
    Isolation never depended on a lane count. It comes from the exact object
    claim, the global acquisition mutex, the permanent version reservation and
@@ -457,10 +458,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    The set grants permission only: live preflight, quarantine, orchestrator independence, per-PR exclusions and
    slot independence still decide who is usable. It creates no concurrency cap.
 
-   For new assignments, the machine-independent cursor rotates Grok 4.6 → GLM
-   5.3 → Kimi K3 → Qwen 3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8
-   Flash High → repeat, skipping any reviewer whose engine matches the live
-   orchestrator.
+   For new assignments, the machine-independent cursor rotates Grok 4.6 → Qwen
+   3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High → repeat,
+   skipping any reviewer whose engine matches the live orchestrator. GLM 5.3
+   (paused 2026-09-18) and Kimi K3 (paused 2026-09-22, account out of credit,
+   issue #3423) are not drawable until removed from `RETIRED_REVIEWERS`.
    Codex GPT-5.6 Sol was retired from the rotation on 2026-09-06 (issue #2485)
    by owner instruction and is no longer drawable.
    That is exactly `ACTIVE_REVIEWERS` in
@@ -479,10 +481,12 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    review of merged commit `99fbefcb` that returned a well-formed verdict line
    above real analysis citing specific lines.
 
-   **Kimi K3 was UNPAUSED on 2026-09-07 (PR #2483) and is drawable again.** It
+   **Kimi K3 is PAUSED again as of 2026-09-22 (issue #3423) and is not drawable.**
+   History: it was unpaused on 2026-09-07 (PR #2483). It
    had been paused 2026-09-03T16:55Z by owner instruction after a confirmed
    account-wide weekly usage cap (403, not retryable); the cap lifted and the
-   name was removed from `RETIRED_REVIEWERS`, so `ACTIVE_REVIEWERS` includes it.
+   name was removed from `RETIRED_REVIEWERS` at that time; it is back in that
+   list since 2026-09-22.
    **Codex GPT-5.6 Sol was RETIRED on 2026-09-06 (issue #2485) and is not
    drawable.** The owner retired the account permanently once five other
    reviewers were working; it is carried in `RETIRED_REVIEWERS`. This is a
@@ -629,7 +633,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    **No reviewer wrapper serializes reviews by provider (owner ruling,
    2026-09-16; popcre/ai-devops#401 Step 7A).** Any number of reviews by any provider in the active
-   rotation (Grok, Kimi, GLM, Muse, Gemini or Qwen) may run at once, in this repository or any other,
+   rotation (currently Grok, Qwen, Muse or Gemini) may run at once, in this repository or any other,
    each in its own session and sandbox. Never treat another live review by the
    same provider as a reason to skip, wait for, or replace it. Historical Qwen assignments, failures, and
    replacement evidence remain readable and must be recovered or replaced

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3423,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Pause kimi-k3 (account out of credit) so the live reviewer pool is exactly grok-4.6, qwen-3.8-max, muse-spark-1.3-contributor and gemini-3.8-flash-high, and remove stale text implying a reviewer must be free before a draw",
+  "base_sha": "1d2a0db59104514e31507f96fd401c3925995086",
+  "dispatcher": "Claude chat f3421dc4-2a63-4e1f-b478-0204e8cd70b5 on edge-dev (owner request in chat 2026-09-22)",
+  "worker": "claude",
+  "branch": "claude/reviewer-no-busy-f3421",
+  "worktree": "C:/repos/shared-db-wt-f3421",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3423/1/contract.json",
+    ".agent/work/3423/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    ".agent/work/3423/1/contract.json",
+    ".agent/work/3423/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not remove kimi-k3 from REVIEWERS; durable verdicts naming it must keep resolving",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "production githubIo keeps requiresExactReviewHeadSha true, so busy reviewers never gate a production draw"
+  ],
+  "stop_conditions": [
+    "stop if a test fails for a reason unrelated to the reviewer roster",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ]
+}

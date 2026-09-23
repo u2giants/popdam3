@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3423,
+  "outcome": "ready-for-merge",
+  "pr": 3424,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3423/1",
+  "contract_sha256": "677cfd9353907c7cff8d0c9a882b79d16817b5c026e627ceffe18bd9fb9f399b",
+  "head_sha": "b42f77621c1ba9f4b75b911fa2e79393f7c56b92",
+  "base_sha": "7bd87a4e431a4081b79712617dab74cdffbcdc6f",
+  "files_changed": [
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "688 tests, 688 pass, 0 fail, 0 skipped at implementation head b42f77621c1ba9f4b75b911fa2e79393f7c56b92 (rebased on 7bd87a4e431a4081b79712617dab74cdffbcdc6f after #3419 merged)."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=312 sources=70 derived_digest=5adcf9278b54"
+    }
+  ],
+  "assumptions_resolved": [
+    "Production githubIo sets requiresExactReviewHeadSha true, so busy reviewers never gate a production draw or replacement.",
+    "The code edit was drafted before refs/db-contracts/3423/1 was published; the implementation commit follows the published ref.",
+    "No database write or production dispatch is claimed.",
+    "Grok review (replacement sequence 3535) returned REVISE for stale present-tense Kimi roster text; fixed at this head."
+  ],
+  "stop_conditions_hit": []
+}
