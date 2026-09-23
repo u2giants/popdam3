@@ -40,6 +40,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { resolveBaseRef, gitProbe } from './lib/resolve-base-ref.mjs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -266,8 +267,11 @@ export function formatReport(findings) {
 // ---------------------------------------------------------------------------
 
 export const defaultIo = {
+  // Issue #3280 governed review round 2: a merge_group checkout has no
+  // origin/<base> ref, so resolve it (fetching the branch when absent) before
+  // diffing. Resolution throws when it cannot -- the guard never silently passes.
   diff: (base) =>
-    execFileSync('git', ['diff', '--unified=0', `${base}...HEAD`], {
+    execFileSync('git', ['diff', '--unified=0', `${resolveBaseRef(base, { git: gitProbe((args) => execFileSync('git', args, { encoding: 'utf8' })) })}...HEAD`], {
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     }),

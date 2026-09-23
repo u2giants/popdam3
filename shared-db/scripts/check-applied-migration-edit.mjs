@@ -59,6 +59,7 @@
 //   node scripts/check-applied-migration-edit.mjs --base origin/main
 
 import { execFileSync } from 'node:child_process'
+import { resolveBaseRef, gitProbe } from './lib/resolve-base-ref.mjs'
 import fs from 'node:fs'
 import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 import path from 'node:path'
@@ -202,8 +203,17 @@ export function parseEditedMigrations(nameStatusZ) {
 
 export function editedMigrations(baseRef, { executor = execFileSync, cwd = repoRoot } = {}) {
   let raw
+  // Issue #3280 governed review round 2: on a merge_group run origin/<base> does
+  // not exist, so resolve the ref (fetching the branch if needed) before diffing.
+  // Resolution throws rather than skipping, so the Unknown below still fires.
+  const runGit = (args) => executor('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  let resolved
+  // A resolution failure is a git failure, and this guard's contract (issue
+  // #2037) is that a git failure is UNKNOWN -- never an empty edit list.
+  try { resolved = resolveBaseRef(baseRef, { git: gitProbe(runGit) }) }
+  catch (error) { throw new Unknown(`could not resolve ${baseRef}: ${error.message}`) }
   try {
-    raw = executor('git', ['diff', '--name-status', '-z', '--find-renames', `${baseRef}...HEAD`, '--', MIGRATIONS_DIR], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    raw = executor('git', ['diff', '--name-status', '-z', '--find-renames', `${resolved}...HEAD`, '--', MIGRATIONS_DIR], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
   } catch (error) {
     throw new Unknown(`could not diff ${MIGRATIONS_DIR} against ${baseRef}: ${error.message}`)
   }

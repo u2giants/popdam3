@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/merge-queue-contract.mjs",
+  "sites": [
+    {
+      "site": "scripts/merge-queue-contract.mjs:271",
+      "semantic_key": "scripts/merge-queue-contract.mjs:35babf1c8f47a0baadb0cfc578f94933ed0ca544274dae35d775e2c4d6cdc9ef:1",
+      "line_sha256": "35babf1c8f47a0baadb0cfc578f94933ed0ca544274dae35d775e2c4d6cdc9ef",
+      "disposition": "excluded",
+      "reason": "Design comment or fail-closed error text in the merge-queue status reader: it describes HTTP 404 / collapsed-listing absence of a GitHub status row, never a missing database object or migration, and derives no throughput claim."
+    },
+    {
+      "site": "scripts/merge-queue-contract.mjs:298",
+      "semantic_key": "scripts/merge-queue-contract.mjs:ea199ac8bfb6b208172af5c8df73a96be37d274b85917271ecb33eb3d0ddd993:1",
+      "line_sha256": "ea199ac8bfb6b208172af5c8df73a96be37d274b85917271ecb33eb3d0ddd993",
+      "disposition": "excluded",
+      "reason": "Design comment or fail-closed error text in the merge-queue status reader: it describes HTTP 404 / collapsed-listing absence of a GitHub status row, never a missing database object or migration, and derives no throughput claim."
+    }
+  ]
+}

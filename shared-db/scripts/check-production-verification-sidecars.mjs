@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
+import { resolveBaseRef } from './lib/resolve-base-ref.mjs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -11,8 +12,21 @@ export const MANDATORY_VERSIONS = [
   '20260823233716','20260825010603','20260825031841','20260825050407','20260825082910'
 ];
 
-export function resolveBase({ candidateRefs, git }) {
-  for (const ref of candidateRefs) if (git(['rev-parse', '--verify', ref])) return ref;
+// Issue #3280 governed review (grok-4.6): on a merge_group run the checkout
+// action is handed the queue group commit SHA, so no origin/<branch> remote
+// tracking ref exists even at fetch-depth: 0 -- the ancestor objects are
+// present but the ref is not. Resolution therefore falls back to fetching the
+// branch explicitly and using FETCH_HEAD. It still fails CLOSED with the same
+// UNVERIFIABLE error when no base can be resolved at all: nothing is skipped.
+export function resolveBase({ candidateRefs, git, fetchRef }) {
+  // Delegates to the ONE shared resolver so this guard cannot drift from the
+  // others (issue #3280 round 2). The UNVERIFIABLE wording is this guard's own
+  // contract and is preserved: callers and tests key on it.
+  const probe = (args) => Boolean(git(args));
+  for (const ref of candidateRefs) {
+    try { return resolveBaseRef(ref, { git: fetchRef ? (args) => (args[0] === 'fetch' ? Boolean(fetchRef(args)) : probe(args)) : probe }); }
+    catch { /* try the next candidate */ }
+  }
   throw new Error(`UNVERIFIABLE: no comparison base resolved from ${candidateRefs.join(', ')}`);
 }
 
@@ -34,13 +48,20 @@ export function run(argv = process.argv.slice(2), deps = {}) {
   let base = baseIndex >= 0 ? argv[baseIndex + 1] : null;
   const gitText = deps.gitText ?? (args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }));
   if (baseIndex >= 0 && !base) throw new Error('UNVERIFIABLE: --base requires a value');
+  const tryGit = args => { try { gitText(args); return true; } catch { return false; } };
   if (!base && process.env.GITHUB_EVENT_NAME === 'pull_request') {
     const candidate = `origin/${process.env.GITHUB_BASE_REF || ''}`;
-    base = resolveBase({ candidateRefs: [candidate], git: args => { try { gitText(args); return true; } catch { return false; } } });
+    base = resolveBase({ candidateRefs: [candidate], git: tryGit, fetchRef: tryGit });
   }
   if (!base) {
-    base = resolveBase({ candidateRefs: ['origin/main'], git: args => { try { gitText(args); return true; } catch { return false; } } });
+    base = resolveBase({ candidateRefs: ['origin/main'], git: tryGit, fetchRef: tryGit });
   }
+  // Issue #3280 governed review round 2 (muse-spark-1.3-contributor): BOTH wired
+  // CI call sites pass --base explicitly, so routing only the unflagged path
+  // through resolveBase left the merge_group fallback as dead code exactly where
+  // it was needed. An explicit --base is resolved the same way now. A --base that
+  // is a SHA resolves directly; only an origin/<branch> name can be fetched.
+  base = resolveBase({ candidateRefs: [base], git: tryGit, fetchRef: tryGit });
   const versions = [...new Set([...MANDATORY_VERSIONS, ...changedMigrationVersions(base, gitText)])];
   const args = [path.join(root, 'scripts/check_production_verification_sidecars.py'), '--repo', root];
   for (const version of versions) args.push('--scan-version', version);

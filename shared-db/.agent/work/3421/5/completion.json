@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "work_issue": 3421,
+  "outcome": "ready-for-merge",
+  "pr": 3430,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3421/5",
+  "contract_sha256": "06dafe48bb8bf5ecf3eafda968aaa8895dc80194b81dd3236c4bc7841c4a6956",
+  "head_sha": "5bb4d6d46a18a11de60319ee87f9553a42afbcfd",
+  "files_changed": [
+    ".github/workflows/agent-work-contract.yml",
+    ".github/workflows/cancelled-work-guard.yml",
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/domain-ownership.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/handoff-contract-guard.yml",
+    ".github/workflows/intake-pointer-guard.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/orchestrator-marker-guard.yml",
+    ".github/workflows/pr-object-collision.yml",
+    ".github/workflows/queue-sensitive-aggregate.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "docs/merge-queue-operation.md",
+    "docs/verification/throughput-dispositions/.github~workflows~tools-offline-tests.yml.json",
+    "docs/verification/throughput-dispositions/scripts~lib~resolve-base-ref.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~merge-queue-contract.mjs.json",
+    "scripts/check-applied-migration-edit.mjs",
+    "scripts/check-cancelled-work.mjs",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/check-handoff-contract.mjs",
+    "scripts/check-live-proof-probe.mjs",
+    "scripts/check-live-proof-probe.test.mjs",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-production-verification-sidecars.mjs",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/lib/resolve-base-ref.mjs",
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs",
+    "scripts/throughput-guard/check-production-verification-sidecars.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "tests 14 pass 14 fail 0 including the derived status-reader coverage test (refreshed after merge from origin/main)"
+    },
+    {
+      "command": "node --test scripts/merge-queue-contract.test.mjs",
+      "exit_code": 0,
+      "evidence": "tests 37 pass 37 fail 0 including order-trap and --authorization-row wire-read (refreshed after merge from origin/main)"
+    },
+    {
+      "command": "node --test scripts/configure-merge-queue.test.mjs",
+      "exit_code": 0,
+      "evidence": "tests 13 pass 13 fail 0 with paginated /statuses mocks (refreshed after merge from origin/main)"
+    },
+    {
+      "command": "node --test scripts/check-workflow-automatic-promotion-source.test.mjs",
+      "exit_code": 0,
+      "evidence": "tests 10 pass 10 fail 0 after naming the shared gate in the dispatch comment (refreshed after merge from origin/main)"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "tests 16 pass 16 fail 0 after adding scripts~merge-queue-contract.mjs.json (refreshed after merge from origin/main)"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "tests 685 pass 685 fail 0 at 5bb4d6d4 (refreshed after merge from origin/main)"
+    }
+  ],
+  "assumptions_resolved": [
+    "Governed Muse APPROVE at ba90a7f98 and cd8249c24 after three class-wide REVISE answers on status-reader order trust.",
+    "Generation 5 is the single evidence pair; the branch history carries no other 3421 pair (#2708)."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "c8eb83e0dc9c331946858eadad98d2025ba3f0ad"
+}

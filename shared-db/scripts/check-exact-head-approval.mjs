@@ -55,6 +55,7 @@ import { approvalLine, evidenceTiedToHead, refusalLine, trustedVerdictEvidence, 
 import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, isValidatedVerdictArtifact, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact } from './lib/review-verdict-artifact.mjs'
 import { changedPathsFromPullRequestFiles, classifyChangedPaths } from './lib/documents-only-change.mjs'
 import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
+import { resolveBaseRef, gitProbe } from './lib/resolve-base-ref.mjs'
 
 export class ApprovalCheckError extends Error {}
 
@@ -498,10 +499,16 @@ export function requireDurableVerdictInput(input) {
 // diff is empty, and a superseded refusal looked identical to the approved head.
 // A merged pull request is therefore judged against its merge commit's first
 // parent: main exactly as the guarded merge saw it. An unreadable answer refuses.
-export function resolveApprovalMainRef(env = process.env, pr, readJson = json) {
+export function resolveApprovalMainRef(env = process.env, pr, readJson = json, runGit = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })) {
   if (env.APPROVAL_MAIN_REF) return env.APPROVAL_MAIN_REF
   const live = readJson(['api', `repos/${REPO}/pulls/${pr}`])
-  if (live?.merged !== true) return 'origin/main'
+  // Issue #3280 governed review round 2: this ref is consumed by local
+  // `git merge-base`/`git show`, and this guard runs on the merge_group path,
+  // where origin/main does not exist. Resolve it through the shared resolver,
+  // which fetches the branch when the ref is absent and throws when it cannot.
+  // A merged pull request is judged against `<merge>^1`, a revision that needs
+  // no fetch and passes straight through.
+  if (live?.merged !== true) return resolveBaseRef('origin/main', { git: gitProbe(runGit) })
   const merge = String(live.merge_commit_sha ?? '').toLowerCase()
   if (!/^[0-9a-f]{40}$/.test(merge)) throw new ApprovalCheckError(`pull request #${pr} is merged but has no exact merge commit to judge its diff against`)
   return `${merge}^1`

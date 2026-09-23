@@ -26,10 +26,22 @@ check_eol_combined_table_references() {
   if [[ -z "$diff_file" ]]; then
     # Fixture-driven migration-guard tests have no meaningful repository diff.
     [[ -n "${CHECK_SQL_MIGRATION_DIR:-}" ]] && return 0
-    local eol_base="origin/${GITHUB_BASE_REF:-main}"
+    # Issue #3280 governed review (grok-4.6): on a merge_group run the checkout
+    # action is handed the queue group commit SHA, so no origin/<base> remote
+    # tracking ref is created even at fetch-depth: 0. Guard B below already
+    # fetches the base branch explicitly in that case; this guard must do the
+    # same or it hard-fails on every queue run. It still fails CLOSED (return 2)
+    # when the base genuinely cannot be resolved -- it is never skipped.
+    local eol_base_ref="${GITHUB_BASE_REF:-main}"
+    local eol_base="origin/${eol_base_ref}"
     if ! git -C "$root_dir" rev-parse --verify --quiet "$eol_base" >/dev/null; then
-      echo "ERROR: issue #1684 EOL guard cannot resolve base $eol_base." >&2
-      return 2
+      if git -C "$root_dir" fetch --quiet --no-tags origin "$eol_base_ref" >/dev/null 2>&1         && git -C "$root_dir" rev-parse --verify --quiet FETCH_HEAD >/dev/null 2>&1; then
+        eol_base="FETCH_HEAD"
+      else
+        echo "ERROR: issue #1684 EOL guard cannot resolve base $eol_base, and an" >&2
+        echo "explicit fetch of origin/${eol_base_ref} did not produce one." >&2
+        return 2
+      fi
     fi
     diff_file="$(mktemp)"
     remove_diff=1

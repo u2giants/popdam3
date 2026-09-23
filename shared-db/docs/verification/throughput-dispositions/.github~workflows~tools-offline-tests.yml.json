@@ -3,53 +3,60 @@
   "source": ".github/workflows/tools-offline-tests.yml",
   "sites": [
     {
-      "site": ".github/workflows/tools-offline-tests.yml:94",
+      "site": ".github/workflows/tools-offline-tests.yml:97",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:05038aba7e82d577a56809ced412204f8b321ee4bbc74a08577e0c061e0fecfe:1",
       "line_sha256": "05038aba7e82d577a56809ced412204f8b321ee4bbc74a08577e0c061e0fecfe",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:164",
+      "site": ".github/workflows/tools-offline-tests.yml:208",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f:1",
       "line_sha256": "3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:106",
+      "site": ".github/workflows/tools-offline-tests.yml:109",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:b03949444e5c9aaa3ab0ea139d05bbd3e2fc6791bfaccc98ad19478c1412e0a8:1",
       "line_sha256": "b03949444e5c9aaa3ab0ea139d05bbd3e2fc6791bfaccc98ad19478c1412e0a8",
       "disposition": "excluded",
       "reason": "CI presence check for the main-tip freshness test file (#2047). The word \"Missing\" here reports an absent TEST FILE in the workflow checkout, not an absent database object, so it carries no truth claim about catalog state and must never be enriched."
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:194",
+      "site": ".github/workflows/tools-offline-tests.yml:240",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5:1",
       "line_sha256": "bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:118",
+      "site": ".github/workflows/tools-offline-tests.yml:121",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:c22603525ed4d2630a06407de00fca17ad8fb56e69673a6a493bcad40d89ac56:1",
       "line_sha256": "c22603525ed4d2630a06407de00fca17ad8fb56e69673a6a493bcad40d89ac56",
       "disposition": "excluded",
       "reason": "CI presence check for the queue hygiene report test file (#3199 Phase A3). The word \"Missing\" here reports an absent TEST FILE in the workflow checkout, not an absent database object, so it carries no truth claim about catalog state and must never be enriched."
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:134",
+      "site": ".github/workflows/tools-offline-tests.yml:137",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:1",
       "line_sha256": "d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8",
       "disposition": "excluded",
       "reason": "CI presence check for the self-service lane boundary and route-sync tests (#3199 Phase B). The word \"Missing\" reports an absent TEST FILE in the workflow checkout, not an absent database object; excluded exactly like its freshness-gate and hygiene-report twins."
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:148",
+      "site": ".github/workflows/tools-offline-tests.yml:151",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:2",
       "line_sha256": "d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8",
       "disposition": "excluded",
       "reason": "Issue #2342: a presence check that refuses when a transport test file is absent, so the conformance step cannot pass by silently running nothing. It reports a missing FILE, not a missing database object, and derives no throughput claim."
+    },
+    {
+      "site": ".github/workflows/tools-offline-tests.yml:171",
+      "semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:3",
+      "line_sha256": "d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8",
+      "disposition": "excluded",
+      "reason": "CI presence check in the merge-queue coverage loop added under #2530 (ninth pinned test, the merge_group base-fetch coverage). The word \"Missing\" reports an absent TEST FILE in the workflow checkout, not an absent database object; excluded exactly like its two identical-line twins."
     }
   ]
 }

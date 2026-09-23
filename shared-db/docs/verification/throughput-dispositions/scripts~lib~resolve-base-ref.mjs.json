@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/resolve-base-ref.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/resolve-base-ref.mjs:18",
+      "semantic_key": "scripts/lib/resolve-base-ref.mjs:895537145d975003633172d5cb5bf2741be077e237e98b7d505d0872b06352b5:1",
+      "line_sha256": "895537145d975003633172d5cb5bf2741be077e237e98b7d505d0872b06352b5",
+      "disposition": "excluded",
+      "reason": "A design comment in the merge-queue base-ref resolver (#3280): it documents that callers must never skip a check because the base ref was missing. The word describes a git ref lookup policy, not an absent database object, and derives no throughput claim."
+    }
+  ]
+}

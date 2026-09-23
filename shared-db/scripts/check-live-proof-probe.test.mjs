@@ -71,14 +71,22 @@ test('shape check rejects writes, extra statements and a missing passed column; 
   assert.match(probeShapeProblem('/* only */ -- comments'), /empty/)
 })
 
-function io({ files = {}, diff = '', mainFiles = {}, body = scope('u2giants/shared-db') } = {}) {
+function io({ files = {}, diff = '', mainFiles = {}, body = scope('u2giants/shared-db'), baseMissing = false, fetchable = true } = {}) {
   const out = []
   const deps = {
     fileExists: (p) => p in files,
     readFile: (p) => files[p],
     git: (args) => {
+      // Issue #3280: the base ref is resolved before any diff. `baseMissing`
+      // reproduces a merge_group checkout, where origin/main does not exist.
+      if (args[0] === 'rev-parse') {
+        if (args.includes('FETCH_HEAD')) return fetchable ? 'FETCH_HEAD' : (() => { throw new Error('absent') })()
+        if (baseMissing) throw new Error('absent')
+        return 'origin/main'
+      }
+      if (args[0] === 'fetch') { if (!fetchable) throw new Error('offline'); return '' }
       if (args[0] === 'diff') return diff
-      if (args[0] === 'show') { const p = args[1].replace(/^origin\/main:/, ''); if (p in mainFiles) return mainFiles[p]; throw new Error('absent') }
+      if (args[0] === 'show') { const p = args[1].replace(/^(origin\/main|FETCH_HEAD):/, ''); if (p in mainFiles) return mainFiles[p]; throw new Error('absent') }
       throw new Error(`unexpected git ${args}`)
     },
     gh: () => body,
@@ -102,4 +110,17 @@ test('main() I/O: probe in tree or on main passes; deleted, absent or no contrac
   assert.equal(main(t.deps), 2); assert.match(t.out[0], /no \.agent\/contract\.json/)
   t = io({ files: { '.agent/contract.json': C }, diff: 'M\tdocs/a.md\n' })
   assert.equal(main(t.deps), 0); assert.match(t.out[0], /not applicable/)
+})
+
+// Issue #3280 governed review round 2 (muse-spark-1.3-contributor). This guard
+// hardcodes origin/main with no --base override and runs on the merge queue
+// path, where that ref does not exist. It must fetch the branch, and must still
+// refuse rather than pass when it cannot.
+test('main() resolves its base ref on a merge_group checkout, and refuses when it cannot (#3280)', () => {
+  const files = { '.agent/contract.json': C, '.github/live-proofs/3043.sql': PROBE }
+  const diff = ['A	supabase/migrations/1_x.sql','A	.github/live-proofs/3043.sql',''].join(String.fromCharCode(10))
+  let t = io({ files, diff, baseMissing: true, fetchable: true })
+  assert.equal(main(t.deps), 0, 'a merge_group checkout must resolve its base by fetching the branch')
+  t = io({ files, diff, baseMissing: true, fetchable: false })
+  assert.equal(main(t.deps), 2, 'an unresolvable base must refuse, never pass')
 })

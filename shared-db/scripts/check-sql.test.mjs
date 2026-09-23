@@ -14,7 +14,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -1039,4 +1039,74 @@ test('verify-cost guard sees a quoted LANGUAGE name on a DO block', () => {
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /reads a plm object/)
   })
+})
+
+// Issue #3280 governed review (grok-4.6): a merge_group run checks out the queue
+// group commit SHA, so no origin/<base> remote tracking ref is created even at
+// fetch-depth: 0. The EOL guard used to hard-fail there. It must now fetch the
+// base branch explicitly, and must still fail closed when nothing can resolve it.
+function makeDetachedCheckoutRepo() {
+  const dir = mkdtempSync(path.join(tmpdir(), 'check-sql-mq-'))
+  const upstream = path.join(dir, 'upstream.git')
+  const work = path.join(dir, 'work')
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' })
+  spawnSync('git', ['init', '--bare', '-b', 'main', upstream], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-b', 'main', work], { encoding: 'utf8' })
+  mkdirSync(path.join(work, 'scripts'), { recursive: true })
+  mkdirSync(path.join(work, 'supabase', 'migrations'), { recursive: true })
+  writeFileSync(path.join(work, 'supabase/migrations/20260101000000_seed.sql'), ['-- seed','select 1;',''].join(String.fromCharCode(10)))
+  cpSync(path.join(repoRoot, 'scripts'), path.join(work, 'scripts'), { recursive: true })
+  git(work, 'config', 'user.email', 'test@example.com')
+  git(work, 'config', 'user.name', 'test')
+  git(work, 'add', '-A')
+  git(work, 'commit', '-m', 'seed')
+  git(work, 'remote', 'add', 'origin', toBashPath(upstream))
+  git(work, 'push', 'origin', 'main')
+  const head = git(work, 'rev-parse', 'HEAD').stdout.trim()
+  // Reproduce the merge_group checkout: detached at a SHA, with every
+  // origin/* remote tracking ref removed. The objects are present; the ref is not.
+  git(work, 'checkout', '--detach', head)
+  git(work, 'branch', '-D', 'main')
+  git(work, 'update-ref', '-d', 'refs/remotes/origin/main')
+  return { dir, work }
+}
+
+function runEolGuardIn(work, env = {}) {
+  return spawnSync(bashCommand, ['scripts/check-sql.sh'], {
+    cwd: work,
+    encoding: 'utf8',
+    env: { ...process.env, CHECK_SQL_MIGRATIONS_ONLY: '1', GITHUB_BASE_REF: '', ...env },
+  })
+}
+
+test('issue 3280 EOL guard fetches the base branch when no origin/main ref exists', () => {
+  const { dir, work } = makeDetachedCheckoutRepo()
+  try {
+    const result = runEolGuardIn(work)
+    assert.ok(
+      !String(result.stderr).includes('EOL guard cannot resolve base'),
+      `EOL guard should have fetched the base branch, stderr was: ${result.stderr}`,
+    )
+    // Round 2 (muse-spark-1.3-contributor): asserting only the ABSENCE of the
+    // error string would pass if the guard died for some other reason. Assert
+    // the run actually succeeded.
+    assert.equal(result.status, 0, `guards should have passed, stderr was: ${result.stderr}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('issue 3280 EOL guard still fails closed when the base cannot be fetched at all', () => {
+  const { dir, work } = makeDetachedCheckoutRepo()
+  try {
+    spawnSync('git', ['remote', 'remove', 'origin'], { cwd: work, encoding: 'utf8' })
+    const result = runEolGuardIn(work)
+    assert.ok(
+      String(result.stderr).includes('EOL guard cannot resolve base'),
+      `EOL guard should have failed closed, stderr was: ${result.stderr}`,
+    )
+    assert.notEqual(result.status, 0)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

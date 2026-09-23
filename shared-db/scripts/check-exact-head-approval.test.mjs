@@ -779,7 +779,17 @@ test('POSITIVE CONTROL #2728: an equivalence proof without implementation_digest
 test('a merged pull request is judged against its merge commit first parent', () => {
   const merge = 'a'.repeat(40)
   assert.equal(resolveApprovalMainRef({}, 7, () => ({ merged: true, merge_commit_sha: merge })), `${merge}^1`)
-  assert.equal(resolveApprovalMainRef({}, 7, () => ({ merged: false })), 'origin/main')
+  // Issue #3280: the unmerged branch resolves its base ref, so the git runner is
+  // injected -- this test must not depend on whether the CI checkout happens to
+  // carry an origin/main ref. `present` is the ordinary case; `absent` is the
+  // merge_group checkout, where the branch is fetched and FETCH_HEAD is used;
+  // `offline` is the fail-closed case.
+  const present = () => ''
+  const absent = (args) => { if (args[0] === 'rev-parse' && !args.includes('FETCH_HEAD')) throw new Error('absent'); return '' }
+  const offline = (args) => { if (args[0] === 'rev-parse' || args[0] === 'fetch') throw new Error('absent'); return '' }
+  assert.equal(resolveApprovalMainRef({}, 7, () => ({ merged: false }), present), 'origin/main')
+  assert.equal(resolveApprovalMainRef({}, 7, () => ({ merged: false }), absent), 'FETCH_HEAD')
+  assert.throws(() => resolveApprovalMainRef({}, 7, () => ({ merged: false }), offline), /could not resolve base ref/)
   assert.equal(resolveApprovalMainRef({ APPROVAL_MAIN_REF: 'x' }, 7, () => { throw new Error('unread') }), 'x')
   assert.throws(() => resolveApprovalMainRef({}, 7, () => ({ merged: true, merge_commit_sha: null })), ApprovalCheckError)
 })
