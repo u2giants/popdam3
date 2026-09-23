@@ -30,7 +30,7 @@ import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
-import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError, ProviderRefusedSubmissionError } from "./batch-submission-error.js";
 import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failClaimedOperation, failOperationWithoutResetContract, persistDefinitiveRejectionFailure, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
@@ -918,6 +918,16 @@ export async function tick(): Promise<void> {
         }
         submissionLeaseTokens.delete(opKey);
         preSubmissionRetries.delete(opKey);
+        if (error instanceof ProviderRefusedSubmissionError) {
+          // Auth, billing and rate-limit refusals stop immediately and visibly.
+          const failed = await failClaimedOperation(
+            (fn, params) => db().rpc(fn, params),
+            opKey, claimedState, claim.state_revision, "provider_refused_submission", error.message,
+          );
+          await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
+          logger.error("tick: provider refused the batch submission", { opKey, status: error.status });
+          return;
+        }
         if (error instanceof DefinitiveBatchRejectionError) {
           // The provider itself parsed and refused the payload, so no batch
           // exists. Consume this receipt through the governed reset RPC, then

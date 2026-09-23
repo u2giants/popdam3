@@ -236,3 +236,17 @@ test("a missing reset RPC (PGRST202) fails the operation visibly under a named e
   assert.match(String(failed.error), /reset_bulk_operation_submission_lease is not deployed \(PGRST202\)/);
   assert.equal("lease_token" in (database.operations.ai_tag.external_job as object), false);
 });
+
+test("an auth/billing/rate-limit refusal fails the claimed operation visibly, not ambiguously", async () => {
+  const { failClaimedOperation } = await import("./provider-submission-recovery.js");
+  const { ProviderRefusedSubmissionError } = await import("./batch-submission-error.js");
+  const refusal = classifySubmissionHttpFailure("openrouter", 402, JSON.stringify({ error: { code: 402, message: "Insufficient credits" } }));
+  assert.ok(refusal instanceof ProviderRefusedSubmissionError);
+  const database = fakeDatabase(claimedOperation());
+  const claimed = { ...(structuredClone(database.operations.ai_tag) as object), external_job: { ...(database.operations.ai_tag.external_job as object), lease_token: "receipt-1" } };
+  await failClaimedOperation(database.rpc, "ai_tag", claimed as never, 7, "provider_refused_submission", refusal.message);
+  assert.equal(database.operations.ai_tag.status, "failed");
+  assert.equal(database.operations.ai_tag.interruption_reason_code, "provider_refused_submission");
+  assert.match(String(database.operations.ai_tag.error), /HTTP 402, billing/);
+  assert.deepEqual(database.calls, ["update_bulk_operation"]);
+});
