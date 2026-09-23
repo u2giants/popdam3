@@ -20,6 +20,17 @@ expired provider batches fail the operation once; temporary poll failures keep t
 same saved batch ID; every `:batch` model is limited to primary Image Tagging; and
 PDF/bake-off settings keep cached catalogs on warnings.
 
+**Deploy-ordering precondition (not a code defect):** the reset RPC is merged in
+popcre/shared-db #3426 and is being promoted by shared-db's governed production
+lane. #92 must not ship until it is live. If the worker ever runs first, a
+definitive rejection fails the operation visibly as `reset_contract_unavailable`
+(PGRST202) instead of sitting ambiguous.
+
+**Owner-delegated decision (2026-09-23, reversible):** malformed answers inside a
+batch (direct Gemini and OpenRouter) go through the shared JSON-repair step on the
+SAME model, text only; no fallback to a different model. Only unrepairable items
+count as failed, each with its reason.
+
 **Next session:** confirm the branch's latest exact-head independent review verdict,
 confirm the reset RPC is applied to production (otherwise definitive rejections
 fall back to the ambiguous-submission path), then ship through PopDAM's branch

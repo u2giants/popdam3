@@ -221,3 +221,18 @@ test("a crash between the reset and the failure write is finished on the next ti
   // An ordinary prepared job is not mistaken for a rejected one.
   assert.equal(awaitsDefinitiveRejectionFailure({ status: "running", external_job: { phase: "prepared" } }), false);
 });
+
+test("a missing reset RPC (PGRST202) fails the operation visibly under a named error", async () => {
+  const { ResetContractUnavailableError, failOperationWithoutResetContract } = await import("./provider-submission-recovery.js");
+  const database = fakeDatabase(claimedOperation());
+  const missing: RpcCall = async (fn, params) => fn === "reset_bulk_operation_submission_lease"
+    ? { data: null, error: { code: "PGRST202", message: "Could not find the function public.reset_bulk_operation_submission_lease" } }
+    : database.rpc(fn, params);
+  await assert.rejects(failOperationAfterDefinitiveRejection(missing, receipt, rejection()), ResetContractUnavailableError);
+  const claimed = structuredClone(database.operations.ai_tag) as never;
+  const failed = await failOperationWithoutResetContract(missing, "ai_tag", { ...(claimed as object), external_job: { ...(database.operations.ai_tag.external_job as object), lease_token: "receipt-1" } } as never, 7, rejection());
+  assert.equal(database.operations.ai_tag.status, "failed");
+  assert.equal(database.operations.ai_tag.interruption_reason_code, "reset_contract_unavailable");
+  assert.match(String(failed.error), /reset_bulk_operation_submission_lease is not deployed \(PGRST202\)/);
+  assert.equal("lease_token" in (database.operations.ai_tag.external_job as object), false);
+});

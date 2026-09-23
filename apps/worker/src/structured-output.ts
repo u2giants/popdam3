@@ -4,7 +4,7 @@ import { buildStructuredOutputPlan, type CapabilityOverride, type ModelCapabilit
 export interface OutputAttempt { method: StructuredOutputMethod; status: "success" | "failed"; latencyMs: number; requestedForm?: string; httpStatus?: number; error?: string; parse?: "ok" | "failed"; validation?: "ok" | "failed"; usage?: unknown; providerInfo?: OpenRouterProviderInfo; }
 export interface ExecuteStructuredOutputOptions<T> { apiKey: string; model: string; messages: ChatMessage[]; schemaName: string; schema: Record<string, unknown>; validate: (value: Record<string, unknown>) => T; capabilities: ModelCapabilities; override?: CapabilityOverride; timeoutMs?: number; maxTokens?: number; provider?: ChatCompletionRequest["provider"]; completion?: typeof chatCompletion; isTerminalError?: (error: unknown) => boolean; }
 
-function parse(content?: string): Record<string, unknown> | null {
+export function parseStructuredJson(content?: string): Record<string, unknown> | null {
   if (!content?.trim()) return null;
   const candidates = [content.trim(), content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1], content.match(/\{[\s\S]*\}/)?.[0]];
   for (const candidate of candidates) try { const value = JSON.parse(candidate ?? ""); if (value && typeof value === "object" && !Array.isArray(value)) return value; } catch { /* next */ }
@@ -49,7 +49,7 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
       }
       const result = await completion(options.apiKey, request, options.timeoutMs);
       stage = "parse";
-      const candidate = result.toolCalls?.[0]?.arguments ?? parse(result.content);
+      const candidate = result.toolCalls?.[0]?.arguments ?? parseStructuredJson(result.content);
       if (!candidate) throw new Error("No parsable structured output");
       stage = "validation";
       const value = options.validate(candidate);
@@ -63,16 +63,54 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
     }
   }
   if (repairSource && jsonMethodFailed && options.capabilities.jsonObject !== false) {
-    const method: StructuredOutputMethod = "json_repair"; const started = Date.now();
-    let stage: "transport" | "parse" | "validation" = "transport";
+    let repaired: Awaited<ReturnType<typeof runJsonRepair<T>>>;
     try {
-      const result = await completion(options.apiKey, { model: options.model, messages: [...options.messages, { role: "user", content: `A previous response failed validation: ${repairSource}. Return corrected JSON only.` }], response_format: { type: "json_object" }, max_tokens: options.maxTokens ?? 1500, temperature: 0, provider: options.provider }, options.timeoutMs);
-      stage = "parse"; const candidate = parse(result.content); if (!candidate) throw new Error("No parsable JSON after repair");
-      stage = "validation";
-      const value = options.validate(candidate);
-      attempts.push({ method, status: "success", latencyMs: Date.now() - started, requestedForm: "response_format:json_object", parse: "ok", validation: "ok", usage: result.usage, providerInfo: result.providerInfo });
-      return { value, outputMode: method, attempts, usage: result.usage, providerInfo: result.providerInfo, repairCount: 1 };
-    } catch (error) { attempts.push({ method, status: "failed", latencyMs: Date.now() - started, requestedForm: "response_format:json_object", httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined }); if (isTerminalError(error)) throw Object.assign(error as Error, { attempts }); }
+      repaired = await runJsonRepair({ ...options, completion, isTerminalError, repairSource });
+    } catch (error) {
+      const repairAttempts = (error as { attempts?: OutputAttempt[] }).attempts ?? [];
+      throw Object.assign(error as Error, { attempts: [...attempts, ...repairAttempts] });
+    }
+    attempts.push(repaired.attempt);
+    if (repaired.ok) return { value: repaired.value as T, outputMode: "json_repair", attempts, usage: repaired.usage, providerInfo: repaired.providerInfo, repairCount: 1 };
   }
   throw Object.assign(new Error(`Structured output failed: ${attempts.map((a) => `${a.method}: ${a.error}`).join("; ")}`), { attempts });
+}
+
+export interface JsonRepairOptions<T> {
+  apiKey: string;
+  model: string;
+  messages: ChatMessage[];
+  repairSource: string;
+  validate: (value: Record<string, unknown>) => T;
+  maxTokens?: number;
+  timeoutMs?: number;
+  provider?: ChatCompletionRequest["provider"];
+  completion?: typeof chatCompletion;
+  isTerminalError?: (error: unknown) => boolean;
+}
+
+/**
+ * The single JSON-repair step: one json_object request on the SAME model,
+ * parsed and validated. Shared by the synchronous ladder and the batch apply
+ * paths. Terminal provider errors are rethrown with the attempt attached.
+ */
+export async function runJsonRepair<T>(options: JsonRepairOptions<T>): Promise<
+  | { ok: true; value: T; attempt: OutputAttempt; usage?: unknown; providerInfo?: OpenRouterProviderInfo }
+  | { ok: false; attempt: OutputAttempt }
+> {
+  const completion = options.completion ?? chatCompletion;
+  const isTerminalError = options.isTerminalError ?? isTerminalOpenRouterError;
+  const method: StructuredOutputMethod = "json_repair"; const started = Date.now();
+  let stage: "transport" | "parse" | "validation" = "transport";
+  try {
+    const result = await completion(options.apiKey, { model: options.model, messages: [...options.messages, { role: "user", content: `A previous response failed validation: ${safe(options.repairSource)}. Return corrected JSON only.` }], response_format: { type: "json_object" }, max_tokens: options.maxTokens ?? 1500, temperature: 0, provider: options.provider }, options.timeoutMs);
+    stage = "parse"; const candidate = parseStructuredJson(result.content); if (!candidate) throw new Error("No parsable JSON after repair");
+    stage = "validation";
+    const value = options.validate(candidate);
+    return { ok: true, value, usage: result.usage, providerInfo: result.providerInfo, attempt: { method, status: "success", latencyMs: Date.now() - started, requestedForm: "response_format:json_object", parse: "ok", validation: "ok", usage: result.usage, providerInfo: result.providerInfo } };
+  } catch (error) {
+    const attempt: OutputAttempt = { method, status: "failed", latencyMs: Date.now() - started, requestedForm: "response_format:json_object", httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined };
+    if (isTerminalError(error)) throw Object.assign(error as Error, { attempts: [attempt] });
+    return { ok: false, attempt };
+  }
 }
