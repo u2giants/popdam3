@@ -773,6 +773,7 @@ export const EXCLUSIVE_REFS = Object.freeze({
 // because redrawing at a dead head is pointless and would list the healthy
 // provider as failed on that head. Never use a provider code for this case.
 export const REVIEW_TARGET_SUPERSEDED = 'review_target_superseded'
+export const SLOT_INDEPENDENCE_CONFLICT = 'slot_independence_conflict'
 export const TERMINAL_FAILURE_CODES = Object.freeze(['insufficient_quota','provider_unavailable','local_dependency_unavailable','wrapper_terminal_failure','turn_limit_cancelled','reviewer_cannot_read_repository',REVIEW_TARGET_SUPERSEDED])
 function reviewTargetSuperseded(prRow,headSha){return Boolean(prRow?.state)&&(String(prRow.state).toLowerCase()!=='open'||(/^[0-9a-f]{40}$/i.test(String(prRow?.head?.sha??''))&&String(prRow.head.sha).toLowerCase()!==String(headSha).toLowerCase()))}
 
@@ -5002,6 +5003,13 @@ function assertExactDurableReviewApproval(issue,pr,headSha,io){
     const live=latest.get(slot)
     if(!live||cursorSequence(live.sha)<=sequence)throw new LaneError(`review slot ${slot} was durably returned and has no live exact-head assignment newer than the returned one to approve; it cannot be satisfied by another slot, nor by a record the returned one had already superseded. Draw a new reviewer for this exact head and slot (--assign-reviewer when the returned record was the original assignment, --replace-failed-reviewer with the same --failed-sequence when it was a replacement), and that new assignment must record its own APPROVE.`)
   }
+  const reviewers=new Set()
+  for(const assignment of latest.values()){
+    const record=parseReviewCursor(io.getCommit(assignment.sha))
+    if(!record?.reviewer)throw new LaneError(`review slot ${assignment.slot} has no readable reviewer identity`)
+    if(reviewers.has(record.reviewer))throw new LaneError(`review slots at exact head ${head} share reviewer ${record.reviewer}; independent approval refused`)
+    reviewers.add(record.reviewer)
+  }
   for(const assignment of latest.values())if(!verdicts.some((row)=>row.verdict==='APPROVE'&&row.assignment_sha===assignment.sha))throw new LaneError(`review slot ${assignment.slot} has no durable APPROVE for its latest exact-head assignment${disregardedNote}`)
   return verdicts
 }
@@ -5608,6 +5616,35 @@ function resolveSlotOneAssignment(issue,pr,headSha,io){
   return checked(io.getCommit(sha))
 }
 
+// Resolve slot 2's latest durable holder when filling slot 1.
+// A replacement does not rewrite its original assignment ref, and a returned
+// record may have been re-created; compare cursor sequences, not ref tails.
+function otherSlotReviewers(issue,pr,headSha,slot,io){
+  // Slot 2 already resolves slot 1 through resolveSlotOneAssignment. The
+  // production protocol requires exactly two slots; slot 1 needs the mirror
+  // read of slot 2. A missing fixed ref means no slot-2 replacement can be
+  // live, because replacement draws require that original ref.
+  if(slot!==1)return new Map()
+  const suffix=`/${Number(issue)}-${Number(pr)}-${String(headSha).toLowerCase()}-slot2`
+  const originalRef=`${REVIEW_ASSIGNMENT_REF_PREFIX}${suffix}`,originalSha=io.readRef(originalRef)
+  if(!originalSha)return new Map()
+  if(typeof io.listRefs!=='function')throw new LaneError('slot 2 replacement records cannot be listed; independent draw refused')
+  const replacementBase=`${REVIEW_REPLACEMENT_REF_PREFIX}${suffix}`
+  const rows=[{ref:originalRef,sha:originalSha},...io.listRefs(replacementBase).filter((row)=>inReviewReplacementNamespace(row.ref,replacementBase))]
+  const returned=new Set(readReviewReturns(issue,pr,headSha,io).map((row)=>row.assignmentSha))
+  const latest=new Map()
+  for(const row of rows){
+    const named=parseAssignmentRef(row.ref)
+    if(!named||named.issue!==Number(issue)||named.pr!==Number(pr)||named.headSha!==String(headSha).toLowerCase()||named.slot===slot)continue
+    if(returned.has(row.sha))continue
+    const parsed=parseReviewCursor(row.commit??io.getCommit(row.sha))
+    if(parsed.issue!==named.issue||parsed.pr!==named.pr||parsed.headSha!==named.headSha||(parsed.slot??1)!==named.slot)throw new LaneError(`other reviewer slot ${named.slot} has an invalid durable assignment`)
+    const previous=latest.get(named.slot)
+    if(!previous||parsed.sequence>previous.sequence)latest.set(named.slot,{...parsed,sha:row.sha})
+  }
+  return latest
+}
+
 // AGENTS.md section 4 rule 2 is merge-first, so a migration reaching main and only
 // THEN owing an exact-head approval is an expected state, not an anomaly (#1817:
 // plm.wwe_* merged at 8d3c31a with no approval at that head, and assignment refused
@@ -5791,7 +5828,8 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
   // branch defers to the merged one: the resolve stays here, and the reserve is
   // #1813's (issue #1798 round 3 / issue #1812).
   const slotOne=request.slot===1?null:resolveSlotOneAssignment(request.issue,request.pr,request.headSha,io)
-  const excludedProvider=slotOne?.reviewer??null
+  const otherSlots=otherSlotReviewers(request.issue,request.pr,request.headSha,request.slot,io)
+  const excludedProviders=new Set([slotOne?.reviewer,...[...otherSlots.values()].map((row)=>row.reviewer)].filter(Boolean))
   if(slotOne)requestedAllowlist=inheritReviewerAllowlist(requestedAllowlist,slotOne.reviewerAllowlist)
   const preflightBusy=findBusyReviewers(io)
   if(!preflightBusy)throw new LaneError('active reviewer leases are unreadable; reviewer assignment refused before mutex acquisition')
@@ -5800,6 +5838,11 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
   acquireReviewMutex(ownerSha,io)
   let completedResult=null
   try{
+    const assertDistinct=(reviewer)=>{
+      const first=request.slot===1?null:resolveSlotOneAssignment(request.issue,request.pr,request.headSha,io)
+      const peers=otherSlotReviewers(request.issue,request.pr,request.headSha,request.slot,io)
+      if(first?.reviewer===reviewer||[...peers.values()].some((row)=>row.reviewer===reviewer))throw new LaneError(`reviewer ${reviewer} already holds another review slot for this exact head; this slot cannot be assigned or retried. If the conflicting slot has no verdict or artifact, use --replace-failed-reviewer with --failure-code ${SLOT_INDEPENDENCE_CONFLICT} and its current sequence.`)
+    }
     if(admissionOptions)requirePrOperationRoute(admissionOptions,io,{pr,headSha,issue,mutexOwner:ownerSha,allowMerged:true,reviewSnapshot:true})
     const exclusions=reviewerExclusions(request.issue,request.pr,io,{fresh:true})
     const returnedPolicy=exclusions.hasRecordedExclusions?inheritReturnedReviewerAllowlist(requestedAllowlist,request,io):null
@@ -5841,6 +5884,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
       // trail. The exclusion of the REVIEWER is absolute either way -- they can
       // never be drawn again for this pull request.
       if(exclusions.has(replacement.reviewer))throw new LaneError(`durable replacement reviewer ${replacement.reviewer} is excluded for this PR (${exclusions.get(replacement.reviewer).reason}); re-run the identical --exclude-reviewer to return this slot. The returned record is a REPLACEMENT, so --assign-reviewer will not refill it: draw the new reviewer with --replace-failed-reviewer for the same --failed-sequence.`)
+      assertDistinct(replacement.reviewer)
       if(!eligibleNames.has(replacement.reviewer))throw new LaneError(`durable replacement sequence ${replacement.sequence} belongs to a retired, quarantined or orchestrator-conflicting reviewer ${replacement.reviewer}; its active lease was not recreated. Record a new governed replacement for this exact head`)
       const liveReplacement=concurrentLeases?activeLeaseRecordForAssignment(preflightBusy,{...replacement,slot:request.slot}):preflightBusy.leases.get(reviewer.name)
       const replacementLeaseRef=liveReplacement?.ref??resolveAssignmentLeaseRef({...replacement,slot:request.slot},concurrentLeases,io,preflightBusy),staleReplacement=preflightBusy.stale.find((row)=>row.ref===replacementLeaseRef)
@@ -5874,6 +5918,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
       // Same deliberate refusal as the replacement branch above: the assignment
       // path never retires a slot itself. See the comment there.
       if(exclusions.has(prior.reviewer))throw new LaneError(`durable assignment reviewer ${prior.reviewer} is excluded for this PR (${exclusions.get(prior.reviewer).reason}); re-run the identical --exclude-reviewer to return this slot, then re-run this --assign-reviewer to draw a fresh reviewer for it.`)
+      assertDistinct(prior.reviewer)
       const retryStates=io.readReviewStates?.([prior,...(stalePrior?[stalePrior.assignment]:[])])
       assertReviewRequestEligible(request,retryStates,io)
       // Eligibility is re-checked on EVERY retry return below, not only the
@@ -5931,6 +5976,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
       if(!eligibleNames.has(current.reviewer))throw new LaneError(ACTIVE_REVIEWERS.some((row)=>row.name===current.reviewer)
         ?`current reviewer ${current.reviewer} conflicts with the live orchestrator engine; assign an independent reviewer`
         :`current reviewer cursor sequence ${current.sequence} belongs to a retired, quarantined or orchestrator-conflicting reviewer ${current.reviewer}; no assignment was recorded and no lease was taken. Record a governed replacement for this exact head`)
+      assertDistinct(current.reviewer)
       assertAssignmentWasNotTerminallyReleased(request,current,io)
       if(!io.createRef(assignmentRef,cursorSha)&&readRefAfterWrite(assignmentRef,cursorSha,io)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
       const live=io.getPr(current.pr)
@@ -5956,7 +6002,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
     // Provider capacity is deliberately not a draw constraint for the exact
     // production protocol.  Lightweight historical fixtures may use short
     // heads, which cannot name a parallel lease and retain old serial rules.
-    const notTaken=(row)=>eligibleNames.has(row.name)&&(concurrentLeases||!busy.has(row.name))&&row.name!==excludedProvider&&!exclusions.has(row.name)
+    const notTaken=(row)=>eligibleNames.has(row.name)&&(concurrentLeases||!busy.has(row.name))&&!excludedProviders.has(row.name)&&!exclusions.has(row.name)
     const reviewer=Array.from({length:ACTIVE_REVIEWERS.length},(_,offset)=>ACTIVE_REVIEWERS[(start+offset)%ACTIVE_REVIEWERS.length]).find(notTaken)??OVERFLOW_REVIEWERS.find(notTaken)
     if(!reviewer){
       // #2694 review (slot 2, medium finding 9). The message used to recite a
@@ -5972,7 +6018,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
         if(unusable.has(name)){const state=unusable.get(name);return `unusable by ai-review-preflight (${state.status??state.failure_class??'unavailable'})`}
         if(!eligibleNames.has(name))return 'conflicts with the live orchestrator engine, or is retired or quarantined'
         if(!concurrentLeases&&busy.has(name))return 'already holds a live review lease (serial-lease protocol)'
-        if(name===excludedProvider)return `already holds slot 1 for this exact head`
+        if(excludedProviders.has(name))return `already holds another review slot for this exact head`
         if(exclusions.has(name))return `durably excluded for this PR (${exclusions.get(name).reason})`
         return 'unavailable for an unrecorded reason'
       }
@@ -5991,6 +6037,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
         const fresh=freshStates?.get(`${request.issue}:${request.pr}`)
         const freshVerdict=hasVerdictForHead(request.issue,request.pr,request.headSha,io,{fresh:true,slot:request.slot})
         if(!reviewIssueEligible(fresh?.issue,fresh?.pr,io)||!reviewTargetEligible(fresh?.pr,io)||fresh?.pr?.head?.sha!==request.headSha||freshVerdict)throw new LaneError(`review assignment issue, PR head, or verdict changed after mutex acquisition${freshVerdict?` -- a verdict for issue #${request.issue}, PR #${request.pr}, head ${request.headSha} already exists`:reviewEligibilityCause(request,fresh?.issue,fresh?.pr)}`)
+        assertDistinct(reviewer.name)
         if(selectedStale){
           const revived=freshStates?.get(`${selectedStale.assignment.issue}:${selectedStale.assignment.pr}`)
           const verdict=hasVerdictForHead(selectedStale.assignment.issue,selectedStale.assignment.pr,selectedStale.assignment.headSha,io,leaseVerdictOptions(selectedStale.assignment,{fresh:true}))
@@ -6007,6 +6054,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
         return completedResult={sequence,reviewer:reviewer.name,wrapper:reviewer.wrapper,...request}
       }
       requireOwnedRef(MUTEX_REF,ownerSha,io)
+      assertDistinct(reviewer.name)
       if(selectedStale){
         if(io.readReviewRefs){const current=io.readReviewRefs([MUTEX_REF,leaseRef]);if(current.get(MUTEX_REF)!==ownerSha||current.get(leaseRef)!==selectedStale.sha)throw new LaneError('selected stale reviewer lease changed after preflight');io.deleteRef(leaseRef);staleReleased=true}
         else if(io.readRef(leaseRef)===selectedStale.sha){releaseOwnedRef(leaseRef,selectedStale.sha,io);staleReleased=true}
@@ -6344,7 +6392,7 @@ function validateTerminalReviewerFailure(options,label='reviewer failure'){
   const request={issue:Number(options.issue),pr:Number(options.pr),headSha:String(options.headSha??''),failedSequence:Number(options.failedSequence),slot:Number(options.slot??1)}
   if(!Number.isInteger(request.issue)||!Number.isInteger(request.pr)||!/^[0-9a-f]{40}$/i.test(request.headSha)||!Number.isInteger(request.failedSequence))throw new LaneError(`${label} requires exact issue, PR, 40-character head SHA, and failed sequence`)
   if(!Number.isInteger(request.slot)||request.slot<1)throw new LaneError(`${label} slot must be a positive integer (1 = first reviewer, 2 = second independent reviewer)`)
-  if(!TERMINAL_FAILURE_CODES.includes(String(options.failureCode??'')))throw new LaneError(`${label} requires a recognized terminal provider/tool failure code (${TERMINAL_FAILURE_CODES.join(', ')})`)
+  if(!TERMINAL_FAILURE_CODES.includes(String(options.failureCode??''))&&!(label==='reviewer replacement'&&String(options.failureCode)===SLOT_INDEPENDENCE_CONFLICT))throw new LaneError(`${label} requires a recognized terminal provider/tool failure code (${TERMINAL_FAILURE_CODES.join(', ')})${label==='reviewer replacement'?` or the guarded ${SLOT_INDEPENDENCE_CONFLICT} recovery`:''}`)
   if(String(options.failureCode)==='local_dependency_unavailable'){
     if(!String(options.failingCheck??'').trim())throw new LaneError('local_dependency_unavailable requires --failing-check naming the exact doctor check that failed. A failure record that cannot name the failing check is a guess.')
     if(!options.confirmLocalDependencyUnfixable)throw new LaneError(`this is a LOCAL dependency fault ("${String(options.failingCheck).trim()}"), not a provider fault. Fix it on this machine and retry the SAME reviewer. If it genuinely cannot be fixed here, re-run with --confirm-local-dependency-unfixable.`)
@@ -6473,7 +6521,10 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
   // Slot >=2 must stay independent of slot 1 after a replacement, not only at
   // first assignment. Resolved read-only, pre-mutex, exactly as assignment does.
   const slotOne=request.slot===1?null:resolveSlotOneAssignment(request.issue,request.pr,request.headSha,io)
-  const excludedProvider=slotOne?.reviewer??null
+  const otherSlots=otherSlotReviewers(request.issue,request.pr,request.headSha,request.slot,io)
+  const excludedProviders=new Set([slotOne?.reviewer,...[...otherSlots.values()].map((row)=>row.reviewer)].filter(Boolean))
+  const peersNow=()=>new Set([...(request.slot===1?[]:[resolveSlotOneAssignment(request.issue,request.pr,request.headSha,io).reviewer]),...[...otherSlotReviewers(request.issue,request.pr,request.headSha,request.slot,io).values()].map((row)=>row.reviewer)])
+  const assertIndependent=(reviewer)=>{if(peersNow().has(reviewer))throw new LaneError(`reviewer ${reviewer} already holds another review slot for this exact head; replacement refused. Replace this conflicting assignment with --failure-code ${SLOT_INDEPENDENCE_CONFLICT} and its current sequence.`)}
   if(slotOne)requestedAllowlist=inheritReviewerAllowlist(requestedAllowlist,slotOne.reviewerAllowlist)
   const failureBase=`${REVIEW_FAILURE_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`
   const fixedRecords=io.readReviewRecords?.([replacementRef,assignmentRef,REVIEW_CURSOR_REF,assignmentVerdictRef,failureRef],replacementBase,failureBase)??null
@@ -6498,6 +6549,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       effectiveAllowlist=inheritReviewerAllowlist(requestedAllowlist,parsed.reviewerAllowlist)
       eligibleNames=new Set(eligible.filter((row)=>reviewerAllowed(row.name,effectiveAllowlist)).map((row)=>row.name))
       requireReplacementEvidence(parsed,io,fixedRecords)
+      assertIndependent(parsed.reviewer)
       if(!eligibleNames.has(parsed.reviewer))throw new LaneError(`durable replacement sequence ${parsed.sequence} belongs to a retired, quarantined or orchestrator-conflicting reviewer ${parsed.reviewer}; its active lease was not recreated. Record a new governed replacement for this exact head`)
       const failed=activeLeaseRecordForJob(preflightBusy,{issue:request.issue,pr:request.pr,headSha:request.headSha,sequence:request.failedSequence})
       const liveReplacement=concurrentLeases?activeLeaseRecordForAssignment(preflightBusy,{...parsed,slot:request.slot}):preflightBusy.leases.get(parsed.reviewer)
@@ -6567,6 +6619,12 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     const predecessors=parsedReplacements.filter((row)=>row.sequence===request.failedSequence)
     const original=request.failedSequence===initial.sequence?initial:predecessors.length===1?predecessors[0]:null
     if(!original||original.issue!==request.issue||original.pr!==request.pr||original.headSha!==request.headSha)throw new LaneError('durable reviewer assignment or replacement does not match the replacement request')
+    if(String(failureCode)===SLOT_INDEPENDENCE_CONFLICT){
+      if(!excludedProviders.has(original.reviewer))throw new LaneError('slot independence conflict recovery requires another live slot at this exact head held by the same reviewer; no such conflict was proved')
+      if(headVerdictBlocksReplacement(request.issue,request.pr,request.headSha,io,{slot:request.slot}))throw new LaneError('slot independence conflict recovery cannot replace a slot with a durable verdict')
+      if(reviewStartMarkerPresent({...original,slot:request.slot},io))throw new LaneError('slot independence conflict recovery cannot replace a review that already started; stop for an exact-slot audit')
+      if(typeof io.atomicReviewRefs!=='function'||typeof io.readReviewRefs!=='function')throw new LaneError('slot independence conflict recovery requires atomic ref support')
+    }
     effectiveAllowlist=inheritReviewerAllowlist(requestedAllowlist,original.reviewerAllowlist)
     eligibleNames=new Set(eligible.filter((row)=>reviewerAllowed(row.name,effectiveAllowlist)).map((row)=>row.name))
     if(silenceReplacement){
@@ -6675,19 +6733,19 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     let sequence=null, reviewer=null
     for(let offset=0;offset<ACTIVE_REVIEWERS.length;offset+=1){
       const candidateSequence=cursor.sequence+1+offset, candidate=ACTIVE_REVIEWERS[(candidateSequence-1)%ACTIVE_REVIEWERS.length]
-      if(!eligibleNames.has(candidate.name)||failedNames.has(candidate.name)||(!concurrentLeases&&preflightBusy.has(candidate.name))||candidate.name===excludedProvider||preflightExclusions.has(candidate.name))continue
+      if(!eligibleNames.has(candidate.name)||failedNames.has(candidate.name)||(!concurrentLeases&&preflightBusy.has(candidate.name))||excludedProviders.has(candidate.name)||preflightExclusions.has(candidate.name))continue
       sequence=candidateSequence;reviewer=candidate;break
     }
     // Compatibility hook for historical configurations that had an overflow
     // provider. The approved 2026-08-28 roster has none.
     if(!reviewer){
-      const overflow=OVERFLOW_REVIEWERS.find((row)=>eligibleNames.has(row.name)&&!failedNames.has(row.name)&&(concurrentLeases||!preflightBusy.has(row.name))&&row.name!==excludedProvider&&!preflightExclusions.has(row.name))
+      const overflow=OVERFLOW_REVIEWERS.find((row)=>eligibleNames.has(row.name)&&!failedNames.has(row.name)&&(concurrentLeases||!preflightBusy.has(row.name))&&!excludedProviders.has(row.name)&&!preflightExclusions.has(row.name))
       if(overflow){sequence=cursor.sequence+1+ACTIVE_REVIEWERS.length;reviewer=overflow}
     }
     if(!reviewer){
       const failedList=[...failedNames].filter((name)=>ACTIVE_REVIEWERS.some((row)=>row.name===name))
       const busyList=[...preflightBusy].filter((name)=>!failedNames.has(name)).map((name)=>{const rows=preflightBusy.byReviewer?.get(name)??(preflightBusy.leases.get(name)?[preflightBusy.leases.get(name)]:[]);return `${name}${rows.map((row)=>` #${row.lease.issue}/PR #${row.lease.pr}`).join('')}`})
-      const unavailable=ACTIVE_REVIEWERS.map((row)=>row.name).filter((name)=>!failedNames.has(name)&&!preflightBusy.has(name)&&(!eligibleNames.has(name)||name===excludedProvider||preflightExclusions.has(name)))
+      const unavailable=ACTIVE_REVIEWERS.map((row)=>row.name).filter((name)=>!failedNames.has(name)&&!preflightBusy.has(name)&&(!eligibleNames.has(name)||excludedProviders.has(name)||preflightExclusions.has(name)))
       const releaseCommand=failedReviewerReleaseCommand(request,{failureCode,failingCheck})
       const compatiblePrefix=request.slot===1?'no other reviewer is available':'no other independent reviewer is available for slot '+request.slot
       throw new LaneError(`${compatiblePrefix}; no replacement reviewer is available: ${failedList.length} of ${ACTIVE_REVIEWERS.length} already failed on this exact head (${failedList.join(', ')||'none'}); ${busyList.length} of ${ACTIVE_REVIEWERS.length} hold other live leases (${busyList.join(', ')||'none'}); ${unavailable.length} are otherwise ineligible or excluded (${unavailable.join(', ')||'none'}). If this failed holder must be freed before another terminal holder can be reclaimed, run ${releaseCommand}.`)
@@ -6706,6 +6764,8 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       if(admissionOptions)requirePrOperationRoute(admissionOptions,io,{pr,headSha,issue,mutexOwner:ownerSha,allowMerged:true,reviewSnapshot:true})
       const freshExclusions=reviewerExclusions(request.issue,request.pr,io,{fresh:true})
       if(freshExclusions.has(reviewer.name))throw new LaneError(`selected replacement reviewer ${reviewer.name} became excluded for this PR before mutex acquisition; retry to select from the fresh roster`)
+      if(String(failureCode)===SLOT_INDEPENDENCE_CONFLICT&&!peersNow().has(original.reviewer))throw new LaneError('slot independence conflict disappeared before mutex acquisition; recovery refused')
+      assertIndependent(reviewer.name)
       if(io.atomicReviewRefs){
         requireOwnedRef(MUTEX_REF,ownerSha,io)
         const freshStates=io.readReviewStates([original,...(replacementStale?[replacementStale.assignment]:[])])
@@ -6723,11 +6783,13 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
           {ref:replacementRef,expected:null,sha:replacementSha},
           {ref:replacementLeaseRef,expected:replacementStale?.sha??null,sha:replacementLeaseSha},
         ]
+        const stoppedStartRef=String(failureCode)===SLOT_INDEPENDENCE_CONFLICT?reviewStartedMarkerRef({...original,slot:request.slot}):null
+        if(stoppedStartRef)changes.push({ref:stoppedStartRef,expected:null,sha:replacementSha})
         if(failedLeaseSha)changes.splice(changes.length-1,0,{ref:failedLeaseRef,expected:failedLeaseSha,sha:null})
         else if(unrelatedFailedLeaseSha)changes.splice(changes.length-1,0,{ref:failedLeaseRef,expected:unrelatedFailedLeaseSha,sha:unrelatedFailedLeaseSha})
         io.atomicReviewRefs(changes)
-        const refs=io.readReviewRefs([MUTEX_REF,failureRef,REVIEW_CURSOR_REF,replacementRef,failedLeaseRef,replacementLeaseRef])
-        if(refs.get(MUTEX_REF)!==ownerSha||refs.get(failureRef)!==failureSha||refs.get(REVIEW_CURSOR_REF)!==cursorReplacementSha||refs.get(replacementRef)!==replacementSha||refs.get(failedLeaseRef)!==failedLeaseAfter||refs.get(replacementLeaseRef)!==replacementLeaseSha)throw new LaneError('atomic review replacement readback mismatch')
+        const refs=io.readReviewRefs([MUTEX_REF,failureRef,REVIEW_CURSOR_REF,replacementRef,failedLeaseRef,replacementLeaseRef,...(stoppedStartRef?[stoppedStartRef]:[])])
+        if(refs.get(MUTEX_REF)!==ownerSha||refs.get(failureRef)!==failureSha||refs.get(REVIEW_CURSOR_REF)!==cursorReplacementSha||refs.get(replacementRef)!==replacementSha||refs.get(failedLeaseRef)!==failedLeaseAfter||refs.get(replacementLeaseRef)!==replacementLeaseSha||(stoppedStartRef&&refs.get(stoppedStartRef)!==replacementSha))throw new LaneError('atomic review replacement readback mismatch')
         return {sequence,reviewer:reviewer.name,wrapper:reviewer.wrapper,...request,...(effectiveAllowlist?{reviewerAllowlist:effectiveAllowlist}:{}),priorSequence:cursor.sequence,failureCode:String(failureCode),failureSha,replacementSha,replacementSequence:request.failedSequence,assignmentRef:replacementRef}
       }
       if(io.readReviewRefs){

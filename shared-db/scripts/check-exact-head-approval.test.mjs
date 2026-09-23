@@ -333,7 +333,7 @@ test('issue 2075: the merge gate refuses input that carries no durable verdict l
 // Driven through the ADAPTER with the ref, commit and comment shapes GitHub
 // actually returns, because the gap was in what the adapter never read.
 const RETURN_HEAD = 'a'.repeat(40)
-function returnedSlotGithub({ redrawSequence = null } = {}) {
+function returnedSlotGithub({ redrawSequence = null, redrawReviewer = 'glm-5.3' } = {}) {
   const issue = 1824, pr = 1931
   const assignment1 = '1'.repeat(40), assignment2 = '2'.repeat(40), redraw = '7'.repeat(40)
   const findingsBody = 'review findings', findingsRef = `https://github.com/u2giants/shared-db/pull/${pr}#issuecomment-1`
@@ -357,9 +357,9 @@ function returnedSlotGithub({ redrawSequence = null } = {}) {
   // A re-drawn slot 2, with its own APPROVE. `redrawSequence` is what decides
   // whether it answers the return or is a record the return already superseded.
   if (redrawSequence !== null) {
-    cursor(redraw, redrawSequence, 2, 'kimi-k3')
+    cursor(redraw, redrawSequence, 2, redrawReviewer)
     assignmentRefs.push({ ref: `refs/db-review-assignments/${issue}-${pr}-${RETURN_HEAD}-slot2`, object: { sha: redraw } })
-    approve('5'.repeat(40), 2, redraw, 'kimi-k3')
+    approve('5'.repeat(40), 2, redraw, redrawReviewer)
   }
   return {
     json: (args) => {
@@ -394,6 +394,11 @@ test('the merge gate refuses a head whose slot was durably returned and never re
 test('a returned slot is answered only by an assignment drawn after the returned one', () => {
   assert.equal(evaluateExactHeadApproval(gatherApprovalInput({ PR_NUMBER: '1931' }, returnedSlotGithub({ redrawSequence: 9 }))).approved, true)
   assert.throws(() => evaluateExactHeadApproval(gatherApprovalInput({ PR_NUMBER: '1931' }, returnedSlotGithub({ redrawSequence: 1 }))), /review slot 2 was durably returned/)
+})
+
+test('two durable approvals from the same reviewer never satisfy independent slots', () => {
+  const input = gatherApprovalInput({ PR_NUMBER: '1931' }, returnedSlotGithub({ redrawSequence: 9, redrawReviewer: 'kimi-k3' }))
+  assert.throws(() => evaluateExactHeadApproval(input), /review slots at exact head .* share reviewer kimi-k3/)
 })
 
 // APPROVAL CARRY-FORWARD (#2758). Head A was approved; the PR then merged main and

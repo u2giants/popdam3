@@ -266,6 +266,13 @@ export function evaluateExactHeadApproval(input) {
     if (!approvals.length) throw new ApprovalCheckError(`head ${headSha} has no durable APPROVE artifact; a review that wrote no artifact never authorizes a merge${disregardedNote}`)
     const latestBySlot = liveBySlot
     for (const assignment of latestBySlot.values()) if (!approvals.some((row) => row.assignment_sha === assignment.sha)) throw new ApprovalCheckError(`review slot ${assignment.slot} has no durable APPROVE for its latest exact-head assignment${disregardedNote}`)
+    const providers = new Set()
+    for (const assignment of latestBySlot.values()) {
+      const reviewer = approvals.find((row) => row.assignment_sha === assignment.sha)?.reviewer
+      if (!reviewer) throw new ApprovalCheckError(`review slot ${assignment.slot} has no verified reviewer identity`)
+      if (providers.has(reviewer)) throw new ApprovalCheckError(`review slots at exact head ${headSha} share reviewer ${reviewer}; independent approval refused`)
+      providers.add(reviewer)
+    }
     return { approved: true, head_sha: headSha, pr: Number(pr), assignments: latestBySlot.size, approvals: new Set(approvals.map((row) => row.ref)).size, required_slots: requiredSlots }
   }
 

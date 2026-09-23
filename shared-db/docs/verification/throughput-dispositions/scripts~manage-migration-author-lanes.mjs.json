@@ -24,6 +24,14 @@
       "reason": "Excluded: validates local reviewer admission evidence before assignment; missing or malformed admission is not a database absence claim."
     },
     {
+      "source": "scripts/manage-migration-author-lanes.mjs",
+      "site": "scripts/manage-migration-author-lanes.mjs:5625",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:14e03f439297e93956633573e69f4ec650cbbde1ab02de3677ccbe41412000a5:1",
+      "line_sha256": "14e03f439297e93956633573e69f4ec650cbbde1ab02de3677ccbe41412000a5",
+      "disposition": "excluded",
+      "reason": "Comment documenting that an absent slot-2 assignment ref cannot have a live replacement; it makes no database presence or applied-migration claim."
+    },
+    {
       "site": "scripts/manage-migration-author-lanes.mjs:6229",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:1",
       "line_sha256": "1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7",

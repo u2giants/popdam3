@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto'
 import { REVIEW_VERDICT_REF_PREFIX, verdictRef } from './lib/review-verdict-artifact.mjs'
 import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-migration-author-lanes.mjs'
 import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
+import { SLOT_INDEPENDENCE_CONFLICT } from './manage-migration-author-lanes.mjs'
 import { canonicalReviewerAllowlist } from './manage-migration-author-lanes.mjs'
 import { setScopeStatus, wrongOwnerMessage } from './manage-migration-author-lanes.mjs'
 import { readyRecord, persistInitialReady } from './orchestrator-flow/reconcile.mjs'
@@ -111,8 +112,8 @@ function durableApprovalFixture({includeLatestReplacementVerdict=true,returnSlot
   const assignment1='1'.repeat(40),assignment2='2'.repeat(40),replacement2='3'.repeat(40)
   const commits=new Map([
     [assignment1,{message:`db-coordination reviewer-cursor sequence=1 reviewer=kimi-k3 issue=${issue} pr=${pr} head=${headSha} slot=1`}],
-    [assignment2,{message:`db-coordination reviewer-cursor sequence=2 reviewer=kimi-k3 issue=${issue} pr=${pr} head=${headSha} slot=2`}],
-    [replacement2,{message:`db-coordination reviewer-replacement sequence=7 reviewer=kimi-k3 issue=${issue} pr=${pr} head=${headSha} slot=2 failed-sequence=2 prior-sequence=6 failure-ref=${'9'.repeat(40)}`}],
+    [assignment2,{message:`db-coordination reviewer-cursor sequence=2 reviewer=glm-5.3 issue=${issue} pr=${pr} head=${headSha} slot=2`}],
+    [replacement2,{message:`db-coordination reviewer-replacement sequence=7 reviewer=muse-spark-1.3-contributor issue=${issue} pr=${pr} head=${headSha} slot=2 failed-sequence=2 prior-sequence=6 failure-ref=${'9'.repeat(40)}`}],
   ])
   const refs=new Map([
     [`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-${headSha}`,assignment1],
@@ -124,8 +125,8 @@ function durableApprovalFixture({includeLatestReplacementVerdict=true,returnSlot
     refs.set(ref,sha);commits.set(sha,{message:`db-review-verdict ${JSON.stringify(record)}`,parents:[{sha:assignmentSha}]})
   }
   addVerdict(`refs/db-review-verdicts/${issue}-${pr}-${headSha}`,'4'.repeat(40),1,assignment1)
-  addVerdict(`refs/db-review-verdicts/${issue}-${pr}-${headSha}-slot2`,'5'.repeat(40),2,assignment2)
-  if(includeLatestReplacementVerdict)addVerdict(`refs/db-review-verdict-replacements/${issue}-${pr}-${headSha}-slot2-7`,'6'.repeat(40),2,replacement2)
+  addVerdict(`refs/db-review-verdicts/${issue}-${pr}-${headSha}-slot2`,'5'.repeat(40),2,assignment2,'glm-5.3')
+  if(includeLatestReplacementVerdict)addVerdict(`refs/db-review-verdict-replacements/${issue}-${pr}-${headSha}-slot2-7`,'6'.repeat(40),2,replacement2,'muse-spark-1.3-contributor')
   // `returnSlot` retires one slot's latest assignment exactly the way
   // --exclude-reviewer does: the ref is cleared and a durable return record is
   // written in its place. Slot 1 retires its original assignment; slot 2 retires
@@ -137,7 +138,7 @@ function durableApprovalFixture({includeLatestReplacementVerdict=true,returnSlot
     if(!keepReturnedSlotVerdict)refs.delete(returnSlot===1?`refs/db-review-verdicts/${issue}-${pr}-${headSha}`:`refs/db-review-verdict-replacements/${issue}-${pr}-${headSha}-slot2-7`)
     const returnSha='7'.repeat(40)
     refs.set(`${REVIEW_RETURN_REF_PREFIX}/${issue}-${pr}-${headSha}${returnSlot===1?'':'-slot2'}-${retired.sha}`,returnSha)
-    commits.set(returnSha,{message:`db-coordination reviewer-return reviewer=kimi-k3 issue=${issue} pr=${pr} head=${headSha} slot=${returnSlot} assignment=${retired.sha} sequence=${returnSlot===1?1:7}${retired.sequence===null?'':` replacement=${retired.sequence}`} reason=independence-conflict`})
+    commits.set(returnSha,{message:`db-coordination reviewer-return reviewer=${returnSlot===1?'kimi-k3':'muse-spark-1.3-contributor'} issue=${issue} pr=${pr} head=${headSha} slot=${returnSlot} assignment=${retired.sha} sequence=${returnSlot===1?1:7}${retired.sequence===null?'':` replacement=${retired.sequence}`} reason=independence-conflict`})
     // THE RE-DRAW. A returned slot is answerable again by a genuinely NEWER
     // assignment for the same slot -- and only by that. `--assign-reviewer`
     // recreates the ORIGINAL ref (namespace sequence 0) and
@@ -1133,7 +1134,7 @@ test('10,000 historical assignments do not change bounded availability cost',()=
   }
   const empty=run(0), large=run(10_000)
   assert.equal(large.historyScans,0);assert.equal(empty.requests,large.requests)
-  assert.equal(large.requests,19,JSON.stringify(large));assert.equal(large.activeReads,0,JSON.stringify(large))
+  assert.equal(large.requests,21,JSON.stringify(large));assert.equal(large.activeReads,0,JSON.stringify(large))
 })
 
 test('complete assignment stays inside the real wire-attempt budget',()=>{
@@ -1172,7 +1173,7 @@ test('complete assignment stays inside the real wire-attempt budget',()=>{
   assert.ok(result.reviewer);assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts`)
   // An exclusion-bearing draw now reads returned policy once, even when every
   // returned slot is absent. Normal draws still cost 19 and the hard cap stays 25.
-  assert.equal(attempts,23,`repository-maintenance assignment used ${attempts} requests including returned-policy lookup; keep the existing 25-request ceiling`)
+  assert.equal(attempts,25,`repository-maintenance assignment used ${attempts} requests including fresh slot-independence checks; keep the existing 25-request ceiling`)
   attempts=0
   assert.deepEqual(assignNextReviewer({issue:1767,pr:1800,headSha:'a'.repeat(40),admissionOptions:{pr:1800}},io),result)
   assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`retry used ${attempts} wire attempts`)
@@ -1223,7 +1224,7 @@ test('complete slot-2 assignment stays inside the real wire-attempt budget (issu
   // section still fits. Both reviewers derived that mechanism correctly, and
   // the wrong name was nearly merged anyway -- so the gate is now asserted by
   // behaviour below, not only by its numeral.
-  assert.equal(attempts,23,`slot 2 used ${attempts} wire attempts; this fixture costs exactly 23 of the ${REVIEW_OPERATION_REQUEST_LIMIT}-request budget (21 before issue #2075 added one pre-mutex and one post-mutex durable-verdict listing). If this changed, re-derive the ceiling rather than widening it`)
+  assert.equal(attempts,24,`slot 2 used ${attempts} wire attempts including a fresh slot-1 independence check; keep the ${REVIEW_OPERATION_REQUEST_LIMIT}-request ceiling`)
   assert.equal(REVIEW_MUTEX_SECTION_RESERVE,15,'the mutex-section entry-gate reserve changed without this budget being re-derived')
   assert.equal(REVIEW_OPERATION_REQUEST_LIMIT,25,'the ceiling changed; re-derive it against the real cost rather than raising it again')
   // The three pins above are near-tautologies: they restate constants. None of
@@ -1237,7 +1238,7 @@ test('complete slot-2 assignment stays inside the real wire-attempt budget (issu
   assert.ok(io.refs.has(slot2Ref),'the slot-2 assignment ref should exist before it is cleared to re-run the pre-mutex path (the post-mutex portion re-runs via the cursor branch; pre-mutex cost is identical either way, which is all this gate assertion depends on)')
   io.refs.delete(slot2Ref)
   const rate=io.getRateLimit
-  io.getRateLimit=()=>{wire(1);return rate()}
+  io.getRateLimit=()=>{wire(2);return rate()}
   attempts=0
   assert.throws(()=>assignNextReviewer({issue:1722,pr:1748,headSha:'a'.repeat(40),slot:2},io),/budget/i,'one extra pre-mutex call must be refused by the entry gate')
   assert.equal(io.refs.get(MUTEX_REF)??null,null,'the entry gate must refuse before the mutex is acquired; acquiring it and failing inside is what strands it for every other lane')
@@ -1274,13 +1275,13 @@ test('complete replacement stays inside the real wire-attempt budget',()=>{
   assert.ok(result.reviewer);assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts`)
   const mutexAt=labels.indexOf(`createRef:${MUTEX_REF}`)
   assert.notEqual(mutexAt,-1,`mutex acquisition was not observed: ${labels.join(',')}`)
-  assert.equal(mutexAt,9,'the first replacement path spends 9 requests before its mutex gate, including durable-verdict refusal and the durable-verdict listing that replaced comment-text trust (issue #2075)')
-  assert.equal(labels.length-mutexAt,11,`new replacement success path costs exactly 11 requests after mutex acquisition: ${labels.slice(mutexAt).join(',')}`)
+  assert.equal(mutexAt,10,'the first replacement path spends 10 requests before its mutex gate, including the fixed slot-2 independence read')
+  assert.equal(labels.length-mutexAt,12,`new replacement success path costs exactly 12 requests after mutex acquisition including the fresh independence read: ${labels.slice(mutexAt).join(',')}`)
   attempts=0;labels.length=0
   assert.deepEqual(replaceFailedReviewer(replacementRequest,io),result)
   const retryMutexAt=labels.indexOf(`createRef:${MUTEX_REF}`)
   assert.notEqual(retryMutexAt,-1,`retry mutex acquisition was not observed: ${labels.join(',')}`)
-  assert.equal(retryMutexAt,9,'the idempotent path spends 9 requests before its mutex gate because its predecessor failure ref rides in the fixed-record batch')
+  assert.equal(retryMutexAt,11,'the idempotent path spends 11 requests before its mutex gate, including the fixed slot-2 independence read')
   assert.equal(labels.length-retryMutexAt,10,`idempotent replacement success path costs exactly 10 requests after mutex acquisition: ${labels.slice(retryMutexAt).join(',')}`)
   const source=readFileSync(new URL('./manage-migration-author-lanes.mjs',import.meta.url),'utf8')
   assert.match(source,/requireReviewWireCapacity\(11\);acquireReviewMutex\(ownerSha,io\);mutexAcquired=true/,'the idempotent reserve changed without re-derivation')
@@ -2007,9 +2008,9 @@ test('three terminal providers do not grow replacement preflight past the fixed 
   const third=replaceFailedReviewer({...replacementRequest,failedSequence:second.sequence},io)
   assert.ok(third.reviewer)
   const mutexAt=labels.indexOf(`createRef:${MUTEX_REF}`)
-  assert.equal(mutexAt,9,`third terminal-provider replacement pre-mutex accounting drifted: ${labels.join(',')}`)
-  assert.equal(labels.length-mutexAt,10,`third terminal-provider replacement post-mutex accounting drifted: ${labels.join(',')}`)
-  assert.equal(attempts,19,`third terminal-provider replacement wire accounting drifted: ${labels.join(',')}`)
+  assert.equal(mutexAt,10,`third terminal-provider replacement pre-mutex accounting drifted: ${labels.join(',')}`)
+  assert.equal(labels.length-mutexAt,11,`third terminal-provider replacement post-mutex accounting drifted: ${labels.join(',')}`)
+  assert.equal(attempts,21,`third terminal-provider replacement wire accounting drifted: ${labels.join(',')}`)
   assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`third terminal-provider replacement used ${attempts} wire attempts`)
   const source=readFileSync(new URL('./manage-migration-author-lanes.mjs',import.meta.url),'utf8')
   assert.match(source,/const allRefs=reviewRecordRefs\(\[\.\.\.refs,\.\.\.dependentFailures\],matches\)/,'the production batch must include every immutable matching replacement, predecessor failure and verdict ref')
@@ -2085,7 +2086,7 @@ test('released slot-2 replacement with slot-1 approval and a reinstated reviewer
   assert.equal(replacement.reviewer,'grok-4.6','the reinstated independent reviewer must be drawable again')
   assert.equal(replacement.failureSha,released.failureSha,'the replacement must adopt the immutable release record')
   assert.ok(batched.includes(`${REVIEW_FAILURE_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${slotTwo.sequence}`),'the predecessor failure must ride in the fixed-record batch')
-  assert.equal(attempts,23,`released slot-2 replacement wire accounting drifted: ${labels.join(',')}`)
+  assert.equal(attempts,25,`released slot-2 replacement wire accounting drifted: ${labels.join(',')}`)
   assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`released slot-2 replacement used ${attempts} requests: ${labels.join(',')}`)
   assert.equal(labels.some((label)=>label.startsWith(`readRef:${REVIEW_FAILURE_REF_PREFIX}/`)),false,'batched predecessor evidence must not be reread individually')
   assert.equal(labels.includes(`readRef:${reviewActiveRef(retiredName)}`),false,'catalogued retired reviewer lease must reuse the complete snapshot')
@@ -2095,7 +2096,7 @@ test('released slot-2 replacement with slot-1 approval and a reinstated reviewer
 
   attempts=0;labels.length=0;batched.length=0
   assert.deepEqual(replaceFailedReviewer(releasedRequest,io),replacement)
-  assert.equal(attempts,22,`released slot-2 idempotent retry wire accounting drifted: ${labels.join(',')}`)
+  assert.equal(attempts,24,`released slot-2 idempotent retry wire accounting drifted: ${labels.join(',')}`)
   assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`idempotent retry used ${attempts} requests: ${labels.join(',')}`)
   assert.equal(labels.some((label)=>label.startsWith(`readRef:${REVIEW_FAILURE_REF_PREFIX}/`)),false,'idempotent retry must reuse the same fixed evidence snapshot')
 })
@@ -2137,7 +2138,7 @@ test('wire budget always preserves enough requests to release an acquired mutex'
   // Consume the same slack the real slot-1 pre-mutex path would (6 calls
   // reserved out of REVIEW_OPERATION_REQUEST_LIMIT), so this stays a tight,
   // zero-spare fit regardless of what the limit is currently set to.
-  io.getRateLimit=()=>{wire(2+(REVIEW_OPERATION_REQUEST_LIMIT-20));return {remaining:5000,graphRemaining:5000,reset:1787943986,graphReset:1787943986}}
+  io.getRateLimit=()=>{wire(2+(REVIEW_OPERATION_REQUEST_LIMIT-22));return {remaining:5000,graphRemaining:5000,reset:1787943986,graphReset:1787943986}}
   io.readActiveReviewLeases=()=>{wire();return new Map()}
   io.readReviewStates=(leases)=>{wire();return new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:lease.headSha}},evidence:[]}]))}
   for(const name of ['createRef','readRef','deleteRef']){const fn=io[name];io[name]=(...args)=>{wire();return fn(...args)}}
@@ -5656,6 +5657,33 @@ test('slot 2 lands a different provider than slot 1, and is idempotent on retry'
   assert.deepEqual(assignNextReviewer(request,io),first)
 })
 
+test('#3427 a conflicting slot-1 replacement is refused and can be redrawn without returning slot-2 approval',()=>{
+  const io=withAtomicRefs(reviewIo()),request={issue:3427,pr:3426,headSha:'b'.repeat(40)}
+  io.requiresExactReviewHeadSha=true
+  io.getPr=()=>({number:request.pr,state:'open',head:{sha:request.headSha,ref:'codex/x'}})
+  const first=assignNextReviewer(request,io),second=assignNextReviewer({...request,slot:2},io)
+  assert.throws(()=>replaceFailedReviewer({...request,failedSequence:first.sequence,failureCode:SLOT_INDEPENDENCE_CONFLICT,confirmNoVerdict:true,confirmNoArtifact:true},io),/no such conflict was proved/)
+  const sequence=second.sequence+1, replacementRef=`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${first.sequence}`
+  const failureRef=`${REVIEW_FAILURE_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${first.sequence}`
+  const conflictingSha=io.makeOwnerCommit(`db-coordination reviewer-failure-replacement sequence=${sequence} reviewer=${second.reviewer} issue=${request.issue} pr=${request.pr} head=${request.headSha} slot=1 failed-sequence=${first.sequence} prior-sequence=${second.sequence} failure-ref=self failed-reviewer=${first.reviewer} code=turn_limit_cancelled verdict=none artifact=none`)
+  io.refs.set(replacementRef,conflictingSha);io.refs.set(failureRef,conflictingSha);io.refs.set(REVIEW_CURSOR_REF,conflictingSha)
+  io.refs.delete(reviewActiveRef(first.reviewer,first))
+  io.refs.set(reviewActiveRef(second.reviewer,{...request,slot:1}),conflictingSha)
+  const slotTwoVerdict=giveVerdict(io,{...request,slot:2}),verdictSha=io.refs.get(slotTwoVerdict)
+  assert.throws(()=>assignNextReviewer(request,io),/already holds another review slot/)
+  assert.throws(()=>releaseFailedReviewer({...request,failedSequence:sequence,failureCode:SLOT_INDEPENDENCE_CONFLICT,confirmNoVerdict:true,confirmNoArtifact:true},io),/recognized terminal provider\/tool failure code/)
+  const started=reviewStartedMarkerRef({...request,slot:1,sequence})
+  io.refs.set(started,conflictingSha)
+  assert.throws(()=>replaceFailedReviewer({...request,failedSequence:sequence,failureCode:SLOT_INDEPENDENCE_CONFLICT,confirmNoVerdict:true,confirmNoArtifact:true},io),/already started/)
+  io.refs.delete(started)
+  const recovered=replaceFailedReviewer({...request,failedSequence:sequence,failureCode:SLOT_INDEPENDENCE_CONFLICT,confirmNoVerdict:true,confirmNoArtifact:true},io)
+  assert.notEqual(recovered.reviewer,second.reviewer)
+  assert.equal(io.refs.get(slotTwoVerdict),verdictSha,'the independently approved slot-2 verdict is untouched')
+  assert.equal(io.refs.get(replacementRef),conflictingSha,'conflict history remains immutable')
+  assert.ok(io.refs.has(`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${sequence}`))
+  assert.equal(io.refs.get(started),recovered.replacementSha,'the atomic recovery seals the unstarted conflicting review against a late launch')
+})
+
 // LEGACY SHORT-HEAD FIXTURE PROTOCOL ONLY: reviewIo() sets no requiresExactReviewHeadSha, so
 // one lease ref per reviewer makes a provider unable to take a second review here. Production
 // (exact-head leases) has no busy state; see the owner ruling 2026-09-16 test.
@@ -5930,7 +5958,7 @@ test('complete slot-2 assignment stays inside the real wire-attempt budget',()=>
   // current constant makes convenient: under a ceiling that cannot hold the
   // operation it must be refused CLEANLY, before the mutex is taken -- never by
   // hitting the hard wall partway through.
-  const honestCost=8+REVIEW_MUTEX_SECTION_RESERVE
+  const honestCost=10+REVIEW_MUTEX_SECTION_RESERVE
   if(REVIEW_OPERATION_REQUEST_LIMIT<honestCost){
     assert.throws(()=>assignNextReviewer({...request,slot:2},io),/cannot fit \d+ remaining requests inside the \d+-request budget; refused before mutex acquisition/)
     assert.equal(io.refs.has(MUTEX_REF),false,'a refused slot-2 assignment must not have taken the mutex')
@@ -6706,7 +6734,7 @@ test('a complete slot-2 replacement stays inside the real wire-attempt budget (i
   try{result=replaceFailedReviewer({...request,slot:2,failedSequence:slotTwo.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io)}
   catch(error){throw new Error(`${error.message}; calls=${labels.join(',')}`)}
   assert.ok(result.reviewer)
-  assert.equal(attempts,20,`slot-2 replacement used ${attempts} of ${REVIEW_OPERATION_REQUEST_LIMIT}: ${labels.join(',')}`)
+  assert.equal(attempts,22,`slot-2 replacement used ${attempts} of ${REVIEW_OPERATION_REQUEST_LIMIT}: ${labels.join(',')}`)
   // Durable-verdict refusal and exact exclusion reads are both fixed-cost. Their
   // cost does not grow with the number of exclusions; the batched record reads
   // avoid per-exclusion commit calls.

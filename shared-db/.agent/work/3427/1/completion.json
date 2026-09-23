@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3427,
+  "outcome": "ready-for-merge",
+  "pr": 3429,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3427/1",
+  "contract_sha256": "5f45bb976bf7f3e1270bd383e1c7f21138e8b3233d5e304608e2b97e823594cd",
+  "head_sha": "c00ea5d15e3d3ffcb94940e8b8570e7122ace19f",
+  "base_sha": "74553aa332b149202f5e1249a4412acf5b1e8c36",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/check-exact-head-approval.test.mjs",
+      "exit_code": 0,
+      "evidence": "749 passed, 0 failed, 0 skipped, 0 cancelled against implementation head c00ea5d15e3d3ffcb94940e8b8570e7122ace19f after refresh onto current main."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=313 sources=70 derived_digest=21524f22ea49 at implementation head c00ea5d15e3d3ffcb94940e8b8570e7122ace19f."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors after rebasing onto main; checked at implementation head c00ea5d15e3d3ffcb94940e8b8570e7122ace19f."
+    }
+  ],
+  "assumptions_resolved": [
+    "The original slot1-to-slot2 exclusion existed, but slot1 replacement did not exclude slot2 and drew the same provider at PR3426 head bad004c8d.",
+    "A recovery reason is accepted only for a proven same-provider conflict with no verdict, artifact, or review-start marker on the replaced slot; the peer approval is preserved.",
+    "Both preview approval and guarded merge approval independently reject duplicate reviewers across the latest required slots.",
+    "The contract ref was published before the final implementation commit c00ea5d15e3d3ffcb94940e8b8570e7122ace19f; an earlier implementation commit predates publication.",
+    "Current main includes merged PR3424 at 74553aa332b149202f5e1249a4412acf5b1e8c36; the implementation was rebased and its checks rerun."
+  ],
+  "stop_conditions_hit": []
+}

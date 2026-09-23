@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3427,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Keep both exact-head reviewer slots independent in either draw order, recover a conflicting unstarted replacement without disturbing an approved peer, and refuse duplicate-provider merge evidence",
+  "base_sha": "7bd87a4e431a4081b79712617dab74cdffbcdc6f",
+  "dispatcher": "Codex orchestrator root chat 01a0cb03-daa2-79d2-85fd-6a8904abfc53",
+  "worker": "Codex reviewer-slot-symmetry subagent chat 01a0cb03-daa2-79d2-85fd-6a8904abfc53",
+  "branch": "codex/reviewer-slot-symmetry",
+  "worktree": "C:/Users/ahazan/.codex/worktrees/shared-db-reviewer-slot-symmetry/shared-db",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3427/1/contract.json",
+    ".agent/work/3427/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3427/1/contract.json",
+    ".agent/work/3427/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration edit, manual production command, or shared main merge",
+    "Do not alter the existing PR3426 review assignments, verdicts, or replacement refs",
+    "Do not discard any existing reviewer approval to repair a slot conflict"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/check-exact-head-approval.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The two review slots are required to have distinct providers on one exact head",
+    "A conflicting slot may be replaced only before a verdict, artifact, or run-start marker exists",
+    "The peer slot approval remains immutable during conflict recovery",
+    "This contract is published before the final implementation and evidence commits; an earlier implementation commit already exists on the branch"
+  ],
+  "stop_conditions": [
+    "Refuse a replacement when either peer assignment cannot be read or the exact conflict cannot be proved",
+    "Refuse a recovery that would return a peer slot verdict or release a different lease",
+    "Refuse merge proof when two latest reviewer slots name the same provider"
+  ]
+}
