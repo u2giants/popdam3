@@ -6,7 +6,25 @@ import type { OpState } from "./types.js";
 export type RpcCall = (
   fn: string,
   params: Record<string, unknown>,
-) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+
+/**
+ * The governed reset RPC is not deployed to this database (PostgREST
+ * PGRST202 / HTTP 404). The migration is merged in popcre/shared-db #3426 and
+ * promoted by its production lane; until then the worker fails the operation
+ * visibly under this name instead of leaving it silently ambiguous.
+ */
+export class ResetContractUnavailableError extends Error {
+  constructor() {
+    super("Submission lease reset RPC reset_bulk_operation_submission_lease is not deployed (PGRST202); the provider rejected the batch and the operation was failed for operator review");
+    this.name = "ResetContractUnavailableError";
+  }
+}
+
+export function isMissingRpcError(error: { message: string; code?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return error.code === "PGRST202" || /PGRST202|could not find the function/i.test(error.message);
+}
 
 export const DEFINITIVE_REJECTION_REASON = "provider_definitive_rejection";
 
@@ -50,6 +68,7 @@ export async function failOperationAfterDefinitiveRejection(
     p_http_status: rejection.status,
     p_provider_error: rejection.providerError,
   });
+  if (isMissingRpcError(reset.error)) throw new ResetContractUnavailableError();
   if (reset.error) throw new Error(`Submission lease reset refused: ${reset.error.message}`);
   const envelope = reset.data as Record<string, unknown> | null;
   if (
@@ -114,4 +133,40 @@ export async function persistDefinitiveRejectionFailure(
     throw new Error(`Protected provider rejection save refused: ${isGuardedEnvelope(saved.data) ? saved.data.reason : "no proof"}`);
   }
   return { state: failedState, stateRevision: (saved.data as BulkOperationWriteEnvelope).state_revision };
+}
+
+/**
+ * Fallback when the reset RPC is missing: fail the still-claimed operation on
+ * the claim revision, carrying the stored external_job forward unchanged (the
+ * database keeps its lease fields). Visible and terminal; never resubmits.
+ */
+export async function failOperationWithoutResetContract(
+  rpc: RpcCall,
+  opKey: string,
+  claimedState: OpState,
+  claimRevision: number,
+  rejection: DefinitiveBatchRejectionError,
+  now = () => new Date().toISOString(),
+): Promise<OpState> {
+  const { lease_token: _leaseToken, ...storedJob } = claimedState.external_job ?? ({} as NonNullable<OpState["external_job"]>);
+  const failedState: OpState = {
+    ...claimedState,
+    status: "failed",
+    interruption_reason_code: "reset_contract_unavailable",
+    error: `${new ResetContractUnavailableError().message} (${rejection.message})`,
+    next_auto_resume_at: undefined,
+    external_job: claimedState.external_job ? storedJob as OpState["external_job"] : undefined,
+    updated_at: now(),
+  };
+  const saved = await rpc("update_bulk_operation", {
+    p_op_key: opKey,
+    p_op_state: failedState,
+    p_only_if_status: "running",
+    p_expected_revision: claimRevision,
+  });
+  if (saved.error) throw new Error(`Protected operation save failed: ${saved.error.message}`);
+  if (!isGuardedEnvelope(saved.data) || !(saved.data as BulkOperationWriteEnvelope).ok) {
+    throw new Error(`Protected reset-unavailable failure save refused: ${isGuardedEnvelope(saved.data) ? saved.data.reason : "no proof"}`);
+  }
+  return failedState;
 }
