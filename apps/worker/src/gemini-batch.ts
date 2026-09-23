@@ -5,7 +5,9 @@ const GEMINI_API_ROOT = "https://generativelanguage.googleapis.com/v1beta";
 const DIRECT_PREFIX = "google-direct/";
 const BATCH_SUFFIX = ":batch";
 const MAX_INLINE_BATCH_BYTES = 19 * 1024 * 1024;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+// Three base64 images (4/3 expansion) plus prompts must fit the 19 MB inline
+// ceiling: 3 x 4 MiB x 4/3 = 16 MiB, leaving headroom for text and JSON.
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_DIRECT_BATCH_REQUESTS = 3;
 const IMAGE_FETCH_TIMEOUT_MS = 20_000;
 const TRUSTED_THUMBNAIL_HOSTS = new Set([
@@ -90,9 +92,15 @@ async function imagePart(urlValue: string): Promise<{ inlineData: { mimeType: st
     if (error instanceof Error && (error.name === "TimeoutError" || /timeout/i.test(error.message))) {
       throw new Error("Gemini thumbnail fetch timed out before submission");
     }
+    if (error instanceof Error && error.name === "TypeError") {
+      throw new Error("Gemini thumbnail fetch temporarily failed before submission");
+    }
     throw error;
   }
   if (!response) throw new Error("Gemini batch image fetch produced no response");
+  if (response.status === 429 || response.status >= 500) {
+    throw new Error(`Gemini thumbnail fetch temporarily failed before submission (HTTP ${response.status})`);
+  }
   if (!response.ok) throw new Error(`Gemini batch image fetch HTTP ${response.status}`);
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_IMAGE_BYTES) {
@@ -194,12 +202,26 @@ export async function buildGeminiBatchPayload(
   // At most three trusted thumbnails are fetched concurrently. Each fetch has a
   // 20-second deadline, leaving most of the 120-second submission lease for POST
   // and guarded ID persistence.
-  const requests = await Promise.all(items.map(async (item) => ({
+  // One unusable image (403/404, bad type, oversized, untrusted host) drops
+  // only that item; a timeout still aborts the page so it stays resumable.
+  const settled = await Promise.allSettled(items.map(async (item) => ({
     request: await requestToGemini(item.request),
     metadata: { key: item.customId },
   })));
-  const payload = { batch: { displayName, inputConfig: { requests: { requests } } } };
-  if (Buffer.byteLength(JSON.stringify(payload)) > maxPayloadBytes) {
+  const requests: Array<{ request: Awaited<ReturnType<typeof requestToGemini>>; metadata: { key: string } }> = [];
+  const excludedCustomIds: string[] = [];
+  settled.forEach((outcome, index) => {
+    if (outcome.status === "fulfilled") {
+      requests.push(outcome.value);
+      return;
+    }
+    const reason = outcome.reason;
+    if (reason instanceof Error && /(timed out|temporarily failed) before submission/.test(reason.message)) throw reason;
+    if (!(reason instanceof Error) || !/^Gemini batch image/.test(reason.message)) throw reason;
+    excludedCustomIds.push(items[index].customId);
+  });
+  const payload = { batch: { displayName, inputConfig: { requests: { requests } } }, excludedCustomIds };
+  if (Buffer.byteLength(JSON.stringify(payload.batch)) > maxPayloadBytes) {
     throw new Error("Gemini inline batch exceeds the 19 MB safety ceiling");
   }
   return payload;
@@ -214,16 +236,23 @@ export interface PreparedGeminiBatch {
   provider: "google-gemini";
   model: string;
   body: string;
+  /** Items dropped because their image was unusable; never submitted. */
+  excludedCustomIds: string[];
+  requestCount: number;
 }
 
 export async function prepareGeminiBatch(items: OpenRouterBatchSubmission[]): Promise<PreparedGeminiBatch> {
   const model = directGeminiModelId(items[0]?.request.model ?? "");
-  const payload = await buildGeminiBatchPayload(items);
-  return { provider: "google-gemini", model, body: JSON.stringify(payload) };
+  const { excludedCustomIds, ...payload } = await buildGeminiBatchPayload(items);
+  return {
+    provider: "google-gemini", model, body: JSON.stringify(payload), excludedCustomIds,
+    requestCount: payload.batch.inputConfig.requests.requests.length,
+  };
 }
 
 export async function submitPreparedGeminiBatch(apiKey: string, prepared: PreparedGeminiBatch): Promise<GeminiBatchRecord> {
   if (!apiKey) throw new PreSubmissionError("GOOGLE_AI_API_KEY is not configured");
+  if (prepared.requestCount < 1) throw new PreSubmissionError("Gemini batch has no usable requests to submit");
   const requestHeaders = headers(apiKey);
   let response: Response;
   try {

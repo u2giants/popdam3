@@ -102,3 +102,10 @@ test("completed work clears only with the saved ID and receipt", () => {
   }), { type: "clear", batchId: "batch-1", leaseToken: "receipt" });
   assert.equal(nextBatchAction({ phase: "completed", provider_batch_id: "batch-1" }).type, "claim");
 });
+
+test("a paused apply waits for its retry time, then applies the same saved batch", () => {
+  const now = Date.parse("2026-09-23T12:00:00Z");
+  const job = { phase: "applying" as const, provider_batch_id: "batches/x", lease_token: "r", next_poll_at: "2026-09-23T12:01:00Z" };
+  assert.deepEqual(nextBatchAction(job, now), { type: "wait" });
+  assert.deepEqual(nextBatchAction(job, now + 120_000), { type: "apply", batchId: "batches/x" });
+});
