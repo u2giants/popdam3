@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 3411,
+  "outcome": "ready-for-merge",
+  "pr": 3414,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3411/2",
+  "contract_sha256": "c5c4d64fde25d1da890e568212a1f61c7e1fdff7505acd7dd9705464c8cb027a",
+  "head_sha": "515851ca11e7ee10c38973903a8bc674efa5fa8f",
+  "base_sha": "6c687b70bb92e9ec2a80d8f02f71d712959dca47",
+  "files_changed": [
+    ".agent/work/3411/2/completion.json",
+    ".agent/work/3411/2/contract.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test --test-name-pattern=3411 scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "1 passed, 0 failed, 0 skipped at implementation head 515851ca11e7ee10c38973903a8bc674efa5fa8f; direct production-path real Git carry, later-main, squash and refusal controls."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "685 passed, 0 failed, 0 skipped, 0 cancelled at refreshed implementation head 515851ca11e7ee10c38973903a8bc674efa5fa8f."
+    },
+    {
+      "command": "node --test --test-name-pattern='arbitrary .agent|executable and symlink|scoped evidence refresh' scripts/lib/pr-content-equivalence.test.mjs",
+      "exit_code": 0,
+      "evidence": "3 passed, 0 failed, 0 skipped against merged main #3363 helper at implementation head 515851ca11e7ee10c38973903a8bc674efa5fa8f."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors; git diff --check origin/main...HEAD also passed at refreshed implementation head 515851ca11e7ee10c38973903a8bc674efa5fa8f."
+    },
+    {
+      "command": "node --test --test-name-pattern=\"3411|operation-local\" scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "2 passed, 0 failed, 0 skipped; includes operation-local context forwarding."
+    }
+  ],
+  "assumptions_resolved": [
+    "PR #3410 merged first. This implementation now also includes main PR #3363, which changed the content-equivalence helper and its invalidator inventory.",
+    "The actual merge commit must have the reviewed PR head as second parent and be an ancestor of current main; real Git controls prove both refusals.",
+    "Durable reviewer assignments and verdict locks remain unchanged; only comparison base for an already merged PR changes.",
+    "Qwen durable REVISE at superseded head f3761d139ebe0b6b0877d2e7005ae04ef5828ee0 drove the cache, production-path tests, later-main positive control, distinct diagnostics, and squash refusal; a fresh exact-head review is required for this head."
+  ],
+  "stop_conditions_hit": []
+}

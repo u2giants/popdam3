@@ -1,0 +1,44 @@
+{
+  "schema_version" : 1,
+  "work_issue": 3411,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Judge a merged pull request's prior-head durable APPROVE against its guarded merge commit's first parent during merged-main preview preparation",
+  "base_sha": "3a607c8662d24541acaca0e24764cd5d6f5e74cf",
+  "dispatcher": "Codex orchestrator root chat 01a0cb03-daa2-79d2-85fd-6a8904abfc53",
+  "worker": "Codex chat 01a0cbb6-fe11-78c1-bc01-8f9dc5796d7d",
+  "branch": "claude/repo-maintenance-3411-282db2",
+  "worktree": "C:/repos/shared-db-3411-after-3410",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3411/2/contract.json",
+    ".agent/work/3411/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3411/2/contract.json",
+    ".agent/work/3411/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes or migration changes",
+    "No manual preview or production dispatch"
+  ],
+  "required_checks": [
+    "node --test --test-name-pattern=3411 scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "PR #3410 merged into current main before this refresh.",
+    "The original PR #3414 branch remains open at 25dc1c; this worktree preserves that head and will push only by fast-forward.",
+    "The comparison base must be the first parent of the actual merge commit whose second parent equals the reviewed PR head."
+  ],
+  "stop_conditions": [
+    "Any path that carries an approval across changed pull-request bytes"
+  ],
+  "generation": 2
+}
