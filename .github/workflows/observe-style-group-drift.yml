@@ -72,12 +72,14 @@ jobs:
             const failures = [...(report?.failures || [])];
             if ('${{ steps.retain.outcome }}' !== 'success') failures.push('aggregate artifact retention failed');
             if (!failures.length) failures.push('measurement artifact missing');
+            const runKind = context.eventName === 'schedule' ? 'scheduled' : 'manually dispatched';
             const body = [
-              'The scheduled read-only style-group reconciler found assignment drift or could not measure it.',
+              `The ${runKind} read-only style-group reconciler found assignment drift or could not measure it.`,
               '',
               ...failures.map(failure => `- ${failure}`),
               '',
               `Checked: ${report?.checked_at || 'unknown'}`,
+              `Event: ${context.eventName}`,
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               '',
               'Keep the existing clear/rebuild cycle in place. A full clean weekly observation is required before any cutover.',
@@ -86,12 +88,25 @@ jobs:
               '',
               'Posted by Codex chat unknown on GitHub Actions',
             ].join('\n');
+            let issueNumber;
             if (existing) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body,
               });
+              issueNumber = existing.number;
             } else {
-              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body });
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo, title, body,
+              });
+              issueNumber = created.data.number;
+            }
+            try {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber,
+                assignees: ['u2giants'],
+              });
+            } catch {
+              core.warning('Alert posted with owner line; GitHub assignee update failed.');
             }
       - name: Fail on drift or missing measurement
         if: steps.observe.outcome == 'failure' || steps.retain.outcome == 'failure'
