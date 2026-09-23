@@ -313,6 +313,26 @@ export async function getGeminiBatch(apiKey: string, batchId: string): Promise<G
   };
 }
 
+/**
+ * One synchronous generateContent call on the same direct Gemini model. Used
+ * only for the text-only JSON-repair step after a batch result is malformed;
+ * it never submits or replaces a batch.
+ */
+export async function geminiGenerateContent(
+  apiKey: string,
+  request: ChatCompletionRequest,
+  timeoutMs = 60_000,
+): Promise<ChatCompletionResult> {
+  const modelId = directGeminiModelId(request.model);
+  const body = await requestToGemini(request);
+  const response = await fetch(`${GEMINI_API_ROOT}/models/${encodeURIComponent(modelId)}:generateContent`, {
+    method: "POST", headers: headers(apiKey), body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new GeminiBatchError(response.status, safeErrorMessage(text));
+  return parseGeminiBatchResult({ response: JSON.parse(text) });
+}
+
 export function parseGeminiBatchResult(item: GeminiBatchResultItem): ChatCompletionResult {
   if (item.error) throw new GeminiBatchError(422, "one batch request failed");
   if (!item.response || typeof item.response !== "object" || Array.isArray(item.response)) {

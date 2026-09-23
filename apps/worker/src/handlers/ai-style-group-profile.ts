@@ -38,6 +38,7 @@ import {
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
+import { structuredBatchResult } from "../batch-result-repair.js";
 import { buildStructuredOutputPlan, getRuntimeModelCapabilities, type StructuredOutputMethod } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
 import {
@@ -748,9 +749,16 @@ async function handleDurableGroupProfiles(
     try {
       if (!raw) throw new Error("Provider batch result missing");
       const completion = await parseProviderBatchResult(batchProvider, apiKey, raw);
-      const parsed = completion.toolCalls?.find((call) => call.name === SCHEMA_NAME)?.arguments ?? parseJsonObject(completion.content);
-      if (!parsed) throw new Error("Provider batch result contains no structured group profile");
-      const profile = validateStyleGroupProfileData(parsed, "batch");
+      // Malformed answers go through the shared JSON repair on the same model;
+      // only unrepairable ones fall through to `failed` with their reason.
+      const { value: profile } = await structuredBatchResult({
+        apiKey,
+        model,
+        result: completion,
+        toolName: SCHEMA_NAME,
+        schema: TAG_STYLE_GROUP_SCHEMA as Record<string, unknown>,
+        validate: (value) => validateStyleGroupProfileData(value, "batch"),
+      });
       const groups = await fetchGroups({ cursor: null, limit: 1, force: true, groupIds: [item.style_group_id] });
       const group = groups[0];
       if (!group) throw new Error(`Style group not found: ${item.style_group_id}`);
