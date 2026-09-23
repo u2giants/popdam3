@@ -78,4 +78,11 @@ describe("direct Gemini batch model scope", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].map((row) => row.key)).toEqual(["AI_TASK_MODELS", "GOOGLE_AI_API_KEY"]);
   });
+
+  it("refuses to clear the Google key while a stored Direct Gemini selection remains", () => {
+    const stored = { vision_tagging: direct };
+    expect(directGeminiBatchSelectionHasKey(stored, "")).toBe(false);
+    expect(directGeminiBatchSelectionHasKey(stored, "   ")).toBe(false);
+    expect(directGeminiBatchSelectionHasKey({ vision_tagging: "openrouter/model" }, "")).toBe(true);
+  });
 });

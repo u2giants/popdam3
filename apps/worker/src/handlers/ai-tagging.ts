@@ -49,7 +49,7 @@ import {
   TAG_ASSET_TOOL,
   validateTagAssetData,
 } from "./ai-tagging-shared.js";
-import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
+import { correlateOrderedResults, indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
 // Last-resort fallback only, used if admin_config.AI_TASK_MODELS is missing.
@@ -530,9 +530,11 @@ async function handleDurableBatchTag(
     };
   }
 
+  const expectedResultIds = (job.items ?? []).map((item) => item.custom_id);
+  const providerResults = (record.results ?? []) as ProviderBatchResultItem[];
   const results = indexBatchResults(
-    (job.items ?? []).map((item) => item.custom_id),
-    (record.results ?? []) as ProviderBatchResultItem[],
+    expectedResultIds,
+    batchProvider === "google-gemini" ? correlateOrderedResults(expectedResultIds, providerResults) : providerResults,
   );
   let tagged = 0, failed = 0;
   const failureSamples = [];

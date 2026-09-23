@@ -60,7 +60,7 @@ import {
   type StyleGroupRepresentativeCandidate,
 } from "../style-group-representatives.js";
 import { fetchImageData, getAiTaggingApiKey, parseJsonObject, type ImageData } from "./ai-tagging-shared.js";
-import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
+import { correlateOrderedResults, indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 import { getVisionModels } from "./ai-tagging.js";
 
 const AI_TIMEOUT_MS = 90_000;
@@ -735,9 +735,11 @@ async function handleDurableGroupProfiles(
     };
   }
 
+  const expectedResultIds = groupItems(job).map((item) => item.custom_id);
+  const providerResults = (record.results ?? []) as ProviderBatchResultItem[];
   const results = indexBatchResults(
-    groupItems(job).map((item) => item.custom_id),
-    (record.results ?? []) as ProviderBatchResultItem[],
+    expectedResultIds,
+    batchProvider === "google-gemini" ? correlateOrderedResults(expectedResultIds, providerResults) : providerResults,
   );
   let profiled = 0, failed = 0;
   const failureSamples = [];
