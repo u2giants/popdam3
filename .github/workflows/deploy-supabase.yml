@@ -38,8 +38,14 @@ jobs:
         with:
           version: latest
 
+      - name: Verify production project before linking
+        run: bash scripts/verify-supabase-deploy-target.sh configured
+
       - name: Link to external Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Verify linked production project
+        run: bash scripts/verify-supabase-deploy-target.sh linked
 
       # ── Edge Functions ──────────────────────────────────────
       - name: Check for function changes
@@ -56,6 +62,7 @@ jobs:
           (github.event_name == 'push' && steps.function_changes.outputs.changed == 'true') ||
           (github.event_name == 'workflow_dispatch' && inputs.deploy_functions)
         run: |
+          set -euo pipefail
           failed=0
           # Deploy each function listed in config.toml
           for dir in supabase/functions/*/; do
@@ -64,6 +71,7 @@ jobs:
             if [ "$func_name" = "_shared" ]; then
               continue
             fi
+            bash scripts/verify-supabase-deploy-target.sh linked
             echo "Deploying function: $func_name"
             supabase functions deploy "$func_name" --no-verify-jwt || {
               echo "❌ Failed to deploy $func_name"
@@ -82,6 +90,7 @@ jobs:
           (github.event_name == 'push' && steps.function_changes.outputs.changed == 'true') ||
           (github.event_name == 'workflow_dispatch' && inputs.generate_types)
         run: |
+          bash scripts/verify-supabase-deploy-target.sh linked
           supabase gen types typescript --project-id "$SUPABASE_PROJECT_ID" \
             > src/integrations/supabase/types.ts
 

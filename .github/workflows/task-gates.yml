@@ -34,3 +34,4 @@ jobs:
           ai-task-gates version
           ai-repo-policy | jq -e '.repository == "u2giants/popdam3"'
           bash scripts/test-task-gates.sh
+          bash scripts/test-supabase-deploy-target.sh
