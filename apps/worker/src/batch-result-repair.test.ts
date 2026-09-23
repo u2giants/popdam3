@@ -55,8 +55,12 @@ test("an answer that still cannot be repaired fails with its reason", async () =
   }), /no content to repair/);
   await assert.rejects(structuredBatchResult({
     apiKey: "k", model: "m:batch", result: { content: "bad" }, toolName: "tag_asset", schema, validate,
-    repair: { model: "m", completion: async () => { throw Object.assign(new Error("OpenRouter 400 bad request"), { status: 400 }); } },
-  }), /repair failed: OpenRouter 400/);
+    repair: { model: "m", completion: async () => { throw Object.assign(new Error("OpenRouter 400: echoed Licensed Character prompt"), { status: 400 }); } },
+  }), (error: unknown) => {
+    assert.match(String(error), /repair failed: provider HTTP 400/);
+    assert.doesNotMatch(String(error), /Licensed Character|echoed/);
+    return true;
+  });
 });
 
 test("repair infrastructure failures pause the apply instead of failing the item", async () => {

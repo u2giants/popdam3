@@ -5,13 +5,27 @@ import { parseStructuredJson, runJsonRepair } from "./structured-output.js";
 const MAX_MALFORMED_CHARS = 12_000;
 
 /**
+ * Durable failure reasons must never echo provider bodies (they can repeat
+ * licensed metadata or prompts). Provider errors reduce to their HTTP status;
+ * only our own parse/validation messages are kept, truncated.
+ */
+export function safeRepairReason(error: unknown): string {
+  const status = (error as { status?: unknown } | null)?.status;
+  if (typeof status === "number") return `provider HTTP ${status}`;
+  if (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) return "provider request timed out";
+  if (error instanceof Error && error.name === "TypeError") return "provider request did not complete";
+  const message = error instanceof Error ? error.message : String(error);
+  return /^(OpenRouter|Gemini Batch) \d{3}/.test(message) ? "provider request failed" : message.slice(0, 200);
+}
+
+/**
  * The repair call itself could not run (auth, billing, rate limit, provider
  * 5xx, timeout, network). The batch answer is still recoverable, so the apply
  * pass must pause and retry rather than count the item as failed.
  */
 export class RepairUnavailableError extends Error {
   constructor(public status: number | undefined, reason: string) {
-    super(`JSON repair temporarily unavailable${typeof status === "number" ? ` (HTTP ${status})` : ""}: ${reason.slice(0, 200)}`);
+    super(`JSON repair temporarily unavailable: ${reason}`);
     this.name = "RepairUnavailableError";
   }
 }
@@ -86,8 +100,11 @@ export async function structuredBatchResult<T>(options: {
     isTerminalError: isRepairInfrastructureError,
   });
   } catch (error) {
-    throw new RepairUnavailableError((error as { status?: number }).status, error instanceof Error ? error.message : String(error));
+    throw new RepairUnavailableError((error as { status?: number }).status, safeRepairReason(error));
   }
   if (repaired.ok) return { value: repaired.value, repaired: true };
-  throw new Error(`Unrepairable batch result: ${reason}; repair failed: ${repaired.attempt.error ?? "unknown"}`);
+  const repairReason = typeof repaired.attempt.httpStatus === "number"
+    ? `provider HTTP ${repaired.attempt.httpStatus}`
+    : safeRepairReason(new Error(repaired.attempt.error ?? "unknown"));
+  throw new Error(`Unrepairable batch result: ${safeRepairReason(new Error(reason))}; repair failed: ${repairReason}`);
 }
