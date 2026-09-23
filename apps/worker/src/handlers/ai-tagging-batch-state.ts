@@ -38,6 +38,8 @@ export function nextBatchAction(job: OpenRouterBatchJobState, nowMs = Date.now()
   if (job.phase === "applying") {
     if (!job.provider_batch_id) return { type: "blocked", reason: "Applying provider job has no batch ID" };
     if (!job.lease_token) return { type: "claim" };
+    // A paused apply (repair temporarily unavailable) waits for its retry time.
+    if (job.next_poll_at && new Date(job.next_poll_at).getTime() > nowMs) return { type: "wait" };
     return { type: "apply", batchId: job.provider_batch_id };
   }
   if (job.phase === "completed") {

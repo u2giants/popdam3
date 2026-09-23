@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { sameModelRepairCompletion, structuredBatchResult } from "./batch-result-repair.js";
-import { chatCompletion, type ChatCompletionRequest } from "./openrouter.js";
+import { RepairUnavailableError, sameModelRepairCompletion, structuredBatchResult } from "./batch-result-repair.js";
+import { chatCompletion, parseOpenRouterBatchResult, type ChatCompletionRequest } from "./openrouter.js";
 import { geminiGenerateContent } from "./gemini-batch.js";
 
 const schema = { type: "object", properties: { tags: { type: "array", items: { type: "string" } } }, required: ["tags"] };
@@ -55,8 +55,37 @@ test("an answer that still cannot be repaired fails with its reason", async () =
   }), /no content to repair/);
   await assert.rejects(structuredBatchResult({
     apiKey: "k", model: "m:batch", result: { content: "bad" }, toolName: "tag_asset", schema, validate,
-    repair: { model: "m", completion: async () => { throw Object.assign(new Error("OpenRouter 500"), { status: 500 }); } },
-  }), /repair failed: OpenRouter 500/);
+    repair: { model: "m", completion: async () => { throw Object.assign(new Error("OpenRouter 400 bad request"), { status: 400 }); } },
+  }), /repair failed: OpenRouter 400/);
+});
+
+test("repair infrastructure failures pause the apply instead of failing the item", async () => {
+  for (const error of [
+    Object.assign(new Error("OpenRouter 401"), { status: 401 }),
+    Object.assign(new Error("OpenRouter 402"), { status: 402 }),
+    Object.assign(new Error("OpenRouter 429"), { status: 429 }),
+    Object.assign(new Error("OpenRouter 503"), { status: 503 }),
+    new DOMException("timed out", "TimeoutError"),
+    new TypeError("fetch failed"),
+  ]) {
+    await assert.rejects(structuredBatchResult({
+      apiKey: "k", model: "m:batch", result: { content: "bad" }, toolName: "tag_asset", schema, validate,
+      repair: { model: "m", completion: async () => { throw error; } },
+    }), RepairUnavailableError);
+  }
+});
+
+test("malformed OpenRouter tool-call arguments reach the same-model repair", async () => {
+  const parsed = await parseOpenRouterBatchResult("k", {
+    custom_id: "a",
+    response: { status_code: 200, body: { choices: [{ message: { tool_calls: [{ function: { name: "tag_asset", arguments: "{\"tags\": [\"red\"" } }] } }] } },
+  } as never);
+  assert.match(parsed.content ?? "", /"tags"/);
+  const result = await structuredBatchResult({
+    apiKey: "k", model: "m:batch", result: parsed, toolName: "tag_asset", schema, validate,
+    repair: { model: "m", completion: async () => ({ content: "{\"tags\":[\"red\"]}" }) },
+  });
+  assert.deepEqual(result, { value: { tags: ["red"] }, repaired: true });
 });
 
 test("direct Gemini repair calls generateContent on the same model and never a batch endpoint", async () => {
