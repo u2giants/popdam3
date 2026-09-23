@@ -31,7 +31,7 @@ import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
-import { failOperationAfterDefinitiveRejection } from "./provider-submission-recovery.js";
+import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, persistDefinitiveRejectionFailure } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -769,6 +769,21 @@ export async function tick(): Promise<void> {
         logger.info("tick: op stopped by user", { opKey, batches: batchCount });
         return;
       }
+    }
+
+    if (awaitsDefinitiveRejectionFailure(currentState)) {
+      // The provider already rejected this payload and the receipt was reset,
+      // but the failure write did not land (crash or refused save). Finish it
+      // instead of resubmitting a payload that is known to be rejected.
+      const outcome = await persistDefinitiveRejectionFailure(
+        (fn, params) => db().rpc(fn, params),
+        opKey,
+        { ...currentState, cursor, progress },
+        currentState.state_revision ?? 0,
+      );
+      await recordStyleGroupTerminalOutcome(opKey, outcome.state, "failed");
+      logger.error("tick: completed the durable failure for a previously rejected batch submission", { opKey });
+      return;
     }
 
     let result: BatchResult;
