@@ -102,7 +102,7 @@ export function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<t
 
       {op.isActive && s.external_job?.provider_batch_id && (
         <p className="text-xs text-muted-foreground">
-          Waiting for OpenRouter batch {s.external_job.provider_batch_id.slice(0, 12)}
+          Waiting for {(s.external_job as { provider?: string }).provider === "google-gemini" ? "Google Gemini" : "OpenRouter"} batch {s.external_job.provider_batch_id.slice(0, 12)}
           {s.external_job.last_checked_at ? `; last checked ${timeAgo(s.external_job.last_checked_at)}` : ""}
         </p>
       )}
