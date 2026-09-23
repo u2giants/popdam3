@@ -26,6 +26,7 @@ describe("direct Gemini batch model scope", () => {
     expect(directGeminiBatchSelectionHasKey({ vision_tagging: direct }, "")).toBe(false);
     expect(directGeminiBatchSelectionHasKey({ vision_tagging: direct }, "google-key-present")).toBe(true);
     expect(directGeminiBatchSelectionHasKey({ vision_tagging: "openrouter/model" }, "")).toBe(true);
+    expect(directGeminiBatchSelectionHasKey({ vision_tagging: `  ${direct} ` }, "")).toBe(false);
   });
 
   it("keeps the prior OpenRouter catalog when a warned refresh returns only direct options", () => {

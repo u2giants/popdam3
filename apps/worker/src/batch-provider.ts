@@ -1,3 +1,4 @@
+import { PreSubmissionError } from "./batch-submission-error.js";
 import {
   getOpenRouterBatch,
   prepareOpenRouterBatch,
@@ -41,7 +42,7 @@ export function assertProviderSubmissionLeaseBudget(
 ): void {
   const deadline = leaseExpiresAt ? new Date(leaseExpiresAt).getTime() : Number.NaN;
   if (!Number.isFinite(deadline) || deadline - nowMs < minimumRemainingMs) {
-    throw new Error("Provider batch preparation left insufficient submission lease time");
+    throw new PreSubmissionError("Provider batch preparation left insufficient submission lease time");
   }
 }
 

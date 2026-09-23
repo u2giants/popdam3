@@ -14,7 +14,7 @@
  */
 
 import { logger } from "./logger.js";
-import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, PreSubmissionError } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
@@ -161,6 +161,7 @@ export function prepareOpenRouterBatch(items: OpenRouterBatchSubmission[]): Prep
 }
 
 export async function submitPreparedOpenRouterBatch(apiKey: string, prepared: PreparedOpenRouterBatch): Promise<OpenRouterBatchRecord> {
+  if (!apiKey) throw new PreSubmissionError("OPENROUTER_API_KEY is not configured");
   let response: Response;
   try {
     response = await fetch(OPENROUTER_BATCH_URL, {
