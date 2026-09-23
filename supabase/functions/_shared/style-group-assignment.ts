@@ -106,7 +106,8 @@ export async function assignStyleGroup(
     const assignment = await db.from("assets")
       .update({ style_group_id: groupId })
       .eq("id", assetId)
-      .neq("style_group_id", groupId);
+      // `neq` alone excludes NULL in SQL, leaving newly ingested assets ungrouped.
+      .or(`style_group_id.is.null,style_group_id.neq.${groupId}`);
     if (assignment.error) throw new Error(`asset style group assignment failed: ${assignment.error.message}`);
   }
 

@@ -6,7 +6,7 @@ import { SkuSerialQueue, skuFromRelativePath } from "../../apps/bridge-agent/src
 
 function query(result: any) {
   const chain: any = {};
-  for (const method of ["select", "eq", "neq", "update", "upsert"]) chain[method] = (..._args: any[]) => chain;
+  for (const method of ["select", "eq", "or", "update", "upsert"]) chain[method] = (..._args: any[]) => chain;
   chain.maybeSingle = async () => result;
   chain.single = async () => result;
   Object.defineProperty(chain, "error", { get: () => result.error });
@@ -42,7 +42,8 @@ describe("style-group ingestion assignment", () => {
     let lookup = 0;
     const db: any = { from: (table: string) => {
       const chain: any = {};
-      for (const method of ["select", "eq", "neq"]) chain[method] = (..._args: any[]) => chain;
+      for (const method of ["select", "eq"]) chain[method] = (..._args: any[]) => chain;
+      chain.or = (value: string) => { calls.push({ table, method: "or", value }); return chain; };
       chain.upsert = (value: unknown) => { calls.push({ table, method: "upsert", value }); return chain; };
       chain.update = (value: unknown) => { calls.push({ table, method: "update", value }); return chain; };
       chain.maybeSingle = async () => ({ data: table === "style_groups" && lookup++ > 0 ? { id: "new-group" } : null, error: null });
@@ -52,7 +53,28 @@ describe("style-group ingestion assignment", () => {
     expect(calls).toEqual([
       { table: "style_groups", method: "upsert", value: { sku: "NEW1234", folder_path: "Decor/NEW1234" } },
       { table: "assets", method: "update", value: { style_group_id: "new-group" } },
+      { table: "assets", method: "or", value: "style_group_id.is.null,style_group_id.neq.new-group" },
     ]);
+  });
+
+  it("assigns an existing SKU when the current asset membership is NULL", async () => {
+    const group = { id: "group-1", sku: "ABC1234" };
+    let membership: string | null = null;
+    const db: any = { from: (table: string) => {
+      if (table === "style_groups") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: group, error: null }) }) }) };
+      const chain: any = {
+        update: (value: { style_group_id: string }) => { chain.nextGroupId = value.style_group_id; return chain; },
+        eq: () => chain,
+        or: (filter: string) => {
+          if (filter === `style_group_id.is.null,style_group_id.neq.${chain.nextGroupId}` &&
+              (membership === null || membership !== chain.nextGroupId)) membership = chain.nextGroupId;
+          return { error: null };
+        },
+      };
+      return chain;
+    }};
+    await assignStyleGroup(db, { assetId: "asset-1", sku: "ABC1234", groupFields: { sku: "ABC1234" }, existingGroup: group, currentStyleGroupId: null });
+    expect(membership).toBe("group-1");
   });
 
   it("writes only genuinely changed metadata", () => {
