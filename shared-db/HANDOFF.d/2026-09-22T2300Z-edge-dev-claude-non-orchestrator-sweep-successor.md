@@ -1,7 +1,7 @@
 ---
-issue: 2368
+issue: 2839
 status: OPEN
-owner: claude/handoff-2829-sweep-successor
+owner: claude/handoff-retarget-2839
 ---
 
 # Non-orchestrator sweep — successor to 2026-09-22T2032Z-916-codex-non-orchestrator-sweep
@@ -54,3 +54,6 @@ Run `gh pr view 3186 --repo popcre/shared-db --json state,mergedAt`. It must sho
 Worktree `C:\repos\shared-db\.claude\worktrees\issue-2829-non-orchestrator-5598e9` holds no unique work. The ai-devops worktree `fix-2829-grok-evidence` is merged (PR #680).
 
 Posted by Claude chat 5f009b78-f897-4081-a133-9ae775fd8118 on edge-dev
+
+## Update 2026-09-23
+PR #3186 was refreshed to head `b436750e`. Muse approved it as sequence 3583. Once #3186 merges, step 2 is done and step 3 (#2839) is next. This file now tracks #2839.

@@ -166,6 +166,57 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(gate.EvidenceError): gate.select_artifact({"artifacts": []}, RUN_ID)
         with self.assertRaises(gate.EvidenceError): gate.select_artifact({"artifacts": [{"name": gate.ARTIFACT_NAME, "id": 1, "expired": True}]}, RUN_ID)
 
+    def test_run_metadata_rejects_every_malformed_identity_field(self):
+        valid = {
+            "id": RUN_ID, "status": "completed", "conclusion": "success",
+            "event": "workflow_dispatch", "head_sha": SHA, "path": gate.WORKFLOW_PATH,
+            "repository": {"full_name": gate.REPOSITORY}, "actor": {"login": ACTOR},
+            "run_attempt": 1,
+        }
+        bad_runs = (
+            [],
+            {**valid, "repository": []},
+            {**valid, "repository": {"full_name": "other/repository"}},
+            {**valid, "actor": []},
+            {**valid, "actor": {}},
+            {**valid, "actor": {"login": "   "}},
+            {**valid, "run_attempt": True},
+            {**valid, "run_attempt": 0},
+        )
+        for run in bad_runs:
+            with self.subTest(run=run), self.assertRaises(gate.EvidenceError):
+                gate.validate_run(run, RUN_ID, SHA)
+
+    def test_artifact_selection_rejects_each_malformed_binding(self):
+        valid = {
+            "name": gate.ARTIFACT_NAME, "id": 77, "expired": False,
+            "workflow_run": {"id": RUN_ID},
+        }
+        bad_payloads = (
+            {"artifacts": {}},
+            {"artifacts": [{**valid, "expired": None}]},
+            {"artifacts": [{**valid, "id": "77"}]},
+            {"artifacts": [{**valid, "workflow_run": []}]},
+            {"artifacts": [{**valid, "workflow_run": {"id": RUN_ID + 1}}]},
+        )
+        for payload in bad_payloads:
+            with self.subTest(payload=payload), self.assertRaises(gate.EvidenceError):
+                gate.select_artifact(payload, RUN_ID)
+
+    def test_duplicate_keys_and_non_object_json_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            duplicate = Path(temp, "duplicate.zip")
+            with zipfile.ZipFile(duplicate, "w") as archive:
+                archive.writestr(gate.EVIDENCE_FILE, '{"verdict":"APPROVE","verdict":"DENY"}')
+            with self.assertRaisesRegex(gate.EvidenceError, "duplicate JSON key 'verdict'"):
+                gate.read_evidence(duplicate)
+
+            non_object = Path(temp, "list.zip")
+            with zipfile.ZipFile(non_object, "w") as archive:
+                archive.writestr(gate.EVIDENCE_FILE, "[]\n")
+            with self.assertRaises(gate.EvidenceError):
+                gate.read_evidence(non_object)
+
     def test_end_to_end_verifies_digest_and_writes_canonical_json(self):
         blob = zip_bytes()
         digest = "sha256:" + hashlib.sha256(blob).hexdigest()
@@ -188,6 +239,14 @@ class EvidenceTests(unittest.TestCase):
         def api(endpoint): return {"artifacts": [{"name": gate.ARTIFACT_NAME, "id": 77, "expired": False, "digest": digest, "workflow_run": {"id": RUN_ID}}]} if "artifacts" in endpoint else run
         with tempfile.TemporaryDirectory() as temp, self.assertRaises(gate.EvidenceError):
             gate.verify(run_id_text=str(RUN_ID), expected_digest=digest, sha=SHA, allowlist_raw=ALLOWLIST, api=api, downloader=lambda _id, path: path.write_bytes(b"wrong"), output_dir=Path(temp))
+
+    def test_api_artifact_digest_mismatch_fails_before_download(self):
+        blob = zip_bytes()
+        digest = "sha256:" + hashlib.sha256(blob).hexdigest()
+        run = {"id": RUN_ID, "status": "completed", "conclusion": "success", "event": "workflow_dispatch", "head_sha": SHA, "path": gate.WORKFLOW_PATH, "repository": {"full_name": gate.REPOSITORY}, "actor": {"login": ACTOR}, "run_attempt": 1}
+        def api(endpoint): return {"artifacts": [{"name": gate.ARTIFACT_NAME, "id": 77, "expired": False, "digest": "sha256:" + "0" * 64, "workflow_run": {"id": RUN_ID}}]} if "artifacts" in endpoint else run
+        with tempfile.TemporaryDirectory() as temp, self.assertRaises(gate.EvidenceError):
+            gate.verify(run_id_text=str(RUN_ID), expected_digest=digest, sha=SHA, allowlist_raw=ALLOWLIST, api=api, downloader=lambda _id, path: self.fail("download must not start"), output_dir=Path(temp))
 
     def test_noncanonical_json_and_extra_artifact_file_fail(self):
         with tempfile.TemporaryDirectory() as temp:
