@@ -20,7 +20,7 @@ export const TAG_STYLE_GROUP_SCHEMA = {
           tag: { type: "string" },
           category: { type: "string", enum: GROUP_TAG_CATEGORIES },
           confidence: { type: "number", minimum: 0, maximum: 1 },
-          evidence_asset_ids: { type: "array", items: { type: "string" }, uniqueItems: true },
+          evidence_asset_ids: { type: "array", items: { type: "string" } },
         },
         required: ["tag", "category", "confidence", "evidence_asset_ids"],
       },
