@@ -293,6 +293,11 @@ test("temporary Gemini polling failures stay resumable on the same saved batch I
     async () => new Response("<html>truncated", { status: 200 }),
     async () => { throw new DOMException("The operation was aborted due to timeout", "TimeoutError"); },
     async () => { throw new TypeError("fetch failed"); },
+    async () => new Response("null", { status: 200 }),
+    // A body stream cut off mid-read (Node reports TypeError: terminated).
+    async () => new Response(new ReadableStream({
+      pull(controller) { controller.error(new TypeError("terminated")); },
+    }), { status: 200 }),
   ];
   for (const respond of transient) {
     globalThis.fetch = respond as typeof fetch;

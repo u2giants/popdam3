@@ -1,5 +1,5 @@
 import type { ChatCompletionRequest, ChatCompletionResult, OpenRouterBatchSubmission } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, PreSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
 
 const GEMINI_API_ROOT = "https://generativelanguage.googleapis.com/v1beta";
 const DIRECT_PREFIX = "google-direct/";
@@ -289,10 +289,15 @@ function normalizeResult(value: unknown): GeminiBatchResultItem {
 
 export async function getGeminiBatch(apiKey: string, batchId: string): Promise<GeminiBatchRecord> {
   if (!/^batches\/[A-Za-z0-9._-]+$/.test(batchId)) throw new Error("Invalid Gemini batch name");
-  const response = await fetch(`${GEMINI_API_ROOT}/${batchId}`, { headers: headers(apiKey), signal: AbortSignal.timeout(30_000) });
-  const text = await response.text();
+  const requestHeaders = headers(apiKey);
+  const response = await pollTransport("Gemini", () => fetch(`${GEMINI_API_ROOT}/${batchId}`, { headers: requestHeaders, signal: AbortSignal.timeout(30_000) }));
+  const text = await pollTransport("Gemini", () => response.text());
   if (!response.ok) throw new GeminiBatchError(response.status, safeErrorMessage(text));
-  const parsed = JSON.parse(text) as Record<string, unknown>;
+  const parsed = await pollTransport("Gemini", () => {
+    const value: unknown = JSON.parse(text);
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("not an object");
+    return value as Record<string, unknown>;
+  });
   const metadata = parsed.metadata && typeof parsed.metadata === "object" ? parsed.metadata as Record<string, unknown> : {};
   const responseBody = parsed.response && typeof parsed.response === "object" ? parsed.response as Record<string, unknown> : {};
   const output = responseBody.output && typeof responseBody.output === "object"
