@@ -6,6 +6,37 @@
 import { config } from "./config";
 import { logger } from "./logger";
 
+// ── Auth-failure backoff (issue #141) ───────────────────────────────
+// A stale/revoked agent key is permanent until re-paired. Restarting or
+// retrying every 30s only creates a steady 401 stream in production.
+let consecutiveAuthFailures = 0;
+
+export function suggestedHeartbeatDelayMs(): number {
+  if (consecutiveAuthFailures === 0) return 30_000;
+  if (consecutiveAuthFailures < 3) return 30_000;
+  if (consecutiveAuthFailures < 10) return 120_000;
+  return 300_000;
+}
+
+export function isAuthFailure(): boolean {
+  return consecutiveAuthFailures > 0;
+}
+
+function noteAuthFailure(action: string, status: number, text: string): never {
+  consecutiveAuthFailures++;
+  const delayMs = suggestedHeartbeatDelayMs();
+  logger.error(`agent-api ${action} auth failure (${status}) — check agent key / re-pair`, {
+    consecutiveAuthFailures,
+    nextHeartbeatDelayMs: delayMs,
+    error: text.slice(0, 200),
+  });
+  throw new Error(`agent-api ${action} returned ${status}: ${text}`);
+}
+
+function noteAuthSuccess(): void {
+  consecutiveAuthFailures = 0;
+}
+
 export async function callApi(action: string, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
   const body = JSON.stringify({ action, ...payload });
 
@@ -20,6 +51,9 @@ export async function callApi(action: string, payload: Record<string, unknown> =
 
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 401) {
+      noteAuthFailure(action, res.status, text);
+    }
     throw new Error(`agent-api ${action} returned ${res.status}: ${text}`);
   }
 
@@ -27,6 +61,7 @@ export async function callApi(action: string, payload: Record<string, unknown> =
   if (data && !data.ok) {
     throw new Error(`agent-api ${action} error: ${data.error || "unknown"}`);
   }
+  noteAuthSuccess();
   return data;
 }
 

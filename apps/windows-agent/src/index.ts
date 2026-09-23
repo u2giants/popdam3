@@ -475,20 +475,25 @@ function startHeartbeat() {
       logger.debug("Heartbeat sent");
     } catch (e) {
       consecutiveHeartbeatFailures++;
+      const authFailure = api.isAuthFailure();
       logger.error("Heartbeat failed", {
         error: (e as Error).message,
         consecutiveFailures: consecutiveHeartbeatFailures,
+        authFailure,
       });
-      // Restart after 10 consecutive failures (5 minutes) — likely a stuck state
-      if (consecutiveHeartbeatFailures >= 10) {
+      // Restart after 10 consecutive failures — likely a stuck state.
+      // Skip restart on auth failures: a bad key survives restart and the
+      // restart loop itself hammers agent-api with 401s (issue #141).
+      if (consecutiveHeartbeatFailures >= 10 && !authFailure) {
         logger.error("10 consecutive heartbeat failures — restarting agent to recover");
         process.exit(RESTART_EXIT_CODE);
       }
     }
-    setTimeout(loop, HEARTBEAT_MS);
+    // Slow down after repeated auth failures instead of retrying every 30s.
+    setTimeout(loop, api.suggestedHeartbeatDelayMs());
   };
-  setTimeout(loop, HEARTBEAT_MS);
-  logger.info("Heartbeat started (30s interval)");
+  setTimeout(loop, api.suggestedHeartbeatDelayMs());
+  logger.info("Heartbeat started (30s interval, backs off on auth failures)");
 }
 
 /**
