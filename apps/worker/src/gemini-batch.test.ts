@@ -343,3 +343,21 @@ test("a just-submitted Gemini batch that briefly 404s gets the visibility grace"
     return true;
   });
 });
+
+test("Gemini results without echoed keys correlate by request order only when all are missing", async () => {
+  const { correlateOrderedResults } = await import("./handlers/ai-tagging-batch-state.js");
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    name: "batches/saved-123",
+    state: "BATCH_STATE_SUCCEEDED",
+    output: { inlinedResponses: { inlinedResponses: [
+      { response: { candidates: [{ content: { parts: [{ text: "{\"n\":1}" }] } }] } },
+      { response: { candidates: [{ content: { parts: [{ text: "{\"n\":2}" }] } }] } },
+    ] } },
+  }), { status: 200 });
+  const record = await getGeminiBatch("key", "batches/saved-123");
+  const indexed = indexBatchResults(["a", "b"], correlateOrderedResults(["a", "b"], record.results ?? []));
+  assert.equal(parseGeminiBatchResult(indexed.get("b")!).content, "{\"n\":2}");
+  assert.throws(() => indexBatchResults(["a", "b", "c"], correlateOrderedResults(["a", "b", "c"], record.results ?? [])), /unknown result ID/);
+  const partial = [{ custom_id: "a" }, {}];
+  assert.throws(() => indexBatchResults(["a", "b"], correlateOrderedResults(["a", "b"], partial)), /unknown result ID/);
+});

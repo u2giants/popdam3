@@ -90,3 +90,16 @@ export function transientPollDelayMs(consecutiveFailures: number): number {
   const exponent = Math.max(0, Math.min(consecutiveFailures, 10));
   return Math.min(30_000 * 2 ** exponent, 600_000);
 }
+
+/**
+ * Gemini's inlined responses are returned in request order, but its echo of
+ * `metadata.key` has had defects. When NO result carries an ID and the count
+ * matches exactly, correlate by position; any partial or mismatched echo still
+ * fails closed through indexBatchResults.
+ */
+export function correlateOrderedResults<T extends { custom_id?: string }>(expectedCustomIds: string[], results: T[]): T[] {
+  if (results.length === expectedCustomIds.length && results.length > 0 && results.every((result) => !result.custom_id)) {
+    return results.map((result, index) => ({ ...result, custom_id: expectedCustomIds[index] }));
+  }
+  return results;
+}
