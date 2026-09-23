@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3412,
+  "outcome": "ready-for-merge",
+  "pr": 3419,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3412/1",
+  "contract_sha256": "7a045d591e969b37a2b1cacf4879ecebea957ec5eeaeca56b63c18b089d5520b",
+  "head_sha": "2a025619a98e20d84a7c30cbdc13e5e12a806654",
+  "base_sha": "1d2a0db59104514e31507f96fd401c3925995086",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "exit_code": 0,
+      "command": "node --test --test-name-pattern=\"claim renewal|expired claim renewal|historical superset renewal|renewal keeps quoted\" scripts/manage-migration-author-lanes.test.mjs",
+      "evidence": "14 passed, 0 failed, 0 skipped at implementation head 2a025619a98e20d84a7c30cbdc13e5e12a806654."
+    },
+    {
+      "exit_code": 0,
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "evidence": "688 passed, 0 failed, 0 skipped at implementation head 2a025619a98e20d84a7c30cbdc13e5e12a806654."
+    },
+    {
+      "exit_code": 0,
+      "command": "git diff --check",
+      "evidence": "No whitespace errors at implementation head 2a025619a98e20d84a7c30cbdc13e5e12a806654."
+    }
+  ],
+  "assumptions_resolved": [
+    "The extra lowercase historical table lock remains in the claim body byte for byte apart from lease expiry.",
+    "The issue and parsed PR writes are each covered by the exact claim, with quoted PostgreSQL identity retained.",
+    "Collision checks compare all existing claim locks against other open claims and PRs."
+  ],
+  "stop_conditions_hit": []
+}

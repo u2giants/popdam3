@@ -7935,12 +7935,9 @@ export function renewExpiredClaim(options, now = new Date(), io = githubIo) {
     const claimed=new Set(claimObjects),parsed=(target[0].objects??[]).length?validateClaimObjects(target[0].objects):[]
     const uncovered=parsed.filter((object)=>!claimed.has(object))
     if(uncovered.length)throw new LaneError(`claim does not cover parsed pull request objects: ${uncovered.join(', ')}`)
-    const renewalScope=parseQueueScope(workIssue.body)
-    if(renewalScope.workType==='structural'){
-      const authorized=new Set([...renewalScope.objects.map(normalizeObject),...parsed])
-      const unsupported=claimObjects.filter((object)=>!authorized.has(object))
-      if(unsupported.length)throw new LaneError(`claim carries objects unsupported by its issue or pull request: ${unsupported.join(', ')}`)
-    }
+    // Historical claims may protect more objects than the current issue or PR
+    // writes. The forward checks above require every current issue and parsed
+    // PR write to be covered; renewal retains the entire existing claim.
     const others=claims.filter((claim)=>String(claim.number)!==String(options.claim)),otherPrs=sources.filter((source)=>source!==target[0])
     assertLaneAvailable(others,lease.objects,now,{prSources:otherPrs})
     requireOwnedRef(MUTEX_REF,ownerSha,io)

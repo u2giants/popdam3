@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3412,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Permit guarded lease renewal to retain existing historical superset object locks while validating current issue and PR writes and every collision",
+  "base_sha": "6c687b70bb92e9ec2a80d8f02f71d712959dca47",
+  "dispatcher": "Codex orchestrator chat 01a0cb03-daa2-79d2-85fd-6a8904abfc53",
+  "worker": "Codex subagent repair_claim_3412",
+  "branch": "codex/claim-renewal-3412-main",
+  "worktree": "C:/Users/ahazan/.codex/worktrees/shared-db-claim-3412/shared-db",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3412/1/contract.json",
+    ".agent/work/3412/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3412/1/contract.json",
+    ".agent/work/3412/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No claim or reviewer ref mutation",
+    "No database write or migration change",
+    "No preview or production dispatch"
+  ],
+  "required_checks": [
+    "node --test --test-name-pattern=\"claim renewal|expired claim renewal|historical superset renewal|renewal keeps quoted\" scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The already-held extra table app.rolepermissions lock remains protected and is distinct from table app.\"RolePermissions\"",
+    "The current issue and parsed PR writes must each be covered by the held claim"
+  ],
+  "stop_conditions": [
+    "Any proposal narrows an existing claim lock",
+    "Any current issue or parsed PR write is uncovered or collides with another claim or PR"
+  ],
+  "generation": 1
+}

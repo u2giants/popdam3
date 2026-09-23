@@ -4302,6 +4302,46 @@ test('#853-shaped expired claim renewal preserves every byte except expires_at',
   assert.match(io.issue.body,/expires_at: 2026-08-15T08:00:00.000Z/)
 })
 
+test('expired claim renewal retains an unrelated historical lock without declaring it as a current write',()=>{
+  const io=renewalIo(),current='table app."RolePermissions"',historical='table app.rolepermissions'
+  io.issue.body=claimBody({version:io.version,objects:[current,historical],owner:renewalOptions.owner,branch:renewalOptions.branch,worktree:renewalOptions.worktree,expiresAt:new Date('2026-08-14T19:00:00Z')})
+  io.workIssue.body=scope('ready','structural','shared-db-orchestrator',900,[current])
+  io.prSources=()=>[{label:'PR #1060 "RolePermissions"',objects:[current],versions:[io.version]}]
+  const before=io.issue.body
+  assert.equal(renewExpiredClaim(renewalOptions,NOW,io).idempotent,false)
+  assert.deepEqual(parseAuthorLease(io.issue.body,NOW).objects,[current,historical])
+  assert.equal(io.issue.body.replace(/^expires_at:.*$/m,'expires_at: X'),before.replace(/^expires_at:.*$/m,'expires_at: X'))
+})
+
+test('historical superset renewal still rejects collisions and uncovered current writes',()=>{
+  const current='table app."RolePermissions"',historical='table app.rolepermissions'
+  const setup=()=>{
+    const io=renewalIo()
+    io.issue.body=claimBody({version:io.version,objects:[current,historical],owner:renewalOptions.owner,branch:renewalOptions.branch,worktree:renewalOptions.worktree,expiresAt:new Date('2026-08-14T19:00:00Z')})
+    io.workIssue.body=scope('ready','structural','shared-db-orchestrator',900,[current])
+    io.prSources=()=>[{label:'PR #1060 "RolePermissions"',objects:[current],versions:[io.version]}]
+    return io
+  }
+  let io=setup()
+  io.openClaims=()=>[structuredClone(io.issue),{number:77,body:claimBody({version:'20260816070000',objects:[historical],owner:'other',branch:'other',worktree:'C:/other',expiresAt:new Date('2026-08-17T00:00:00Z')})}]
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/object collision with claim #77: table app\.rolepermissions/)
+  io=setup();io.prSources=()=>[{label:'PR #1060',objects:[current],versions:[io.version]},{label:'PR #999',objects:[historical],versions:['20260816070000']}]
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/object collision with PR #999: table app\.rolepermissions/)
+  io=setup();io.workIssue.body=scope('ready','structural','shared-db-orchestrator',900,['table app.unclaimed'])
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/issue objects do not exactly match/)
+  io=setup();io.prSources=()=>[{label:'PR #1060',objects:[current,'table app.unclaimed'],versions:[io.version]}]
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/claim does not cover parsed pull request objects/)
+})
+
+test('renewal keeps quoted PostgreSQL table identity distinct from unquoted lowercase identity',()=>{
+  const io=renewalIo(),quoted='table app."RolePermissions"',lowercase='table app.rolepermissions'
+  io.issue.body=claimBody({version:io.version,objects:[lowercase],owner:renewalOptions.owner,branch:renewalOptions.branch,worktree:renewalOptions.worktree,expiresAt:new Date('2026-08-14T19:00:00Z')})
+  io.workIssue.body=scope('ready','structural','shared-db-orchestrator',900,[quoted])
+  io.prSources=()=>[{label:'PR #1060 "RolePermissions"',objects:[quoted],versions:[io.version]}]
+  assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/issue objects do not exactly match/)
+  assert.deepEqual(parseAuthorLease(io.issue.body,NOW).objects,[lowercase])
+})
+
 test('claim renewal rejects every exact identity and permanent-version mismatch',()=>{
   for(const [change,pattern] of [[{owner:'wrong'},/owner/],[{branch:'wrong'},/branch/],[{worktree:'wrong'},/worktree/],[{headSha:'b'.repeat(40)},/head/],[{pr:999},/parser source/]])assert.throws(()=>renewExpiredClaim({...renewalOptions,...change},NOW,renewalIo()),pattern)
   let io=renewalIo();io.getPrFiles=()=>[{filename:'supabase/migrations/20260816000000_wrong.sql'}];assert.throws(()=>renewExpiredClaim(renewalOptions,NOW,io),/migration version/)
