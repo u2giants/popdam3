@@ -384,13 +384,18 @@ async function sendHeartbeat() {
 }
 
 function startHeartbeat() {
-  const INTERVAL_MS = 30_000;
+  const loop = () => {
+    sendHeartbeat()
+      .catch((e) => logger.error("Heartbeat failed", { error: (e as Error).message }))
+      .finally(() => {
+        // Slow down after repeated auth failures instead of retrying every 30s.
+        const delayMs = api.suggestedHeartbeatDelayMs();
+        setTimeout(loop, delayMs);
+      });
+  };
   // Fire immediately on startup so the UI reflects the new version/state right away
-  sendHeartbeat().catch((e) => logger.error("Heartbeat failed", { error: (e as Error).message }));
-  setInterval(() => {
-    sendHeartbeat().catch((e) => logger.error("Heartbeat failed", { error: (e as Error).message }));
-  }, INTERVAL_MS);
-  logger.info("Heartbeat started (30s interval)");
+  loop();
+  logger.info("Heartbeat started (30s interval, backs off on auth failures)");
 }
 
 // ── Realtime wake callback ───────────────────────────────────────

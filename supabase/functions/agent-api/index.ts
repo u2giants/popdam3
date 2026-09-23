@@ -53,11 +53,35 @@ import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/sty
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
+/** Log a 401 without ever recording keys, pairing codes, or deploy keys. */
+function logAuth401(
+  reason: string,
+  action: string,
+  body: Record<string, unknown> | null,
+  extra: Record<string, unknown> = {},
+): void {
+  const b = body ?? {};
+  console.warn("[agent-api 401]", {
+    reason,
+    action,
+    agent_id: typeof b.agent_id === "string" ? b.agent_id : undefined,
+    agent_name: typeof b.agent_name === "string" ? b.agent_name : undefined,
+    ...extra,
+  });
+}
+
 async function authenticateAgent(
   req: Request,
+  body: Record<string, unknown>,
+  action: string,
 ): Promise<{ agentId: string; agentName: string; agentType: string } | Response> {
   const agentKey = req.headers.get("x-agent-key");
-  if (!agentKey) return err("Missing x-agent-key header", 401);
+  if (!agentKey) {
+    logAuth401("missing_agent_key", action, body, {
+      content_length: req.headers.get("content-length"),
+    });
+    return err("Missing x-agent-key header", 401);
+  }
 
   const db = serviceClient();
   const encoder = new TextEncoder();
@@ -76,7 +100,13 @@ async function authenticateAgent(
     .maybeSingle();
 
   if (error) return err(`Auth lookup failed: ${error.message}`, 500);
-  if (!data) return err("Invalid agent key", 401);
+  if (!data) {
+    logAuth401("invalid_agent_key", action, body, {
+      key_hash_prefix: hashHex.slice(0, 8),
+      content_length: req.headers.get("content-length"),
+    });
+    return err("Invalid agent key", 401);
+  }
   return { agentId: data.id, agentName: data.agent_name, agentType: data.agent_type };
 }
 
@@ -2109,6 +2139,10 @@ async function handlePair(body: Record<string, unknown>) {
     .maybeSingle();
 
   if (lookupErr || !pairing) {
+    logAuth401("invalid_pairing_code", "pair", body, {
+      pairing_code_prefix: pairingCode.slice(0, 4),
+      agent_name: agentName,
+    });
     return err("Invalid or expired pairing code", 401);
   }
 
@@ -2116,6 +2150,10 @@ async function handlePair(body: Record<string, unknown>) {
   if (new Date(pairing.expires_at).getTime() < Date.now()) {
     // Mark as expired
     await db.from("agent_pairings").update({ status: "expired" }).eq("id", pairing.id);
+    logAuth401("expired_pairing_code", "pair", body, {
+      pairing_id: pairing.id,
+      agent_name: agentName,
+    });
     return err("Invalid or expired pairing code", 401);
   }
 
@@ -2511,6 +2549,9 @@ async function handleNotifyBuild(
     return err("DEPLOY_WEBHOOK_KEY secret not configured", 500);
   }
   if (!deployKey || deployKey !== expectedKey) {
+    logAuth401("invalid_deploy_key", "notify-build", body, {
+      has_deploy_key: Boolean(deployKey),
+    });
     return err("Invalid deploy key", 401);
   }
 
@@ -4371,7 +4412,7 @@ corsServe(async (req: Request) => {
     }
 
     // All other routes require agent authentication
-    const authResult = await authenticateAgent(req);
+    const authResult = await authenticateAgent(req, body, action);
     if (authResult instanceof Response) return authResult;
     const { agentId, agentType, agentName } = authResult;
 
