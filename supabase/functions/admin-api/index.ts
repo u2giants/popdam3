@@ -338,7 +338,7 @@ async function handleSetConfig(
   if (taskModels && typeof taskModels === "object" && !Array.isArray(taskModels)) {
     for (const [taskKey, modelId] of Object.entries(taskModels as Record<string, unknown>)) {
       if (!directGeminiBatchAllowedForServerConsumer(modelId, taskKey === "vision_tagging" ? "vision_tagging_primary" : taskKey)) {
-        return err("Direct Gemini Batch may only be selected as the primary Image Tagging model", 400);
+        return err("Batch-only models (including Direct Gemini Batch) may only be selected as the primary Image Tagging model", 400);
       }
     }
   }
@@ -346,7 +346,7 @@ async function handleSetConfig(
   if (pdfConfig && typeof pdfConfig === "object" && !Array.isArray(pdfConfig)) {
     const pdfModel = (pdfConfig as Record<string, unknown>).ai_vision_model_id;
     if (!directGeminiBatchAllowedForServerConsumer(pdfModel, "pdf_extraction")) {
-      return err("Direct Gemini Batch is not supported by PDF extraction", 400);
+      return err("Batch-only models are not supported by PDF extraction", 400);
     }
   }
 
@@ -1140,7 +1140,7 @@ async function handleCreateAiTagBakeoffRun(body: Record<string, unknown>, userId
   const modelIds = stringArray(body.model_ids).slice(0, 5);
   if (modelIds.length !== 5) return err("model_ids must contain exactly 5 models", 400);
   if (modelIds.some((modelId) => !directGeminiBatchAllowedForServerConsumer(modelId, "bakeoff"))) {
-    return err("Direct Gemini Batch is only supported for production Image Tagging", 400);
+    return err("Batch-only models are only supported for production Image Tagging, not bake-offs", 400);
   }
 
   const requestedSampleSize = typeof body.sample_size === "number" ? Math.floor(body.sample_size) : 30;

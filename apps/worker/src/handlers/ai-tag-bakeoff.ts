@@ -502,13 +502,15 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   let failed = 0;
   const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
   const runModels = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e];
-  if (runModels.some((modelId) => typeof modelId === "string" && modelId.startsWith("google-direct/") && modelId.endsWith(":batch"))) {
-    return { ok: false, done: false, error: "Direct Gemini Batch is only supported for production Image Tagging" };
+  // Batch-only variants (OpenRouter or direct Gemini) cannot answer the
+  // synchronous bake-off. Refuse the run instead of silently dropping a slot
+  // and reporting completion with missing evaluations.
+  if (runModels.some((modelId) => typeof modelId === "string" && modelId.trim().endsWith(":batch"))) {
+    return { ok: false, done: false, error: "Batch-only models are only supported for production Image Tagging, not bake-offs" };
   }
   const models: Array<[Slot, string]> = SLOTS
     .map((slot, index): [Slot, string | null] => [slot, runModels[index] ?? null])
-    .filter((entry): entry is [Slot, string] => typeof entry[1] === "string" && entry[1].trim().length > 0)
-    .filter(([, modelId]) => !modelId.trim().endsWith(":batch"));
+    .filter((entry): entry is [Slot, string] => typeof entry[1] === "string" && entry[1].trim().length > 0);
   let prices = new Map<string, ModelPricing>();
   if (apiKey) {
     try {
