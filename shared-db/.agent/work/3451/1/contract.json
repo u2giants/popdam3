@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3451,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Stop the ephemeral-database contract check failing on ghcr.io rate limits by pulling the pinned Supabase images from the public.ecr.aws mirror, without weakening or skipping the check",
+  "base_sha": "064736836b55cd431a6adda7ed2972118ba985e0",
+  "dispatcher": "Claude orchestrator chat aa4791e3-535d-47ad-ac32-a4d0b9323273",
+  "worker": "Claude subagent chat aa4791e3-535d-47ad-ac32-a4d0b9323273",
+  "branch": "claude/ghcr-authenticated-pull-aa4791",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/ghcr-auth-pull-aa4791",
+  "allowed_paths": [
+    ".github/workflows/database-contract-tests.yml",
+    ".agent/work/3451/1/contract.json",
+    ".agent/work/3451/1/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/database-contract-tests.yml",
+    ".agent/work/3451/1/contract.json",
+    ".agent/work/3451/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration edit, or manual production command",
+    "Do not skip, weaken, or mark continue-on-error the ephemeral database check",
+    "No secrets referenced in the workflow"
+  ],
+  "required_checks": [
+    "supabase/tests against an ephemeral database passes on the pull request head",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The Supabase CLI honours SUPABASE_INTERNAL_IMAGE_REGISTRY and publishes identical pinned tags to public.ecr.aws",
+    "This contract is published after the implementation commit dc5ea182d1daf97e5252a54d597aae73eeba367f already exists on the branch"
+  ],
+  "stop_conditions": [
+    "Stop if the check still fails with a registry rate limit after the mirror change",
+    "Stop if the fix would require a repository secret in this workflow"
+  ]
+}

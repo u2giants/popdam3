@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3455,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Rename the non-existent ai-grok wrapper in the reviewer-allocation test fixture to the real ai-grok-review",
+  "base_sha": "dd8f4a97127dadb21dc5db325d7507d6ea8f6bbc",
+  "dispatcher": "repo-maintenance session for issue #3455",
+  "worker": "claude",
+  "branch": "claude/grok-wrapper-name-aa4791",
+  "worktree": ".claude/worktrees/grok-wrapper-name-aa4791",
+  "allowed_paths": [
+    "scripts/orchestrator-flow/reviewer-allocation.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/orchestrator-flow/reviewer-allocation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/orchestrator-flow/reviewer-allocation.test.mjs"
+  ],
+  "assumptions": [
+    "ai-grok-review is the Grok wrapper named in ACTIVE_REVIEWERS"
+  ],
+  "stop_conditions": [
+    "stop if the fix would require changing behaviour rather than the fixture name"
+  ]
+}

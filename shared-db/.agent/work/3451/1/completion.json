@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 3451,
+  "outcome": "ready-for-merge",
+  "pr": 3452,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3451/1",
+  "contract_sha256": "ff7cd92e4e1b4a955402438cddc5cf579fc1515fbacd04877bb6aad898183b08",
+  "head_sha": "dc5ea182d1daf97e5252a54d597aae73eeba367f",
+  "base_sha": "064736836b55cd431a6adda7ed2972118ba985e0",
+  "files_changed": [
+    ".github/workflows/database-contract-tests.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "supabase/tests against an ephemeral database passes on the pull request head",
+      "exit_code": 0,
+      "evidence": "Run 35912242011 on head dc5ea182d1daf97e5252a54d597aae73eeba367f completed with conclusion success."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors at implementation head dc5ea182d1daf97e5252a54d597aae73eeba367f."
+    }
+  ],
+  "assumptions_resolved": [
+    "An authenticated ghcr.io login did not help: run 35908880496 logged Login Succeeded and still failed with toomanyrequests, so the login was dropped.",
+    "Pulling from public.ecr.aws via SUPABASE_INTERNAL_IMAGE_REGISTRY cleared the rate limit on run 35912242011.",
+    "The contract was published after the implementation commit dc5ea182d1daf97e5252a54d597aae73eeba367f."
+  ],
+  "stop_conditions_hit": []
+}

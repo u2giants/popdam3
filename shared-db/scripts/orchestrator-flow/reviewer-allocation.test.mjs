@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { allocateReviewer, approvedExecutionCandidates, executionKey, reviewReservationRef } from './reviewer-allocation.mjs'
 
-const active=[{name:'grok',wrapper:'ai-grok',provider:'grok'},{name:'glm-a',wrapper:'ai-glm',provider:'glm'},{name:'glm-alias',wrapper:'ai-glm',provider:'glm'}],overflow=[{name:'codex',wrapper:'ai-codex',provider:'codex'}]
+const active=[{name:'grok',wrapper:'ai-grok-review',provider:'grok'},{name:'glm-a',wrapper:'ai-glm',provider:'glm'},{name:'glm-alias',wrapper:'ai-glm',provider:'glm'}],overflow=[{name:'codex',wrapper:'ai-codex',provider:'codex'}]
 const request=(issue=1)=>({issue,pr:issue+10,head_sha:issue.toString(16).padStart(40,'a'),bundle_id:'b'.repeat(64)})
 function ioFixture(){const reservations=new Map();return {reservations,createReservation:(ref,digest,record)=>{if(reservations.has(ref))return false;reservations.set(ref,{digest,record});return true}}}
 
