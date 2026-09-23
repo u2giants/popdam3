@@ -11,7 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, RefreshCw, Trash2, Check, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { modelAllowedForTask } from "@/lib/ai-model-options";
+import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 import RichPdfExtractCard from "./RichPdfExtractCard";
 
@@ -406,13 +406,18 @@ function AiVisionConfigCard() {
   const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
 
   // Fetch vision models live from OpenRouter and saved selection in parallel
-  const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery({
-    queryKey: ["openrouter-vision-models", openRouterAccountFingerprint],
+  const pdfModelQueryKey = ["openrouter-vision-models", openRouterAccountFingerprint] as const;
+  const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery<{ models: OpenRouterModel[]; warning: string | null }>({
+    queryKey: pdfModelQueryKey,
     enabled: !!savedOpenRouterKey && openRouterAccountFingerprint !== null,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
-      if (typeof data?.catalog_warning === "string") throw new Error(data.catalog_warning);
-      return data;
+      const warning = catalogWarningOf(data);
+      const incoming = (data?.models ?? []) as OpenRouterModel[];
+      // A warning means the server fell back to a cached/partial catalog.
+      // Keep it (merged with the last good one) and surface the warning.
+      const previous = queryClient.getQueryData<{ models: OpenRouterModel[] }>(pdfModelQueryKey)?.models;
+      return { models: preserveCatalogOnWarning(previous, incoming, warning), warning };
     },
     staleTime: 5 * 60_000,
   });
@@ -470,6 +475,9 @@ function AiVisionConfigCard() {
           <p className="text-sm text-destructive">
             Could not load models from OpenRouter: {(modelsError as Error).message}
           </p>
+        )}
+        {modelsData?.warning && (
+          <p className="text-sm text-amber-600">{modelsData.warning}; showing the last available catalog.</p>
         )}
         {!modelsLoading && !modelsError && visionModels.length === 0 && (
           <p className="text-sm text-amber-600">

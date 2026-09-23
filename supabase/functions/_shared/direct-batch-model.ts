@@ -2,8 +2,14 @@ export function isDirectGeminiBatchModelId(value: unknown): value is string {
   return typeof value === "string" && value.startsWith("google-direct/") && value.endsWith(":batch");
 }
 
+/** Any provider's asynchronous `:batch` variant (OpenRouter or direct Gemini). */
+export function isBatchOnlyModelId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().endsWith(":batch");
+}
+
+/** Batch-only models run only through the durable primary Image Tagging path. */
 export function directGeminiBatchAllowedForServerConsumer(value: unknown, consumer: string): boolean {
-  return !isDirectGeminiBatchModelId(value) || consumer === "vision_tagging_primary";
+  return !isBatchOnlyModelId(value) || consumer === "vision_tagging_primary";
 }
 
 export function directGeminiBatchSelectionHasKey(taskModels: unknown, googleKey: unknown): boolean {

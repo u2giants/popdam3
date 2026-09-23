@@ -14,7 +14,7 @@
  */
 
 import { logger } from "./logger.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
@@ -177,9 +177,11 @@ export async function submitPreparedOpenRouterBatch(apiKey: string, prepared: Pr
     text = await response.text();
   } catch {
     if (response.ok) throw new AmbiguousBatchSubmissionError("OpenRouter");
-    throw new OpenRouterError(response.status, "provider response body unavailable");
+    throw classifySubmissionHttpFailure("openrouter", response.status, undefined);
   }
-  if (!response.ok) throw new OpenRouterError(response.status, text);
+  // Only a parsed provider 400/422 is definitive; every other failure keeps
+  // the database lease on the ambiguous path.
+  if (!response.ok) throw classifySubmissionHttpFailure("openrouter", response.status, text);
   let record: OpenRouterBatchRecord;
   try {
     record = unwrapBatchRecord(parseJsonRecord(text));

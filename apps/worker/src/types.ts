@@ -70,6 +70,8 @@ export interface OpenRouterBatchJobState {
   submitted_at?: string;
   next_poll_at?: string;
   last_checked_at?: string;
+  /** Consecutive temporary provider GET failures; drives poll backoff only. */
+  transient_poll_failures?: number;
   submission_owner?: string;
   lease_expires_at?: string;
   /** One-time receipt returned by the lease claim. Never persisted by the database. */

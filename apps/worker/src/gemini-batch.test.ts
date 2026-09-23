@@ -10,9 +10,9 @@ import {
   toGeminiJsonSchema,
   type GeminiBatchResultItem,
 } from "./gemini-batch.js";
-import { indexBatchResults, nextBatchAction } from "./handlers/ai-tagging-batch-state.js";
+import { indexBatchResults, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./handlers/ai-tagging-batch-state.js";
 import type { ChatCompletionRequest } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
 import { TAG_ASSET_SCHEMA } from "./handlers/ai-tagging-shared.js";
 import { TAG_STYLE_GROUP_SCHEMA } from "./tag-style-group-contract.js";
 import { assertProviderSubmissionLeaseBudget, providerBatchPageLimit } from "./batch-provider.js";
@@ -253,16 +253,65 @@ test("pre-submit image failures are definitive and do not issue a POST", async (
   assert.equal(calls, 0);
 });
 
-test("provider HTTP 4xx is definitive, while POST transport failure is ambiguous", async () => {
-  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "invalid request" } }), { status: 400 });
-  await assert.rejects(
-    submitGeminiBatch("key", [{ customId: "asset-1", request: request("data:image/jpeg;base64,AQID") }]),
-    (error: unknown) => error instanceof Error && !(error instanceof AmbiguousBatchSubmissionError) && /Gemini Batch 400/.test(error.message),
-  );
-
+test("only a parsed Google 400/422 envelope is definitive; everything else is ambiguous", async () => {
+  const submit = () => submitGeminiBatch("key", [{ customId: "asset-1", request: request("data:image/jpeg;base64,AQID") }]);
+  for (const status of [400, 422] as const) {
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      error: { code: status, message: "private prompt echoed data:image/jpeg;base64,AQID", status: "INVALID_ARGUMENT" },
+    }), { status });
+    await assert.rejects(submit(), (error: unknown) => {
+      assert.ok(error instanceof DefinitiveBatchRejectionError);
+      assert.equal(error.status, status);
+      assert.deepEqual(error.providerError, { provider: "google-gemini", code: status, status: "INVALID_ARGUMENT" });
+      assert.doesNotMatch(String(error) + JSON.stringify(error.providerError), /private prompt|AQID/);
+      return true;
+    });
+  }
+  const ambiguousResponses: Array<() => Response> = [
+    () => new Response(JSON.stringify({ error: { message: "no code" } }), { status: 400 }),
+    () => new Response("<html>proxy</html>", { status: 400 }),
+    () => new Response(JSON.stringify({ error: { code: 500, message: "mismatch" } }), { status: 400 }),
+    () => new Response(JSON.stringify({ error: { code: 403, status: "PERMISSION_DENIED" } }), { status: 403 }),
+    () => new Response(JSON.stringify({ error: { code: 500, status: "INTERNAL" } }), { status: 500 }),
+    () => new Response("unavailable", { status: 503 }),
+  ];
+  for (const respond of ambiguousResponses) {
+    globalThis.fetch = async () => respond();
+    await assert.rejects(submit(), AmbiguousBatchSubmissionError);
+  }
   globalThis.fetch = async () => { throw new TypeError("connection reset after write"); };
-  await assert.rejects(
-    submitGeminiBatch("key", [{ customId: "asset-1", request: request("data:image/jpeg;base64,AQID") }]),
-    AmbiguousBatchSubmissionError,
-  );
+  await assert.rejects(submit(), AmbiguousBatchSubmissionError);
+  globalThis.fetch = async () => { throw new DOMException("timed out", "TimeoutError"); };
+  await assert.rejects(submit(), AmbiguousBatchSubmissionError);
+});
+
+test("temporary Gemini polling failures stay resumable on the same saved batch ID", async () => {
+  const transient: Array<() => Promise<Response>> = [
+    async () => new Response("backend error", { status: 500 }),
+    async () => new Response("unavailable", { status: 503 }),
+    async () => new Response("slow down", { status: 429 }),
+    async () => new Response("<html>truncated", { status: 200 }),
+    async () => { throw new DOMException("The operation was aborted due to timeout", "TimeoutError"); },
+    async () => { throw new TypeError("fetch failed"); },
+  ];
+  for (const respond of transient) {
+    globalThis.fetch = respond as typeof fetch;
+    await assert.rejects(getGeminiBatch("key", "batches/saved-123"), (error: unknown) => {
+      assert.equal(isTransientProviderPollError(error), true, String(error));
+      return true;
+    });
+  }
+  for (const status of [400, 403, 404]) {
+    globalThis.fetch = async () => new Response("{}", { status });
+    await assert.rejects(getGeminiBatch("key", "batches/saved-123"), (error: unknown) => {
+      assert.equal(isTransientProviderPollError(error), false, String(status));
+      return true;
+    });
+  }
+  assert.equal(transientPollDelayMs(0), 30_000);
+  assert.equal(transientPollDelayMs(1), 60_000);
+  assert.equal(transientPollDelayMs(50), 600_000);
+  // The saved ID is still the one polled after the delay.
+  const action = nextBatchAction({ phase: "pending", provider_batch_id: "batches/saved-123", lease_token: "r", transient_poll_failures: 3, next_poll_at: "2000-01-01T00:00:00Z" });
+  assert.deepEqual(action, { type: "poll", batchId: "batches/saved-123" });
 });
