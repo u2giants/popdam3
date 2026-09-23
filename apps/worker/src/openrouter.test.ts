@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildOpenRouterBatchPayload, chatCompletion, getOpenRouterBatch, isToolChoiceCompatibilityError, submitOpenRouterBatch, withExactoRouting } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchSubmissionError } from "./batch-submission-error.js";
 
 test("appends :exacto to a bare model slug", () => {
   assert.equal(withExactoRouting("qwen/qwen3-vl-32b-instruct"), "qwen/qwen3-vl-32b-instruct:exacto");
@@ -41,7 +41,7 @@ test("stateless submit performs one POST and returns without polling", async () 
   } finally { globalThis.fetch = original; }
 });
 
-test("OpenRouter batch distinguishes definitive validation/HTTP errors from ambiguous transport", async () => {
+test("OpenRouter batch requires provider-origin JSON validation evidence before reset", async () => {
   const dataUriRequest = {
     model: "google/gemini:batch",
     messages: [{ role: "user" as const, content: [{ type: "image_url" as const, image_url: { url: "data:image/jpeg;base64,AA==" } }] }],
@@ -53,11 +53,35 @@ test("OpenRouter batch distinguishes definitive validation/HTTP errors from ambi
 
   const original = globalThis.fetch;
   try {
-    globalThis.fetch = async () => new Response("invalid request", { status: 400 });
+    const endpoint = "https://openrouter.ai/api/beta/batches";
+    const response = (status: number, body: string, type = "application/json", url = endpoint) => {
+      const result = new Response(body, { status, headers: { "content-type": type } });
+      Object.defineProperty(result, "url", { value: url });
+      return result;
+    };
+    globalThis.fetch = async () => response(400, JSON.stringify({ error: { message: "invalid request" } }));
     await assert.rejects(
       submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),
-      (error: unknown) => error instanceof Error && !(error instanceof AmbiguousBatchSubmissionError) && /OpenRouter 400/.test(error.message),
+      (error: unknown) => error instanceof DefinitiveBatchSubmissionError && error.status === 400,
     );
+    for (const [status, body, type, url] of [
+      [422, JSON.stringify({ error: { message: "invalid field" } }), "application/json", endpoint],
+      [400, "invalid request", "text/plain", endpoint],
+      [400, "{bad", "application/json", endpoint],
+      [400, JSON.stringify({ error: {} }), "application/json", endpoint],
+      [400, JSON.stringify({ error: { message: "invalid" } }), "application/json", "https://other.example/batches"],
+      [401, JSON.stringify({ error: { message: "invalid" } }), "application/json", endpoint],
+      [429, JSON.stringify({ error: { message: "invalid" } }), "application/json", endpoint],
+      [503, JSON.stringify({ error: { message: "invalid" } }), "application/json", endpoint],
+    ] as const) {
+      globalThis.fetch = async () => response(status, body, type, url);
+      await assert.rejects(
+        submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),
+        status === 422 ? DefinitiveBatchSubmissionError : AmbiguousBatchSubmissionError,
+      );
+    }
+    globalThis.fetch = async () => { const result = response(400, "{}", "application/json"); result.text = async () => { throw new Error("unreadable"); }; return result; };
+    await assert.rejects(submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]), AmbiguousBatchSubmissionError);
     globalThis.fetch = async () => { throw new TypeError("connection reset after write"); };
     await assert.rejects(
       submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),

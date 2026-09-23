@@ -12,7 +12,7 @@ import {
 } from "./gemini-batch.js";
 import { indexBatchResults, nextBatchAction } from "./handlers/ai-tagging-batch-state.js";
 import type { ChatCompletionRequest } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchSubmissionError } from "./batch-submission-error.js";
 import { TAG_ASSET_SCHEMA } from "./handlers/ai-tagging-shared.js";
 import { TAG_STYLE_GROUP_SCHEMA } from "./tag-style-group-contract.js";
 import { assertProviderSubmissionLeaseBudget, providerBatchPageLimit } from "./batch-provider.js";
@@ -253,12 +253,36 @@ test("pre-submit image failures are definitive and do not issue a POST", async (
   assert.equal(calls, 0);
 });
 
-test("provider HTTP 4xx is definitive, while POST transport failure is ambiguous", async () => {
-  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "invalid request" } }), { status: 400 });
+test("Gemini accepts only provider-origin JSON HTTP 400/422 validation refusal", async () => {
+  const endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:batchGenerateContent";
+  const response = (status: number, body: string, type = "application/json", url = endpoint) => {
+    const result = new Response(body, { status, headers: { "content-type": type } });
+    Object.defineProperty(result, "url", { value: url });
+    return result;
+  };
+  globalThis.fetch = async () => response(400, JSON.stringify({ error: { message: "invalid request" } }));
   await assert.rejects(
     submitGeminiBatch("key", [{ customId: "asset-1", request: request("data:image/jpeg;base64,AQID") }]),
-    (error: unknown) => error instanceof Error && !(error instanceof AmbiguousBatchSubmissionError) && /Gemini Batch 400/.test(error.message),
+    (error: unknown) => error instanceof DefinitiveBatchSubmissionError && error.status === 400,
   );
+
+  for (const [status, body, type, url] of [
+    [422, JSON.stringify({ error: { message: "invalid" } }), "application/json", endpoint],
+    [400, "bad request", "text/plain", endpoint],
+    [400, "{bad", "application/json", endpoint],
+    [400, JSON.stringify({ error: {} }), "application/json", endpoint],
+    [400, JSON.stringify({ error: { message: "invalid" } }), "application/json", "https://other.example"],
+    [401, JSON.stringify({ error: { message: "invalid" } }), "application/json", endpoint],
+    [500, JSON.stringify({ error: { message: "invalid" } }), "application/json", endpoint],
+  ] as const) {
+    globalThis.fetch = async () => response(status, body, type, url);
+    await assert.rejects(
+      submitGeminiBatch("key", [{ customId: "asset-1", request: request("data:image/jpeg;base64,AQID") }]),
+      status === 422 ? DefinitiveBatchSubmissionError : AmbiguousBatchSubmissionError,
+    );
+  }
+  globalThis.fetch = async () => { const result = response(400, "{}", "application/json"); result.text = async () => { throw new Error("unreadable"); }; return result; };
+  await assert.rejects(submitGeminiBatch("key", [{ customId: "asset-1", request: request("data:image/jpeg;base64,AQID") }]), AmbiguousBatchSubmissionError);
 
   globalThis.fetch = async () => { throw new TypeError("connection reset after write"); };
   await assert.rejects(

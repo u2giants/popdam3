@@ -30,7 +30,7 @@ import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { DefinitiveBatchSubmissionError } from "./batch-submission-error.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -288,24 +288,38 @@ export function normalizeProviderSubmissionError(error: unknown): string {
   return normalizeBatchError(error, "Provider batch submission failed without an error message");
 }
 
-export function definitiveProviderSubmissionFailureState(
+export async function resetDefinitivelyRejectedSubmission(
+  opKey: string,
   state: OpState,
-  leaseToken: string,
-  error: unknown,
-): OpState {
-  const message = normalizeProviderSubmissionError(error);
-  const reason = classifyError(message);
-  return {
-    ...state,
-    status: isTransientInterruption(reason) ? "interrupted" : "failed",
-    interruption_reason_code: reason,
-    error: message,
-    next_auto_resume_at: nextAutoResumeAt(reason, state),
-    external_job: state.external_job
-      ? { ...state.external_job, phase: "prepared", lease_token: leaseToken }
-      : state.external_job,
-    updated_at: new Date().toISOString(),
-  };
+  owner: string,
+  receipt: string,
+  revision: number,
+  rejection: DefinitiveBatchSubmissionError,
+  invoke: (params: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> =
+    async (params) => {
+      const { data, error } = await db().rpc("reset_bulk_operation_submission_lease", params);
+      return { data, error };
+    },
+): Promise<boolean> {
+  if (state.external_job?.phase !== "submitting" || state.external_job.provider_batch_id ||
+      state.external_job.submission_owner !== owner ||
+      !state.external_job.lease_expires_at ||
+      new Date(state.external_job.lease_expires_at).getTime() <= Date.now()) return false;
+  const { data, error } = await invoke({
+    p_op_key: opKey,
+    p_expected_revision: revision,
+    p_submission_owner: owner,
+    p_lease_token: receipt,
+    p_reason: "provider_definitive_rejection",
+    p_http_status: rejection.status,
+    p_provider_error: rejection.providerError,
+  });
+  if (error || !isGuardedEnvelope(data) || !data.ok ||
+      data.reason !== "provider_definitive_rejection" || data.lease_receipt_issued ||
+      data.lease_token || data.state_revision !== revision + 1 ||
+      !data.operation || typeof data.operation !== "object" ||
+      (data.operation as OpState).external_job?.phase !== "prepared") return false;
+  return true;
 }
 
 export function classifyError(msg: string): string {
@@ -813,22 +827,23 @@ export async function tick(): Promise<void> {
         });
       } catch (error) {
         submissionLeaseTokens.delete(opKey);
-        if (error instanceof AmbiguousBatchSubmissionError) {
-          const leaseEnd = claimedState.external_job?.lease_expires_at
-            ? new Date(claimedState.external_job.lease_expires_at).getTime()
-            : Date.now() + 120_000;
-          submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
-          // Preserve the database-owned `submitting` state. After this receipt's
-          // lease expires, the next guarded claim is what durably transitions it
-          // to ambiguous_submission; callers are forbidden from creating it.
-          logger.error("tick: provider batch submission outcome indeterminate; waiting for database lease reconciliation", { opKey });
-          return;
+        if (error instanceof DefinitiveBatchSubmissionError) {
+          const reset = await resetDefinitivelyRejectedSubmission(
+            opKey, claimedState, owner, claim.lease_token, claim.state_revision, error,
+          );
+          if (reset) {
+            logger.warn("tick: verified provider validation rejection reset the live submission receipt", { opKey, status: error.status });
+            return;
+          }
+          logger.error("tick: provider rejection could not prove a live receipt reset; preserving ambiguity", { opKey });
         }
-        const failureState = definitiveProviderSubmissionFailureState(claimedState, claim.lease_token, error);
-        const saved = await guardedPersistOpState(opKey, failureState, { expectedRevision: claim.state_revision });
-        if (!saved.ok) throw new Error(`Protected provider submission failure save refused: ${saved.reason}`);
-        if (failureState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
-        logger.error("tick: provider batch submission failed before a provider ID was accepted", { opKey, error: failureState.error });
+        const leaseEnd = claimedState.external_job?.lease_expires_at
+          ? new Date(claimedState.external_job.lease_expires_at).getTime()
+          : Date.now() + 120_000;
+        submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
+        // Preserve the database-owned `submitting` state. After this receipt's
+        // lease expires, the guarded claim alone declares it ambiguous.
+        logger.error("tick: provider batch submission outcome indeterminate; waiting for database lease reconciliation", { opKey });
         return;
       }
       if (!result.ok) {

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildResultMessage, classifyError, definitiveProviderSubmissionFailureState, interruptionReason, mergeProgress, nextAutoResumeAt, normalizeBatchError, normalizeProviderSubmissionError, scopeSingleAssetTag } from "./operation-loop.js";
+import { buildResultMessage, classifyError, interruptionReason, mergeProgress, nextAutoResumeAt, normalizeBatchError, normalizeProviderSubmissionError, resetDefinitivelyRejectedSubmission, scopeSingleAssetTag } from "./operation-loop.js";
+import { DefinitiveBatchSubmissionError } from "./batch-submission-error.js";
 import { OpenRouterError } from "./openrouter.js";
 
 const ASSET_ID = "123e4567-e89b-42d3-a456-426614174000";
@@ -80,12 +81,30 @@ test("vendored lease contract keeps ambiguity database-owned and phase changes r
   assert.match(migration, /Only this function ever declares a submission ambiguous/);
   assert.match(migration, /v_in_phase[\s\S]*ambiguous_submission[\s\S]*phase_protected/);
   assert.match(migration, /v_token_ok[\s\S]*lease_token/);
-  const state = definitiveProviderSubmissionFailureState({
-    status: "running",
-    external_job: { phase: "submitting", provider: "google-gemini", items: [] },
-  }, "minted-receipt", new Error("invalid image"));
-  assert.equal(state.external_job?.phase, "prepared");
-  assert.equal(state.external_job?.lease_token, "minted-receipt");
+});
+
+test("definitive rejection resets only a live matching receipt and refuses a reminted receipt", async () => {
+  const evidence = new DefinitiveBatchSubmissionError("Gemini", 422, { message: "invalid field" });
+  const state = {
+    status: "running" as const,
+    external_job: { phase: "submitting" as const, submission_owner: "railway:run", lease_expires_at: new Date(Date.now() + 60000).toISOString(), items: [] },
+  };
+  let calls = 0;
+  const invoke = async (params: Record<string, unknown>) => {
+    calls++;
+    assert.equal(params.p_expected_revision, 7);
+    assert.equal(params.p_submission_owner, "railway:run");
+    assert.equal(params.p_lease_token, "receipt");
+    assert.equal(params.p_http_status, 422);
+    assert.deepEqual(params.p_provider_error, { message: "invalid field" });
+    return { data: { ok: true, reason: "provider_definitive_rejection", state_revision: 8, lease_receipt_issued: false, lease_token: null, operation: { external_job: { phase: "prepared" } } }, error: null };
+  };
+  assert.equal(await resetDefinitivelyRejectedSubmission("ai-tag-all", state, "railway:run", "receipt", 7, evidence, invoke), true);
+  assert.equal(await resetDefinitivelyRejectedSubmission("ai-tag-all", state, "wrong", "receipt", 7, evidence, invoke), false);
+  assert.equal(await resetDefinitivelyRejectedSubmission("ai-tag-all", { ...state, external_job: { ...state.external_job, lease_expires_at: new Date(Date.now() - 1).toISOString() } }, "railway:run", "receipt", 7, evidence, invoke), false);
+  assert.equal(calls, 1);
+  assert.equal(await resetDefinitivelyRejectedSubmission("ai-tag-all", state, "railway:run", "receipt", 7, evidence,
+    async () => ({ data: { ok: true, reason: "provider_definitive_rejection", state_revision: 8, lease_receipt_issued: true, lease_token: "new", operation: { external_job: { phase: "prepared" } } }, error: null })), false);
 });
 
 test("OpenRouter submission bodies are redacted before operation persistence or logs", () => {
