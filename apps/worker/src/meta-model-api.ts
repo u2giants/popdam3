@@ -86,11 +86,12 @@ export function buildMetaResponsesBody(request: ChatCompletionRequest): Record<s
 }
 
 // Meta intermittently answers 404 model_not_found for Contributor models that
-// are still listed and served (popcre/ai-devops#683). Retry those with backoff.
-export const MODEL_NOT_FOUND_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
+// are still listed and served (popcre/ai-devops#683): byte-identical requests
+// alternate 200 and an instant 404/503 with no rate-limit headers. Retry both.
+export const MODEL_NOT_FOUND_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000];
 
 function isTransientModelNotFound(status: number, body: string): boolean {
-  return status === 404 && body.includes("model_not_found");
+  return (status === 404 && body.includes("model_not_found")) || status === 503;
 }
 
 export async function metaChatCompletion(
