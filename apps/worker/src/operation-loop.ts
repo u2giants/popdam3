@@ -31,7 +31,7 @@ import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
-import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, persistDefinitiveRejectionFailure } from "./provider-submission-recovery.js";
+import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failOperationWithoutResetContract, persistDefinitiveRejectionFailure, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -900,11 +900,20 @@ export async function tick(): Promise<void> {
           // exists. Consume this receipt through the governed reset RPC, then
           // fail the operation durably on the next revision (exactly once:
           // both writes are revision- and receipt-guarded).
-          const outcome = await failOperationAfterDefinitiveRejection(
-            (fn, params) => db().rpc(fn, params),
-            { opKey, expectedRevision: claim.state_revision, submissionOwner: owner, leaseToken },
-            error,
-          );
+          const rpc: RpcCall = (fn, params) => db().rpc(fn, params);
+          let outcome: { state: OpState };
+          try {
+            outcome = await failOperationAfterDefinitiveRejection(
+              rpc,
+              { opKey, expectedRevision: claim.state_revision, submissionOwner: owner, leaseToken },
+              error,
+            );
+          } catch (resetError) {
+            if (!(resetError instanceof ResetContractUnavailableError)) throw resetError;
+            // Deploy-ordering gap: the governed RPC is not live yet. Fail the
+            // operation visibly under a named reason rather than sit ambiguous.
+            outcome = { state: await failOperationWithoutResetContract(rpc, opKey, claimedState, claim.state_revision, error) };
+          }
           await recordStyleGroupTerminalOutcome(opKey, outcome.state, "failed");
           logger.error("tick: provider definitively rejected the batch submission", { opKey, error: outcome.state.error });
           return;

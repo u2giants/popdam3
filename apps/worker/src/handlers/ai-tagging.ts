@@ -31,6 +31,7 @@ import {
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
+import { structuredBatchResult } from "../batch-result-repair.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
@@ -543,8 +544,17 @@ async function handleDurableBatchTag(
     try {
       if (!raw) throw new Error("Provider batch result missing");
       const completion = await parseProviderBatchResult(batchProvider, apiKey, raw);
-      const tagData = completion.toolCalls?.find((call) => call.name === "tag_asset")?.arguments ?? parseJsonObject(completion.content);
-      if (!tagData) throw new Error("Provider batch result contains no structured tag data");
+      // Malformed answers go through the shared JSON repair on the same model;
+      // only unrepairable ones fall through to `failed` with their reason.
+      const { value: tagData } = await structuredBatchResult({
+        apiKey,
+        model,
+        result: completion,
+        toolName: "tag_asset",
+        schema: TAG_ASSET_SCHEMA as Record<string, unknown>,
+        validate: (value) => { validateTagAssetData(value, "batch"); return value; },
+        maxTokens: 4000,
+      });
       await applyBatchTagResult(item.asset_id, tagData, model);
       tagged++;
     } catch (error) {
