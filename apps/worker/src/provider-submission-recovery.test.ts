@@ -3,7 +3,7 @@ import test from "node:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { classifySubmissionHttpFailure, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
-import { failOperationAfterDefinitiveRejection, type RpcCall } from "./provider-submission-recovery.js";
+import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, persistDefinitiveRejectionFailure, type RpcCall } from "./provider-submission-recovery.js";
 import { providerJobErrorState } from "./operation-loop.js";
 
 const MIGRATION = new URL(
@@ -195,4 +195,29 @@ test("failed, cancelled and expired provider batches fail the operation instead 
     {},
   );
   assert.equal(other.status, "interrupted");
+});
+
+test("a crash between the reset and the failure write is finished on the next tick, never resubmitted", async () => {
+  const database = fakeDatabase(claimedOperation());
+  let failSecondWrite = true;
+  const flaky: RpcCall = async (fn, params) => {
+    if (fn === "update_bulk_operation" && failSecondWrite) {
+      failSecondWrite = false;
+      return { data: null, error: { message: "connection reset" } };
+    }
+    return database.rpc(fn, params);
+  };
+  await assert.rejects(failOperationAfterDefinitiveRejection(flaky, receipt, rejection()), /connection reset/);
+  const interim = database.operations.ai_tag as Record<string, unknown>;
+  assert.equal(interim.status, "running");
+  assert.equal(awaitsDefinitiveRejectionFailure(interim as never), true);
+
+  const outcome = await persistDefinitiveRejectionFailure(flaky, "ai_tag", interim as never, interim.state_revision as number);
+  assert.equal(database.operations.ai_tag.status, "failed");
+  assert.match(String(outcome.state.error), /HTTP 400/);
+  assert.equal(awaitsDefinitiveRejectionFailure(database.operations.ai_tag as never), false);
+  // A duplicate finisher (second worker) is refused by the revision guard.
+  await assert.rejects(persistDefinitiveRejectionFailure(flaky, "ai_tag", interim as never, interim.state_revision as number), /refused/);
+  // An ordinary prepared job is not mistaken for a rejected one.
+  assert.equal(awaitsDefinitiveRejectionFailure({ status: "running", external_job: { phase: "prepared" } }), false);
 });
