@@ -97,11 +97,10 @@ test("pre-POST failures keep the held receipt for a bounded number of retries", 
 });
 
 test("a provider POST whose ID save fails releases the receipt so no rebuild can resubmit", async () => {
-  const { releaseReceiptAfterPost, holdsSubmissionReceipt, holdReceiptAfterPreSubmissionFailure } = await import("./operation-loop.js");
-  const loop = await import("./operation-loop.js");
-  assert.equal(typeof loop.releaseReceiptAfterPost, "function");
-  // Simulate a held receipt that went through a pre-POST retry, then a POST.
+  const { releaseReceiptAfterPost, holdsSubmissionReceipt, holdReceiptAfterPreSubmissionFailure, rememberSubmissionReceipt } = await import("./operation-loop.js");
+  rememberSubmissionReceipt("op-post", "receipt");
   holdReceiptAfterPreSubmissionFailure("op-post", new Error("pre"), new Date(Date.now() + 60_000).toISOString());
+  assert.equal(holdsSubmissionReceipt("op-post"), true, "pre-POST failure keeps the receipt");
   releaseReceiptAfterPost("op-post", new Date(Date.now() + 60_000).toISOString());
   assert.equal(holdsSubmissionReceipt("op-post"), false);
 });
