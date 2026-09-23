@@ -462,7 +462,7 @@ async function handleDurableBatchTag(
   try {
     record = await getProviderBatch(batchProvider, apiKey, action.batchId);
   } catch (error) {
-    if (error instanceof OpenRouterError && isNewBatchVisibilityDelay(error.status, job.submitted_at)) {
+    if (isNewBatchVisibilityDelay((error as { status?: unknown }).status, job.submitted_at)) {
       return {
         ok: true,
         done: false,
