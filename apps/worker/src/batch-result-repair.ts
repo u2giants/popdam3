@@ -4,6 +4,26 @@ import { parseStructuredJson, runJsonRepair } from "./structured-output.js";
 
 const MAX_MALFORMED_CHARS = 12_000;
 
+/**
+ * The repair call itself could not run (auth, billing, rate limit, provider
+ * 5xx, timeout, network). The batch answer is still recoverable, so the apply
+ * pass must pause and retry rather than count the item as failed.
+ */
+export class RepairUnavailableError extends Error {
+  constructor(public status: number | undefined, reason: string) {
+    super(`JSON repair temporarily unavailable${typeof status === "number" ? ` (HTTP ${status})` : ""}: ${reason.slice(0, 200)}`);
+    this.name = "RepairUnavailableError";
+  }
+}
+
+export function isRepairInfrastructureError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const status = (error as Error & { status?: unknown }).status;
+  if (typeof status === "number") return [401, 402, 403, 408, 429].includes(status) || status >= 500;
+  return ["TimeoutError", "AbortError", "SyntaxError"].includes(error.name)
+    || (error.name === "TypeError" && /fetch failed|terminated|network|socket|ECONN|ETIMEDOUT|EAI_AGAIN/i.test(error.message));
+}
+
 /** The synchronous endpoint for the SAME model a batch ran on. */
 export function sameModelRepairCompletion(model: string): {
   model: string;
@@ -50,7 +70,9 @@ export async function structuredBatchResult<T>(options: {
   const malformed = options.result.content?.trim() || (candidate ? JSON.stringify(candidate) : "");
   if (!malformed) throw new Error(`Unrepairable batch result: ${reason}; the model returned no content to repair`);
   const repair = options.repair ?? sameModelRepairCompletion(options.model);
-  const repaired = await runJsonRepair({
+  let repaired: Awaited<ReturnType<typeof runJsonRepair<T>>>;
+  try {
+    repaired = await runJsonRepair({
     apiKey: options.apiKey,
     model: repair.model,
     completion: repair.completion,
@@ -61,8 +83,11 @@ export async function structuredBatchResult<T>(options: {
     repairSource: reason,
     validate: options.validate,
     maxTokens: options.maxTokens,
-    isTerminalError: () => false,
+    isTerminalError: isRepairInfrastructureError,
   });
+  } catch (error) {
+    throw new RepairUnavailableError((error as { status?: number }).status, error instanceof Error ? error.message : String(error));
+  }
   if (repaired.ok) return { value: repaired.value, repaired: true };
   throw new Error(`Unrepairable batch result: ${reason}; repair failed: ${repaired.attempt.error ?? "unknown"}`);
 }

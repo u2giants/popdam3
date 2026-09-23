@@ -92,7 +92,7 @@ test("refuses a provider POST unless payload prep leaves a safe lease budget", (
 test("enforces request-count and exact aggregate payload boundaries", async () => {
   const items = [1, 2, 3].map((id) => ({ customId: `asset-${id}`, request: request("data:image/jpeg;base64,AQID") }));
   const payload = await buildGeminiBatchPayload(items);
-  const exactBytes = Buffer.byteLength(JSON.stringify(payload));
+  const exactBytes = Buffer.byteLength(JSON.stringify(payload.batch));
   await assert.doesNotReject(buildGeminiBatchPayload(items, "popdam-image-tagging", exactBytes));
   await assert.rejects(buildGeminiBatchPayload(items, "popdam-image-tagging", exactBytes - 1), /19 MB safety ceiling/);
   await assert.rejects(buildGeminiBatchPayload([...items, items[0]]), /1-3 requests/);
@@ -117,9 +117,9 @@ test("fetches the bounded thumbnail set in parallel", async () => {
 test("rejects untrusted hosts and validates every redirect", async () => {
   let calls = 0;
   globalThis.fetch = async () => { calls++; return new Response(null, { status: 302, headers: { location: "http://127.0.0.1/private.jpg" } }); };
-  await assert.rejects(buildGeminiBatchPayload([{ customId: "asset-1", request: request("https://cdn.designflow.app/redirect.jpg") }]), /approved public thumbnail host/);
+  assert.deepEqual((await buildGeminiBatchPayload([{ customId: "asset-1", request: request("https://cdn.designflow.app/redirect.jpg") }])).excludedCustomIds, ["asset-1"]);
   assert.equal(calls, 1);
-  await assert.rejects(buildGeminiBatchPayload([{ customId: "asset-1", request: request("http://localhost/private.jpg") }]), /approved public thumbnail host/);
+  assert.deepEqual((await buildGeminiBatchPayload([{ customId: "asset-1", request: request("http://localhost/private.jpg") }])).excludedCustomIds, ["asset-1"]);
   assert.equal(calls, 1);
 });
 
@@ -131,7 +131,7 @@ test("turns a pre-submission thumbnail timeout into a resumable error", async ()
   );
 });
 
-test("stream-enforces the five-megabyte image ceiling", async () => {
+test("stream-enforces the four-megabyte image ceiling by dropping only that item", async () => {
   let pulls = 0;
   globalThis.fetch = async () => new Response(new ReadableStream<Uint8Array>({
     pull(controller) {
@@ -140,7 +140,9 @@ test("stream-enforces the five-megabyte image ceiling", async () => {
       if (pulls === 2) controller.close();
     },
   }), { status: 200, headers: { "content-type": "image/jpeg" } });
-  await assert.rejects(buildGeminiBatchPayload([{ customId: "asset-1", request: request() }]), /1-5242880 bytes/);
+  const oversized = await buildGeminiBatchPayload([{ customId: "asset-1", request: request() }]);
+  assert.deepEqual(oversized.excludedCustomIds, ["asset-1"]);
+  assert.equal(oversized.batch.inputConfig.requests.requests.length, 0);
   assert.equal(pulls, 2);
 });
 
@@ -250,7 +252,7 @@ test("pre-submit image failures are definitive and do not issue a POST", async (
   globalThis.fetch = async () => { calls++; throw new Error("should not fetch"); };
   await assert.rejects(
     submitGeminiBatch("key", [{ customId: "asset-1", request: request("file:///private/art.jpg") }]),
-    (error: unknown) => error instanceof Error && !(error instanceof AmbiguousBatchSubmissionError) && /approved public thumbnail host/.test(error.message),
+    PreSubmissionError,
   );
   assert.equal(calls, 0);
 });
@@ -360,4 +362,27 @@ test("Gemini results without echoed keys correlate by request order only when al
   assert.throws(() => indexBatchResults(["a", "b", "c"], correlateOrderedResults(["a", "b", "c"], record.results ?? [])), /unknown result ID/);
   const partial = [{ custom_id: "a" }, {}];
   assert.throws(() => indexBatchResults(["a", "b"], correlateOrderedResults(["a", "b"], partial)), /unknown result ID/);
+});
+
+test("one unusable thumbnail drops only its item; the rest of the page is submitted", async () => {
+  globalThis.fetch = async (input) => String(input).includes("missing")
+    ? new Response("gone", { status: 404 })
+    : new Response(new Uint8Array([1, 2]), { status: 200, headers: { "content-type": "image/jpeg" } });
+  const payload = await buildGeminiBatchPayload([
+    { customId: "good-1", request: request("https://cdn.designflow.app/a.jpg") },
+    { customId: "bad", request: request("https://cdn.designflow.app/missing.jpg") },
+    { customId: "good-2", request: request("https://cdn.designflow.app/b.jpg") },
+  ]);
+  assert.deepEqual(payload.excludedCustomIds, ["bad"]);
+  assert.deepEqual(payload.batch.inputConfig.requests.requests.map((entry) => entry.metadata.key), ["good-1", "good-2"]);
+  // A temporary thumbnail outage still aborts the page so it can resume.
+  globalThis.fetch = async () => new Response("busy", { status: 503 });
+  await assert.rejects(buildGeminiBatchPayload([{ customId: "a", request: request() }]), /temporarily failed before submission/);
+});
+
+test("three maximum-size images fit under the inline payload ceiling", async () => {
+  const image = Buffer.alloc(4 * 1024 * 1024, 7).toString("base64");
+  const payload = await buildGeminiBatchPayload([1, 2, 3].map((id) => ({ customId: `a${id}`, request: request(`data:image/jpeg;base64,${image}`) })));
+  assert.equal(payload.excludedCustomIds.length, 0);
+  assert.ok(Buffer.byteLength(JSON.stringify(payload.batch)) < 19 * 1024 * 1024);
 });
