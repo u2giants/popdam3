@@ -45,11 +45,10 @@ const INTERRUPT_CHECK_EVERY = 10;
 const AUTO_RESUME_MAX_ATTEMPTS = 10;
 const submissionLeaseTokens = new Map<string, string>();
 const submissionLeaseRetryAfter = new Map<string, number>();
-// Pre-POST local failures while this worker holds a live receipt. The receipt
-// is kept and the lease renewed as the same owner; after this many attempts it
-// is released and the lease lapses into the database's ambiguous_submission.
+// Pre-POST local failures while this worker holds a live receipt (count only
+// for logging). The receipt is never discarded for these: nothing was sent, so
+// giving it up would let the lease lapse into a false ambiguous_submission.
 const preSubmissionRetries = new Map<string, number>();
-const MAX_PRE_SUBMISSION_RETRIES = 3;
 
 /** After any provider POST attempt, the receipt may never drive another POST. */
 export function releaseReceiptAfterPost(opKey: string, leaseExpiresAt: string | undefined): void {
@@ -76,21 +75,14 @@ export function holdsSubmissionReceipt(opKey: string): boolean {
 export function holdReceiptAfterPreSubmissionFailure(
   opKey: string,
   error: unknown,
-  leaseExpiresAt: string | undefined,
+  _leaseExpiresAt: string | undefined,
 ): boolean {
   const attempts = (preSubmissionRetries.get(opKey) ?? 0) + 1;
+  preSubmissionRetries.set(opKey, attempts);
   const message = normalizeBatchError(error, "Pre-submission failure without an error message").slice(0, 300);
-  if (attempts <= MAX_PRE_SUBMISSION_RETRIES) {
-    preSubmissionRetries.set(opKey, attempts);
-    logger.warn("tick: provider batch not sent; keeping the receipt and retrying after a same-owner lease renewal", { opKey, attempts, error: message });
-    return true;
-  }
-  preSubmissionRetries.delete(opKey);
-  submissionLeaseTokens.delete(opKey);
-  const leaseEnd = leaseExpiresAt ? new Date(leaseExpiresAt).getTime() : Number.NaN;
-  submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
-  logger.error("tick: provider batch never sent after repeated local failures; releasing the receipt for database lease reconciliation", { opKey, error: message });
-  return false;
+  // Keep retrying through the same-owner lease renewal on the next tick.
+  logger.warn("tick: provider batch not sent; keeping the receipt and retrying after a same-owner lease renewal", { opKey, attempts, error: message });
+  return true;
 }
 /** Yield after this many batches so the round-robin can serve other operations.
  *  Under the old 45s edge function, 5 was the max that fit safely. The persistent
