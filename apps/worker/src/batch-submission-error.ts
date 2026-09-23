@@ -62,3 +62,16 @@ export function classifySubmissionHttpFailure(
   }
   return new AmbiguousBatchSubmissionError(provider, status);
 }
+
+/**
+ * A local failure after the submission receipt was minted but before any
+ * provider request was sent. Nothing exists at the provider, so the worker
+ * keeps its in-memory receipt, renews the lease as the same owner, rebuilds the
+ * payload and retries; it never resets or abandons the lease for this.
+ */
+export class PreSubmissionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PreSubmissionError";
+  }
+}
