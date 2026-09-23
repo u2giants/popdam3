@@ -79,3 +79,26 @@ test("parses structured text and rejects incomplete responses", async () => {
     globalThis.fetch = original;
   }
 });
+
+test("retries intermittent model_not_found, then gives up with a named error", async () => {
+  const original = globalThis.fetch;
+  const request = { model: "meta-direct/muse-spark-1.3-contributor", messages: [{ role: "user" as const, content: "x" }] };
+  const notFound = () => new Response('{"error":{"code":"model_not_found"}}', { status: 404 });
+  const ok = () => new Response(JSON.stringify({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }] }));
+  try {
+    let calls = 0;
+    globalThis.fetch = async () => (++calls < 3 ? notFound() : ok());
+    assert.equal((await metaChatCompletion("k", request, 1000, [0, 0, 0])).content, "ok");
+    assert.equal(calls, 3);
+    calls = 0;
+    globalThis.fetch = async () => { calls++; return notFound(); };
+    await assert.rejects(metaChatCompletion("k", request, 1000, [0, 0]), /unavailable after 3 attempts/);
+    assert.equal(calls, 3);
+    calls = 0;
+    globalThis.fetch = async () => { calls++; return new Response("bad", { status: 400 }); };
+    await assert.rejects(metaChatCompletion("k", request, 1000, [0, 0]), /400/);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

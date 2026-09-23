@@ -85,21 +85,41 @@ export function buildMetaResponsesBody(request: ChatCompletionRequest): Record<s
   return body;
 }
 
+// Meta intermittently answers 404 model_not_found for Contributor models that
+// are still listed and served (popcre/ai-devops#683). Retry those with backoff.
+export const MODEL_NOT_FOUND_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
+
+function isTransientModelNotFound(status: number, body: string): boolean {
+  return status === 404 && body.includes("model_not_found");
+}
+
 export async function metaChatCompletion(
   apiKey: string,
   request: ChatCompletionRequest,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  retryDelaysMs: number[] = MODEL_NOT_FOUND_RETRY_DELAYS_MS,
 ): Promise<ChatCompletionResult> {
   if (!apiKey) throw new MetaModelApiError(401, "META_API_KEY is not configured in Railway");
 
-  const response = await fetch(META_RESPONSES_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(buildMetaResponsesBody(request)),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  const bodyText = await response.text();
-  if (!response.ok) throw new MetaModelApiError(response.status, bodyText);
+  let response: Response;
+  let bodyText: string;
+  for (let attempt = 0; ; attempt++) {
+    response = await fetch(META_RESPONSES_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(buildMetaResponsesBody(request)),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    bodyText = await response.text();
+    if (response.ok) break;
+    if (!isTransientModelNotFound(response.status, bodyText) || attempt >= retryDelaysMs.length) {
+      const note = isTransientModelNotFound(response.status, bodyText)
+        ? ` (Muse Contributor unavailable after ${attempt + 1} attempts — see popcre/ai-devops#683)`
+        : "";
+      throw new MetaModelApiError(response.status, bodyText + note);
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+  }
 
   const body = JSON.parse(bodyText) as {
     id?: string;
