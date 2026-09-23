@@ -840,7 +840,7 @@ export function AiModelsConfigSection() {
                   )}
                   {key === "vision_tagging" && currentVal.startsWith("google-direct/") && (
                     <p className="text-[10px] text-muted-foreground">
-                      Uses the existing Google AI API key and the restart-safe provider batch path.
+                      Uses the existing Google AI API key and the restart-safe provider batch path. Thumbnails and asset metadata are sent to Google Batch; Google stores batch results for 6 weeks by default before deleting them.
                     </p>
                   )}
                   {!currentModelMeetsRequirements && requirementLabel && (

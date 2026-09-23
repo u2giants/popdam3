@@ -213,6 +213,8 @@ test("tolerates the documented operation-output and SDK destination wrappers", a
   for (const body of [
     { done: true, metadata: { state: "BATCH_STATE_SUCCEEDED" }, response: { inlinedResponses: { inlinedResponses: [result] } } },
     { done: true, metadata: { state: "BATCH_STATE_SUCCEEDED" }, dest: { inlinedResponses: [result] } },
+    // Documented GenerateContentBatch resource: top-level state and output.
+    { name: "batches/saved-123", state: "BATCH_STATE_SUCCEEDED", output: { inlinedResponses: { inlinedResponses: [result] } } },
   ]) {
     globalThis.fetch = async () => new Response(JSON.stringify(body), { status: 200 });
     const record = await getGeminiBatch("key", "batches/saved-123");
