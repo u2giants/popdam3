@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { RepairUnavailableError, sameModelRepairCompletion, structuredBatchResult } from "./batch-result-repair.js";
+import { RepairNotAuthorizedError, RepairUnavailableError, sameModelRepairCompletion, structuredBatchResult } from "./batch-result-repair.js";
 import { chatCompletion, parseOpenRouterBatchResult, type ChatCompletionRequest } from "./openrouter.js";
 import { geminiGenerateContent } from "./gemini-batch.js";
 
@@ -48,7 +48,7 @@ test("an answer that still cannot be repaired fails with its reason", async () =
   await assert.rejects(structuredBatchResult({
     apiKey: "k", model: "m:batch", result: { content: "not json" }, toolName: "tag_asset", schema, validate,
     repair: { model: "m", completion: async () => ({ content: "still not json" }) },
-  }), /Unrepairable batch result: No parsable structured output; repair failed: No parsable JSON after repair/);
+  }), /Unrepairable batch result: No parsable structured output; repair failed: repaired output was not parsable JSON/);
   await assert.rejects(structuredBatchResult({
     apiKey: "k", model: "m:batch", result: { content: "" }, toolName: "tag_asset", schema, validate,
     repair: { model: "m", completion: async () => { throw new Error("must not be called"); } },
@@ -64,9 +64,13 @@ test("an answer that still cannot be repaired fails with its reason", async () =
 });
 
 test("repair infrastructure failures pause the apply instead of failing the item", async () => {
+  for (const status of [401, 402, 403]) {
+    await assert.rejects(structuredBatchResult({
+      apiKey: "k", model: "m:batch", result: { content: "bad" }, toolName: "tag_asset", schema, validate,
+      repair: { model: "m", completion: async () => { throw Object.assign(new Error(`OpenRouter ${status}`), { status }); } },
+    }), RepairNotAuthorizedError);
+  }
   for (const error of [
-    Object.assign(new Error("OpenRouter 401"), { status: 401 }),
-    Object.assign(new Error("OpenRouter 402"), { status: 402 }),
     Object.assign(new Error("OpenRouter 429"), { status: 429 }),
     Object.assign(new Error("OpenRouter 503"), { status: 503 }),
     new DOMException("timed out", "TimeoutError"),
@@ -108,4 +112,21 @@ test("direct Gemini repair calls generateContent on the same model and never a b
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("repair keeps the OpenRouter provider pin and records only fixed failure categories", async () => {
+  const requests: ChatCompletionRequest[] = [];
+  const pin = { order: ["pinned-provider"], allow_fallbacks: false } as ChatCompletionRequest["provider"];
+  await assert.rejects(structuredBatchResult({
+    apiKey: "k", model: "m:batch", result: { content: "{\"tags\":\"Licensed Hero Name\"}" }, toolName: "tag_asset",
+    schema,
+    validate: (value) => { throw new Error(`bad category ${String(value.tags)}`); },
+    provider: pin,
+    repair: { model: "m", completion: async (_key, request) => { requests.push(request); return { content: "{\"tags\":\"Licensed Hero Name\"}" }; } },
+  }), (error: unknown) => {
+    assert.match(String(error), /schema validation failed; repair failed: repaired output failed schema validation/);
+    assert.doesNotMatch(String(error), /Licensed Hero Name/);
+    return true;
+  });
+  assert.deepEqual(requests[0].provider, pin);
 });

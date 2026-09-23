@@ -136,11 +136,45 @@ export async function persistDefinitiveRejectionFailure(
 }
 
 /**
- * Fallback when the reset RPC is missing: fail the still-claimed operation on
- * the claim revision, carrying the stored external_job forward unchanged (the
- * database keeps its lease fields). Visible and terminal; never resubmits.
+ * Fail a still-claimed operation visibly on its current revision, carrying the
+ * stored external_job forward unchanged (the database keeps its lease fields).
+ * Terminal: the operation is never resubmitted automatically.
  */
-export async function failOperationWithoutResetContract(
+export async function failClaimedOperation(
+  rpc: RpcCall,
+  opKey: string,
+  claimedState: OpState,
+  revision: number,
+  reasonCode: string,
+  message: string,
+  now = () => new Date().toISOString(),
+): Promise<OpState> {
+  const { lease_token: _leaseToken, ...storedJob } = claimedState.external_job ?? ({} as NonNullable<OpState["external_job"]>);
+  const failedState: OpState = {
+    ...claimedState,
+    status: "failed",
+    interruption_reason_code: reasonCode,
+    error: message,
+    next_auto_resume_at: undefined,
+    external_job: claimedState.external_job ? storedJob as OpState["external_job"] : undefined,
+    updated_at: now(),
+  };
+  delete (failedState as { transient_prepared_batch?: unknown }).transient_prepared_batch;
+  const saved = await rpc("update_bulk_operation", {
+    p_op_key: opKey,
+    p_op_state: failedState,
+    p_only_if_status: "running",
+    p_expected_revision: revision,
+  });
+  if (saved.error) throw new Error(`Protected operation save failed: ${saved.error.message}`);
+  if (!isGuardedEnvelope(saved.data) || !(saved.data as BulkOperationWriteEnvelope).ok) {
+    throw new Error(`Protected ${reasonCode} failure save refused: ${isGuardedEnvelope(saved.data) ? saved.data.reason : "no proof"}`);
+  }
+  return failedState;
+}
+
+/** Fallback when the reset RPC is missing (PGRST202). */
+export function failOperationWithoutResetContract(
   rpc: RpcCall,
   opKey: string,
   claimedState: OpState,
@@ -148,25 +182,6 @@ export async function failOperationWithoutResetContract(
   rejection: DefinitiveBatchRejectionError,
   now = () => new Date().toISOString(),
 ): Promise<OpState> {
-  const { lease_token: _leaseToken, ...storedJob } = claimedState.external_job ?? ({} as NonNullable<OpState["external_job"]>);
-  const failedState: OpState = {
-    ...claimedState,
-    status: "failed",
-    interruption_reason_code: "reset_contract_unavailable",
-    error: `${new ResetContractUnavailableError().message} (${rejection.message})`,
-    next_auto_resume_at: undefined,
-    external_job: claimedState.external_job ? storedJob as OpState["external_job"] : undefined,
-    updated_at: now(),
-  };
-  const saved = await rpc("update_bulk_operation", {
-    p_op_key: opKey,
-    p_op_state: failedState,
-    p_only_if_status: "running",
-    p_expected_revision: claimRevision,
-  });
-  if (saved.error) throw new Error(`Protected operation save failed: ${saved.error.message}`);
-  if (!isGuardedEnvelope(saved.data) || !(saved.data as BulkOperationWriteEnvelope).ok) {
-    throw new Error(`Protected reset-unavailable failure save refused: ${isGuardedEnvelope(saved.data) ? saved.data.reason : "no proof"}`);
-  }
-  return failedState;
+  return failClaimedOperation(rpc, opKey, claimedState, claimRevision, "reset_contract_unavailable",
+    `${new ResetContractUnavailableError().message} (${rejection.message})`, now);
 }
