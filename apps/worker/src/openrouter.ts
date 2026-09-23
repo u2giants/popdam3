@@ -14,7 +14,7 @@
  */
 
 import { logger } from "./logger.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, providerValidationRejection } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
@@ -167,6 +167,7 @@ export async function submitPreparedOpenRouterBatch(apiKey: string, prepared: Pr
       method: "POST",
       headers: openRouterHeaders(apiKey),
       signal: AbortSignal.timeout(30_000),
+      redirect: "error",
       body: prepared.body,
     });
   } catch {
@@ -176,10 +177,13 @@ export async function submitPreparedOpenRouterBatch(apiKey: string, prepared: Pr
   try {
     text = await response.text();
   } catch {
-    if (response.ok) throw new AmbiguousBatchSubmissionError("OpenRouter");
-    throw new OpenRouterError(response.status, "provider response body unavailable");
+    throw new AmbiguousBatchSubmissionError("OpenRouter");
   }
-  if (!response.ok) throw new OpenRouterError(response.status, text);
+  if (!response.ok) {
+    const rejection = providerValidationRejection(response, OPENROUTER_BATCH_URL, "OpenRouter", text);
+    if (rejection) throw rejection;
+    throw new AmbiguousBatchSubmissionError("OpenRouter");
+  }
   let record: OpenRouterBatchRecord;
   try {
     record = unwrapBatchRecord(parseJsonRecord(text));

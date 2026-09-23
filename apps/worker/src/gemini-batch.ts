@@ -1,5 +1,5 @@
 import type { ChatCompletionRequest, ChatCompletionResult, OpenRouterBatchSubmission } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, providerValidationRejection } from "./batch-submission-error.js";
 
 const GEMINI_API_ROOT = "https://generativelanguage.googleapis.com/v1beta";
 const DIRECT_PREFIX = "google-direct/";
@@ -224,10 +224,11 @@ export async function prepareGeminiBatch(items: OpenRouterBatchSubmission[]): Pr
 
 export async function submitPreparedGeminiBatch(apiKey: string, prepared: PreparedGeminiBatch): Promise<GeminiBatchRecord> {
   const requestHeaders = headers(apiKey);
+  const endpoint = `${GEMINI_API_ROOT}/models/${encodeURIComponent(prepared.model)}:batchGenerateContent`;
   let response: Response;
   try {
-    response = await fetch(`${GEMINI_API_ROOT}/models/${encodeURIComponent(prepared.model)}:batchGenerateContent`, {
-      method: "POST", headers: requestHeaders, body: prepared.body, signal: AbortSignal.timeout(60_000),
+    response = await fetch(endpoint, {
+      method: "POST", headers: requestHeaders, body: prepared.body, signal: AbortSignal.timeout(60_000), redirect: "error",
     });
   } catch {
     throw new AmbiguousBatchSubmissionError("Gemini");
@@ -236,10 +237,13 @@ export async function submitPreparedGeminiBatch(apiKey: string, prepared: Prepar
   try {
     text = await response.text();
   } catch {
-    if (response.ok) throw new AmbiguousBatchSubmissionError("Gemini");
-    throw new GeminiBatchError(response.status, "provider request failed");
+    throw new AmbiguousBatchSubmissionError("Gemini");
   }
-  if (!response.ok) throw new GeminiBatchError(response.status, safeErrorMessage(text));
+  if (!response.ok) {
+    const rejection = providerValidationRejection(response, endpoint, "Gemini", text);
+    if (rejection) throw rejection;
+    throw new AmbiguousBatchSubmissionError("Gemini");
+  }
   let parsed: { name?: unknown };
   try {
     parsed = JSON.parse(text) as { name?: unknown };
