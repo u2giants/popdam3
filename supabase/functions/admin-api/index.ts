@@ -4,7 +4,7 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalString, requireString } from "../_shared/validators.ts";
-import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, isDirectGeminiBatchModelId, safeSecretFingerprint } from "../_shared/direct-batch-model.ts";
+import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, isDirectGeminiBatchModelId, safeSecretFingerprint, upsertConfigRowsAtomically } from "../_shared/direct-batch-model.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
@@ -376,12 +376,11 @@ async function handleSetConfig(
     }),
   );
 
-  // Parallel upserts — independent config keys don't conflict
-  const results = await Promise.all(
-    upserts.map((row) => db.from("admin_config").upsert(row)),
-  );
-  const failed = results.find((r) => r.error);
-  if (failed?.error) return err(`Failed to set config: ${failed.error.message}`, 500);
+  // One multi-row upsert is a single statement, so dependent keys (for
+  // example a Direct Gemini selection and its Google key) land together or
+  // not at all.
+  const saved = await upsertConfigRowsAtomically(db, upserts);
+  if (saved.error) return err(`Failed to set config: ${saved.error.message}`, 500);
 
   return json({ ok: true });
 }

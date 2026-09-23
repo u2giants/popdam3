@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
-import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint } from "../../supabase/functions/_shared/direct-batch-model";
+import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint, upsertConfigRowsAtomically } from "../../supabase/functions/_shared/direct-batch-model";
 
 describe("direct Gemini batch model scope", () => {
   const direct = "google-direct/gemini-3.8-flash:batch";
@@ -67,5 +67,15 @@ describe("direct Gemini batch model scope", () => {
     expect(preserveCatalogOnWarning(undefined, response.models, warning)).toEqual(response.models);
     expect(catalogWarningOf({ models: [] })).toBeNull();
     expect(catalogWarningOf({ catalog_warning: "  " })).toBeNull();
+  });
+
+  it("writes a Direct Gemini selection and its Google key in one statement, so a failure applies neither", async () => {
+    const calls: Array<Array<Record<string, unknown>>> = [];
+    const rows = [{ key: "AI_TASK_MODELS", value: { vision_tagging: direct } }, { key: "GOOGLE_AI_API_KEY", value: "k" }];
+    const failing = { from: () => ({ upsert: async (batch: Array<Record<string, unknown>>) => { calls.push(batch); return { error: { message: "boom" } }; } }) };
+    const result = await upsertConfigRowsAtomically(failing, rows);
+    expect(result.error?.message).toBe("boom");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].map((row) => row.key)).toEqual(["AI_TASK_MODELS", "GOOGLE_AI_API_KEY"]);
   });
 });
