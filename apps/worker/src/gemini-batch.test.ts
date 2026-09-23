@@ -10,7 +10,7 @@ import {
   toGeminiJsonSchema,
   type GeminiBatchResultItem,
 } from "./gemini-batch.js";
-import { indexBatchResults, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./handlers/ai-tagging-batch-state.js";
+import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./handlers/ai-tagging-batch-state.js";
 import type { ChatCompletionRequest } from "./openrouter.js";
 import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
 import { TAG_ASSET_SCHEMA } from "./handlers/ai-tagging-shared.js";
@@ -331,4 +331,15 @@ test("a missing key is a pre-POST failure and sends nothing", async () => {
     PreSubmissionError,
   );
   assert.equal(calls, 0);
+});
+
+test("a just-submitted Gemini batch that briefly 404s gets the visibility grace", async () => {
+  globalThis.fetch = async () => new Response("{}", { status: 404 });
+  const now = Date.now();
+  await assert.rejects(getGeminiBatch("key", "batches/new-1"), (error: unknown) => {
+    const status = (error as { status?: unknown }).status;
+    assert.equal(isNewBatchVisibilityDelay(status, new Date(now - 5_000).toISOString(), now), true);
+    assert.equal(isNewBatchVisibilityDelay(status, new Date(now - 600_000).toISOString(), now), false);
+    return true;
+  });
 });

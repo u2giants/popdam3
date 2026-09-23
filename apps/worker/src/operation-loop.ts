@@ -51,6 +51,19 @@ const submissionLeaseRetryAfter = new Map<string, number>();
 const preSubmissionRetries = new Map<string, number>();
 const MAX_PRE_SUBMISSION_RETRIES = 3;
 
+/** After any provider POST attempt, the receipt may never drive another POST. */
+export function releaseReceiptAfterPost(opKey: string, leaseExpiresAt: string | undefined): void {
+  preSubmissionRetries.delete(opKey);
+  submissionLeaseTokens.delete(opKey);
+  const leaseEnd = leaseExpiresAt ? new Date(leaseExpiresAt).getTime() : Number.NaN;
+  submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
+}
+
+/** True while this worker holds an in-memory receipt for the operation. */
+export function holdsSubmissionReceipt(opKey: string): boolean {
+  return submissionLeaseTokens.has(opKey);
+}
+
 /**
  * Keep the receipt after a failure that provably happened before any provider
  * request. Returns true while retries remain.
@@ -941,12 +954,20 @@ export async function tick(): Promise<void> {
         external_job: result.external_job as OpState["external_job"],
         updated_at: new Date().toISOString(),
       };
-      const saved = await guardedPersistOpState(opKey, submittedState, {
-        expectedRevision: claim.state_revision,
-      });
-      if (!saved.ok || saved.provider_batch_id !== submittedState.external_job?.provider_batch_id) {
-        throw new Error("The provider accepted the batch but its ID could not be safely saved");
+      let idSaved = false;
+      try {
+        const saved = await guardedPersistOpState(opKey, submittedState, {
+          expectedRevision: claim.state_revision,
+        });
+        idSaved = saved.ok && saved.provider_batch_id === submittedState.external_job?.provider_batch_id;
+      } finally {
+        if (!idSaved) {
+          // The POST happened. Never keep the receipt for a rebuild/resubmit:
+          // drop it so the lease lapses into the database's ambiguous state.
+          releaseReceiptAfterPost(opKey, claimedState.external_job?.lease_expires_at);
+        }
       }
+      if (!idSaved) throw new Error("The provider accepted the batch but its ID could not be safely saved");
       preSubmissionRetries.delete(opKey);
       if (result.done) submissionLeaseTokens.delete(opKey);
       logger.info("tick: durable provider batch saved", {

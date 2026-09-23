@@ -3,7 +3,8 @@ import { ProviderPollTransportError } from "../batch-submission-error.js";
 
 const BATCH_VISIBILITY_GRACE_MS = 120_000;
 
-export function isNewBatchVisibilityDelay(status: number, submittedAt: string | undefined, nowMs = Date.now()): boolean {
+/** A just-created batch may 404 briefly on either provider (OpenRouter or Gemini). */
+export function isNewBatchVisibilityDelay(status: unknown, submittedAt: string | undefined, nowMs = Date.now()): boolean {
   if (status !== 404 || !submittedAt) return false;
   const submittedMs = new Date(submittedAt).getTime();
   return Number.isFinite(submittedMs) && nowMs - submittedMs >= 0 && nowMs - submittedMs < BATCH_VISIBILITY_GRACE_MS;
