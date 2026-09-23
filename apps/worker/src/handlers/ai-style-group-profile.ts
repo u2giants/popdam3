@@ -55,7 +55,8 @@ import { indexBatchResults, isNewBatchVisibilityDelay, nextBatchAction } from ".
 import { getVisionModels } from "./ai-tagging.js";
 
 const AI_TIMEOUT_MS = 90_000;
-const DEFAULT_GROUP_PAGE_SIZE = 10;
+// Small pages keep progress flowing while Muse Contributor retries (10-minute stale guard).
+const DEFAULT_GROUP_PAGE_SIZE = 4;
 /** Hard ceiling on the ACTUAL downloaded thumbnail bytes for one group. */
 export const MAX_GROUP_IMAGE_BYTES = 12 * 1024 * 1024;
 /** No single thumbnail may consume more than this share of the group ceiling. */

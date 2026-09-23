@@ -30,7 +30,7 @@ export function isTerminalMetaModelApiError(error: unknown): boolean {
   if (!(error instanceof MetaModelApiError)) return false;
   const body = error.body.toLowerCase();
   return error.status === 401 || error.status === 403 || error.status === 429 || error.status >= 500 ||
-    /billing|credit|payment|region|content[_ -]?policy|safety|moderation|blocked|refusal/.test(body);
+    /billing|credit|payment|region|content[_ -]?policy|safety|moderation|blocked|refusal|muse contributor unavailable/.test(body);
 }
 
 function parseToolArguments(value: unknown): Record<string, unknown> {
