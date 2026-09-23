@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "work_issue": 2369,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Kill the two assigned guard mutants that still survive after PR #3186 (#2369 non-list artifacts refusal, #2370 empty allowlist entry refusal) with exact-message falsification tests, without weakening any refusal.",
+  "base_sha": "5653b760e445ff27264b82e42596c84afc101ee5",
+  "dispatcher": "Albert Hazan: In popcre/shared-db, continue the non-orchestrator sweep. First check why #2368/#2369/#2370 are still open after PR #3186 merged (merge 00593061) and close them properly if their proof passes.",
+  "worker": "Claude chat 92a42be3-3e86-48d4-976d-a33d0bdc6679",
+  "branch": "claude/2369-2370-surviving-guards",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/non-orchestrator-sweep-cont-22b565",
+  "allowed_paths": [".agent/work/2369/1/contract.json", ".agent/work/2369/1/completion.json", "scripts/test_production_apply_review_evidence.py", "scripts/test_production_migration_guard.py"],
+  "file_writes": [".agent/work/2369/1/contract.json", ".agent/work/2369/1/completion.json", "scripts/test_production_apply_review_evidence.py", "scripts/test_production_migration_guard.py"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["Do not weaken, remove, bypass, or replace any production refusal guard.", "Do not modify production code or database state."],
+  "required_checks": ["python -m unittest scripts.test_production_apply_review_evidence scripts.test_production_migration_guard"],
+  "assumptions": ["A post-merge mutation re-run on main 5653b760 killed 16 of the 18 assigned mutants; only select_artifact's non-list guard and parse_allowlist's empty-entry guard survived because existing tests accepted any refusal."],
+  "stop_conditions": ["Stop if a surviving guard requires changing production behavior rather than testing the existing refusal."],
+  "generation": 1
+}

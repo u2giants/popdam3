@@ -218,6 +218,11 @@ class GuardTests(unittest.TestCase):
         with self.assertRaisesRegex(GuardError, "preview-only historical restoration"):
             parse_allowlist("20260824150630")
 
+    def test_empty_allowlist_entries_require_the_exact_empty_refusal(self):
+        for raw in ("", " ", "20260907131728,", "20260907131728, ,20260907152838"):
+            with self.subTest(raw=raw), self.assertRaisesRegex(GuardError, "production allowlist is empty"):
+                parse_allowlist(raw)
+
     def test_issue_2509_historical_restoration_remains_production_eligible(self):
         self.assertEqual(parse_allowlist("20260907131728"), ["20260907131728"])
 

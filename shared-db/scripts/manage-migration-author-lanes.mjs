@@ -286,7 +286,7 @@ export const REVIEWERS = Object.freeze([
   { name:'muse-spark-1.2-contributor', provider:'muse', wrapper:'ai-muse', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-01', evidence:'historical label for the ai-muse wrapper; durable assignments and verdicts recorded before issue #2285 still resolve through this row' } },
   { name:'muse-spark-1.3-contributor', provider:'muse', wrapper:'ai-muse', readsRepository:true,
-    readsRepositoryVerified:{ date:'2026-09-08', evidence:'ai-devops/bin/ai-muse: sealed evidence-packet checkout; live issue #2285 qualification identified meta-model-api/muse-spark-1.3-contributor and cited the reviewed files' } },
+    readsRepositoryVerified:{ date:'2026-09-23', evidence:'ai-devops/bin/ai-muse muse-code engine (pinned Muse Code 1.3.0-R3233.1): sealed evidence-packet checkout; live native-engine qualification 2026-09-23 (popcre/ai-devops#542 D1) identified bare model muse-spark-1.3-contributor, cited tools/reviewer_usage.py and bin/ai-muse with line evidence, returned VERDICT: NO FINDINGS under REQUIRE_VERDICT, and retained non-null durable-store usage with a catalog-priced estimate' } },
   { name:'codex-gpt-5.6-sol', provider:'codex', wrapper:'ai-codex-review', orchestratorEngine:'codex', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-codex-review: codex exec --sandbox read-only over the sandbox copy' } },
   { name:'deepseek-chat', provider:'deepseek', wrapper:'ai-deepseek-agent', readsRepository:false,

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3442,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Cite the 2026-09-23 native muse-code qualification in the muse-spark-1.3-contributor reviewer evidence record",
+  "base_sha": "3a46121f865137ccef79ac3bc0463e993ebad495",
+  "dispatcher": "Claude orchestrator chat aa4791e3-535d-47ad-ac32-a4d0b9323273",
+  "worker": "Claude subagent chat aa4791e3-535d-47ad-ac32-a4d0b9323273",
+  "branch": "claude/542-d2-reviewers-muse-native-0923",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/adopt-3433-muse-native-aa47",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    ".agent/work/3442/1/contract.json",
+    ".agent/work/3442/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    ".agent/work/3442/1/contract.json",
+    ".agent/work/3442/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration edit, manual production command, or hand-edit of any claim fence",
+    "No change to reviewer rotation logic or membership"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "popcre/ai-devops#542 D1 comment records the native muse-code qualification cited"
+  ],
+  "stop_conditions": [
+    "Stop if the change touches anything beyond the evidence string"
+  ]
+}

@@ -203,6 +203,13 @@ class EvidenceTests(unittest.TestCase):
             with self.subTest(payload=payload), self.assertRaises(gate.EvidenceError):
                 gate.select_artifact(payload, RUN_ID)
 
+    def test_non_list_artifacts_require_the_exact_malformed_refusal(self):
+        for payload in ({"artifacts": {}}, {"artifacts": None}, {"artifacts": "x"}, {}, None, []):
+            with self.subTest(payload=payload), self.assertRaisesRegex(
+                gate.EvidenceError, "GitHub artifacts response is malformed"
+            ):
+                gate.select_artifact(payload, RUN_ID)
+
     def test_duplicate_keys_and_non_object_json_are_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             duplicate = Path(temp, "duplicate.zip")

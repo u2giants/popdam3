@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "work_issue": 3442,
+  "outcome": "ready-for-merge",
+  "pr": 3433,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3442/1",
+  "contract_sha256": "8aedadb95a8e9fe2fef1b1a7d9547dec0ded833de413d5f0892936dfb7370cd7",
+  "head_sha": "998b0a6d20ade1f35ab664469a4636e4b65efa98",
+  "base_sha": "c9204bef4dcba214e9a3cd716f765e8f9ede466e",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"evidence": "689 tests passed; 0 failed, cancelled, skipped, todo", "command": "node --test scripts/manage-migration-author-lanes.test.mjs", "exit_code": 0},
+    {"evidence": "truth audit OK: call_sites=317 sources=72 derived_digest=7e3f5cbfdef8", "command": "node scripts/check-throughput-truth-audit.mjs", "exit_code": 0},
+    {"evidence": "No whitespace errors", "command": "git diff --check", "exit_code": 0}
+  ],
+  "assumptions_resolved": [
+    "popcre/ai-devops#542 D1 comment confirms pinned 1.3.0-R3233.1, VERDICT: NO FINDINGS, non-null durable usage"
+  ],
+  "stop_conditions_hit": []
+}

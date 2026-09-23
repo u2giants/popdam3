@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 2369,
+  "outcome": "ready-for-merge",
+  "pr": 3435,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2369/1",
+  "contract_sha256": "16ca02acc7098f1d7dba5095641e2ed57106c83815e0e24a161c19833ca837a8",
+  "head_sha": "5cc9132e915ae290b0adcb819ecc2a197533a424",
+  "files_changed": [
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_migration_guard.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m unittest scripts.test_production_apply_review_evidence scripts.test_production_migration_guard",
+      "exit_code": 0,
+      "evidence": "307 tests passed at 5cc9132e915ae290b0adcb819ecc2a197533a424[:8]; a one-at-a-time disable of all 18 assigned guards from #2368/#2369/#2370 now fails the suite for every one."
+    }
+  ],
+  "assumptions_resolved": [
+    "Only the two named surviving mutants needed new tests; the other 16 were already killed on main.",
+    "Owner restricted reviewers for this sweep to Muse and Grok; review is drawn with that allowlist."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "5653b760e445ff27264b82e42596c84afc101ee5"
+}
