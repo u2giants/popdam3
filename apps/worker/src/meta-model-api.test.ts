@@ -102,3 +102,21 @@ test("retries intermittent model_not_found, then gives up with a named error", a
     globalThis.fetch = original;
   }
 });
+
+test("contributor calls are capped at two in flight within this worker", async () => {
+  const original = globalThis.fetch;
+  let inFlight = 0, peak = 0;
+  globalThis.fetch = async () => {
+    inFlight++; peak = Math.max(peak, inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    inFlight--;
+    return new Response(JSON.stringify({ status: "completed", output: [] }));
+  };
+  try {
+    const request = { model: "meta-direct/muse-spark-1.3-contributor", messages: [{ role: "user" as const, content: "x" }] };
+    await Promise.all([1, 2, 3, 4].map(() => metaChatCompletion("k", request)));
+    assert.equal(peak, 2);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

@@ -90,6 +90,27 @@ export function buildMetaResponsesBody(request: ChatCompletionRequest): Record<s
 // alternate 200 and an instant 404/503 with no rate-limit headers. Retry both.
 export const MODEL_NOT_FOUND_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000];
 
+// Contributor models enforce a small team-wide in-flight cap and report overflow
+// as 404/503 rather than 429 (measured 2026-09-23: 12 parallel -> 3 succeed).
+// The team is shared with other POP apps, so keep this worker's share small.
+const CONTRIBUTOR_MAX_IN_FLIGHT = Math.max(1, Number(process.env.META_CONTRIBUTOR_CONCURRENCY) || 2);
+let contributorInFlight = 0;
+const contributorWaiters: Array<() => void> = [];
+
+async function withContributorSlot<T>(model: string, run: () => Promise<T>): Promise<T> {
+  if (!metaModelId(model).endsWith("-contributor")) return run();
+  while (contributorInFlight >= CONTRIBUTOR_MAX_IN_FLIGHT) {
+    await new Promise<void>((resolve) => contributorWaiters.push(resolve));
+  }
+  contributorInFlight++;
+  try {
+    return await run();
+  } finally {
+    contributorInFlight--;
+    contributorWaiters.shift()?.();
+  }
+}
+
 function isTransientModelNotFound(status: number, body: string): boolean {
   return (status === 404 && body.includes("model_not_found")) || status === 503;
 }
@@ -105,13 +126,15 @@ export async function metaChatCompletion(
   let response: Response;
   let bodyText: string;
   for (let attempt = 0; ; attempt++) {
-    response = await fetch(META_RESPONSES_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(buildMetaResponsesBody(request)),
-      signal: AbortSignal.timeout(timeoutMs),
+    [response, bodyText] = await withContributorSlot(request.model, async () => {
+      const res = await fetch(META_RESPONSES_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(buildMetaResponsesBody(request)),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      return [res, await res.text()] as const;
     });
-    bodyText = await response.text();
     if (response.ok) break;
     if (!isTransientModelNotFound(response.status, bodyText) || attempt >= retryDelaysMs.length) {
       const note = isTransientModelNotFound(response.status, bodyText)
@@ -119,7 +142,8 @@ export async function metaChatCompletion(
         : "";
       throw new MetaModelApiError(response.status, bodyText + note);
     }
-    await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+    const delay = retryDelaysMs[attempt];
+    await new Promise((resolve) => setTimeout(resolve, delay + Math.random() * delay * 0.5));
   }
 
   const body = JSON.parse(bodyText) as {
