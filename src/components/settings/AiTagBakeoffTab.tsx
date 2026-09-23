@@ -330,7 +330,7 @@ export default function AiTagBakeoffTab() {
     try {
       const result = await refetchModels();
       if (result.error) throw result.error;
-      const count = (result.data ?? []).filter(supportsImageTaggingContract).length;
+      const count = (result.data?.models ?? []).filter(supportsImageTaggingContract).length;
       toast.success(`OpenRouter vision models refreshed (${count})`, { id: toastId });
     } catch (e) {
       toast.error(`Failed to refresh models: ${(e as Error).message}`, { id: toastId });

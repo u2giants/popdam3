@@ -1,5 +1,5 @@
 import type { ChatCompletionRequest, ChatCompletionResult, OpenRouterBatchSubmission } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, PreSubmissionError } from "./batch-submission-error.js";
 
 const GEMINI_API_ROOT = "https://generativelanguage.googleapis.com/v1beta";
 const DIRECT_PREFIX = "google-direct/";
@@ -223,6 +223,7 @@ export async function prepareGeminiBatch(items: OpenRouterBatchSubmission[]): Pr
 }
 
 export async function submitPreparedGeminiBatch(apiKey: string, prepared: PreparedGeminiBatch): Promise<GeminiBatchRecord> {
+  if (!apiKey) throw new PreSubmissionError("GOOGLE_AI_API_KEY is not configured");
   const requestHeaders = headers(apiKey);
   let response: Response;
   try {

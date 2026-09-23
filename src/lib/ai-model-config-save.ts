@@ -47,7 +47,8 @@ export async function saveAiModelConfig(
       throw new Error("Batch-only models (including Direct Gemini Batch) may only be selected as the primary Image Tagging model.");
     }
   }
-  if (expectedTaskModels.vision_tagging?.startsWith("google-direct/") && expectedTaskModels.vision_tagging.endsWith(":batch") && !draft.googleKey.trim()) {
+  const primaryVision = expectedTaskModels.vision_tagging?.trim() ?? "";
+  if (primaryVision.startsWith("google-direct/") && primaryVision.endsWith(":batch") && !draft.googleKey.trim()) {
     throw new Error("Save a Google AI API key before selecting Direct Gemini Batch.");
   }
   const entries: Record<string, unknown> = {

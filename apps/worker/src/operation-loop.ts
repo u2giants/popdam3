@@ -30,7 +30,7 @@ import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
-import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
 import { failOperationAfterDefinitiveRejection } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
@@ -45,6 +45,35 @@ const INTERRUPT_CHECK_EVERY = 10;
 const AUTO_RESUME_MAX_ATTEMPTS = 10;
 const submissionLeaseTokens = new Map<string, string>();
 const submissionLeaseRetryAfter = new Map<string, number>();
+// Pre-POST local failures while this worker holds a live receipt. The receipt
+// is kept and the lease renewed as the same owner; after this many attempts it
+// is released and the lease lapses into the database's ambiguous_submission.
+const preSubmissionRetries = new Map<string, number>();
+const MAX_PRE_SUBMISSION_RETRIES = 3;
+
+/**
+ * Keep the receipt after a failure that provably happened before any provider
+ * request. Returns true while retries remain.
+ */
+export function holdReceiptAfterPreSubmissionFailure(
+  opKey: string,
+  error: unknown,
+  leaseExpiresAt: string | undefined,
+): boolean {
+  const attempts = (preSubmissionRetries.get(opKey) ?? 0) + 1;
+  const message = normalizeBatchError(error, "Pre-submission failure without an error message").slice(0, 300);
+  if (attempts <= MAX_PRE_SUBMISSION_RETRIES) {
+    preSubmissionRetries.set(opKey, attempts);
+    logger.warn("tick: provider batch not sent; keeping the receipt and retrying after a same-owner lease renewal", { opKey, attempts, error: message });
+    return true;
+  }
+  preSubmissionRetries.delete(opKey);
+  submissionLeaseTokens.delete(opKey);
+  const leaseEnd = leaseExpiresAt ? new Date(leaseExpiresAt).getTime() : Number.NaN;
+  submissionLeaseRetryAfter.set(opKey, Number.isFinite(leaseEnd) ? leaseEnd + 250 : Date.now() + 120_000);
+  logger.error("tick: provider batch never sent after repeated local failures; releasing the receipt for database lease reconciliation", { opKey, error: message });
+  return false;
+}
 /** Yield after this many batches so the round-robin can serve other operations.
  *  Under the old 45s edge function, 5 was the max that fit safely. The persistent
  *  worker has no timeout, so 50 keeps ops running hot while still yielding often
@@ -756,6 +785,13 @@ export async function tick(): Promise<void> {
           : currentState.external_job,
       });
     } catch (e) {
+      const heldJob = currentState.external_job;
+      if (submissionLeaseTokens.has(opKey) && heldJob?.phase === "submitting" && !heldJob.provider_batch_id) {
+        // With a held receipt on an unbound submitting job, this dispatch only
+        // rebuilds the payload; no provider request was sent.
+        holdReceiptAfterPreSubmissionFailure(opKey, e, heldJob.lease_expires_at);
+        return;
+      }
       const errMsg = normalizeBatchError(e, "Dispatch failed without an error message");
       const reason = classifyError(errMsg);
       logger.error("tick: dispatch threw", { opKey, error: errMsg });
@@ -794,7 +830,15 @@ export async function tick(): Promise<void> {
         submissionOwner: owner,
         leaseSeconds: 120,
       });
-      if (!claim.ok || !claim.lease_receipt_issued || !claim.lease_token) {
+      // A same-owner renewal over our own live lease keeps the incumbent receipt
+      // (the database never re-mints it); only the worker that still holds that
+      // receipt in memory may continue with it.
+      const heldToken = submissionLeaseTokens.get(opKey);
+      const renewedHeldReceipt = Boolean(claim.ok && !claim.lease_receipt_issued && heldToken
+        && claim.submission_owner === owner && !claim.provider_batch_id
+        && currentState.external_job?.phase === "submitting");
+      const leaseToken = renewedHeldReceipt ? heldToken! : claim.lease_token;
+      if (!leaseToken || (!renewedHeldReceipt && (!claim.ok || !claim.lease_receipt_issued))) {
         const retryAt = claim.lease_expires_at ? new Date(claim.lease_expires_at).getTime() : Date.now() + 30_000;
         submissionLeaseRetryAfter.set(opKey, Number.isFinite(retryAt) ? retryAt + 250 : Date.now() + 30_000);
         logger.info("tick: submission lease was not issued to this worker", { opKey, reason: claim.reason });
@@ -802,17 +846,22 @@ export async function tick(): Promise<void> {
       }
       const claimedState = claim.operation as OpState;
       submissionLeaseRetryAfter.delete(opKey);
-      submissionLeaseTokens.set(opKey, claim.lease_token);
+      submissionLeaseTokens.set(opKey, leaseToken);
       try {
         result = await dispatch(opKey, {
           ...claimedState,
-          external_job: { ...claimedState.external_job!, lease_token: claim.lease_token ?? undefined },
+          external_job: { ...claimedState.external_job!, lease_token: leaseToken },
           // This payload was fully built before claiming the one-time receipt.
           // It exists only for this in-process dispatch and is never persisted.
           transient_prepared_batch: result.transient_prepared_batch,
         });
       } catch (error) {
+        if (error instanceof PreSubmissionError) {
+          holdReceiptAfterPreSubmissionFailure(opKey, error, claimedState.external_job?.lease_expires_at);
+          return;
+        }
         submissionLeaseTokens.delete(opKey);
+        preSubmissionRetries.delete(opKey);
         if (error instanceof DefinitiveBatchRejectionError) {
           // The provider itself parsed and refused the payload, so no batch
           // exists. Consume this receipt through the governed reset RPC, then
@@ -820,7 +869,7 @@ export async function tick(): Promise<void> {
           // both writes are revision- and receipt-guarded).
           const outcome = await failOperationAfterDefinitiveRejection(
             (fn, params) => db().rpc(fn, params),
-            { opKey, expectedRevision: claim.state_revision, submissionOwner: owner, leaseToken: claim.lease_token },
+            { opKey, expectedRevision: claim.state_revision, submissionOwner: owner, leaseToken },
             error,
           );
           await recordStyleGroupTerminalOutcome(opKey, outcome.state, "failed");
@@ -828,9 +877,9 @@ export async function tick(): Promise<void> {
           return;
         }
         // Everything else -- a timeout, disconnect, 5xx, any other status, an
-        // unparseable response, or a local error after the receipt was
-        // minted -- cannot prove the provider created nothing. Never reset
-        // the lease here.
+        // unparseable response, or an unexpected error that is not a proven
+        // pre-POST failure -- cannot prove the provider created nothing.
+        // Never reset the lease here.
         if (!(error instanceof AmbiguousBatchSubmissionError)) {
           logger.error("tick: provider submission failed after the receipt was minted; treating as ambiguous", {
             opKey,
@@ -883,6 +932,7 @@ export async function tick(): Promise<void> {
       if (!saved.ok || saved.provider_batch_id !== submittedState.external_job?.provider_batch_id) {
         throw new Error("The provider accepted the batch but its ID could not be safely saved");
       }
+      preSubmissionRetries.delete(opKey);
       if (result.done) submissionLeaseTokens.delete(opKey);
       logger.info("tick: durable provider batch saved", {
         opKey,

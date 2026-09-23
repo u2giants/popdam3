@@ -1,5 +1,8 @@
 export function isDirectGeminiBatchModelId(value: unknown): value is string {
-  return typeof value === "string" && value.startsWith("google-direct/") && value.endsWith(":batch");
+  // Trim like the worker does, so padding cannot bypass the Google-key check.
+  if (typeof value !== "string") return false;
+  const id = value.trim();
+  return id.startsWith("google-direct/") && id.endsWith(":batch");
 }
 
 /** Any provider's asynchronous `:batch` variant (OpenRouter or direct Gemini). */

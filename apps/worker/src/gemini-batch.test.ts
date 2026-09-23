@@ -12,7 +12,7 @@ import {
 } from "./gemini-batch.js";
 import { indexBatchResults, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./handlers/ai-tagging-batch-state.js";
 import type { ChatCompletionRequest } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
 import { TAG_ASSET_SCHEMA } from "./handlers/ai-tagging-shared.js";
 import { TAG_STYLE_GROUP_SCHEMA } from "./tag-style-group-contract.js";
 import { assertProviderSubmissionLeaseBudget, providerBatchPageLimit } from "./batch-provider.js";
@@ -314,4 +314,14 @@ test("temporary Gemini polling failures stay resumable on the same saved batch I
   // The saved ID is still the one polled after the delay.
   const action = nextBatchAction({ phase: "pending", provider_batch_id: "batches/saved-123", lease_token: "r", transient_poll_failures: 3, next_poll_at: "2000-01-01T00:00:00Z" });
   assert.deepEqual(action, { type: "poll", batchId: "batches/saved-123" });
+});
+
+test("a missing key is a pre-POST failure and sends nothing", async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response("{}"); };
+  await assert.rejects(
+    submitGeminiBatch("", [{ customId: "asset-1", request: request("data:image/jpeg;base64,AQID") }]),
+    PreSubmissionError,
+  );
+  assert.equal(calls, 0);
 });
