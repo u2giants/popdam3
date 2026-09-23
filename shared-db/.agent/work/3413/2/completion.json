@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 3413,
+  "pr": 3410,
+  "outcome": "ready-for-merge",
+  "base_sha": "c384c26cc7865419c37f6b1520028e1053f65c23",
+  "head_sha": "047707e1585764cebc7bd32dd78152982a7091d8",
+  "contract_ref": "refs/db-contracts/3413/2",
+  "contract_sha256": "81f7414cd2bcfac8b01c6f55d3e9227ca41a17a42e2bf259faa7889fc027a773",
+  "checks": [
+    {
+      "command": "node --test scripts/check-main-tip-freshness.test.mjs",
+      "exit_code": 0,
+      "evidence": "25 pass, 0 fail, 0 skipped at implementation head 047707e15."
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 pass, 0 fail, 0 skipped at implementation head 047707e15."
+    },
+    {
+      "command": "node --test --test-name-pattern=\"2758 merge lane|issue 1688 routes non-migration\" scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "3 pass, 0 fail, 0 skipped, including real independent-main acceptance and overlapping-main refusal, at implementation head 047707e15."
+    }
+  ],
+  "files_changed": [
+    "config/orchestrator-global-invalidators-v1.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "migration_versions": [],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [
+    "A real independent main movement granted the guarded merge lock",
+    "A real overlapping movement refused the guarded merge lock",
+    "The earlier-head reviewer assignment remains bound only to its old head"
+  ],
+  "stop_conditions_hit": []
+}

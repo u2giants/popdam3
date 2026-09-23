@@ -10,6 +10,7 @@
     "config/production-risk-policy-activation.json",
     "docs/agents/section-4-anti-collision-rules.md",
     "scripts/check-dispatch-collision.mjs",
+    "scripts/check-main-tip-freshness.mjs",
     "scripts/check-pr-object-collisions.mjs",
     "scripts/lib/open-pr-files.mjs",
     "scripts/db-coordination-events.mjs",

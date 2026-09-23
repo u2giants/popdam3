@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3413,
+  "generation": 2,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Prove PR #3410's merge-lane independent-main acceptance and overlap refusal through the actual lock path with real Git history",
+  "worker": "codex",
+  "dispatcher": "Codex orchestrator chat 01a0cb03-daa2-79d2-85fd-6a8904abfc53",
+  "branch": "codex/2758-merge-lane-independent-main",
+  "worktree": "C:/Users/ahazan/.codex/worktrees/shared-db-3410-repair-01a0cb03",
+  "base_sha": "c384c26cc7865419c37f6b1520028e1053f65c23",
+  "allowed_paths": [
+    "config/orchestrator-global-invalidators-v1.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions": [
+    "The independent-main code path must grant the lock for real disjoint Git history",
+    "Overlapping main changes must refuse the lock",
+    "An earlier-head reviewer assignment cannot authorize a new head"
+  ],
+  "required_checks": [
+    "node --test scripts/check-main-tip-freshness.test.mjs",
+    "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs",
+    "node --test --test-name-pattern=\"2758 merge lane|issue 1688 routes non-migration\" scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "stop_conditions": [
+    "PR #3410's remote head changes during this repair",
+    "The classifier's refusal cases would be weakened"
+  ],
+  "prohibited_actions": [
+    "No database changes",
+    "No administrative bypass of required checks",
+    "No change to the production or preview exact-tip rules"
+  ]
+}
