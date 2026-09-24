@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 3468,
+  "outcome": "ready-for-merge",
+  "pr": 3469,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3468/1",
+  "contract_sha256": "0a25f45a11fc7b3ebb637161c13dc172ec0a23191e102d500bc5eef54d6a3ccd",
+  "head_sha": "bd11f746353c9575beee498e736122d84b9eec6a",
+  "base_sha": "5b84d656640c4b08c63ed1268d4225f8a59f941b",
+  "files_changed": [
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "693 tests, 693 pass, 0 fail, 0 skipped at implementation head bd11f746353c9575beee498e736122d84b9eec6a (merged with main 5b84d656640c4b08c63ed1268d4225f8a59f941b)."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=317 sources=72 derived_digest=7e3f5cbfdef8"
+    }
+  ],
+  "assumptions_resolved": [
+    "run-governed-review already injects --governed-verdict for ai-deepseek-agent send --review; no runner change was needed.",
+    "The code edit was drafted before refs/db-contracts/3468/1 was published; the implementation commit follows the published ref.",
+    "Implementation was rebased from contract base bcf7d32fd130ca43859876e9c6c70c88207b549d onto current main before commit of evidence.",
+    "No database read, write, or production dispatch is claimed.",
+    "Muse governed review (assignment 3737) returned REVISE at 61e0b479 for stale pool-size comments, the checkout list, and roster wording; fixed at this head.",
+    "Refreshed onto main after #3441 and #3456 merged; the earlier APPROVE does not carry forward, so a fresh governed review is drawn at this head.",
+    "Grok governed review (assignment 3751, replacing failed Gemini 3749) returned REVISE at b7f0eb7c for deepseek-chat retirement wording, the reviewer checkout list, and a thin successor test; fixed at this head."
+  ],
+  "stop_conditions_hit": []
+}

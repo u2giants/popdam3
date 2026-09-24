@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3468,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add a new drawable reviewer row deepseek-v4.1-flash (ai-deepseek-agent --review with read-only repository tools since popcre/ai-devops PR #730) so the live pool is grok-4.6, qwen-3.8-max, muse-spark-1.3-contributor, gemini-3.8-flash-high and deepseek-v4.1-flash, keeping deepseek-chat retired",
+  "base_sha": "bcf7d32fd130ca43859876e9c6c70c88207b549d",
+  "dispatcher": "Claude chat 601e1c9b-1120-47d9-b5e3-773645980314 on edge-dev (owner request in chat 2026-09-23)",
+  "worker": "claude",
+  "branch": "claude/deepseek-flash-reviewer-4149613",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/deepseek-flash-4149613",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3468/1/contract.json",
+    ".agent/work/3468/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    ".agent/work/3468/1/contract.json",
+    ".agent/work/3468/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not remove deepseek-chat from REVIEWERS or RETIRED_REVIEWERS; durable verdicts naming it must keep resolving",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "run-governed-review already injects --governed-verdict for ai-deepseek-agent send --review, so no runner change is needed"
+  ],
+  "stop_conditions": [
+    "stop if a test fails for a reason unrelated to the reviewer roster",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ]
+}

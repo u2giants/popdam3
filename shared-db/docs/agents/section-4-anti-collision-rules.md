@@ -459,7 +459,8 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    slot independence still decide who is usable. It creates no concurrency cap.
 
    For new assignments, the machine-independent cursor rotates Grok 4.6 → Qwen
-   3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High → repeat,
+   3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High → DeepSeek
+   V4.1 Flash → repeat,
    skipping any reviewer whose engine matches the live orchestrator. GLM 5.3
    (paused 2026-09-18) and Kimi K3 (paused 2026-09-22, account out of credit,
    issue #3423) are not drawable until removed from `RETIRED_REVIEWERS`.
@@ -497,8 +498,17 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    `QUARANTINED_REVIEWERS` is empty. The retired `glm-5.2` label is paused until
    an explicit owner instruction restores it.
 
-   **DeepSeek was RETIRED on 2026-09-01 (issue #2078) and is not drawable.**
-   `ai-deepseek-agent` is a conversational API client with no filesystem, no
+   **DeepSeek V4.1 Flash (`deepseek-v4.1-flash`) is ACTIVE as of 2026-09-23**
+   (owner instruction, issue #3468). `ai-deepseek-agent --review` gained
+   read-only repository tools (`list_dir`, `read_file`, `grep`; ai-devops PR
+   #730), so its row carries `readsRepository: true`. Re-entry followed the
+   Gemini precedent: a live qualification and a live governed review of merged
+   commit `e2e41104` returning `VERDICT: REVISE e2e41104735a0c3e1981dabccbdc9089f109d970`
+   above a report citing specific lines.
+
+   **The text-only `deepseek-chat` row was RETIRED on 2026-09-01 (issue #2078)
+   and stays retired.** At that time
+   `ai-deepseek-agent` was a conversational API client with no filesystem, no
    diff and no tools, so it can only review a change as *described* in the
    brief, never as *written*. On PR #1989 it produced a complete, confidently
    ranked review of a file, five functions, two tables and two columns that do
@@ -506,9 +516,12 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    roster now records `readsRepository` per reviewer, and `recordReviewVerdict`
    refuses outright — before any commit or ref is created — to record a
    code-review verdict from a reviewer whose wrapper cannot read the repository.
-   Every drawable reviewer is given a real checkout: Grok via `--cwd`, GLM and
-   Muse via an `ai-review-sandbox` clone, Gemini via a disposable sandbox copy of
-   the checkout under `--sandbox`, and Kimi via a read-only agent profile. The
+   Every drawable reviewer is given a real checkout: Grok via `--cwd`, Muse via
+   an `ai-review-sandbox` clone (as is paused GLM), Qwen via a sealed
+   evidence-packet checkout, Gemini via a disposable sandbox copy of
+   the checkout under `--sandbox`, paused Kimi via a read-only agent profile, and
+   DeepSeek V4.1 Flash via `ai-deepseek-agent --review` read-only repository
+   tools (`list_dir`, `read_file`, `grep`) confined to the checkout root. The
    retired Codex reviewer was equipped the same way, via `codex exec --sandbox
    read-only`, but is no longer drawable.
 

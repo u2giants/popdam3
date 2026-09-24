@@ -258,8 +258,10 @@ export function isCommandSizeFailure(error){
 //   ai-muse           -- `ai-review-sandbox ensure-copy` clone plus an evidence packet;
 //                        its live doctor probe reads a file inside that directory.
 //   ai-codex-review   -- `codex exec --sandbox read-only` over the sandbox copy.
-//   ai-deepseek-agent -- HTTP conversation only. No filesystem, no diff, no tools.
-//                        The `--worktree` argument sets a spawn cwd it never uses.
+//   ai-deepseek-agent -- until 2026-09-23 an HTTP conversation only (the retired
+//                        'deepseek-chat' row). Since popcre/ai-devops PR #730 its
+//                        --review mode reads the exact-head snapshot through
+//                        read-only list_dir/read_file/grep tools ('deepseek-v4.1-flash').
 // A `false` entry can never record a code-review verdict; see recordReviewVerdict.
 //
 // THIS IS A HAND-MAINTAINED CROSS-REPOSITORY CLAIM, AND IT CAN ROT (#2079).
@@ -293,6 +295,11 @@ export const REVIEWERS = Object.freeze([
     readsRepositoryVerified:{ date:'2026-09-01', evidence:'ai-devops/bin/ai-deepseek-agent: HTTP chat completions only; --worktree sets a spawn cwd it never uses' } },
   { name:'gemini-3.8-flash-high', provider:'gemini', wrapper:'ai-gemini', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-06', evidence:'ai-devops/bin/ai-gemini: disposable sandbox copy of the checkout under --sandbox with a byte inventory; the live re-qualification review of merged commit 99fbefcb cited specific file lines from it' } },
+  // Appended 2026-09-23 (owner instruction "put DeepSeek back on the reviewer list").
+  // A NEW name, not an un-retirement: 'deepseek-chat' stays retired because its
+  // durable refs record reviews made without repository access (#2078).
+  { name:'deepseek-v4.1-flash', provider:'deepseek', wrapper:'ai-deepseek-agent', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-23', evidence:'ai-devops/bin/ai-deepseek-agent --review (PR #730 plus dd46fa46, model deepseek-flash): read-only list_dir/read_file/grep over the exact-head review snapshot, secret and .git paths refused, bounded loop; ai-review-preflight check deepseek --live PASSED and the live review of merged commit e2e41104 cited tools/ci/runner-router.cjs and verify.yml line numbers and ended VERDICT: REVISE e2e41104735a0c3e1981dabccbdc9089f109d970' } },
 ])
 // Keep REVIEWERS as the historical evidence registry. Paused providers remain
 // readable forever, but only ACTIVE_REVIEWERS can receive new work.
@@ -454,6 +461,10 @@ export const REVIEWERS = Object.freeze([
 // head. The same run could have said APPROVE and produced a green merge gate over
 // SQL no reviewer ever saw. Retirement is the correct disposition, not a pause:
 // no future wrapper version fixes a conversational API client having no checkout.
+// That verdict applies to the 'deepseek-chat' name and the wrapper's plain
+// conversation mode only. Since 2026-09-23 (#3468) 'deepseek-v4.1-flash' is the
+// drawable successor: the same wrapper in `--review` mode, which reads the
+// checkout through read-only repository tools.
 // Its historical name stays readable in REVIEWERS forever because durable refs
 // (`refs/db-review-assignments/1987-1989-2108fcd1...`) still name it.
 //
@@ -496,8 +507,9 @@ export const REVIEWERS = Object.freeze([
 // PAUSED 2026-09-22 (owner instruction, issue #3423): 'kimi-k3'.
 // The Kimi account has been out of credit and suspended since 2026-09-17, so
 // every draw that landed on it failed and left the PR "waiting for a reviewer"
-// until a replacement round. The owner confirmed the live pool is exactly four:
-// Grok, Qwen, Muse and Gemini (GLM stays paused above). This is a PAUSE, not a
+// until a replacement round. The owner then confirmed the live pool as Grok,
+// Qwen, Muse and Gemini (GLM stays paused above); DeepSeek V4.1 Flash joined it
+// on 2026-09-23 (issue #3468), so the live pool is five. This is a PAUSE, not a
 // retirement: restoring Kimi is a one-line deletion from this list once the
 // account has credit AND `AI_KIMI_CALLER=claude ai-kimi doctor` passes. Its
 // REVIEWERS row stays so every durable verdict it recorded still authorizes.
@@ -544,9 +556,10 @@ export function reviewerKnownNonReading(name, reviewers=REVIEWERS){
   return Boolean(row)&&row.readsRepository===false
 }
 
-// ACTIVE ROTATION EXPANSION (owner approval, 2026-08-28). Codex GPT-5.6 Sol and
-// DeepSeek were added as active rotation providers then. NEITHER IS ACTIVE NOW:
-// DeepSeek was retired for fabricated reviews, and Codex on 2026-09-06 for an
+// ACTIVE ROTATION EXPANSION (owner approval, 2026-08-28). 'codex-gpt-5.6-sol' and
+// 'deepseek-chat' were added as active rotation providers then. NEITHER NAME IS
+// ACTIVE NOW: 'deepseek-chat' was retired for fabricated reviews (DeepSeek itself
+// returned as 'deepseek-v4.1-flash' on 2026-09-23), and Codex on 2026-09-06 for an
 // exhausted account (see RETIRED_REVIEWERS above, which is the only roster that
 // decides this). No overflow provider remains. A provider with live reviews is
 // never "occupied": one reviewer may run any number of concurrent reviews

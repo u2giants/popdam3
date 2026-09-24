@@ -1445,8 +1445,9 @@ test('the active rotation is exactly the current models, in a stable order',()=>
   // weekly account-usage rotation; restoring it is a one-line deletion from
   // RETIRED_REVIEWERS and this assertion reverts with it.
   // kimi-k3 was paused again on 2026-09-22 (owner instruction): the account has
-  // been out of credit since 2026-09-17, and the live pool is exactly four.
-  assert.deepEqual(ACTIVE_REVIEWERS.map((r)=>r.name),['grok-4.6','qwen-3.8-max','muse-spark-1.3-contributor','gemini-3.8-flash-high'])
+  // been out of credit since 2026-09-17. With deepseek-v4.1-flash added on
+  // 2026-09-23 (issue #3468) the live pool is exactly five.
+  assert.deepEqual(ACTIVE_REVIEWERS.map((r)=>r.name),['grok-4.6','qwen-3.8-max','muse-spark-1.3-contributor','gemini-3.8-flash-high','deepseek-v4.1-flash'])
   assert.ok(RETIRED_REVIEWERS.includes('kimi-k3'),'kimi-k3 stays paused until its account has credit again')
   assert.equal(reviewerReadsRepository('kimi-k3'),true,'pausing the account must not invalidate the verdicts it already recorded')
   assert.ok(RETIRED_REVIEWERS.includes('glm-5.3'),'glm-5.3 stays paused until the owner rotates it back in')
@@ -2081,9 +2082,10 @@ test('released slot-2 replacement with slot-1 approval and a reinstated reviewer
   // The next rotation candidate is busy elsewhere, making the freshly
   // reinstated Grok record materially necessary to the successful draw.
   // (glm-5.3's 2026-09-18 and kimi-k3's 2026-09-22 pauses removed two names;
-  // qwen holds slot 1 and muse-1.3 already failed on this head, so only gemini
-  // needs a busy lease to force the wrap to the reinstated Grok.)
-  const busyReviewers=['gemini-3.8-flash-high']
+  // qwen holds slot 1 and muse-1.3 already failed on this head, so gemini and
+  // deepseek-v4.1-flash, appended 2026-09-23, need busy leases to force the wrap
+  // to the reinstated Grok.)
+  const busyReviewers=['gemini-3.8-flash-high','deepseek-v4.1-flash']
   for(const [index,name] of busyReviewers.entries()){
     const busySha=io.makeOwnerCommit(`db-coordination reviewer-lease generation=1 reviewer=${name} issue=9550 pr=${busyPr} head=${busyHead} sequence=${9550+index}`)
     io.refs.set(reviewActiveRef(name),busySha)
@@ -2593,7 +2595,7 @@ test('reviewer replacement rejects a mismatched original assignment',()=>{
 // is a false invariant, and it is deliberately not asserted here. Both halves are
 // pinned below, with the exact successor named in each case.
 test('one intervening assignment gives a failed reviewer a named replacement',()=>{
-  assert.equal(ACTIVE_REVIEWERS.length,4,'this test describes the approved four-reviewer rotation (glm-5.3 paused 2026-09-18; kimi-k3 paused 2026-09-22)')
+  assert.equal(ACTIVE_REVIEWERS.length,5,'this test describes the approved five-reviewer rotation (glm-5.3 paused 2026-09-18; kimi-k3 paused 2026-09-22; deepseek-v4.1-flash added 2026-09-23)')
   const io=failedReviewIo()
   assignNextReviewer({issue:10,pr:110,headSha:'abcdefa'},io)
   const replacement=replaceFailedReviewer(replacementRequest,io)
@@ -2601,7 +2603,7 @@ test('one intervening assignment gives a failed reviewer a named replacement',()
 })
 
 test('N-1 intervening assignments skip the failed provider instead of stranding the replacement',()=>{
-  assert.equal(ACTIVE_REVIEWERS.length,4,'this test describes the approved four-reviewer rotation (glm-5.3 paused 2026-09-18; kimi-k3 paused 2026-09-22)')
+  assert.equal(ACTIVE_REVIEWERS.length,5,'this test describes the approved five-reviewer rotation (glm-5.3 paused 2026-09-18; kimi-k3 paused 2026-09-22; deepseek-v4.1-flash added 2026-09-23)')
   const io=failedReviewIo()
   for(let n=0;n<ACTIVE_REVIEWERS.length-1;n+=1){
     assignNextReviewer({issue:20+n,pr:120+n,headSha:`abcde${n}f`},io)
@@ -2743,7 +2745,7 @@ test('review lease age is truthful for known and unknown commit dates',()=>{
 
 test('capacity report classifies free, live, stale, aged, and unknown leases without mutation',()=>{
   const io=reviewIo(),snapshot=new Map(),states=new Map(),now=new Date('2026-09-02T12:00:00Z')
-  // One case per active reviewer: four since kimi-k3 was paused on 2026-09-22 (was five after codex-gpt-5.6-sol was retired on
+  // One case per active reviewer: five since deepseek-v4.1-flash was added on 2026-09-23; four after kimi-k3 was paused on 2026-09-22 (was five after codex-gpt-5.6-sol was retired on
   // 2026-09-06, kimi-k3 was unpaused on 2026-09-07, qwen-3.8-max was
   // unquarantined on 2026-09-07 and glm-5.3 was paused on 2026-09-18. 'moved'
   // and 'verdict' both reach 'stale-reclaimable' but by different routes, and
@@ -2754,6 +2756,7 @@ test('capacity report classifies free, live, stale, aged, and unknown leases wit
     {kind:'verdict',date:'2026-09-02T10:00:00Z'},
     {kind:'aged',date:'2026-08-31T00:00:00Z'},
     {kind:'unknown',date:null},
+    {kind:'live',date:'2026-09-02T11:30:00Z'},
   ]
   const heads=new Map()
   cases.forEach((entry,index)=>{
@@ -2767,22 +2770,22 @@ test('capacity report classifies free, live, stale, aged, and unknown leases wit
   io.readActiveReviewLeases=()=>snapshot
   io.readReviewStates=()=>states
   const before=new Map(io.refs),report=reviewerCapacityReport(io,now)
-  assert.deepEqual(report.reviewers.map((row)=>row.classification),['live','stale-reclaimable','suspect-aged','unknown'])
-  assert.deepEqual(report.summary,{total:4,free:0,live:2,reclaimable:1,silenceProbed:0,silenceReclaimable:0,unknown:1})
+  assert.deepEqual(report.reviewers.map((row)=>row.classification),['live','stale-reclaimable','suspect-aged','unknown','live'])
+  assert.deepEqual(report.summary,{total:5,free:0,live:3,reclaimable:1,silenceProbed:0,silenceReclaimable:0,unknown:1})
   assert.deepEqual(io.refs,before,'capacity report must be read-only')
   // The OTHER route to 'stale-reclaimable': the reviewed head moved out from
   // under a lease this same pass just called live. No recorded verdict involved.
   const livePair=states.get(heads.get(0))
   states.set(heads.get(0),{...livePair,pr:{...livePair.pr,head:{sha:'f'.repeat(40)}}})
-  assert.deepEqual(reviewerCapacityReport(io,now).reviewers.map((row)=>row.classification),['stale-reclaimable','stale-reclaimable','suspect-aged','unknown'])
+  assert.deepEqual(reviewerCapacityReport(io,now).reviewers.map((row)=>row.classification),['stale-reclaimable','stale-reclaimable','suspect-aged','unknown','live'])
   states.set(heads.get(0),livePair)
   // 'free' is the fifth classification and it is a property of an ABSENT lease, so
   // it is proved by removing one rather than by needing a spare roster name.
   const freed=ACTIVE_REVIEWERS.at(-1).name
   snapshot.delete(reviewActiveRef(freed));io.refs.delete(reviewActiveRef(freed))
   const withFree=reviewerCapacityReport(io,now)
-  assert.deepEqual(withFree.reviewers.map((row)=>row.classification),['live','stale-reclaimable','suspect-aged','free'])
-  assert.deepEqual(withFree.summary,{total:4,free:1,live:2,reclaimable:1,silenceProbed:0,silenceReclaimable:0,unknown:0})
+  assert.deepEqual(withFree.reviewers.map((row)=>row.classification),['live','stale-reclaimable','suspect-aged','unknown','free'])
+  assert.deepEqual(withFree.summary,{total:5,free:1,live:2,reclaimable:1,silenceProbed:0,silenceReclaimable:0,unknown:1})
 })
 
 function silentLeaseIo({heldSince='2026-09-04T10:00:00Z',activity=[]}={}){
@@ -9826,6 +9829,20 @@ test('#3411 real Git: production refresh carries only unchanged approval after a
     git(['merge','-q','--squash','pr']); const squash=commit('squashed PR')
     assert.throws(() => mergedReviewComparisonBase({mergeCommitSha:squash,head,main:squash,gitRunner:git}),/second parent/,'a squash has no reviewed second parent')
   } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('deepseek-v4.1-flash is drawable and reads the repository while deepseek-chat stays retired',()=>{
+  const row=REVIEWERS.find((r)=>r.name==='deepseek-v4.1-flash')
+  assert.equal(row.wrapper,'ai-deepseek-agent')
+  assert.equal(row.provider,'deepseek')
+  assert.ok(!RETIRED_REVIEWERS.includes('deepseek-v4.1-flash'))
+  assert.ok(!QUARANTINED_REVIEWERS.includes('deepseek-v4.1-flash'))
+  assert.ok(!OVERFLOW_REVIEWERS.some((r)=>r.name==='deepseek-v4.1-flash'))
+  for(const engine of [null,'claude','codex'])assert.ok(reviewersForOrchestrator(engine).some((r)=>r.name==='deepseek-v4.1-flash'))
+  assert.equal(reviewerReadsRepository('deepseek-v4.1-flash'),true)
+  assert.ok(ACTIVE_REVIEWERS.some((r)=>r.name==='deepseek-v4.1-flash'))
+  assert.ok(RETIRED_REVIEWERS.includes('deepseek-chat'))
+  assert.equal(reviewerReadsRepository('deepseek-chat'),false)
 })
 
 test('#3130 slot-2 refusal never reports live leases as busy under per-review leases and names the real exclusion reason',()=>{
